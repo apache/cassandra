@@ -194,7 +194,7 @@ final class HintsWriteExecutor
         {
             HintsBuffer buffer = bufferPool.currentBuffer();
             buffer.waitForModifications();
-            stores.forEach(store -> flush(buffer.consumingHintsIterator(store.hostId), store, buffer));
+            stores.forEach(store -> flush(buffer.consumingHintsIterator(store.hostId), store));
         }
     }
 
@@ -216,59 +216,39 @@ final class HintsWriteExecutor
 
     private void flush(HintsBuffer buffer)
     {
-        buffer.hostIds().forEach(hostId -> flush(buffer.consumingHintsIterator(hostId), catalog.get(hostId), buffer));
+        buffer.hostIds().forEach(hostId -> flush(buffer.consumingHintsIterator(hostId), catalog.get(hostId)));
     }
 
-    private void flush(Iterator<ByteBuffer> iterator, HintsStore store, HintsBuffer buffer)
+    private void flush(Iterator<ByteBuffer> iterator, HintsStore store)
     {
-        while (true)
+        while (iterator.hasNext())
         {
-            if (iterator.hasNext())
-                flushInternal(iterator, store);
-
-            if (!iterator.hasNext())
-                break;
-
-            // exceeded the size limit for an individual file, but still have more to write
-            // close the current writer and continue flushing to a new one in the next iteration
-            try
-            {
+            // If we exceed the size limit for a hints file then close the current writer,
+            // if we still have more to write, we'll open a new file in the next iteration.
+            if (!flushInternal(iterator, store.getOrOpenWriter()))
                 store.closeWriter();
-            }
-            finally
-            {
-                /*
-                We remove the earliest hint for a respective hostId of the store from the buffer,
-                we are removing it specifically after we closed the store above in try block
-                so hints are persisted on disk before.
-
-                There is a periodic flushing of a buffer driven by hints_flush_period and clearing
-                this entry upon every flush would remove the information what is the earliest hint in the buffer
-                for a respective node prematurely.
-
-                Since this flushing method is called for every host id a buffer holds, we will eventually
-                remove all hostIds of the earliest hints of the buffer, and it will be added again as soon as there
-                is a new hint for that node to be delivered.
-                */
-                buffer.clearEarliestHintForHostId(store.hostId);
-            }
         }
     }
 
-    private void flushInternal(Iterator<ByteBuffer> iterator, HintsStore store)
+    /**
+     * @return {@code true} if we can keep writing to the file,
+     *      or {@code false} if we've exceeded max file size limit during writing
+     */
+    private boolean flushInternal(Iterator<ByteBuffer> iterator, HintsWriter writer)
     {
         long maxHintsFileSize = DatabaseDescriptor.getMaxHintsFileSize();
-
-        HintsWriter writer = store.getOrOpenWriter();
 
         try (HintsWriter.Session session = writer.newSession(writeBuffer))
         {
             while (iterator.hasNext())
             {
                 session.append(iterator.next());
+
                 if (session.position() >= maxHintsFileSize)
-                    break;
+                    return false;
             }
+
+            return true;
         }
         catch (IOException e)
         {

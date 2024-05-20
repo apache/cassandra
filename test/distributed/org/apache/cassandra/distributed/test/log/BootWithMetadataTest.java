@@ -32,6 +32,7 @@ import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.MetaStrategy;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.tcm.CMSOperations;
@@ -39,7 +40,6 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
-import org.apache.cassandra.tcm.ownership.EntireRange;
 import org.apache.cassandra.tcm.serialization.VerboseMetadataSerializer;
 
 import static org.apache.cassandra.distributed.shared.ClusterUtils.start;
@@ -103,8 +103,8 @@ public class BootWithMetadataTest extends TestBaseImpl
                 try
                 {
                     ClusterMetadata metadata = ClusterMetadata.current();
-                    Replica oldCMS = EntireRange.replica(InetAddressAndPort.getByNameUnchecked("127.0.0.1"));
-                    Replica newCMS = EntireRange.replica(InetAddressAndPort.getByNameUnchecked("127.0.0.2"));
+                    Replica oldCMS = MetaStrategy.replica(InetAddressAndPort.getByNameUnchecked("127.0.0.1"));
+                    Replica newCMS = MetaStrategy.replica(InetAddressAndPort.getByNameUnchecked("127.0.0.2"));
                     ClusterMetadata.Transformer transformer = metadata.transformer();
                     DataPlacement.Builder builder = metadata.placements.get(ReplicationParams.meta(metadata)).unbuild()
                                                                        .withoutReadReplica(metadata.nextEpoch(), oldCMS)

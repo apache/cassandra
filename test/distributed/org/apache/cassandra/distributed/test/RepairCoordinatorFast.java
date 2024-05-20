@@ -40,6 +40,7 @@ import org.apache.cassandra.service.StorageService;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.distributed.api.IMessageFilters.Matcher.of;
+import static org.apache.cassandra.distributed.test.DistributedRepairUtils.assertNoSSTableLeak;
 import static org.apache.cassandra.distributed.test.DistributedRepairUtils.assertParentRepairFailedWithMessageContains;
 import static org.apache.cassandra.distributed.test.DistributedRepairUtils.assertParentRepairNotExist;
 import static org.apache.cassandra.distributed.test.DistributedRepairUtils.assertParentRepairSuccess;
@@ -84,6 +85,7 @@ public abstract class RepairCoordinatorFast extends RepairCoordinatorBase
             }
 
             Assert.assertEquals(repairExceptions, getRepairExceptions(CLUSTER, 2));
+            assertNoSSTableLeak(CLUSTER, KEYSPACE, table);
         });
     }
 
@@ -400,6 +402,7 @@ public abstract class RepairCoordinatorFast extends RepairCoordinatorBase
                 {
                     assertParentRepairNotExist(CLUSTER, KEYSPACE, table);
                 }
+                assertNoSSTableLeak(CLUSTER, KEYSPACE, table);
             }
             finally
             {

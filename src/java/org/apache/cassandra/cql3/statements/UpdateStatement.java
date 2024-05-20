@@ -168,7 +168,7 @@ public class UpdateStatement extends ModificationStatement
 
                 if (def.isPrimaryKeyColumn())
                 {
-                    whereClause.add(new SingleColumnRelation(columnNames.get(i), Operator.EQ, value));
+                    whereClause.add(Relation.singleColumn(columnNames.get(i), Operator.EQ, value));
                 }
                 else
                 {
@@ -239,7 +239,7 @@ public class UpdateStatement extends ModificationStatement
                 Term.Raw raw = prepared.getRawTermForColumn(def, defaultUnset);
                 if (def.isPrimaryKeyColumn())
                 {
-                    whereClause.add(new SingleColumnRelation(def.name, Operator.EQ, raw));
+                    whereClause.add(Relation.singleColumn(def.name, Operator.EQ, raw));
                 }
                 else
                 {

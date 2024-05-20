@@ -35,6 +35,7 @@ import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.Test;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.cache.AutoSavingCache;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
@@ -78,7 +79,7 @@ public class ActiveCompactionsTest extends CQLTester
 
         ExecutorService es = Executors.newFixedThreadPool(2);
 
-        final int loopCount = 5000;
+        final int loopCount = 3500;
         for (int ii = 0; ii < loopCount; ii++)
         {
             CountDownLatch trigger = new CountDownLatch(1);
@@ -108,6 +109,7 @@ public class ActiveCompactionsTest extends CQLTester
     @Test
     public void testSecondaryIndexTracking() throws Throwable
     {
+        Util.assumeLegacySecondaryIndex();
         createTable("CREATE TABLE %s (pk int, ck int, a int, b int, PRIMARY KEY (pk, ck))");
         String idxName = createIndex("CREATE INDEX on %s(a)");
         getCurrentColumnFamilyStore().disableAutoCompaction();

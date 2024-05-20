@@ -59,9 +59,7 @@ public class AtomicLongBackedProcessor extends AbstractLocalProcessor
     }
 
     @Override
-    protected boolean tryCommitOne(Entry.Id entryId, Transformation transform,
-                                   Epoch previousEpoch, Epoch nextEpoch,
-                                   long previousPeriod, long nextPeriod, boolean sealPeriod)
+    protected boolean tryCommitOne(Entry.Id entryId, Transformation transform, Epoch previousEpoch, Epoch nextEpoch)
     {
         if (epochHolder.get() == 0)
         {
@@ -90,7 +88,7 @@ public class AtomicLongBackedProcessor extends AbstractLocalProcessor
         }
 
         @Override
-        public synchronized void append(long period, Entry entry)
+        public synchronized void append(Entry entry)
         {
             boolean needsSorting = entries.isEmpty() ? false : entry.epoch.isDirectlyAfter(entries.get(entries.size() - 1).epoch);
             entries.add(entry);
@@ -99,18 +97,19 @@ public class AtomicLongBackedProcessor extends AbstractLocalProcessor
         }
 
         @Override
-        public synchronized LogState getLogState(long currentPeriod, Epoch since)
+        public synchronized LogState getLogState(Epoch startEpoch)
         {
             ImmutableList.Builder<Entry> builder = ImmutableList.builder();
             ClusterMetadata latest = metadataSnapshots.getLatestSnapshot();
-            Epoch actualSince = latest != null && latest.epoch.isAfter(since) ? latest.epoch : since;
+            Epoch actualSince = latest != null && latest.epoch.isAfter(startEpoch) ? latest.epoch : startEpoch;
             entries.stream().filter(e -> e.epoch.isAfter(actualSince)).forEach(builder::add);
             return new LogState(latest, builder.build());
         }
+
         @Override
         public synchronized LogState getPersistedLogState()
         {
-            return getLogState(0, Epoch.EMPTY);
+            return getLogState(Epoch.EMPTY);
         }
 
         public synchronized LogState getLogStateBetween(ClusterMetadata base, Epoch end)
@@ -127,7 +126,7 @@ public class AtomicLongBackedProcessor extends AbstractLocalProcessor
         }
 
         @Override
-        public synchronized EntryHolder getEntries(long period, Epoch since)
+        public synchronized EntryHolder getEntries(Epoch since)
         {
             throw new IllegalStateException("We have overridden all callers of this method, it should never be called");
         }
@@ -161,6 +160,14 @@ public class AtomicLongBackedProcessor extends AbstractLocalProcessor
             if (snapshots.isEmpty())
                 return null;
             return snapshots.lastEntry().getValue();
+        }
+
+        @Override
+        public List<Epoch> listSnapshotsSince(Epoch epoch)
+        {
+            List<Epoch> epochs = new ArrayList<>();
+            snapshots.tailMap(epoch).forEach((e, s) -> epochs.add(e));
+            return epochs;
         }
 
         @Override

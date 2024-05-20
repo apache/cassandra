@@ -47,7 +47,7 @@ import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.ownership.PlacementDeltas;
-import org.apache.cassandra.tcm.ownership.PlacementForRange;
+import org.apache.cassandra.tcm.ownership.ReplicaGroups;
 import org.apache.cassandra.tcm.transformations.PrepareJoin;
 import org.apache.cassandra.tcm.transformations.PrepareLeave;
 import org.apache.cassandra.tcm.transformations.PrepareReplace;
@@ -321,19 +321,19 @@ public class InProgressSequenceCancellationTest
 
         first.asMap().forEach((params, placement) -> {
             DataPlacement otherPlacement = second.get(params);
-            PlacementForRange r1 = placement.reads;
-            PlacementForRange r2 = otherPlacement.reads;
-            assertEquals(r1.replicaGroups().keySet(), r2.replicaGroups().keySet());
-            r1.replicaGroups().forEach((range, e1) -> {
+            ReplicaGroups r1 = placement.reads;
+            ReplicaGroups r2 = otherPlacement.reads;
+            assertEquals(r1.ranges, r2.ranges);
+            r1.forEach((range, e1) -> {
                 EndpointsForRange e2 = r2.forRange(range).get();
                 assertEquals(e1.size(),e2.size());
                 assertTrue(e1.get().stream().allMatch(e2::contains));
             });
 
-            PlacementForRange w1 = placement.reads;
-            PlacementForRange w2 = otherPlacement.reads;
-            assertEquals(w1.replicaGroups().keySet(), w2.replicaGroups().keySet());
-            w1.replicaGroups().forEach((range, e1) -> {
+            ReplicaGroups w1 = placement.reads;
+            ReplicaGroups w2 = otherPlacement.reads;
+            assertEquals(w1.ranges, w2.ranges);
+            w1.forEach((range, e1) -> {
                 EndpointsForRange e2 = w2.forRange(range).get();
                 assertEquals(e1.size(),e2.size());
                 assertTrue(e1.get().stream().allMatch(e2::contains));

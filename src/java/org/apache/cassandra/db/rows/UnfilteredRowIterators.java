@@ -66,7 +66,7 @@ public abstract class UnfilteredRowIterators
          * @param versions the partition level deletion for the sources of the merge. Elements of the array will never
          * be null, but be "live".
          **/
-        public void onMergedPartitionLevelDeletion(DeletionTime mergedDeletion, DeletionTime[] versions);
+        void onMergedPartitionLevelDeletion(DeletionTime mergedDeletion, DeletionTime[] versions);
 
         /**
          * Called once for every row participating in the merge.
@@ -76,16 +76,12 @@ public abstract class UnfilteredRowIterators
          * that is shadowed by another source range tombstone or partition level deletion).
          *
          * @param merged the result of the merge. This cannot be {@code null} (so that listener can always access the
-         * clustering from this safely)but can be empty, in which case this is a placeholder for when at least one
+         * clustering from this safely) but can be empty, in which case this is a placeholder for when at least one
          * source has a row, but that row is shadowed in the merged output.
          * @param versions for each source, the row in that source corresponding to {@code merged}. This can be
          * {@code null} for some sources if the source has not such row.
-         * @return the row to use as result of the merge (can be {@code null}). Most implementations should simply
-         * return {@code merged}, but this allows some implementations to impact the merge result if necessary. If this
-         * returns either {@code null} or an empty row, then the row is skipped from the merge result. If this returns a
-         * non {@code null} result, then the returned row <b>must</b> have the same clustering than {@code merged}.
          */
-        public Row onMergedRows(Row merged, Row[] versions);
+        void onMergedRows(Row merged, Row[] versions);
 
         /**
          * Called once for every range tombstone marker participating in the merge.
@@ -108,7 +104,7 @@ public abstract class UnfilteredRowIterators
         {
             public void onMergedPartitionLevelDeletion(DeletionTime mergedDeletion, DeletionTime[] versions) {}
 
-            public Row onMergedRows(Row merged, Row[] versions) {return merged;}
+            public void onMergedRows(Row merged, Row[] versions) {}
 
             public void onMergedRangeTombstoneMarkers(RangeTombstoneMarker merged, RangeTombstoneMarker[] versions) {}
 
@@ -503,12 +499,9 @@ public abstract class UnfilteredRowIterators
             Row merged = merger.merge(partitionDeletion);
             if (merged == null)
                 merged = Rows.EMPTY_STATIC_ROW;
-            if (listener == null)
-                return merged;
-
-            merged = listener.onMergedRows(merged, merger.mergedRows());
-            // Note that onMergedRows can have returned null even though his input wasn't null
-            return merged == null ? Rows.EMPTY_STATIC_ROW : merged;
+            if (listener != null)
+                listener.onMergedRows(merged, merger.mergedRows());
+            return merged;
         }
 
         private static RegularAndStaticColumns collectColumns(List<UnfilteredRowIterator> iterators)
@@ -584,15 +577,9 @@ public abstract class UnfilteredRowIterators
                 if (nextKind == Unfiltered.Kind.ROW)
                 {
                     Row merged = rowMerger.merge(markerMerger.activeDeletion());
-                    if (listener == null)
-                        return merged;
-
-                    merged = listener.onMergedRows(merged == null
-                                                   ? BTreeRow.emptyRow(rowMerger.mergedClustering())
-                                                   : merged,
-                                                   rowMerger.mergedRows());
-
-                    return merged == null || merged.isEmpty() ? null : merged;
+                    if (listener != null)
+                        listener.onMergedRows(merged == null ? BTreeRow.emptyRow(rowMerger.mergedClustering()) : merged, rowMerger.mergedRows());
+                    return merged;
                 }
                 else
                 {

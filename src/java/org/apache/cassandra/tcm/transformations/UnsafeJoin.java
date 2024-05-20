@@ -20,15 +20,13 @@ package org.apache.cassandra.tcm.transformations;
 
 import java.util.Set;
 
-import com.google.common.collect.ImmutableSet;
-
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
-import org.apache.cassandra.tcm.Epoch;
-import org.apache.cassandra.tcm.MetadataKey;
 import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.ownership.PlacementProvider;
+import org.apache.cassandra.tcm.ownership.PlacementTransitionPlan;
 import org.apache.cassandra.tcm.sequences.BootstrapAndJoin;
 import org.apache.cassandra.tcm.sequences.LockedRanges;
 
@@ -73,30 +71,12 @@ public class UnsafeJoin extends PrepareJoin
         if (result.isRejected())
             return result;
 
-        Success success = result.success();
-        ClusterMetadata metadata = success.metadata;
-        Epoch forceEpoch = metadata.epoch;
-        metadata = success.metadata.forceEpoch(prev.epoch);
-
+        ClusterMetadata metadata = result.success().metadata.forceEpoch(prev.epoch);
         BootstrapAndJoin plan = (BootstrapAndJoin) metadata.inProgressSequences.get(nodeId());
-
-        ImmutableSet.Builder<MetadataKey> modifiedKeys = ImmutableSet.builder();
-
-        success = plan.startJoin.execute(metadata).success();
-        metadata = success.metadata.forceEpoch(prev.epoch);
-        modifiedKeys.addAll(success.affectedMetadata);
-
-        success = plan.midJoin.execute(metadata).success();
-        metadata = success.metadata.forceEpoch(prev.epoch);
-        modifiedKeys.addAll(success.affectedMetadata);
-
-        success = plan.finishJoin.execute(metadata).success();
-        metadata = success.metadata;
-        modifiedKeys.addAll(success.affectedMetadata);
-
-        assert metadata.epoch.is(forceEpoch) : String.format("Epoch should have been %s but was %s", forceEpoch, metadata.epoch);
-
-        return new Success(metadata, LockedRanges.AffectedRanges.EMPTY, modifiedKeys.build());
+        Result res = plan.applyTo(metadata);
+        metadata = res.success().metadata;
+        assert metadata.epoch.isDirectlyAfter(prev.epoch);
+        return new Success(metadata, LockedRanges.AffectedRanges.EMPTY, res.success().affectedMetadata);
     }
 
     public static void unsafeJoin(NodeId nodeId, Set<Token> tokens)
@@ -104,4 +84,7 @@ public class UnsafeJoin extends PrepareJoin
         UnsafeJoin join = new UnsafeJoin(nodeId, tokens, ClusterMetadataService.instance().placementProvider());
         ClusterMetadataService.instance().commit(join);
     }
+
+    @Override
+    void assertPreExistingWriteReplica(DataPlacements placements, PlacementTransitionPlan transitionPlan) {}
 }

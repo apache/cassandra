@@ -25,6 +25,7 @@ import java.util.Arrays;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
@@ -47,6 +48,7 @@ public class SelectOrderedPartitionerTest extends CQLTester
     @Test
     public void testTokenAndIndex() throws Throwable
     {
+        Util.assumeLegacySecondaryIndex();
         createTable("CREATE TABLE %s (a int, b int, c int, d int, PRIMARY KEY (a, b, c))");
         createIndex("CREATE INDEX ON %s(c)");
 
@@ -86,6 +88,7 @@ public class SelectOrderedPartitionerTest extends CQLTester
     @Test
     public void testFilteringOnPartitionKeyWithToken() throws Throwable
     {
+        Util.assumeLegacySecondaryIndex();
         createTable("CREATE TABLE %s (a int, b int, c int, d int, PRIMARY KEY ((a, b), c))");
         createIndex("CREATE INDEX ON %s(d)");
 
@@ -158,7 +161,7 @@ public class SelectOrderedPartitionerTest extends CQLTester
                              "SELECT * FROM %s WHERE token(a, b) >= token(?, ?)", "b", 0);
         assertInvalidMessage("More than one restriction was found for the start bound on a",
                              "SELECT * FROM %s WHERE token(a) >= token(?) and token(a) >= token(?)", 0, 1);
-        assertInvalidMessage("Columns \"a\" cannot be restricted by both an equality and an inequality relation",
+        assertInvalidMessage("a cannot be restricted by more than one relation if it includes an Equal",
                              "SELECT * FROM %s WHERE token(a) >= token(?) and token(a) = token(?)", 0, 1);
         assertInvalidSyntax("SELECT * FROM %s WHERE token(a) = token(?) and token(a) IN (token(?))", 0, 1);
 
@@ -166,7 +169,7 @@ public class SelectOrderedPartitionerTest extends CQLTester
                              "SELECT * FROM %s WHERE token(a) > token(?) AND token(a) > token(?)", 1, 2);
         assertInvalidMessage("More than one restriction was found for the end bound on a",
                              "SELECT * FROM %s WHERE token(a) <= token(?) AND token(a) < token(?)", 1, 2);
-        assertInvalidMessage("Columns \"a\" cannot be restricted by both an equality and an inequality relation",
+        assertInvalidMessage("a cannot be restricted by more than one relation if it includes an Equal",
                              "SELECT * FROM %s WHERE token(a) > token(?) AND token(a) = token(?)", 1, 2);
         assertInvalidMessage("a cannot be restricted by more than one relation if it includes an Equal",
                              "SELECT * FROM %s WHERE  token(a) = token(?) AND token(a) > token(?)", 1, 2);
@@ -191,9 +194,7 @@ public class SelectOrderedPartitionerTest extends CQLTester
         assertRows(execute("SELECT * FROM %s WHERE token(a, b) > token(?, ?)", 0, "a"),
                    row(0, "b"),
                    row(0, "c"));
-        assertRows(execute("SELECT * FROM %s WHERE token(a, b) > token(?, ?) and token(a, b) < token(?, ?)",
-                           0, "a",
-                           0, "d"),
+        assertRows(execute("SELECT * FROM %s WHERE token(a, b) > token(?, ?) and token(a, b) < token(?, ?)", 0, "a", 0, "d"),
                    row(0, "b"),
                    row(0, "c"));
         assertInvalidMessage("The token() function must be applied to all partition key components or none of them",
@@ -219,6 +220,17 @@ public class SelectOrderedPartitionerTest extends CQLTester
         execute("INSERT INTO %s (a, b) VALUES (2, 2);");
         execute("INSERT INTO %s (a, b) VALUES (3, 3);");
         execute("INSERT INTO %s (a, b) VALUES (4, 4);");
+
+        assertRows(execute("SELECT * FROM %s WHERE token(a) > token(?);", 1),
+                   row(2, 2),
+                   row(3, 3),
+                   row(4, 4));
+        assertRows(execute("SELECT * FROM %s WHERE token(a) < token(?);", 1),
+                   row(0, 0));
+        assertRows(execute("SELECT * FROM %s WHERE token(a) >= token(?) AND token(a) <= token(?);",1, 1),
+                   row(1, 1));
+        assertRows(execute("SELECT * FROM %s WHERE token(a) > token(?) AND token(a) < token(?);",1, 1));
+
         assertRows(execute("SELECT * FROM %s WHERE a IN (?, ?);", 1, 3),
                    row(1, 1),
                    row(3, 3));
@@ -230,9 +242,10 @@ public class SelectOrderedPartitionerTest extends CQLTester
         assertRows(execute("SELECT * FROM %s WHERE token(a) > token(?) AND token(a) <= token(?) AND a IN (?, ?);",
                            1, 3, 1, 3),
                    row(3, 3));
+        assertRows(execute("SELECT * FROM %s WHERE token(a) < token(?) AND token(a) >= token(?);",
+                           1, 3));
         assertRows(execute("SELECT * FROM %s WHERE token(a) < token(?) AND token(a) >= token(?) AND a IN (?, ?);",
-                           1, 3, 1, 3),
-                   row(3, 3));
+                           1, 3, 1, 3));
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE token(a) > token(?) AND token(a) <= token(?) AND a > ?;", 1, 3, 1);
 
@@ -316,6 +329,7 @@ public class SelectOrderedPartitionerTest extends CQLTester
     @Test
     public void testMultiColumnPartitionKeyWithIndexAndTokenNonTokenRestrictionsMix() throws Throwable
     {
+        Util.assumeLegacySecondaryIndex();
         createTable("CREATE TABLE %s (a int, b int, c int, primary key((a, b)))");
         createIndex("CREATE INDEX ON %s(b)");
         createIndex("CREATE INDEX ON %s(c)");
@@ -402,6 +416,7 @@ public class SelectOrderedPartitionerTest extends CQLTester
     @Test
     public void testCompositeIndexWithPK() throws Throwable
     {
+        Util.assumeLegacySecondaryIndex();
         createTable("CREATE TABLE %s (blog_id int, time1 int, time2 int, author text, content text, PRIMARY KEY (blog_id, time1, time2))");
 
         createIndex("CREATE INDEX ON %s(author)");
@@ -533,6 +548,7 @@ public class SelectOrderedPartitionerTest extends CQLTester
     @Test
     public void testIndexOnCompositeWithCollections() throws Throwable
     {
+        Util.assumeLegacySecondaryIndex();
         createTable("CREATE TABLE %s (blog_id int, time1 int, time2 int, author text, content set<text>, PRIMARY KEY (blog_id, time1, time2))");
 
         createIndex("CREATE INDEX ON %s (author)");

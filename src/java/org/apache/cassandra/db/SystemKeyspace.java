@@ -50,7 +50,6 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.SetMultimap;
 import com.google.common.collect.Sets;
-import com.google.common.io.ByteStreams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -62,7 +61,6 @@ import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.compaction.CompactionHistoryTabularData;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.LongType;
-import org.apache.cassandra.db.marshal.ReversedType;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.db.marshal.TupleType;
 import org.apache.cassandra.db.marshal.UTF8Type;
@@ -86,6 +84,7 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.RebufferingInputStream;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.MetaStrategy;
 import org.apache.cassandra.metrics.RestorableMeter;
 import org.apache.cassandra.metrics.TopPartitionTracker;
 import org.apache.cassandra.net.MessagingService;
@@ -487,25 +486,22 @@ public final class SystemKeyspace
         parse(METADATA_LOG,
               "Local Metadata Log",
               "CREATE TABLE %s ("
-              + "period bigint,"
-              + "current_epoch bigint static,"
               + "epoch bigint,"
               + "entry_id bigint,"
               + "transformation blob,"
-              + "kind text,"
-              + "PRIMARY KEY (period, epoch))")
+              + "kind int,"
+              + "PRIMARY KEY (epoch))")
+        .partitioner(MetaStrategy.partitioner)
         .compaction(CompactionParams.twcs(ImmutableMap.of("compaction_window_unit","DAYS",
                                                           "compaction_window_size","1")))
-        .partitioner(new LocalPartitioner(LongType.instance))
         .build();
 
     public static final TableMetadata Snapshots = parse(SNAPSHOT_TABLE_NAME,
                                                         "ClusterMetadata snapshots",
                                                         "CREATE TABLE IF NOT EXISTS %s (" +
                                                         "epoch bigint PRIMARY KEY," +
-                                                        "period bigint," +
                                                         "snapshot blob)")
-                                                  .partitioner(new LocalPartitioner(ReversedType.getInstance(LongType.instance)))
+                                                  .partitioner(MetaStrategy.partitioner)
                                                   .build();
 
     @Deprecated(since = "4.0")
@@ -1878,7 +1874,7 @@ public final class SystemKeyspace
         try
         {
             // See rangeToBytes above for why version is 0.
-            return (Range<Token>) Range.tokenSerializer.deserialize(ByteStreams.newDataInput(ByteBufferUtil.getArray(rawRange)),
+            return (Range<Token>) Range.tokenSerializer.deserialize(new DataInputBuffer(ByteBufferUtil.getArray(rawRange)),
                                                                     partitioner,
                                                                     0);
         }
@@ -1985,35 +1981,65 @@ public final class SystemKeyspace
         }
     }
 
-    public static void storeSnapshot(Epoch epoch, long period, ByteBuffer snapshot)
+    public static void storeSnapshot(Epoch epoch, ByteBuffer snapshot)
     {
-        logger.info("Storing snapshot of cluster metadata at epoch {} (period {})", epoch, period);
-        String query = String.format("INSERT INTO %s.%s (epoch, period, snapshot) VALUES (?, ?, ?)", SchemaConstants.SYSTEM_KEYSPACE_NAME, SNAPSHOT_TABLE_NAME);
-        executeInternal(query, epoch.getEpoch(), period, snapshot);
+        Preconditions.checkArgument(epoch.isAfter(Epoch.FIRST), "Cannot store a snapshot for an epoch less than " + Epoch.FIRST.getEpoch());
+        logger.info("Storing snapshot of cluster metadata at epoch {}", epoch);
+        String query = String.format("INSERT INTO %s.%s (epoch, snapshot) VALUES (?, ?)", SchemaConstants.SYSTEM_KEYSPACE_NAME, SNAPSHOT_TABLE_NAME);
+        executeInternal(query, epoch.getEpoch(), snapshot);
+        forceBlockingFlush(SNAPSHOT_TABLE_NAME);
     }
 
     public static ByteBuffer getSnapshot(Epoch epoch)
     {
+        Preconditions.checkArgument(epoch.isAfter(Epoch.FIRST), "Cannot retrieve a snapshot for an epoch less than " + Epoch.FIRST.getEpoch());
         logger.info("Getting snapshot of epoch = {}", epoch);
         String query = String.format("SELECT snapshot FROM %s.%s WHERE epoch = ?", SchemaConstants.SYSTEM_KEYSPACE_NAME, SNAPSHOT_TABLE_NAME);
         UntypedResultSet res = executeInternal(query, epoch.getEpoch());
         if (res == null || res.isEmpty())
             return null;
-        return res.one().getBytes("snapshot").duplicate();
+        ByteBuffer bytes = res.one().getBytes("snapshot");
+        if (bytes == null || !bytes.hasRemaining())
+            return null;
+        return bytes.duplicate();
     }
 
     /**
-     * WARNING: we use token(epoch) >= search in the query below - this is due the fact that we use LocalPartitioner with a reversed LongToken
-     *          and this is not quite supported (yet), so the query is actually `token(epoch) <= search` which is what we want here
+     * We use ReversedLongLocalPartitioner here, which calculates token as Long.MAX_VALUE - key
+     *
+     * table is something like (assuming Long.MAX_VALUE is 1000 for easier calculations...):
+     * epoch | token(epoch)
+     * --------------------
+     *   100 | 900
+     *    90 | 910
+     *    80 | 920
+     *    70 | 970
+     *    ...
+     *
+     * so to find the first snapshot before epoch 85, we query the table with token(epoch) >= token(85)=915. Which gives us
+     * epoch 80, 70... and the first row is the first snapshot before `search`
      */
     public static ByteBuffer findSnapshotBefore(Epoch search)
     {
-        String query = String.format("SELECT snapshot FROM %s.%s WHERE token(epoch) >= ? LIMIT 1", SchemaConstants.SYSTEM_KEYSPACE_NAME, SNAPSHOT_TABLE_NAME);
-
+        // during gossip upgrade we have epoch = Long.MIN_VALUE + 1 (and the reverse partitioner doesn't support negative keys)
+        search = search.isBefore(Epoch.EMPTY) ? Epoch.EMPTY : search;
+        String query = String.format("SELECT snapshot FROM %s.%s WHERE token(epoch) >= token(?) LIMIT 1", SchemaConstants.SYSTEM_KEYSPACE_NAME, SNAPSHOT_TABLE_NAME);
         UntypedResultSet res = executeInternal(query, search.getEpoch());
         if (res != null && !res.isEmpty())
             return res.one().getBytes("snapshot").duplicate();
         return null;
+    }
+
+    public static List<Epoch> listSnapshotsSince(Epoch search)
+    {
+        // during gossip upgrade we have epoch = Long.MIN_VALUE + 1 (and the reverse partitioner doesn't support negative keys)
+        search = search.isBefore(Epoch.EMPTY) ? Epoch.EMPTY : search;
+        String query = String.format("SELECT epoch FROM %s.%s WHERE token(epoch) < token(?)", SchemaConstants.SYSTEM_KEYSPACE_NAME, SNAPSHOT_TABLE_NAME);
+        UntypedResultSet res = executeInternal(query, search.getEpoch());
+        if (res == null)
+            return Collections.emptyList();
+
+        return res.stream().map(row -> Epoch.create(row.getLong("epoch"))).collect(Collectors.toList());
     }
 
     /**

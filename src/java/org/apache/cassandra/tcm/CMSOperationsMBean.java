@@ -32,7 +32,7 @@ public interface CMSOperationsMBean
     public void cancelReconfigureCms();
 
     public Map<String, String> describeCMS();
-    public void sealPeriod();
+    public void snapshotClusterMetadata();
 
     public void unsafeRevertClusterMetadata(long epoch);
     public String dumpClusterMetadata(long epoch, long transformToEpoch, String version) throws IOException;
@@ -43,4 +43,6 @@ public interface CMSOperationsMBean
     public boolean getCommitsPaused();
 
     public boolean cancelInProgressSequences(String sequenceOwner, String expectedSequenceKind);
+
+    public void unregisterLeftNodes(List<String> nodeIds);
 }

@@ -44,4 +44,5 @@ fi
 # these happen when the image hasn't pre-downloaded all the ccm versions used in tests
 rm -rf /tmp/ccm-*.tar.gz
 
+set -x
 exit ${status}

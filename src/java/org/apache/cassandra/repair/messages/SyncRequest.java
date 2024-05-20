@@ -32,8 +32,10 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.MetaStrategy;
 import org.apache.cassandra.repair.RepairJobDesc;
 import org.apache.cassandra.streaming.PreviewKind;
+import org.apache.cassandra.tcm.ClusterMetadata;
 
 import static org.apache.cassandra.locator.InetAddressAndPort.Serializer.inetAddressAndPortSerializer;
 
@@ -100,10 +102,7 @@ public class SyncRequest extends RepairMessage
             inetAddressAndPortSerializer.serialize(message.dst, out, version);
             out.writeInt(message.ranges.size());
             for (Range<Token> range : message.ranges)
-            {
-                IPartitioner.validate(range);
                 AbstractBounds.tokenSerializer.serialize(range, out, version);
-            }
             out.writeInt(message.previewKind.getSerializationVal());
             out.writeBoolean(message.asymmetric);
         }
@@ -116,8 +115,11 @@ public class SyncRequest extends RepairMessage
             InetAddressAndPort dst = inetAddressAndPortSerializer.deserialize(in, version);
             int rangesCount = in.readInt();
             List<Range<Token>> ranges = new ArrayList<>(rangesCount);
+            IPartitioner partitioner = ClusterMetadata.current().schema.getKeyspaceMetadata(desc.keyspace).params.replication.isMeta()
+                                       ? MetaStrategy.partitioner
+                                       : IPartitioner.global();
             for (int i = 0; i < rangesCount; ++i)
-                ranges.add((Range<Token>) AbstractBounds.tokenSerializer.deserialize(in, IPartitioner.global(), version));
+                ranges.add((Range<Token>) AbstractBounds.tokenSerializer.deserialize(in, partitioner, version));
             PreviewKind previewKind = PreviewKind.deserialize(in.readInt());
             boolean asymmetric = in.readBoolean();
             return new SyncRequest(desc, initiator, src, dst, ranges, previewKind, asymmetric);

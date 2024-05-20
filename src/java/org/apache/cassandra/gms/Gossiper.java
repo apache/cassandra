@@ -260,6 +260,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
                 {
                     GossipDigestSyn digestSynMessage = new GossipDigestSyn(getClusterName(),
                                                                            getPartitionerName(),
+                                                                           ClusterMetadata.current().metadataIdentifier,
                                                                            gDigests);
                     Message<GossipDigestSyn> message = Message.out(GOSSIP_DIGEST_SYN, digestSynMessage);
                     /* Gossip to some random live member */
@@ -1058,6 +1059,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
         return reqdEndpointState;
     }
 
+    @Override
     public void notifyFailureDetector(Map<InetAddressAndPort, EndpointState> remoteEpStateMap)
     {
         for (Entry<InetAddressAndPort, EndpointState> entry : remoteEpStateMap.entrySet())
@@ -1343,6 +1345,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
     }
 
     @VisibleForTesting
+    @Override
     public void applyStateLocally(Map<InetAddressAndPort, EndpointState> epStateMap)
     {
         checkProperThreadForStateMutation();
@@ -1351,6 +1354,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
             InetAddressAndPort ep = entry.getKey();
             if (ep.equals(getBroadcastAddressAndPort()))
                 continue;
+
             if (justRemovedEndpoints.containsKey(ep))
             {
                 if (logger.isTraceEnabled())
@@ -2221,6 +2225,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
             Gossiper.instance.makeGossipDigest(gDigests);
             GossipDigestSyn digestSynMessage = new GossipDigestSyn(getClusterName(),
                                                                    getPartitionerName(),
+                                                                   ClusterMetadata.current().metadataIdentifier,
                                                                    gDigests);
             Message<GossipDigestSyn> message = Message.out(GOSSIP_DIGEST_SYN, digestSynMessage);
             sendGossip(message, cms);

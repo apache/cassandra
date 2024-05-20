@@ -26,6 +26,7 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
 import org.apache.cassandra.db.marshal.*;
@@ -830,6 +831,7 @@ public class FrozenCollectionsTest extends CQLTester
     @Test
     public void testSecondaryIndex() throws Throwable
     {
+        Util.assumeLegacySecondaryIndex();
         createTable("CREATE TABLE %s (a frozen<map<int, text>> PRIMARY KEY, b frozen<map<int, text>>)");
 
         // for now, we don't support indexing values or keys of collections in the primary key
@@ -860,7 +862,8 @@ public class FrozenCollectionsTest extends CQLTester
                              "SELECT * FROM %s WHERE c CONTAINS KEY ?", 1);
 
         // normal indexes on frozen collections don't support CONTAINS or CONTAINS KEY
-        assertInvalidMessage("Clustering columns can only be restricted with CONTAINS with a secondary index or filtering",
+        assertInvalidMessage("Clustering column restrictions require the use of secondary indices or" +
+                             " filtering for map-element restrictions and for the following operators: CONTAINS, CONTAINS KEY, LIKE, ANN",
                              "SELECT * FROM %s WHERE b CONTAINS ?", 1);
 
         assertRows(execute("SELECT * FROM %s WHERE b CONTAINS ? ALLOW FILTERING", 1),
@@ -995,6 +998,7 @@ public class FrozenCollectionsTest extends CQLTester
     @Test
     public void testClusteringColumnFiltering() throws Throwable
     {
+        Util.assumeLegacySecondaryIndex();
         createTable("CREATE TABLE %s (a int, b frozen<map<int, int>>, c int, d int, PRIMARY KEY (a, b, c))");
         createIndex("CREATE INDEX c_index ON %s (c)");
         createIndex("CREATE INDEX d_index ON %s (d)");

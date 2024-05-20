@@ -26,40 +26,55 @@ import com.google.common.collect.Iterables;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.utils.AbstractGuavaIterator;
 
+import javax.annotation.concurrent.NotThreadSafe;
+
 /**
  * An abstract implementation of {@link AbstractGuavaIterator} that supports the building and management of
  * concatanation, union and intersection iterators.
- *
+ * <p>
+ * Range iterators contain primary keys, in sorted order, with no duplicates.  They also
+ * know their minimum and maximum keys, and an upper bound on the number of keys they contain.
+ * <p>
  * Only certain methods are designed to be overriden.  The others are marked private or final.
  */
+@NotThreadSafe
 public abstract class KeyRangeIterator extends AbstractGuavaIterator<PrimaryKey> implements Closeable
 {
     private final PrimaryKey min, max;
     private final long count;
-    private PrimaryKey current;
+    private Runnable onClose;
 
-    protected KeyRangeIterator(Builder.Statistics statistics)
+    protected KeyRangeIterator(Builder.Statistics statistics, Runnable onClose)
     {
-        this(statistics.min, statistics.max, statistics.count);
+        this(statistics.min, statistics.max, statistics.count, onClose);
     }
 
-    public KeyRangeIterator(KeyRangeIterator range)
+    public KeyRangeIterator(KeyRangeIterator range, Runnable onClose)
     {
         this(range == null ? null : range.min,
              range == null ? null : range.max,
-             range == null ? -1 : range.count);
+             range == null ? -1 : range.count,
+             onClose);
     }
 
     public KeyRangeIterator(PrimaryKey min, PrimaryKey max, long count)
     {
+        this(min, max, count, () -> {});
+    }
+
+    public KeyRangeIterator(PrimaryKey min, PrimaryKey max, long count, Runnable onClose)
+    {
         boolean isComplete = min != null && max != null && count != 0;
         boolean isEmpty = min == null && max == null && (count == 0 || count == -1);
-        Preconditions.checkArgument(isComplete || isEmpty, "Range: [" + min + ',' + max + "], Count: " + count);
+        Preconditions.checkArgument(isComplete || isEmpty, "Range: [%s,%s], Count: %d", min, max, count);
+
+        if (isEmpty)
+          endOfData();
 
         this.min = min;
-        this.current = min;
         this.max = max;
         this.count = count;
+        this.onClose = onClose;
     }
 
     public final PrimaryKey getMinimum()
@@ -67,75 +82,63 @@ public abstract class KeyRangeIterator extends AbstractGuavaIterator<PrimaryKey>
         return min;
     }
 
-    public final PrimaryKey getCurrent()
-    {
-        return current;
-    }
-
     public final PrimaryKey getMaximum()
     {
         return max;
     }
 
-    public final long getCount()
+    /**
+     * @return an upper bound on the number of keys that can be returned by this iterator.
+     */
+    public final long getMaxKeys()
     {
         return count;
     }
 
     /**
-     * When called, this iterators current position should
+     * When called, this iterator's current position will
      * be skipped forwards until finding either:
-     *   1) an element equal to or bigger than next
+     *   1) an element equal to or bigger than nextKey
      *   2) the end of the iterator
      *
      * @param nextKey value to skip the iterator forward until matching
-     *
-     * @return The key skipped to, which will be the key returned by the
-     * next call to {@link #next()}, i.e., we are "peeking" at the next key as part of the skip.
      */
-    public final PrimaryKey skipTo(PrimaryKey nextKey)
+    public final void skipTo(PrimaryKey nextKey)
     {
-        if (min == null || max == null)
-            return endOfData();
+        if (state == State.DONE)
+            return;
 
-        // In the case of deferred iterators the current value may not accurately
-        // reflect the next value, so we need to check that as well
-        if (current.compareTo(nextKey) >= 0)
-        {
-            next = next == null ? recomputeNext() : next;
-            if (next == null)
-                return endOfData();
-            else if (next.compareTo(nextKey) >= 0)
-                return next;
-        }
+        if (state == State.READY && next.compareTo(nextKey) >= 0)
+            return;
 
         if (max.compareTo(nextKey) < 0)
-            return endOfData();
+        {
+            endOfData();
+            return;
+        }
 
         performSkipTo(nextKey);
-        return recomputeNext();
+        state = State.NOT_READY;
     }
 
     /**
      * Skip to nextKey.
-     *
+     * <p>
      * That is, implementations should set up the iterator state such that
      * calling computeNext() will return nextKey if present,
      * or the first one after it if not present.
      */
     protected abstract void performSkipTo(PrimaryKey nextKey);
 
-    private PrimaryKey recomputeNext()
+    public void setOnClose(Runnable onClose)
     {
-        return tryToComputeNext() ? peek() : endOfData();
+        this.onClose = onClose;
     }
 
     @Override
-    protected final boolean tryToComputeNext()
+    public void close()
     {
-        boolean hasNext = super.tryToComputeNext();
-        current = hasNext ? next : getMaximum();
-        return hasNext;
+        onClose.run();
     }
 
     public static KeyRangeIterator empty()
@@ -146,7 +149,7 @@ public abstract class KeyRangeIterator extends AbstractGuavaIterator<PrimaryKey>
     private static class EmptyRangeIterator extends KeyRangeIterator
     {
         static final KeyRangeIterator instance = new EmptyRangeIterator();
-        EmptyRangeIterator() { super(null, null, 0); }
+        EmptyRangeIterator() { super(null, null, 0, () -> {}); }
         public PrimaryKey computeNext() { return endOfData(); }
         protected void performSkipTo(PrimaryKey nextKey) { }
         public void close() { }
@@ -156,10 +159,12 @@ public abstract class KeyRangeIterator extends AbstractGuavaIterator<PrimaryKey>
     public static abstract class Builder
     {
         protected final Statistics statistics;
+        protected final Runnable onClose;
 
-        public Builder(Statistics statistics)
+        public Builder(Statistics statistics, Runnable onClose)
         {
             this.statistics = statistics;
+            this.onClose = onClose;
         }
 
         public PrimaryKey getMinimum()
@@ -189,16 +194,24 @@ public abstract class KeyRangeIterator extends AbstractGuavaIterator<PrimaryKey>
         public final KeyRangeIterator build()
         {
             if (rangeCount() == 0)
+            {
+                onClose.run();
                 return empty();
+            }
             else
+            {
                 return buildIterator();
+            }
         }
 
         public abstract Builder add(KeyRangeIterator range);
 
         public abstract int rangeCount();
 
-        public abstract void cleanup();
+        public void cleanup()
+        {
+            onClose.run();
+        }
 
         protected abstract KeyRangeIterator buildIterator();
 

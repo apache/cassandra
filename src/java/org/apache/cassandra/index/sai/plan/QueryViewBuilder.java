@@ -20,12 +20,9 @@ package org.apache.cassandra.index.sai.plan;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.NavigableSet;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 import org.apache.cassandra.db.PartitionPosition;
@@ -93,9 +90,6 @@ public class QueryViewBuilder
 
     private Collection<Pair<Expression, Collection<SSTableIndex>>> getQueryView(Collection<Expression> expressions)
     {
-        // first let's determine the most selective expression
-        Pair<Expression, Collection<SSTableIndex>> mostSelective = calculateMostSelective(expressions);
-
         List<Pair<Expression, Collection<SSTableIndex>>> queryView = new ArrayList<>();
 
         for (Expression expression : expressions)
@@ -105,82 +99,18 @@ public class QueryViewBuilder
             if (expression.isNotIndexed())
                 continue;
 
-            // If we didn't get a most selective expression then none of the
-            // expressions select anything so, add an empty entry for the
-            // expression. We need the empty entry because we may have in-memory
-            // data for the expression
-            if (mostSelective == null)
-            {
-                queryView.add(Pair.create(expression, Collections.emptyList()));
-                continue;
-            }
-
-            // If this expression is the most selective then just add it to the
-            // query view
-            if (expression.equals(mostSelective.left))
-            {
-                queryView.add(mostSelective);
-                continue;
-            }
-
-            // Finally, we select all the sstable indexes for this expression that
-            // have overlapping keys with the sstable indexes of the most selective
-            // and have a term range that is satisfied by the expression.
+            // Select all the sstable indexes that have a term range that is satisfied by this expression and 
+            // overlap with the key range being queried.
             View view = expression.getIndex().view();
-            Set<SSTableIndex> indexes = new TreeSet<>(SSTableIndex.COMPARATOR);
-            indexes.addAll(view.match(expression)
-                               .stream()
-                               .filter(index -> sstableIndexOverlaps(index, mostSelective.right))
-                               .collect(Collectors.toList()));
-            queryView.add(Pair.create(expression, indexes));
+            queryView.add(Pair.create(expression, selectIndexesInRange(view.match(expression))));
         }
 
         return queryView;
     }
 
-    private boolean sstableIndexOverlaps(SSTableIndex sstableIndex, Collection<SSTableIndex> sstableIndexes)
-    {
-        return sstableIndexes.stream().anyMatch(index -> index.bounds().contains(sstableIndex.bounds().left) ||
-                                                         index.bounds().contains(sstableIndex.bounds().right));
-    }
-
-    // The purpose of this method is to calculate the most selective expression. This is the
-    // expression with the most sstable indexes that match the expression by term and lie
-    // within the key range being queried.
-    //
-    // The result can be null. This indicates that none of the expressions select any
-    // sstable indexes.
-    private Pair<Expression, Collection<SSTableIndex>> calculateMostSelective(Collection<Expression> expressions)
-    {
-        Expression mostSelectiveExpression = null;
-        NavigableSet<SSTableIndex> mostSelectiveIndexes = null;
-
-        for (Expression expression : expressions)
-        {
-            if (expression.isNotIndexed())
-                continue;
-
-            View view = expression.getIndex().view();
-
-            NavigableSet<SSTableIndex> indexes = new TreeSet<>(SSTableIndex.COMPARATOR);
-            indexes.addAll(selectIndexesInRange(view.match(expression)));
-
-            if (indexes.isEmpty())
-                continue;
-
-            if (mostSelectiveExpression == null || mostSelectiveIndexes.size() > indexes.size())
-            {
-                mostSelectiveIndexes = indexes;
-                mostSelectiveExpression = expression;
-            }
-        }
-
-        return mostSelectiveExpression == null ? null : Pair.create(mostSelectiveExpression, mostSelectiveIndexes);
-    }
-
     private List<SSTableIndex> selectIndexesInRange(Collection<SSTableIndex> indexes)
     {
-        return indexes.stream().filter(this::indexInRange).collect(Collectors.toList());
+        return indexes.stream().filter(this::indexInRange).sorted(SSTableIndex.COMPARATOR).collect(Collectors.toList());
     }
 
     private boolean indexInRange(SSTableIndex index)

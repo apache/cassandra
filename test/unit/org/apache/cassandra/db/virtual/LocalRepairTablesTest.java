@@ -322,7 +322,7 @@ public class LocalRepairTablesTest extends CQLTester
     private ParticipateState participate()
     {
         List<Range<Token>> ranges = Arrays.asList(new Range<>(new Murmur3Partitioner.LongToken(0), new Murmur3Partitioner.LongToken(42)));
-        ParticipateState state = new ParticipateState(Clock.Global.clock(), FBUtilities.getBroadcastAddressAndPort(), new PrepareMessage(TimeUUID.Generator.nextTimeUUID(), Collections.emptyList(), ranges, true, 42, true, PreviewKind.ALL));
+        ParticipateState state = new ParticipateState(Clock.Global.clock(), FBUtilities.getBroadcastAddressAndPort(), new PrepareMessage(TimeUUID.Generator.nextTimeUUID(), Collections.emptyList(), Murmur3Partitioner.instance, ranges, true, 42, true, PreviewKind.ALL));
         ActiveRepairService.instance().register(state);
         return state;
     }

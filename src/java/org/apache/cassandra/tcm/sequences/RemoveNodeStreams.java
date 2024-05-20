@@ -29,7 +29,6 @@ import org.apache.cassandra.locator.EndpointsByReplica;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.RangesByEndpoint;
-import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaCollection;
 import org.apache.cassandra.locator.SystemStrategy;
 import org.apache.cassandra.net.Message;
@@ -40,7 +39,7 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.ownership.MovementMap;
 import org.apache.cassandra.tcm.ownership.PlacementDeltas;
-import org.apache.cassandra.tcm.ownership.PlacementForRange;
+import org.apache.cassandra.tcm.ownership.ReplicaGroups;
 
 import static org.apache.cassandra.streaming.StreamOperation.RESTORE_REPLICA_COUNT;
 
@@ -57,9 +56,7 @@ public class RemoveNodeStreams implements LeaveStreams
         ClusterMetadata metadata = ClusterMetadata.current();
         MovementMap movements = movementMap(metadata.directory.endpoint(leaving),
                                             metadata,
-                                            startLeave,
-                                            midLeave,
-                                            finishLeave);
+                                            startLeave);
         movements.forEach((params, eps) -> logger.info("Removenode movements: {}: {}", params, eps));
         String operationId = leaving.toUUID().toString();
         responseTracker = DataMovements.instance.registerMovements(RESTORE_REPLICA_COUNT, operationId, movements);
@@ -110,7 +107,7 @@ public class RemoveNodeStreams implements LeaveStreams
      * create a map where the key is the destination, and the values are possible sources
      * @return
      */
-    private static MovementMap movementMap(InetAddressAndPort leaving, ClusterMetadata metadata, PlacementDeltas startDelta, PlacementDeltas midDelta, PlacementDeltas finishDelta)
+    private static MovementMap movementMap(InetAddressAndPort leaving, ClusterMetadata metadata, PlacementDeltas startDelta)
     {
         MovementMap.Builder allMovements = MovementMap.builder();
         // map of dest->src* movements, keyed by replication settings. During unbootstrap, this will be used to construct
@@ -122,8 +119,9 @@ public class RemoveNodeStreams implements LeaveStreams
 
             EndpointsByReplica.Builder movements = new EndpointsByReplica.Builder();
             RangesByEndpoint startWriteAdditions = startDelta.get(params).writes.additions;
+            RangesByEndpoint startWriteRemovals = startDelta.get(params).writes.removals;
             // find current placements from the metadata, we need to stream from replicas that are not changed and are therefore not in the deltas
-            PlacementForRange currentPlacements = metadata.placements.get(params).reads;
+            ReplicaGroups currentPlacements = metadata.placements.get(params).reads;
             startWriteAdditions.flattenValues()
                                .forEach(newReplica -> {
                                    EndpointsForRange.Builder candidateBuilder = new EndpointsForRange.Builder(newReplica.range());
@@ -131,33 +129,12 @@ public class RemoveNodeStreams implements LeaveStreams
                                        if (!replica.endpoint().equals(leaving) && !replica.endpoint().equals(newReplica.endpoint()))
                                            candidateBuilder.add(replica, ReplicaCollection.Builder.Conflict.NONE);
                                    });
-                                   movements.putAll(newReplica, candidateBuilder.build(), ReplicaCollection.Builder.Conflict.NONE);
+                                   EndpointsForRange sources = candidateBuilder.build();
+                                   // log if newReplica is an existing transient replica moving to a full replica
+                                   if (startWriteRemovals.get(newReplica.endpoint()).contains(newReplica.range(), false))
+                                       logger.debug("Streaming transient -> full conversion to {} from {}", newReplica.endpoint(), sources);
+                                   movements.putAll(newReplica, sources, ReplicaCollection.Builder.Conflict.NONE);
                                });
-            // and check if any replicas went from transient -> full:
-            for (Replica removal : finishDelta.get(params).writes.removals.flattenValues())
-            {
-                if (removal.isTransient())
-                {
-                    // if a replica (ignoring transientness) is being added as a read replica in midJoin, but removed as
-                    // a write replica in finishJoin (the "removal" replica) it means it must have changed from transient
-                    // to full (or the other way round)
-                    RangesByEndpoint midReadAdditions = midDelta.get(params).reads.additions;
-                    Replica toStream = midReadAdditions.get(removal.endpoint()).byRange().get(removal.range());
-                    if (toStream != null && toStream.isFull())
-                    {
-                        logger.debug("Conversion from transient to full replica {} -> {}", removal, toStream);
-                        EndpointsForRange.Builder candidateBuilder = new EndpointsForRange.Builder(removal.range());
-                        currentPlacements.forRange(removal.range()).get().forEach(replica -> {
-                            if (!replica.endpoint().equals(leaving) && !replica.endpoint().equals(removal.endpoint()))
-                                candidateBuilder.add(replica, ReplicaCollection.Builder.Conflict.NONE);
-                        });
-                        EndpointsForRange sources = candidateBuilder.build();
-                        logger.debug("Streaming transient -> full conversion to {} from {}", removal, sources);
-                        // `removal` is losing this transient range, but gaining the same full range, meaning we need to stream it in.
-                        movements.putAll(removal, sources, ReplicaCollection.Builder.Conflict.NONE);
-                    }
-                }
-            }
             allMovements.put(params, movements.build());
         });
         return allMovements.build();

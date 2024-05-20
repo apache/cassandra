@@ -24,6 +24,9 @@ import io.airlift.airline.Option;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.commons.lang3.exception.ExceptionUtils;
+
+import org.apache.cassandra.db.compaction.CompactionInterruptedException;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
@@ -56,13 +59,25 @@ public class UpgradeSSTable extends NodeToolCmd
 
         for (String keyspace : keyspaces)
         {
-            try
+            for (int retries = 0; retries < 5; retries++)
             {
-                probe.upgradeSSTables(probe.output().out, keyspace, !includeAll, maxSSTableTimestamp, jobs, tableNames);
-            }
-            catch (Exception e)
-            {
-                throw new RuntimeException("Error occurred during enabling auto-compaction", e);
+                try
+                {
+                    if (retries > 0)
+                        Thread.sleep(500);
+                    probe.upgradeSSTables(probe.output().out, keyspace, !includeAll, maxSSTableTimestamp, jobs, tableNames);
+                    break;
+                }
+                catch (RuntimeException cie)
+                {
+                    // Spin retry. See CASSANDRA-18635
+                    if (ExceptionUtils.indexOfThrowable(cie, CompactionInterruptedException.class) != -1 && retries == 4)
+                        throw (cie);
+                }
+                catch (Exception e)
+                {
+                    throw new RuntimeException("Error occurred during enabling auto-compaction", e);
+                }
             }
         }
     }

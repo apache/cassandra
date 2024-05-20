@@ -18,13 +18,23 @@
 
 package org.apache.cassandra.tcm;
 
-import java.util.concurrent.Callable;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ExecutorFactory;
 import org.apache.cassandra.concurrent.ExecutorPlus;
+import org.apache.cassandra.tcm.log.LogState;
+import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.Promise;
 
 /**
  * When debouncing from a replica we know exactly which epoch we need, so to avoid retries we
@@ -32,12 +42,13 @@ import org.apache.cassandra.utils.concurrent.Future;
  * comes in, we create a new future. If a request for a newer epoch comes in, we simply
  * swap out the current future reference for a new one which is requesting the newer epoch.
  */
-public class EpochAwareDebounce<T>
+public class EpochAwareDebounce
 {
-    public static final EpochAwareDebounce<ClusterMetadata> instance = new EpochAwareDebounce<>();
-
-    private final AtomicReference<EpochAwareAsyncPromise<T>> currentFuture = new AtomicReference<>();
+    private static final Logger logger = LoggerFactory.getLogger(EpochAwareDebounce.class);
+    public static final EpochAwareDebounce instance = new EpochAwareDebounce();
+    private final AtomicReference<EpochAwareAsyncPromise> currentFuture = new AtomicReference<>();
     private final ExecutorPlus executor;
+    private final List<Promise<LogState>> inflightRequests = new CopyOnWriteArrayList<>();
 
     private EpochAwareDebounce()
     {
@@ -45,24 +56,50 @@ public class EpochAwareDebounce<T>
         this.executor = ExecutorFactory.Global.executorFactory().pooled("debounce", 2);
     }
 
-    public Future<T> getAsync(Callable<T> get, Epoch epoch)
+    /**
+     * Deduplicate requests to catch up log state based on the desired epoch. Callers supply a target epoch and
+     * a function obtain the ClusterMetadata that corresponds with it. It is expected that this function will make rpc
+     * calls to peers, retrieving a LogState which can be applied locally to produce the necessary {@code
+     * ClusterMetadata}. The function takes a {@code Promise<LogState>} as input, with the expectation that this
+     * specific instance will be used to provide blocking behaviour when making the rpc calls that fetch the {@code
+     * LogState}. These promises are memoized in order to cancel them when {@link #shutdownAndWait(long, TimeUnit)} is
+     * called. This causes the fetch function to stop waiting on any in flight {@code LogState} requests and prevents
+     * shutdown from being blocked.
+     *
+     * @param  fetchFunction executes the request for LogState. It's expected that this popluates fetchResult with the
+     *                       successful result.
+     * @param epoch the desired epoch
+     * @return
+     */
+    public Future<ClusterMetadata> getAsync(Function<Promise<LogState>, ClusterMetadata> fetchFunction,
+                                            Epoch epoch)
     {
         while (true)
         {
-            EpochAwareAsyncPromise<T> running = currentFuture.get();
+            EpochAwareAsyncPromise running = currentFuture.get();
             if (running != null && !running.isDone() && running.epoch.isEqualOrAfter(epoch))
                 return running;
 
-            EpochAwareAsyncPromise<T> promise = new EpochAwareAsyncPromise<>(epoch);
+            Promise<LogState> fetchResult = new AsyncPromise<>();
+
+            EpochAwareAsyncPromise promise = new EpochAwareAsyncPromise(epoch);
             if (currentFuture.compareAndSet(running, promise))
             {
+                fetchResult.addCallback((logState, error) -> {
+                    logger.debug("Removing future remotely requesting epoch {} from in flight list", epoch);
+                    inflightRequests.remove(fetchResult);
+                });
+                inflightRequests.add(fetchResult);
+
                 executor.submit(() -> {
                     try
                     {
-                        promise.setSuccess(get.call());
+                        promise.setSuccess(fetchFunction.apply(fetchResult));
                     }
                     catch (Throwable t)
                     {
+                        fetchResult.cancel(true);
+                        inflightRequests.remove(fetchResult);
                         promise.setFailure(t);
                     }
                 });
@@ -71,12 +108,20 @@ public class EpochAwareDebounce<T>
         }
     }
 
-    private static class EpochAwareAsyncPromise<T> extends AsyncPromise<T>
+    private static class EpochAwareAsyncPromise extends AsyncPromise<ClusterMetadata>
     {
         private final Epoch epoch;
         public EpochAwareAsyncPromise(Epoch epoch)
         {
             this.epoch = epoch;
         }
+    }
+
+    public void shutdownAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
+    {
+        logger.info("Cancelling {} in flight log fetch requests", inflightRequests.size());
+        for (Promise<LogState> toCancel : inflightRequests)
+            toCancel.cancel(true);
+        ExecutorUtils.shutdownAndWait(timeout, unit, executor);
     }
 }

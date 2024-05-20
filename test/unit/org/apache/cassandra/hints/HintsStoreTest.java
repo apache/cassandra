@@ -30,6 +30,7 @@ import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.Uninterruptibles;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -42,6 +43,7 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.hamcrest.Matchers;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -149,14 +151,18 @@ public class HintsStoreTest
         assertNull(store.getPendingHintsInfo());
 
         final long t1 = 10;
-        writeHints(directory, new HintsDescriptor(hostId, t1), 100, t1);
+        HintsDescriptor d1 = new HintsDescriptor(hostId, t1);
+        writeHints(directory, d1, 100, t1);
+        long d1Size = d1.hintsFileSize(directory);
         store = HintsCatalog.load(directory, ImmutableMap.of()).get(hostId);
-        assertEquals(new PendingHintsInfo(store.hostId, 1, t1, t1),
+        assertEquals(new PendingHintsInfo(store.hostId, 1, t1, t1, d1Size, 0, 0),
                      store.getPendingHintsInfo());
         final long t2 = t1 + 1;
-        writeHints(directory, new HintsDescriptor(hostId, t2), 100, t2);
+        HintsDescriptor d2 = new HintsDescriptor(hostId, t2);
+        writeHints(directory, d2, 100, t2);
+        long d2Size = d2.hintsFileSize(directory);
         store = HintsCatalog.load(directory, ImmutableMap.of()).get(hostId);
-        assertEquals(new PendingHintsInfo(store.hostId, 2, t1, t2),
+        assertEquals(new PendingHintsInfo(store.hostId, 2, t1, t2, d1Size + d2Size, 0, 0),
                      store.getPendingHintsInfo());
     }
 
@@ -172,6 +178,7 @@ public class HintsStoreTest
             }
             FileUtils.clean(buffer);
         }
+        Assert.assertThat(descriptor.hintsFileSize(directory), Matchers.greaterThan(0L));
         return new File(directory, descriptor.fileName()).lastModified(); // hint file last modified time
     }
 

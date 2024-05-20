@@ -21,7 +21,6 @@ package org.apache.cassandra.service.paxos.cleanup;
 import java.util.ArrayDeque;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -34,7 +33,6 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.paxos.AbstractPaxosRepair;
 import org.apache.cassandra.service.paxos.Ballot;
@@ -42,7 +40,6 @@ import org.apache.cassandra.service.paxos.PaxosRepair;
 import org.apache.cassandra.utils.NoSpamLogger;
 
 import static org.apache.cassandra.service.paxos.Commit.isAfter;
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /**
  * Coordinates repairs on a given key to prevent multiple repairs being scheduled for a single key
@@ -211,25 +208,4 @@ public class PaxosTableRepairs implements AbstractPaxosRepair.Listener
     {
         return PaxosRepair.create(consistency, key, incompleteBallot, table);
     }
-
-    private static final ConcurrentMap<TableId, PaxosTableRepairs> tableRepairsMap = new ConcurrentHashMap<>();
-
-    static PaxosTableRepairs getForTable(TableId tableId)
-    {
-        return tableRepairsMap.computeIfAbsent(tableId, k -> new PaxosTableRepairs());
-    }
-
-    public static void evictHungRepairs()
-    {
-        long deadline = nanoTime() - TimeUnit.MINUTES.toNanos(5);
-        for (PaxosTableRepairs repairs : tableRepairsMap.values())
-            repairs.evictHungRepairs(deadline);
-    }
-
-    public static void clearRepairs()
-    {
-        for (PaxosTableRepairs repairs : tableRepairsMap.values())
-            repairs.clear();
-    }
-
 }

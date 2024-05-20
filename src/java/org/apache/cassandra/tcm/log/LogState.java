@@ -95,6 +95,19 @@ public class LogState
         return new LogState(baseState, ImmutableList.of());
     }
 
+    public LogState flatten()
+    {
+        if (baseState == null && entries.isEmpty())
+            return this;
+        ClusterMetadata metadata = baseState;
+        if (metadata == null)
+            metadata = new ClusterMetadata(DatabaseDescriptor.getPartitioner());
+        for (Entry entry : entries)
+            metadata = entry.transform.execute(metadata).success().metadata;
+        return LogState.make(metadata);
+    }
+
+
     public boolean isEmpty()
     {
         return baseState == null && entries.isEmpty();
@@ -200,6 +213,8 @@ public class LogState
         @Override
         public void serialize(LogState t, DataOutputPlus out, Version version) throws IOException
         {
+            if (version.isAtLeast(Version.V2))
+                out.writeUnsignedVInt32(ClusterMetadata.current().metadataIdentifier);
             out.writeBoolean(t.baseState != null);
             if (t.baseState != null)
                 ClusterMetadata.serializer.serialize(t.baseState, out, version);
@@ -211,6 +226,8 @@ public class LogState
         @Override
         public LogState deserialize(DataInputPlus in, Version version) throws IOException
         {
+            if (version.isAtLeast(Version.V2))
+                ClusterMetadata.checkIdentifier(in.readUnsignedVInt32());
             ClusterMetadata baseState = null;
             if (in.readBoolean())
                 baseState = ClusterMetadata.serializer.deserialize(in, version);
@@ -224,7 +241,11 @@ public class LogState
         @Override
         public long serializedSize(LogState t, Version version)
         {
-            long size = TypeSizes.sizeof(t.baseState != null);
+            long size = 0;
+            if (version.isAtLeast(Version.V2))
+                size += TypeSizes.sizeofUnsignedVInt(ClusterMetadata.current().metadataIdentifier);
+
+            size += TypeSizes.sizeof(t.baseState != null);
             if (t.baseState != null)
                 size += ClusterMetadata.serializer.serializedSize(t.baseState, version);
             size += TypeSizes.INT_SIZE;

@@ -115,9 +115,9 @@ public final class InMarker extends Terms.NonTerminals
     }
 
     @Override
-    public Term asSingleTerm()
+    public String toString()
     {
-        throw new UnsupportedOperationException();
+        return "?";
     }
 
     /**

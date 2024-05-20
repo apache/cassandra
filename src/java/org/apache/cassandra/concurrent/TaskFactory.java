@@ -32,7 +32,7 @@ import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 /**
  * A simple mechanism to impose our desired semantics on the execution of a task without requiring a specialised
  * executor service. We wrap tasks in a suitable {@link FutureTask} or encapsulating {@link Runnable}.
- *
+ * <p>
  * The encapsulations handle any exceptions in our standard way, as well as ensuring {@link ExecutorLocals} are
  * propagated in the case of {@link #localAware()}
  */
@@ -52,7 +52,7 @@ public interface TaskFactory
     static TaskFactory standard() { return Standard.INSTANCE; }
     static TaskFactory localAware() { return LocalAware.INSTANCE; }
 
-    public class Standard implements TaskFactory
+    class Standard implements TaskFactory
     {
         static final Standard INSTANCE = new Standard();
         protected Standard() {}
@@ -90,8 +90,8 @@ public interface TaskFactory
         @Override
         public <T> RunnableFuture<T> toSubmit(WithResources withResources, Runnable runnable)
         {
-            return withResources.isNoOp() ? newTask(callable(runnable))
-                                          : newTask(withResources, callable(runnable));
+            return withResources.isNoOp() ? newTask(runnable)
+                                          : newTask(withResources, runnable);
         }
 
         @Override
@@ -108,9 +108,19 @@ public interface TaskFactory
                                           : newTask(withResources, callable);
         }
 
+        protected <T> RunnableFuture<T> newTask(Runnable task)
+        {
+            return new FutureTask<>(task);
+        }
+
         protected <T> RunnableFuture<T> newTask(Callable<T> call)
         {
             return new FutureTask<>(call);
+        }
+
+        protected <T> RunnableFuture<T> newTask(WithResources withResources, Runnable task)
+        {
+            return new FutureTaskWithResources<>(withResources, task);
         }
 
         protected <T> RunnableFuture<T> newTask(WithResources withResources, Callable<T> call)
@@ -119,7 +129,7 @@ public interface TaskFactory
         }
     }
 
-    public class LocalAware extends Standard
+    class LocalAware extends Standard
     {
         static final LocalAware INSTANCE = new LocalAware();
 

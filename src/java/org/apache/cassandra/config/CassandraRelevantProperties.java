@@ -205,6 +205,8 @@ public enum CassandraRelevantProperties
     DTEST_API_LOG_TOPOLOGY("cassandra.dtest.api.log.topology"),
     /** This property indicates if the code is running under the in-jvm dtest framework */
     DTEST_IS_IN_JVM_DTEST("org.apache.cassandra.dtest.is_in_jvm_dtest"),
+    /** In_JVM dtest property indicating that the test should use "latest" configuration */
+    DTEST_JVM_DTESTS_USE_LATEST("jvm_dtests.latest"),
     ENABLE_DC_LOCAL_COMMIT("cassandra.enable_dc_local_commit", "true"),
     /**
      * Whether {@link org.apache.cassandra.db.ConsistencyLevel#NODE_LOCAL} should be allowed.
@@ -423,9 +425,6 @@ public enum CassandraRelevantProperties
     SAI_INTERSECTION_CLAUSE_LIMIT("cassandra.sai.intersection_clause_limit", "2"),
     /** Latest version to be used for SAI index writing */
     SAI_LATEST_VERSION("cassandra.sai.latest_version", "aa"),
-    SAI_MAX_FROZEN_TERM_SIZE("cassandra.sai.max_frozen_term_size", "5KiB"),
-    SAI_MAX_STRING_TERM_SIZE("cassandra.sai.max_string_term_size", "1KiB"),
-    SAI_MAX_VECTOR_TERM_SIZE("cassandra.sai.max_vector_term_size", "32KiB"),
 
     /** Minimum number of reachable leaves for a given node to be eligible for an auxiliary posting list */
     SAI_MINIMUM_POSTINGS_LEAVES("cassandra.sai.minimum_postings_leaves", "64"),

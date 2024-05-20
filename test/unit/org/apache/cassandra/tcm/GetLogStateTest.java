@@ -19,6 +19,9 @@
 package org.apache.cassandra.tcm;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 import java.util.NavigableMap;
 import java.util.TreeMap;
 
@@ -43,10 +46,12 @@ import org.apache.cassandra.tcm.transformations.CustomTransformation;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
+import static org.psjava.util.AssertStatus.assertTrue;
 
 public class GetLogStateTest
 {
-    NavigableMap<Epoch, Long> epochToPeriod = new TreeMap<>();
+    Epoch maxEpoch = Epoch.EMPTY;
     NavigableMap<Epoch, ClusterMetadata> epochToSnapshot = new TreeMap<>();
     @BeforeClass
     public static void setup() throws IOException
@@ -81,66 +86,301 @@ public class GetLogStateTest
     public void testGetLogState()
     {
         clearAndPopulate();
-        // 1. `since` = max epoch
-        LogState logState = SystemKeyspaceStorage.SystemKeyspace.getLogState(ClusterMetadata.current().period, epochToPeriod.lastKey());
+        // Starting at the current epoch, iterate backwards. For each preceding epoch, fetch and verify a LogState
+        LogState logState = SystemKeyspaceStorage.SystemKeyspace.getLogState(maxEpoch);
         assertEquals(logState, LogState.EMPTY);
         testGetLogStateHelper();
     }
 
     @Test
-    public void testLostSnapshot()
+    public void testIncompleteLog1()
     {
         clearAndPopulate();
-        QueryProcessor.executeInternal("DELETE FROM system.metadata_snapshots WHERE epoch = ?", epochToSnapshot.lastKey().getEpoch());
-        epochToSnapshot.pollLastEntry();
-        testGetLogStateHelper();
-    }
-
-    @Test
-    public void testIncompleteLog()
-    {
-        clearAndPopulate();
-        // delete an entry in the log from the previous period
+        // delete an entry from the log which precedes the latest snapshot but is after toQuery. In this case we would
+        // prefer a simple list of entries, but will get the latest snapshot + subsequent entries instead.
         Epoch lastSnapshot = epochToSnapshot.lastKey();
         Epoch toDelete = Epoch.create(lastSnapshot.getEpoch() - 2);
         Epoch toQuery = Epoch.create(lastSnapshot.getEpoch() - 3);
-        LogState logState = SystemKeyspaceStorage.SystemKeyspace.getLogState(ClusterMetadata.current().period, toQuery);
-        assertCorrectLogState(logState, null, toQuery, epochToPeriod.lastKey());
-        QueryProcessor.executeInternal("DELETE FROM system.local_metadata_log WHERE period = ? and epoch = ?", epochToPeriod.get(toDelete), toDelete.getEpoch());
-        logState = SystemKeyspaceStorage.SystemKeyspace.getLogState(ClusterMetadata.current().period, toQuery);
-        assertCorrectLogState(logState, epochToSnapshot.lastEntry().getValue(), null, epochToPeriod.lastKey());
+        LogState logState = SystemKeyspaceStorage.SystemKeyspace.getLogState(toQuery);
+        assertCorrectLogState(logState, null, toQuery, maxEpoch);
+        QueryProcessor.executeInternal("DELETE FROM system.local_metadata_log WHERE epoch = ?", toDelete.getEpoch());
+        logState = SystemKeyspaceStorage.SystemKeyspace.getLogState(toQuery);
+        assertCorrectLogState(logState, epochToSnapshot.lastEntry().getValue(), null, maxEpoch);
     }
 
     @Test
-    public void testIncompleteLogAndLostSnapshot()
+    public void testIncompleteLog2()
     {
         clearAndPopulate();
-        // delete an entry in the log from the previous period as well as the most recent snapshot. Both the deleted
-        // entry and snapshot are after 'since' so it's not possible to construct a contiguous sequence from since to
-        // current
+        // delete an entry from the log with multiple snapshots between toQuery and current. The deleted entry is one
+        // which comes after all available snapshots. Without losing a log entry, we should expect a LogState containing
+        // the most recent snapshot plus subsequent entries.
+        ClusterMetadata lastSnapshot = epochToSnapshot.lastEntry().getValue();
+        Iterator<Epoch> snapshots = epochToSnapshot.descendingKeySet().iterator();
+        for (int i=0; i<3; i++)
+            snapshots.next();
+        Epoch toQuery = Epoch.create(snapshots.next().getEpoch() - 1);
+        Epoch toDelete = Epoch.create(maxEpoch.getEpoch() - 2);
+        LogState logState = SystemKeyspaceStorage.SystemKeyspace.getLogState(toQuery);
+        assertCorrectLogState(logState, lastSnapshot, lastSnapshot.epoch, maxEpoch);
+
+        QueryProcessor.executeInternal("DELETE FROM system.local_metadata_log WHERE epoch = ?", toDelete.getEpoch());
+        logState = SystemKeyspaceStorage.SystemKeyspace.getLogState(toQuery);
+        assertEquals(lastSnapshot, logState.baseState);
+        boolean containsExpectedEntries = logState.entries.stream()
+                                                          .map(entry -> entry.epoch.getEpoch())
+                                                          .allMatch(e -> e > lastSnapshot.epoch.getEpoch()
+                                                                         && e <= maxEpoch.getEpoch()
+                                                                         && e != toDelete.getEpoch());
+        assertTrue(containsExpectedEntries);
+    }
+
+    @Test
+    public void testIncompleteLog3()
+    {
+        clearAndPopulate();
+        // delete an entry from the log where we have multiple snapshots after the deleted entry. In this case we should
+        // get the latest snapshot + subsequent entries and the deleted entry should not affect this.
+        Iterator<Epoch> snapshots = epochToSnapshot.descendingKeySet().iterator();
+        ClusterMetadata lastSnapshot = epochToSnapshot.get(snapshots.next());
+        // Jump back over a couple more snapshots to give us points to query for and delete
+        snapshots.next();
+        Epoch e = snapshots.next();
+        Epoch toQuery = Epoch.create(e.getEpoch() + 1);
+        Epoch toDelete = Epoch.create(toQuery.getEpoch() + 1);
+        LogState logState = SystemKeyspaceStorage.SystemKeyspace.getLogState(toQuery);
+        assertCorrectLogState(logState, lastSnapshot, lastSnapshot.epoch, maxEpoch);
+        QueryProcessor.executeInternal("DELETE FROM system.local_metadata_log WHERE epoch = ?", toDelete.getEpoch());
+        logState = SystemKeyspaceStorage.SystemKeyspace.getLogState(toQuery);
+        assertCorrectLogState(logState, lastSnapshot, lastSnapshot.epoch, maxEpoch);
+    }
+
+    @Test
+    public void testIncompleteLog4()
+    {
+        clearAndPopulate();
+        // delete an entry from the log which comes after the most recent snapshot, which itself comes after toQuery.
+        // We would normally expect to skip over the intervening snapshot and return just a list of entries from toQuery
+        // to current. Because we cannot make that list continuous, instead we get the most recent snapshot and an
+        // incomplete list.
+        ClusterMetadata lastSnapshot = epochToSnapshot.lastEntry().getValue();
+        Epoch toQuery = Epoch.create(lastSnapshot.epoch.getEpoch() - 2);
+        Epoch toDelete = Epoch.create(maxEpoch.getEpoch() - 1);
+        LogState logState = SystemKeyspaceStorage.SystemKeyspace.getLogState(toQuery);
+        assertCorrectLogState(logState, null, toQuery, maxEpoch);
+        QueryProcessor.executeInternal("DELETE FROM system.local_metadata_log WHERE epoch = ?", toDelete.getEpoch());
+        logState = SystemKeyspaceStorage.SystemKeyspace.getLogState(toQuery);
+        assertEquals(lastSnapshot, logState.baseState);
+        boolean containsExpectedEntries = logState.entries.stream()
+                                                          .map(entry -> entry.epoch.getEpoch())
+                                                          .allMatch(e -> e > lastSnapshot.epoch.getEpoch()
+                                                                         && e <= maxEpoch.getEpoch()
+                                                                         && e != toDelete.getEpoch());
+        assertTrue(containsExpectedEntries);
+    }
+
+    @Test
+    public void testCorruptSnapshot1()
+    {
+        clearAndPopulate();
+        // with a single snapshot following toQuery, corrupt it so that it cannot be read. In this scenario, we already
+        // prefer to return a list of consecutive entries and no base snapshot, so the corruption should not matter.
+        Epoch lastSnapshot = epochToSnapshot.lastKey();
+
+        Epoch toQuery = Epoch.create(lastSnapshot.getEpoch() - 3);
+        LogState logState = SystemKeyspaceStorage.SystemKeyspace.getLogState(toQuery);
+        assertCorrectLogState(logState, null, toQuery, maxEpoch);
+
+        QueryProcessor.executeInternal("DELETE snapshot FROM system.metadata_snapshots WHERE epoch = ?", lastSnapshot.getEpoch());
+        logState = SystemKeyspaceStorage.SystemKeyspace.getLogState(toQuery);
+        assertCorrectLogState(logState, null, toQuery, maxEpoch);
+    }
+
+    @Test
+    public void testCorruptSnapshot2()
+    {
+        clearAndPopulate();
+        // with a multiple snapshots following toQuery, corrupt the most recent. Ordinarily, we would expect the
+        // returned LogState to include the most recent snapshot plus subsequent entries. With the corruption, the base
+        // state should be the previous, valid snapshot plus all subsequent entries.
+        Iterator<Epoch> snapshots = epochToSnapshot.descendingKeySet().iterator();
+        ClusterMetadata lastSnapshot = epochToSnapshot.get(snapshots.next());
+        ClusterMetadata previousSnapshot = epochToSnapshot.get(snapshots.next());
+
+        Epoch toQuery = Epoch.create(previousSnapshot.epoch.getEpoch() - 3);
+        LogState logState = SystemKeyspaceStorage.SystemKeyspace.getLogState(toQuery);
+        assertCorrectLogState(logState, lastSnapshot, lastSnapshot.epoch, maxEpoch);
+
+        QueryProcessor.executeInternal("DELETE snapshot FROM system.metadata_snapshots WHERE epoch = ?", lastSnapshot.epoch.getEpoch());
+        logState = SystemKeyspaceStorage.SystemKeyspace.getLogState(toQuery);
+        assertCorrectLogState(logState, previousSnapshot, previousSnapshot.epoch, maxEpoch);
+    }
+
+    @Test
+    public void testCorruptSnapshot3()
+    {
+        clearAndPopulate();
+        // with a multiple snapshots following toQuery, corrupt the n-most recent. Ordinarily, we would expect the
+        // returned LogState to include the most recent snapshot plus subsequent entries. With the corruption, the base
+        // state should be the first valid snapshot plus all subsequent entries.
+        List<ClusterMetadata> toCorrupt = new ArrayList<>();
+        Iterator<Epoch> snapshots = epochToSnapshot.descendingKeySet().iterator();
+        ClusterMetadata lastSnapshot = epochToSnapshot.get(snapshots.next());
+        toCorrupt.add(lastSnapshot);
+        for ( int i=0; i < 3; i++)
+            toCorrupt.add(epochToSnapshot.get(snapshots.next()));
+        ClusterMetadata validSnapshot = epochToSnapshot.get(snapshots.next());
+
+        Epoch toQuery = Epoch.create(validSnapshot.epoch.getEpoch() - 3);
+        LogState logState = SystemKeyspaceStorage.SystemKeyspace.getLogState(toQuery);
+        assertCorrectLogState(logState, lastSnapshot, lastSnapshot.epoch, maxEpoch);
+
+        toCorrupt.forEach(cm -> QueryProcessor.executeInternal("DELETE snapshot FROM system.metadata_snapshots WHERE epoch = ?", cm.epoch.getEpoch()));
+        logState = SystemKeyspaceStorage.SystemKeyspace.getLogState(toQuery);
+        assertCorrectLogState(logState, validSnapshot, validSnapshot.epoch, maxEpoch);
+    }
+
+    @Test
+    public void testCorruptSnapshot4()
+    {
+        clearAndPopulate();
+        // Corrupt every snapshot following toQuery, corrupt the n-most recent. Ordinarily, we would expect the
+        // returned LogState to include the most recent snapshot plus subsequent entries. With the corruption, the log
+        // state should contain just a list of all entries from toQuery to current.
+        List<ClusterMetadata> toCorrupt = new ArrayList<>();
+        Iterator<Epoch> snapshots = epochToSnapshot.descendingKeySet().iterator();
+        ClusterMetadata lastSnapshot = epochToSnapshot.get(snapshots.next());
+        toCorrupt.add(lastSnapshot);
+        for ( int i=0; i < 3; i++)
+            toCorrupt.add(epochToSnapshot.get(snapshots.next()));
+        ClusterMetadata validSnapshot = epochToSnapshot.get(snapshots.next());
+
+        Epoch toQuery = Epoch.create(validSnapshot.epoch.getEpoch() + 1);
+        LogState logState = SystemKeyspaceStorage.SystemKeyspace.getLogState(toQuery);
+        assertCorrectLogState(logState, lastSnapshot, lastSnapshot.epoch, maxEpoch);
+
+        toCorrupt.forEach(cm -> QueryProcessor.executeInternal("DELETE snapshot FROM system.metadata_snapshots WHERE epoch = ?", cm.epoch.getEpoch()));
+        logState = SystemKeyspaceStorage.SystemKeyspace.getLogState(toQuery);
+        assertCorrectLogState(logState, null, toQuery, maxEpoch);
+    }
+
+    @Test
+    public void testIncompleteLogAndCorruptSnapshot1()
+    {
+        clearAndPopulate();
+        // delete an entry from the log which precedes the last snapshot and also corrupt that snapshot. Both the deleted
+        // entry and snapshot are after toQuery so it's not possible to construct a contiguous sequence from since to
+        // current, so instead we get just the entries which follow the deleted one
         Epoch lastSnapshot = epochToSnapshot.lastKey();
         Epoch toDelete = Epoch.create(lastSnapshot.getEpoch() - 2);
         Epoch toQuery = Epoch.create(lastSnapshot.getEpoch() - 3);
-        LogState logState = SystemKeyspaceStorage.SystemKeyspace.getLogState(ClusterMetadata.current().period, toQuery);
-        assertCorrectLogState(logState, null, toQuery, epochToPeriod.lastKey());
-        QueryProcessor.executeInternal("DELETE FROM system.local_metadata_log WHERE period = ? and epoch = ?", epochToPeriod.get(toDelete), toDelete.getEpoch());
-        QueryProcessor.executeInternal("DELETE FROM system.metadata_snapshots WHERE epoch = ?", epochToSnapshot.lastKey().getEpoch());
-        logState = SystemKeyspaceStorage.SystemKeyspace.getLogState(ClusterMetadata.current().period, toQuery);
-        assertCorrectLogState(logState, null, toDelete, epochToPeriod.lastKey());
+        LogState logState = SystemKeyspaceStorage.SystemKeyspace.getLogState(toQuery);
+        assertCorrectLogState(logState, null, toQuery, maxEpoch);
+        QueryProcessor.executeInternal("DELETE FROM system.local_metadata_log WHERE epoch = ?", toDelete.getEpoch());
+        QueryProcessor.executeInternal("DELETE snapshot FROM system.metadata_snapshots WHERE epoch = ?", lastSnapshot.getEpoch());
+        logState = SystemKeyspaceStorage.SystemKeyspace.getLogState(toQuery);
+        assertCorrectLogState(logState, null, toDelete, maxEpoch);
     }
+
+    @Test
+    public void testIncompleteLogAndCorruptSnapshot2()
+    {
+        clearAndPopulate();
+        // delete an entry from the log which comes after the last snapshot and also corrupt that snapshot.
+        // We would normally expect to skip over the intervening snapshot and return just a list of entries from toQuery
+        // to current. Because we cannot make that list continuous, but we also cannot read the snapshot, instead we get
+        // just the entries which we are present and have an epoch > toQuery.
+        Epoch lastSnapshot = epochToSnapshot.lastKey();
+        Epoch toDelete = Epoch.create(lastSnapshot.getEpoch() + 2);
+        Epoch toQuery = Epoch.create(lastSnapshot.getEpoch() - 3);
+        LogState logState = SystemKeyspaceStorage.SystemKeyspace.getLogState(toQuery);
+        assertCorrectLogState(logState, null, toQuery, maxEpoch);
+        QueryProcessor.executeInternal("DELETE FROM system.local_metadata_log WHERE epoch = ?", toDelete.getEpoch());
+        QueryProcessor.executeInternal("DELETE snapshot FROM system.metadata_snapshots WHERE epoch = ?", lastSnapshot.getEpoch());
+        logState = SystemKeyspaceStorage.SystemKeyspace.getLogState(toQuery);
+        assertNull(logState.baseState);
+        boolean containsExpectedEntries = logState.entries.stream()
+                                                          .map(entry -> entry.epoch.getEpoch())
+                                                          .allMatch(e -> e > toQuery.getEpoch()
+                                                                         && e <= maxEpoch.getEpoch()
+                                                                         && e != toDelete.getEpoch());
+        assertTrue(containsExpectedEntries);
+    }
+
+    @Test
+    public void testIncompleteLogAndCorruptSnapshot3()
+    {
+        clearAndPopulate();
+        // delete an entry from the log which is followed by multiple corrupt snapshots. Without corruption, querying
+        // from a point before the deleted entry would return a LogState with the most recent snapshot plus subsequent
+        // entries. Where all the relevant snapshots are corrupt, expect a LogState with only the non-continuous list
+        // of available entries between toQuery and current.
+        Iterator<Epoch> snapshots = epochToSnapshot.descendingKeySet().iterator();
+        List<Epoch> toCorrupt = new ArrayList<>();
+        for (int i=0; i<3; i++)
+            toCorrupt.add(snapshots.next());
+        Epoch toQuery = Epoch.create(snapshots.next().getEpoch() + 1);
+        Epoch toDelete = Epoch.create(toQuery.getEpoch() + 2);
+        LogState logState = SystemKeyspaceStorage.SystemKeyspace.getLogState(toQuery);
+        assertCorrectLogState(logState, epochToSnapshot.lastEntry().getValue(), epochToSnapshot.lastKey(), maxEpoch);
+        QueryProcessor.executeInternal("DELETE FROM system.local_metadata_log WHERE epoch = ?", toDelete.getEpoch());
+        toCorrupt.forEach(e -> QueryProcessor.executeInternal("DELETE snapshot FROM system.metadata_snapshots WHERE epoch = ?", e.getEpoch()));
+
+        logState = SystemKeyspaceStorage.SystemKeyspace.getLogState(toQuery);
+        assertNull(logState.baseState);
+        boolean containsExpectedEntries = logState.entries.stream()
+                                                          .map(entry -> entry.epoch.getEpoch())
+                                                          .allMatch(e -> e > toQuery.getEpoch()
+                                                                         && e <= maxEpoch.getEpoch()
+                                                                         && e != toDelete.getEpoch());
+        assertTrue(containsExpectedEntries);
+    }
+
+    @Test
+    public void testIncompleteLogAndCorruptSnapshot4()
+    {
+        clearAndPopulate();
+        // Corrupt multiple snapshots and delete an entry which follows them in the log. Without corruption, querying
+        // from an epoch before those snapshots deleted entry would return a LogState with the most recent snapshot plus
+        // subsequent, non-consecutive entries. Where all the relevant snapshots are corrupt, expect a LogState with
+        // only the list of available, and still non-consecutive entries between toQuery and current.
+        Iterator<Epoch> snapshots = epochToSnapshot.descendingKeySet().iterator();
+        List<Epoch> toCorrupt = new ArrayList<>();
+        for (int i=0; i<3; i++)
+            toCorrupt.add(snapshots.next());
+        Epoch toQuery = Epoch.create(snapshots.next().getEpoch() + 1);
+        Epoch toDelete = Epoch.create(maxEpoch.getEpoch() - 2);
+        LogState logState = SystemKeyspaceStorage.SystemKeyspace.getLogState(toQuery);
+        assertCorrectLogState(logState, epochToSnapshot.lastEntry().getValue(), epochToSnapshot.lastKey(), maxEpoch);
+
+        QueryProcessor.executeInternal("DELETE FROM system.local_metadata_log WHERE epoch = ?", toDelete.getEpoch());
+        toCorrupt.forEach(e -> QueryProcessor.executeInternal("DELETE snapshot FROM system.metadata_snapshots WHERE epoch = ?", e.getEpoch()));
+        logState = SystemKeyspaceStorage.SystemKeyspace.getLogState(toQuery);
+        assertNull(logState.baseState);
+        boolean containsExpectedEntries = logState.entries.stream()
+                                                          .map(entry -> entry.epoch.getEpoch())
+                                                          .allMatch(e -> e > toQuery.getEpoch()
+                                                                         && e <= maxEpoch.getEpoch()
+                                                                         && e != toDelete.getEpoch());
+        assertTrue(containsExpectedEntries);
+    }
+
 
     private void testGetLogStateHelper()
     {
+        // If there is only a single snapshot between the starting point  and the current epoch, we prefer a LogState
+        // with no base snapshot and just the consecutive entries. In all other cases, the LogState should include the
+        // most recent snapshot that can be successfully read and was taken after the starting epoch along with any
+        // subsequent entries.
+        Epoch lastSnapshotAt = epochToSnapshot.lastKey();
+        Epoch lastEligibleSnapshotAt = epochToSnapshot.lowerKey(lastSnapshotAt);
         for (int i = 1; i < 20; i++)
         {
-            long currentPeriod = ClusterMetadata.current().period;
-            Epoch start = Epoch.create(epochToPeriod.lastKey().getEpoch() - i);
-            LogState logState = SystemKeyspaceStorage.SystemKeyspace.getLogState(currentPeriod, start);
+            Epoch start = Epoch.create(maxEpoch.getEpoch() - i);
+            LogState logState = SystemKeyspaceStorage.SystemKeyspace.getLogState(start);
             ClusterMetadata expectedBase;
             Epoch expectedStart;
-            // start.nextEpoch here because start is exclusive - so if we can fill the `since` without a snapshot within
-            // the previous two periods we do so without a snapshot.
-            if (epochToPeriod.get(start.nextEpoch()) == currentPeriod || epochToPeriod.get(start.nextEpoch()) == currentPeriod - 1)
+            if (start.isEqualOrAfter(lastEligibleSnapshotAt))
             {
                 expectedBase = null;
                 expectedStart = start;
@@ -150,7 +390,7 @@ public class GetLogStateTest
                 expectedBase = epochToSnapshot.lastEntry().getValue();
                 expectedStart = null;
             }
-            assertCorrectLogState(logState, expectedBase, expectedStart, epochToPeriod.lastKey());
+            assertCorrectLogState(logState, expectedBase, expectedStart, maxEpoch);
         }
     }
 
@@ -179,19 +419,16 @@ public class GetLogStateTest
 
     private void clearAndPopulate()
     {
-        epochToPeriod.clear();
         epochToSnapshot.clear();
         for (int i = 0; i < 10; i++)
         {
-            ClusterMetadata metadata = ClusterMetadataService.instance().sealPeriod();
+            ClusterMetadata metadata = ClusterMetadataService.instance().triggerSnapshot();
             epochToSnapshot.put(metadata.epoch, metadata);
-            epochToPeriod.put(metadata.epoch, metadata.period);
             for (int j = 0; j < 4; j++)
             {
-                metadata = ClusterMetadataService.instance()
-                                                 .commit(new CustomTransformation(CustomTransformation.PokeInt.NAME,
-                                                                                  new CustomTransformation.PokeInt((int) ClusterMetadata.current().epoch.getEpoch())));
-                epochToPeriod.put(metadata.epoch, metadata.period);
+                Transformation transform = new CustomTransformation(CustomTransformation.PokeInt.NAME,
+                                                                    new CustomTransformation.PokeInt((int) ClusterMetadata.current().epoch.getEpoch()));
+                maxEpoch = ClusterMetadataService.instance().commit(transform).epoch;
             }
         }
     }

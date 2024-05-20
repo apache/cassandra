@@ -51,6 +51,8 @@ import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.RequestCallbackWithFailure;
+import org.apache.cassandra.repair.SharedContext;
+import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
@@ -286,7 +288,8 @@ public class PaxosRepair extends AbstractPaxosRepair
 
         public void run()
         {
-            Message<Request> message = Message.out(PAXOS2_REPAIR_REQ, new Request(partitionKey(), table));
+            Message<Request> message = Message.out(PAXOS2_REPAIR_REQ, new Request(partitionKey(), table), participants.isUrgent());
+
             for (int i = 0, size = participants.sizeOfPoll(); i < size ; ++i)
                 MessagingService.instance().sendWithCallback(message, participants.voter(i), this);
         }
@@ -544,7 +547,13 @@ public class PaxosRepair extends AbstractPaxosRepair
      */
     public static boolean hasSufficientLiveNodesForTopologyChange(Keyspace keyspace, Range<Token> range, Collection<InetAddressAndPort> liveEndpoints)
     {
-        return hasSufficientLiveNodesForTopologyChange(ClusterMetadata.current().placements.get(keyspace.getMetadata().params.replication).reads.forRange(range).endpoints(),
+        ReplicationParams replication = keyspace.getMetadata().params.replication;
+        // Special case meta keyspace as it uses a custom partitioner/tokens, but the paxos table and repairs
+        // are based on the system partitioner
+        Collection<InetAddressAndPort> allEndpoints = replication.isMeta()
+                                                      ? ClusterMetadata.current().fullCMSMembers()
+                                                      : ClusterMetadata.current().placements.get(replication).reads.forRange(range).endpoints();
+        return hasSufficientLiveNodesForTopologyChange(allEndpoints,
                                                        liveEndpoints,
                                                        DatabaseDescriptor.getEndpointSnitch()::getDatacenter,
                                                        DatabaseDescriptor.paxoTopologyRepairNoDcChecks(),
@@ -667,16 +676,16 @@ public class PaxosRepair extends AbstractPaxosRepair
         return result;
     }
 
-    static boolean validatePeerCompatibility(TableMetadata table, Range<Token> range)
+    static boolean validatePeerCompatibility(SharedContext ctx, TableMetadata table, Range<Token> range)
     {
         ClusterMetadata metadata = ClusterMetadata.current();
-        Participants participants = Participants.get(table, range.right, ConsistencyLevel.SERIAL);
+        Participants participants = Participants.get(metadata, table, range.right, ConsistencyLevel.SERIAL, r -> ctx.failureDetector().isAlive(r.endpoint()));
         return Iterables.all(participants.all, (participant) -> validatePeerCompatibility(metadata, participant));
     }
 
-    public static boolean validatePeerCompatibility(TableMetadata table, Collection<Range<Token>> ranges)
+    public static boolean validatePeerCompatibility(SharedContext ctx, TableMetadata table, Collection<Range<Token>> ranges)
     {
-        return Iterables.all(ranges, range -> validatePeerCompatibility(table, range));
+        return Iterables.all(ranges, range -> validatePeerCompatibility(ctx, table, range));
     }
 
     public static void shutdownAndWait(long timeout, TimeUnit units) throws InterruptedException, TimeoutException

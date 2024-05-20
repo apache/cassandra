@@ -48,3 +48,7 @@ For instance:
 ----
 include::cassandra:example$CQL/drop_trigger.cql[]
 ----
+
+Triggers can be disabled in two steps. `triggers_policy` is `enabled` by default, which runs all created triggers as
+mutations are executed. `disabled` skips trigger execution but otherwise executes query operations as normal (and logs a
+warning). `forbidden` will fail queries that would execute triggers.

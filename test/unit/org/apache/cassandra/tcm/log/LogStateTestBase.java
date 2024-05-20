@@ -19,8 +19,8 @@
 package org.apache.cassandra.tcm.log;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -30,7 +30,7 @@ import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MetadataSnapshots;
-import org.apache.cassandra.tcm.Period;
+import org.apache.cassandra.tcm.sequences.SequencesUtils;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
@@ -39,17 +39,17 @@ import static org.junit.Assert.fail;
 
 public abstract class LogStateTestBase
 {
-    static int PERIOD_SIZE = 5;
-    static int NUM_PERIODS = 10;
+    static int SNAPSHOT_FREQUENCY = 5;
+    static int NUM_SNAPSHOTS = 10;
     static int EXTRA_ENTRIES = 2;
-    static int CURRENT_EPOCH = (NUM_PERIODS * PERIOD_SIZE) + EXTRA_ENTRIES;
-    static Sealed REAL_LAST_SEALED = new Sealed(NUM_PERIODS, Epoch.create(NUM_PERIODS * PERIOD_SIZE));
+    static Epoch CURRENT_EPOCH = Epoch.create((NUM_SNAPSHOTS * SNAPSHOT_FREQUENCY) + EXTRA_ENTRIES);
+    static Epoch LATEST_SNAPSHOT_EPOCH = Epoch.create(NUM_SNAPSHOTS * SNAPSHOT_FREQUENCY);
 
     interface LogStateSUT
     {
         void cleanup() throws IOException;
         void insertRegularEntry() throws IOException;
-        void sealPeriod() throws IOException;
+        void snapshotMetadata() throws IOException;
         LogState getLogState(Epoch since);
 
         // just for manually checking the test data
@@ -63,59 +63,71 @@ public abstract class LogStateTestBase
     {
         LogStateSUT sut = getSystemUnderTest(MetadataSnapshots.NO_OP);
         sut.cleanup();
-        for (long i = 0; i < NUM_PERIODS; i++)
+        for (long i = 0; i < NUM_SNAPSHOTS; i++)
         {
-            // for the very first period (partition in the log table) we must write 1 fewer entries
+            // for the very first snapshot we must write 1 fewer entries
             // as the pre-init entry is automatically inserted with Epoch.FIRST when the table is empty
-            int entriesPerPeriod = PERIOD_SIZE - (i == 0 ? 2 : 1);
-            for (int j = 0; j < entriesPerPeriod; j++)
+            int entriesPerSnapshot = SNAPSHOT_FREQUENCY - (i == 0 ? 2 : 1);
+            for (int j = 0; j < entriesPerSnapshot; j++)
                 sut.insertRegularEntry();
 
-            sut.sealPeriod();
+            sut.snapshotMetadata();
         }
 
-        // Add 2 more Entries, which will be after the last sealed period. The point is to test what happens when
-        // we have to use the period to epoch reverse index, and the epochs are beyond the max indexed
         for (int i = 0; i < 2; i++)
             sut.insertRegularEntry();
 
         sut.dumpTables();
     }
 
-    static class TestSnapshots extends MetadataSnapshots.SystemKeyspaceMetadataSnapshots {};
-
-    static MetadataSnapshots withMissingSnapshot(Epoch ... expected)
+    static class TestSnapshots extends MetadataSnapshots.NoOp
     {
-        return new TestSnapshots()
+
+        Epoch[] expected;
+        int idx;
+        boolean corrupt;
+        TestSnapshots(Epoch[] expected, boolean corrupt)
         {
-            int idx = 0;
-            @Override
-            public ClusterMetadata getSnapshot(Epoch since)
-            {
-                if (idx >= expected.length)
-                    throw new AssertionError("Should not have gotten a query for "+since);
-                assertEquals(expected[idx++], since);
-                return null;
-            }
-        };
+            this.expected = expected;
+            this.idx = 0;
+            this.corrupt = corrupt;
+        }
+
+        @Override
+        public ClusterMetadata getSnapshot(Epoch since)
+        {
+            if (idx >= expected.length)
+                throw new AssertionError("Should not have gotten a query for "+since);
+            assertEquals(expected[idx++], since);
+            return corrupt ? null : ClusterMetadataTestHelper.minimalForTesting(Murmur3Partitioner.instance).forceEpoch(since);
+        }
+
+        @Override
+        public List<Epoch> listSnapshotsSince(Epoch epoch)
+        {
+            List<Epoch> list = new ArrayList<>();
+            for (Epoch e : expected)
+                if (e.isAfter(epoch))
+                    list.add(e);
+
+            return list;
+        }
+
+    };
+
+    static MetadataSnapshots withCorruptSnapshots(Epoch ... expected)
+    {
+        return new TestSnapshots(expected, true);
     }
 
-    static MetadataSnapshots withAvailableSnapshot(Epoch expected)
+    static MetadataSnapshots withAvailableSnapshots(Epoch ... expected)
     {
-        return new TestSnapshots()
-        {
-            @Override
-            public ClusterMetadata getSnapshot(Epoch since)
-            {
-                assertEquals(expected, since);
-                return ClusterMetadataTestHelper.minimalForTesting(Murmur3Partitioner.instance).forceEpoch(expected);
-            }
-        };
+        return new TestSnapshots(expected, false);
     }
 
     static MetadataSnapshots throwing()
     {
-        return new TestSnapshots()
+        return new MetadataSnapshots.NoOp()
         {
             @Override
             public ClusterMetadata getSnapshot(Epoch epoch)
@@ -127,164 +139,120 @@ public abstract class LogStateTestBase
     }
 
     @Test
-    public void sinceIsEmptyWithMissingSnapshot()
+    public void sinceIsEmptyWithCorruptSnapshots()
     {
-        Epoch [] queriedEpochs = new Epoch[NUM_PERIODS];
-        for (int i = 0; i < NUM_PERIODS; i++)
-            queriedEpochs[i] = Epoch.create((REAL_LAST_SEALED.period - i) * PERIOD_SIZE);
-        MetadataSnapshots missingSnapshot = withMissingSnapshot(queriedEpochs);
+        Epoch [] queriedEpochs = new Epoch[NUM_SNAPSHOTS];
+        for (int i = 0; i < NUM_SNAPSHOTS; i++)
+            queriedEpochs[i] = SequencesUtils.epoch((NUM_SNAPSHOTS - i) * SNAPSHOT_FREQUENCY);
+        MetadataSnapshots missingSnapshot = withCorruptSnapshots(queriedEpochs);
 
         LogState state = getSystemUnderTest(missingSnapshot).getLogState(Epoch.EMPTY);
         assertNull(state.baseState);
-        assertReplication(state.entries, 1, CURRENT_EPOCH);
+        assertEntries(state.entries, Epoch.FIRST, CURRENT_EPOCH);
     }
 
     @Test
-    public void sinceIsEmptyWithAvailableSnapshot()
+    public void sinceIsEmptyWithValidSnapshots()
     {
-        final Epoch expected = REAL_LAST_SEALED.epoch;
-        MetadataSnapshots withSnapshot = withAvailableSnapshot(expected);
-        LogState state = getSystemUnderTest(withSnapshot).getLogState(Epoch.EMPTY);
-        assertEquals(expected, state.baseState.epoch);
-        assertReplication(state.entries, expected.nextEpoch().getEpoch(), CURRENT_EPOCH);
+        MetadataSnapshots withSnapshots = withAvailableSnapshots(LATEST_SNAPSHOT_EPOCH,
+                                                                 SequencesUtils.epoch(((NUM_SNAPSHOTS - 1) * SNAPSHOT_FREQUENCY)),
+                                                                 SequencesUtils.epoch(((NUM_SNAPSHOTS - 2) * SNAPSHOT_FREQUENCY)));
+        LogState state = getSystemUnderTest(withSnapshots).getLogState(Epoch.EMPTY);
+        assertEquals(LATEST_SNAPSHOT_EPOCH, state.baseState.epoch);
+        assertEntries(state.entries, LATEST_SNAPSHOT_EPOCH.nextEpoch(), CURRENT_EPOCH);
     }
 
     @Test
-    public void sinceIsBeforeLastSealedButMissingSnapshot()
+    public void sinceIsBeforeLastSnapshotWithCorruptSnapshot()
     {
-        MetadataSnapshots missingSnapshot = withMissingSnapshot(REAL_LAST_SEALED.epoch,
-                                                                Epoch.create(((REAL_LAST_SEALED.period - 1) * PERIOD_SIZE )),
-                                                                Epoch.create(((REAL_LAST_SEALED.period - 2) * PERIOD_SIZE )));
-        // an arbitrary epoch earlier than the last sealed
-        Epoch since = Epoch.create(((REAL_LAST_SEALED.period - 3) * PERIOD_SIZE ) + 2);
+        MetadataSnapshots missingSnapshot = withCorruptSnapshots(LATEST_SNAPSHOT_EPOCH,
+                                                                 SequencesUtils.epoch(((NUM_SNAPSHOTS - 1) * SNAPSHOT_FREQUENCY)),
+                                                                 SequencesUtils.epoch(((NUM_SNAPSHOTS - 2) * SNAPSHOT_FREQUENCY)));
+        // an arbitrary epoch earlier than the last snapshot
+        Epoch since = SequencesUtils.epoch(((NUM_SNAPSHOTS - 3) * SNAPSHOT_FREQUENCY) + 2);
         LogState state = getSystemUnderTest(missingSnapshot).getLogState(since);
         assertNull(state.baseState);
-        assertReplication(state.entries, since.nextEpoch().getEpoch(), CURRENT_EPOCH);
+        assertEntries(state.entries, since.nextEpoch(), CURRENT_EPOCH);
     }
 
     @Test
-    public void sinceIsBeforeLastSealedWithSnapshot()
+    public void sinceIsBeforeLastSnapshotWithValidSnapshot()
     {
-        final Epoch expected = REAL_LAST_SEALED.epoch;
-        MetadataSnapshots withSnapshot = withAvailableSnapshot(expected);
-        // an arbitrary epoch earlier than the last sealed
-        Epoch since = Epoch.create(((REAL_LAST_SEALED.period - 3) * PERIOD_SIZE ) + 2);
-        LogState state = getSystemUnderTest(withSnapshot).getLogState(since);
-        assertEquals(expected, state.baseState.epoch);
-        assertReplication(state.entries, expected.nextEpoch().getEpoch(), CURRENT_EPOCH);
-    }
-
-    @Test
-    public void sinceIsMaxInLastSealedWithSnapshot()
-    {
-        // the max epoch in the last sealed period(but not the current highest epoch)
-        final Epoch since = REAL_LAST_SEALED.epoch;
-        MetadataSnapshots withSnapshot = withAvailableSnapshot(since);
+        MetadataSnapshots withSnapshot = withAvailableSnapshots(LATEST_SNAPSHOT_EPOCH);
+        // an arbitrary epoch earlier than the last snapshot
+        Epoch since = SequencesUtils.epoch(((NUM_SNAPSHOTS - 3) * SNAPSHOT_FREQUENCY) + 2);
         LogState state = getSystemUnderTest(withSnapshot).getLogState(since);
         assertNull(state.baseState);
-        assertReplication(state.entries, since.nextEpoch().getEpoch(), CURRENT_EPOCH);
+        assertEntries(state.entries, since.nextEpoch(), CURRENT_EPOCH);
     }
 
     @Test
-    public void sinceIsMaxInLastSealedButMissingSnapshot()
+    public void sinceIsEqualLastSnapshotWithValidSnapshot()
     {
-        // the max epoch in the last sealed period(but not the current highest epoch)
-        final Epoch since = REAL_LAST_SEALED.epoch;
-        MetadataSnapshots missingSnapshot = withMissingSnapshot(since);
+        // the max epoch in the last snapshot (but not the current highest epoch)
+        final Epoch since = LATEST_SNAPSHOT_EPOCH;
+        MetadataSnapshots withSnapshot = withAvailableSnapshots(since);
+        LogState state = getSystemUnderTest(withSnapshot).getLogState(since);
+        assertNull(state.baseState);
+        assertEntries(state.entries, since.nextEpoch(), CURRENT_EPOCH);
+    }
+
+    @Test
+    public void sinceIsEqualLastSnapshotWithCorruptSnapshot()
+    {
+        // the max epoch in the last snapshot (but not the current highest epoch)
+        final Epoch since = LATEST_SNAPSHOT_EPOCH;
+        MetadataSnapshots missingSnapshot = withCorruptSnapshots(since);
         LogState state = getSystemUnderTest(missingSnapshot).getLogState(since);
         assertNull(state.baseState);
-        assertReplication(state.entries, since.nextEpoch().getEpoch(), CURRENT_EPOCH);
+        assertEntries(state.entries, since.nextEpoch(), CURRENT_EPOCH);
     }
 
     @Test
-    public void sinceIsAfterLastSealed()
+    public void sinceIsAfterLastSnapshot()
     {
         MetadataSnapshots snapshots = throwing();
-        // an arbitrary epoch later than the last sealed (but not the current highest epoch)
-        Epoch since = Epoch.create(CURRENT_EPOCH - 1);
+        // an arbitrary epoch later than the last snapshot (but not the current highest epoch)
+        Epoch since = Epoch.create(CURRENT_EPOCH.getEpoch() - 1);
         LogState state = getSystemUnderTest(snapshots).getLogState(since);
         assertNull(state.baseState);
-        assertReplication(state.entries, since.nextEpoch().getEpoch(), CURRENT_EPOCH);
+        assertEntries(state.entries, since.nextEpoch(), CURRENT_EPOCH);
     }
 
     @Test
-    public void sinceIsMaxAfterLastSealed()
+    public void sinceIsMaxAfterLastSnapshot()
     {
         MetadataSnapshots snapshots = throwing();
-        // the current highest epoch, which > the max epoch in the last sealed period
-        Epoch since = Epoch.create(CURRENT_EPOCH);
+        // the current highest epoch, which is > the epoch of the last snapshot
+        Epoch since = CURRENT_EPOCH;
         LogState state = getSystemUnderTest(snapshots).getLogState(since);
         assertNull(state.baseState);
         assertTrue(state.entries.isEmpty());
     }
 
     @Test
-    public void sinceArbitraryEpochWithSealedButMissingSnapshot()
+    public void sinceArbitraryEpochWithMultipleCorruptSnapshots()
     {
         Epoch since = Epoch.create(35);
-        Epoch expected = REAL_LAST_SEALED.epoch;
-        MetadataSnapshots missingSnapshot = withMissingSnapshot(expected,                                     // 50
-                                                                Epoch.create(expected.getEpoch() - PERIOD_SIZE),        // 45
-                                                                Epoch.create(expected.getEpoch() - PERIOD_SIZE * 2L));   // 40
+        Epoch expected = LATEST_SNAPSHOT_EPOCH;
+        MetadataSnapshots missingSnapshot = withCorruptSnapshots(expected,                                     // 50
+                                                                 Epoch.create(expected.getEpoch() - SNAPSHOT_FREQUENCY),        // 45
+                                                                 Epoch.create(expected.getEpoch() - SNAPSHOT_FREQUENCY * 2L));   // 40
 
         LogState state = getSystemUnderTest(missingSnapshot).getLogState(since);
         assertNull(state.baseState);
-        assertReplication(state.entries, since.nextEpoch().getEpoch(), CURRENT_EPOCH);
+        assertEntries(state.entries, since.nextEpoch(), CURRENT_EPOCH);
     }
 
-    private void assertReplication(List<Entry> entries, long min, long max)
+    private void assertEntries(List<Entry> entries, Epoch min, Epoch max)
     {
         int idx = 0;
-        for (long i = min; i <= max; i++)
+        for (long i = min.getEpoch(); i <= max.getEpoch(); i++)
         {
             Entry e = entries.get(idx);
             assertEquals(e.epoch.getEpoch(), i);
             idx++;
         }
         assertEquals(idx, entries.size());
-    }
-
-
-    public static class Sealed implements Comparable<Sealed>
-    {
-        public static final Sealed EMPTY = new Sealed(Period.EMPTY, Epoch.EMPTY);
-        public final long period;
-        public final Epoch epoch;
-
-        public Sealed(long period, Epoch epoch)
-        {
-            this.period = period;
-            this.epoch = epoch;
-        }
-
-        @Override
-        public String toString()
-        {
-            return "Sealed{" +
-                   "period=" + period +
-                   ", epoch=" + epoch +
-                   '}';
-        }
-
-        @Override
-        public boolean equals(Object o)
-        {
-            if (this == o) return true;
-            if (!(o instanceof Sealed)) return false;
-            Sealed sealed = (Sealed) o;
-            return period == sealed.period && epoch.equals(sealed.epoch);
-        }
-
-        @Override
-        public int hashCode()
-        {
-            return Objects.hash(period, epoch);
-        }
-
-        @Override
-        public int compareTo(Sealed o)
-        {
-            return Long.compare(this.epoch.getEpoch(), o.epoch.getEpoch());
-        }
     }
 }

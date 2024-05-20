@@ -26,10 +26,14 @@
 #
 ################################
 
+[ $DEBUG ] && set -x
+
 # variables, with defaults
 [ "x${cassandra_dir}" != "x" ] || cassandra_dir="$(readlink -f $(dirname "$0")/../..)"
 [ "x${build_dir}" != "x" ] || build_dir="${cassandra_dir}/build"
+[ "x${m2_dir}" != "x" ] || m2_dir="${HOME}/.m2/repository"
 [ -d "${build_dir}" ] || { mkdir -p "${build_dir}" ; }
+[ -d "${m2_dir}" ] || { mkdir -p "${m2_dir}" ; }
 
 java_version_default=`grep 'property\s*name="java.default"' ${cassandra_dir}/build.xml |sed -ne 's/.*value="\([^"]*\)".*/\1/p'`
 java_version_supported=`grep 'property\s*name="java.supported"' ${cassandra_dir}/build.xml |sed -ne 's/.*value="\([^"]*\)".*/\1/p'`
@@ -91,15 +95,20 @@ image_name="apache/cassandra-${dockerfile/.docker/}:${image_tag}"
 
 # Look for existing docker image, otherwise build
 if ! ( [[ "$(docker images -q ${image_name} 2>/dev/null)" != "" ]] ) ; then
-  # try docker login to increase dockerhub rate limits
-  timeout -k 5 5 docker login >/dev/null
+  echo "Build image not found locally, pulling image ${image_name}..."
   if ! ( docker pull -q ${image_name} >/dev/null 2>/dev/null ) ; then
     # Create build images containing the build tool-chain, Java and an Apache Cassandra git working directory, with retry
+    echo "Building docker image..."
     until docker build -t ${image_name} -f docker/${dockerfile} .  ; do
         echo "docker build failed… trying again in 10s… "
         sleep 10
     done
+    echo "Docker image ${image_name} has been built"
+  else
+    echo "Successfully pulled build image."
   fi
+else
+  echo "Found build image locally."
 fi
 
 # Run build script through docker
@@ -118,11 +127,11 @@ docker_command="export ANT_OPTS=\"-Dbuild.dir=\${DIST_DIR} ${CASSANDRA_DOCKER_AN
 # run without the default seccomp profile
 # re-use the host's maven repository
 container_id=$(docker run --name ${container_name} -d --security-opt seccomp=unconfined --rm \
-    -v "${cassandra_dir}":/home/build/cassandra -v ~/.m2/repository/:/home/build/.m2/repository/ -v "${build_dir}":/dist \
+    -v "${cassandra_dir}":/home/build/cassandra -v ${m2_dir}:/home/build/.m2/repository/ -v "${build_dir}":/dist \
     ${docker_volume_opt} \
     ${image_name} sleep 1h)
 
-echo "Running container ${container_name} ${container_id}"
+echo "Running container ${container_name} ${container_id} using image ${image_name}"
 
 docker exec --user root ${container_name} bash -c "\${CASSANDRA_DIR}/.build/docker/_create_user.sh build $(id -u) $(id -g)"
 docker exec --user build ${container_name} bash -c "${docker_command}"

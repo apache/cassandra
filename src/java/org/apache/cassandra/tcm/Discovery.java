@@ -46,9 +46,10 @@ import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.net.Verb;
-import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
+
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /**
  * Discovery is used to idenitify other participants in the cluster. Nodes send TCM_DISCOVER_REQ
@@ -100,29 +101,45 @@ public class Discovery
         boolean res = state.compareAndSet(State.NOT_STARTED, State.IN_PROGRESS);
         assert res : String.format("Can not start discovery as it is in state %s", state.get());
 
-        long deadline = Clock.Global.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        long deadline = nanoTime() + DatabaseDescriptor.getDiscoveryTimeout(TimeUnit.NANOSECONDS);
+        long roundTimeNanos = Math.min(TimeUnit.SECONDS.toNanos(4),
+                                       DatabaseDescriptor.getDiscoveryTimeout(TimeUnit.NANOSECONDS) / rounds);
         DiscoveredNodes last = null;
         int lastCount = discovered.size();
-        int unchangedFor = 0;
-        while (Clock.Global.nanoTime() <= deadline || unchangedFor < rounds)
+        int unchangedFor = -1;
+
+        // we run for at least DatabaseDescriptor.getDiscoveryTimeout, but also need 5 (by default) consecutive rounds where
+        // the discovered nodes are unchanged
+        while (nanoTime() <= deadline || unchangedFor < rounds)
         {
-            last = discoverOnce(null);
+            long startTimeNanos = nanoTime();
+            last = discoverOnce(null, roundTimeNanos, TimeUnit.NANOSECONDS);
             if (last.kind == DiscoveredNodes.Kind.CMS_ONLY)
                 break;
 
             if (lastCount == discovered.size())
+            {
                 unchangedFor++;
+            }
             else
+            {
+                unchangedFor = 0;
                 lastCount = discovered.size();
-            Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
+            }
+            long sleeptimeNanos = roundTimeNanos - (nanoTime() - startTimeNanos);
+            if (sleeptimeNanos > 0)
+                Uninterruptibles.sleepUninterruptibly(sleeptimeNanos, TimeUnit.NANOSECONDS);
         }
 
         res = state.compareAndSet(State.IN_PROGRESS, State.FINISHED);
         assert res : String.format("Can not finish discovery as it is in state %s", state.get());
         return last;
     }
-
     public DiscoveredNodes discoverOnce(InetAddressAndPort initiator)
+    {
+        return discoverOnce(initiator, 1, TimeUnit.SECONDS);
+    }
+    public DiscoveredNodes discoverOnce(InetAddressAndPort initiator, long timeout, TimeUnit timeUnit)
     {
         Set<InetAddressAndPort> candidates = new HashSet<>();
         if (initiator != null)
@@ -135,7 +152,7 @@ public class Discovery
 
         candidates.remove(self);
 
-        Collection<Pair<InetAddressAndPort, DiscoveredNodes>> responses = MessageDelivery.fanoutAndWait(messaging.get(), candidates, Verb.TCM_DISCOVER_REQ, NoPayload.noPayload);
+        Collection<Pair<InetAddressAndPort, DiscoveredNodes>> responses = MessageDelivery.fanoutAndWait(messaging.get(), candidates, Verb.TCM_DISCOVER_REQ, NoPayload.noPayload, timeout, timeUnit);
 
         for (Pair<InetAddressAndPort, DiscoveredNodes> discoveredNodes : responses)
         {

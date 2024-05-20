@@ -96,29 +96,8 @@ public class PrepareReplace implements Transformation
                                                                                       replaced,
                                                                                       replacement,
                                                                                       prev.schema.getKeyspaces());
-        PlacementDeltas.Builder addNewNodeToWrites = PlacementDeltas.builder();
-        PlacementDeltas.Builder addNewNodeToReads = PlacementDeltas.builder();
-        PlacementDeltas.Builder removeOldNodeFromWrites = PlacementDeltas.builder();
 
-        // Only addition of the new node to the write groups is done as a consequence of the first transformation. Adding the new
-        // node to the various read groups is deferred until the second transformation, after bootstrap. Also, track which ranges
-        // are going to be affected by this operation (i.e. which will be the "pending" ranges for the new node. If the
-        // plan is accepted those ranges will be locked to prevent other plans submitted later from interacting with the
-        // same ranges.
-        LockedRanges.AffectedRangesBuilder affectedRanges = LockedRanges.AffectedRanges.builder();
-        transitionPlan.toMaximal.forEach((replication, delta) -> {
-            delta.reads.additions.flattenValues().forEach(r -> affectedRanges.add(replication, r.range()));
-            addNewNodeToWrites.put(replication, delta.onlyWrites().onlyAdditions());
-            addNewNodeToReads.put(replication, delta.onlyReads());
-        });
-
-        transitionPlan.toFinal.forEach((replication, delta) -> {
-            delta.reads.additions.flattenValues().forEach(r -> affectedRanges.add(replication, r.range()));
-            addNewNodeToReads.put(replication, delta.onlyReads());
-            removeOldNodeFromWrites.put(replication, delta.onlyWrites().onlyRemovals());
-        });
-
-        LockedRanges.AffectedRanges rangesToLock = affectedRanges.build();
+        LockedRanges.AffectedRanges rangesToLock = transitionPlan.affectedRanges();
         LockedRanges.Key alreadyLockedBy = lockedRanges.intersects(rangesToLock);
 
         if (!alreadyLockedBy.equals(LockedRanges.NOT_LOCKED))
@@ -127,9 +106,10 @@ public class PrepareReplace implements Transformation
                                                        alreadyLockedBy, lockedRanges, rangesToLock));
         }
 
-        StartReplace start = new StartReplace(replaced, replacement, addNewNodeToWrites.build(), unlockKey);
-        MidReplace mid = new MidReplace(replaced, replacement, addNewNodeToReads.build(), unlockKey);
-        FinishReplace finish = new FinishReplace(replaced, replacement, removeOldNodeFromWrites.build(), unlockKey);
+        StartReplace start = new StartReplace(replaced, replacement, transitionPlan.addToWrites(), unlockKey);
+        MidReplace mid = new MidReplace(replaced, replacement, transitionPlan.moveReads(), unlockKey);
+        FinishReplace finish = new FinishReplace(replaced, replacement, transitionPlan.removeFromWrites(), unlockKey);
+        transitionPlan.assertPreExistingWriteReplica(prev.placements);
 
         Set<Token> tokens = new HashSet<>(prev.tokenMap.tokens(replaced));
         BootstrapAndReplace plan = BootstrapAndReplace.newSequence(prev.nextEpoch(),

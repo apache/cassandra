@@ -18,9 +18,10 @@
 
 package org.apache.cassandra.cql3;
 
-import org.apache.cassandra.cql3.restrictions.SingleColumnRestriction;
+import org.apache.cassandra.cql3.restrictions.SimpleRestriction;
 import org.apache.cassandra.cql3.restrictions.SingleRestriction;
 import org.apache.cassandra.cql3.terms.Term;
+import org.apache.cassandra.cql3.terms.Terms;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 
@@ -100,7 +101,9 @@ public class Ordering
         @Override
         public SingleRestriction toRestriction()
         {
-            return new SingleColumnRestriction.AnnRestriction(columnMetadata, vectorValue);
+            return new SimpleRestriction(ColumnsExpression.singleColumn(columnMetadata),
+                                         Operator.ANN,
+                                         Terms.of(vectorValue));
         }
     }
 

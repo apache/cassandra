@@ -359,7 +359,7 @@ public class ReadCommandTest
         List<ByteBuffer> buffers = new ArrayList<>(groups.length);
         long nowInSeconds = FBUtilities.nowInSeconds();
         ColumnFilter columnFilter = ColumnFilter.allRegularColumnsBuilder(cfs.metadata(), false).build();
-        RowFilter rowFilter = RowFilter.create();
+        RowFilter rowFilter = RowFilter.create(true);
         Slice slice = Slice.make(BufferClusteringBound.BOTTOM, BufferClusteringBound.TOP);
         ClusteringIndexSliceFilter sliceFilter = new ClusteringIndexSliceFilter(Slices.with(cfs.metadata().comparator, slice), false);
 
@@ -526,7 +526,7 @@ public class ReadCommandTest
         List<ByteBuffer> buffers = new ArrayList<>(groups.length);
         long nowInSeconds = FBUtilities.nowInSeconds();
         ColumnFilter columnFilter = ColumnFilter.allRegularColumnsBuilder(cfs.metadata(), false).build();
-        RowFilter rowFilter = RowFilter.create();
+        RowFilter rowFilter = RowFilter.create(true);
         Slice slice = Slice.make(BufferClusteringBound.BOTTOM, BufferClusteringBound.TOP);
         ClusteringIndexSliceFilter sliceFilter = new ClusteringIndexSliceFilter(
                 Slices.with(cfs.metadata().comparator, slice), false);
@@ -602,7 +602,7 @@ public class ReadCommandTest
         List<ByteBuffer> buffers = new ArrayList<>(groups.length);
         long nowInSeconds = FBUtilities.nowInSeconds();
         ColumnFilter columnFilter = ColumnFilter.allRegularColumnsBuilder(cfs.metadata(), false).build();
-        RowFilter rowFilter = RowFilter.create();
+        RowFilter rowFilter = RowFilter.create(true);
         Slice slice = Slice.make(BufferClusteringBound.BOTTOM, BufferClusteringBound.TOP);
         ClusteringIndexSliceFilter sliceFilter = new ClusteringIndexSliceFilter(
                 Slices.with(cfs.metadata().comparator, slice), false);

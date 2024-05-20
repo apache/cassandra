@@ -184,11 +184,16 @@ public class DirectIOSegment extends CommitLogSegment
         @Override
         public SimpleCachedBufferPool createBufferPool()
         {
-            // The direct buffer must be aligned with the file system block size. We cannot enforce that during
-            // allocation, but we can get an aligned slice from the allocated buffer. The buffer must be oversized by the
-            // alignment unit to make it possible.
+            // Since the allocated buffer may be offset by up to fsBlockSize -
+            // 1 bytes, the buffer must be oversized by that amount. Alignment
+            // will make sure both the start and end of the buffer are aligned,
+            // cutting off any remaining bytes from both sides. Note that if we
+            // oversize by fsBlockSize bytes and the buffer happens to be
+            // already aligned, neither the start nor the end of the buffer
+            // will be adjusted and the resulting buffer will be bigger than
+            // expected.
             return new SimpleCachedBufferPool(DatabaseDescriptor.getCommitLogMaxCompressionBuffersInPool(),
-                                              DatabaseDescriptor.getCommitLogSegmentSize() + fsBlockSize,
+                                              DatabaseDescriptor.getCommitLogSegmentSize() + fsBlockSize - 1,
                                               BufferType.OFF_HEAP) {
                 @Override
                 public ByteBuffer createBuffer()
@@ -202,12 +207,10 @@ public class DirectIOSegment extends CommitLogSegment
                     ByteBufferUtil.writeZeroes(original.duplicate(), original.limit());
 
                     ByteBuffer alignedBuffer;
-                    if (original.alignmentOffset(0, fsBlockSize) > 0)
-                        alignedBuffer = original.alignedSlice(fsBlockSize);
-                    else
-                        alignedBuffer = original.slice().limit(segmentSize);
+                    alignedBuffer = original.alignedSlice(fsBlockSize);
 
-                    assert alignedBuffer.limit() >= segmentSize : String.format("Bytebuffer slicing failed to get required buffer size (required=%d, current size=%d", segmentSize, alignedBuffer.limit());
+                    assert alignedBuffer.limit() == segmentSize : String.format("Bytebuffer slicing failed to get required buffer size (required=%d, current size=%d", segmentSize, alignedBuffer.limit());
+                    assert alignedBuffer.limit() == alignedBuffer.capacity() : String.format("Bytebuffer limit and capacity do not match (limit=%d, capacity=%d", alignedBuffer.limit(), alignedBuffer.capacity());
 
                     assert alignedBuffer.alignmentOffset(0, fsBlockSize) == 0 : String.format("Index 0 should be aligned to %d page size.", fsBlockSize);
                     assert alignedBuffer.alignmentOffset(alignedBuffer.limit(), fsBlockSize) == 0 : String.format("Limit should be aligned to %d page size", fsBlockSize);

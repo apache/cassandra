@@ -120,6 +120,12 @@ public class AddToCMS extends MultiStepOperation<Epoch>
     }
 
     @Override
+    public Transformation.Result applyTo(ClusterMetadata metadata)
+    {
+        return finishJoin.execute(metadata);
+    }
+
+    @Override
     public SequenceState executeNext()
     {
         try

@@ -42,9 +42,9 @@ public class ClusterMetadataUpgradeIgnoreHostTest extends UpgradeTestBase
             // todo; isolate node 3 - actually shutting it down makes us throw exceptions when test finishes
             cluster.filters().allVerbs().to(3).drop();
             cluster.filters().allVerbs().from(3).drop();
-            cluster.get(1).nodetoolResult("initializecms").asserts().failure(); // node3 unreachable
-            cluster.get(1).nodetoolResult("initializecms", "--ignore", "127.0.0.1").asserts().failure(); // can't ignore localhost
-            cluster.get(1).nodetoolResult("initializecms", "--ignore", "127.0.0.3").asserts().success();
+            cluster.get(1).nodetoolResult("cms", "initialize").asserts().failure(); // node3 unreachable
+            cluster.get(1).nodetoolResult("cms", "initialize", "--ignore", "127.0.0.1").asserts().failure(); // can't ignore localhost
+            cluster.get(1).nodetoolResult("cms", "initialize", "--ignore", "127.0.0.3").asserts().success();
         }).run();
     }
 }

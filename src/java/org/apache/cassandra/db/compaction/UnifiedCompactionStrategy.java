@@ -95,6 +95,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
         super(cfs, options);
         this.controller = controller;
         estimatedRemainingTasks = 0;
+        lastExpiredCheck = Clock.Global.currentTimeMillis();
     }
 
     public static Map<String, String> validateOptions(Map<String, String> options) throws ConfigurationException
@@ -296,7 +297,9 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
     private void maybeUpdateShardManager()
     {
         // TODO - modify ShardManager::isOutOfDate to take an Epoch
-        if (shardManager != null && !shardManager.isOutOfDate(ClusterMetadata.current().epoch.getEpoch()))
+        if (shardManager != null
+            && (cfs.localRangesWeighted().ringVersion == ColumnFamilyStore.RING_VERSION_IRRELEVANT
+                || !shardManager.isOutOfDate(ClusterMetadata.current().epoch.getEpoch())))
             return; // the disk boundaries (and thus the local ranges too) have not changed since the last time we calculated
 
         synchronized (this)

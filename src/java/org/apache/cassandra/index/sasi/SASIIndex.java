@@ -76,6 +76,7 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.OpOrder;
@@ -266,7 +267,8 @@ public class SASIIndex implements Index, INotificationConsumer
         return Long.MIN_VALUE;
     }
 
-    public void validate(PartitionUpdate update) throws InvalidRequestException
+    @Override
+    public void validate(PartitionUpdate update, ClientState state) throws InvalidRequestException
     {}
 
     @Override

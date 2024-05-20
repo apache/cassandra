@@ -132,9 +132,12 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
      */
     public static void initializeAsFirstCMSNode()
     {
-        ClusterMetadataService.instance().log().bootstrap(FBUtilities.getBroadcastAddressAndPort());
-        assert ClusterMetadataService.state() == LOCAL : String.format("Can't initialize as node hasn't transitioned to CMS state. State: %s.\n%s", ClusterMetadataService.state(), ClusterMetadata.current());
-        Initialize initialize = new Initialize(ClusterMetadata.current());
+        InetAddressAndPort addr = FBUtilities.getBroadcastAddressAndPort();
+        ClusterMetadataService.instance().log().bootstrap(addr);
+        ClusterMetadata metadata =  ClusterMetadata.current();
+        assert ClusterMetadataService.state() == LOCAL : String.format("Can't initialize as node hasn't transitioned to CMS state. State: %s.\n%s", ClusterMetadataService.state(),  metadata);
+
+        Initialize initialize = new Initialize(metadata.initializeClusterIdentifier(addr.hashCode()));
         ClusterMetadataService.instance().commit(initialize);
     }
 
@@ -142,7 +145,8 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
     {
         LocalLog.LogSpec logSpec = LocalLog.logSpec()
                                            .withStorage(LogStorage.SystemKeyspace)
-                                           .afterReplay(Startup::scrubDataDirectories)
+                                           .afterReplay(Startup::scrubDataDirectories,
+                                                        (metadata) -> StorageService.instance.registerMBeans())
                                            .withDefaultListeners();
         ClusterMetadataService.setInstance(new ClusterMetadataService(new UniformRangePlacement(),
                                                                       wrapProcessor,
@@ -154,8 +158,17 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
         UUID currentHostId = SystemKeyspace.getLocalHostId();
         if (nodeId != null && !Objects.equals(nodeId.toUUID(), currentHostId))
         {
-            logger.info("NodeId is wrong, updating from {} to {}", currentHostId, nodeId.toUUID());
-            SystemKeyspace.setLocalHostId(nodeId.toUUID());
+            if (currentHostId == null)
+            {
+                logger.info("Taking over the host ID: {}, replacing address {}", nodeId.toUUID(), FBUtilities.getBroadcastAddressAndPort());
+                SystemKeyspace.setLocalHostId(nodeId.toUUID());
+                return;
+            }
+
+            String error = String.format("NodeId does not match locally set one. Check for the IP address collision: %s vs %s %s.",
+                                         currentHostId, nodeId.toUUID(), FBUtilities.getBroadcastAddressAndPort());
+            logger.error(error);
+            throw new IllegalStateException(error);
         }
     }
 
@@ -245,7 +258,8 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
         ClusterMetadata emptyFromSystemTables = emptyWithSchemaFromSystemTables(SystemKeyspace.allKnownDatacenters());
         LocalLog.LogSpec logSpec = LocalLog.logSpec()
                                            .withInitialState(emptyFromSystemTables)
-                                           .afterReplay(Startup::scrubDataDirectories)
+                                           .afterReplay(Startup::scrubDataDirectories,
+                                                        (metadata) -> StorageService.instance.registerMBeans())
                                            .withStorage(LogStorage.SystemKeyspace)
                                            .withDefaultListeners();
 
@@ -305,6 +319,8 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
         metadata = metadata.forceEpoch(metadata.epoch.nextEpoch());
         ClusterMetadataService.unsetInstance();
         LocalLog.LogSpec logSpec = LocalLog.logSpec()
+                                           .afterReplay(Startup::scrubDataDirectories,
+                                                        (_metadata) -> StorageService.instance.registerMBeans())
                                            .withPreviousState(prev)
                                            .withInitialState(metadata)
                                            .withStorage(LogStorage.SystemKeyspace)
@@ -319,7 +335,7 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
         ClusterMetadataService.instance().log().ready();
         initMessaging.run();
         ClusterMetadataService.instance().forceSnapshot(metadata.forceEpoch(metadata.nextEpoch()));
-        ClusterMetadataService.instance().sealPeriod();
+        ClusterMetadataService.instance().triggerSnapshot();
         CassandraRelevantProperties.TCM_UNSAFE_BOOT_WITH_CLUSTERMETADATA.reset();
         assert ClusterMetadataService.state() == LOCAL;
         assert ClusterMetadataService.instance() != initial : "Aborting startup as temporary metadata service is still active";

@@ -67,6 +67,12 @@ public class PrepareMove implements Transformation
         this.streamData = streamData;
     }
 
+    @VisibleForTesting
+    public NodeId nodeId()
+    {
+        return nodeId;
+    }
+
     @Override
     public String toString()
     {
@@ -103,6 +109,7 @@ public class PrepareMove implements Transformation
         StartMove startMove = new StartMove(nodeId, transitionPlan.addToWrites(), lockKey);
         MidMove midMove = new MidMove(nodeId, transitionPlan.moveReads(), lockKey);
         FinishMove finishMove = new FinishMove(nodeId, tokens, transitionPlan.removeFromWrites(), lockKey);
+        transitionPlan.assertPreExistingWriteReplica(prev.placements);
 
         Move sequence = Move.newSequence(prev.nextEpoch(),
                                          lockKey,

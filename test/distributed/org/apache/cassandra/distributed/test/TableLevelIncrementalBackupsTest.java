@@ -22,15 +22,18 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import org.junit.Test;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SequenceBasedSSTableId;
+import org.apache.cassandra.io.sstable.UUIDBasedSSTableId;
 
 import static org.apache.cassandra.Util.getBackups;
 import static org.apache.cassandra.distributed.Cluster.build;
@@ -144,23 +147,30 @@ public class TableLevelIncrementalBackupsTest extends TestBaseImpl
             cluster.get(i).nodetool("disableautocompaction", keyspace, table);
     }
 
-    private static  void assertBackupSSTablesCount(Cluster cluster, int expectedSeqGenIds, boolean enable, String ks, String... tableNames)
+    private static  void assertBackupSSTablesCount(Cluster cluster, int expectedTablesCount, boolean enable, String ks, String... tableNames)
     {
         for (int i = 1; i < cluster.size() + 1; i++)
         {
             cluster.get(i).runOnInstance(rethrow(() -> Arrays.stream(tableNames).forEach(tableName ->  assertTableMetaIncrementalBackupEnable(ks, tableName, enable))));
-            cluster.get(i).runOnInstance(rethrow(() -> Arrays.stream(tableNames).forEach(tableName -> assertSSTablesCount(getBackups(ks, tableName), tableName, expectedSeqGenIds))));
+            cluster.get(i).runOnInstance(rethrow(() -> Arrays.stream(tableNames).forEach(tableName -> assertSSTablesCount(getBackups(ks, tableName), tableName, expectedTablesCount))));
         }
     }
 
-    private static void assertSSTablesCount(Set<Descriptor> descs, String tableName, int expectedSeqGenIds)
+    private static void assertSSTablesCount(Set<Descriptor> descs, String tableName, int expectedTablesCount)
     {
+        Predicate<Descriptor> descriptorPredicate = descriptor -> {
+            if (DatabaseDescriptor.isUUIDSSTableIdentifiersEnabled())
+                return descriptor.id instanceof UUIDBasedSSTableId;
+            else
+                return descriptor.id instanceof SequenceBasedSSTableId;
+        };
+
         List<String> seqSSTables = descs.stream()
-                                        .filter(desc -> desc.id instanceof SequenceBasedSSTableId)
+                                        .filter(descriptorPredicate)
                                         .map(descriptor -> descriptor.baseFile().toString())
                                         .sorted()
                                         .collect(Collectors.toList());
-        assertThat(seqSSTables).describedAs("SSTables of %s with sequence based id", tableName).hasSize(expectedSeqGenIds);
+        assertThat(seqSSTables).describedAs("SSTables of %s with sequence based id", tableName).hasSize(expectedTablesCount);
     }
 
     private static void assertTableMetaIncrementalBackupEnable(String ks, String tableName, boolean enable)

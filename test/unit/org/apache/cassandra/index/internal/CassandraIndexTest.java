@@ -27,6 +27,7 @@ import com.google.common.base.Joiner;
 import com.google.common.collect.*;
 import org.junit.Test;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
@@ -480,6 +481,7 @@ public class CassandraIndexTest extends CQLTester
     @Test
     public void updateTTLOnIndexedClusteringValue() throws Throwable
     {
+        Util.assumeLegacySecondaryIndex();
         int basePk = 1;
         int indexedVal = 2;
         int initialTtl = 3600;

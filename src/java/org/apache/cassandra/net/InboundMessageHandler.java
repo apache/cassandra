@@ -175,6 +175,14 @@ public class InboundMessageHandler extends AbstractMessageHandler
             noSpamLogger.info("{} incompatible schema encountered while deserializing a message", this, e);
             ClusterMetadataService.instance().fetchLogFromPeerAsync(header.from, header.epoch);
         }
+        catch (CMSIdentifierMismatchException e)
+        {
+            callbacks.onFailedDeserialize(size, header, e);
+            logger.error("{} is a member of a different CMS group. Forcing connection close.", header.from, e);
+            MessagingService.instance().closeOutbound(header.from);
+            // Sharable bytes will be released by the frame decoder
+            channel.close();
+        }
         catch (Throwable t)
         {
             JVMStabilityInspector.inspectThrowable(t);
@@ -371,6 +379,14 @@ public class InboundMessageHandler extends AbstractMessageHandler
             {
                 callbacks.onFailedDeserialize(size, header, e);
                 noSpamLogger.info("{} incompatible schema encountered while deserializing a message", InboundMessageHandler.this, e);
+            }
+            catch (CMSIdentifierMismatchException e)
+            {
+                callbacks.onFailedDeserialize(size, header, e);
+                noSpamLogger.info("{} is a member of a different CMS group, and should not be tried. Forcing connection close.", header.from);
+                // Sharable bytes will be released by the frame decoder
+                channel.close();
+                MessagingService.instance().closeOutbound(header.from);
             }
             catch (Throwable t)
             {

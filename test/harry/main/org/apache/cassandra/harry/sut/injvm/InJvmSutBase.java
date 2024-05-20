@@ -129,12 +129,17 @@ public class InJvmSutBase<NODE extends IInstance, CLUSTER extends ICluster<NODE>
         cluster.schemaChange(statement);
     }
 
-    public Object[][] execute(String statement, ConsistencyLevel cl, Object... bindings)
+    public Object[][] execute(String statement, ConsistencyLevel cl, int pageSize, Object... bindings)
     {
-        return execute(statement, cl, loadBalancingStrategy.get(), bindings);
+        return execute(statement, cl, loadBalancingStrategy.get(), pageSize, bindings);
     }
 
-    public Object[][] execute(String statement, ConsistencyLevel cl, int coordinator, Object... bindings)
+    public Object[][] execute(String statement, ConsistencyLevel cl, Object... bindings)
+    {
+        return execute(statement, cl, loadBalancingStrategy.get(), 1, bindings);
+    }
+
+    public Object[][] execute(String statement, ConsistencyLevel cl, int coordinator, int pageSize, Object... bindings)
     {
         if (isShutdown.get())
             throw new RuntimeException("Instance is shut down");
@@ -151,7 +156,7 @@ public class InJvmSutBase<NODE extends IInstance, CLUSTER extends ICluster<NODE>
                 return Iterators.toArray(cluster
                                          // round-robin
                                          .coordinator(coordinator)
-                                         .executeWithPaging(statement, toApiCl(cl), 1, bindings),
+                                         .executeWithPaging(statement, toApiCl(cl), pageSize, bindings),
                                          Object[].class);
             }
             else

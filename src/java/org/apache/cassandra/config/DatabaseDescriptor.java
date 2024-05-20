@@ -186,7 +186,7 @@ public class DatabaseDescriptor
 
     /* Hashing strategy Random or OPHF */
     private static IPartitioner partitioner;
-    private static String paritionerName;
+    private static String partitionerName;
 
     private static DiskAccessMode indexAccessMode;
 
@@ -1442,7 +1442,7 @@ public class DatabaseDescriptor
             throw new ConfigurationException("Invalid partitioner class " + name, e);
         }
 
-        paritionerName = partitioner.getClass().getCanonicalName();
+        partitionerName = partitioner.getClass().getCanonicalName();
     }
 
     private static DiskAccessMode resolveCommitLogWriteDiskAccessMode(DiskAccessMode providedDiskAccessMode)
@@ -1955,7 +1955,7 @@ public class DatabaseDescriptor
 
     public static String getPartitionerName()
     {
-        return paritionerName;
+        return partitionerName;
     }
 
     /* For tests ONLY, don't use otherwise or all hell will break loose. Tests should restore value at the end. */
@@ -1970,6 +1970,7 @@ public class DatabaseDescriptor
     {
         IPartitioner old = partitioner;
         partitioner = newPartitioner;
+        partitionerName = partitioner.getClass().getCanonicalName();
         return old;
     }
 
@@ -3518,6 +3519,11 @@ public class DatabaseDescriptor
     public static long getMaxHintsFileSize()
     {
         return conf.max_hints_file_size.toBytesInLong();
+    }
+
+    public static void setMaxHintsFileSize(long value)
+    {
+        conf.max_hints_file_size = new DataStorageSpec.IntMebibytesBound(value);
     }
 
     public static ParameterizedClass getHintsCompression()
@@ -5088,26 +5094,6 @@ public class DatabaseDescriptor
         conf.progress_barrier_min_consistency_level = newLevel;
     }
 
-    public static boolean getLogOutOfTokenRangeRequests()
-    {
-        return conf.log_out_of_token_range_requests;
-    }
-
-    public static void setLogOutOfTokenRangeRequests(boolean enabled)
-    {
-        conf.log_out_of_token_range_requests = enabled;
-    }
-
-    public static boolean getRejectOutOfTokenRangeRequests()
-    {
-        return conf.reject_out_of_token_range_requests;
-    }
-
-    public static void setRejectOutOfTokenRangeRequests(boolean enabled)
-    {
-        conf.reject_out_of_token_range_requests = enabled;
-    }
-
     public static ConsistencyLevel getProgressBarrierDefaultConsistencyLevel()
     {
         return conf.progress_barrier_default_consistency_level;
@@ -5133,6 +5119,11 @@ public class DatabaseDescriptor
         conf.progress_barrier_backoff = new DurationSpec.LongMillisecondsBound(timeOutInMillis);
     }
 
+    public static long getDiscoveryTimeout(TimeUnit unit)
+    {
+        return conf.discovery_timeout.to(unit);
+    }
+
     public static boolean getUnsafeTCMMode()
     {
         return conf.unsafe_tcm_mode;
@@ -5146,5 +5137,17 @@ public class DatabaseDescriptor
     public static int getSaiSSTableIndexesPerQueryFailThreshold()
     {
         return conf.sai_sstable_indexes_per_query_fail_threshold;
+    }
+
+    @VisibleForTesting
+    public static void setTriggersPolicy(Config.TriggersPolicy policy)
+    {
+        logger.info("triggers_policy set to {}", policy);
+        conf.triggers_policy = policy;
+    }
+
+    public static Config.TriggersPolicy getTriggersPolicy()
+    {
+        return conf.triggers_policy;
     }
 }

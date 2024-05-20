@@ -19,9 +19,15 @@
 package org.apache.cassandra.distributed.test.ring;
 
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import javax.management.MBeanAttributeInfo;
+import javax.management.MBeanInfo;
+import javax.management.MBeanServerConnection;
+import javax.management.ObjectName;
+import javax.management.remote.JMXConnector;
 
 import org.junit.Test;
 
@@ -36,8 +42,10 @@ import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.TokenSupplier;
+import org.apache.cassandra.distributed.shared.JMXUtil;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.metrics.DefaultNameFactory;
 import org.apache.cassandra.service.StorageService;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
@@ -45,6 +53,7 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.RESET_BOOT
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_WRITE_SURVEY;
 import static org.apache.cassandra.distributed.action.GossipHelper.withProperty;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
+import static org.apache.cassandra.distributed.api.Feature.JMX;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -136,7 +145,7 @@ public class BootstrapTest extends TestBaseImpl
         try (Cluster cluster = builder().withNodes(originalNodeCount)
                                         .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(expandedNodeCount))
                                         .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(expandedNodeCount, "dc0", "rack0"))
-                                        .withConfig(config -> config.with(NETWORK, GOSSIP))
+                                        .withConfig(config -> config.with(NETWORK, GOSSIP, JMX))
                                         .withInstanceInitializer(BootstrapTest.BB::install)
                                         .start())
         {
@@ -154,9 +163,58 @@ public class BootstrapTest extends TestBaseImpl
                 assertEquals("COMPLETED", StorageService.instance.getBootstrapState());
                 assertFalse(StorageService.instance.isBootstrapFailed());
             });
+
+            assertEquals(Long.valueOf(0L), getMetricGaugeValue(joiningInstance, "BootstrapFilesTotal", Long.class));
+            assertEquals(Long.valueOf(0L), getMetricGaugeValue(joiningInstance, "BootstrapFilesReceived", Long.class));
+            assertEquals("Bootstrap streaming success", getMetricGaugeValue(joiningInstance, "BootstrapLastSeenStatus", String.class));
+            assertEquals("", getMetricGaugeValue(joiningInstance, "BootstrapLastSeenError", String.class));
         }
     }
 
+    public static <T> T getMetricGaugeValue(IInvokableInstance instance, String metricName, Class<T> gaugeReturnType)
+    {
+        return gaugeReturnType.cast(getMetricAttribute(instance, metricName, "Value"));
+    }
+
+    public static long getMetricMeterRate(IInvokableInstance instance, String metricName)
+    {
+        Object raw = getMetricAttribute(instance, metricName, "Count");
+        return raw == null ? 0 : (Long) raw;
+    }
+
+    public static Object getMetricAttribute(IInvokableInstance instance, String metricName, String attributeName)
+    {
+        if (instance.isShutdown())
+            throw new IllegalStateException("Instance is shutdown");
+
+        try (JMXConnector jmxc = JMXUtil.getJmxConnector(instance.config()))
+        {
+            MBeanServerConnection mbsc = jmxc.getMBeanServerConnection();
+            ObjectName metric = mbsc.queryNames(null, null)
+                                    .stream()
+                                    .filter(objectName -> objectName.getDomain().equals(DefaultNameFactory.GROUP_NAME))
+                                    .filter(objectName -> Objects.nonNull(objectName.getKeyProperty("name")))
+                                    .filter(objectName -> metricName.equals(objectName.getKeyProperty("name")))
+                                    .findFirst()
+                                    .orElse(null);
+
+            if (metric == null)
+                return null;
+
+            MBeanInfo info = mbsc.getMBeanInfo(metric);
+            for (MBeanAttributeInfo a : info.getAttributes())
+            {
+                if (a.getName().equals(attributeName))
+                    return mbsc.getAttribute(metric, a.getName());
+            }
+
+            return null;
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
 
     public static void populate(ICluster cluster, int from, int to)
     {

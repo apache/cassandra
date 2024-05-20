@@ -41,7 +41,6 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.schema.SchemaKeyspaceTables;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.schema.UserFunctions;
 
 import static java.lang.String.format;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -133,7 +132,7 @@ public class ColumnMaskTester extends CQLTester
         UntypedResultSet columnRows = execute("SELECT * FROM system_schema.columns " +
                                               "WHERE keyspace_name = ? AND table_name = ? AND column_name = ?",
                                               KEYSPACE, table, column);
-        ColumnMetadata persistedColumn = SchemaKeyspace.createColumnFromRow(columnRows.one(), keyspaceMetadata.types, UserFunctions.none());
+        ColumnMetadata persistedColumn = SchemaKeyspace.createColumnFromRow(columnRows.one(), keyspaceMetadata.types, keyspaceMetadata.userFunctions);
 
         // Verify the column mask in the persisted schema
         ColumnMask savedMask = persistedColumn.getMask();

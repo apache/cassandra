@@ -657,4 +657,22 @@ public class VectorTypeTest extends VectorTester
         assertRowsIgnoringOrder(execute("SELECT pk FROM %s WHERE val = 'match me' ORDER BY vec ANN OF [1,1] LIMIT 5"),
                                 row(1), row(2), row(3), row(4), row(5));
     }
+
+    @Test
+    public void multiPartitionUpdateMultiIndexTest()
+    {
+        createTable("CREATE TABLE %s (pk int, row_v vector<float, 2>, metadata map<text, text>, PRIMARY KEY(pk))");
+        createIndex("CREATE CUSTOM INDEX ON %s(entries(metadata)) USING 'StorageAttachedIndex'");
+        createIndex("CREATE CUSTOM INDEX ON %s(row_v) USING 'StorageAttachedIndex'");
+
+        String select = "SELECT * FROM %s WHERE metadata['map_k'] = 'map_v' AND pk = 0 ORDER BY row_v ann of [0.1, 0.2] LIMIT 4";
+        assertRows(execute(select));
+
+        execute("INSERT INTO %s (pk, metadata, row_v) VALUES (0, {'map_k' : 'map_v'}, [0.11, 0.19])");
+        Object[] row = row(0, map("map_k", "map_v"), vector(0.11f, 0.19f));
+        assertRows(execute(select), row);
+
+        execute("INSERT INTO %s (pk, metadata, row_v) VALUES (10, {'map_k' : 'map_v'}, [0.11, 0.19])");
+        assertRows(execute(select), row);
+    }
 }

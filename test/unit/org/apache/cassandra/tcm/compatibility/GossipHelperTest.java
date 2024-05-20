@@ -46,7 +46,7 @@ import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.membership.NodeId;
-import org.apache.cassandra.tcm.ownership.PlacementForRange;
+import org.apache.cassandra.tcm.ownership.ReplicaGroups;
 import org.apache.cassandra.utils.CassandraVersion;
 
 import static org.apache.cassandra.gms.ApplicationState.*;
@@ -157,8 +157,8 @@ public class GossipHelperTest
             assertEquals(entry.getValue(), metadata.tokenMap.tokens(nodeId).iterator().next());
         }
 
-        PlacementForRange reads = metadata.placements.get(KSM_NTS.params.replication).reads;
-        PlacementForRange writes = metadata.placements.get(KSM_NTS.params.replication).writes;
+        ReplicaGroups reads = metadata.placements.get(KSM_NTS.params.replication).reads;
+        ReplicaGroups writes = metadata.placements.get(KSM_NTS.params.replication).writes;
         assertEquals(reads, writes);
         // tokens are
         // dc1: 1: 1000, 3: 3000, 5: 5000, 6: 7000, 7: 9000

@@ -226,6 +226,21 @@ public final class Guardrails implements GuardrailsMBean
                    "0 default_time_to_live on a table with " + TimeWindowCompactionStrategy.class.getSimpleName() + " compaction strategy");
 
     /**
+     * Guardrail to warn on or fail filtering queries that contain intersections on mutable columns at consistency
+     * levels that require coordinator reconciliation.
+     * 
+     * @see <a href="https://issues.apache.org/jira/browse/CASSANDRA-19007">CASSANDRA-19007</a>
+     */
+    public static final EnableFlag intersectFilteringQueryEnabled =
+            new EnableFlag("intersect_filtering_query",
+                           "Filtering queries involving an intersection on multiple mutable (i.e. non-key) columns " +
+                           "over unrepaired data at read consistency levels that would require coordinator " +
+                           "reconciliation may violate the guarantees of those consistency levels.",
+                           state -> CONFIG_PROVIDER.getOrCreate(state).getIntersectFilteringQueryWarned(),
+                           state -> CONFIG_PROVIDER.getOrCreate(state).getIntersectFilteringQueryEnabled(),
+                           "Filtering query with intersection on mutable columns at consistency level requiring coordinator reconciliation");
+
+    /**
      * Guardrail on the number of elements returned within page.
      */
     public static final MaxThreshold pageSize =
@@ -353,7 +368,7 @@ public final class Guardrails implements GuardrailsMBean
                      state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getColumnValueSizeWarnThreshold()),
                      state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getColumnValueSizeFailThreshold()),
                      (isWarning, what, value, threshold) ->
-                     format("Value of column %s has size %s, this exceeds the %s threshold of %s.",
+                     format("Value of column '%s' has size %s, this exceeds the %s threshold of %s.",
                             what, value, isWarning ? "warning" : "failure", threshold));
 
     /**
@@ -494,6 +509,42 @@ public final class Guardrails implements GuardrailsMBean
                      ((isWarning, what, value, threshold) ->
                       format("The number of SSTable indexes queried on index %s violated %s threshold value %s with value %s",
                              what, isWarning ? "warning" : "failure", threshold, value)));
+
+    /**
+     * Guardrail on the size of a string term written to SAI index.
+     */
+    public static final MaxThreshold saiStringTermSize =
+    new MaxThreshold("sai_string_term_size",
+                     null,
+                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getSaiStringTermSizeWarnThreshold()),
+                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getSaiStringTermSizeFailThreshold()),
+                     (isWarning, what, value, threshold) ->
+                     format("Value of column '%s' has size %s, this exceeds the %s threshold of %s.",
+                            what, value, isWarning ? "warning" : "failure", threshold));
+
+    /**
+     * Guardrail on the size of a frozen term written to SAI index.
+     */
+    public static final MaxThreshold saiFrozenTermSize =
+    new MaxThreshold("sai_frozen_term_size",
+                     null,
+                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getSaiFrozenTermSizeWarnThreshold()),
+                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getSaiFrozenTermSizeFailThreshold()),
+                     (isWarning, what, value, threshold) ->
+                     format("Value of column '%s' has size %s, this exceeds the %s threshold of %s.",
+                            what, value, isWarning ? "warning" : "failure", threshold));
+
+    /**
+     * Guardrail on the size of a vector term written to SAI index.
+     */
+    public static final MaxThreshold saiVectorTermSize =
+    new MaxThreshold("sai_vector_term_size",
+                     null,
+                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getSaiVectorTermSizeWarnThreshold()),
+                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getSaiVectorTermSizeFailThreshold()),
+                     (isWarning, what, value, threshold) ->
+                     format("Value of column '%s' has size %s, this exceeds the %s threshold of %s.",
+                            what, value, isWarning ? "warning" : "failure", threshold));
 
     public static final EnableFlag nonPartitionRestrictedIndexQueryEnabled =
     new EnableFlag("non_partition_restricted_index_query_enabled",
@@ -1255,6 +1306,66 @@ public final class Guardrails implements GuardrailsMBean
     }
 
     @Override
+    @Nullable
+    public String getSaiStringTermSizeWarnThreshold()
+    {
+        return sizeToString(DEFAULT_CONFIG.getSaiStringTermSizeWarnThreshold());
+    }
+
+    @Override
+    @Nullable
+    public String getSaiStringTermSizeFailThreshold()
+    {
+        return sizeToString(DEFAULT_CONFIG.getSaiStringTermSizeFailThreshold());
+    }
+
+    @Override
+    public void setSaiStringTermSizeThreshold(@Nullable String warnSize, @Nullable String failSize)
+    {
+        DEFAULT_CONFIG.setSaiStringTermSizeThreshold(sizeFromString(warnSize), sizeFromString(failSize));
+    }
+
+    @Override
+    @Nullable
+    public String getSaiFrozenTermSizeWarnThreshold()
+    {
+        return sizeToString(DEFAULT_CONFIG.getSaiFrozenTermSizeWarnThreshold());
+    }
+
+    @Override
+    @Nullable
+    public String getSaiFrozenTermSizeFailThreshold()
+    {
+        return sizeToString(DEFAULT_CONFIG.getSaiFrozenTermSizeFailThreshold());
+    }
+
+    @Override
+    public void setSaiFrozenTermSizeThreshold(@Nullable String warnSize, @Nullable String failSize)
+    {
+        DEFAULT_CONFIG.setSaiFrozenTermSizeThreshold(sizeFromString(warnSize), sizeFromString(failSize));
+    }
+
+    @Override
+    @Nullable
+    public String getSaiVectorTermSizeWarnThreshold()
+    {
+        return sizeToString(DEFAULT_CONFIG.getSaiVectorTermSizeWarnThreshold());
+    }
+
+    @Override
+    @Nullable
+    public String getSaiVectorTermSizeFailThreshold()
+    {
+        return sizeToString(DEFAULT_CONFIG.getSaiVectorTermSizeFailThreshold());
+    }
+
+    @Override
+    public void setSaiVectorTermSizeThreshold(@Nullable String warnSize, @Nullable String failSize)
+    {
+        DEFAULT_CONFIG.setSaiVectorTermSizeThreshold(sizeFromString(warnSize), sizeFromString(failSize));
+    }
+
+    @Override
     public boolean getNonPartitionRestrictedQueryEnabled()
     {
         return DEFAULT_CONFIG.getNonPartitionRestrictedQueryEnabled();
@@ -1264,6 +1375,30 @@ public final class Guardrails implements GuardrailsMBean
     public void setNonPartitionRestrictedQueryEnabled(boolean enabled)
     {
         DEFAULT_CONFIG.setNonPartitionRestrictedQueryEnabled(enabled);
+    }
+
+    @Override
+    public boolean getIntersectFilteringQueryWarned()
+    {
+        return DEFAULT_CONFIG.getIntersectFilteringQueryWarned();
+    }
+
+    @Override
+    public void setIntersectFilteringQueryWarned(boolean value)
+    {
+        DEFAULT_CONFIG.setIntersectFilteringQueryWarned(value);
+    }
+
+    @Override
+    public boolean getIntersectFilteringQueryEnabled()
+    {
+        return DEFAULT_CONFIG.getIntersectFilteringQueryEnabled();
+    }
+
+    @Override
+    public void setIntersectFilteringQueryEnabled(boolean value)
+    {
+        DEFAULT_CONFIG.setIntersectFilteringQueryEnabled(value);
     }
 
     private static String toCSV(Set<String> values)

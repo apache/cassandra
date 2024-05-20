@@ -33,9 +33,9 @@ public class KeyRangeUnionIterator extends KeyRangeIterator
     private final List<KeyRangeIterator> ranges;
     private final List<KeyRangeIterator> candidates;
 
-    private KeyRangeUnionIterator(Builder.Statistics statistics, List<KeyRangeIterator> ranges)
+    private KeyRangeUnionIterator(Builder.Statistics statistics, List<KeyRangeIterator> ranges, Runnable onClose)
     {
-        super(statistics);
+        super(statistics, onClose);
         this.ranges = ranges;
         this.candidates = new ArrayList<>(ranges.size());
     }
@@ -43,40 +43,58 @@ public class KeyRangeUnionIterator extends KeyRangeIterator
     @Override
     public PrimaryKey computeNext()
     {
+        // the design is to find the next best value from all the ranges,
+        // and then advance all the ranges that have the same value.
         candidates.clear();
-        PrimaryKey candidate = null;
+        PrimaryKey candidateKey = null;
         for (KeyRangeIterator range : ranges)
         {
-            if (range.hasNext())
+            if (!range.hasNext())
+                continue;
+
+            if (candidateKey == null)
             {
-                // Avoid repeated values but only if we have read at least one value
-                while (next != null && range.hasNext() && range.peek().compareTo(getCurrent()) == 0)
-                    range.next();
-                if (!range.hasNext())
-                    continue;
-                if (candidate == null)
+                candidateKey = range.peek();
+                candidates.add(range);
+            }
+            else
+            {
+                PrimaryKey peeked = range.peek();
+    
+                int cmp = candidateKey.compareTo(peeked);
+
+                if (cmp == 0)
                 {
-                    candidate = range.peek();
+                    // Replace any existing candidate key if this one is STATIC:
+                    if (peeked.kind() == PrimaryKey.Kind.STATIC)
+                        candidateKey = peeked;
+
                     candidates.add(range);
                 }
-                else
+                else if (cmp > 0)
                 {
-                    int cmp = candidate.compareTo(range.peek());
-                    if (cmp == 0)
-                        candidates.add(range);
-                    else if (cmp > 0)
-                    {
-                        candidates.clear();
-                        candidate = range.peek();
-                        candidates.add(range);
-                    }
+                    // we found a new best candidate, throw away the old ones
+                    candidates.clear();
+                    candidateKey = peeked;
+                    candidates.add(range);
                 }
+                // else, existing candidate is less than the next in this range
             }
         }
         if (candidates.isEmpty())
             return endOfData();
-        candidates.forEach(KeyRangeIterator::next);
-        return candidate;
+
+        for (KeyRangeIterator candidate : candidates)
+        {
+            do
+            {
+                // Consume the remaining values equal to the candidate key:
+                candidate.next();
+            }
+            while (candidate.hasNext() && candidate.peek().compareTo(candidateKey) == 0);
+        }
+
+        return candidateKey;
     }
 
     @Override
@@ -92,18 +110,29 @@ public class KeyRangeUnionIterator extends KeyRangeIterator
     @Override
     public void close()
     {
+        super.close();
+
         // Due to lazy key fetching, we cannot close iterator immediately
         FileUtils.closeQuietly(ranges);
     }
 
     public static Builder builder(int size)
     {
-        return new Builder(size);
+        return builder(size, () -> {});
     }
 
+    public static Builder builder(int size, Runnable onClose)
+    {
+        return new Builder(size, onClose);
+    }
+
+    public static KeyRangeIterator build(List<KeyRangeIterator> keys, Runnable onClose)
+    {
+        return new Builder(keys.size(), onClose).add(keys).build();
+    }
     public static KeyRangeIterator build(List<KeyRangeIterator> keys)
     {
-        return new Builder(keys.size()).add(keys).build();
+        return build(keys, () -> {});
     }
 
     @VisibleForTesting
@@ -111,9 +140,9 @@ public class KeyRangeUnionIterator extends KeyRangeIterator
     {
         protected final List<KeyRangeIterator> rangeIterators;
 
-        Builder(int size)
+        Builder(int size, Runnable onClose)
         {
-            super(new UnionStatistics());
+            super(new UnionStatistics(), onClose);
             this.rangeIterators = new ArrayList<>(size);
         }
 
@@ -123,7 +152,7 @@ public class KeyRangeUnionIterator extends KeyRangeIterator
             if (range == null)
                 return this;
 
-            if (range.getCount() > 0)
+            if (range.getMaxKeys() > 0)
             {
                 rangeIterators.add(range);
                 statistics.update(range);
@@ -145,6 +174,7 @@ public class KeyRangeUnionIterator extends KeyRangeIterator
         @Override
         public void cleanup()
         {
+            super.cleanup();
             FileUtils.closeQuietly(rangeIterators);
         }
 
@@ -152,9 +182,13 @@ public class KeyRangeUnionIterator extends KeyRangeIterator
         protected KeyRangeIterator buildIterator()
         {
             if (rangeCount() == 1)
-                return rangeIterators.get(0);
+            {
+                KeyRangeIterator single = rangeIterators.get(0);
+                single.setOnClose(onClose);
+                return single;
+            }
 
-            return new KeyRangeUnionIterator(statistics, rangeIterators);
+            return new KeyRangeUnionIterator(statistics, rangeIterators, onClose);
         }
     }
 
@@ -165,7 +199,7 @@ public class KeyRangeUnionIterator extends KeyRangeIterator
         {
             min = nullSafeMin(min, range.getMinimum());
             max = nullSafeMax(max, range.getMaximum());
-            count += range.getCount();
+            count += range.getMaxKeys();
         }
     }
 }

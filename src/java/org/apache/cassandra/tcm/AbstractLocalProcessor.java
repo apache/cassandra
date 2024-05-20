@@ -21,10 +21,10 @@ package org.apache.cassandra.tcm;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
-import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.log.LogState;
@@ -80,7 +80,7 @@ public abstract class AbstractLocalProcessor implements Processor
                 {
                     return maybeFailure(entryId,
                                         lastKnown,
-                                        () -> new Commit.Result.Failure(result.rejected().code, result.rejected().reason, true));
+                                        () -> Commit.Result.rejected(result.rejected().code, result.rejected().reason, toLogState(lastKnown)));
                 }
 
                 continue;
@@ -90,10 +90,7 @@ public abstract class AbstractLocalProcessor implements Processor
             {
                 Epoch nextEpoch = result.success().metadata.epoch;
                 // If metadata applies, try committing it to the log
-                boolean applied = tryCommitOne(entryId, transform,
-                                               previous.epoch, nextEpoch,
-                                               previous.period, previous.nextPeriod(),
-                                               result.success().metadata.lastInPeriod);
+                boolean applied = tryCommitOne(entryId, transform, previous.epoch, nextEpoch);
 
                 // Application here semantially means "succeeded in committing to the distributed log".
                 if (applied)
@@ -119,11 +116,10 @@ public abstract class AbstractLocalProcessor implements Processor
                 retryPolicy.maybeSleep();
             }
         }
-        return new Commit.Result.Failure(SERVER_ERROR,
-                                         String.format("Could not perform commit after %d/%d tries. Time remaining: %dms",
-                                                       retryPolicy.tries, retryPolicy.maxTries,
-                                                       TimeUnit.NANOSECONDS.toMillis(retryPolicy.remainingNanos())),
-                                         false);
+        return Commit.Result.failed(SERVER_ERROR,
+                                    String.format("Could not perform commit after %d/%d tries. Time remaining: %dms",
+                                                  retryPolicy.tries, retryPolicy.maxTries,
+                                                  TimeUnit.NANOSECONDS.toMillis(retryPolicy.remainingNanos())));
     }
 
     public Commit.Result maybeFailure(Entry.Id entryId, Epoch lastKnown, Supplier<Commit.Result.Failure> orElse)
@@ -196,7 +192,6 @@ public abstract class AbstractLocalProcessor implements Processor
 
     @Override
     public abstract ClusterMetadata fetchLogAndWait(Epoch waitFor, Retry.Deadline retryPolicy);
-    protected abstract boolean tryCommitOne(Entry.Id entryId, Transformation transform,
-                                            Epoch previousEpoch, Epoch nextEpoch,
-                                            long previousPeriod, long nextPeriod, boolean sealPeriod);
+    protected abstract boolean tryCommitOne(Entry.Id entryId, Transformation transform, Epoch previousEpoch, Epoch nextEpoch);
+
 }

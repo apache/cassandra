@@ -19,12 +19,14 @@
 package org.apache.cassandra.distributed.test;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.HashSet;
 import java.util.Set;
 
 import com.google.common.collect.Sets;
 import org.junit.Test;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Bounds;
@@ -65,11 +67,14 @@ public class PreviewRepairSnapshotTest extends TestBaseImpl
                                                                       .with(NETWORK)).start()))
         {
             Set<Integer> tokensToMismatch = Sets.newHashSet(1, 50, 99);
-            cluster.schemaChange(withKeyspace("create table %s.tbl (id int primary key) with compaction = {'class' : 'SizeTieredCompactionStrategy', 'enabled':false }"));
+            cluster.schemaChange(withKeyspace("create table %s.tbl (id blob primary key) with compaction = {'class' : 'SizeTieredCompactionStrategy', 'enabled':false }"));
             // 1 token per sstable;
             for (int i = 0; i < 100; i++)
             {
-                cluster.coordinator(1).execute(withKeyspace("insert into %s.tbl (id) values (?)"), ConsistencyLevel.ALL, i);
+                // BigFormat severely overestimates the number of partitions per range when the sstable size is small.
+                // Do multiple writes per sstable, with the same token, to compensate.
+                for (int j = 0; j < 10; ++j)
+                    cluster.coordinator(1).execute(withKeyspace("insert into %s.tbl (id) values (?)"), ConsistencyLevel.ALL, matchingHashBlob(i, j));
                 cluster.stream().forEach(instance -> instance.flush(KEYSPACE));
             }
             cluster.stream().forEach(instance -> instance.flush(KEYSPACE));
@@ -85,9 +90,10 @@ public class PreviewRepairSnapshotTest extends TestBaseImpl
             Set<Token> mismatchingTokens = new HashSet<>();
             for (Integer token : tokensToMismatch)
             {
-                cluster.get(2).executeInternal(withKeyspace("insert into %s.tbl (id) values (?)"), token);
+                final ByteBuffer b = matchingHashBlob(token, 0);
+                cluster.get(2).executeInternal(withKeyspace("insert into %s.tbl (id) values (?)"), b);
                 cluster.get(2).flush(KEYSPACE);
-                Object[][] res = cluster.get(2).executeInternal(withKeyspace("select token(id) from %s.tbl where id = ?"), token);
+                Object[][] res = cluster.get(2).executeInternal(withKeyspace("select token(id) from %s.tbl where id = ?"), b);
                 mismatchingTokens.add(new Murmur3Partitioner.LongToken((long) res[0][0]));
             }
 
@@ -103,6 +109,13 @@ public class PreviewRepairSnapshotTest extends TestBaseImpl
             // node2 got the duplicate mismatch-tokens above, so it should exist in exactly 6 sstables
             cluster.get(2).runOnInstance(checkSnapshot(mismatchingTokens, 6));
         }
+    }
+
+    private ByteBuffer matchingHashBlob(int hashAffectingComponent, int hashUnaffectingComponent)
+    {
+        // Generate blobs with mathing hash for the same i, but different for the different j
+        ByteBuffer base = ByteBuffer.wrap(Integer.toHexString(hashAffectingComponent).getBytes());
+        return Util.generateMurmurCollision(base, Integer.toHexString(hashUnaffectingComponent).getBytes());
     }
 
     private IIsolatedExecutor.SerializableRunnable checkSnapshot(Set<Token> mismatchingTokens, int expectedSnapshotSize)

@@ -24,17 +24,21 @@ import org.apache.cassandra.harry.operations.Query;
 
 public class NoOpChecker implements Model
 {
-    private final Run run;
-
+    private final SystemUnderTest sut;
+    private final SystemUnderTest.ConsistencyLevel cl;
     public NoOpChecker(Run run)
     {
-        this.run = run;
+        this(run.sut, SystemUnderTest.ConsistencyLevel.QUORUM);
+    }
+
+    public NoOpChecker(SystemUnderTest sut, SystemUnderTest.ConsistencyLevel cl)
+    {
+        this.sut = sut;
+        this.cl = cl;
     }
 
     public void validate(Query query)
     {
-        run.sut.execute(query.toSelectStatement(),
-                        // TODO: make it configurable
-                        SystemUnderTest.ConsistencyLevel.QUORUM);
+        sut.execute(query.toSelectStatement(), cl);
     }
 }

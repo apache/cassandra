@@ -24,7 +24,10 @@ import java.lang.reflect.Modifier;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.file.Paths;
+import java.util.ArrayDeque;
 import java.util.Arrays;
+import java.util.Deque;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -158,14 +161,21 @@ public class TestNameCheckTask
      */
     private Stream<? extends Class<?>> expand(Class<?> klass, Reflections reflections)
     {
-        Set<? extends Class<?>> subTypes = reflections.getSubTypesOf(klass);
-        if (subTypes == null || subTypes.isEmpty())
-            return Stream.of(klass);
-        Stream<? extends Class<?>> subs = subTypes.stream();
-        // assume we include if not abstract
-        if (!Modifier.isAbstract(klass.getModifiers()))
-            subs = Stream.concat(Stream.of(klass), subs);
-        return subs;
+        Set<Class<?>> concreteTypes = new HashSet<>();
+        Deque<Class<?>> typeStack = new ArrayDeque<>();
+        typeStack.push(klass);
+
+        while (!typeStack.isEmpty())
+        {
+            Class<?> type = typeStack.pop();
+
+            if (!Modifier.isAbstract(type.getModifiers()))
+                concreteTypes.add(type);
+
+            reflections.getSubTypesOf(type).forEach(typeStack::push);
+        }
+
+        return concreteTypes.stream();
     }
 
     public static void main(String[] args)

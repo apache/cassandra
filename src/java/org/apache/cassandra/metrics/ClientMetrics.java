@@ -44,12 +44,14 @@ import org.apache.cassandra.transport.Server;
 import org.apache.cassandra.transport.ServerConnection;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
+import static org.apache.cassandra.metrics.CassandraMetricsRegistry.resolveShortMetricName;
 
 public final class ClientMetrics
 {
+    public static final String TYPE_NAME = "Client";
     public static final ClientMetrics instance = new ClientMetrics();
 
-    private static final MetricNameFactory factory = new DefaultNameFactory("Client");
+    private static final MetricNameFactory factory = new DefaultNameFactory(TYPE_NAME);
 
     private volatile boolean initialized = false;
     private Server server = null;
@@ -282,9 +284,7 @@ public final class ClientMetrics
 
     private <T> Gauge<T> registerGauge(String name, String deprecated, Gauge<T> gauge)
     {
-        Gauge<T> registeredGauge = registerGauge(name, gauge);
-        Metrics.registerMBean(registeredGauge, factory.createMetricName(deprecated).getMBeanName());
-        return registeredGauge;
+        return Metrics.gauge(factory.createMetricName(name), factory.createMetricName(deprecated), gauge);
     }
 
     private Meter registerMeter(String name)
@@ -295,5 +295,11 @@ public final class ClientMetrics
     private Meter registerMeter(MetricNameFactory metricNameFactory, String name)
     {
         return Metrics.meter(metricNameFactory.createMetricName(name));
+    }
+
+    public void release()
+    {
+        Metrics.removeIfMatch(fullName -> resolveShortMetricName(fullName, DefaultNameFactory.GROUP_NAME, TYPE_NAME, null),
+                              factory::createMetricName, m -> {});
     }
 }

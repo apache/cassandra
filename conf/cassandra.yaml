@@ -6,6 +6,21 @@
 #   full explanations of configuration directives
 # /NOTE
 
+# NOTE:
+#   This file is provided in two versions:
+#     - cassandra.yaml: Contains configuration defaults for a "compatible"
+#       configuration that operates using settings that are backwards-compatible
+#       and interoperable with machines running older versions of Cassandra.
+#       This version is provided to facilitate pain-free upgrades for existing
+#       users of Cassandra running in production who want to gradually and
+#       carefully introduce new features.
+#     - cassandra_latest.yaml: Contains configuration defaults that enable
+#       the latest features of Cassandra, including improved functionality as
+#       well as higher performance. This version is provided for new users of
+#       Cassandra who want to get the most out of their cluster, and for users
+#       evaluating the technology.
+# /NOTE
+
 # The name of the cluster. This is mainly used to prevent machines in
 # one logical cluster from joining another.
 cluster_name: 'Test Cluster'
@@ -703,6 +718,31 @@ concurrent_materialized_view_writes: 32
 # spinning (for spinning disks)
 # disk_optimization_strategy: ssd
 
+# Supported memtable implementations and selected default.
+# Currently Cassandra offers two memtable implementations:
+# - SkipListMemtable is the legacy memtable implementation provided by earlier
+#   versions of Cassandra.
+# - TrieMemtable is a new memtable that utilizes a trie data structure. This
+#   implementation significantly reduces garbage collection load by moving
+#   more of the sstable metadata off-heap, fits more data in the same allocation
+#   and can reliably handle higher write throughput.
+#   Because the trie memtable is a sharded single-writer solution, it can perform
+#   worse when the load is very unevenly distributed, e.g. when most of the writes
+#   access a very small number of partitions or with legacy secondary indexes.
+# The memtable implementation can be selected per table by setting memtable
+# property in the table definition to one of the configurations specified below.
+# If the memtable property is not set, the "default" configuration will be used.
+# See src/java/org/apache/cassandra/db/memtable/Memtable_API.md for further
+# information.
+memtable:
+  configurations:
+    skiplist:
+      class_name: SkipListMemtable
+    trie:
+      class_name: TrieMemtable
+    default:
+      inherits: skiplist
+
 # Total permitted memory to use for memtables. Cassandra will stop
 # accepting writes when the limit is exceeded until a flush completes,
 # and will trigger a flush based on memtable_cleanup_threshold
@@ -848,6 +888,7 @@ memtable_allocation_type: heap_buffers
 # shrink their index summaries in order to meet this limit.  However, this
 # is a best-effort process. In extreme conditions Cassandra may need to use
 # more than this amount of memory.
+# Only relevant to formats that use an index summary, e.g. BIG.
 # Min unit: KiB
 index_summary_capacity:
 
@@ -855,6 +896,7 @@ index_summary_capacity:
 # periodically to redistribute memory from the fixed-size pool to sstables
 # proportional their recent read rates.  Setting to null value will disable this
 # process, leaving existing index summaries at their current sampling level.
+# Only relevant to formats that use an index summary, e.g. BIG.
 # Min unit: m
 index_summary_resize_interval: 60m
 
@@ -1103,14 +1145,14 @@ column_index_cache_size: 2KiB
 # specify compaction.
 # The selected compaction strategy will also apply to system tables.
 #
-# The default is to use SizeTieredCompactionStrategy, with its default
-# compaction parameters.
+# If no value is specified, the default is to use SizeTieredCompactionStrategy,
+# with its default compaction parameters.
 #
 # default_compaction:
-#   class_name: UnifiedCompactionStrategy
+#   class_name: SizeTieredCompactionStrategy
 #   parameters:
-#     scaling_parameters: T4
-#     target_sstable_size: 1GiB
+#     min_threshold: 4
+#     max_threshold: 32
 
 
 # Number of simultaneous compactions to allow, NOT including
@@ -1554,6 +1596,13 @@ server_encryption_options:
   #   TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA, TLS_RSA_WITH_AES_128_GCM_SHA256, TLS_RSA_WITH_AES_128_CBC_SHA,
   #   TLS_RSA_WITH_AES_256_CBC_SHA
   # ]
+  # Optional setting to define the maximum allowed validity period of the client certificate used for the internode
+  # inbound connections. For example, if the specified max_certificate_validity_period is 30 days and the client
+  # uses a certificate that is issued for more than 30 days, the connection will be rejected.
+  # max_certificate_validity_period: 365d
+  # Optional setting that defines a warning threshold. When the threshold is exceeded for the internode certificate
+  # validity period, warnings with information about the certificate expiration will be logged.
+  # certificate_validity_warn_threshold: 10d
 
 # Configure client-to-server encryption.
 #
@@ -1600,6 +1649,15 @@ client_encryption_options:
   #   TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA, TLS_RSA_WITH_AES_128_GCM_SHA256, TLS_RSA_WITH_AES_128_CBC_SHA,
   #   TLS_RSA_WITH_AES_256_CBC_SHA
   # ]
+  # Optional setting to define the maximum validity period of the client certificate allowed to establish
+  # connections to the server. For example, if max_certificate_validity_period is configured for 10 days,
+  # and a client attempts to authenticate with a certificate with a longer validity period (say 30 days),
+  # then the connection will be rejected.
+  # max_certificate_validity_period: 365d
+  # Optional setting that defines a warning threshold. When the threshold is exceeded for the client certificate
+  # validity, warnings with information about the certificate expiration will be logged. Additionally, client
+  # warnings will be reported during the session establishment.
+  # certificate_validity_warn_threshold: 10d
 
 # internode_compression controls whether traffic between nodes is
 # compressed.
@@ -1632,6 +1690,12 @@ trace_type_repair_ttl: 7d
 # UDFs (user defined functions) are disabled by default.
 # As of Cassandra 3.0 there is a sandbox in place that should prevent execution of evil code.
 user_defined_functions_enabled: false
+
+# Triggers are enabled by default.
+# `enabled` executes queries and their triggers.
+# `disabled` executes queries but skips trigger execution, and logs a warning.
+# `forbidden` fails queries that would execute triggers with TriggerDisabledException.
+triggers_policy: enabled
 
 # Enables encrypting data at-rest (on disk). Different key providers can be plugged in, but the default reads from
 # a JCE-style keystore. A single keystore can hold multiple keys, but the one referenced by
@@ -2106,6 +2170,18 @@ drop_compact_storage_enabled: false
 # Maximum number of referenced SAI indexes on a replica when executing a SELECT query
 # before emitting a failure (defaults to -1 to disable)
 #sai_sstable_indexes_per_query_fail_threshold: -1
+
+# Guardrail specifying warn/fail thresholds for the size of string terms written to an SAI index
+# sai_string_term_size_warn_threshold: 1KiB
+# sai_string_term_size_fail_threshold: 8KiB
+
+# Guardrail specifying warn/fail thresholds for the size of frozen terms written to an SAI index
+# sai_frozen_term_size_warn_threshold: 1KiB
+# sai_frozen_term_size_fail_threshold: 8KiB
+
+# Guardrail specifying warn/fail thresholds for the size of vector terms written to an SAI index
+# sai_vector_term_size_warn_threshold: 16KiB
+# sai_vector_term_size_fail_threshold: 32KiB
 
 # The default secondary index implementation when CREATE INDEX does not specify one via USING.
 # ex. "legacy_local_table" - (default) legacy secondary index, implemented as a hidden table

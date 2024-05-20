@@ -22,7 +22,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -34,7 +33,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.harry.sut.TokenPlacementModel;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.tcm.AtomicLongBackedProcessor;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.membership.Location;
@@ -60,49 +58,6 @@ public class OperationalEquivalenceTest extends CMSTestBase
         DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
     }
 
-    // Private to this class for now as this is only a limited implementation
-    private static class TransientReplicationFactor extends TokenPlacementModel.ReplicationFactor
-    {
-        private final TokenPlacementModel.Lookup lookup = new TokenPlacementModel.DefaultLookup();
-        private final int dcs;
-        private final int full;
-        private final int trans;
-
-        public TransientReplicationFactor(int dcs, int full, int trans)
-        {
-            super(dcs * (full + trans));
-            this.dcs = dcs;
-            this.full = full;
-            this.trans = trans;
-        }
-
-        public int dcs()
-        {
-            return dcs;
-        }
-
-        public KeyspaceParams asKeyspaceParams()
-        {
-            Object[] rf = new Object[dcs * 2];
-            for (int i = 0; i < dcs * 2;)
-            {
-                rf[i++] = lookup.dc(i);
-                rf[i++] = String.format("%s/%s", full, trans);
-            }
-            return KeyspaceParams.nts(rf);
-        }
-
-        public Map<String, Integer> asMap()
-        {
-            throw new IllegalStateException("Does not work with transient replication");
-        }
-
-        public TokenPlacementModel.ReplicatedRanges replicate(TokenPlacementModel.Range[] ranges, List<TokenPlacementModel.Node> nodes)
-        {
-            throw new IllegalStateException("Does not work with transient replication (yet)");
-        }
-    }
-
     @Test
     public void testMove() throws Exception
     {
@@ -118,8 +73,10 @@ public class OperationalEquivalenceTest extends CMSTestBase
         testMove(new TokenPlacementModel.NtsReplicationFactor(3, 3));
         testMove(new TokenPlacementModel.NtsReplicationFactor(3, 5));
 
-        testMove(new TransientReplicationFactor(3, 3, 1));
-        testMove(new TransientReplicationFactor(3, 3, 2));
+        testMove(new TokenPlacementModel.SimpleReplicationFactor(3, 1));
+        testMove(new TokenPlacementModel.SimpleReplicationFactor(3, 2));
+        testMove(new TokenPlacementModel.NtsReplicationFactor(3, 3, 1));
+        testMove(new TokenPlacementModel.NtsReplicationFactor(3, 5, 2));
     }
 
     public void testMove(TokenPlacementModel.ReplicationFactor rf) throws Exception
@@ -176,14 +133,14 @@ public class OperationalEquivalenceTest extends CMSTestBase
     {
         l.forEach((params, lPlacement) -> {
             DataPlacement rPlacement = r.get(params);
-            lPlacement.reads.replicaGroups().forEach((range, lReplicas) -> {
+            lPlacement.reads.forEach((range, lReplicas) -> {
                 EndpointsForRange rReplicas = rPlacement.reads.forRange(range).get();
 
                 Assert.assertEquals(toReplicas(lReplicas.get()),
                                     toReplicas(rReplicas));
             });
 
-            lPlacement.writes.replicaGroups().forEach((range, lReplicas) -> {
+            lPlacement.writes.forEach((range, lReplicas) -> {
                 EndpointsForRange rReplicas = rPlacement.writes.forRange(range).get();
 
                 Assert.assertEquals(toReplicas(lReplicas.get()),

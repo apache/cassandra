@@ -64,7 +64,6 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.index.transactions.UpdateTransaction;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.sstable.SSTableReadsListener;
-import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.metrics.TrieMemtableMetricsView;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
@@ -679,10 +678,10 @@ public class TrieMemtable extends AbstractShardedMemtable
         }
 
         @Override
-        public TableMetrics.ReleasableMetric createMemtableMetrics(TableMetadataRef metadataRef)
+        public Runnable createMemtableMetricsReleaser(TableMetadataRef metadataRef)
         {
-            TrieMemtableMetricsView metrics = new TrieMemtableMetricsView(metadataRef.keyspace, metadataRef.name);
-            return metrics::release;
+            // Metrics are the same for all shards, so we can release them all at once.
+            return () -> TrieMemtableMetricsView.release(metadataRef.keyspace, metadataRef.name);
         }
 
         public boolean equals(Object o)

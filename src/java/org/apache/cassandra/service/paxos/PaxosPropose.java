@@ -207,7 +207,7 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
 
     void start(Paxos.Participants participants)
     {
-        Message<Request> message = Message.out(PAXOS2_PROPOSE_REQ, new Request(proposal));
+        Message<Request> message = Message.out(PAXOS2_PROPOSE_REQ, new Request(proposal), participants.isUrgent());
 
         boolean executeOnSelf = false;
         for (int i = 0, size = participants.sizeOfPoll(); i < size ; ++i)

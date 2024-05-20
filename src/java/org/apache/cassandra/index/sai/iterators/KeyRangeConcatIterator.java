@@ -18,9 +18,7 @@
 package org.apache.cassandra.index.sai.iterators;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
-import java.util.PriorityQueue;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -28,90 +26,97 @@ import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.io.util.FileUtils;
 
 /**
- * {@link KeyRangeConcatIterator} takes a list of sorted range iterator and concatenates them, leaving duplicates in
+ * {@link KeyRangeConcatIterator} takes a list of sorted range iterators and concatenates them, leaving duplicates in
  * place, to produce a new stably sorted iterator. Duplicates are eliminated later in
  * {@link org.apache.cassandra.index.sai.plan.StorageAttachedIndexSearcher}
  * as results from multiple SSTable indexes and their respective segments are consumed.
- *
+ * <p>
  * ex. (1, 2, 3) + (3, 3, 4, 5) -> (1, 2, 3, 3, 3, 4, 5)
  * ex. (1, 2, 2, 3) + (3, 4, 4, 6, 6, 7) -> (1, 2, 2, 3, 3, 4, 4, 6, 6, 7)
- *
- * TODO Investigate removing the use of PriorityQueue from this class <a href="https://issues.apache.org/jira/browse/CASSANDRA-18165">CASSANDRA-18165</a>
  */
 public class KeyRangeConcatIterator extends KeyRangeIterator
 {
     public static final String MUST_BE_SORTED_ERROR = "RangeIterator must be sorted, previous max: %s, next min: %s";
-    private final PriorityQueue<KeyRangeIterator> ranges;
-    private final List<KeyRangeIterator> toRelease;
+    private final List<KeyRangeIterator> ranges;
 
-    protected KeyRangeConcatIterator(KeyRangeIterator.Builder.Statistics statistics, PriorityQueue<KeyRangeIterator> ranges)
+    private int current;
+
+    protected KeyRangeConcatIterator(KeyRangeIterator.Builder.Statistics statistics, List<KeyRangeIterator> ranges, Runnable onClose)
     {
-        super(statistics);
+        super(statistics, onClose);
 
+        if (ranges.isEmpty())
+            throw new IllegalArgumentException("Cannot concatenate empty list of ranges");
+
+        this.current = 0;
         this.ranges = ranges;
-        this.toRelease = new ArrayList<>(ranges);
     }
 
     @Override
     protected void performSkipTo(PrimaryKey nextKey)
     {
-        while (!ranges.isEmpty())
+        while (current < ranges.size())
         {
-            if (ranges.peek().getCurrent().compareTo(nextKey) >= 0)
+            KeyRangeIterator currentIterator = ranges.get(current);
+
+            if (currentIterator.hasNext() && currentIterator.peek().compareTo(nextKey) >= 0)
                 break;
 
-            KeyRangeIterator head = ranges.poll();
-
-            if (head.getMaximum().compareTo(nextKey) >= 0)
+            if (currentIterator.getMaximum().compareTo(nextKey) >= 0)
             {
-                head.skipTo(nextKey);
-                ranges.add(head);
+                currentIterator.skipTo(nextKey);
                 break;
             }
-        }
-    }
 
-    @Override
-    public void close()
-    {
-        // due to lazy key fetching, we cannot close iterator immediately
-        FileUtils.closeQuietly(toRelease);
+            current++;
+        }
     }
 
     @Override
     protected PrimaryKey computeNext()
     {
-        while (!ranges.isEmpty())
+        while (current < ranges.size())
         {
-            KeyRangeIterator current = ranges.poll();
-            if (current.hasNext())
-            {
-                PrimaryKey next = current.next();
-                // hasNext will update RangeIterator's current which is used to sort in PQ
-                if (current.hasNext())
-                    ranges.add(current);
+            KeyRangeIterator currentIterator = ranges.get(current);
 
-                return next;
-            }
+            if (currentIterator.hasNext())
+                return currentIterator.next();
+
+            current++;
         }
 
         return endOfData();
     }
 
+    @Override
+    public void close()
+    {
+        super.close();
+
+        // due to lazy key fetching, we cannot close iterator immediately
+        FileUtils.closeQuietly(ranges);
+    }
+
     public static Builder builder(int size)
     {
-        return new Builder(size);
+        return builder(size, () -> {});
+    }
+
+    public static Builder builder(int size, Runnable onClose)
+    {
+        return new Builder(size, onClose);
     }
 
     @VisibleForTesting
     public static class Builder extends KeyRangeIterator.Builder
     {
-        private final PriorityQueue<KeyRangeIterator> ranges;
+        // We can use a list because the iterators are already in order
+        private final List<KeyRangeIterator> ranges;
 
-        Builder(int size)
+        Builder(int size, Runnable onClose)
         {
-            super(new ConcatStatistics());
-            ranges = new PriorityQueue<>(size, Comparator.comparing(KeyRangeIterator::getCurrent));
+            super(new ConcatStatistics(), onClose);
+            this.ranges = new ArrayList<>(size);
         }
 
         @Override
@@ -120,7 +125,7 @@ public class KeyRangeConcatIterator extends KeyRangeIterator
             if (range == null)
                 return this;
 
-            if (range.getCount() > 0)
+            if (range.getMaxKeys() > 0)
                 ranges.add(range);
             else
                 FileUtils.closeQuietly(range);
@@ -138,16 +143,26 @@ public class KeyRangeConcatIterator extends KeyRangeIterator
         @Override
         public void cleanup()
         {
+            super.cleanup();
             FileUtils.closeQuietly(ranges);
         }
 
         @Override
         protected KeyRangeIterator buildIterator()
         {
+            if (rangeCount() == 0)
+            {
+                onClose.run();
+                return empty();
+            }
             if (rangeCount() == 1)
-                return ranges.poll();
+            {
+                KeyRangeIterator single = ranges.get(0);
+                single.setOnClose(onClose);
+                return single;
+            }
 
-            return new KeyRangeConcatIterator(statistics, ranges);
+            return new KeyRangeConcatIterator(statistics, ranges, onClose);
         }
     }
 
@@ -157,7 +172,7 @@ public class KeyRangeConcatIterator extends KeyRangeIterator
         public void update(KeyRangeIterator range)
         {
             // range iterators should be sorted, but previous max must not be greater than next min.
-            if (range.getCount() > 0)
+            if (range.getMaxKeys() > 0)
             {
                 if (count == 0)
                 {
@@ -169,7 +184,7 @@ public class KeyRangeConcatIterator extends KeyRangeIterator
                 }
 
                 max = range.getMaximum();
-                count += range.getCount();
+                count += range.getMaxKeys();
             }
         }
     }

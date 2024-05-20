@@ -104,7 +104,7 @@ else
    # from the branch name. In this case, fall back to version specified in build.xml.
    CASSANDRA_VERSION="${buildxml_version}"
    dt=`date +"%Y%m%d"`
-   ref=`git rev-parse --short HEAD`
+   ref=`git rev-parse --short HEAD || grep -q GitSHA src/resources/org/apache/cassandra/config/version.properties && grep GitSHA src/resources/org/apache/cassandra/config/version.properties | cut -d"=" -f2 || echo unknown`
    CASSANDRA_REVISION="${dt}git${ref}"
 fi
 

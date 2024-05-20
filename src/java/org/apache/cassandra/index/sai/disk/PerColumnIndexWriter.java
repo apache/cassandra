@@ -31,6 +31,8 @@ public interface PerColumnIndexWriter
 {
     /**
      * Adds a row to this index.
+     * <p>
+     * Note: Callers are responsible for ensuring that rows are added in {@link PrimaryKey} order.
      */
     void addRow(PrimaryKey key, Row row, long sstableRowId) throws IOException;
 
@@ -41,7 +43,7 @@ public interface PerColumnIndexWriter
 
     /**
      * Aborts accumulating data. Allows to clean up resources on error.
-     * 
+     * <p> 
      * Note: Implementations should be idempotent, i.e. safe to call multiple times without producing undesirable side-effects.
      */
     void abort(Throwable cause);

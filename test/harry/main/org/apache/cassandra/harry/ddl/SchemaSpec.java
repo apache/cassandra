@@ -31,13 +31,15 @@ public class SchemaSpec
 {
     public interface SchemaSpecFactory
     {
-        public SchemaSpec make(long seed, SystemUnderTest sut);
+        SchemaSpec make(long seed, SystemUnderTest sut);
     }
 
     public final DataGenerators.KeyGenerator pkGenerator;
     public final DataGenerators.KeyGenerator ckGenerator;
 
     private final boolean isCompactStorage;
+    private final boolean disableReadRepair;
+    private final String compactionStrategy;
     public final boolean trackLts;
 
     // These fields are immutable, and are safe as public
@@ -65,23 +67,38 @@ public class SchemaSpec
                       List<ColumnSpec<?>> regularColumns,
                       List<ColumnSpec<?>> staticColumns)
     {
-        this(keyspace, table, partitionKeys, clusteringKeys, regularColumns, staticColumns, false, false);
+        this(keyspace, table, partitionKeys, clusteringKeys, regularColumns, staticColumns, DataGenerators.createKeyGenerator(clusteringKeys), false, false, null, false);
     }
 
     public SchemaSpec cloneWithName(String ks,
                                     String table)
     {
-        return new SchemaSpec(ks, table, partitionKeys, clusteringKeys, regularColumns, staticColumns, isCompactStorage, trackLts);
+        return new SchemaSpec(ks, table, partitionKeys, clusteringKeys, regularColumns, staticColumns, ckGenerator, isCompactStorage, disableReadRepair, compactionStrategy, trackLts);
     }
 
     public SchemaSpec trackLts()
     {
-        return new SchemaSpec(keyspace, table, partitionKeys, clusteringKeys, regularColumns, staticColumns, isCompactStorage, true);
+        return new SchemaSpec(keyspace, table, partitionKeys, clusteringKeys, regularColumns, staticColumns, ckGenerator, isCompactStorage, disableReadRepair, compactionStrategy, true);
     }
 
     public SchemaSpec withCompactStorage()
     {
-        return new SchemaSpec(keyspace, table, partitionKeys, clusteringKeys, regularColumns, staticColumns, true, trackLts);
+        return new SchemaSpec(keyspace, table, partitionKeys, clusteringKeys, regularColumns, staticColumns, ckGenerator, true, disableReadRepair, compactionStrategy, trackLts);
+    }
+
+    public SchemaSpec withCompactionStrategy(String compactionStrategy)
+    {
+        return new SchemaSpec(keyspace, table, partitionKeys, clusteringKeys, regularColumns, staticColumns, ckGenerator, false, disableReadRepair, compactionStrategy, trackLts);
+    }
+
+    public SchemaSpec withCkGenerator(DataGenerators.KeyGenerator ckGeneratorOverride, List<ColumnSpec<?>> clusteringKeys)
+    {
+        return new SchemaSpec(keyspace, table, partitionKeys, clusteringKeys, regularColumns, staticColumns, ckGeneratorOverride, isCompactStorage, disableReadRepair, compactionStrategy, trackLts);
+    }
+
+    public SchemaSpec withColumns(List<ColumnSpec<?>> regularColumns, List<ColumnSpec<?>> staticColumns)
+    {
+        return new SchemaSpec(keyspace, table, partitionKeys, clusteringKeys, regularColumns, staticColumns, ckGenerator, isCompactStorage, disableReadRepair, compactionStrategy, trackLts);
     }
 
     public SchemaSpec(String keyspace,
@@ -90,14 +107,20 @@ public class SchemaSpec
                       List<ColumnSpec<?>> clusteringKeys,
                       List<ColumnSpec<?>> regularColumns,
                       List<ColumnSpec<?>> staticColumns,
+                      DataGenerators.KeyGenerator ckGenerator,
                       boolean isCompactStorage,
+                      boolean disableReadRepair,
+                      String compactionStrategy,
                       boolean trackLts)
     {
-        assert !isCompactStorage || clusteringKeys.size() == 0 || regularColumns.size() <= 1;
+        assert !isCompactStorage || clusteringKeys.isEmpty() || regularColumns.size() <= 1 :
+        String.format("Compact storage %s. Clustering keys: %d. Regular columns: %d", isCompactStorage, clusteringKeys.size(), regularColumns.size());
 
         this.keyspace = keyspace;
         this.table = table;
         this.isCompactStorage = isCompactStorage;
+        this.disableReadRepair = disableReadRepair;
+        this.compactionStrategy = compactionStrategy;
 
         this.partitionKeys = Collections.unmodifiableList(new ArrayList<>(partitionKeys));
         for (int i = 0; i < partitionKeys.size(); i++)
@@ -124,7 +147,9 @@ public class SchemaSpec
         this.allColumnsSet = Collections.unmodifiableSet(new LinkedHashSet<>(all));
 
         this.pkGenerator = DataGenerators.createKeyGenerator(partitionKeys);
-        this.ckGenerator = DataGenerators.createKeyGenerator(clusteringKeys);
+        if (ckGenerator == null)
+            ckGenerator = DataGenerators.createKeyGenerator(clusteringKeys);
+        this.ckGenerator = ckGenerator;
 
         this.ALL_COLUMNS_BITSET = BitSet.allSet(regularColumns.size());
 
@@ -136,6 +161,8 @@ public class SchemaSpec
         this.staticColumnsMask = staticColumnsMask(this);
         this.trackLts = trackLts;
     }
+
+
 
     public static BitSet allColumnsMask(SchemaSpec schema)
     {
@@ -296,12 +323,24 @@ public class SchemaSpec
 
         sb.append(')');
 
-        Runnable appendWith = doOnce(() -> sb.append(" WITH "));
+        Runnable appendWith = doOnce(() -> sb.append(" WITH"));
 
         if (isCompactStorage)
         {
             appendWith.run();
-            sb.append("COMPACT STORAGE AND");
+            sb.append(" COMPACT STORAGE AND");
+        }
+
+        if (disableReadRepair)
+        {
+            appendWith.run();
+            sb.append(" read_repair = 'NONE' AND");
+        }
+
+        if (compactionStrategy != null)
+        {
+            appendWith.run();
+            sb.append(" compaction = {'class': '").append(compactionStrategy).append("'} AND");
         }
 
         if (clusteringKeys.size() > 0)

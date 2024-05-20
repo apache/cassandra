@@ -121,7 +121,7 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         if (usesReplicaFilteringProtection())
             return resolveWithReplicaFilteringProtection(replicas, repairedDataTracker);
 
-        ResolveContext context = new ResolveContext(replicas);
+        ResolveContext context = new ResolveContext(replicas, true);
         return resolveWithReadRepair(context,
                                      i -> shortReadProtectedResponse(i, context, runOnShortRead),
                                      UnaryOperator.identity(),
@@ -148,7 +148,11 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         private final E replicas;
         private final DataLimits.Counter mergedResultCounter;
 
-        private ResolveContext(E replicas)
+        /**
+         * @param replicas the collection of {@link Endpoints} involved in the query
+         * @param enforceLimits whether or not to enforce counter limits in this context
+         */
+        private ResolveContext(E replicas, boolean enforceLimits)
         {
             this.replicas = replicas;
             this.mergedResultCounter = command.limits().newCounter(command.nowInSec(),
@@ -157,8 +161,8 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
                                                                    enforceStrictLiveness);
 
             // In case of top-k query, do not trim reconciled rows here because QueryPlan#postProcessor()
-            // needs to compare all rows
-            if (command.isTopK())
+            // needs to compare all rows. Also avoid enforcing the limit if explicitly requested.
+            if (command.isTopK() || !enforceLimits)
                 this.mergedResultCounter.onlyCount();
         }
 
@@ -180,7 +184,7 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
             if (command.isTopK())
                 return false;
 
-            // If we have only one result, there is no read repair to do and we can't get short reads
+            // If we have only one result, there is no read repair to do, and we can't get short reads
             // Also, so-called "short reads" stems from nodes returning only a subset of the results they have for a
             // partition due to the limit, but that subset not being enough post-reconciliation. So if we don't have limit,
             // don't bother protecting against short reads.
@@ -229,36 +233,36 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         // Protecting against inconsistent replica filtering (some replica returning a row that is outdated but that
         // wouldn't be removed by normal reconciliation because up-to-date replica have filtered the up-to-date version
         // of that row) involves 3 main elements:
-        //   1) We combine short-read protection and a merge listener that identifies potentially "out-of-date"
-        //      rows to create an iterator that is guaranteed to produce enough valid row results to satisfy the query
-        //      limit if enough actually exist. A row is considered out-of-date if its merged from is non-empty and we
-        //      receive not response from at least one replica. In this case, it is possible that filtering at the
-        //      "silent" replica has produced a more up-to-date result.
+        //   1) We combine an unlimited, short-read-protected iterator of unfiltered partitions with a merge listener 
+        //      that identifies potentially "out-of-date" rows. A row is considered out-of-date if its merged form is 
+        //      non-empty, and we receive no response from some replica. It is also potentially out-of-date if there is
+        //      disagreement around the value of a single column in a non-empty row, and some replica provides no value
+        //      for that column. In either case, it is possible that filtering at the "silent" replica has produced a 
+        //      more up-to-date result.
         //   2) This iterator is passed to the standard resolution process with read-repair, but is first wrapped in a
         //      response provider that lazily "completes" potentially out-of-date rows by directly querying them on the
         //      replicas that were previously silent. As this iterator is consumed, it caches valid data for potentially
-        //      out-of-date rows, and this cached data is merged with the fetched data as rows are requested. If there
-        //      is no replica divergence, only rows in the partition being evalutated will be cached (then released
-        //      when the partition is consumed).
+        //      out-of-date rows, and this cached data is merged with the fetched data as rows are requested. Only rows 
+        //      in the partition being evalutated will be cached (then released when the partition is consumed).
         //   3) After a "complete" row is materialized, it must pass the row filter supplied by the original query
-        //      before it counts against the limit.
+        //      before it counts against the limit. If this "pre-count" filter causes a short read, additional rows
+        //      will be fetched from the first-phase iterator.
 
-        // We need separate contexts, as each context has his own counter
-        ResolveContext firstPhaseContext = new ResolveContext(replicas);
-        ResolveContext secondPhaseContext = new ResolveContext(replicas);
         ReplicaFilteringProtection<E> rfp = new ReplicaFilteringProtection<>(replicaPlan().keyspace(),
                                                                              command,
                                                                              replicaPlan().consistencyLevel(),
                                                                              queryStartNanoTime,
-                                                                             firstPhaseContext.replicas,
+                                                                             replicas,
                                                                              DatabaseDescriptor.getCachedReplicaRowsWarnThreshold(),
                                                                              DatabaseDescriptor.getCachedReplicaRowsFailThreshold());
 
+        ResolveContext firstPhaseContext = new ResolveContext(replicas, false);
         PartitionIterator firstPhasePartitions = resolveInternal(firstPhaseContext,
                                                                  rfp.mergeController(),
                                                                  i -> shortReadProtectedResponse(i, firstPhaseContext, null),
-                                                                 UnaryOperator.identity());
+                                                                 null);
 
+        ResolveContext secondPhaseContext = new ResolveContext(replicas, true);
         PartitionIterator completedPartitions = resolveWithReadRepair(secondPhaseContext,
                                                                       i -> rfp.queryProtectedPartitions(firstPhasePartitions, i),
                                                                       preCountFilterForReplicaFilteringProtection(),
@@ -282,7 +286,7 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
     private PartitionIterator resolveInternal(ResolveContext context,
                                               UnfilteredPartitionIterators.MergeListener mergeListener,
                                               ResponseProvider responseProvider,
-                                              UnaryOperator<PartitionIterator> preCountFilter)
+                                              @Nullable UnaryOperator<PartitionIterator> preCountFilter)
     {
         int count = context.replicas.size();
         List<UnfilteredPartitionIterator> results = new ArrayList<>(count);
@@ -306,7 +310,10 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         UnfilteredPartitionIterator merged = UnfilteredPartitionIterators.merge(results, mergeListener);
         Filter filter = new Filter(command.nowInSec(), command.metadata().enforceStrictLiveness());
         FilteredPartitions filtered = FilteredPartitions.filter(merged, filter);
-        PartitionIterator counted = Transformation.apply(preCountFilter.apply(filtered), context.mergedResultCounter);
+
+        PartitionIterator counted = preCountFilter == null
+                                    ? filtered
+                                    : Transformation.apply(preCountFilter.apply(filtered), context.mergedResultCounter);
 
         return Transformation.apply(counted, new EmptyPartitionsDiscarder());
     }
@@ -376,11 +383,11 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
                         }
                     }
 
-                    public Row onMergedRows(Row merged, Row[] versions)
+                    public void onMergedRows(Row merged, Row[] versions)
                     {
                         try
                         {
-                            return rowListener.onMergedRows(merged, versions);
+                            rowListener.onMergedRows(merged, versions);
                         }
                         catch (AssertionError e)
                         {
@@ -401,7 +408,7 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
                     {
                         try
                         {
-                            // The code for merging range tombstones is a tad complex and we had the assertions there triggered
+                            // The code for merging range tombstones is a tad complex, and we had the assertions there triggered
                             // unexpectedly in a few occasions (CASSANDRA-13237, CASSANDRA-13719). It's hard to get insights
                             // when that happen without more context that what the assertion errors give us however, hence the
                             // catch here that basically gather as much as context as reasonable.

@@ -41,7 +41,7 @@ import org.apache.cassandra.tcm.compatibility.TokenRingUtils;
 import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
-import org.apache.cassandra.tcm.ownership.PlacementForRange;
+import org.apache.cassandra.tcm.ownership.ReplicaGroups;
 import org.apache.cassandra.tcm.ownership.TokenMap;
 import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
 
@@ -69,12 +69,12 @@ public class SimpleStrategy extends AbstractReplicationStrategy
     @Override
     public DataPlacement calculateDataPlacement(Epoch epoch, List<Range<Token>> ranges, ClusterMetadata metadata)
     {
-        PlacementForRange.Builder builder = PlacementForRange.builder();
+        ReplicaGroups.Builder builder = ReplicaGroups.builder();
         for (Range<Token> range : ranges)
             builder.withReplicaGroup(VersionedEndpoints.forRange(epoch,
                                                                  calculateNaturalReplicas(range.right, metadata.tokenMap.tokens(), range, metadata.directory, metadata.tokenMap)));
 
-        PlacementForRange built = builder.build();
+        ReplicaGroups built = builder.build();
         return new DataPlacement(built, built);
     }
 

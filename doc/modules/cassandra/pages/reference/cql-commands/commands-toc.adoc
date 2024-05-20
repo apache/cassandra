@@ -95,6 +95,9 @@ Lists permissions on resources.
 xref:reference:cql-commands/list-roles.adoc[LIST ROLES] ::	
 Lists roles and shows superuser and login status.
 
+xref:reference:cql-commands/list-superusers.adoc[LIST SUPERUSERS] ::
+Lists roles with the superuser privilege.
+
 xref:reference:cql-commands/list-users.adoc[LIST USERS (Deprecated)] ::	
 Lists existing internal authentication users and their superuser status.
 

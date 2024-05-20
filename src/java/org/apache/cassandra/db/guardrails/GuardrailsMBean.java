@@ -802,6 +802,78 @@ public interface GuardrailsMBean
     void setSaiSSTableIndexesPerQueryThreshold(int warn, int fail);
 
     /**
+     * @return The warning threshold for string terms written to an SAI index, as a human-readable string.
+     *         (ex. {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}) A {@code null} value means disabled.
+     */
+    @Nullable
+    String getSaiStringTermSizeWarnThreshold();
+
+    /**
+     * @return The failure threshold for string terms written to an SAI index, as a human-readable string.
+     *         (ex. {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}) A {@code null} value means disabled.
+     */
+    @Nullable
+    String getSaiStringTermSizeFailThreshold();
+
+    /**
+     * @param warnSize The warning threshold for string terms written to an SAI index, as a human-readable string.
+     *                 (ex. {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B})
+     *                 A {@code null} value means disabled.
+     * @param failSize The failure threshold for string terms written to an SAI index, as a human-readable string.
+     *                 (ex. {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B})
+     *                 A {@code null} value means disabled.
+     */
+    void setSaiStringTermSizeThreshold(@Nullable String warnSize, @Nullable String failSize);
+
+    /**
+     * @return The warning threshold for frozen terms written to an SAI index, as a human-readable string.
+     *         (ex. {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}) A {@code null} value means disabled.
+     */
+    @Nullable
+    String getSaiFrozenTermSizeWarnThreshold();
+
+    /**
+     * @return The failure threshold for frozen terms written to an SAI index, as a human-readable string.
+     *         (ex. {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}) A {@code null} value means disabled.
+     */
+    @Nullable
+    String getSaiFrozenTermSizeFailThreshold();
+
+    /**
+     * @param warnSize The warning threshold for frozen terms written to an SAI index, as a human-readable string.
+     *                 (ex. {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B})
+     *                 A {@code null} value means disabled.
+     * @param failSize The failure threshold for frozen terms written to an SAI index, as a human-readable string.
+     *                 (ex. {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B})
+     *                 A {@code null} value means disabled.
+     */
+    void setSaiFrozenTermSizeThreshold(@Nullable String warnSize, @Nullable String failSize);
+
+    /**
+     * @return The warning threshold for vector terms written to an SAI index, as a human-readable string.
+     *         (ex. {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}) A {@code null} value means disabled.
+     */
+    @Nullable
+    String getSaiVectorTermSizeWarnThreshold();
+
+    /**
+     * @return The failure threshold for vector terms written to an SAI index, as a human-readable string.
+     *         (ex. {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}) A {@code null} value means disabled.
+     */
+    @Nullable
+    String getSaiVectorTermSizeFailThreshold();
+
+    /**
+     * @param warnSize The warning threshold for vector terms written to an SAI index, as a human-readable string.
+     *                 (ex. {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B})
+     *                 A {@code null} value means disabled.
+     * @param failSize The failure threshold for vector terms written to an SAI index, as a human-readable string.
+     *                 (ex. {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B})
+     *                 A {@code null} value means disabled.
+     */
+    void setSaiVectorTermSizeThreshold(@Nullable String warnSize, @Nullable String failSize);
+
+    /**
      * Returns whether it is possible to execute a query against secondary indexes without specifying
      * any partition key restrictions.
      *
@@ -816,4 +888,20 @@ public interface GuardrailsMBean
      * @param enabled {@code true} if a query without partition key is enabled or not
      */
     void setNonPartitionRestrictedQueryEnabled(boolean enabled);
+
+    /**
+     * @return true if a client warning is emitted for a filtering query with an intersection on mutable columns at a 
+     *         consistency level requiring coordinator reconciliation
+     */
+    boolean getIntersectFilteringQueryWarned();
+    
+    void setIntersectFilteringQueryWarned(boolean value);
+
+    /**
+     * @return true if it is possible to execute a filtering query with an intersection on mutable columns at a 
+     *         consistency level requiring coordinator reconciliation
+     */
+    boolean getIntersectFilteringQueryEnabled();
+    
+    void setIntersectFilteringQueryEnabled(boolean value);
 }

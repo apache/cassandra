@@ -114,7 +114,6 @@ public class InvertedIndexSearcherTest extends SAIRandomizedTester
             {
                 try (KeyRangeIterator results = searcher.search(Expression.create(index).add(Operator.EQ, wrap(termsEnum.get(t).left)), null, context))
                 {
-                    assertEquals(results.getMinimum(), results.getCurrent());
                     assertTrue(results.hasNext());
 
                     for (int p = 0; p < numPostings; ++p)
@@ -129,7 +128,6 @@ public class InvertedIndexSearcherTest extends SAIRandomizedTester
 
                 try (KeyRangeIterator results = searcher.search(Expression.create(index).add(Operator.EQ, wrap(termsEnum.get(t).left)), null, context))
                 {
-                    assertEquals(results.getMinimum(), results.getCurrent());
                     assertTrue(results.hasNext());
 
                     // test skipping to the last block

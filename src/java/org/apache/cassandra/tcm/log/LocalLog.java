@@ -20,6 +20,7 @@ package org.apache.cassandra.tcm.log;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -33,6 +34,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -107,7 +109,7 @@ public abstract class LocalLog implements Closeable
     {
         private ClusterMetadata initial;
         private ClusterMetadata prev;
-        private Startup.AfterReplay afterReplay = (metadata) -> {};
+        private List<Startup.AfterReplay> afterReplay = Collections.emptyList();
         private LogStorage storage = LogStorage.None;
         private boolean async = true;
         private boolean defaultListeners = false;
@@ -202,9 +204,9 @@ public abstract class LocalLog implements Closeable
             return this;
         }
 
-        public LogSpec afterReplay(Startup.AfterReplay afterReplay)
+        public LogSpec afterReplay(Startup.AfterReplay ... afterReplay)
         {
-            this.afterReplay = afterReplay;
+            this.afterReplay = Lists.newArrayList(afterReplay);
             return this;
         }
 
@@ -261,7 +263,7 @@ public abstract class LocalLog implements Closeable
         if (spec.initial == null)
             spec.initial = new ClusterMetadata(DatabaseDescriptor.getPartitioner());
         if (spec.prev == null)
-            spec.prev = new ClusterMetadata(DatabaseDescriptor.getPartitioner());
+            spec.prev = new ClusterMetadata(spec.initial.partitioner);
         assert spec.initial.epoch.is(EMPTY) || spec.initial.epoch.is(Epoch.UPGRADE_STARTUP) || spec.isReset :
         String.format(String.format("Should start with empty epoch, unless we're in upgrade or reset mode: %s (isReset: %s)", spec.initial, spec.isReset));
 
@@ -336,7 +338,7 @@ public abstract class LocalLog implements Closeable
 
     public LogState getCommittedEntries(Epoch since)
     {
-        return storage.getLogState(committed.get().period, since);
+        return storage.getLogState(since);
     }
 
     public ClusterMetadata waitForHighestConsecutive()
@@ -478,8 +480,10 @@ public abstract class LocalLog implements Closeable
                     String.format("Epoch %s for %s can either force snapshot, or immediately follow %s",
                                   next.epoch, pendingEntry.transform, prev.epoch);
 
-                    if (replayComplete.get())
-                        storage.append(transformed.success().metadata.period, pendingEntry.maybeUnwrapExecuted());
+                    // If replay during initialisation has completed persist to local storage unless the entry is
+                    // a synthetic ForceSnapshot which is not a replicated event but enables jumping over gaps
+                    if (replayComplete.get() && pendingEntry.transform.kind() != Transformation.Kind.FORCE_SNAPSHOT)
+                        storage.append(pendingEntry.maybeUnwrapExecuted());
 
                     notifyPreCommit(prev, next, isSnapshot);
 
@@ -541,7 +545,7 @@ public abstract class LocalLog implements Closeable
         if (replayComplete.get())
             throw new IllegalStateException("Can only replay persisted once.");
         LogState logState = storage.getPersistedLogState();
-        append(logState);
+        append(logState.flatten());
         return waitForHighestConsecutive();
     }
 
@@ -612,7 +616,8 @@ public abstract class LocalLog implements Closeable
     public ClusterMetadata ready() throws StartupException
     {
         ClusterMetadata metadata = replayPersisted();
-        spec.afterReplay.accept(metadata);
+        for (Startup.AfterReplay ar : spec.afterReplay)
+            ar.accept(metadata);
         logger.info("Marking LocalLog ready at epoch {}", metadata.epoch);
 
         if (!replayComplete.compareAndSet(false, true))
@@ -634,7 +639,6 @@ public abstract class LocalLog implements Closeable
 
         logger.info("Notifying all registered listeners of both pre and post commit event");
         notifyListeners(spec.prev);
-
         return metadata;
     }
 
@@ -748,20 +752,24 @@ public abstract class LocalLog implements Closeable
 
             public void run(Interruptible.State state) throws InterruptedException
             {
+                WaitQueue.Signal signal = null;
                 try
                 {
                     if (state != Interruptible.State.SHUTTING_DOWN)
                     {
                         Condition condition = subscriber.getAndSet(null);
                         // Grab a ticket ahead of time, so that we can't get into race with the exit from process pending
-                        WaitQueue.Signal signal = logNotifier.register();
+                        signal = logNotifier.register();
                         processPendingInternal();
                         if (condition != null)
                             condition.signalAll();
                         // if no new threads have subscribed since we started running, await
                         // otherwise, run again to process whatever work they may be waiting on
                         if (subscriber.get() == null)
+                        {
                             signal.await();
+                            signal = null;
+                        }
                     }
                 }
                 catch (StopProcessingException t)
@@ -777,6 +785,12 @@ public abstract class LocalLog implements Closeable
                 {
                     // TODO handle properly
                     logger.warn("Error in log follower", t);
+                }
+                finally
+                {
+                    // If signal was not consumed for some reason, cancel it
+                    if (signal != null)
+                        signal.cancel();
                 }
             }
         }
@@ -875,7 +889,7 @@ public abstract class LocalLog implements Closeable
                 List<InetAddressAndPort> list = new ArrayList<>(ClusterMetadata.current().fullCMSMembers());
                 list.sort(comparing(i -> i.addressBytes[i.addressBytes.length - 1]));
                 if (list.get(0).equals(FBUtilities.getBroadcastAddressAndPort()))
-                    ScheduledExecutors.nonPeriodicTasks.submit(() -> ClusterMetadataService.instance().sealPeriod());
+                    ScheduledExecutors.nonPeriodicTasks.submit(() -> ClusterMetadataService.instance().triggerSnapshot());
             }
         };
     }

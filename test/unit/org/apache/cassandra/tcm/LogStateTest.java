@@ -37,7 +37,7 @@ import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.log.LogStorage;
 import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
 import org.apache.cassandra.tcm.transformations.CustomTransformation;
-import org.apache.cassandra.tcm.transformations.SealPeriod;
+import org.apache.cassandra.tcm.transformations.TriggerSnapshot;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.assertEquals;
@@ -76,7 +76,7 @@ public class LogStateTest
     @Test
     public void testRevertEpoch()
     {
-        ClusterMetadataService.instance().sealPeriod();
+        ClusterMetadataService.instance().triggerSnapshot();
         List<Epoch> customEpochs = new ArrayList<>(40);
         for (int i=0; i < 10; i++)
         {
@@ -87,18 +87,15 @@ public class LogStateTest
                                                                        new CustomTransformation.PokeInt((int) ClusterMetadata.current().epoch.getEpoch())));
                 customEpochs.add(ClusterMetadata.current().epoch);
             }
-            ClusterMetadataService.instance().commit(SealPeriod.instance);
+            ClusterMetadataService.instance().commit(TriggerSnapshot.instance);
         }
 
         for (Epoch epoch : customEpochs)
         {
             ClusterMetadataService.instance().revertToEpoch(epoch);
             ExtensionValue<?> val = ClusterMetadata.current().extensions.get(CustomTransformation.PokeInt.METADATA_KEY);
-            if (val == null)
-                assertEquals(Epoch.create(2), epoch); // not yet any ints poked at epoch = 2
-            else
-                // -1 since we poke the previous int to the extension:
-                assertEquals((int)(epoch.getEpoch() - 1),  ClusterMetadata.current().extensions.get(CustomTransformation.PokeInt.METADATA_KEY).getValue());
+            // -1 since we poke the previous int to the extension:
+            assertEquals((int)(epoch.getEpoch() - 1),  ClusterMetadata.current().extensions.get(CustomTransformation.PokeInt.METADATA_KEY).getValue());
         }
     }
 }

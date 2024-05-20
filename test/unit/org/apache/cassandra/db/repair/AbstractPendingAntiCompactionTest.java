@@ -36,6 +36,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.index.internal.CassandraIndex;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.AbstractRepairTest;
 import org.apache.cassandra.repair.consistent.LocalSessionAccessor;
@@ -87,7 +88,9 @@ public abstract class AbstractPendingAntiCompactionTest
         SchemaLoader.createKeyspace(ks, KeyspaceParams.simple(1), cfm, cfm2);
         cfs = Schema.instance.getColumnFamilyStoreInstance(cfm.id);
         cfs2 = Schema.instance.getColumnFamilyStoreInstance(cfm2.id);
-        QueryProcessor.execute(String.format("create index %s_idx on %s.%s (v)", tbl2, ks, tbl2), ConsistencyLevel.ONE);
+        // Do additional index CFS testing for legacy secondary indexes.
+        if (DatabaseDescriptor.getDefaultSecondaryIndex().equals(CassandraIndex.NAME))
+            QueryProcessor.execute(String.format("create index %s_idx on %s.%s (v)", tbl2, ks, tbl2), ConsistencyLevel.ONE);
     }
 
     void makeSSTables(int num)

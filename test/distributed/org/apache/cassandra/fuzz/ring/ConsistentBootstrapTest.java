@@ -58,7 +58,9 @@ public class ConsistentBootstrapTest extends FuzzTestBase
         try (Cluster cluster = builder().withNodes(3)
                                         .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(4))
                                         .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(4, "dc0", "rack0"))
-                                        .withConfig((config) -> config.with(Feature.NETWORK, Feature.GOSSIP).set("metadata_snapshot_frequency", 5))
+                                        .withConfig((config) -> config.with(Feature.NETWORK, Feature.GOSSIP)
+                                                                      .set("write_request_timeout", "10s")
+                                                                      .set("metadata_snapshot_frequency", 5))
                                         .start())
         {
             cmsInstance = cluster.get(1);
@@ -119,7 +121,9 @@ public class ConsistentBootstrapTest extends FuzzTestBase
         try (Cluster cluster = builder().withNodes(3)
                                         .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(4))
                                         .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(4, "dc0", "rack0"))
-                                        .withConfig((config) -> config.with(Feature.NETWORK, Feature.GOSSIP).set("metadata_snapshot_frequency", 5))
+                                        .withConfig((config) -> config.with(Feature.NETWORK, Feature.GOSSIP)
+                                                                      .set("write_request_timeout", "10s")
+                                                                      .set("metadata_snapshot_frequency", 5))
                                         .start())
         {
             cmsInstance = cluster.get(1);
@@ -127,11 +131,11 @@ public class ConsistentBootstrapTest extends FuzzTestBase
 
             ReplayingHistoryBuilder harry = HarryHelper.dataGen(new InJvmSut(cluster, () -> 2, (t) -> false)
                                                                 {
-                                                                    public Object[][] execute(String statement, ConsistencyLevel cl, int coordinator, Object... bindings)
+                                                                    public Object[][] execute(String statement, ConsistencyLevel cl, int coordinator, int pagesize, Object... bindings)
                                                                     {
                                                                         try
                                                                         {
-                                                                            return super.execute(statement, cl, coordinator, bindings);
+                                                                            return super.execute(statement, cl, coordinator, pagesize, bindings);
                                                                         }
                                                                         catch (Throwable t)
                                                                         {

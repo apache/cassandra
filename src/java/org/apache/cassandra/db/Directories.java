@@ -35,6 +35,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.Spliterator;
 import java.util.concurrent.ThreadLocalRandom;
@@ -646,6 +647,29 @@ public class Directories
         }
     }
 
+    /**
+     * Returns directory to write a snapshot to. If directory does not exist, then it is NOT created.
+     *
+     * If given {@code location} indicates secondary index, this will return
+     * {@code <cf dir>/snapshots/<snapshot name>/.<index name>}.
+     * Otherwise, this will return {@code <cf dir>/snapshots/<snapshot name>}.
+     *
+     * @param location base directory
+     * @param snapshotName snapshot name
+     * @return directory to write a snapshot
+     */
+    public static Optional<File> getSnapshotDirectoryIfExists(File location, String snapshotName)
+    {
+        if (isSecondaryIndexFolder(location))
+        {
+            return get(location.parent(), SNAPSHOT_SUBDIR, snapshotName, location.name());
+        }
+        else
+        {
+            return get(location, SNAPSHOT_SUBDIR, snapshotName);
+        }
+    }
+
     public File getSnapshotManifestFile(String snapshotName)
     {
         File snapshotDir = getSnapshotDirectory(getDirectoryForNewSSTables(), snapshotName);
@@ -673,6 +697,16 @@ public class Directories
         return getBackupsDirectory(desc.directory);
     }
 
+    /**
+     * Returns directory to write a backup to. If directory does not exist, then one is created.
+     *
+     * If given {@code location} indicates secondary index, this will return
+     * {@code <cf dir>/backups/.<index name>}.
+     * Otherwise, this will return {@code <cf dir>/backups/}.
+     *
+     * @param location base directory
+     * @return directory to write a backup
+     */
     public static File getBackupsDirectory(File location)
     {
         if (isSecondaryIndexFolder(location))
@@ -682,6 +716,28 @@ public class Directories
         else
         {
             return getOrCreate(location, BACKUPS_SUBDIR);
+        }
+    }
+
+    /**
+     * Returns directory to write a backup to. If directory does not exist, then it is NOT created.
+     *
+     * If given {@code location} indicates secondary index, this will return
+     * {@code <cf dir>/backups/.<index name>}.
+     * Otherwise, this will return {@code <cf dir>/backups/}.
+     *
+     * @param location base directory
+     * @return directory to write a backup
+     */
+    public static Optional<File> getBackupsDirectoryIfExists(File location)
+    {
+        if (isSecondaryIndexFolder(location))
+        {
+            return get(location.parent(), BACKUPS_SUBDIR, location.name());
+        }
+        else
+        {
+            return get(location, BACKUPS_SUBDIR);
         }
     }
 
@@ -978,7 +1034,21 @@ public class Directories
 
         public Map<Descriptor, Set<Component>> list()
         {
-            filter();
+            return list(false);
+        }
+
+        /**
+         * This method is used upon SSTable importing (nodetool import) as there is no strict requirement to
+         * place SSTables in a directory structure where name of a directory equals to table name
+         * and parent of such directory equals to keyspace name. For such cases, we want to include such SSTables too,
+         * rendering the parameter to be set to true.
+         *
+         * @param includeForeignTables whether descriptors not matching metadata of this lister should be included
+         * @return found descriptors and related set of components
+         */
+        public Map<Descriptor, Set<Component>> list(boolean includeForeignTables)
+        {
+            filter(includeForeignTables);
             return ImmutableMap.copyOf(components);
         }
 
@@ -996,7 +1066,12 @@ public class Directories
 
         public List<File> listFiles()
         {
-            filter();
+            return listFiles(false);
+        }
+
+        public List<File> listFiles(boolean includeForeignTables)
+        {
+            filter(includeForeignTables);
             List<File> l = new ArrayList<>(nbFiles);
             for (Map.Entry<Descriptor, Set<Component>> entry : components.entrySet())
             {
@@ -1008,7 +1083,7 @@ public class Directories
             return l;
         }
 
-        private void filter()
+        private void filter(boolean includeForeignTables)
         {
             if (filtered)
                 return;
@@ -1020,21 +1095,25 @@ public class Directories
 
                 if (snapshotName != null)
                 {
-                    LifecycleTransaction.getFiles(getSnapshotDirectory(location, snapshotName).toPath(), getFilter(), onTxnErr);
+                    Optional<File> maybeSnapshotDir = getSnapshotDirectoryIfExists(location, snapshotName);
+                    maybeSnapshotDir.ifPresent(dir -> LifecycleTransaction.getFiles(dir.toPath(), getFilter(includeForeignTables), onTxnErr));
                     continue;
                 }
 
                 if (!onlyBackups)
-                    LifecycleTransaction.getFiles(location.toPath(), getFilter(), onTxnErr);
+                    LifecycleTransaction.getFiles(location.toPath(), getFilter(includeForeignTables), onTxnErr);
 
                 if (includeBackups)
-                    LifecycleTransaction.getFiles(getBackupsDirectory(location).toPath(), getFilter(), onTxnErr);
+                {
+                    Optional<File> maybeBackupsDir = getBackupsDirectoryIfExists(location);
+                    maybeBackupsDir.ifPresent(dir -> LifecycleTransaction.getFiles(dir.toPath(), getFilter(includeForeignTables), onTxnErr));
+                }
             }
 
             filtered = true;
         }
 
-        private BiPredicate<File, FileType> getFilter()
+        private BiPredicate<File, FileType> getFilter(boolean includeForeignTables)
         {
             // This function always return false since it adds to the components map
             return (file, type) ->
@@ -1052,15 +1131,31 @@ public class Directories
                         if (pair == null)
                             return false;
 
+                        Descriptor descriptor = null;
+
                         // we are only interested in the SSTable files that belong to the specific ColumnFamily
                         if (!pair.left.ksname.equals(metadata.keyspace) || !pair.left.cfname.equals(metadata.name))
-                            return false;
+                        {
+                            if (!includeForeignTables)
+                                return false;
 
-                        Set<Component> previous = components.get(pair.left);
+                            descriptor = new Descriptor(pair.left.version.toString(),
+                                                        pair.left.directory,
+                                                        metadata.keyspace,
+                                                        metadata.name,
+                                                        pair.left.id,
+                                                        pair.left.getFormat());
+                        }
+                        else
+                        {
+                            descriptor = pair.left;
+                        }
+
+                        Set<Component> previous = components.get(descriptor);
                         if (previous == null)
                         {
                             previous = new HashSet<>();
-                            components.put(pair.left, previous);
+                            components.put(descriptor, previous);
                         }
                         previous.add(pair.right);
                         nbFiles++;
@@ -1324,6 +1419,12 @@ public class Directories
             throw new FSWriteError(new IOException("Unable to create directory " + dir), dir);
         }
         return dir;
+    }
+
+    public static Optional<File> get(File base, String... subdirs)
+    {
+        File dir = subdirs == null || subdirs.length == 0 ? base : new File(base, join(subdirs));
+        return dir.exists() ? Optional.of(dir) : Optional.empty();
     }
 
     private static String join(String... s)

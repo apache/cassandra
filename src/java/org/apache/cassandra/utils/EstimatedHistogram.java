@@ -442,4 +442,10 @@ public class EstimatedHistogram implements DoubleToLongFunction
             return size;
         }
     }
+
+    @Override
+    public String toString()
+    {
+        return String.valueOf(mean());
+    }
 }

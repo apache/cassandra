@@ -28,7 +28,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -62,7 +61,7 @@ import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.ownership.MovementMap;
 import org.apache.cassandra.tcm.ownership.PlacementDeltas;
-import org.apache.cassandra.tcm.ownership.PlacementForRange;
+import org.apache.cassandra.tcm.ownership.ReplicaGroups;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
@@ -71,6 +70,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
+import static com.google.common.collect.ImmutableList.of;
 import static org.apache.cassandra.tcm.Transformation.Kind.FINISH_MOVE;
 import static org.apache.cassandra.tcm.Transformation.Kind.MID_MOVE;
 import static org.apache.cassandra.tcm.Transformation.Kind.START_MOVE;
@@ -169,9 +169,16 @@ public class Move extends MultiStepOperation<Epoch>
         return NodeId.serializer;
     }
 
-    @Override public Transformation.Kind nextStep()
+    @Override
+    public Transformation.Kind nextStep()
     {
         return indexToNext(idx);
+    }
+
+    @Override
+    public Transformation.Result applyTo(ClusterMetadata metadata)
+    {
+        return applyMultipleTransformations(metadata, next, of(startMove, midMove, finishMove));
     }
 
     @Override
@@ -327,10 +334,9 @@ public class Move extends MultiStepOperation<Epoch>
         MovementMap.Builder allMovements = MovementMap.builder();
         toStart.forEach((params, delta) -> {
             RangesByEndpoint targets = delta.writes.additions;
-            PlacementForRange oldOwners = placements.get(params).reads;
+            ReplicaGroups oldOwners = placements.get(params).reads;
             EndpointsByReplica.Builder movements = new EndpointsByReplica.Builder();
-            Iterables.concat(targets.flattenValues(),
-                             transientToFullReplicas(midDeltas.get(params)).flattenValues()).forEach(destination -> {
+            targets.flattenValues().forEach(destination -> {
                 SourceHolder sources = new SourceHolder(fd, destination, toSplitRanges.get(params), strictConsistency);
                 AtomicBoolean needsRelaxedSources = new AtomicBoolean();
                 // first, try to find strict sources for the ranges we need to stream - these are the ranges that
@@ -433,23 +439,6 @@ public class Move extends MultiStepOperation<Epoch>
         }
     }
 
-    private static RangesByEndpoint transientToFullReplicas(PlacementDeltas.PlacementDelta midDelta)
-    {
-        RangesByEndpoint.Builder builder = new RangesByEndpoint.Builder();
-        midDelta.reads.additions.flattenValues().forEach((newReplica) -> {
-            if (newReplica.isFull())
-            {
-                RangesAtEndpoint removals = midDelta.reads.removals.get(newReplica.endpoint());
-                if (removals != null)
-                {
-                    Replica removed = removals.byRange().get(newReplica.range());
-                    if (removed != null && removed.isTransient())
-                        builder.put(newReplica.endpoint(), newReplica);
-                }
-            }
-        });
-        return builder.build();
-    }
     private static int nextToIndex(Transformation.Kind next)
     {
         switch (next)

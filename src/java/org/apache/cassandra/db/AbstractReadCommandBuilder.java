@@ -43,7 +43,7 @@ public abstract class AbstractReadCommandBuilder
     protected boolean reversed = false;
 
     protected Set<ColumnIdentifier> columns;
-    protected final RowFilter filter = RowFilter.create();
+    protected final RowFilter filter = RowFilter.create(true);
 
     private ClusteringBound<?> lowerClusteringBound;
     private ClusteringBound<?> upperClusteringBound;

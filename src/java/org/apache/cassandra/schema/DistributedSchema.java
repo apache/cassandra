@@ -58,9 +58,16 @@ public class DistributedSchema implements MetadataValue<DistributedSchema>
         return new DistributedSchema(Keyspaces.none(), Epoch.EMPTY);
     }
 
-    public static DistributedSchema first()
+    public static DistributedSchema first(Set<String> knownDatacenters)
     {
-        return new DistributedSchema(Keyspaces.of(DistributedMetadataLogKeyspace.initialMetadata(Collections.singleton(DatabaseDescriptor.getLocalDataCenter()))), Epoch.FIRST);
+        if (knownDatacenters.isEmpty())
+        {
+            if (DatabaseDescriptor.getLocalDataCenter() != null)
+                knownDatacenters = Collections.singleton(DatabaseDescriptor.getLocalDataCenter());
+            else
+                knownDatacenters = Collections.singleton("DC1");
+        }
+        return new DistributedSchema(Keyspaces.of(DistributedMetadataLogKeyspace.initialMetadata(knownDatacenters)), Epoch.FIRST);
     }
 
     private final Keyspaces keyspaces;
@@ -107,16 +114,32 @@ public class DistributedSchema implements MetadataValue<DistributedSchema>
     public static DistributedSchema fromSystemTables(Keyspaces keyspaces, Set<String> knownDatacenters)
     {
         if (!keyspaces.containsKeyspace(SchemaConstants.METADATA_KEYSPACE_NAME))
-            keyspaces = keyspaces.withAddedOrReplaced(Keyspaces.of(DistributedMetadataLogKeyspace.initialMetadata(knownDatacenters),
-                                                                   TraceKeyspace.metadata(),
-                                                                   SystemDistributedKeyspace.metadata(),
-                                                                   AuthKeyspace.metadata()));
+        {
+            Keyspaces kss = Keyspaces.of(DistributedMetadataLogKeyspace.initialMetadata(knownDatacenters),
+                                         TraceKeyspace.metadata(),
+                                         SystemDistributedKeyspace.metadata(),
+                                         AuthKeyspace.metadata());
+            for (KeyspaceMetadata ksm : keyspaces) // on disk keyspaces
+                kss = kss.withAddedOrUpdated(kss.get(ksm.name)
+                                                .map(k -> merged(k, ksm))
+                                                .orElse(ksm));
+            keyspaces = kss;
+        }
         return new DistributedSchema(keyspaces, Epoch.UPGRADE_GOSSIP);
     }
 
-    public void initializeKeyspaceInstances(DistributedSchema prev)
+    /**
+     * merges any tables in `mergeFrom` to `mergeTo` unless they already exist there.
+     */
+    private static KeyspaceMetadata merged(KeyspaceMetadata mergeTo, KeyspaceMetadata mergeFrom)
     {
-        initializeKeyspaceInstances(prev, true);
+        Tables newTables = mergeTo.tables;
+        for (TableMetadata metadata : mergeFrom.tables)
+        {
+            if (!newTables.containsTable(metadata.id))
+                newTables = newTables.with(metadata);
+        }
+        return mergeTo.withSwapped(newTables);
     }
 
     public void initializeKeyspaceInstances(DistributedSchema prev, boolean loadSSTables)

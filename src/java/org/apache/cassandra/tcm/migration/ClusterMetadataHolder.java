@@ -23,14 +23,14 @@ import java.io.IOException;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.serialization.VerboseMetadataSerializer;
-import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.serialization.Version;
 
 public class ClusterMetadataHolder
 {
-    public static final ClusterMetadataHolder.Serializer defaultMessageSerializer = new ClusterMetadataHolder.Serializer(NodeVersion.CURRENT.serializationVersion());
+    public static final IVersionedSerializer<ClusterMetadataHolder> defaultMessageSerializer = new ClusterMetadataHolder.Serializer(NodeVersion.CURRENT.serializationVersion());
 
     private static volatile Serializer serializerCache;
     public static IVersionedSerializer<ClusterMetadataHolder> messageSerializer(Version version)

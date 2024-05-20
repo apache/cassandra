@@ -59,6 +59,7 @@ import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.CompactionStrategyManager;
+import org.apache.cassandra.db.lifecycle.TransactionAlreadyCompletedException;
 import org.apache.cassandra.dht.OwnedRanges;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -621,6 +622,16 @@ public class StreamSession
         return state == State.COMPLETE;
     }
 
+    /**
+     * Return if this session was failed or aborted
+     *
+     * @return true if session was failed or aborted
+     */
+    public boolean isFailedOrAborted()
+    {
+        return state == State.FAILED || state == State.ABORTED;
+    }
+
     public synchronized void messageReceived(StreamMessage message)
     {
         if (message.type != StreamMessage.Type.KEEP_ALIVE)
@@ -709,6 +720,15 @@ public class StreamSession
                              e);
                 return closeSession(State.FAILED, "Failed because there was an " + e.getClass().getCanonicalName() + " with state=" + state.name());
             }
+        }
+        else if (e instanceof TransactionAlreadyCompletedException && isFailedOrAborted())
+        {
+            // StreamDeserializer threads may actively be writing SSTables when the stream
+            // is failed or canceled, which aborts the lifecycle transaction and throws an exception
+            // when any new SSTable is added.  Since the stream has already failed, suppress
+            // extra streaming log failure messages.
+            logger.debug("Stream lifecycle transaction already completed after stream failure (ignore)", e);
+            return null;
         }
 
         logError(e);

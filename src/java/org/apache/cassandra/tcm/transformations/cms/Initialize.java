@@ -23,12 +23,12 @@ import java.io.IOException;
 import org.apache.cassandra.auth.AuthKeyspace;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.locator.MetaStrategy;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Transformation;
-import org.apache.cassandra.tcm.ownership.EntireRange;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.tcm.transformations.ForceSnapshot;
@@ -69,9 +69,13 @@ public class Initialize extends ForceSnapshot
     public Result execute(ClusterMetadata prev)
     {
         ClusterMetadata next = baseState;
-        DistributedSchema initialSchema = new DistributedSchema(setUpDistributedSystemKeyspaces(next));
+        // when upgrading the schema is read from disk and set correctly in baseState, but we still need to
+        // make sure that lastModified is bumped, otherwise the keyspace instances are not created
+        DistributedSchema initialSchema = new DistributedSchema(next.schema.getKeyspaces().get(SystemDistributedKeyspace.NAME).isEmpty()
+                                                                ? setUpDistributedSystemKeyspaces(next)
+                                                                : next.schema.getKeyspaces());
         ClusterMetadata.Transformer transformer = next.transformer().with(initialSchema);
-        return Transformation.success(transformer, EntireRange.affectedRanges(prev));
+        return Transformation.success(transformer, MetaStrategy.affectedRanges(prev));
     }
 
     public Keyspaces setUpDistributedSystemKeyspaces(ClusterMetadata next)

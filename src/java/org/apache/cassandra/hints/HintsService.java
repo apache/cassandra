@@ -36,7 +36,6 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.ReplicaLayout;
-import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -299,6 +298,7 @@ public final class HintsService implements HintsServiceMBean
         return catalog.stores()
                       .filter(HintsStore::hasFiles)
                       .map(HintsStore::getPendingHintsInfo)
+                      .filter(Objects::nonNull)
                       .collect(Collectors.toList());
     }
 
@@ -445,17 +445,15 @@ public final class HintsService implements HintsServiceMBean
     }
 
     /**
-     * Get the earliest hint written for a particular node,
-     * @param hostId UUID of the node to check it's hints.
-     * @return earliest hint as per unix time or Long.MIN_VALUE if hostID is null
+     * Find the oldest hint written for a particular node by looking into descriptors
+     * and current open writer, if any.
+     *
+     * @param hostId UUID of the node to check its hints.
+     * @return the oldest hint of the given host id or Long.MAX_VALUE when not found
      */
-    public long getEarliestHintForHost(UUID hostId)
+    public long findOldestHintTimestamp(UUID hostId)
     {
-        // Need to check only the first descriptor + all buffers.
-        HintsStore store = catalog.get(hostId);
-        HintsDescriptor desc = store.getFirstDescriptor();
-        long timestamp = desc == null ? Clock.Global.currentTimeMillis() : desc.timestamp;
-        return Math.min(timestamp, bufferPool.getEarliestHintForHost(hostId));
+        return catalog.get(hostId).findOldestHintTimestamp();
     }
 
     HintsCatalog getCatalog()

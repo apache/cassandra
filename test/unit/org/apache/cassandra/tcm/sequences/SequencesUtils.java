@@ -67,7 +67,7 @@ public class SequencesUtils
     {
         LockedRanges.AffectedRangesBuilder affected = LockedRanges.AffectedRanges.builder();
         placements.asMap().forEach((params, placement) -> {
-            placement.reads.replicaGroups().keySet().forEach((range) -> {
+            placement.reads.ranges.forEach((range) -> {
                 if (random.nextDouble() >= 0.6)
                     affected.add(params, range);
             });
@@ -168,5 +168,10 @@ public class SequencesUtils
                         new PrepareMove.MidMove(node, deltas, key),
                         new PrepareMove.FinishMove(node, tokens, deltas, key),
                         true);
+    }
+
+    public static Epoch epoch(int epoch)
+    {
+        return Epoch.create(epoch);
     }
 }

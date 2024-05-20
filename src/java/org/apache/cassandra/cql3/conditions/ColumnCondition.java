@@ -84,7 +84,7 @@ public abstract class ColumnCondition
     {
         List<ByteBuffer> buffers = terms.bindAndGet(options);
         checkFalse(buffers == null && operator.isIN(), "Invalid null list in IN condition");
-        checkFalse(buffers == Terms.UNSET_LIST, "Invalid 'unset' value in condition");
+        checkFalse(buffers == Term.UNSET_LIST, "Invalid 'unset' value in condition");
         return filterUnsetValuesIfNeeded(buffers, ByteBufferUtil.UNSET_BYTE_BUFFER);
     }
 
@@ -493,7 +493,7 @@ public abstract class ColumnCondition
             if (value == null)
                 return !iter.hasNext();
 
-            if(operator.isContains() || operator.isContainsKey())
+            if(operator == Operator.CONTAINS || operator == Operator.CONTAINS_KEY)
                 return containsAppliesTo(type, iter, value.get(), operator);
 
             switch (type.kind)
@@ -583,12 +583,12 @@ public abstract class ColumnCondition
                 compareType = ((SetType<?>)type).getElementsType();
                 break;
             case MAP:
-                compareType = operator.isContainsKey() ? ((MapType<?, ?>)type).getKeysType() : ((MapType<?, ?>)type).getValuesType();
+                compareType = operator == Operator.CONTAINS_KEY ? ((MapType<?, ?>)type).getKeysType() : ((MapType<?, ?>)type).getValuesType();
                 break;
             default:
                 throw new AssertionError();
         }
-        boolean appliesToSetOrMapKeys = (type.kind == CollectionType.Kind.SET || type.kind == CollectionType.Kind.MAP && operator.isContainsKey());
+        boolean appliesToSetOrMapKeys = (type.kind == CollectionType.Kind.SET || type.kind == CollectionType.Kind.MAP && operator == Operator.CONTAINS_KEY);
         return containsAppliesTo(compareType, iter, value, appliesToSetOrMapKeys);
     }
 
@@ -830,16 +830,18 @@ public abstract class ColumnCondition
 
         private Terms prepareTerms(String keyspace, ColumnSpecification receiver)
         {
-            checkFalse(operator.isContainsKey() && !(receiver.type instanceof MapType), "Cannot use CONTAINS KEY on non-map column %s", receiver.name);
-            checkFalse(operator.isContains() && !(receiver.type.isCollection()), "Cannot use CONTAINS on non-collection column %s", receiver.name);
+            checkFalse(operator == Operator.CONTAINS_KEY && !(receiver.type instanceof MapType),
+                       "Cannot use CONTAINS KEY on non-map column %s", receiver.name);
+            checkFalse(operator == Operator.CONTAINS && !(receiver.type.isCollection()),
+                       "Cannot use CONTAINS on non-collection column %s", receiver.name);
 
             if (operator.isIN())
             {
                 return inValues.prepare(keyspace, receiver);
             }
 
-            if (operator.isContains() || operator.isContainsKey())
-                receiver = ((CollectionType<?>) receiver.type).makeCollectionReceiver(receiver, operator.isContainsKey());
+            if (operator == Operator.CONTAINS || operator == Operator.CONTAINS_KEY)
+                receiver = ((CollectionType<?>) receiver.type).makeCollectionReceiver(receiver, operator == Operator.CONTAINS_KEY);
 
             return Terms.of(value.prepare(keyspace, receiver));
         }

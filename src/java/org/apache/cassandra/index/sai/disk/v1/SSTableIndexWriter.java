@@ -187,7 +187,7 @@ public class SSTableIndexWriter implements PerColumnIndexWriter
 
     private void addTerm(ByteBuffer term, PrimaryKey key, long sstableRowId) throws IOException
     {
-        if (!index.validateMaxTermSize(key.partitionKey(), term, false))
+        if (!index.validateTermSize(key.partitionKey(), term, false, null))
             return;
 
         if (currentBuilder == null)
@@ -200,7 +200,8 @@ public class SSTableIndexWriter implements PerColumnIndexWriter
             currentBuilder = newSegmentBuilder();
         }
 
-        if (term.remaining() == 0) return;
+        // Some types support empty byte buffers:
+        if (term.remaining() == 0 && !index.termType().indexType().allowsEmpty()) return;
 
         if (analyzer == null || !index.termType().isLiteral())
         {

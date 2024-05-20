@@ -78,7 +78,7 @@ import org.apache.cassandra.tcm.Commit;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.membership.NodeId;
-import org.apache.cassandra.tcm.ownership.PlacementForRange;
+import org.apache.cassandra.tcm.ownership.ReplicaGroups;
 import org.apache.cassandra.utils.Isolated;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
@@ -388,7 +388,7 @@ public class ClusterUtils
             StringBuilder builder = new StringBuilder();
             builder.append("'keyspace' { 'name':").append(keyspace.name).append("', ");
             builder.append("'reads':['");
-            PlacementForRange placement = metadata.placements.get(keyspace.params.replication).reads;
+            ReplicaGroups placement = metadata.placements.get(keyspace.params.replication).reads;
             builder.append(byEndpoint ? placement.toStringByEndpoint() : placement.toString());
             builder.append("'], 'writes':['");
             placement = metadata.placements.get(keyspace.params.replication).writes;
@@ -545,6 +545,8 @@ public class ClusterUtils
 
     public static void unpauseCommits(IInvokableInstance instance)
     {
+        if (instance.isShutdown())
+            return;
         instance.runOnInstance(() -> {
             TestProcessor processor = (TestProcessor) ((ClusterMetadataService.SwitchableProcessor) ClusterMetadataService.instance().processor()).delegate();
             processor.unpause();
@@ -628,6 +630,14 @@ public class ClusterUtils
     public static Epoch getNextEpoch(IInvokableInstance inst)
     {
         return decode(inst.callOnInstance(() -> encode(ClusterMetadata.current().nextEpoch())));
+    }
+
+    public static Epoch snapshotClusterMetadata(IInvokableInstance inst)
+    {
+        return decode(inst.callOnInstance(() -> {
+            ClusterMetadata snapshotted = ClusterMetadataService.instance().triggerSnapshot();
+            return encode(snapshotted.epoch);
+        }));
     }
 
     public static Map<String, Epoch> getPeerEpochs(IInvokableInstance requester)
@@ -1296,11 +1306,41 @@ public class ClusterUtils
     }
 
     /**
+     * @return the native address in host:port format (ex. 127.0.0.1:9042)
+     */
+    public static InetSocketAddress getNativeInetSocketAddress(IInstance target)
+    {
+        return new InetSocketAddress(target.config().broadcastAddress().getAddress(),
+                                     getIntConfig(target.config(), "native_transport_port", 9042));
+    }
+
+    /**
      * Get the broadcast address InetAddess string (ex. localhost/127.0.0.1 or /127.0.0.1)
      */
     private static String getBroadcastAddressString(IInstance target)
     {
         return target.config().broadcastAddress().getAddress().toString();
+    }
+
+    /**
+     * Tries to return the integer configuration from the {@code config}, fallsback to {@code defaultValue}
+     * when it fails to retrieve the value.
+     *
+     * @param config       the config instance
+     * @param configName   the name of the configuration
+     * @param defaultValue the default value
+     * @return the integer value from the configuration, or the default value when it fails to retrieve it
+     */
+    public static int getIntConfig(IInstanceConfig config, String configName, int defaultValue)
+    {
+        try
+        {
+            return config.getInt(configName);
+        }
+        catch (NullPointerException npe)
+        {
+            return defaultValue;
+        }
     }
 
     public static final class RingInstanceDetails

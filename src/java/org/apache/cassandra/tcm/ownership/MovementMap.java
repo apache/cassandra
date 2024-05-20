@@ -26,11 +26,13 @@ import java.util.Map;
 import com.google.common.collect.Maps;
 
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.EndpointsByReplica;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.MetaStrategy;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.schema.ReplicationParams;
 
@@ -144,7 +146,8 @@ public class MovementMap extends ReplicationMap<EndpointsByReplica>
             for (int i = 0; i < size; i++)
             {
                 ReplicationParams params = ReplicationParams.messageSerializer.deserialize(in, version);
-                EndpointsByReplica endpointsByReplica = EndpointsByReplica.serializer.deserialize(in, version);
+                IPartitioner partitioner = params.isMeta() ? MetaStrategy.partitioner : IPartitioner.global();
+                EndpointsByReplica endpointsByReplica = EndpointsByReplica.serializer.deserialize(in, partitioner, version);
                 builder.put(params, endpointsByReplica);
             }
             return builder.build();
@@ -153,7 +156,7 @@ public class MovementMap extends ReplicationMap<EndpointsByReplica>
         @Override
         public long serializedSize(MovementMap t, int version)
         {
-            long size = TypeSizes.sizeofVInt(t.size());
+            long size = TypeSizes.sizeofUnsignedVInt(t.size());
             for (Map.Entry<ReplicationParams, EndpointsByReplica> entry : t.asMap().entrySet())
             {
                 size += ReplicationParams.messageSerializer.serializedSize(entry.getKey(), version);

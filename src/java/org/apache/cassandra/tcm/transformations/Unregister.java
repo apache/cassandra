@@ -19,17 +19,18 @@
 package org.apache.cassandra.tcm.transformations;
 
 import java.io.IOException;
+import java.util.EnumSet;
 
 import com.google.common.annotations.VisibleForTesting;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
@@ -38,13 +39,15 @@ import static org.apache.cassandra.exceptions.ExceptionCode.INVALID;
 
 public class Unregister implements Transformation
 {
-    private static final Logger logger = LoggerFactory.getLogger(Unregister.class);
     public static final Serializer serializer = new Serializer();
 
     private final NodeId nodeId;
-    public Unregister(NodeId nodeId)
+    private final EnumSet<NodeState> allowedNodeStartStates;
+
+    public Unregister(NodeId nodeId, EnumSet<NodeState> allowedNodeStartStates)
     {
         this.nodeId = nodeId;
+        this.allowedNodeStartStates = allowedNodeStartStates;
     }
 
     @Override
@@ -57,19 +60,25 @@ public class Unregister implements Transformation
     public Result execute(ClusterMetadata prev)
     {
         if (!prev.directory.peerIds().contains(nodeId))
-            return new Rejected(INVALID, String.format("Can not unregsiter %s since it is not present in the directory.", nodeId));
+            return new Rejected(INVALID, String.format("Can not unregister %s since it is not present in the directory.", nodeId));
 
-        ClusterMetadata.Transformer next = prev.transformer()
-                                           .unregister(nodeId);
+        NodeState startState = prev.directory.peerState(nodeId);
+        if (!allowedNodeStartStates.contains(startState))
+            return new Transformation.Rejected(INVALID, "Can't unregister " + nodeId + " - node state is " + startState + " not " + allowedNodeStartStates);
+
+        ClusterMetadata.Transformer next = prev.transformer().unregister(nodeId);
 
         return Transformation.success(next, LockedRanges.AffectedRanges.EMPTY);
     }
 
+    /**
+     * unsafe, only for test use
+     */
     @VisibleForTesting
     public static void unregister(NodeId nodeId)
     {
         ClusterMetadataService.instance()
-                              .commit(new Unregister(nodeId));
+                              .commit(new Unregister(nodeId, EnumSet.allOf(NodeState.class)));
     }
 
     public String toString()
@@ -85,20 +94,41 @@ public class Unregister implements Transformation
         {
             assert t instanceof Unregister;
             Unregister register = (Unregister)t;
+            if (version.isAtLeast(Version.V2))
+            {
+                out.writeUnsignedVInt32(register.allowedNodeStartStates.size());
+                for (NodeState allowedState : register.allowedNodeStartStates)
+                    out.writeUTF(allowedState.name());
+            }
             NodeId.serializer.serialize(register.nodeId, out, version);
         }
 
         public Unregister deserialize(DataInputPlus in, Version version) throws IOException
         {
+            EnumSet<NodeState> states = EnumSet.noneOf(NodeState.class);
+            if (version.isAtLeast(Version.V2))
+            {
+                int startStateSize = in.readUnsignedVInt32();
+                for (int i = 0; i < startStateSize; i++)
+                    states.add(NodeState.valueOf(in.readUTF()));
+            }
             NodeId nodeId = NodeId.serializer.deserialize(in, version);
-            return new Unregister(nodeId);
+            return new Unregister(nodeId, version.isAtLeast(Version.V2) ? states : EnumSet.allOf(NodeState.class));
         }
 
         public long serializedSize(Transformation t, Version version)
         {
             assert t instanceof Unregister;
             Unregister unregister = (Unregister) t;
-            return NodeId.serializer.serializedSize(unregister.nodeId, version);
+            long size = 0;
+            if (version.isAtLeast(Version.V2))
+            {
+                size += TypeSizes.sizeofUnsignedVInt(unregister.allowedNodeStartStates.size());
+                for (NodeState state : unregister.allowedNodeStartStates)
+                    size += TypeSizes.sizeof(state.name());
+            }
+            size += NodeId.serializer.serializedSize(unregister.nodeId, version);
+            return size;
         }
     }
 }

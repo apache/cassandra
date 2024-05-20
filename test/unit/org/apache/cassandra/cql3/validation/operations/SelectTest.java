@@ -23,11 +23,14 @@ import java.util.UUID;
 import org.junit.Test;
 import org.junit.Assert;
 
+import org.apache.cassandra.Util;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.Duration;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.index.internal.CassandraIndex;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -40,7 +43,6 @@ import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
  */
 public class SelectTest extends CQLTester
 {
-
     @Test
     public void testSingleClustering() throws Throwable
     {
@@ -335,14 +337,17 @@ public class SelectTest extends CQLTester
                        row("test", 5, set("lmn"))
             );
 
-            assertInvalidMessage("Unsupported null value for column categories",
+            assertInvalidMessage("Invalid null value for column categories",
                                  "SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS ?", "test", 5, null);
 
-            assertInvalidMessage("Unsupported unset value for column categories",
+            assertInvalidMessage("Invalid unset value for column categories",
                                  "SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS ?", "test", 5, unset());
 
-            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
-                                 "SELECT * FROM %s WHERE account = ? AND categories CONTAINS ? AND categories CONTAINS ?", "xyz", "lmn", "notPresent");
+            if (DatabaseDescriptor.getDefaultSecondaryIndex().equals(CassandraIndex.NAME))
+                assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                                     "SELECT * FROM %s WHERE account = ? AND categories CONTAINS ? AND categories CONTAINS ?", "xyz", "lmn", "notPresent");
+            else
+                assertEmpty(execute("SELECT * FROM %s WHERE account = ? AND categories CONTAINS ? AND categories CONTAINS ?", "xyz", "lmn", "notPresent"));
             assertEmpty(execute("SELECT * FROM %s WHERE account = ? AND categories CONTAINS ? AND categories CONTAINS ? ALLOW FILTERING", "xyz", "lmn", "notPresent"));
         });
     }
@@ -369,15 +374,19 @@ public class SelectTest extends CQLTester
                        row("test", 5, list("lmn"))
             );
 
-            assertInvalidMessage("Unsupported null value for column categories",
+            assertInvalidMessage("Invalid null value for column categories",
                                  "SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS ?", "test", 5, null);
 
-            assertInvalidMessage("Unsupported unset value for column categories",
+            assertInvalidMessage("Invalid unset value for column categories",
                                  "SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS ?", "test", 5, unset());
 
-            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
-                                 "SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS ? AND categories CONTAINS ?",
-                                 "test", 5, "lmn", "notPresent");
+            if (DatabaseDescriptor.getDefaultSecondaryIndex().equals(CassandraIndex.NAME))
+                assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                                     "SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS ? AND categories CONTAINS ?",
+                                     "test", 5, "lmn", "notPresent");
+            else
+                assertEmpty(execute("SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS ? AND categories CONTAINS ?",
+                                    "test", 5, "lmn", "notPresent"));
             assertEmpty(execute("SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS ? AND categories CONTAINS ? ALLOW FILTERING",
                                 "test", 5, "lmn", "notPresent"));
         });
@@ -426,21 +435,30 @@ public class SelectTest extends CQLTester
                        row("test", 5, map("lmn", "foo"))
             );
 
-            assertInvalidMessage("Unsupported null value for column categories",
+            assertInvalidMessage("Invalid null value for column categories",
                                  "SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS KEY ?", "test", 5, null);
 
-            assertInvalidMessage("Unsupported unset value for column categories",
+            assertInvalidMessage("Invalid unset value for column categories",
                                  "SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS KEY ?", "test", 5, unset());
 
-            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
-                                 "SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS KEY ? AND categories CONTAINS KEY ?",
-                                 "test", 5, "lmn", "notPresent");
+            if (DatabaseDescriptor.getDefaultSecondaryIndex().equals(CassandraIndex.NAME))
+                assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                                     "SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS KEY ? AND categories CONTAINS KEY ?",
+                                     "test", 5, "lmn", "notPresent");
+            else
+                assertEmpty(execute("SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS KEY ? AND categories CONTAINS KEY ?",
+                                    "test", 5, "lmn", "notPresent"));
             assertEmpty(execute("SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS KEY ? AND categories CONTAINS KEY ? ALLOW FILTERING",
                                 "test", 5, "lmn", "notPresent"));
 
-            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
-                                 "SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS KEY ? AND categories CONTAINS ?",
-                                 "test", 5, "lmn", "foo");
+            if (DatabaseDescriptor.getDefaultSecondaryIndex().equals(CassandraIndex.NAME))
+                assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                                     "SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS KEY ? AND categories CONTAINS ?",
+                                     "test", 5, "lmn", "foo");
+            else
+                assertRows(execute("SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS KEY ? AND categories CONTAINS ?",
+                                    "test", 5, "lmn", "foo"),
+                           row("test", 5, map("lmn", "foo")));
         });
     }
 
@@ -467,15 +485,19 @@ public class SelectTest extends CQLTester
                        row("test", 5, map("lmn", "foo"))
             );
 
-            assertInvalidMessage("Unsupported null value for column categories",
+            assertInvalidMessage("Invalid null value for column categories",
                                  "SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS ?", "test", 5, null);
 
-            assertInvalidMessage("Unsupported unset value for column categories",
+            assertInvalidMessage("Invalid unset value for column categories",
                                  "SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS ?", "test", 5, unset());
 
-            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
-                                 "SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS ? AND categories CONTAINS ?",
-                                 "test", 5, "foo", "notPresent");
+            if (DatabaseDescriptor.getDefaultSecondaryIndex().equals(CassandraIndex.NAME))
+                assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                                     "SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS ? AND categories CONTAINS ?",
+                                     "test", 5, "foo", "notPresent");
+            else
+                assertEmpty(execute("SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS ? AND categories CONTAINS ?",
+                                    "test", 5, "foo", "notPresent"));
 
             assertEmpty(execute("SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS ? AND categories CONTAINS ? ALLOW FILTERING",
                                 "test", 5, "foo", "notPresent"));
@@ -1319,25 +1341,25 @@ public class SelectTest extends CQLTester
         // Checks filtering with null
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE c = null");
-        assertInvalidMessage("Unsupported null value for column c",
+        assertInvalidMessage("Invalid null value for column c",
                              "SELECT * FROM %s WHERE c = null ALLOW FILTERING");
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE c > null");
-        assertInvalidMessage("Unsupported null value for column c",
+        assertInvalidMessage("Invalid null value for column c",
                              "SELECT * FROM %s WHERE c > null ALLOW FILTERING");
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE s > null");
-        assertInvalidMessage("Unsupported null value for column s",
+        assertInvalidMessage("Invalid null value for column s",
                              "SELECT * FROM %s WHERE s > null ALLOW FILTERING");
 
         // Checks filtering with unset
-        assertInvalidMessage("Unsupported unset value for column c",
+        assertInvalidMessage("Invalid unset value for column c",
                              "SELECT * FROM %s WHERE c = ? ALLOW FILTERING",
                              unset());
-        assertInvalidMessage("Unsupported unset value for column s",
+        assertInvalidMessage("Invalid unset value for column s",
                              "SELECT * FROM %s WHERE s = ? ALLOW FILTERING",
                              unset());
-        assertInvalidMessage("Unsupported unset value for column c",
+        assertInvalidMessage("Invalid unset value for column c",
                              "SELECT * FROM %s WHERE c > ? ALLOW FILTERING",
                              unset());
     }
@@ -1399,36 +1421,36 @@ public class SelectTest extends CQLTester
         });
 
         // Checks filtering with null
-        assertInvalidMessage("Unsupported null value for column c",
+        assertInvalidMessage("Invalid null value for column c",
                              "SELECT * FROM %s WHERE c CONTAINS null ALLOW FILTERING");
-        assertInvalidMessage("Unsupported null value for column d",
+        assertInvalidMessage("Invalid null value for column d",
                              "SELECT * FROM %s WHERE d CONTAINS null ALLOW FILTERING");
-        assertInvalidMessage("Unsupported null value for column e",
+        assertInvalidMessage("Invalid null value for column e",
                              "SELECT * FROM %s WHERE e CONTAINS null ALLOW FILTERING");
-        assertInvalidMessage("Unsupported null value for column e",
+        assertInvalidMessage("Invalid null value for column e",
                              "SELECT * FROM %s WHERE e CONTAINS KEY null ALLOW FILTERING");
-        assertInvalidMessage("Unsupported null map key for column e",
+        assertInvalidMessage("Invalid null map key for column e",
                              "SELECT * FROM %s WHERE e[null] = 2 ALLOW FILTERING");
-        assertInvalidMessage("Unsupported null map value for column e",
+        assertInvalidMessage("Invalid null value for e[1]",
                              "SELECT * FROM %s WHERE e[1] = null ALLOW FILTERING");
 
         // Checks filtering with unset
-        assertInvalidMessage("Unsupported unset value for column c",
+        assertInvalidMessage("Invalid unset value for column c",
                              "SELECT * FROM %s WHERE c CONTAINS ? ALLOW FILTERING",
                              unset());
-        assertInvalidMessage("Unsupported unset value for column d",
+        assertInvalidMessage("Invalid unset value for column d",
                              "SELECT * FROM %s WHERE d CONTAINS ? ALLOW FILTERING",
                              unset());
-        assertInvalidMessage("Unsupported unset value for column e",
+        assertInvalidMessage("Invalid unset value for column e",
                              "SELECT * FROM %s WHERE e CONTAINS ? ALLOW FILTERING",
                              unset());
-        assertInvalidMessage("Unsupported unset value for column e",
+        assertInvalidMessage("Invalid unset value for column e",
                              "SELECT * FROM %s WHERE e CONTAINS KEY ? ALLOW FILTERING",
                              unset());
-        assertInvalidMessage("Unsupported unset map key for column e",
+        assertInvalidMessage("Invalid unset map key for column e",
                              "SELECT * FROM %s WHERE e[?] = 2 ALLOW FILTERING",
                              unset());
-        assertInvalidMessage("Unsupported unset map value for column e",
+        assertInvalidMessage("Invalid unset value for e[1]",
                              "SELECT * FROM %s WHERE e[1] = ? ALLOW FILTERING",
                              unset());
     }
@@ -1529,7 +1551,7 @@ public class SelectTest extends CQLTester
                        row(1, 2, list(1, 6), set(2, 12), map(1, 6)),
                        row(1, 4, list(1, 2), set(2, 4), map(1, 2)));
 
-            assertInvalidMessage("Map-entry equality predicates on frozen map column e are not supported",
+            assertInvalidMessage("Map-entry predicates on frozen map column e are not supported",
                                  "SELECT * FROM %s WHERE e[1] = 6 ALLOW FILTERING");
 
             assertRows(execute("SELECT * FROM %s WHERE e CONTAINS KEY 1 AND e CONTAINS 2 ALLOW FILTERING"),
@@ -1540,51 +1562,51 @@ public class SelectTest extends CQLTester
         });
 
         // Checks filtering with null
-        assertInvalidMessage("Unsupported null value for column c",
+        assertInvalidMessage("Invalid null value for column c",
                              "SELECT * FROM %s WHERE c = null ALLOW FILTERING");
-        assertInvalidMessage("Unsupported null value for column c",
+        assertInvalidMessage("Invalid null value for column c",
                              "SELECT * FROM %s WHERE c CONTAINS null ALLOW FILTERING");
-        assertInvalidMessage("Unsupported null value for column d",
+        assertInvalidMessage("Invalid null value for column d",
                              "SELECT * FROM %s WHERE d = null ALLOW FILTERING");
-        assertInvalidMessage("Unsupported null value for column d",
+        assertInvalidMessage("Invalid null value for column d",
                              "SELECT * FROM %s WHERE d CONTAINS null ALLOW FILTERING");
-        assertInvalidMessage("Unsupported null value for column e",
+        assertInvalidMessage("Invalid null value for column e",
                              "SELECT * FROM %s WHERE e = null ALLOW FILTERING");
-        assertInvalidMessage("Unsupported null value for column e",
+        assertInvalidMessage("Invalid null value for column e",
                              "SELECT * FROM %s WHERE e CONTAINS null ALLOW FILTERING");
-        assertInvalidMessage("Unsupported null value for column e",
+        assertInvalidMessage("Invalid null value for column e",
                              "SELECT * FROM %s WHERE e CONTAINS KEY null ALLOW FILTERING");
-        assertInvalidMessage("Map-entry equality predicates on frozen map column e are not supported",
+        assertInvalidMessage("Map-entry predicates on frozen map column e are not supported",
                              "SELECT * FROM %s WHERE e[null] = 2 ALLOW FILTERING");
-        assertInvalidMessage("Map-entry equality predicates on frozen map column e are not supported",
+        assertInvalidMessage("Map-entry predicates on frozen map column e are not supported",
                              "SELECT * FROM %s WHERE e[1] = null ALLOW FILTERING");
 
         // Checks filtering with unset
-        assertInvalidMessage("Unsupported unset value for column c",
+        assertInvalidMessage("Invalid unset value for column c",
                              "SELECT * FROM %s WHERE c = ? ALLOW FILTERING",
                              unset());
-        assertInvalidMessage("Unsupported unset value for column c",
+        assertInvalidMessage("Invalid unset value for column c",
                              "SELECT * FROM %s WHERE c CONTAINS ? ALLOW FILTERING",
                              unset());
-        assertInvalidMessage("Unsupported unset value for column d",
+        assertInvalidMessage("Invalid unset value for column d",
                              "SELECT * FROM %s WHERE d = ? ALLOW FILTERING",
                              unset());
-        assertInvalidMessage("Unsupported unset value for column d",
+        assertInvalidMessage("Invalid unset value for column d",
                              "SELECT * FROM %s WHERE d CONTAINS ? ALLOW FILTERING",
                              unset());
-        assertInvalidMessage("Unsupported unset value for column e",
+        assertInvalidMessage("Invalid unset value for column e",
                              "SELECT * FROM %s WHERE e = ? ALLOW FILTERING",
                              unset());
-        assertInvalidMessage("Unsupported unset value for column e",
+        assertInvalidMessage("Invalid unset value for column e",
                              "SELECT * FROM %s WHERE e CONTAINS ? ALLOW FILTERING",
                              unset());
-        assertInvalidMessage("Unsupported unset value for column e",
+        assertInvalidMessage("Invalid unset value for column e",
                              "SELECT * FROM %s WHERE e CONTAINS KEY ? ALLOW FILTERING",
                              unset());
-        assertInvalidMessage("Map-entry equality predicates on frozen map column e are not supported",
+        assertInvalidMessage("Map-entry predicates on frozen map column e are not supported",
                              "SELECT * FROM %s WHERE e[?] = 2 ALLOW FILTERING",
                              unset());
-        assertInvalidMessage("Map-entry equality predicates on frozen map column e are not supported",
+        assertInvalidMessage("Map-entry predicates on frozen map column e are not supported",
                              "SELECT * FROM %s WHERE e[1] = ? ALLOW FILTERING",
                              unset());
     }
@@ -1593,6 +1615,7 @@ public class SelectTest extends CQLTester
     @Test
     public void testIndexQueryWithValueOver64K() throws Throwable
     {
+        Util.assumeLegacySecondaryIndex();
         createTable("CREATE TABLE %s (a int, b int, c blob, PRIMARY KEY (a, b))");
         String idx = createIndex("CREATE INDEX ON %s (c)");
 
@@ -1729,10 +1752,10 @@ public class SelectTest extends CQLTester
         });
 
         // Checks filtering with unset
-        assertInvalidMessage("Unsupported unset value for column a",
+        assertInvalidMessage("Invalid unset value for column a",
                              "SELECT * FROM %s WHERE a = ? ALLOW FILTERING",
                              unset());
-        assertInvalidMessage("Unsupported unset value for column a",
+        assertInvalidMessage("Invalid unset value for column a",
                              "SELECT * FROM %s WHERE a > ? ALLOW FILTERING",
                              unset());
 
@@ -1938,36 +1961,36 @@ public class SelectTest extends CQLTester
         });
 
         // Checks filtering with null
-        assertInvalidMessage("Unsupported null value for column c",
+        assertInvalidMessage("Invalid null value for column c",
                              "SELECT * FROM %s WHERE a > 1 AND c CONTAINS null ALLOW FILTERING");
-        assertInvalidMessage("Unsupported null value for column d",
+        assertInvalidMessage("Invalid null value for column d",
                              "SELECT * FROM %s WHERE b < 1 AND d CONTAINS null ALLOW FILTERING");
-        assertInvalidMessage("Unsupported null value for column e",
+        assertInvalidMessage("Invalid null value for column e",
                              "SELECT * FROM %s WHERE a >= 1 AND b < 1 AND e CONTAINS null ALLOW FILTERING");
-        assertInvalidMessage("Unsupported null value for column e",
+        assertInvalidMessage("Invalid null value for column e",
                              "SELECT * FROM %s WHERE a >= 1 AND b < 1 AND e CONTAINS KEY null ALLOW FILTERING");
-        assertInvalidMessage("Unsupported null map key for column e",
+        assertInvalidMessage("Invalid null map key for column e",
                              "SELECT * FROM %s WHERE a >= 1 AND b < 1 AND e[null] = 2 ALLOW FILTERING");
-        assertInvalidMessage("Unsupported null map value for column e",
+        assertInvalidMessage("Invalid null value for e[1]",
                              "SELECT * FROM %s WHERE a >= 1 AND b < 1 AND e[1] = null ALLOW FILTERING");
 
         // Checks filtering with unset
-        assertInvalidMessage("Unsupported unset value for column c",
+        assertInvalidMessage("Invalid unset value for column c",
                              "SELECT * FROM %s WHERE a >= 1 AND b < 1 AND c CONTAINS ? ALLOW FILTERING",
                              unset());
-        assertInvalidMessage("Unsupported unset value for column d",
+        assertInvalidMessage("Invalid unset value for column d",
                              "SELECT * FROM %s WHERE a >= 1 AND b < 1 AND d CONTAINS ? ALLOW FILTERING",
                              unset());
-        assertInvalidMessage("Unsupported unset value for column e",
+        assertInvalidMessage("Invalid unset value for column e",
                              "SELECT * FROM %s WHERE a >= 1 AND b < 1 AND e CONTAINS ? ALLOW FILTERING",
                              unset());
-        assertInvalidMessage("Unsupported unset value for column e",
+        assertInvalidMessage("Invalid unset value for column e",
                              "SELECT * FROM %s WHERE a >= 1 AND b < 1 AND e CONTAINS KEY ? ALLOW FILTERING",
                              unset());
-        assertInvalidMessage("Unsupported unset map key for column e",
+        assertInvalidMessage("Invalid unset map key for column e",
                              "SELECT * FROM %s WHERE a >= 1 AND b < 1 AND e[?] = 2 ALLOW FILTERING",
                              unset());
-        assertInvalidMessage("Unsupported unset map value for column e",
+        assertInvalidMessage("Invalid unset value for e[1]",
                              "SELECT * FROM %s WHERE a >= 1 AND b < 1 AND e[1] = ? ALLOW FILTERING",
                              unset());
     }
@@ -2134,12 +2157,14 @@ public class SelectTest extends CQLTester
 
             assertRows(execute("SELECT * FROM %s WHERE a = 21 AND b CONTAINS 2 ALLOW FILTERING"),
                        row(21, list(2, 3), 24));
-            assertInvalidMessage("Clustering columns can only be restricted with CONTAINS with a secondary index or filtering",
+            assertInvalidMessage("Clustering column restrictions require the use of secondary indices" +
+                                 " or filtering for map-element restrictions and for the following operators: CONTAINS, CONTAINS KEY, LIKE, ANN",
                                  "SELECT * FROM %s WHERE a = 21 AND b CONTAINS 2");
 
             assertRows(execute("SELECT * FROM %s WHERE b CONTAINS 2 ALLOW FILTERING"),
                        row(21, list(2, 3), 24));
-            assertInvalidMessage("Clustering columns can only be restricted with CONTAINS with a secondary index or filtering",
+            assertInvalidMessage("Clustering column restrictions require the use of secondary indices" +
+                                 " or filtering for map-element restrictions and for the following operators: CONTAINS, CONTAINS KEY, LIKE, ANN",
                                  "SELECT * FROM %s WHERE b CONTAINS 2");
 
             assertRows(execute("SELECT * FROM %s WHERE b CONTAINS 3 ALLOW FILTERING"),
@@ -2159,7 +2184,8 @@ public class SelectTest extends CQLTester
 
             assertRows(execute("SELECT * FROM %s WHERE a = 21 AND c CONTAINS 2 ALLOW FILTERING"),
                        row(21, 22, list(2, 3), 24));
-            assertInvalidMessage("Clustering columns can only be restricted with CONTAINS with a secondary index or filtering",
+            assertInvalidMessage("Clustering column restrictions require the use of secondary indices" +
+                                 " or filtering for map-element restrictions and for the following operators: CONTAINS, CONTAINS KEY, LIKE, ANN",
                                  "SELECT * FROM %s WHERE a = 21 AND c CONTAINS 2");
 
             assertRows(execute("SELECT * FROM %s WHERE b > 20 AND c CONTAINS 2 ALLOW FILTERING"),
@@ -3226,5 +3252,31 @@ public class SelectTest extends CQLTester
         execute("INSERT INTO " + KEYSPACE + ".t4 (id, udt_data) values(1, {data: 'I''m newb'})");
 
         assertRows(execute("SELECT udt_data FROM " + KEYSPACE + ".t4"), row(userType("random", "I'm newb")));
+    }
+
+    @Test
+    public void testUseOfOtherOperatorOnSameColumnsAsContainsKeyAndContains() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk text, c int, m map<text,text>, fm frozen<map<text,text>>, PRIMARY KEY (pk, c))");
+
+        assertInvalidMessage("Collection column 'm' (map<text, text>) cannot be restricted by a '>' relation",
+                             "SELECT * FROM %s WHERE m > {'lmn' : 'f'} AND m CONTAINS 'foo'");
+
+        assertInvalidMessage("Collection column 'm' (map<text, text>) cannot be restricted by a '>' relation",
+                             "SELECT * FROM %s WHERE m > {'lmn' : 'f'} AND m CONTAINS KEY 'lmn'");
+
+        assertInvalidMessage("Collection column 'm' (map<text, text>) cannot be restricted by a '>' relation",
+                             "SELECT * FROM %s WHERE m > {'lmn' : 'f'} AND m['lmn'] = 'foo2'");
+
+        assertInvalidMessage("Collection column fm can only be restricted by CONTAINS, CONTAINS KEY," +
+                             " or map-entry equality if it already restricted by one of those",
+                             "SELECT * FROM %s WHERE fm > {'lmn' : 'f'} AND fm CONTAINS 'foo'");
+
+        assertInvalidMessage("Collection column fm can only be restricted by CONTAINS, CONTAINS KEY," +
+                             " or map-entry equality if it already restricted by one of those",
+                             "SELECT * FROM %s WHERE fm > {'lmn' : 'f'} AND fm CONTAINS KEY 'lmn'");
+
+        assertInvalidMessage("Map-entry predicates on frozen map column fm are not supported",
+                             "SELECT * FROM %s WHERE fm > {'lmn' : 'f'} AND fm['lmn'] = 'foo2'");
     }
 }

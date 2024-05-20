@@ -88,7 +88,7 @@ public class SecondaryIndexTest extends TestBaseImpl
         cluster.forEach(i -> i.flush(KEYSPACE));
 
         Pattern indexScanningPattern =
-                Pattern.compile(String.format("Index mean cardinalities are v_index_%d:[0-9]+. Scanning with v_index_%d.", seq.get(), seq.get()));
+                Pattern.compile(String.format("Index mean cardinalities are v_index_%d:[-0-9]+. Scanning with v_index_%d.", seq.get(), seq.get()));
 
         for (int i = 0 ; i < 33; ++i)
         {

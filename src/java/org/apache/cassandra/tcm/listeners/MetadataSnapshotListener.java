@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.tcm.listeners;
 
+import java.util.EnumSet;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -26,23 +28,28 @@ import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.log.Entry;
 
+import static org.apache.cassandra.tcm.Transformation.Kind.FORCE_SNAPSHOT;
+import static org.apache.cassandra.tcm.Transformation.Kind.TRIGGER_SNAPSHOT;
+
 public class MetadataSnapshotListener implements LogListener
 {
     private static final Logger logger = LoggerFactory.getLogger(MetadataSnapshotListener.class);
+
+    private static final EnumSet<Transformation.Kind> triggers = EnumSet.of(TRIGGER_SNAPSHOT, FORCE_SNAPSHOT);
+
     @Override
     public void notify(Entry entry, Transformation.Result result)
     {
         ClusterMetadata next = result.success().metadata;
-        if (entry.transform.kind() == Transformation.Kind.SEAL_PERIOD)
+        if (triggers.contains(entry.transform.kind()))
         {
-            assert next.lastInPeriod;
             try
             {
                 ClusterMetadataService.instance().snapshotManager().storeSnapshot(next);
             }
             catch (Throwable e)
             {
-                logger.warn("Unable to serialize metadata snapshot triggered by SealPeriod transformation", e);
+                logger.warn("Unable to serialize metadata snapshot triggered by TriggerSnapshot transformation", e);
             }
         }
     }

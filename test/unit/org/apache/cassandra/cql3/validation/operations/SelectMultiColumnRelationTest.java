@@ -21,6 +21,7 @@ import org.junit.Test;
 
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -51,21 +52,21 @@ public class SelectMultiColumnRelationTest extends CQLTester
         createTable("CREATE TABLE %s (a int, b int, c int, d int, PRIMARY KEY (a, b, c, d))");
 
         assertInvalidSyntax("SELECT * FROM %s WHERE a = 0 AND (b, c) > ()");
-        assertInvalidMessage("Expected 2 elements in value for tuple (b,c), but got 3: (?, ?, ?)",
+        assertInvalidMessage("Expected 2 elements in value for tuple (b, c), but got 3: (?, ?, ?)",
                              "SELECT * FROM %s WHERE a = 0 AND (b, c) > (?, ?, ?)", 1, 2, 3);
-        assertInvalidMessage("Invalid null value in condition for column c",
+        assertInvalidMessage("Invalid null value for c in tuple (b, c)",
                              "SELECT * FROM %s WHERE a = 0 AND (b, c) > (?, ?)", 1, null);
 
         // Wrong order of columns
-        assertInvalidMessage("Clustering columns must appear in the PRIMARY KEY order in multi-column relations: (d, c, b) = (?, ?, ?)",
+        assertInvalidMessage("Clustering columns must appear in the PRIMARY KEY order in multi-column relations: (d, c, b)",
                              "SELECT * FROM %s WHERE a = 0 AND (d, c, b) = (?, ?, ?)", 0, 0, 0);
-        assertInvalidMessage("Clustering columns must appear in the PRIMARY KEY order in multi-column relations: (d, c, b) > (?, ?, ?)",
+        assertInvalidMessage("Clustering columns must appear in the PRIMARY KEY order in multi-column relations: (d, c, b)",
                              "SELECT * FROM %s WHERE a = 0 AND (d, c, b) > (?, ?, ?)", 0, 0, 0);
 
         // Wrong number of values
-        assertInvalidMessage("Expected 3 elements in value for tuple (b,c,d), but got 2: (?, ?)",
+        assertInvalidMessage("Expected 3 elements in value for tuple (b, c, d), but got 2: (?, ?)",
                              "SELECT * FROM %s WHERE a=0 AND (b, c, d) IN ((?, ?))", 0, 1);
-        assertInvalidMessage("Expected 3 elements in value for tuple (b,c,d), but got 5: (?, ?, ?, ?, ?)",
+        assertInvalidMessage("Expected 3 elements in value for tuple (b, c, d), but got 5: (?, ?, ?, ?, ?)",
                              "SELECT * FROM %s WHERE a=0 AND (b, c, d) IN ((?, ?, ?, ?, ?))", 0, 1, 2, 3, 4);
 
         // Missing first clustering column
@@ -75,11 +76,11 @@ public class SelectMultiColumnRelationTest extends CQLTester
                              "SELECT * FROM %s WHERE a = 0 AND (c, d) > (?, ?)", 0, 0);
 
         // Nulls
-        assertInvalidMessage("Invalid null value for column d",
+        assertInvalidMessage("Invalid null value for d in tuple (b, c, d)",
                              "SELECT * FROM %s WHERE a = 0 AND (b, c, d) = (?, ?, ?)", 1, 2, null);
-        assertInvalidMessage("Invalid null value for column d",
+        assertInvalidMessage("Invalid null value for d in tuple (b, c, d)",
                              "SELECT * FROM %s WHERE a = 0 AND (b, c, d) IN ((?, ?, ?))", 1, 2, null);
-        assertInvalidMessage("Invalid null value in condition for columns: [b, c, d]",
+        assertInvalidMessage("Invalid null value for d in tuple (b, c, d)",
                              "SELECT * FROM %s WHERE a = 0 AND (b, c, d) IN ((?, ?, ?), (?, ?, ?))", 1, 2, null, 2, 1, 4);
 
         // Wrong type for 'd'
@@ -368,7 +369,7 @@ public class SelectMultiColumnRelationTest extends CQLTester
     public void testNonEqualsRelation() throws Throwable
     {
         createTable("CREATE TABLE %s (a int PRIMARY KEY, b int)");
-        assertInvalidMessage("Unsupported \"!=\" relation: (b) != (0)",
+        assertInvalidMessage("Unsupported '!=' relation: (b) != (0)",
                              "SELECT * FROM %s WHERE a = 0 AND (b) != (0)");
     }
 
@@ -785,6 +786,7 @@ public class SelectMultiColumnRelationTest extends CQLTester
     @Test
     public void testMultipleClusteringWithIndex() throws Throwable
     {
+        Util.assumeLegacySecondaryIndex();
         createTable("CREATE TABLE %s (a int, b int, c int, d int, e int, PRIMARY KEY (a, b, c, d))");
         createIndex("CREATE INDEX ON %s (b)");
         createIndex("CREATE INDEX ON %s (e)");
@@ -854,16 +856,17 @@ public class SelectMultiColumnRelationTest extends CQLTester
         assertRows(execute("SELECT * FROM %s WHERE (b, c) >= (?, ?) AND e = ? ALLOW FILTERING", 1, 1, 2),
                    row(0, 1, 1, 1, 2));
 
-        assertInvalidMessage("Unsupported null value for column e",
+        assertInvalidMessage("Invalid null value for column e",
                              "SELECT * FROM %s WHERE (b, c) >= (?, ?) AND e = ?  ALLOW FILTERING", 1, 1, null);
 
-        assertInvalidMessage("Unsupported unset value for column e",
+        assertInvalidMessage("Invalid unset value for column e",
                              "SELECT * FROM %s WHERE (b, c) >= (?, ?) AND e = ?  ALLOW FILTERING", 1, 1, unset());
     }
 
     @Test
     public void testMultipleClusteringWithIndexAndValueOver64K() throws Throwable
     {
+        Util.assumeLegacySecondaryIndex();
         createTable("CREATE TABLE %s (a int, b blob, c int, d int, PRIMARY KEY (a, b, c))");
         createIndex("CREATE INDEX ON %s (b)");
 
@@ -904,6 +907,7 @@ public class SelectMultiColumnRelationTest extends CQLTester
     @Test
     public void testMultiplePartitionKeyAndMultiClusteringWithIndex() throws Throwable
     {
+        Util.assumeLegacySecondaryIndex();
         createTable("CREATE TABLE %s (a int, b int, c int, d int, e int, f int, PRIMARY KEY ((a, b), c, d, e))");
         createIndex("CREATE INDEX ON %s (c)");
         createIndex("CREATE INDEX ON %s (f)");
@@ -1011,13 +1015,13 @@ public class SelectMultiColumnRelationTest extends CQLTester
                              "SELECT * from %s WHERE (i, j) IN ((?,?)) ALLOW FILTERING", unset(), 1);
         assertInvalidMessage("Invalid unset value for tuple field number 1",
                              "SELECT * from %s WHERE (i, j) > (1,?) ALLOW FILTERING", unset());
-        assertInvalidMessage("Invalid unset value for tuple (i,j)",
+        assertInvalidMessage("Invalid unset value for tuple (i, j)",
                              "SELECT * from %s WHERE (i, j) = ? ALLOW FILTERING", unset());
         assertInvalidMessage("Invalid unset value for tuple (j)",
                              "SELECT * from %s WHERE i = ? AND (j) > ? ALLOW FILTERING", 1, unset());
-        assertInvalidMessage("Invalid unset value for tuple (i,j)",
+        assertInvalidMessage("Invalid unset value for tuple (i, j)",
                              "SELECT * from %s WHERE (i, j) IN (?, ?) ALLOW FILTERING", unset(), tuple(1, 1));
-        assertInvalidMessage("Invalid unset value for in(i, j)",
+        assertInvalidMessage("Invalid unset value for tuple (i, j)",
                              "SELECT * from %s WHERE (i, j) IN ? ALLOW FILTERING", unset());
     }
 

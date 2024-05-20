@@ -30,9 +30,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Session;
-import com.datastax.driver.core.SimpleStatement;
 import com.datastax.driver.core.exceptions.InvalidQueryException;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -43,7 +41,6 @@ import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
-import org.apache.cassandra.distributed.util.Auth;
 import org.apache.cassandra.exceptions.QueryReferencesTooManyIndexesAbortException;
 import org.apache.cassandra.exceptions.ReadFailureException;
 import org.apache.cassandra.index.Index;
@@ -62,6 +59,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+@SuppressWarnings("Convert2MethodRef")
 public class GuardrailNonPartitionRestrictedQueryTest extends GuardrailTester
 {
     private static Cluster cluster;
@@ -78,18 +76,7 @@ public class GuardrailNonPartitionRestrictedQueryTest extends GuardrailTester
                          .withDataDirCount(1)
                          .start();
 
-        Auth.waitForExistingRoles(cluster.get(1));
-
-        // create a regular user, since the default superuser is excluded from guardrails
-        com.datastax.driver.core.Cluster.Builder builder = com.datastax.driver.core.Cluster.builder().addContactPoint("127.0.0.1");
-        try (com.datastax.driver.core.Cluster c = builder.withCredentials("cassandra", "cassandra").build();
-             Session session = c.connect())
-        {
-            session.execute("CREATE USER test WITH PASSWORD 'test'");
-        }
-
-        // connect using that superuser, we use the driver to get access to the client warnings
-        driverCluster = builder.withCredentials("test", "test").build();
+        driverCluster = buildDriverCluster(cluster);
     }
 
     @AfterClass
@@ -122,6 +109,12 @@ public class GuardrailNonPartitionRestrictedQueryTest extends GuardrailTester
     protected Cluster getCluster()
     {
         return cluster;
+    }
+
+    @Override
+    protected Session getSession()
+    {
+        return driverSession;
     }
 
     @Test
@@ -303,20 +296,6 @@ public class GuardrailNonPartitionRestrictedQueryTest extends GuardrailTester
     {
         assertThat(totalWarnings()).as("warnings").isEqualTo(warns);
         assertThat(totalAborts()).as("aborts").isEqualTo(aborts);
-    }
-
-    /**
-     * Execution of statements via driver will not bypass guardrails as internal queries would do as they are
-     * done by superuser / they do not have any notion of roles
-     *
-     * @return list of warnings
-     */
-    private List<String> executeViaDriver(String query)
-    {
-        SimpleStatement stmt = new SimpleStatement(query);
-        stmt.setConsistencyLevel(com.datastax.driver.core.ConsistencyLevel.QUORUM);
-        ResultSet resultSet = driverSession.execute(stmt);
-        return resultSet.getExecutionInfo().getWarnings();
     }
 
     private List<String> executeSelect(long valueToQuery, boolean expectToFail)

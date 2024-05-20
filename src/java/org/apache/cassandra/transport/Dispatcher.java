@@ -44,10 +44,10 @@ import org.apache.cassandra.transport.Flusher.FlushItem;
 import org.apache.cassandra.transport.messages.ErrorMessage;
 import org.apache.cassandra.transport.messages.EventMessage;
 import org.apache.cassandra.utils.JVMStabilityInspector;
-import org.apache.cassandra.utils.MonotonicClock;
 import org.apache.cassandra.utils.NoSpamLogger;
 
 import static org.apache.cassandra.concurrent.SharedExecutorPool.SHARED;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class Dispatcher
 {
@@ -119,8 +119,8 @@ public class Dispatcher
         private final FlushItemConverter forFlusher;
         private final Overload backpressure;
         
-        private final long approxCreationTimeNanos = MonotonicClock.Global.approxTime.now();
-        private volatile long approxStartTimeNanos;
+        private final long creationTimeNanos = nanoTime();
+        private volatile long startTimeNanos;
         
         public RequestProcessor(Channel channel, Message.Request request, FlushItemConverter forFlusher, Overload backpressure)
         {
@@ -133,20 +133,20 @@ public class Dispatcher
         @Override
         public void run()
         {
-            approxStartTimeNanos = MonotonicClock.Global.approxTime.now();
-            processRequest(channel, request, forFlusher, backpressure, approxStartTimeNanos);
+            startTimeNanos = nanoTime();
+            processRequest(channel, request, forFlusher, backpressure, startTimeNanos);
         }
 
         @Override
         public long creationTimeNanos()
         {
-            return approxCreationTimeNanos;
+            return creationTimeNanos;
         }
 
         @Override
         public long startTimeNanos()
         {
-            return approxStartTimeNanos;
+            return startTimeNanos;
         }
 
         @Override
@@ -206,11 +206,11 @@ public class Dispatcher
     /**
      * Note: this method may be executed on the netty event loop.
      */
-    static Message.Response processRequest(Channel channel, Message.Request request, Overload backpressure, long approxStartTimeNanos)
+    static Message.Response processRequest(Channel channel, Message.Request request, Overload backpressure, long startTimeNanos)
     {
         try
         {
-            return processRequest((ServerConnection) request.connection(), request, backpressure, approxStartTimeNanos);
+            return processRequest((ServerConnection) request.connection(), request, backpressure, startTimeNanos);
         }
         catch (Throwable t)
         {
@@ -235,9 +235,9 @@ public class Dispatcher
     /**
      * Note: this method is not expected to execute on the netty event loop.
      */
-    void processRequest(Channel channel, Message.Request request, FlushItemConverter forFlusher, Overload backpressure, long approxStartTimeNanos)
+    void processRequest(Channel channel, Message.Request request, FlushItemConverter forFlusher, Overload backpressure, long startTimeNanos)
     {
-        Message.Response response = processRequest(channel, request, backpressure, approxStartTimeNanos);
+        Message.Response response = processRequest(channel, request, backpressure, startTimeNanos);
         FlushItem<?> toFlush = forFlusher.toFlushItem(channel, request, response);
         Message.logger.trace("Responding: {}, v={}", response, request.connection().getVersion());
         flush(toFlush);

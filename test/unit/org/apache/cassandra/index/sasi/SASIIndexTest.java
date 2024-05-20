@@ -1494,7 +1494,7 @@ public class SASIIndexTest
 
         ColumnFamilyStore store = loadData(data1, true);
 
-        RowFilter filter = RowFilter.create();
+        RowFilter filter = RowFilter.create(true);
         filter.add(store.metadata().getColumn(firstName), Operator.LIKE_CONTAINS, AsciiType.instance.fromString("a"));
 
         ReadCommand command =
@@ -2726,7 +2726,7 @@ public class SASIIndexTest
                             ? DataRange.allData(PARTITIONER)
                             : DataRange.forKeyRange(new Range<>(startKey, PARTITIONER.getMinimumToken().maxKeyBound()));
 
-        RowFilter filter = RowFilter.create();
+        RowFilter filter = RowFilter.create(true);
         for (Expression e : expressions)
             filter.add(store.metadata().getColumn(e.name), e.op, e.value);
 

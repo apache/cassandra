@@ -26,6 +26,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import javax.annotation.Nullable;
@@ -44,6 +45,7 @@ import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InOurDc;
+import org.apache.cassandra.locator.MetaStrategy;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.locator.ReplicaLayout.ForTokenWrite;
@@ -87,10 +89,10 @@ import org.apache.cassandra.service.CASRequest;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.FailureRecordingCallback.AsMap;
 import org.apache.cassandra.service.paxos.Commit.Proposal;
+import org.apache.cassandra.service.paxos.cleanup.PaxosRepairState;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.service.reads.DataResolver;
 import org.apache.cassandra.service.reads.repair.NoopReadRepair;
-import org.apache.cassandra.service.paxos.cleanup.PaxosTableRepairs;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tracing.Tracing;
@@ -252,7 +254,12 @@ public class Paxos
 
         static Electorate get(TableMetadata table, DecoratedKey key, ConsistencyLevel consistency)
         {
-            return get(consistency, forTokenWriteLiveAndDown(Keyspace.open(table.keyspace), key.getToken()));
+            // MetaStrategy distributes the entire keyspace to all replicas. In addition, its tables (currently only
+            // the dist log table) don't use the globally configured partitioner. For these reasons we don't lookup the
+            // replicas using the supplied token as this can actually be of the incorrect type (for example when
+            // performing Paxos repair).
+            final Token token = table.partitioner == MetaStrategy.partitioner ? MetaStrategy.entireRange.right : key.getToken();
+            return get(consistency, forTokenWriteLiveAndDown(Keyspace.open(table.keyspace), token));
         }
 
         static Electorate get(ConsistencyLevel consistency, ForTokenWrite all)
@@ -418,14 +425,24 @@ public class Paxos
 
         static Participants get(ClusterMetadata metadata, TableMetadata table, Token token, ConsistencyLevel consistencyForConsensus)
         {
+            return get(metadata, table, token, consistencyForConsensus, FailureDetector.isReplicaAlive);
+        }
+
+        static Participants get(ClusterMetadata metadata, TableMetadata table, Token token, ConsistencyLevel consistencyForConsensus, Predicate<Replica> isReplicaAlive)
+        {
             KeyspaceMetadata keyspaceMetadata = metadata.schema.getKeyspaceMetadata(table.keyspace);
-            ReplicaLayout.ForTokenWrite all = forTokenWriteLiveAndDown(keyspaceMetadata, token);
+            // MetaStrategy distributes the entire keyspace to all replicas. In addition, its tables (currently only
+            // the dist log table) don't use the globally configured partitioner. For these reasons we don't lookup the
+            // replicas using the supplied token as this can actually be of the incorrect type (for example when
+            // performing Paxos repair).
+            final Token actualToken = table.partitioner == MetaStrategy.partitioner ? MetaStrategy.entireRange.right : token;
+            ReplicaLayout.ForTokenWrite all = forTokenWriteLiveAndDown(keyspaceMetadata, actualToken);
             ReplicaLayout.ForTokenWrite electorate = consistencyForConsensus.isDatacenterLocal()
                                                      ? all.filter(InOurDc.replicas()) : all;
 
-            EndpointsForToken live = all.all().filter(FailureDetector.isReplicaAlive);
+            EndpointsForToken live = all.all().filter(isReplicaAlive);
             return new Participants(metadata.epoch, Keyspace.open(table.keyspace), consistencyForConsensus, all, electorate, live,
-                                    (cm) -> get(cm, table, token, consistencyForConsensus));
+                                    (cm) -> get(cm, table, actualToken, consistencyForConsensus));
         }
 
         static Participants get(TableMetadata table, Token token, ConsistencyLevel consistencyForConsensus)
@@ -517,6 +534,11 @@ public class Paxos
         public Participants withContacts(EndpointsForToken newContacts)
         {
             throw new UnsupportedOperationException();
+        }
+
+        public boolean isUrgent()
+        {
+            return keyspace.getMetadata().params.replication.isMeta();
         }
     }
 
@@ -1119,8 +1141,13 @@ public class Paxos
     public static boolean isInRangeAndShouldProcess(InetAddressAndPort from, DecoratedKey key, TableMetadata table, boolean includesRead)
     {
         Keyspace keyspace = Keyspace.open(table.keyspace);
-        return (includesRead ? EndpointsForToken.natural(keyspace, key.getToken()).get()
-                             : ReplicaLayout.forTokenWriteLiveAndDown(keyspace, key.getToken()).all()
+        // MetaStrategy distributes the entire keyspace to all replicas. In addition, its tables (currently only
+        // the dist log table) don't use the globally configured partitioner. For these reasons we don't lookup the
+        // replicas using the supplied token as this can actually be of the incorrect type (for example when
+        // performing Paxos repair).
+        Token token = table.partitioner == MetaStrategy.partitioner ? MetaStrategy.entireRange.right : key.getToken();
+        return (includesRead ? EndpointsForToken.natural(keyspace, token).get()
+                             : ReplicaLayout.forTokenWriteLiveAndDown(keyspace, token).all()
         ).contains(getBroadcastAddressAndPort());
     }
 
@@ -1295,6 +1322,6 @@ public class Paxos
 
     public static void evictHungRepairs()
     {
-        PaxosTableRepairs.evictHungRepairs();
+        PaxosRepairState.instance().evictHungRepairs();
     }
 }

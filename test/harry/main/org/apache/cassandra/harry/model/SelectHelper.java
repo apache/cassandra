@@ -59,7 +59,7 @@ public class SelectHelper
         return select(schema, pd, null, relations, reverse, includeWriteTime);
     }
 
-    public static CompiledStatement select(SchemaSpec schema, long pd, Set<ColumnSpec<?>> columns, List<Relation> relations, boolean reverse, boolean includeWriteTime)
+    public static CompiledStatement select(SchemaSpec schema, Long pd, Set<ColumnSpec<?>> columns, List<Relation> relations, boolean reverse, boolean includeWriteTime)
     {
         boolean isWildcardQuery = columns == null;
         if (isWildcardQuery)
@@ -126,21 +126,28 @@ public class SelectHelper
 
         List<Object> bindings = new ArrayList<>();
 
-        schema.inflateRelations(pd,
-                                relations,
-                                new SchemaSpec.AddRelationCallback()
-                                {
-                                    boolean isFirst = true;
-                                    public void accept(ColumnSpec<?> spec, Relation.RelationKind kind, Object value)
-                                    {
-                                        if (isFirst)
-                                            isFirst = false;
-                                        else
-                                            b.append(" AND ");
-                                        b.append(kind.getClause(spec));
-                                        bindings.add(value);
-                                    }
-                                });
+        SchemaSpec.AddRelationCallback consumer =  new SchemaSpec.AddRelationCallback()
+        {
+            boolean isFirst = true;
+            public void accept(ColumnSpec<?> spec, Relation.RelationKind kind, Object value)
+            {
+                if (isFirst)
+                    isFirst = false;
+                else
+                    b.append(" AND ");
+                b.append(kind.getClause(spec));
+                bindings.add(value);
+            }
+        };
+        if (pd != null)
+        {
+            Object[] pk = schema.inflatePartitionKey(pd);
+            for (int i = 0; i < pk.length; i++)
+                consumer.accept(schema.partitionKeys.get(i), Relation.RelationKind.EQ, pk[i]);
+
+        }
+        schema.inflateRelations(relations, consumer);
+
         addOrderBy(schema, b, reverse);
         b.append(";");
         Object[] bindingsArr = bindings.toArray(new Object[bindings.size()]);

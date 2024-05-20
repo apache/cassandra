@@ -23,8 +23,8 @@ import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
 public class BatchMetrics
 {
-    private static final MetricNameFactory factory = new DefaultNameFactory("Batch");
-
+    public static final String TYPE_NAME = "Batch";
+    private static final MetricNameFactory factory = new DefaultNameFactory(TYPE_NAME);
     public final Histogram partitionsPerLoggedBatch;
     public final Histogram partitionsPerUnloggedBatch;
     public final Histogram partitionsPerCounterBatch;

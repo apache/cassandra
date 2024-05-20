@@ -63,7 +63,7 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
         int offsetL = startingOffset(isStaticL);
         int offsetR = startingOffset(isStaticR);
 
-        while (!accessorL.isEmptyFromOffset(left, offsetL) && !accessorR.isEmptyFromOffset(right, offsetL))
+        while (!accessorL.isEmptyFromOffset(left, offsetL) && !accessorR.isEmptyFromOffset(right, offsetR))
         {
             AbstractType<?> comparator = getComparator(i, left, accessorL, right, accessorR, offsetL, offsetR);
             offsetL += getComparatorSize(i, left, accessorL, offsetL);

@@ -146,6 +146,7 @@ import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.LocalStrategy;
+import org.apache.cassandra.locator.MetaStrategy;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.RangesByEndpoint;
 import org.apache.cassandra.locator.Replica;
@@ -156,6 +157,7 @@ import org.apache.cassandra.metrics.SamplingManager;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.RepairCoordinator;
+import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.schema.CompactionParams.TombstoneOption;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -174,7 +176,7 @@ import org.apache.cassandra.service.paxos.PaxosCommit;
 import org.apache.cassandra.service.paxos.PaxosRepair;
 import org.apache.cassandra.service.paxos.PaxosState;
 import org.apache.cassandra.service.paxos.cleanup.PaxosCleanupLocalCoordinator;
-import org.apache.cassandra.service.paxos.cleanup.PaxosTableRepairs;
+import org.apache.cassandra.service.paxos.cleanup.PaxosRepairState;
 import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.service.snapshot.TableSnapshot;
 import org.apache.cassandra.streaming.StreamManager;
@@ -254,6 +256,7 @@ import static org.apache.cassandra.tcm.membership.NodeState.BOOTSTRAPPING;
 import static org.apache.cassandra.tcm.membership.NodeState.BOOT_REPLACING;
 import static org.apache.cassandra.tcm.membership.NodeState.JOINED;
 import static org.apache.cassandra.tcm.membership.NodeState.MOVING;
+import static org.apache.cassandra.tcm.membership.NodeState.REGISTERED;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 import static org.apache.cassandra.utils.FBUtilities.now;
@@ -484,11 +487,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         jmxObjectName = "org.apache.cassandra.db:type=StorageService";
 
         sstablesTracker = new SSTablesGlobalTracker(DatabaseDescriptor.getSelectedSSTableFormat());
-        registerMBeans();
     }
 
-    private void registerMBeans()
+    public void registerMBeans()
     {
+        logger.info("Initializing storage service mbean");
         MBeanWrapper.instance.registerMBean(this, jmxObjectName);
         MBeanWrapper.instance.registerMBean(StreamManager.instance, StreamManager.OBJECT_NAME);
     }
@@ -1608,7 +1611,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                         throw new RuntimeException("Can't abort bootstrap for " + nodeId + " since it is not bootstrapping");
                     ClusterMetadataService.instance().commit(new CancelInProgressSequence(nodeId));
                 }
-                ClusterMetadataService.instance().commit(new Unregister(nodeId));
+                ClusterMetadataService.instance().commit(new Unregister(nodeId, EnumSet.of(REGISTERED, BOOTSTRAPPING, BOOT_REPLACING)));
                 break;
             default:
                 throw new RuntimeException("Can't abort bootstrap for node " + nodeId + " since the state is " + nodeState);
@@ -1967,13 +1970,32 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         ClusterMetadata metadata = ClusterMetadata.current();
         KeyspaceMetadata keyspaceMetadata = metadata.schema.getKeyspaces().getNullable(keyspace);
-        TokenMap tokenMap = metadata.tokenMap;
-
         Map<Range<Token>, EndpointsForRange> rangeToEndpointMap = new HashMap<>(ranges.size());
-        for (Range<Token> range : ranges)
+        if (null != keyspaceMetadata)
         {
-            Token token = tokenMap.nextToken(tokenMap.tokens(), range.right.getToken());
-            rangeToEndpointMap.put(range, metadata.placements.get(keyspaceMetadata.params.replication).reads.forRange(token).get());
+            if (keyspaceMetadata.params.replication.isMeta())
+            {
+                rangeToEndpointMap.put(MetaStrategy.entireRange,
+                                       metadata.placements.get(keyspaceMetadata.params.replication)
+                                       .reads.forRange(MetaStrategy.entireRange).get());
+            }
+            else
+            {
+                TokenMap tokenMap = metadata.tokenMap;
+                for (Range<Token> range : ranges)
+                {
+                    Token token = tokenMap.nextToken(tokenMap.tokens(), range.right.getToken());
+                    rangeToEndpointMap.put(range, metadata.placements.get(keyspaceMetadata.params.replication)
+                                                  .reads.forRange(token).get());
+                }
+            }
+        }
+        else
+        {
+            // Handling the keyspaces which are not handled by CMS like system keyspace which uses LocalStrategy.
+            AbstractReplicationStrategy strategy = Keyspace.open(keyspace).getReplicationStrategy();
+            for (Range<Token> range : ranges)
+                rangeToEndpointMap.put(range, strategy.calculateNaturalReplicas(range.right, metadata));
         }
 
         return new EndpointsByRange(rangeToEndpointMap);
@@ -3137,7 +3159,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public Pair<Integer, Future<?>> repair(String keyspace, Map<String, String> repairSpec, List<ProgressListener> listeners)
     {
-        RepairOption option = RepairOption.parse(repairSpec, ClusterMetadata.current().partitioner);
+        IPartitioner partitioner = Keyspace.open(keyspace).getMetadata().params.replication.isMeta()
+                                   ? MetaStrategy.partitioner
+                                   : IPartitioner.global();
+        RepairOption option = RepairOption.parse(repairSpec, partitioner);
         return repair(keyspace, option, listeners);
     }
 
@@ -3322,7 +3347,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             return ImmediateFuture.success(null);
 
         Collection<Range<Token>> ranges = getLocalAndPendingRanges(table.keyspace);
-        PaxosCleanupLocalCoordinator coordinator = PaxosCleanupLocalCoordinator.createForAutoRepair(tableId, ranges);
+        PaxosCleanupLocalCoordinator coordinator = PaxosCleanupLocalCoordinator.createForAutoRepair(SharedContext.Global.instance, tableId, ranges);
         ScheduledExecutors.optionalTasks.submit(coordinator::start);
         return coordinator;
     }
@@ -4457,6 +4482,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         List<DecoratedKey> keys = new ArrayList<>();
         for (Keyspace keyspace : Keyspace.nonLocalStrategy())
         {
+            if (keyspace.getMetadata().params.replication.isMeta())
+                continue;
             for (Range<Token> range : getPrimaryRangesForEndpoint(keyspace.getName(), getBroadcastAddressAndPort()))
                 keys.addAll(keySamples(keyspace.getColumnFamilyStores(), range));
         }
@@ -5405,7 +5432,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void clearPaxosRepairs()
     {
         logger.info("StorageService#clearPaxosRepairs called via jmx");
-        PaxosTableRepairs.clearRepairs();
+        PaxosRepairState.instance().clearRepairs();
     }
 
     public void setSkipPaxosRepairCompatibilityCheck(boolean v)

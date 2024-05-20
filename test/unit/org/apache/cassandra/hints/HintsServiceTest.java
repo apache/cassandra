@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.hints;
 
-import java.util.Collections;
-import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -31,13 +29,9 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 
 import com.datastax.driver.core.utils.MoreFutures;
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.Util;
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.MockMessagingService;
@@ -46,16 +40,12 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
-import org.jboss.byteman.contrib.bmunit.BMRule;
-import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 
 import static org.apache.cassandra.hints.HintsTestUtil.MockFailureDetector;
 import static org.apache.cassandra.hints.HintsTestUtil.sendHintsAndResponses;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 
-@RunWith(BMUnitRunner.class)
 public class HintsServiceTest
 {
     private static final String KEYSPACE = "hints_service_test";
@@ -183,42 +173,4 @@ public class HintsServiceTest
         assertTrue(dispatchOffset != null);
         assertTrue(((ChecksummedDataInput.Position) dispatchOffset).sourcePosition > 0);
     }
-
-    // BM rule to get the timestamp that was used to store the hint so that we avoid any flakiness in timestamps between
-    // when we send the hint and when it actually got written.
-    static volatile long timestampForHint = 0L;
-    @Test
-    @BMRule(name = "GetHintTS",
-    targetClass="HintsBuffer$Allocation",
-    targetMethod="write(Iterable, Hint)",
-    targetLocation="AFTER INVOKE putIfAbsent",
-    action="org.apache.cassandra.hints.HintsServiceTest.timestampForHint = $ts")
-    public void testEarliestHint() throws InterruptedException
-    {
-        // create and write noOfHints using service
-        UUID hostId = StorageService.instance.getLocalHostUUID();
-        TableMetadata metadata = Schema.instance.getTableMetadata(KEYSPACE, TABLE);
-
-        long ts = System.currentTimeMillis();
-        DecoratedKey dkey = Util.dk(String.valueOf(1));
-        PartitionUpdate.SimpleBuilder builder = PartitionUpdate.simpleBuilder(metadata, dkey).timestamp(ts);
-        builder.row("column0").add("val", "value0");
-        Hint hint = Hint.create(builder.buildAsMutation(), ts);
-        HintsService.instance.write(hostId, hint);
-        long oldestHintTime = timestampForHint;
-        Thread.sleep(1);
-        HintsService.instance.write(hostId, hint);
-        Thread.sleep(1);
-        HintsService.instance.write(hostId, hint);
-
-        // Close and fsync so that we get the timestamp from the descriptor rather than the buffer.
-        HintsStore store = HintsService.instance.getCatalog().get(hostId);
-        HintsService.instance.flushAndFsyncBlockingly(Collections.singletonList(hostId));
-        store.closeWriter();
-
-        long earliest = HintsService.instance.getEarliestHintForHost(hostId);
-        assertEquals(oldestHintTime, earliest);
-        assertNotEquals(oldestHintTime, timestampForHint);
-    }
-
 }

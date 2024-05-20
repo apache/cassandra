@@ -57,6 +57,7 @@ import static org.apache.cassandra.net.MessagingService.minimum_version;
 import static org.apache.cassandra.net.OutboundConnectionInitiator.Result;
 import static org.apache.cassandra.net.OutboundConnectionInitiator.SslFallbackConnectionType;
 import static org.apache.cassandra.net.OutboundConnectionInitiator.initiateMessaging;
+import static org.apache.cassandra.tcm.ClusterMetadata.EMPTY_METADATA_IDENTIFIER;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -317,7 +318,7 @@ public class HandshakeTest
         .withDebugCallbacks(new HandshakeAcknowledgeChecker(t -> handshakeEx = t))
         .withFrom(FROM_ADDR);
         OutboundConnections outboundConnections = OutboundConnections.tryRegister(new ConcurrentHashMap<>(), TO_ADDR, settings);
-        GossipDigestSyn syn = new GossipDigestSyn("cluster", "partitioner", new ArrayList<>(0));
+        GossipDigestSyn syn = new GossipDigestSyn("cluster", "partitioner", EMPTY_METADATA_IDENTIFIER, new ArrayList<>(0));
         Message<GossipDigestSyn> message = Message.out(Verb.GOSSIP_DIGEST_SYN, syn);
         OutboundConnection outboundConnection = outboundConnections.connectionFor(message);
         outboundConnection.enqueue(message);

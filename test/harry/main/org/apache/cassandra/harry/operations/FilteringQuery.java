@@ -65,4 +65,10 @@ public class FilteringQuery extends Query
     {
         throw new IllegalStateException("not implemented for filtering query");
     }
+
+    @Override
+    public String toString()
+    {
+        return "FilteringQuery{pd=" + pd + ", reverse=" + reverse + ", relations=" + relations + '}';
+    }
 }

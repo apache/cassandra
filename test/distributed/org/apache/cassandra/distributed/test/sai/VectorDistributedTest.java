@@ -47,6 +47,7 @@ import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.disk.v1.IndexWriterConfig;
+import org.apache.cassandra.index.sai.utils.Glove;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
@@ -74,17 +75,19 @@ public class VectorDistributedTest extends TestBaseImpl
 
     private static Cluster cluster;
 
-    private static int dimensionCount;
+    protected static Glove.WordVector word2vec;
 
     @BeforeClass
     public static void setupCluster() throws Exception
     {
+        word2vec = Glove.parse(VectorDistributedTest.class.getClassLoader().getResourceAsStream("glove.3K.50d.txt"));
+
         cluster = Cluster.build(NUM_REPLICAS)
                          .withTokenCount(1)
                          .withDataDirCount(1) // VSTODO Vector memtable flush doesn't support multiple directories yet
                          .withConfig(config -> config.with(GOSSIP)
                                                      .with(NETWORK)
-                                                     .set("memtable_allocation_type", Config.MemtableAllocationType.offheap_objects)
+                                                     .set("memtable_allocation_type", Config.MemtableAllocationType.heap_buffers)
                                                      .set("memtable_heap_space", "20MiB"))
                          .start();
 
@@ -102,7 +105,6 @@ public class VectorDistributedTest extends TestBaseImpl
     public void before()
     {
         table = "table_" + seq.getAndIncrement();
-        dimensionCount = SAITester.getRandom().nextIntBetween(100, 2048);
     }
 
     @After
@@ -114,7 +116,7 @@ public class VectorDistributedTest extends TestBaseImpl
     @Test
     public void testVectorSearch()
     {
-        cluster.schemaChange(formatQuery(String.format(CREATE_TABLE, dimensionCount)));
+        cluster.schemaChange(formatQuery(String.format(CREATE_TABLE, word2vec.dimension())));
         cluster.schemaChange(formatQuery(String.format(CREATE_INDEX, "val")));
         SAIUtil.waitForIndexQueryable(cluster, KEYSPACE);
 
@@ -161,7 +163,7 @@ public class VectorDistributedTest extends TestBaseImpl
     @Test
     public void testMultiSSTablesVectorSearch()
     {
-        cluster.schemaChange(formatQuery(String.format(CREATE_TABLE, dimensionCount)));
+        cluster.schemaChange(formatQuery(String.format(CREATE_TABLE, word2vec.dimension())));
         cluster.schemaChange(formatQuery(String.format(CREATE_INDEX, "val")));
         SAIUtil.waitForIndexQueryable(cluster, KEYSPACE);
         // disable compaction
@@ -201,7 +203,7 @@ public class VectorDistributedTest extends TestBaseImpl
     @Test
     public void testPartitionRestrictedVectorSearch()
     {
-        cluster.schemaChange(formatQuery(String.format(CREATE_TABLE, dimensionCount)));
+        cluster.schemaChange(formatQuery(String.format(CREATE_TABLE, word2vec.dimension())));
         cluster.schemaChange(formatQuery(String.format(CREATE_INDEX, "val")));
         SAIUtil.waitForIndexQueryable(cluster, KEYSPACE);
 
@@ -234,7 +236,7 @@ public class VectorDistributedTest extends TestBaseImpl
     @Test
     public void rangeRestrictedTest()
     {
-        cluster.schemaChange(formatQuery(String.format(CREATE_TABLE, dimensionCount)));
+        cluster.schemaChange(formatQuery(String.format(CREATE_TABLE, word2vec.dimension())));
         cluster.schemaChange(formatQuery(String.format(CREATE_INDEX, "val")));
         SAIUtil.waitForIndexQueryable(cluster, KEYSPACE);
 
@@ -413,12 +415,7 @@ public class VectorDistributedTest extends TestBaseImpl
 
     private float[] randomVector()
     {
-        float[] rawVector = new float[dimensionCount];
-        for (int i = 0; i < dimensionCount; i++)
-        {
-            rawVector[i] = SAITester.getRandom().nextFloat();
-        }
-        return rawVector;
+        return word2vec.vector(SAITester.getRandom().nextIntBetween(0, word2vec.size() - 1));
     }
 
     private static Object[][] execute(String query)

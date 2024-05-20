@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -42,9 +43,12 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.MetaStrategy;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.net.CMSIdentifierMismatchException;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Keyspaces;
@@ -60,28 +64,27 @@ import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.ownership.PrimaryRangeComparator;
-import org.apache.cassandra.tcm.ownership.PlacementForRange;
+import org.apache.cassandra.tcm.ownership.ReplicaGroups;
 import org.apache.cassandra.tcm.ownership.TokenMap;
 import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
-import org.apache.cassandra.tcm.sequences.BootstrapAndJoin;
 import org.apache.cassandra.tcm.sequences.InProgressSequences;
 import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
-import org.apache.cassandra.utils.vint.VIntCoding;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.LINE_SEPARATOR;
 import static org.apache.cassandra.db.TypeSizes.sizeof;
 
 public class ClusterMetadata
 {
+    public static final int EMPTY_METADATA_IDENTIFIER = 0;
     public static final Serializer serializer = new Serializer();
 
+    public final int metadataIdentifier;
+
     public final Epoch epoch;
-    public final long period;
-    public final boolean lastInPeriod;
     public final IPartitioner partitioner;       // Set during (initial) construction and not modifiable via Transformer
 
     public final DistributedSchema schema;
@@ -93,7 +96,7 @@ public class ClusterMetadata
     public final ImmutableMap<ExtensionKey<?,?>, ExtensionValue<?>> extensions;
 
     // These two fields are lazy but only for the test purposes, since their computation requires initialization of the log ks
-    private Set<Replica> fullCMSReplicas;
+    private EndpointsForRange fullCMSReplicas;
     private Set<InetAddressAndPort> fullCMSEndpoints;
 
     public ClusterMetadata(IPartitioner partitioner)
@@ -104,15 +107,14 @@ public class ClusterMetadata
     @VisibleForTesting
     public ClusterMetadata(IPartitioner partitioner, Directory directory)
     {
-        this(partitioner, directory, DistributedSchema.first());
+        this(partitioner, directory, DistributedSchema.first(directory.knownDatacenters()));
     }
 
     @VisibleForTesting
     public ClusterMetadata(IPartitioner partitioner, Directory directory, DistributedSchema schema)
     {
-        this(Epoch.EMPTY,
-             Period.EMPTY,
-             true,
+        this(EMPTY_METADATA_IDENTIFIER,
+             Epoch.EMPTY,
              partitioner,
              schema,
              directory,
@@ -124,8 +126,29 @@ public class ClusterMetadata
     }
 
     public ClusterMetadata(Epoch epoch,
-                           long period,
-                           boolean lastInPeriod,
+                           IPartitioner partitioner,
+                           DistributedSchema schema,
+                           Directory directory,
+                           TokenMap tokenMap,
+                           DataPlacements placements,
+                           LockedRanges lockedRanges,
+                           InProgressSequences inProgressSequences,
+                           Map<ExtensionKey<?, ?>, ExtensionValue<?>> extensions)
+    {
+        this(EMPTY_METADATA_IDENTIFIER,
+             epoch,
+             partitioner,
+             schema,
+             directory,
+             tokenMap,
+             placements,
+             lockedRanges,
+             inProgressSequences,
+             extensions);
+    }
+
+    private ClusterMetadata(int metadataIdentifier,
+                           Epoch epoch,
                            IPartitioner partitioner,
                            DistributedSchema schema,
                            Directory directory,
@@ -139,9 +162,8 @@ public class ClusterMetadata
         //  ClusterMetadata in the long term. We need to consider how the actual components of metadata can be evolved
         //  over time.
         assert tokenMap == null || tokenMap.partitioner().getClass().equals(partitioner.getClass()) : "Partitioner for TokenMap doesn't match base partitioner";
+        this.metadataIdentifier = metadataIdentifier;
         this.epoch = epoch;
-        this.period = period;
-        this.lastInPeriod = lastInPeriod;
         this.partitioner = partitioner;
         this.schema = schema;
         this.directory = directory;
@@ -159,10 +181,10 @@ public class ClusterMetadata
         return fullCMSEndpoints;
     }
 
-    public Set<Replica> fullCMSMembersAsReplicas()
+    public EndpointsForRange fullCMSMembersAsReplicas()
     {
         if (fullCMSReplicas == null)
-            this.fullCMSReplicas = ImmutableSet.copyOf(placements.get(ReplicationParams.meta(this)).reads.byEndpoint().flattenValues());
+            fullCMSReplicas = placements.get(ReplicationParams.meta(this)).reads.forRange(MetaStrategy.entireRange).get();
         return fullCMSReplicas;
     }
 
@@ -173,12 +195,7 @@ public class ClusterMetadata
 
     public Transformer transformer()
     {
-        return new Transformer(this, this.nextEpoch(), false);
-    }
-
-    public Transformer transformer(boolean sealPeriod)
-    {
-        return new Transformer(this, this.nextEpoch(), sealPeriod);
+        return new Transformer(this, this.nextEpoch());
     }
 
     public ClusterMetadata forceEpoch(Epoch epoch)
@@ -192,9 +209,8 @@ public class ClusterMetadata
         // increments the published epoch by one. As each component has its own last
         // modified epoch, we may also need to coerce those, but only if they are
         // greater than the epoch we're forcing here.
-        return new ClusterMetadata(epoch,
-                                   period,
-                                   lastInPeriod,
+        return new ClusterMetadata(metadataIdentifier,
+                                   epoch,
                                    partitioner,
                                    capLastModified(schema, epoch),
                                    capLastModified(directory, epoch),
@@ -205,11 +221,16 @@ public class ClusterMetadata
                                    capLastModified(extensions, epoch));
     }
 
-    public ClusterMetadata forcePeriod(long period)
+    public ClusterMetadata initializeClusterIdentifier(int clusterIdentifier)
     {
-        return new ClusterMetadata(epoch,
-                                   period,
-                                   false,
+        if (this.metadataIdentifier != EMPTY_METADATA_IDENTIFIER)
+            throw new IllegalStateException(String.format("Can only initialize cluster identifier once, but it was already set to %d", this.metadataIdentifier));
+
+        if (clusterIdentifier == EMPTY_METADATA_IDENTIFIER)
+            throw new IllegalArgumentException("Can not initialize cluster with empty cluster identifier");
+
+        return new ClusterMetadata(clusterIdentifier,
+                                   epoch,
                                    partitioner,
                                    schema,
                                    directory,
@@ -245,81 +266,53 @@ public class ClusterMetadata
         return epoch.nextEpoch();
     }
 
-    public long nextPeriod()
-    {
-        return lastInPeriod ? period + 1 : period;
-    }
-
     public DataPlacement writePlacementAllSettled(KeyspaceMetadata ksm)
     {
-        List<NodeId> joining = new ArrayList<>();
-        List<NodeId> leaving = new ArrayList<>();
-        List<NodeId> moving = new ArrayList<>();
-
-        for (Map.Entry<NodeId, NodeState> entry : directory.states.entrySet())
+        ClusterMetadata metadata = this;
+        Iterator<MultiStepOperation<?>> iter = metadata.inProgressSequences.iterator();
+        while (iter.hasNext())
         {
-            switch (entry.getValue())
-            {
-                case BOOTSTRAPPING:
-                    joining.add(entry.getKey());
-                    break;
-                case LEAVING:
-                    leaving.add(entry.getKey());
-                    break;
-                case MOVING:
-                    moving.add(entry.getKey());
-                    break;
-            }
+            Transformation.Result result = iter.next().applyTo(metadata);
+            assert result.isSuccess();
+            metadata = result.success().metadata;
         }
-
-        Transformer t = transformer();
-        for (NodeId node: joining)
-        {
-            MultiStepOperation<?> joinSequence = inProgressSequences.get(node);
-            assert joinSequence instanceof BootstrapAndJoin;
-            Set<Token> tokens = ((BootstrapAndJoin)joinSequence).finishJoin.tokens;
-            t = t.proposeToken(node, tokens);
-        }
-        for (NodeId node : leaving)
-            t = t.proposeRemoveNode(node);
-        // todo: add tests for move!
-        for (NodeId node : moving)
-            t = t.proposeRemoveNode(node).proposeToken(node, tokenMap.tokens(node));
-
-        ClusterMetadata proposed = t.build().metadata;
-        return ClusterMetadataService.instance()
-                                     .placementProvider()
-                                     .calculatePlacements(epoch, proposed.tokenMap.toRanges(), proposed, Keyspaces.of(ksm))
-                                     .get(ksm.params.replication);
+        return metadata.placements.get(ksm.params.replication);
     }
 
     // TODO Remove this as it isn't really an equivalent to the previous concept of pending ranges
     public boolean hasPendingRangesFor(KeyspaceMetadata ksm, Token token)
     {
-        PlacementForRange writes = placements.get(ksm.params.replication).writes;
-        PlacementForRange reads = placements.get(ksm.params.replication).reads;
+        ReplicaGroups writes = placements.get(ksm.params.replication).writes;
+        ReplicaGroups reads = placements.get(ksm.params.replication).reads;
+        if (ksm.params.replication.isMeta())
+            return !reads.equals(writes);
         return !reads.forToken(token).equals(writes.forToken(token));
     }
 
     // TODO Remove this as it isn't really an equivalent to the previous concept of pending ranges
     public boolean hasPendingRangesFor(KeyspaceMetadata ksm, InetAddressAndPort endpoint)
     {
-        PlacementForRange writes = placements.get(ksm.params.replication).writes;
-        PlacementForRange reads = placements.get(ksm.params.replication).reads;
+        ReplicaGroups writes = placements.get(ksm.params.replication).writes;
+        ReplicaGroups reads = placements.get(ksm.params.replication).reads;
         return !writes.byEndpoint().get(endpoint).equals(reads.byEndpoint().get(endpoint));
     }
 
     public Collection<Range<Token>> localWriteRanges(KeyspaceMetadata metadata)
     {
-        return placements.get(metadata.params.replication).writes.byEndpoint().get(FBUtilities.getBroadcastAddressAndPort()).ranges();
+        return writeRanges(metadata, FBUtilities.getBroadcastAddressAndPort());
+    }
+
+    public Collection<Range<Token>> writeRanges(KeyspaceMetadata metadata, InetAddressAndPort peer)
+    {
+        return placements.get(metadata.params.replication).writes.byEndpoint().get(peer).ranges();
     }
 
     // TODO Remove this as it isn't really an equivalent to the previous concept of pending ranges
     public Map<Range<Token>, VersionedEndpoints.ForRange> pendingRanges(KeyspaceMetadata metadata)
     {
         Map<Range<Token>, VersionedEndpoints.ForRange> map = new HashMap<>();
-        PlacementForRange writes = placements.get(metadata.params.replication).writes;
-        PlacementForRange reads = placements.get(metadata.params.replication).reads;
+        ReplicaGroups writes = placements.get(metadata.params.replication).writes;
+        ReplicaGroups reads = placements.get(metadata.params.replication).reads;
 
         // first, pending ranges as the result of range splitting or merging
         // i.e. new ranges being created through join/leave
@@ -330,7 +323,7 @@ public class ClusterMetadata
 
         // next, ranges where the ranges themselves are not changing, but the replicas are
         // i.e. replacement or RF increase
-        writes.replicaGroups().forEach((range, endpoints) -> {
+        writes.forEach((range, endpoints) -> {
             VersionedEndpoints.ForRange readGroup = reads.forRange(range);
             if (!readGroup.equals(endpoints))
                 map.put(range, VersionedEndpoints.forRange(endpoints.lastModified(),
@@ -359,8 +352,6 @@ public class ClusterMetadata
     {
         private final ClusterMetadata base;
         private final Epoch epoch;
-        private final long period;
-        private final boolean lastInPeriod;
         private final IPartitioner partitioner;
         private DistributedSchema schema;
         private Directory directory;
@@ -371,12 +362,10 @@ public class ClusterMetadata
         private final Map<ExtensionKey<?, ?>, ExtensionValue<?>> extensions;
         private final Set<MetadataKey> modifiedKeys;
 
-        private Transformer(ClusterMetadata metadata, Epoch epoch, boolean lastInPeriod)
+        private Transformer(ClusterMetadata metadata, Epoch epoch)
         {
             this.base = metadata;
             this.epoch = epoch;
-            this.period = metadata.nextPeriod();
-            this.lastInPeriod = lastInPeriod;
             this.partitioner = metadata.partitioner;
             this.schema = metadata.schema;
             this.directory = metadata.directory;
@@ -591,9 +580,8 @@ public class ClusterMetadata
                 inProgressSequences = inProgressSequences.withLastModified(epoch);
             }
 
-            return new Transformed(new ClusterMetadata(epoch,
-                                                       period,
-                                                       lastInPeriod,
+            return new Transformed(new ClusterMetadata(base.metadataIdentifier,
+                                                       epoch,
                                                        partitioner,
                                                        schema,
                                                        directory,
@@ -607,9 +595,8 @@ public class ClusterMetadata
 
         public ClusterMetadata buildForGossipMode()
         {
-            return new ClusterMetadata(Epoch.UPGRADE_GOSSIP,
-                                       Period.EMPTY,
-                                       true,
+            return new ClusterMetadata(base.metadataIdentifier,
+                                       Epoch.UPGRADE_GOSSIP,
                                        partitioner,
                                        schema,
                                        directory,
@@ -626,7 +613,6 @@ public class ClusterMetadata
             return "Transformer{" +
                    "baseEpoch=" + base.epoch +
                    ", epoch=" + epoch +
-                   ", lastInPeriod=" + lastInPeriod +
                    ", partitioner=" + partitioner +
                    ", schema=" + schema +
                    ", directory=" + schema +
@@ -738,7 +724,6 @@ public class ClusterMetadata
         if (!(o instanceof ClusterMetadata)) return false;
         ClusterMetadata that = (ClusterMetadata) o;
         return epoch.equals(that.epoch) &&
-               lastInPeriod == that.lastInPeriod &&
                schema.equals(that.schema) &&
                directory.equals(that.directory) &&
                tokenMap.equals(that.tokenMap) &&
@@ -755,10 +740,6 @@ public class ClusterMetadata
         if (!epoch.equals(other.epoch))
         {
             logger.warn("Epoch {} != {}", epoch, other.epoch);
-        }
-        if (lastInPeriod != other.lastInPeriod)
-        {
-            logger.warn("lastInPeriod {} != {}", lastInPeriod, other.lastInPeriod);
         }
         if (!schema.equals(other.schema))
         {
@@ -797,12 +778,31 @@ public class ClusterMetadata
     @Override
     public int hashCode()
     {
-        return Objects.hash(epoch, lastInPeriod, schema, directory, tokenMap, placements, lockedRanges, inProgressSequences, extensions);
+        return Objects.hash(epoch, schema, directory, tokenMap, placements, lockedRanges, inProgressSequences, extensions);
     }
 
     public static ClusterMetadata current()
     {
         return ClusterMetadataService.instance().metadata();
+    }
+
+    public static void checkIdentifier(int remoteIdentifier)
+    {
+        ClusterMetadata metadata = currentNullable();
+        if (metadata != null)
+        {
+            int currentIdentifier = metadata.metadataIdentifier;
+            // We haven't yet joined CMS fully
+            if (currentIdentifier == EMPTY_METADATA_IDENTIFIER)
+                return;
+
+            // Peer hasn't yet joined CMS fully
+            if (remoteIdentifier == EMPTY_METADATA_IDENTIFIER)
+                return;
+
+            if (currentIdentifier != remoteIdentifier)
+                throw new CMSIdentifierMismatchException(String.format("Cluster Metadata Identifier mismatch. Node is attempting to communicate with a node from a different cluster. Current identifier %d. Remote identifier: %d", currentIdentifier, remoteIdentifier));
+        }
     }
 
     /**
@@ -843,9 +843,10 @@ public class ClusterMetadata
             if (version.isAtLeast(Version.V1))
                 out.writeUTF(metadata.partitioner.getClass().getCanonicalName());
 
+            if (version.isAtLeast(Version.V2))
+                out.writeUnsignedVInt32(metadata.metadataIdentifier);
+
             Epoch.serializer.serialize(metadata.epoch, out);
-            out.writeUnsignedVInt(metadata.period);
-            out.writeBoolean(metadata.lastInPeriod);
 
             if (version.isBefore(Version.V1))
                 out.writeUTF(metadata.partitioner.getClass().getCanonicalName());
@@ -874,9 +875,14 @@ public class ClusterMetadata
             if (version.isAtLeast(Version.V1))
                 partitioner = FBUtilities.newPartitioner(in.readUTF());
 
+            int clusterIdentifier = EMPTY_METADATA_IDENTIFIER;
+            if (version.isAtLeast(Version.V2))
+            {
+                clusterIdentifier = in.readUnsignedVInt32();
+                checkIdentifier(clusterIdentifier);
+            }
+
             Epoch epoch = Epoch.serializer.deserialize(in);
-            long period = in.readUnsignedVInt();
-            boolean lastInPeriod = in.readBoolean();
 
             if (version.isBefore(Version.V1))
                 partitioner = FBUtilities.newPartitioner(in.readUTF());
@@ -896,9 +902,8 @@ public class ClusterMetadata
                 value.deserialize(in, version);
                 extensions.put(key, value);
             }
-            return new ClusterMetadata(epoch,
-                                       period,
-                                       lastInPeriod,
+            return new ClusterMetadata(clusterIdentifier,
+                                       epoch,
                                        partitioner,
                                        schema,
                                        dir,
@@ -917,9 +922,10 @@ public class ClusterMetadata
                 size += ExtensionKey.serializer.serializedSize(entry.getKey(), version) +
                         entry.getValue().serializedSize(version);
 
+            if (version.isAtLeast(Version.V2))
+                size += TypeSizes.sizeofUnsignedVInt(metadata.metadataIdentifier);
+
             size += Epoch.serializer.serializedSize(metadata.epoch) +
-                    VIntCoding.computeUnsignedVIntSize(metadata.period) +
-                    TypeSizes.BOOL_SIZE +
                     sizeof(metadata.partitioner.getClass().getCanonicalName()) +
                     DistributedSchema.serializer.serializedSize(metadata.schema, version) +
                     Directory.serializer.serializedSize(metadata.directory, version) +

@@ -62,6 +62,7 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.Indexes;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.utils.CloseableIterator;
 
 import static java.util.Collections.singletonList;
@@ -238,7 +239,8 @@ public class PaxosUncommittedIndex implements Index, PaxosUncommittedTracker.Upd
         return 0;
     }
 
-    public void validate(PartitionUpdate update) throws InvalidRequestException
+    @Override
+    public void validate(PartitionUpdate update, ClientState state) throws InvalidRequestException
     {
 
     }

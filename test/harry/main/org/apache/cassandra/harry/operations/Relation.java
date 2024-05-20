@@ -97,7 +97,7 @@ public class Relation
 
     public static void addRelation(long[] key, List<ColumnSpec<?>> columnSpecs, List<Relation> relations, RelationKind kind)
     {
-        assert key.length == columnSpecs.size() :
+        assert key.length == columnSpecs.size() || key.length > DataGenerators.KeyGenerator.MAX_UNIQUE_PREFIX_COLUMNS :
         String.format("Key size (%d) should equal to column spec size (%d). Specs: %s", key.length, columnSpecs.size(), columnSpecs);
         for (int i = 0; i < key.length; i++)
         {

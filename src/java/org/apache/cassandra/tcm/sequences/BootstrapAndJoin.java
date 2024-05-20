@@ -62,6 +62,7 @@ import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
+import static com.google.common.collect.ImmutableList.of;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.apache.cassandra.tcm.Transformation.Kind.FINISH_JOIN;
 import static org.apache.cassandra.tcm.Transformation.Kind.MID_JOIN;
@@ -166,6 +167,12 @@ public class BootstrapAndJoin extends MultiStepOperation<Epoch>
     public Transformation.Kind nextStep()
     {
         return indexToNext(idx);
+    }
+
+    @Override
+    public Transformation.Result applyTo(ClusterMetadata metadata)
+    {
+        return applyMultipleTransformations(metadata, next, of(startJoin, midJoin, finishJoin));
     }
 
     @Override

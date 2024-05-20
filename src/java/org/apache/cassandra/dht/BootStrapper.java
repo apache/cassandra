@@ -24,18 +24,20 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
-import org.apache.cassandra.tcm.ownership.MovementMap;
-import org.apache.cassandra.utils.concurrent.Future;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.codahale.metrics.Gauge;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.tokenallocator.TokenAllocation;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.streaming.StreamEvent;
@@ -44,13 +46,21 @@ import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamResultFuture;
 import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ownership.MovementMap;
+import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.progress.ProgressEvent;
 import org.apache.cassandra.utils.progress.ProgressEventNotifierSupport;
 import org.apache.cassandra.utils.progress.ProgressEventType;
 
+import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
+
 public class BootStrapper extends ProgressEventNotifierSupport
 {
     private static final Logger logger = LoggerFactory.getLogger(BootStrapper.class);
+    private static final AtomicLong bootstrapFilesTotal = new AtomicLong();
+    private static final AtomicLong bootstrapFilesReceived = new AtomicLong();
+    private static final AtomicReference<String> bootstrapLastSeenStatus = new AtomicReference<>();
+    private static final AtomicReference<String> bootstrapLastSeenError = new AtomicReference<>();
 
     /* endpoint that needs to be bootstrapped */
     protected final InetAddressAndPort address;
@@ -58,6 +68,14 @@ public class BootStrapper extends ProgressEventNotifierSupport
     protected final ClusterMetadata metadata;
     private final MovementMap movements;
     private final MovementMap strictMovements;
+
+    static
+    {
+        Metrics.<Gauge<Long>>register(StorageMetrics.factory.createMetricName("BootstrapFilesTotal"), bootstrapFilesTotal::get);
+        Metrics.<Gauge<Long>>register(StorageMetrics.factory.createMetricName("BootstrapFilesReceived"), bootstrapFilesReceived::get);
+        Metrics.<Gauge<String>>register(StorageMetrics.factory.createMetricName("BootstrapLastSeenStatus"), bootstrapLastSeenStatus::get);
+        Metrics.<Gauge<String>>register(StorageMetrics.factory.createMetricName("BootstrapLastSeenError"), bootstrapLastSeenError::get);
+    }
 
     public BootStrapper(InetAddressAndPort address,
                         ClusterMetadata metadata,
@@ -70,6 +88,30 @@ public class BootStrapper extends ProgressEventNotifierSupport
         this.metadata = metadata;
         this.movements = movements;
         this.strictMovements = strictMovements;
+
+        addProgressListener((tag, event) -> {
+            ProgressEventType type = event.getType();
+            switch (type)
+            {
+                case START:
+                    bootstrapFilesTotal.set(0);
+                    bootstrapFilesReceived.set(0);
+                    bootstrapLastSeenStatus.set(event.getMessage());
+                    bootstrapLastSeenError.set("");
+                    break;
+                case PROGRESS:
+                    bootstrapFilesTotal.set(event.getTotal());
+                    bootstrapFilesReceived.set(event.getProgressCount());
+                    break;
+                case SUCCESS:
+                case COMPLETE:
+                    bootstrapLastSeenStatus.set(event.getMessage());
+                    break;
+                case ERROR:
+                    bootstrapLastSeenError.set(event.getMessage());
+                    break;
+            }
+        });
     }
 
     public Future<StreamState> bootstrap(StreamStateStore stateStore, boolean useStrictConsistency, InetAddressAndPort beingReplaced)
@@ -100,6 +142,8 @@ public class BootStrapper extends ProgressEventNotifierSupport
             streamer.addKeyspaceToFetch(keyspaceName);
         }
 
+        fireProgressEvent("bootstrap", new ProgressEvent(ProgressEventType.START, 0, 0, "Beginning bootstrap process"));
+
         StreamResultFuture bootstrapStreamResult = streamer.fetchAsync();
         bootstrapStreamResult.addEventListener(new StreamEventHandler()
         {
@@ -122,6 +166,7 @@ public class BootStrapper extends ProgressEventNotifierSupport
                         StreamEvent.ProgressEvent progress = (StreamEvent.ProgressEvent) event;
                         if (progress.progress.isCompleted())
                         {
+                            StorageMetrics.bootstrapFilesThroughputMetric.mark();
                             int received = receivedFiles.incrementAndGet();
                             ProgressEvent currentProgress = new ProgressEvent(ProgressEventType.PROGRESS, received, totalFilesToReceive.get(), "received file " + progress.progress.fileName);
                             fireProgressEvent("bootstrap", currentProgress);
