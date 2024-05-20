@@ -244,6 +244,7 @@ public class StartupChecksTest
     public void testKernelBug1057843Check() throws Exception
     {
         Assume.assumeTrue(DatabaseDescriptor.getCommitLogCompression() == null); // we would not be able to enable direct io otherwise
+        Assume.assumeTrue("Skipping this test on non-Linux OS", FBUtilities.isLinux);
         testKernelBug1057843Check("ext4", DiskAccessMode.direct, new Semver("6.1.63.1-generic"), false);
         testKernelBug1057843Check("ext4", DiskAccessMode.direct, new Semver("6.1.64.1-generic"), true);
         testKernelBug1057843Check("ext4", DiskAccessMode.direct, new Semver("6.1.65.1-generic"), true);
