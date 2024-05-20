@@ -6,7 +6,7 @@ While the write path is highly optimized, it comes with tradeoffs in terms of re
 
 Compaction is a necessary background activity required by the ‘merge’ component of Log Structured Merge trees. Compaction creates write amplification when several small SSTables on disk are read, merged, updates and deletes processed, and a new ssstable is re-written. Every write of data in Cassandra is re-written multiple times, known as write amplification, and this adds background I/O to the database workload.
 
-The storage engine consists of memtables for in-memory data and immutable SSTables (Sorted String Tables) on disk.  Additionally, a write-ahead log (WAL), referred to as the commit log, ensures  resiliency for crash and transaction recovery.
+The storage engine consists of memtables for in-memory data and immutable SSTables (Sorted String Tables) on disk. Data is sorted in SSTables to enable efficent merge sort. Additionally, a write-ahead log (WAL), referred to as the commit log, ensures  resiliency for crash and transaction recovery.
 
 The sequence of the steps in the write path:
 
