@@ -497,6 +497,35 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
             return raw == null ? null : VectorType.getInstance(elementType, dimension).compose(raw);
         }
 
+        public List<Object> getTuple(String column, AbstractType<?>... elementType)
+        {
+            ByteBuffer raw = data.get(column);
+            if (raw == null)
+                return List.of();
+
+            StringBuilder sb = new StringBuilder();
+            sb.append('(');
+            for (int i = 0; i < elementType.length; i++)
+            {
+                sb.append(elementType[i]);
+                if (i + 1 != elementType.length)
+                    sb.append(", ");
+            }
+            sb.append(')');
+
+            TupleType tupleType = TupleType.getInstance(new TypeParser(sb.toString()));
+            List<ByteBuffer> unpacked = tupleType.unpack(raw);
+
+            List<Object> values = new ArrayList<>();
+            for (int i = 0; i < unpacked.size(); i++)
+            {
+                Object value = elementType[i].compose(unpacked.get(i));
+                values.add(value);
+            }
+
+            return values;
+        }
+
         public List<ColumnSpecification> getColumns()
         {
             return columns;
