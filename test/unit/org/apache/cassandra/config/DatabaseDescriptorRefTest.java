@@ -74,6 +74,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.config.DatabaseDescriptor",
     "org.apache.cassandra.config.CassandraRelevantProperties",
     "org.apache.cassandra.config.CassandraRelevantProperties$PropertyConverter",
+    "org.apache.cassandra.config.CompactionStrategyMigrationOptions",
     "org.apache.cassandra.config.ConfigurationLoader",
     "org.apache.cassandra.config.Config",
     "org.apache.cassandra.config.Config$1",

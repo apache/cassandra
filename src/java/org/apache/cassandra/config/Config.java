@@ -336,6 +336,8 @@ public class Config
 
     public volatile LCSEnforcementLevel lcs_enforcement_level = LCSEnforcementLevel.none;
 
+    public CompactionStrategyMigrationOptions compaction_strategy_migration_options = new CompactionStrategyMigrationOptions();
+
     public volatile int concurrent_materialized_view_builders = 1;
     public volatile int reject_repair_compaction_threshold = Integer.MAX_VALUE;
 
