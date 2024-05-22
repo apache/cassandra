@@ -267,51 +267,6 @@ public enum Operator
             return kind != ColumnsExpression.Kind.MAP_ELEMENT;
         }
     },
-    BETWEEN(16)
-    {
-        final Comparator<ClusteringElements> comparator = new ClusteringElements.ClusteringElementsComparator(true);
-
-        @Override
-        public String toString()
-        {
-            return "BETWEEN";
-        }
-
-        @Override
-        public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
-        {
-            List<ByteBuffer> buffers = ListType.getInstance(type, false).unpack(rightOperand);
-            buffers.sort(type);
-            return type.compareForCQL(leftOperand, buffers.get(1)) <= 0 && type.compareForCQL(leftOperand, buffers.get(0)) >= 0;
-        }
-
-        @Override
-        public boolean requiresFilteringOrIndexingFor(ColumnMetadata.Kind columnKind)
-        {
-            return !columnKind.isPrimaryKeyKind();
-        }
-
-        @Override
-        public void restrict(RangeSet<ClusteringElements> rangeSet, List<ClusteringElements> args)
-        {
-            assert args.size() == 2 : this + " accepts exactly two values";
-            args.sort(comparator);
-            rangeSet.removeAll(ClusteringElements.lessThan(args.get(0)));
-            rangeSet.removeAll(ClusteringElements.greaterThan(args.get(1)));
-        }
-
-        @Override
-        public boolean isSlice()
-        {
-            return true;
-        }
-
-        @Override
-        public boolean canBeUsedWith(ColumnsExpression.Kind kind)
-        {
-            return kind != ColumnsExpression.Kind.MAP_ELEMENT;
-        }
-    },
     IN(7)
     {
         public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
@@ -552,6 +507,51 @@ public enum Operator
         public boolean requiresIndexing()
         {
             return true;
+        }
+    },
+    BETWEEN(16)
+    {
+        final Comparator<ClusteringElements> comparator = new ClusteringElements.ClusteringElementsComparator(true);
+
+        @Override
+        public String toString()
+        {
+            return "BETWEEN";
+        }
+
+        @Override
+        public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
+        {
+            List<ByteBuffer> buffers = ListType.getInstance(type, false).unpack(rightOperand);
+            buffers.sort(type);
+            return type.compareForCQL(leftOperand, buffers.get(1)) <= 0 && type.compareForCQL(leftOperand, buffers.get(0)) >= 0;
+        }
+
+        @Override
+        public boolean requiresFilteringOrIndexingFor(ColumnMetadata.Kind columnKind)
+        {
+            return !columnKind.isPrimaryKeyKind();
+        }
+
+        @Override
+        public void restrict(RangeSet<ClusteringElements> rangeSet, List<ClusteringElements> args)
+        {
+            assert args.size() == 2 : this + " accepts exactly two values";
+            args.sort(comparator);
+            rangeSet.removeAll(ClusteringElements.lessThan(args.get(0)));
+            rangeSet.removeAll(ClusteringElements.greaterThan(args.get(1)));
+        }
+
+        @Override
+        public boolean isSlice()
+        {
+            return true;
+        }
+
+        @Override
+        public boolean canBeUsedWith(ColumnsExpression.Kind kind)
+        {
+            return kind != ColumnsExpression.Kind.MAP_ELEMENT;
         }
     };
 

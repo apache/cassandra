@@ -425,6 +425,11 @@ public class ClusteringElements extends ForwardingList<ByteBuffer> implements Co
         }
     }
 
+    /**
+     * Compares ClusteringElements objects, see Comparator for more details. The boolean forCQL determines wether the
+     * comparator will take column order into account in its comparisons (it will not if forCQL is true). A comparator
+     * with forCQL = false will return unintuitive values when comparing elements in a decending column.
+     */
     public static class ClusteringElementsComparator implements Comparator<ClusteringElements>
     {
         boolean forCQL;
@@ -439,6 +444,7 @@ public class ClusteringElements extends ForwardingList<ByteBuffer> implements Co
             this.forCQL = forCQL;
         }
 
+        @Override
         public int compare(ClusteringElements a, ClusteringElements b)
         {
             if (a == null || b == null)
