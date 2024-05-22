@@ -262,7 +262,7 @@ public class TableSnapshot
         {
             try
             {
-                logger.trace("Loading snapshot manifest from {}", manifestFile);
+                if (logger.isTraceEnabled()) logger.trace("Loading snapshot manifest from {}", manifestFile);
                 SnapshotManifest manifest = SnapshotManifest.deserializeFromJsonFile(manifestFile);
                 createdAt = manifest.createdAt;
                 expiresAt = manifest.expiresAt;

@@ -91,7 +91,7 @@ public final class ThreadAwareSecurityManager extends SecurityManager
         // loaded when it is going to be thrown from SM (class loader triggers SM to verify javax.security,
         // it recognizes it as not allowed and attempts to throw it...)
         //noinspection PlaceholderCountMatchesArgumentCount
-        logger.trace("Initialized thread aware security manager", AccessControlException.class.getName());
+        if (logger.isTraceEnabled()) logger.trace("Initialized thread aware security manager", AccessControlException.class.getName());
 
         System.setSecurityManager(new ThreadAwareSecurityManager());
         LoggingSupportFactory.getLoggingSupport().onStartup();

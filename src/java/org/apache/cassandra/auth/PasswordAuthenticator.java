@@ -297,7 +297,7 @@ public class PasswordAuthenticator implements IAuthenticator, AuthCache.BulkLoad
          */
         private void decodeCredentials(byte[] bytes) throws AuthenticationException
         {
-            logger.trace("Decoding credentials from client token");
+            if (logger.isTraceEnabled()) logger.trace("Decoding credentials from client token");
             byte[] user = null;
             byte[] pass = null;
             int end = bytes.length;

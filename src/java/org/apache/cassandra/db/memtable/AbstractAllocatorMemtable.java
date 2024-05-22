@@ -211,7 +211,7 @@ public abstract class AbstractAllocatorMemtable extends AbstractMemtableWithComm
 
     private static void scheduleFlush(Owner owner, int period)
     {
-        logger.trace("scheduling flush in {} ms", period);
+        if (logger.isTraceEnabled()) logger.trace("scheduling flush in {} ms", period);
         WrappedRunnable runnable = new WrappedRunnable()
         {
             protected void runMayThrow()

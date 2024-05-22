@@ -267,7 +267,7 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
                 maxTimestamp = bounds.left;
         }
 
-        logger.trace("buckets {}, max timestamp {}", buckets, maxTimestamp);
+        if (logger.isTraceEnabled()) logger.trace("buckets {}, max timestamp {}", buckets, maxTimestamp);
         return Pair.create(buckets, maxTimestamp);
     }
 
@@ -316,7 +316,7 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
         {
             Long key = it.next();
             Set<SSTableReader> bucket = buckets.get(key);
-            logger.trace("Key {}, now {}", key, now);
+            if (logger.isTraceEnabled()) logger.trace("Key {}, now {}", key, now);
             if (bucket.size() >= minThreshold && key >= now)
             {
                 // If we're in the newest bucket, we'll use STCS to prioritize sstables
@@ -336,7 +336,7 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
                     }
                     else
                     {
-                        logger.trace("First window of bucket is eligible but not selected: data files {} , options {}", pairs, stcsOptions);
+                        if (logger.isTraceEnabled()) logger.trace("First window of bucket is eligible but not selected: data files {} , options {}", pairs, stcsOptions);
                     }
                 }
             }
@@ -351,12 +351,12 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
                 }
                 else
                 {
-                    logger.trace("bucket size {} >= 2 and not in current bucket, eligible but not selected: {}", bucket.size(), bucket);
+                    if (logger.isTraceEnabled()) logger.trace("bucket size {} >= 2 and not in current bucket, eligible but not selected: {}", bucket.size(), bucket);
                 }
             }
             else
             {
-                logger.trace("No compaction necessary for bucket size {} , key {}, now {}", bucket.size(), key, now);
+                if (logger.isTraceEnabled()) logger.trace("No compaction necessary for bucket size {} , key {}, now {}", bucket.size(), key, now);
             }
         }
         return new NewestBucket(sstables, estimatedRemainingTasks);

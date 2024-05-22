@@ -201,7 +201,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
         LifecycleTransaction transaction = cfs.getTracker().tryModify(sstables, OperationType.COMPACTION);
         if (transaction == null)
         {
-            logger.trace("Unable to mark {} for compaction; probably a background compaction got to it first.  You can disable background compactions temporarily if this is a problem", sstables);
+            if (logger.isTraceEnabled()) logger.trace("Unable to mark {} for compaction; probably a background compaction got to it first.  You can disable background compactions temporarily if this is a problem", sstables);
             return null;
         }
 
@@ -362,7 +362,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
                                                                    gcBefore,
                                                                    controller.getIgnoreOverlapsInExpirationCheck());
             if (logger.isTraceEnabled() && !expired.isEmpty())
-                logger.trace("Expiration check for {}.{} found {} fully expired SSTables",
+                if (logger.isTraceEnabled()) logger.trace("Expiration check for {}.{} found {} fully expired SSTables",
                              cfs.getKeyspaceName(),
                              cfs.getTableName(),
                              expired.size());

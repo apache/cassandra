@@ -157,7 +157,7 @@ public class IntervalTree<C extends Comparable<? super C>, D, I extends Interval
         public IntervalNode(Collection<I> toBisect)
         {
             assert !toBisect.isEmpty();
-            logger.trace("Creating IntervalNode from {}", toBisect);
+            if (logger.isTraceEnabled()) logger.trace("Creating IntervalNode from {}", toBisect);
 
             // Building IntervalTree with one interval will be a reasonably
             // common case for range tombstones, so it's worth optimizing

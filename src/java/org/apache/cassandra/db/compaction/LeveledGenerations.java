@@ -287,11 +287,12 @@ class LeveledGenerations
                 Set<SSTableReader> level = get(i);
                 if (!level.isEmpty())
                 {
-                    logger.trace("L{} contains {} SSTables ({}) in {}",
-                                 i,
-                                 level.size(),
-                                 FBUtilities.prettyPrintMemory(SSTableReader.getTotalBytes(level)),
-                                 this);
+                    if (logger.isTraceEnabled())
+                        logger.trace("L{} contains {} SSTables ({}) in {}",
+                                     i,
+                                     level.size(),
+                                     FBUtilities.prettyPrintMemory(SSTableReader.getTotalBytes(level)),
+                                     this);
                 }
             }
         }

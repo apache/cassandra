@@ -311,7 +311,7 @@ public class InboundConnectionInitiator
             if (initiate == null)
                 return;
 
-            logger.trace("Received handshake initiation message from peer {}, message = {}", ctx.channel().remoteAddress(), initiate);
+            if (logger.isTraceEnabled()) logger.trace("Received handshake initiation message from peer {}, message = {}", ctx.channel().remoteAddress(), initiate);
 
             if (isEncryptionRequired(initiate.from) && !isChannelEncrypted(ctx))
             {
@@ -322,7 +322,7 @@ public class InboundConnectionInitiator
             }
 
             assert initiate.acceptVersions != null;
-            logger.trace("Connection version {} (min {}) from {}", initiate.acceptVersions.max, initiate.acceptVersions.min, initiate.from);
+            if (logger.isTraceEnabled()) logger.trace("Connection version {} (min {}) from {}", initiate.acceptVersions.max, initiate.acceptVersions.min, initiate.from);
 
             final AcceptVersions accept;
 
@@ -528,7 +528,7 @@ public class InboundConnectionInitiator
                                                                  SSL_FACTORY_CONTEXT_DESCRIPTION);
         InetSocketAddress peer = encryptionOptions.require_endpoint_verification ? (InetSocketAddress) channel.remoteAddress() : null;
         SslHandler sslHandler = newSslHandler(channel, sslContext, peer);
-        logger.trace("{} inbound netty SslContext: context={}, engine={}", description, sslContext.getClass().getName(), sslHandler.engine().getClass().getName());
+        if (logger.isTraceEnabled()) logger.trace("{} inbound netty SslContext: context={}, engine={}", description, sslContext.getClass().getName(), sslHandler.engine().getClass().getName());
         return sslHandler;
     }
 

@@ -93,9 +93,7 @@ public class IndexOutputWriter extends IndexOutput
         if (!closed)
         {
             if (logger.isTraceEnabled())
-            {
                 logger.trace("Closing index output: {}", this);
-            }
 
             // The writer should sync its contents to disk before closing...
             out.close();

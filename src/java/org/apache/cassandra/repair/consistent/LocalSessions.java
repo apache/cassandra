@@ -440,10 +440,10 @@ public class LocalSessions
      */
     public void cleanup()
     {
-        logger.trace("Running LocalSessions.cleanup");
+        if (logger.isTraceEnabled()) logger.trace("Running LocalSessions.cleanup");
         if (!isNodeInitialized())
         {
-            logger.trace("node not initialized, aborting local session cleanup");
+            if (logger.isTraceEnabled()) logger.trace("node not initialized, aborting local session cleanup");
             return;
         }
         Set<LocalSession> currentSessions = new HashSet<>(sessions.values());
@@ -698,7 +698,7 @@ public class LocalSessions
 
     protected void sendMessage(InetAddressAndPort destination, Message<? extends RepairMessage> message)
     {
-        logger.trace("sending {} to {}", message.payload, destination);
+        if (logger.isTraceEnabled()) logger.trace("sending {} to {}", message.payload, destination);
         ctx.messaging().send(message, destination);
     }
 
@@ -717,7 +717,7 @@ public class LocalSessions
                                         session.getState(), state);
             if (expected != null && session.getState() != expected)
                 return false;
-            logger.trace("Changing LocalSession state from {} -> {} for {}", session.getState(), state, session.sessionID);
+            if (logger.isTraceEnabled()) logger.trace("Changing LocalSession state from {} -> {} for {}", session.getState(), state, session.sessionID);
             boolean wasCompleted = session.isCompleted();
             session.setState(state);
             session.setLastUpdate();
@@ -822,7 +822,7 @@ public class LocalSessions
     {
         InetAddressAndPort from = message.from();
         PrepareConsistentRequest request = (PrepareConsistentRequest) message.payload;
-        logger.trace("received {} from {}", request, from);
+        if (logger.isTraceEnabled()) logger.trace("received {} from {}", request, from);
         TimeUUID sessionID = request.parentSession;
         InetAddressAndPort coordinator = request.coordinator;
         Set<InetAddressAndPort> peers = request.participants;
@@ -934,7 +934,7 @@ public class LocalSessions
     {
         InetAddressAndPort from = message.from();
         FinalizePropose propose = (FinalizePropose) message.payload;
-        logger.trace("received {} from {}", propose, from);
+        if (logger.isTraceEnabled()) logger.trace("received {} from {}", propose, from);
         TimeUUID sessionID = propose.sessionID;
         LocalSession session = getSession(sessionID);
         if (session == null)
@@ -994,7 +994,7 @@ public class LocalSessions
     {
         InetAddressAndPort from = message.from();
         FinalizeCommit commit = (FinalizeCommit) message.payload;
-        logger.trace("received {} from {}", commit, from);
+        if (logger.isTraceEnabled()) logger.trace("received {} from {}", commit, from);
         TimeUUID sessionID = commit.sessionID;
         LocalSession session = getSession(sessionID);
         if (session == null)
@@ -1011,7 +1011,7 @@ public class LocalSessions
 
     public void handleFailSessionMessage(InetAddressAndPort from, FailSession msg)
     {
-        logger.trace("received {} from {}", msg, from);
+        if (logger.isTraceEnabled()) logger.trace("received {} from {}", msg, from);
         failSession(msg.sessionID, false);
     }
 
@@ -1031,7 +1031,7 @@ public class LocalSessions
 
     public void handleStatusRequest(InetAddressAndPort from, StatusRequest request)
     {
-        logger.trace("received {} from {}", request, from);
+        if (logger.isTraceEnabled()) logger.trace("received {} from {}", request, from);
         TimeUUID sessionID = request.sessionID;
         LocalSession session = getSession(sessionID);
         if (session == null)
@@ -1048,7 +1048,7 @@ public class LocalSessions
 
     public void handleStatusResponse(InetAddressAndPort from, StatusResponse response)
     {
-        logger.trace("received {} from {}", response, from);
+        if (logger.isTraceEnabled()) logger.trace("received {} from {}", response, from);
         TimeUUID sessionID = response.sessionID;
         LocalSession session = getSession(sessionID);
         if (session == null)

@@ -109,7 +109,7 @@ public class CustomClassLoader extends URLClassLoader
         }
         catch (ClassNotFoundException ex)
         {
-            logger.trace("Class not found using parent class loader,", ex);
+            if (logger.isTraceEnabled()) logger.trace("Class not found using parent class loader,", ex);
             // Don't throw the exception here, try triggers directory.
         }
         Class<?> clazz = this.findClass(name);

@@ -216,15 +216,15 @@ public class MerkleTree
         {
             if (lnode instanceof Leaf || rnode instanceof Leaf)
             {
-                logger.trace("Digest mismatch detected among leaf nodes {}, {}", lnode, rnode);
+                if (logger.isTraceEnabled()) logger.trace("Digest mismatch detected among leaf nodes {}, {}", lnode, rnode);
                 diff.add(active);
             }
             else
             {
-                logger.trace("Digest mismatch detected, traversing trees [{}, {}]", ltree, rtree);
+                if (logger.isTraceEnabled()) logger.trace("Digest mismatch detected, traversing trees [{}, {}]", ltree, rtree);
                 if (FULLY_INCONSISTENT == differenceHelper(ltree, rtree, diff, active))
                 {
-                    logger.trace("Range {} fully inconsistent", active);
+                    if (logger.isTraceEnabled()) logger.trace("Range {} fully inconsistent", active);
                     diff.add(active);
                 }
             }
@@ -253,13 +253,13 @@ public class MerkleTree
         {
             // If the midpoint equals either the left or the right, we have a range that's too small to split - we'll simply report the
             // whole range as inconsistent
-            logger.trace("({}) No sane midpoint ({}) for range {} , marking whole range as inconsistent", active.depth, midpoint, active);
+            if (logger.isTraceEnabled()) logger.trace("({}) No sane midpoint ({}) for range {} , marking whole range as inconsistent", active.depth, midpoint, active);
             return FULLY_INCONSISTENT;
         }
 
         TreeRange left = new TreeRange(active.left, midpoint, active.depth + 1);
         TreeRange right = new TreeRange(midpoint, active.right, active.depth + 1);
-        logger.trace("({}) Hashing sub-ranges [{}, {}] for {} divided by midpoint {}", active.depth, left, right, active, midpoint);
+        if (logger.isTraceEnabled()) logger.trace("({}) Hashing sub-ranges [{}, {}] for {} divided by midpoint {}", active.depth, left, right, active, midpoint);
         Node lnode, rnode;
 
         // see if we should recurse left
@@ -269,7 +269,7 @@ public class MerkleTree
         Difference ldiff = CONSISTENT;
         if (null != lnode && null != rnode && lnode.hashesDiffer(rnode))
         {
-            logger.trace("({}) Inconsistent digest on left sub-range {}: [{}, {}]", active.depth, left, lnode, rnode);
+            if (logger.isTraceEnabled()) logger.trace("({}) Inconsistent digest on left sub-range {}: [{}, {}]", active.depth, left, lnode, rnode);
 
             if (lnode instanceof Leaf)
                 ldiff = FULLY_INCONSISTENT;
@@ -278,7 +278,7 @@ public class MerkleTree
         }
         else if (null == lnode || null == rnode)
         {
-            logger.trace("({}) Left sub-range fully inconsistent {}", active.depth, left);
+            if (logger.isTraceEnabled()) logger.trace("({}) Left sub-range fully inconsistent {}", active.depth, left);
             ldiff = FULLY_INCONSISTENT;
         }
 
@@ -289,7 +289,7 @@ public class MerkleTree
         Difference rdiff = CONSISTENT;
         if (null != lnode && null != rnode && lnode.hashesDiffer(rnode))
         {
-            logger.trace("({}) Inconsistent digest on right sub-range {}: [{}, {}]", active.depth, right, lnode, rnode);
+            if (logger.isTraceEnabled()) logger.trace("({}) Inconsistent digest on right sub-range {}: [{}, {}]", active.depth, right, lnode, rnode);
 
             if (rnode instanceof Leaf)
                 rdiff = FULLY_INCONSISTENT;
@@ -298,29 +298,29 @@ public class MerkleTree
         }
         else if (null == lnode || null == rnode)
         {
-            logger.trace("({}) Right sub-range fully inconsistent {}", active.depth, right);
+            if (logger.isTraceEnabled()) logger.trace("({}) Right sub-range fully inconsistent {}", active.depth, right);
             rdiff = FULLY_INCONSISTENT;
         }
 
         if (ldiff == FULLY_INCONSISTENT && rdiff == FULLY_INCONSISTENT)
         {
             // both children are fully inconsistent
-            logger.trace("({}) Fully inconsistent range [{}, {}]", active.depth, left, right);
+            if (logger.isTraceEnabled()) logger.trace("({}) Fully inconsistent range [{}, {}]", active.depth, left, right);
             return FULLY_INCONSISTENT;
         }
         else if (ldiff == FULLY_INCONSISTENT)
         {
-            logger.trace("({}) Adding left sub-range to diff as fully inconsistent {}", active.depth, left);
+            if (logger.isTraceEnabled()) logger.trace("({}) Adding left sub-range to diff as fully inconsistent {}", active.depth, left);
             diff.add(left);
             return PARTIALLY_INCONSISTENT;
         }
         else if (rdiff == FULLY_INCONSISTENT)
         {
-            logger.trace("({}) Adding right sub-range to diff as fully inconsistent {}", active.depth, right);
+            if (logger.isTraceEnabled()) logger.trace("({}) Adding right sub-range to diff as fully inconsistent {}", active.depth, right);
             diff.add(right);
             return PARTIALLY_INCONSISTENT;
         }
-        logger.trace("({}) Range {} partially inconstent", active.depth, active);
+        if (logger.isTraceEnabled()) logger.trace("({}) Range {} partially inconstent", active.depth, active);
         return PARTIALLY_INCONSISTENT;
     }
 

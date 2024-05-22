@@ -97,7 +97,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
         singleSSTableUplevel = configuredSingleSSTableUplevel;
 
         manifest = new LeveledManifest(cfs, this.maxSSTableSizeInMiB, this.levelFanoutSize, localOptions);
-        logger.trace("Created {}", manifest);
+        if (logger.isTraceEnabled()) logger.trace("Created {}", manifest);
     }
 
     public int getLevelSize(int i)
@@ -139,7 +139,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
                 SSTableReader sstable = findDroppableSSTable(gcBefore);
                 if (sstable == null)
                 {
-                    logger.trace("No compaction necessary for {}", this);
+                    if (logger.isTraceEnabled()) logger.trace("No compaction necessary for {}", this);
                     return null;
                 }
                 candidate = new LeveledManifest.CompactionCandidate(Collections.singleton(sstable),
@@ -202,7 +202,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
         LifecycleTransaction transaction = cfs.getTracker().tryModify(sstables, OperationType.COMPACTION);
         if (transaction == null)
         {
-            logger.trace("Unable to mark {} for compaction; probably a background compaction got to it first.  You can disable background compactions temporarily if this is a problem", sstables);
+            if (logger.isTraceEnabled()) logger.trace("Unable to mark {} for compaction; probably a background compaction got to it first.  You can disable background compactions temporarily if this is a problem", sstables);
             return null;
         }
         int level = sstables.size() > 1 ? 0 : sstables.iterator().next().getSSTableLevel();

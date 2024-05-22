@@ -203,7 +203,7 @@ public abstract class Tracing extends ExecutorLocals.Impl
         TraceState state = get();
         if (state == null) // inline isTracing to avoid implicit two calls to state.get()
         {
-            logger.trace("request complete");
+            if (logger.isTraceEnabled()) logger.trace("request complete");
         }
         else
         {

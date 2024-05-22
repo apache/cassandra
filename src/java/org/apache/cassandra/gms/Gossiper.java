@@ -712,7 +712,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
                 sb.append(gDigest);
                 sb.append(' ');
             }
-            logger.trace("Gossip Digests are : {}", sb);
+            if (logger.isTraceEnabled()) logger.trace("Gossip Digests are : {}", sb);
         }
     }
 
@@ -849,7 +849,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
         double randDbl = random.nextDouble();
         if (randDbl <= probability)
         {
-            logger.trace("Sending GossipDigestSyn to the CMS {}", cms);
+            if (logger.isTraceEnabled()) logger.trace("Sending GossipDigestSyn to the CMS {}", cms);
             sendGossip(message, cms);
         }
     }
@@ -1117,7 +1117,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
         localState.markDead();
 
         Message<NoPayload> echoMessage = Message.out(ECHO_REQ, noPayload);
-        logger.trace("Sending ECHO_REQ to {}", addr);
+        if (logger.isTraceEnabled()) logger.trace("Sending ECHO_REQ to {}", addr);
         RequestCallback echoHandler = msg ->
         {
             runInGossipStageBlocking(() -> realMarkAlive(addr, localState));
@@ -1685,7 +1685,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
      */
     public List<String> reloadSeeds()
     {
-        logger.trace("Triggering reload of seed node list");
+        if (logger.isTraceEnabled()) logger.trace("Triggering reload of seed node list");
 
         // Get the new set in the same that buildSeedsList does
         Set<InetAddressAndPort> tmp = new HashSet<>();
@@ -1710,13 +1710,13 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
 
         if (tmp.size() == 0)
         {
-            logger.trace("New seed node list is empty. Not updating seed list.");
+            if (logger.isTraceEnabled()) logger.trace("New seed node list is empty. Not updating seed list.");
             return getSeeds();
         }
 
         if (tmp.equals(seeds))
         {
-            logger.trace("New seed node list matches the existing list.");
+            if (logger.isTraceEnabled()) logger.trace("New seed node list matches the existing list.");
             return getSeeds();
         }
 
@@ -1724,7 +1724,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
         seeds.addAll(tmp);
         // Remove the old entries
         seeds.retainAll(tmp);
-        logger.trace("New seed node list after reload {}", seeds);
+        if (logger.isTraceEnabled()) logger.trace("New seed node list after reload {}", seeds);
         return getSeeds();
     }
 

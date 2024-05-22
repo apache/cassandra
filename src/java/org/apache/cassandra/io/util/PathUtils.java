@@ -451,7 +451,7 @@ public final class PathUtils
 
     public static boolean tryRename(Path from, Path to)
     {
-        logger.trace("Renaming {} to {}", from, to);
+        if (logger.isTraceEnabled()) logger.trace("Renaming {} to {}", from, to);
         try
         {
             atomicMoveWithFallback(from, to);
@@ -459,21 +459,21 @@ public final class PathUtils
         }
         catch (IOException e)
         {
-            logger.trace("Could not move file {} to {}", from, to, e);
+            if (logger.isTraceEnabled()) logger.trace("Could not move file {} to {}", from, to, e);
             return false;
         }
     }
 
     public static void rename(Path from, Path to)
     {
-        logger.trace("Renaming {} to {}", from, to);
+        if (logger.isTraceEnabled()) logger.trace("Renaming {} to {}", from, to);
         try
         {
             atomicMoveWithFallback(from, to);
         }
         catch (IOException e)
         {
-            logger.trace("Could not move file {} to {}", from, to, e);
+            if (logger.isTraceEnabled()) logger.trace("Could not move file {} to {}", from, to, e);
 
             // TODO: try to decide if is read or write? for now, have assumed write
             throw propagateUnchecked(String.format("Failed to rename %s to %s", from, to), e, to, true);
@@ -491,7 +491,7 @@ public final class PathUtils
         }
         catch (AtomicMoveNotSupportedException e)
         {
-            logger.trace("Could not do an atomic move", e);
+            if (logger.isTraceEnabled()) logger.trace("Could not do an atomic move", e);
             Files.move(from, to, StandardCopyOption.REPLACE_EXISTING);
         }
     }
@@ -691,7 +691,7 @@ public final class PathUtils
             {
                 isRegistered = true;
             }
-            logger.trace("Scheduling deferred {}deletion of file: {}", recursive ? "recursive " : "", path);
+            if (logger.isTraceEnabled()) logger.trace("Scheduling deferred {}deletion of file: {}", recursive ? "recursive " : "", path);
             (recursive ? deleteRecursivelyOnExit : deleteOnExit).add(path);
         }
 

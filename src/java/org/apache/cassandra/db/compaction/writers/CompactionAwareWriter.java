@@ -271,7 +271,7 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
                 descriptor = sstable.descriptor;
             if (!descriptor.directory.equals(sstable.descriptor.directory))
             {
-                logger.trace("All sstables not from the same disk - putting results in {}", descriptor.directory);
+                if (logger.isTraceEnabled()) logger.trace("All sstables not from the same disk - putting results in {}", descriptor.directory);
                 break;
             }
         }
@@ -284,7 +284,7 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
                                                          FBUtilities.prettyPrintMemory(estimatedWriteSize),
                                                          d.location,
                                                          FBUtilities.prettyPrintMemory(availableSpace)));
-            logger.trace("putting compaction results in {}", descriptor.directory);
+            if (logger.isTraceEnabled()) logger.trace("putting compaction results in {}", descriptor.directory);
             return d;
         }
         d = getDirectories().getWriteableLocation(estimatedWriteSize);

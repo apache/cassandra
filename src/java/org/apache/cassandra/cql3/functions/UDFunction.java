@@ -188,7 +188,7 @@ public abstract class UDFunction extends UserFunction implements ScalarFunction
                 {
                     if (resource.startsWith(disallowed))
                     {
-                        logger.trace("access denied: resource {}", resource);
+                        if (logger.isTraceEnabled()) logger.trace("access denied: resource {}", resource);
                         return false;
                     }
                 }
@@ -198,7 +198,7 @@ public abstract class UDFunction extends UserFunction implements ScalarFunction
                     {
                         if (resource.startsWith(disallowed))
                         {
-                            logger.trace("access denied: resource {}", resource);
+                            if (logger.isTraceEnabled()) logger.trace("access denied: resource {}", resource);
                             return false;
                         }
                     }
@@ -207,7 +207,7 @@ public abstract class UDFunction extends UserFunction implements ScalarFunction
                 return true;
             }
 
-        logger.trace("access denied: resource {}", resource);
+        if (logger.isTraceEnabled()) logger.trace("access denied: resource {}", resource);
         return false;
     }
 
@@ -397,7 +397,7 @@ public abstract class UDFunction extends UserFunction implements ScalarFunction
         }
         catch (Throwable t)
         {
-            logger.trace("Invocation of user-defined function '{}' failed", this, t);
+            if (logger.isTraceEnabled()) logger.trace("Invocation of user-defined function '{}' failed", this, t);
             if (t instanceof VirtualMachineError)
                 throw (VirtualMachineError) t;
             throw FunctionExecutionException.create(this, t);

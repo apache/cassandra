@@ -238,7 +238,7 @@ public class CommitLogReplayer implements CommitLogReadHandler
 
         // wait for all the writes to finish on the mutation stage
         FBUtilities.waitOnFutures(futures);
-        logger.trace("Finished waiting on mutations from recovery");
+        if (logger.isTraceEnabled()) logger.trace("Finished waiting on mutations from recovery");
 
         // flush replayed keyspaces
         futures.clear();

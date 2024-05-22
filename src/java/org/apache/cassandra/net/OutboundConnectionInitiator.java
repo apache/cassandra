@@ -232,7 +232,7 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
                 InetAddressAndPort address = settings.to;
                 InetSocketAddress peer = settings.encryption.require_endpoint_verification ? new InetSocketAddress(address.getAddress(), address.getPort()) : null;
                 SslHandler sslHandler = newSslHandler(channel, sslContext, peer);
-                logger.trace("creating outbound netty SslContext: context={}, engine={}", sslContext.getClass().getName(), sslHandler.engine().getClass().getName());
+                if (logger.isTraceEnabled()) logger.trace("creating outbound netty SslContext: context={}, engine={}", sslContext.getClass().getName(), sslHandler.engine().getClass().getName());
                 pipeline.addFirst(SSL_HANDLER_NAME, sslHandler);
             }
             pipeline.addLast("server-authentication", new ServerAuthenticationHandler(settings));
@@ -315,7 +315,7 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
         public void channelActive(final ChannelHandlerContext ctx) throws Exception
         {
             Initiate msg = new Initiate(settings.acceptVersions, type, settings.framing, settings.from);
-            logger.trace("starting handshake with peer {}, msg = {}", settings.connectToId(), msg);
+            if (logger.isTraceEnabled()) logger.trace("starting handshake with peer {}, msg = {}", settings.connectToId(), msg);
 
             AsyncChannelPromise.writeAndFlush(ctx, msg.encode(),
                       future -> { if (!future.isSuccess()) exceptionCaught(ctx, future.cause()); });
@@ -351,7 +351,7 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
 
                 int useMessagingVersion = msg.useMessagingVersion;
                 int peerMessagingVersion = msg.maxMessagingVersion;
-                logger.trace("received second handshake message from peer {}, msg = {}", settings.connectTo, msg);
+                if (logger.isTraceEnabled()) logger.trace("received second handshake message from peer {}, msg = {}", settings.connectTo, msg);
 
                 FrameEncoder frameEncoder = null;
                 Result<SuccessType> result;

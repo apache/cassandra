@@ -201,14 +201,14 @@ public class BatchlogManager implements BatchlogManagerMBean
 
     private void replayFailedBatches()
     {
-        logger.trace("Started replayFailedBatches");
+        if (logger.isTraceEnabled()) logger.trace("Started replayFailedBatches");
 
         // rate limit is in bytes per second. Uses Double.MAX_VALUE if disabled (set to 0 in cassandra.yaml).
         // max rate is scaled by the number of nodes in the cluster (same as for HHOM - see CASSANDRA-5272).
         int endpointsCount = ClusterMetadata.current().directory.allJoinedEndpoints().size();
         if (endpointsCount <= 0)
         {
-            logger.trace("Replay cancelled as there are no peers in the ring.");
+            if (logger.isTraceEnabled()) logger.trace("Replay cancelled as there are no peers in the ring.");
             return;
         }
         setRate(DatabaseDescriptor.getBatchlogReplayThrottleInKiB());
@@ -225,7 +225,7 @@ public class BatchlogManager implements BatchlogManagerMBean
         UntypedResultSet batches = executeInternalWithPaging(query, pageSize, lastReplayedUuid, limitUuid);
         processBatchlogEntries(batches, pageSize, rateLimiter);
         lastReplayedUuid = limitUuid;
-        logger.trace("Finished replayFailedBatches");
+        if (logger.isTraceEnabled()) logger.trace("Finished replayFailedBatches");
     }
 
     /**
@@ -355,7 +355,7 @@ public class BatchlogManager implements BatchlogManagerMBean
 
         public int replay(RateLimiter rateLimiter, Set<UUID> hintedNodes) throws IOException
         {
-            logger.trace("Replaying batch {}", id);
+            if (logger.isTraceEnabled()) logger.trace("Replaying batch {}", id);
 
             if (mutations.isEmpty())
                 return 0;
@@ -382,8 +382,11 @@ public class BatchlogManager implements BatchlogManagerMBean
                 }
                 catch (WriteTimeoutException|WriteFailureException e)
                 {
-                    logger.trace("Failed replaying a batched mutation to a node, will write a hint");
-                    logger.trace("Failure was : {}", e.getMessage());
+                    if (logger.isTraceEnabled())
+                    {
+                        logger.trace("Failed replaying a batched mutation to a node, will write a hint");
+                        logger.trace("Failure was : {}", e.getMessage());
+                    }
                     // writing hints for the rest to hints, starting from i
                     writeHintsForUndeliveredEndpoints(i, hintedNodes);
                     return;

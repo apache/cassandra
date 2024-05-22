@@ -60,10 +60,10 @@ public class DiskBoundaryManager
             {
                 if (diskBoundaries == null || diskBoundaries.isOutOfDate())
                 {
-                    logger.trace("Refreshing disk boundary cache for {}.{}", cfs.getKeyspaceName(), cfs.getTableName());
+                    if (logger.isTraceEnabled()) logger.trace("Refreshing disk boundary cache for {}.{}", cfs.getKeyspaceName(), cfs.getTableName());
                     DiskBoundaries oldBoundaries = diskBoundaries;
                     diskBoundaries = getDiskBoundaryValue(cfs, metadata.partitioner);
-                    logger.trace("Updating boundaries from {} to {} for {}.{}", oldBoundaries, diskBoundaries, cfs.getKeyspaceName(), cfs.getTableName());
+                    if (logger.isTraceEnabled()) logger.trace("Updating boundaries from {} to {} for {}.{}", oldBoundaries, diskBoundaries, cfs.getKeyspaceName(), cfs.getTableName());
                 }
             }
         }

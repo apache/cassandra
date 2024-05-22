@@ -104,7 +104,7 @@ public class GossipDigestSynVerbHandler extends GossipVerbHandler<GossipDigestSy
                 sb.append(gDigest);
                 sb.append(" ");
             }
-            logger.trace("Gossip syn digests are : {}", sb);
+            if (logger.isTraceEnabled()) logger.trace("Gossip syn digests are : {}", sb);
         }
 
         Message<GossipDigestAck> gDigestAckMessage = gDigestList.isEmpty() ?
@@ -123,7 +123,7 @@ public class GossipDigestSynVerbHandler extends GossipVerbHandler<GossipDigestSy
         List<GossipDigest> deltaGossipDigestList = new ArrayList<>();
         Map<InetAddressAndPort, EndpointState> deltaEpStateMap = new HashMap<>();
         Gossiper.instance.examineGossiper(gDigestList, deltaGossipDigestList, deltaEpStateMap);
-        logger.trace("sending {} digests and {} deltas", deltaGossipDigestList.size(), deltaEpStateMap.size());
+        if (logger.isTraceEnabled()) logger.trace("sending {} digests and {} deltas", deltaGossipDigestList.size(), deltaEpStateMap.size());
 
         return Message.out(GOSSIP_DIGEST_ACK, new GossipDigestAck(deltaGossipDigestList, deltaEpStateMap));
     }
@@ -131,7 +131,7 @@ public class GossipDigestSynVerbHandler extends GossipVerbHandler<GossipDigestSy
     private static Message<GossipDigestAck> createShadowReply()
     {
         Map<InetAddressAndPort, EndpointState> stateMap = Gossiper.instance.examineShadowState();
-        logger.trace("sending 0 digests and {} deltas", stateMap.size());
+        if (logger.isTraceEnabled()) logger.trace("sending 0 digests and {} deltas", stateMap.size());
         return Message.out(GOSSIP_DIGEST_ACK, new GossipDigestAck(Collections.emptyList(), stateMap));
     }
 }

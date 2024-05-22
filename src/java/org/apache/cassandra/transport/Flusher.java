@@ -174,8 +174,9 @@ abstract class Flusher implements Runnable
             payload = allocator.allocate(false, payloadSize);
             if (logger.isTraceEnabled())
             {
-                logger.trace("Allocated initial buffer of {} for 1 large item",
-                             FBUtilities.prettyPrintMemory(payload.buffer.capacity()));
+                if (logger.isTraceEnabled())
+                    logger.trace("Allocated initial buffer of {} for 1 large item",
+                                 FBUtilities.prettyPrintMemory(payload.buffer.capacity()));
             }
 
             buf = payload.buffer;
@@ -285,9 +286,10 @@ abstract class Flusher implements Runnable
 
             if (logger.isTraceEnabled())
             {
-                logger.trace("Allocated initial buffer of {} for up to {} items",
-                             FBUtilities.prettyPrintMemory(payload.buffer.capacity()),
-                             maxItems);
+                if (logger.isTraceEnabled())
+                    logger.trace("Allocated initial buffer of {} for up to {} items",
+                                 FBUtilities.prettyPrintMemory(payload.buffer.capacity()),
+                                 maxItems);
             }
             return payload;
         }

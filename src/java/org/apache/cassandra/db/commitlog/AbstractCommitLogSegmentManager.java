@@ -185,7 +185,7 @@ public abstract class AbstractCommitLogSegmentManager
                         synchronized (this)
                         {
                             interrupted = Thread.interrupted();
-                            logger.trace("No segments in reserve; creating a fresh one");
+                            if (logger.isTraceEnabled()) logger.trace("No segments in reserve; creating a fresh one");
                             availableSegment = createSegment();
 
                             segmentPrepared.signalAll();
@@ -421,7 +421,7 @@ public abstract class AbstractCommitLogSegmentManager
     void handleReplayedSegment(final File file)
     {
         // (don't decrease managed size, since this was never a "live" segment)
-        logger.trace("(Unopened) segment {} is no longer needed and will be deleted now", file);
+        if (logger.isTraceEnabled()) logger.trace("(Unopened) segment {} is no longer needed and will be deleted now", file);
         FileUtils.deleteWithConfirm(file);
     }
 
@@ -446,7 +446,7 @@ public abstract class AbstractCommitLogSegmentManager
     {
         long total = DatabaseDescriptor.getTotalCommitlogSpaceInMiB() * 1024 * 1024;
         long currentSize = size.get();
-        logger.trace("Total active commitlog segment space used is {} out of {}", currentSize, total);
+        if (logger.isTraceEnabled()) logger.trace("Total active commitlog segment space used is {} out of {}", currentSize, total);
         return total - currentSize;
     }
 
@@ -475,7 +475,7 @@ public abstract class AbstractCommitLogSegmentManager
                 {
                     // even though we remove the schema entry before a final flush when dropping a CF,
                     // it's still possible for a writer to race and finish his append after the flush.
-                    logger.trace("Marking clean CF {} that doesn't exist anymore", dirtyTableId);
+                    if (logger.isTraceEnabled()) logger.trace("Marking clean CF {} that doesn't exist anymore", dirtyTableId);
                     segment.markClean(dirtyTableId, CommitLogPosition.NONE, segment.getCurrentCommitLogPosition());
                 }
                 else if (!flushes.containsKey(dirtyTableId))
@@ -528,7 +528,7 @@ public abstract class AbstractCommitLogSegmentManager
 
         size.set(0L);
 
-        logger.trace("CLSM done with closing and clearing existing commit log segments.");
+        if (logger.isTraceEnabled()) logger.trace("CLSM done with closing and clearing existing commit log segments.");
     }
 
     /**

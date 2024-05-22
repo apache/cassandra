@@ -56,7 +56,7 @@ public class PrepareCallback extends AbstractPaxosCallback<PrepareResponse>
     public synchronized void onResponse(Message<PrepareResponse> message)
     {
         PrepareResponse response = message.payload;
-        logger.trace("Prepare response {} from {}", response, message.from());
+        if (logger.isTraceEnabled()) logger.trace("Prepare response {} from {}", response, message.from());
 
         // We set the mostRecentInProgressCommit even if we're not promised as, in that case, the ballot of that commit
         // will be used to avoid generating a ballot that has not chance to win on retry (think clock skew).

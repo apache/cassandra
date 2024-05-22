@@ -238,7 +238,7 @@ public class PaxosCommit<OnDone extends Consumer<? super PaxosCommit.Status>> ex
      */
     public void onResponse(Message<NoPayload> response)
     {
-        logger.trace("{} Success from {}", commit, response.from());
+        if (logger.isTraceEnabled()) logger.trace("{} Success from {}", commit, response.from());
 
         response(true, response.from());
     }

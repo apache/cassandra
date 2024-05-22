@@ -75,7 +75,7 @@ public class LogReplicaSet implements AutoCloseable
             FileUtils.handleFSErrorAndPropagate(e);
         }
 
-        logger.trace("Added log file replica {} ", file);
+        if (logger.isTraceEnabled()) logger.trace("Added log file replica {} ", file);
     }
 
     void maybeCreateReplica(File directory, String fileName, Set<LogRecord> records)
@@ -89,7 +89,7 @@ public class LogReplicaSet implements AutoCloseable
             records.forEach(replica::append);
             replicasByFile.put(directory, replica);
 
-            logger.trace("Created new file replica {}", replica);
+            if (logger.isTraceEnabled()) logger.trace("Created new file replica {}", replica);
         }
         catch(FSError e)
         {

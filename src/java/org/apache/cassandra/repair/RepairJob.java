@@ -434,7 +434,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
         // We need to difference all trees one against another
         DifferenceHolder diffHolder = new DifferenceHolder(trees);
 
-        logger.trace("diffs = {}", diffHolder);
+        if (logger.isTraceEnabled()) logger.trace("diffs = {}", diffHolder);
         PreferedNodeFilter preferSameDCFilter = (streaming, candidates) ->
                                                 candidates.stream()
                                                           .filter(node -> getDC.apply(streaming)
@@ -459,7 +459,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
                     List<Range<Token>> toFetch = new ArrayList<>(streamsFor.get(fetchFrom));
                     assert !toFetch.isEmpty();
 
-                    logger.trace("{} is about to fetch {} from {}", address, toFetch, fetchFrom);
+                    if (logger.isTraceEnabled()) logger.trace("{} is about to fetch {} from {}", address, toFetch, fetchFrom);
                     SyncTask task;
                     if (address.equals(local))
                     {
@@ -476,12 +476,12 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
             }
             else
             {
-                logger.trace("Node {} has nothing to stream", address);
+                if (logger.isTraceEnabled()) logger.trace("Node {} has nothing to stream", address);
             }
         }
         logger.info("Created {} optimised sync tasks based on {} merkle tree responses for {} (took: {}ms)",
                     syncTasks.size(), trees.size(), desc.parentSessionId, ctx.clock().currentTimeMillis() - startedAt);
-        logger.trace("Optimised sync tasks for {}: {}", desc.parentSessionId, syncTasks);
+        if (logger.isTraceEnabled()) logger.trace("Optimised sync tasks for {}: {}", desc.parentSessionId, syncTasks);
         return syncTasks;
     }
 

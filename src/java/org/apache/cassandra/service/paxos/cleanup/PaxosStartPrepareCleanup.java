@@ -117,7 +117,7 @@ public class PaxosStartPrepareCleanup extends AsyncFuture<PaxosCleanupHistory> i
         EndpointState local = ctx.gossiper().getEndpointStateForEndpoint(endpoint);
         if (local == null || local.isSupersededBy(remote))
         {
-            logger.trace("updating endpoint info for {} with {}", endpoint, remote);
+            if (logger.isTraceEnabled()) logger.trace("updating endpoint info for {} with {}", endpoint, remote);
             Map<InetAddressAndPort, EndpointState> states = Collections.singletonMap(endpoint, remote);
 
             Gossiper.runInGossipStageBlocking(() -> {

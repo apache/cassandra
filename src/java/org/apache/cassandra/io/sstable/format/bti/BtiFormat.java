@@ -220,7 +220,7 @@ public class BtiFormat extends AbstractSSTableFormat<BtiTableReader, BtiTableWri
 
         for (Component component : components)
         {
-            logger.trace("Deleting component {} of {}", component, desc);
+            if (logger.isTraceEnabled()) logger.trace("Deleting component {} of {}", component, desc);
             desc.fileFor(component).deleteIfExists();
         }
     }

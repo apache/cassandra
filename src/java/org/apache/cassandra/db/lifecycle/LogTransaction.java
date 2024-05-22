@@ -448,7 +448,7 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
     {
         if (logger.isTraceEnabled())
             logger.trace("Completing txn {} with last record {}",
-                         txnFile.toString(), txnFile.getLastRecord());
+                         txnFile, txnFile.getLastRecord());
 
         try
         {

@@ -38,7 +38,7 @@ public class CounterMutationVerbHandler extends AbstractMutationVerbHandler<Coun
     {
         long queryStartNanoTime = nanoTime();
         final CounterMutation cm = message.payload;
-        logger.trace("Applying forwarded {}", cm);
+        if (logger.isTraceEnabled()) logger.trace("Applying forwarded {}", cm);
 
         String localDataCenter = DatabaseDescriptor.getEndpointSnitch().getLocalDatacenter();
         // We should not wait for the result of the write in this thread,

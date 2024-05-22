@@ -132,7 +132,7 @@ public class PaxosCleanupLocalCoordinator extends AsyncFuture<PaxosCleanupRespon
 
     private boolean repairKey(UncommittedPaxosKey uncommitted)
     {
-        logger.trace("repairing {}", uncommitted);
+        if (logger.isTraceEnabled()) logger.trace("repairing {}", uncommitted);
         Preconditions.checkState(!inflight.containsKey(uncommitted.getKey()));
         ConsistencyLevel consistency = uncommitted.getConsistencyLevel();
 
@@ -154,7 +154,7 @@ public class PaxosCleanupLocalCoordinator extends AsyncFuture<PaxosCleanupRespon
     {
         if (!inflight.containsKey(key))
             return;
-        logger.trace("finished repairing {}", key);
+        if (logger.isTraceEnabled()) logger.trace("finished repairing {}", key);
         inflight.remove(key);
         count++;
 

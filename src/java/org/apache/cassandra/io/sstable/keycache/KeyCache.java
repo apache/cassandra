@@ -62,7 +62,7 @@ public class KeyCache
         if (cache == null)
             return;
 
-        logger.trace("Adding cache entry for {} -> {}", cacheKey, info);
+        if (logger.isTraceEnabled()) logger.trace("Adding cache entry for {} -> {}", cacheKey, info);
         cache.put(cacheKey, info);
     }
 

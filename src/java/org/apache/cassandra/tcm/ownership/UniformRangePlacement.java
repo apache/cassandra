@@ -325,7 +325,7 @@ public class UniformRangePlacement implements PlacementProvider
         Map<ReplicationParams, DataPlacement> placements = new HashMap<>();
         for (KeyspaceMetadata ksMetadata : keyspaces)
         {
-            logger.trace("Calculating data placements for {}", ksMetadata.name);
+            if (logger.isTraceEnabled()) logger.trace("Calculating data placements for {}", ksMetadata.name);
             AbstractReplicationStrategy replication = ksMetadata.replicationStrategy;
             ReplicationParams params = ksMetadata.params.replication;
             if (params.isMeta() || params.isLocal())

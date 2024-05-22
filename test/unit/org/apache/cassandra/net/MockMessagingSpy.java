@@ -144,14 +144,14 @@ public class MockMessagingSpy
     void matchingMessage(Message<?> message)
     {
         messagesIntercepted.incrementAndGet();
-        logger.trace("Received matching message: {}", message);
+        if (logger.isTraceEnabled()) logger.trace("Received matching message: {}", message);
         interceptedMessages.add(message);
     }
 
     void matchingResponse(Message<?> response)
     {
         mockedMessageResponses.incrementAndGet();
-        logger.trace("Responding to intercepted message: {}", response);
+        if (logger.isTraceEnabled()) logger.trace("Responding to intercepted message: {}", response);
         deliveredResponses.add(response);
     }
 

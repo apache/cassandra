@@ -109,7 +109,7 @@ public final class AuthenticationProxy implements JMXAuthenticator
         }
         catch (LoginException e)
         {
-            logger.trace("Authentication exception", e);
+            if (logger.isTraceEnabled()) logger.trace("Authentication exception", e);
             throw new SecurityException("Authentication error", e);
         }
     }

@@ -1146,14 +1146,15 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
 
         int pageSize = (int) Math.max(1, Math.min(DEFAULT_PAGE_SIZE, targetPageSizeInBytes / meanRowSize));
 
-        logger.trace("Calculated page size {} for indexing {}.{} ({}/{}/{}/{})",
-                     pageSize,
-                     baseCfs.metadata.keyspace,
-                     baseCfs.metadata.name,
-                     meanPartitionSize,
-                     meanCellsPerPartition,
-                     meanRowsPerPartition,
-                     meanRowSize);
+        if (logger.isTraceEnabled())
+            logger.trace("Calculated page size {} for indexing {}.{} ({}/{}/{}/{})",
+                         pageSize,
+                         baseCfs.metadata.keyspace,
+                         baseCfs.metadata.name,
+                         meanPartitionSize,
+                         meanCellsPerPartition,
+                         meanRowsPerPartition,
+                         meanRowSize);
 
         return pageSize;
     }
@@ -1231,7 +1232,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
                 // Only a single custom expression is allowed per query and, if present,
                 // we want to always favour the index specified in such an expression
                 RowFilter.CustomExpression customExpression = (RowFilter.CustomExpression) expression;
-                logger.trace("Command contains a custom index expression, using target index {}", customExpression.getTargetIndex().name);
+                if (logger.isTraceEnabled()) logger.trace("Command contains a custom index expression, using target index {}", customExpression.getTargetIndex().name);
                 Tracing.trace("Command contains a custom index expression, using target index {}", customExpression.getTargetIndex().name);
                 Index.Group group = getIndexGroup(customExpression.getTargetIndex());
                 return group == null ? null : group.queryPlanFor(rowFilter);
@@ -1246,7 +1247,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
 
         if (queryPlans.isEmpty())
         {
-            logger.trace("No applicable indexes found");
+            if (logger.isTraceEnabled()) logger.trace("No applicable indexes found");
             Tracing.trace("No applicable indexes found");
             return null;
         }
@@ -1314,7 +1315,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
     {
         String name = index.getIndexMetadata().name;
         indexes.put(name, index);
-        logger.trace("Registered index {}", name);
+        if (logger.isTraceEnabled()) logger.trace("Registered index {}", name);
 
         // instantiate and add the index group if it hasn't been already added
         Index.Group group = indexGroups.computeIfAbsent(groupKey, k -> groupSupplier.get());

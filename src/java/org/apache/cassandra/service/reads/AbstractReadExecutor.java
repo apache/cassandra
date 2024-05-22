@@ -156,7 +156,7 @@ public abstract class AbstractReadExecutor
         // We delay the local (potentially blocking) read till the end to avoid stalling remote requests.
         if (hasLocalEndpoint)
         {
-            logger.trace("reading {} locally", readCommand.isDigestQuery() ? "digest" : "data");
+            if (logger.isTraceEnabled()) logger.trace("reading {} locally", readCommand.isDigestQuery() ? "digest" : "data");
             Stage.READ.maybeExecuteImmediately(new LocalReadRunnable(readCommand, handler));
         }
     }
@@ -329,7 +329,7 @@ public abstract class AbstractReadExecutor
 
                 if (traceState != null)
                     traceState.trace("speculating read retry on {}", extraReplica);
-                logger.trace("speculating read retry on {}", extraReplica);
+                if (logger.isTraceEnabled()) logger.trace("speculating read retry on {}", extraReplica);
                 MessagingService.instance().sendWithCallback(retryCommand.createMessage(false), extraReplica.endpoint(), handler);
             }
         }
@@ -438,7 +438,7 @@ public abstract class AbstractReadExecutor
             if (Tracing.isTracing())
                 Tracing.trace("Timed out waiting on digest mismatch repair requests");
             else
-                logger.trace("Timed out waiting on digest mismatch repair requests");
+                if (logger.isTraceEnabled()) logger.trace("Timed out waiting on digest mismatch repair requests");
             // the caught exception here will have CL.ALL from the repair command,
             // not whatever CL the initial command was at (CASSANDRA-7947)
             throw new ReadTimeoutException(replicaPlan().consistencyLevel(), handler.replicaPlan().readQuorum() - 1, handler.replicaPlan().readQuorum(), true);

@@ -400,7 +400,7 @@ public class RangeStreamer
             for (Map.Entry<InetAddressAndPort, Collection<FetchReplica>> entry : workMap.asMap().entrySet())
             {
                 for (FetchReplica r : entry.getValue())
-                    logger.trace("{}: range source {} local range {} for keyspace {}", description, r.remote, r.local, keyspaceName);
+                    if (logger.isTraceEnabled()) logger.trace("{}: range source {} local range {} for keyspace {}", description, r.remote, r.local, keyspaceName);
             }
         }
     }
@@ -738,7 +738,7 @@ public class RangeStreamer
                 }
 
                 if (logger.isTraceEnabled())
-                    logger.trace("{}ing from {} ranges {}", description, source, StringUtils.join(remaining, ", "));
+                    if (logger.isTraceEnabled()) logger.trace("{}ing from {} ranges {}", description, source, StringUtils.join(remaining, ", "));
 
                 InetAddressAndPort self = FBUtilities.getBroadcastAddressAndPort();
                 RangesAtEndpoint full = remaining.stream()

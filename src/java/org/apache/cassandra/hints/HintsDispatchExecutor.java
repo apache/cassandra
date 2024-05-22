@@ -270,7 +270,7 @@ final class HintsDispatchExecutor
          */
         private boolean dispatch(HintsDescriptor descriptor)
         {
-            logger.trace("Dispatching hints file {}", descriptor.fileName());
+            if (logger.isTraceEnabled()) logger.trace("Dispatching hints file {}", descriptor.fileName());
 
             InetAddressAndPort address = StorageService.instance.getEndpointForHostId(hostId);
             if (address != null)

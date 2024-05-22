@@ -95,7 +95,7 @@ public class ViewBuilderTask extends CompactionInfo.Holder implements Callable<L
 
         if (!selectQuery.selectsKey(key))
         {
-            logger.trace("Skipping {}, view query filters", key);
+            if (logger.isTraceEnabled()) logger.trace("Skipping {}, view query filters", key);
             return;
         }
 

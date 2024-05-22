@@ -73,7 +73,7 @@ public class SizeEstimatesRecorder implements SchemaChangeListener, Runnable
             return;
         }
 
-        logger.trace("Recording size estimates");
+        if (logger.isTraceEnabled()) logger.trace("Recording size estimates");
 
         for (Keyspace keyspace : Keyspace.nonLocalStrategy())
         {

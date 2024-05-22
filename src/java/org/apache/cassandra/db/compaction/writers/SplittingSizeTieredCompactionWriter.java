@@ -99,7 +99,7 @@ public class SplittingSizeTieredCompactionWriter extends CompactionAwareWriter
     protected long sstableKeyCount()
     {
         long currentPartitionsToWrite = Math.round(ratios[currentRatioIndex] * estimatedTotalKeys);
-        logger.trace("Switching writer, currentPartitionsToWrite = {}", currentPartitionsToWrite);
+        if (logger.isTraceEnabled()) logger.trace("Switching writer, currentPartitionsToWrite = {}", currentPartitionsToWrite);
         return currentPartitionsToWrite;
     }
 

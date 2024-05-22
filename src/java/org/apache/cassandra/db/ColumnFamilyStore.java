@@ -795,7 +795,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
         directories.removeTemporaryDirectories();
 
-        logger.trace("Removing temporary or obsoleted files from unfinished operations for table {}", metadata.name);
+        if (logger.isTraceEnabled()) logger.trace("Removing temporary or obsoleted files from unfinished operations for table {}", metadata.name);
         if (!LifecycleTransaction.removeUnfinishedLeftovers(metadata))
             throw new StartupException(StartupException.ERR_WRONG_DISK_STATE,
                                        String.format("Cannot remove temporary or obsoleted files for %s due to a problem with transaction " +
@@ -803,7 +803,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                                                      "Refer to the 3.0 upgrading instructions in NEWS.txt " +
                                                      "for a description of transaction log files.", metadata.toString()));
 
-        logger.trace("Further extra check for orphan sstable files for {}", metadata.name);
+        if (logger.isTraceEnabled()) logger.trace("Further extra check for orphan sstable files for {}", metadata.name);
         for (Map.Entry<Descriptor,Set<Component>> sstableFiles : directories.sstableLister(Directories.OnTxnErr.IGNORE).list().entrySet())
         {
             Descriptor desc = sstableFiles.getKey();
@@ -1599,7 +1599,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
      */
     public Collection<SSTableReader> getOverlappingLiveSSTables(Iterable<SSTableReader> sstables)
     {
-        logger.trace("Checking for sstables overlapping {}", sstables);
+        if (logger.isTraceEnabled()) logger.trace("Checking for sstables overlapping {}", sstables);
 
         // a normal compaction won't ever have an empty sstables list, but we create a skeleton
         // compaction controller for streaming, and that passes an empty list.
@@ -2247,7 +2247,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
         for (TableSnapshot ephemeralSnapshot : ephemeralSnapshots)
         {
-            logger.trace("Clearing ephemeral snapshot {} leftover from previous session.", ephemeralSnapshot.getId());
+            if (logger.isTraceEnabled()) logger.trace("Clearing ephemeral snapshot {} leftover from previous session.", ephemeralSnapshot.getId());
             Directories.clearSnapshot(ephemeralSnapshot.getTag(), directories.getCFDirectories(), clearSnapshotRateLimiter);
         }
     }
@@ -2782,7 +2782,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             viewManager.truncateBlocking(replayAfter, truncatedAt);
 
                 SystemKeyspace.saveTruncationRecord(ColumnFamilyStore.this, truncatedAt, replayAfter);
-                logger.trace("cleaning out row cache");
+                if (logger.isTraceEnabled()) logger.trace("cleaning out row cache");
                 invalidateCaches();
 
             }
@@ -2882,7 +2882,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                         return null;
                     }
                 }
-                logger.trace("Compactions successfully cancelled");
+                if (logger.isTraceEnabled()) logger.trace("Compactions successfully cancelled");
 
                 // run our task
                 try

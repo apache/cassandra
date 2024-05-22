@@ -60,7 +60,7 @@ public class IncomingRepairStreamTracker
      */
     public void addIncomingRangeFrom(Range<Token> range, InetAddressAndPort streamFromNode)
     {
-        logger.trace("adding incoming range {} from {}", range, streamFromNode);
+        if (logger.isTraceEnabled()) logger.trace("adding incoming range {} from {}", range, streamFromNode);
         Set<Range<Token>> newInput = RangeDenormalizer.denormalize(range, incoming);
         for (Range<Token> input : newInput)
             incoming.computeIfAbsent(input, (newRange) -> new StreamFromOptions(differences, newRange)).add(streamFromNode);

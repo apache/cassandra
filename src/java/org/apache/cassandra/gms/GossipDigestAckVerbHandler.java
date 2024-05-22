@@ -52,7 +52,7 @@ public class GossipDigestAckVerbHandler extends GossipVerbHandler<GossipDigestAc
         GossipDigestAck gDigestAckMessage = message.payload;
         List<GossipDigest> gDigestList = gDigestAckMessage.getGossipDigestList();
         Map<InetAddressAndPort, EndpointState> epStateMap = gDigestAckMessage.getEndpointStateMap();
-        logger.trace("Received ack with {} digests and {} states", gDigestList.size(), epStateMap.size());
+        if (logger.isTraceEnabled()) logger.trace("Received ack with {} digests and {} states", gDigestList.size(), epStateMap.size());
         if (NewGossiper.instance.isInShadowRound())
         {
             if (logger.isDebugEnabled())

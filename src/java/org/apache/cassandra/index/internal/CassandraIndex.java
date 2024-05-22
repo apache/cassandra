@@ -502,7 +502,7 @@ public abstract class CassandraIndex implements Index
                                  WriteContext ctx)
     {
         doDelete(indexKey, indexClustering, deletion, ctx);
-        logger.trace("Removed index entry for stale value {}", indexKey);
+        if (logger.isTraceEnabled()) logger.trace("Removed index entry for stale value {}", indexKey);
     }
 
     /**
@@ -520,7 +520,7 @@ public abstract class CassandraIndex implements Index
         Row row = BTreeRow.noCellLiveRow(buildIndexClustering(rowKey, clustering, cell), info);
         PartitionUpdate upd = partitionUpdate(valueKey, row);
         indexCfs.getWriteHandler().write(upd, ctx, false);
-        logger.trace("Inserted entry into index for value {}", valueKey);
+        if (logger.isTraceEnabled()) logger.trace("Inserted entry into index for value {}", valueKey);
     }
 
     /**
@@ -566,7 +566,7 @@ public abstract class CassandraIndex implements Index
         Row row = BTreeRow.emptyDeletedRow(indexClustering, Row.Deletion.regular(deletion));
         PartitionUpdate upd = partitionUpdate(indexKey, row);
         indexCfs.getWriteHandler().write(upd, ctx, false);
-        logger.trace("Removed index entry for value {}", indexKey);
+        if (logger.isTraceEnabled()) logger.trace("Removed index entry for value {}", indexKey);
     }
 
     private void validatePartitionKey(DecoratedKey partitionKey) throws InvalidRequestException

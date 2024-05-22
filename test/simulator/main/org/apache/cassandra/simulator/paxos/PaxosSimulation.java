@@ -94,7 +94,7 @@ public abstract class PaxosSimulation implements Simulation, ClusterActionListen
             }
             else if (failure != null)
             {
-                logger.trace("{}", failure.getMessage());
+                if (logger.isTraceEnabled()) logger.trace("{}", failure.getMessage());
             }
 
             verify(new Observation(id, success, start, logicalClock.incrementAndGet()));

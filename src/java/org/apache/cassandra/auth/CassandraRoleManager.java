@@ -471,7 +471,7 @@ public class CassandraRoleManager implements IRoleManager
         ScheduledExecutors.optionalTasks.scheduleSelfRecurring(() -> {
             if (!StorageProxy.hasJoined())
             {
-                logger.trace("Setup task may not run due to it not being safe to perform reads... rescheduling");
+                if (logger.isTraceEnabled()) logger.trace("Setup task may not run due to it not being safe to perform reads... rescheduling");
                 scheduleSetupTask(setupTask);
                 return;
             }

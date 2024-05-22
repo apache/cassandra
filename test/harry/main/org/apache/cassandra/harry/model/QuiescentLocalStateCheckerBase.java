@@ -94,7 +94,7 @@ public abstract class QuiescentLocalStateCheckerBase extends QuiescentChecker
         CompiledStatement compiled = query.toSelectStatement();
         List<Replica> replicas = ring.replicasFor(token(query.pd));
 
-        logger.trace("Predicted {} as replicas for {}. Ring: {}", replicas, query.pd, ring);
+        if (logger.isTraceEnabled()) logger.trace("Predicted {} as replicas for {}. Ring: {}", replicas, query.pd, ring);
         for (Replica replica : replicas)
         {
             try

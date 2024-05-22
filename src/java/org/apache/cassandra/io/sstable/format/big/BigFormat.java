@@ -330,7 +330,7 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
 
         for (Component component : components)
         {
-            logger.trace("Deleting component {} of {}", component, desc);
+            if (logger.isTraceEnabled()) logger.trace("Deleting component {} of {}", component, desc);
             desc.fileFor(component).deleteIfExists();
         }
     }

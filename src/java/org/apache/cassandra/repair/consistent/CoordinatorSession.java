@@ -124,7 +124,7 @@ public class CoordinatorSession extends ConsistentSession
 
     public void setState(State state)
     {
-        logger.trace("Setting coordinator state to {} for repair {}", state, sessionID);
+        if (logger.isTraceEnabled()) logger.trace("Setting coordinator state to {} for repair {}", state, sessionID);
         super.setState(state);
         if (listener != null)
             listener.accept(this);
@@ -138,7 +138,7 @@ public class CoordinatorSession extends ConsistentSession
 
     public synchronized void setParticipantState(InetAddressAndPort participant, State state)
     {
-        logger.trace("Setting participant {} to state {} for repair {}", participant, state, sessionID);
+        if (logger.isTraceEnabled()) logger.trace("Setting participant {} to state {} for repair {}", participant, state, sessionID);
         Preconditions.checkArgument(participantStates.containsKey(participant),
                                     "Session %s doesn't include %s",
                                     sessionID, participant);
@@ -196,7 +196,7 @@ public class CoordinatorSession extends ConsistentSession
         boolean success = msg.payload.success;
         if (getState() == State.FAILED)
         {
-            logger.trace("Incremental repair {} has failed, ignoring prepare response from {}", sessionID, participant);
+            if (logger.isTraceEnabled()) logger.trace("Incremental repair {} has failed, ignoring prepare response from {}", sessionID, participant);
             sendFailureResponse(ctx, msg);
             return;
         }
@@ -211,7 +211,7 @@ public class CoordinatorSession extends ConsistentSession
         }
         else
         {
-            logger.trace("Successful prepare response received from {} for repair session {}", participant, sessionID);
+            if (logger.isTraceEnabled()) logger.trace("Successful prepare response received from {} for repair session {}", participant, sessionID);
             setParticipantState(participant, State.PREPARED);
         }
 
@@ -253,7 +253,7 @@ public class CoordinatorSession extends ConsistentSession
         boolean success = message.payload.promised;
         if (getState() == State.FAILED)
         {
-            logger.trace("Incremental repair {} has failed, ignoring finalize promise from {}", sessionID, participant);
+            if (logger.isTraceEnabled()) logger.trace("Incremental repair {} has failed, ignoring finalize promise from {}", sessionID, participant);
             sendFailureResponse(ctx, message);
             return;
         }
@@ -270,7 +270,7 @@ public class CoordinatorSession extends ConsistentSession
         }
         else
         {
-            logger.trace("Successful finalize promise received from {} for repair session {}", participant, sessionID);
+            if (logger.isTraceEnabled()) logger.trace("Successful finalize promise received from {} for repair session {}", participant, sessionID);
             setParticipantState(participant, State.FINALIZE_PROMISED);
             if (getState() == State.FINALIZE_PROMISED)
             {

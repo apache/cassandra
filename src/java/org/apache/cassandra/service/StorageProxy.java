@@ -1291,7 +1291,7 @@ public class StorageProxy implements StorageProxyMBean
         Message<Batch> message = Message.out(BATCH_STORE_REQ, batch);
         for (Replica replica : replicaPlan.liveAndDown())
         {
-            logger.trace("Sending batchlog store request {} to {} for {} mutations", batch.id, replica, batch.size());
+            if (logger.isTraceEnabled()) logger.trace("Sending batchlog store request {} to {} for {} mutations", batch.id, replica, batch.size());
 
             if (replica.isSelf())
                 performLocally(Stage.MUTATION, replica, () -> BatchlogManager.store(batch), handler, "Batchlog store");
@@ -1602,7 +1602,7 @@ public class StorageProxy implements StorageProxyMBean
             for (Replica replica : forwardToReplicas)
             {
                 MessagingService.instance().callbacks.addWithExpiration(handler, message, replica);
-                logger.trace("Adding FWD message to {}@{}", message.id(), replica);
+                if (logger.isTraceEnabled()) logger.trace("Adding FWD message to {}@{}", message.id(), replica);
             }
 
             // starting with 4.0, use the same message id for all replicas
@@ -1618,7 +1618,7 @@ public class StorageProxy implements StorageProxyMBean
 
         Tracing.trace("Sending mutation to remote replica {}", target);
         MessagingService.instance().sendWriteWithCallback(message, target, handler);
-        logger.trace("Sending message to {}@{}", message.id(), target);
+        if (logger.isTraceEnabled()) logger.trace("Sending message to {}@{}", message.id(), target);
     }
 
     private static Replica pickReplica(EndpointsForToken targets)
@@ -2720,7 +2720,7 @@ public class StorageProxy implements StorageProxyMBean
                     else
                         logger.debug("Discarding hint for endpoint not part of ring: {}", target);
                 }
-                logger.trace("Adding hints for {}", validTargets);
+                if (logger.isTraceEnabled()) logger.trace("Adding hints for {}", validTargets);
                 HintsService.instance.write(hostIds, Hint.create(mutation, currentTimeMillis()));
                 validTargets.forEach(HintsService.instance.metrics::incrCreatedHints);
                 // Notify the handler only for CL == ANY

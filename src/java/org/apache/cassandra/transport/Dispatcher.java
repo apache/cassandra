@@ -189,7 +189,8 @@ public class Dispatcher
 
         QueryState qstate = connection.validateNewMessage(request.type, connection.getVersion());
 
-        Message.logger.trace("Received: {}, v={}", request, connection.getVersion());
+        if (Message.logger.isTraceEnabled())
+            Message.logger.trace("Received: {}, v={}", request, connection.getVersion());
         connection.requests.inc();
         Message.Response response = request.execute(qstate, startTimeNanos);
 
@@ -239,7 +240,8 @@ public class Dispatcher
     {
         Message.Response response = processRequest(channel, request, backpressure, startTimeNanos);
         FlushItem<?> toFlush = forFlusher.toFlushItem(channel, request, response);
-        Message.logger.trace("Responding: {}, v={}", response, request.connection().getVersion());
+        if (Message.logger.isTraceEnabled())
+            Message.logger.trace("Responding: {}, v={}", response, request.connection().getVersion());
         flush(toFlush);
     }
 

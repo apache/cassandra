@@ -233,7 +233,7 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
     {
         if (cfs.isAutoCompactionDisabled())
         {
-            logger.trace("Autocompaction is disabled");
+            if (logger.isTraceEnabled()) logger.trace("Autocompaction is disabled");
             return Collections.emptyList();
         }
 
@@ -246,15 +246,17 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
         int count = compactingCF.count(cfs);
         if (count > 0 && executor.getActiveTaskCount() >= executor.getMaximumPoolSize())
         {
-            logger.trace("Background compaction is still running for {}.{} ({} remaining). Skipping",
-                         cfs.getKeyspaceName(), cfs.name, count);
+            if (logger.isTraceEnabled())
+                logger.trace("Background compaction is still running for {}.{} ({} remaining). Skipping",
+                             cfs.getKeyspaceName(), cfs.name, count);
             return Collections.emptyList();
         }
 
-        logger.trace("Scheduling a background task check for {}.{} with {}",
-                     cfs.getKeyspaceName(),
-                     cfs.name,
-                     cfs.getCompactionStrategyManager().getName());
+        if (logger.isTraceEnabled())
+            logger.trace("Scheduling a background task check for {}.{} with {}",
+                         cfs.getKeyspaceName(),
+                         cfs.name,
+                         cfs.getCompactionStrategyManager().getName());
 
         List<Future<?>> futures = new ArrayList<>(1);
         Future<?> fut = executor.submitIfRunning(new BackgroundCompactionCandidate(cfs), "background task");
@@ -357,10 +359,10 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
             boolean ranCompaction = false;
             try
             {
-                logger.trace("Checking {}.{}", cfs.getKeyspaceName(), cfs.name);
+                if (logger.isTraceEnabled()) logger.trace("Checking {}.{}", cfs.getKeyspaceName(), cfs.name);
                 if (!cfs.isValid())
                 {
-                    logger.trace("Aborting compaction for dropped CF");
+                    if (logger.isTraceEnabled()) logger.trace("Aborting compaction for dropped CF");
                     return;
                 }
 
@@ -404,7 +406,7 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
             {
                 currentlyBackgroundUpgrading.decrementAndGet();
             }
-            logger.trace("No tasks available");
+            if (logger.isTraceEnabled()) logger.trace("No tasks available");
             return false;
         }
     }
@@ -1877,7 +1879,7 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
                 if (isCancelled.getAsBoolean())
                 {
                     logger.info("Anticompaction has been canceled for session {}", pendingRepair);
-                    logger.trace(e.getMessage(), e);
+                    if (logger.isTraceEnabled()) logger.trace(e.getMessage(), e);
                 }
                 else
                 {
@@ -1948,7 +1950,7 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
             {
                 if (!AutoSavingCache.flushInProgress.add(writer.cacheType()))
                 {
-                    logger.trace("Cache flushing was already in progress: skipping {}", writer.getCompactionInfo());
+                    if (logger.isTraceEnabled()) logger.trace("Cache flushing was already in progress: skipping {}", writer.getCompactionInfo());
                     return;
                 }
                 try

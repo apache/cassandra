@@ -204,7 +204,7 @@ public class PartitionIndex implements SharedCloseable
                     rdr.seek(pos);
                     csum += rdr.readByte();
                 }
-                logger.trace("Checksum {}", csum);      // Note: trace is required so that reads aren't optimized away.
+                if (logger.isTraceEnabled()) logger.trace("Checksum {}", csum);      // Note: trace is required so that reads aren't optimized away.
             }
 
             return new PartitionIndex(fh, root, keyCount, first, last);

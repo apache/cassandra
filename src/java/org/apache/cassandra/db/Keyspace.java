@@ -325,7 +325,7 @@ public class Keyspace
         this.metadataRef = new KeyspaceMetadataRef(metadata, schema);
         for (TableMetadata cfm : metadata.tablesAndViews())
         {
-            logger.trace("Initializing {}.{}", getName(), cfm.name);
+            if (logger.isTraceEnabled()) logger.trace("Initializing {}.{}", getName(), cfm.name);
             initCf(cfm, loadSSTables);
         }
 

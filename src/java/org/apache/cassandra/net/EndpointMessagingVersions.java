@@ -44,7 +44,7 @@ public class EndpointMessagingVersions
      */
     public int set(InetAddressAndPort endpoint, int version)
     {
-        logger.trace("Setting version {} for {}", version, endpoint);
+        if (logger.isTraceEnabled()) logger.trace("Setting version {} for {}", version, endpoint);
 
         Integer v = versions.put(endpoint, version);
         minClusterVersion = Collections.min(versions.values());
@@ -53,7 +53,7 @@ public class EndpointMessagingVersions
 
     public void reset(InetAddressAndPort endpoint)
     {
-        logger.trace("Resetting version for {}", endpoint);
+        if (logger.isTraceEnabled()) logger.trace("Resetting version for {}", endpoint);
         versions.remove(endpoint);
         if (!versions.values().isEmpty())
             minClusterVersion = Collections.min(versions.values());
@@ -69,7 +69,7 @@ public class EndpointMessagingVersions
         if (v == null)
         {
             // we don't know the version. assume current. we'll know soon enough if that was incorrect.
-            logger.trace("Assuming current protocol version for {}", endpoint);
+            if (logger.isTraceEnabled()) logger.trace("Assuming current protocol version for {}", endpoint);
             return MessagingService.current_version;
         }
         else

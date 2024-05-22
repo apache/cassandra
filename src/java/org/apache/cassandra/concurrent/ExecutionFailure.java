@@ -56,7 +56,7 @@ public class ExecutionFailure
                 if (t.getSuppressed() != null && t.getSuppressed().length > 0)
                     logger.warn("Interruption of compaction encountered exceptions:", t);
                 else
-                    logger.trace("Full interruption stack trace:", t);
+                    if (logger.isTraceEnabled()) logger.trace("Full interruption stack trace:", t);
             }
             else
             {

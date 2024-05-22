@@ -139,7 +139,7 @@ public class DataResurrectionCheck implements StartupCheck
             heartbeatFile = new File(dataFileLocations[0], DEFAULT_HEARTBEAT_FILE);
         }
 
-        LOGGER.trace("Resolved heartbeat file for data resurrection check: " + heartbeatFile);
+        if (LOGGER.isTraceEnabled()) LOGGER.trace("Resolved heartbeat file for data resurrection check: " + heartbeatFile);
 
         return heartbeatFile;
     }
@@ -238,7 +238,8 @@ public class DataResurrectionCheck implements StartupCheck
                 try
                 {
                     heartbeatFile.parent().createDirectoriesIfNotExists();
-                    DataResurrectionCheck.LOGGER.trace("writing heartbeat to file " + heartbeatFile);
+                    if (DataResurrectionCheck.LOGGER.isTraceEnabled())
+                        DataResurrectionCheck.LOGGER.trace("writing heartbeat to file " + heartbeatFile);
                     heartbeat.serializeToJsonFile(heartbeatFile);
                 }
                 catch (IOException ex)

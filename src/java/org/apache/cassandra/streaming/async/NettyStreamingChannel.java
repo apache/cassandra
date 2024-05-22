@@ -228,7 +228,7 @@ public class NettyStreamingChannel extends ChannelInboundHandlerAdapter implemen
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause)
     {
-        if (cause instanceof IOException)
+        if (cause instanceof IOException && (logger.isTraceEnabled()))
             logger.trace("connection problem while streaming", cause);
         else
             logger.warn("exception occurred while in processing streaming data", cause);

@@ -141,7 +141,7 @@ public class OnHeapGraph<T>
             }
             catch (InvalidRequestException e)
             {
-                logger.trace("Ignoring invalid vector during index build against existing data: {}", vector, e);
+                if (logger.isTraceEnabled()) logger.trace("Ignoring invalid vector during index build against existing data: {}", vector, e);
                 return 0;
             }
         }

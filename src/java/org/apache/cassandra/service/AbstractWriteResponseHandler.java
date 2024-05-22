@@ -285,7 +285,7 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
     @Override
     public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
     {
-        logger.trace("Got failure from {}", from);
+        if (logger.isTraceEnabled()) logger.trace("Got failure from {}", from);
 
         int n = waitingFor(from)
                 ? failuresUpdater.incrementAndGet(this)

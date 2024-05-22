@@ -66,7 +66,7 @@ public interface OutputHandler
 
         public void debug(String msg)
         {
-            logger.trace(msg);
+            if (logger.isTraceEnabled()) logger.trace(msg);
         }
 
         public void warn(String msg)

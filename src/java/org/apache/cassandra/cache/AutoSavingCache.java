@@ -348,12 +348,12 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
 
         public void saveCache()
         {
-            logger.trace("Deleting old {} files.", cacheType);
+            if (logger.isTraceEnabled()) logger.trace("Deleting old {} files.", cacheType);
             deleteOldCacheFiles();
 
             if (!keyIterator.hasNext())
             {
-                logger.trace("Skipping {} save, cache is empty.", cacheType);
+                if (logger.isTraceEnabled()) logger.trace("Skipping {} save, cache is empty.", cacheType);
                 return;
             }
 

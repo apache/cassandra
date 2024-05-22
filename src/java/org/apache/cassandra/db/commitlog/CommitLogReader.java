@@ -271,7 +271,7 @@ public class CommitLogReader
 
         if (minPosition.segmentId > desc.id)
         {
-            logger.trace("Skipping read of fully-flushed {}", file);
+            if (logger.isTraceEnabled()) logger.trace("Skipping read of fully-flushed {}", file);
             return true;
         }
         return false;
@@ -315,7 +315,7 @@ public class CommitLogReader
                 // read an EOF here
                 if(end - reader.getFilePointer() < 4)
                 {
-                    logger.trace("Not enough bytes left for another mutation in this CommitLog section, continuing");
+                    if (logger.isTraceEnabled()) logger.trace("Not enough bytes left for another mutation in this CommitLog section, continuing");
                     statusTracker.requestTermination();
                     return;
                 }
@@ -324,7 +324,7 @@ public class CommitLogReader
                 serializedSize = reader.readInt();
                 if (serializedSize == LEGACY_END_OF_SEGMENT_MARKER)
                 {
-                    logger.trace("Encountered end of segment marker at {}", reader.getFilePointer());
+                    if (logger.isTraceEnabled()) logger.trace("Encountered end of segment marker at {}", reader.getFilePointer());
                     statusTracker.requestTermination();
                     return;
                 }

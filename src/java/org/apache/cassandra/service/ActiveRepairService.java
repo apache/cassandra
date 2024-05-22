@@ -781,7 +781,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                         @Override
                         public void onResponse(Message msg)
                         {
-                            logger.trace("Successfully cleaned up {} parent repair session on {}.", parentRepairSession, endpoint);
+                            if (logger.isTraceEnabled()) logger.trace("Successfully cleaned up {} parent repair session on {}.", parentRepairSession, endpoint);
                         }
 
                         @Override

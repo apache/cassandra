@@ -201,6 +201,7 @@ public class BtiTableWriter extends SortedTableWriter<BtiFormatPartitionWriter, 
 
                 if (logger.isTraceEnabled())
                     logger.trace("wrote index entry: {} at {}", indexEntry, indexStart);
+
                 position = indexStart;
             }
             else

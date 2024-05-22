@@ -156,7 +156,7 @@ public class CompactionController extends AbstractCompactionController
                                                              long gcBefore,
                                                              boolean ignoreOverlaps)
     {
-        logger.trace("Checking droppable sstables in {}", cfStore);
+        if (logger.isTraceEnabled()) logger.trace("Checking droppable sstables in {}", cfStore);
 
         if (NEVER_PURGE_TOMBSTONES_PROPERTY_VALUE || compacting == null || cfStore.getNeverPurgeTombstones() || overlapping == null)
             return Collections.emptySet();
@@ -172,8 +172,9 @@ public class CompactionController extends AbstractCompactionController
                 if (candidate.getMaxLocalDeletionTime() < gcBefore)
                 {
                     fullyExpired.add(candidate);
-                    logger.trace("Dropping overlap ignored expired SSTable {} (maxLocalDeletionTime={}, gcBefore={})",
-                                 candidate, candidate.getMaxLocalDeletionTime(), gcBefore);
+                    if (logger.isTraceEnabled())
+                        logger.trace("Dropping overlap ignored expired SSTable {} (maxLocalDeletionTime={}, gcBefore={})",
+                                     candidate, candidate.getMaxLocalDeletionTime(), gcBefore);
                 }
             }
             return fullyExpired;
@@ -219,8 +220,9 @@ public class CompactionController extends AbstractCompactionController
             }
             else
             {
-               logger.trace("Dropping expired SSTable {} (maxLocalDeletionTime={}, gcBefore={})",
-                        candidate, candidate.getMaxLocalDeletionTime(), gcBefore);
+               if (logger.isTraceEnabled())
+                   logger.trace("Dropping expired SSTable {} (maxLocalDeletionTime={}, gcBefore={})",
+                                candidate, candidate.getMaxLocalDeletionTime(), gcBefore);
             }
         }
         return new HashSet<>(candidates);

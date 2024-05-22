@@ -88,7 +88,7 @@ public abstract class FrequencySampler<T> extends Sampler<T>
             }
             catch (Exception e)
             {
-                logger.trace("Failure to offer sample", e);
+                if (logger.isTraceEnabled()) logger.trace("Failure to offer sample", e);
             }
         }
     }

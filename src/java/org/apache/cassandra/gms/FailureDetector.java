@@ -511,11 +511,11 @@ class ArrivalWindow
             if (interArrivalTime <= MAX_INTERVAL_IN_NANO)
             {
                 arrivalIntervals.add(interArrivalTime);
-                logger.trace("Reporting interval time of {}ns for {}", interArrivalTime, ep);
+                if (logger.isTraceEnabled()) logger.trace("Reporting interval time of {}ns for {}", interArrivalTime, ep);
             }
             else
             {
-                logger.trace("Ignoring interval time of {}ns for {}", interArrivalTime, ep);
+                if (logger.isTraceEnabled()) logger.trace("Ignoring interval time of {}ns for {}", interArrivalTime, ep);
             }
         }
         else

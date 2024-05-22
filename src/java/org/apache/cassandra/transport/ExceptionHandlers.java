@@ -131,7 +131,7 @@ public class ExceptionHandlers
         else if (Throwables.anyCauseMatches(cause, t -> t instanceof Errors.NativeIoException))
         {
             ClientMetrics.instance.markUnknownException();
-            logger.trace("Native exception in client networking", cause);
+            if (logger.isTraceEnabled()) logger.trace("Native exception in client networking", cause);
         }
         else
         {
@@ -215,7 +215,7 @@ public class ExceptionHandlers
                 if (logAtTrace)
                 {
                     // Likely unclean client disconnects
-                    logger.trace(message, exception);
+                    if (logger.isTraceEnabled()) logger.trace(message, exception);
                 }
                 else
                 {

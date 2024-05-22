@@ -213,7 +213,7 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
         for (int i = 0, size = participants.sizeOfPoll(); i < size ; ++i)
         {
             InetAddressAndPort destination = participants.voter(i);
-            logger.trace("{} to {}", proposal, destination);
+            if (logger.isTraceEnabled()) logger.trace("{} to {}", proposal, destination);
             if (shouldExecuteOnSelf(destination)) executeOnSelf = true;
             else MessagingService.instance().sendWithCallback(message, destination, this);
         }

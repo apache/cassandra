@@ -136,7 +136,7 @@ public class RequestCallbacks implements OutboundMessageCallbacks
                 }
             }
         }
-        logger.trace("Expired {} entries", n);
+        if (logger.isTraceEnabled()) logger.trace("Expired {} entries", n);
     }
 
     private void forceExpire()

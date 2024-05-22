@@ -45,7 +45,7 @@ public class RangeDenormalizer
      */
     public static Set<Range<Token>> denormalize(Range<Token> range, RangeMap<StreamFromOptions> incoming)
     {
-        logger.trace("Denormalizing range={} incoming={}", range, incoming);
+        if (logger.isTraceEnabled()) logger.trace("Denormalizing range={} incoming={}", range, incoming);
         Set<Map.Entry<Range<Token>, StreamFromOptions>> existingOverlappingRanges = incoming.removeIntersecting(range);
 
         Set<Range<Token>> intersections = intersection(existingOverlappingRanges, range);
@@ -59,8 +59,11 @@ public class RangeDenormalizer
                     incoming.put(r, entry.getValue().copy(r));
             }
         }
-        logger.trace("denormalized {} to {}", range, newInput);
-        logger.trace("denormalized incoming to {}", incoming);
+        if (logger.isTraceEnabled())
+        {
+            logger.trace("denormalized {} to {}", range, newInput);
+            logger.trace("denormalized incoming to {}", incoming);
+        }
         return newInput;
     }
 

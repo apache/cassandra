@@ -182,7 +182,7 @@ public class PaxosRepair extends AbstractPaxosRepair
         @Override
         public void onResponse(Message<Response> msg)
         {
-            logger.trace("PaxosRepair {} from {}", msg.payload, msg.from());
+            if (logger.isTraceEnabled()) logger.trace("PaxosRepair {} from {}", msg.payload, msg.from());
             updateState(this, msg, Querying::onResponseInternal);
         }
 
@@ -322,7 +322,7 @@ public class PaxosRepair extends AbstractPaxosRepair
                     // with a newer ballot)
                     FoundIncompleteAccepted incomplete = input.incompleteAccepted();
                     Proposal propose = new Proposal(incomplete.ballot, incomplete.accepted.update);
-                    logger.trace("PaxosRepair of {} found incomplete {}", partitionKey(), incomplete.accepted);
+                    if (logger.isTraceEnabled()) logger.trace("PaxosRepair of {} found incomplete {}", partitionKey(), incomplete.accepted);
                     return PaxosPropose.propose(propose, participants, false,
                             new ProposingRepair(propose)); // we don't know if we're done, so we must restart
                 }
@@ -331,7 +331,7 @@ public class PaxosRepair extends AbstractPaxosRepair
                 {
                     // finish the in-progress commit
                     FoundIncompleteCommitted incomplete = input.incompleteCommitted();
-                    logger.trace("PaxosRepair of {} found in progress {}", partitionKey(), incomplete.committed);
+                    if (logger.isTraceEnabled()) logger.trace("PaxosRepair of {} found in progress {}", partitionKey(), incomplete.committed);
                     return PaxosCommit.commit(incomplete.committed, participants, paxosConsistency, commitConsistency(), true,
                                               new CommitAndRestart()); // we don't know if we're done, so we must restart
                 }
@@ -339,7 +339,7 @@ public class PaxosRepair extends AbstractPaxosRepair
                 case PROMISED:
                 {
                     // propose the empty ballot
-                    logger.trace("PaxosRepair of {} submitting empty proposal", partitionKey());
+                    if (logger.isTraceEnabled()) logger.trace("PaxosRepair of {} submitting empty proposal", partitionKey());
                     Proposal proposal = Proposal.empty(input.success().ballot, partitionKey(), table);
                     return PaxosPropose.propose(proposal, participants, false,
                             new ProposingRepair(proposal));
@@ -375,11 +375,11 @@ public class PaxosRepair extends AbstractPaxosRepair
                 case SUCCESS:
                     if (proposal.update.isEmpty())
                     {
-                        logger.trace("PaxosRepair of {} complete after successful empty proposal", partitionKey());
+                        if (logger.isTraceEnabled()) logger.trace("PaxosRepair of {} complete after successful empty proposal", partitionKey());
                         return DONE;
                     }
 
-                    logger.trace("PaxosRepair of {} committing successful proposal {}", partitionKey(), proposal);
+                    if (logger.isTraceEnabled()) logger.trace("PaxosRepair of {} committing successful proposal {}", partitionKey(), proposal);
                     return PaxosCommit.commit(proposal.agreed(), participants, paxosConsistency, commitConsistency(), true,
                                               new CommittingRepair());
 
@@ -394,7 +394,7 @@ public class PaxosRepair extends AbstractPaxosRepair
         @Override
         public State execute(PaxosCommit.Status input)
         {
-            logger.trace("PaxosRepair of {} {}", partitionKey(), input);
+            if (logger.isTraceEnabled()) logger.trace("PaxosRepair of {} {}", partitionKey(), input);
             return input.isSuccess() ? DONE : retry(this);
         }
     }

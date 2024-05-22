@@ -52,7 +52,7 @@ final class AuditLogFilter
      */
     public static AuditLogFilter create(AuditLogOptions auditLogOptions)
     {
-        logger.trace("Loading AuditLog filters");
+        if (logger.isTraceEnabled()) logger.trace("Loading AuditLog filters");
 
         IncludeExcludeHolder keyspaces = loadInputSets(auditLogOptions.included_keyspaces, auditLogOptions.excluded_keyspaces);
         IncludeExcludeHolder categories = loadInputSets(auditLogOptions.included_categories, auditLogOptions.excluded_categories);

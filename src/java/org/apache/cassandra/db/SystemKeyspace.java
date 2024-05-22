@@ -1830,7 +1830,7 @@ public final class SystemKeyspace
             {
                 if (dataDirectory.name().equals("Versions") && dataDirectory.tryList().length > 0)
                 {
-                    logger.trace("Found unreadable versions info in pre 1.2 system.Versions table");
+                    if (logger.isTraceEnabled()) logger.trace("Found unreadable versions info in pre 1.2 system.Versions table");
                     return UNREADABLE_VERSION.toString();
                 }
             }

@@ -324,7 +324,7 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
         }
         catch (Throwable t)
         {
-            logger.trace("Error accessing field of java.nio.Bits", t);
+            if (logger.isTraceEnabled()) logger.trace("Error accessing field of java.nio.Bits", t);
             //Don't care how or why we failed to get the value in this JVM. Return -1 to indicate failure
             return -1;
         }

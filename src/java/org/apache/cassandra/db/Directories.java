@@ -296,7 +296,7 @@ public class Directories
                 for (File indexFile : indexFiles)
                 {
                     File destFile = new File(dataPath, indexFile.name());
-                    logger.trace("Moving index file {} to {}", indexFile, destFile);
+                    if (logger.isTraceEnabled()) logger.trace("Moving index file {} to {}", indexFile, destFile);
                     FileUtils.renameWithConfirm(indexFile, destFile);
                 }
             }
@@ -447,14 +447,14 @@ public class Directories
         {
             if (DisallowedDirectories.isUnwritable(getLocationForDisk(dataDir)))
             {
-                logger.trace("removing disallowed candidate {}", dataDir.location);
+                if (logger.isTraceEnabled()) logger.trace("removing disallowed candidate {}", dataDir.location);
                 continue;
             }
             DataDirectoryCandidate candidate = new DataDirectoryCandidate(dataDir);
             // exclude directory if its total writeSize does not fit to data directory
             if (candidate.availableSpace < writeSize)
             {
-                logger.trace("removing candidate {}, usable={}, requested={}", candidate.dataDirectory.location, candidate.availableSpace, writeSize);
+                if (logger.isTraceEnabled()) logger.trace("removing candidate {}, usable={}, requested={}", candidate.dataDirectory.location, candidate.availableSpace, writeSize);
                 tooBig = true;
                 continue;
             }
@@ -1287,7 +1287,7 @@ public class Directories
     {
         if (snapshotDir.exists())
         {
-            logger.trace("Removing snapshot directory {}", snapshotDir);
+            if (logger.isTraceEnabled()) logger.trace("Removing snapshot directory {}", snapshotDir);
             try
             {
                 FileUtils.deleteRecursiveWithThrottle(snapshotDir, snapshotRateLimiter);

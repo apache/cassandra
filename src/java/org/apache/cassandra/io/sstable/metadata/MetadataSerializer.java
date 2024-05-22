@@ -120,11 +120,11 @@ public class MetadataSerializer implements IMetadataSerializer
     public Map<MetadataType, MetadataComponent> deserialize(Descriptor descriptor, EnumSet<MetadataType> types) throws IOException
     {
         Map<MetadataType, MetadataComponent> components;
-        logger.trace("Load metadata for {}", descriptor);
+        if (logger.isTraceEnabled()) logger.trace("Load metadata for {}", descriptor);
         File statsFile = descriptor.fileFor(Components.STATS);
         if (!statsFile.exists())
         {
-            logger.trace("No sstable stats for {}", descriptor);
+            if (logger.isTraceEnabled()) logger.trace("No sstable stats for {}", descriptor);
             components = new EnumMap<>(MetadataType.class);
             components.put(MetadataType.STATS, MetadataCollector.defaultStatsMetadata());
         }

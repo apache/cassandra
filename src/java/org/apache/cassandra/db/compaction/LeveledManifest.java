@@ -253,7 +253,7 @@ public class LeveledManifest
             long remainingBytesForLevel = SSTableReader.getTotalBytes(remaining);
             long maxBytesForLevel = maxBytesForLevel(i, maxSSTableSizeInBytes);
             double score = (double) remainingBytesForLevel / (double) maxBytesForLevel;
-            logger.trace("Compaction score for level {} is {}", i, score);
+            if (logger.isTraceEnabled()) logger.trace("Compaction score for level {} is {}", i, score);
 
             if (score > 1.001)
             {
@@ -282,7 +282,7 @@ public class LeveledManifest
                 }
                 else
                 {
-                    logger.trace("No compaction candidates for L{}", i);
+                    if (logger.isTraceEnabled()) logger.trace("No compaction candidates for L{}", i);
                 }
             }
         }
@@ -495,7 +495,7 @@ public class LeveledManifest
     private Collection<SSTableReader> getCandidatesFor(int level)
     {
         assert !generations.get(level).isEmpty();
-        logger.trace("Choosing candidates for L{}", level);
+        if (logger.isTraceEnabled()) logger.trace("Choosing candidates for L{}", level);
 
         final Set<SSTableReader> compacting = cfs.getTracker().getCompacting();
 
@@ -659,8 +659,9 @@ public class LeveledManifest
             estimated[0] += l0compactions;
         }
 
-        logger.trace("Estimating {} compactions to do for {}.{}",
-                     Arrays.toString(estimated), cfs.getKeyspaceName(), cfs.name);
+        if (logger.isTraceEnabled())
+            logger.trace("Estimating {} compactions to do for {}.{}",
+                         Arrays.toString(estimated), cfs.getKeyspaceName(), cfs.name);
         return Ints.checkedCast(tasks);
     }
 

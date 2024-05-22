@@ -86,7 +86,7 @@ public class HarryValidatingQuery extends SimulatedAction
                         {
                             CompiledStatement compiled = query.toSelectStatement();
                             List<TokenPlacementModel.Replica> replicas = ring.replicasFor(this.token(query.pd));
-                            logger.trace("Predicted {} as replicas for {}. Ring: {}", new Object[]{ replicas, query.pd, ring });
+                            if (logger.isTraceEnabled()) logger.trace("Predicted {} as replicas for {}. Ring: {}", new Object[]{ replicas, query.pd, ring });
                             List<Throwable> throwables = new ArrayList<>();
                             for (TokenPlacementModel.Replica replica : replicas)
                             {

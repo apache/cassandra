@@ -81,7 +81,7 @@ public class ZstdCompressor implements ICompressor
     {
         this.compressionLevel = compressionLevel;
         this.recommendedUses = ImmutableSet.of(Uses.GENERAL);
-        logger.trace("Creating Zstd Compressor with compression level={}", compressionLevel);
+        if (logger.isTraceEnabled()) logger.trace("Creating Zstd Compressor with compression level={}", compressionLevel);
     }
 
     /**

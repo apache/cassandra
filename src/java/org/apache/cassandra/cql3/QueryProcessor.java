@@ -273,7 +273,7 @@ public class QueryProcessor implements QueryHandler
     public ResultMessage processStatement(CQLStatement statement, QueryState queryState, QueryOptions options, long queryStartNanoTime)
     throws RequestExecutionException, RequestValidationException
     {
-        logger.trace("Process {} @CL.{}", statement, options.getConsistency());
+        if (logger.isTraceEnabled()) logger.trace("Process {} @CL.{}", statement, options.getConsistency());
         ClientState clientState = queryState.getClientState();
         statement.authorize(clientState);
         statement.validate(clientState);
@@ -848,7 +848,7 @@ public class QueryProcessor implements QueryHandler
             // at this point there is a match in count between markers and variables that is non-zero
             if (logger.isTraceEnabled())
                 for (int i = 0; i < variables.size(); i++)
-                    logger.trace("[{}] '{}'", i+1, variables.get(i));
+                    logger.trace("[{}] '{}'", i + 1, variables.get(i));
         }
 
         metrics.preparedStatementsExecuted.inc();
@@ -1069,7 +1069,7 @@ public class QueryProcessor implements QueryHandler
         @Override
         public void onAlterTable(TableMetadata before, TableMetadata after, boolean affectsStatements)
         {
-            logger.trace("Column definitions for {}.{} changed, invalidating related prepared statements", before.keyspace, before.name);
+            if (logger.isTraceEnabled()) logger.trace("Column definitions for {}.{} changed, invalidating related prepared statements", before.keyspace, before.name);
             if (affectsStatements)
                 removeInvalidPreparedStatements(before.keyspace, before.name);
         }
@@ -1097,14 +1097,14 @@ public class QueryProcessor implements QueryHandler
         @Override
         public void onDropKeyspace(KeyspaceMetadata keyspace, boolean dropData)
         {
-            logger.trace("Keyspace {} was dropped, invalidating related prepared statements", keyspace.name);
+            if (logger.isTraceEnabled()) logger.trace("Keyspace {} was dropped, invalidating related prepared statements", keyspace.name);
             removeInvalidPreparedStatements(keyspace.name, null);
         }
 
         @Override
         public void onDropTable(TableMetadata table, boolean dropData)
         {
-            logger.trace("Table {}.{} was dropped, invalidating related prepared statements", table.keyspace, table.name);
+            if (logger.isTraceEnabled()) logger.trace("Table {}.{} was dropped, invalidating related prepared statements", table.keyspace, table.name);
             removeInvalidPreparedStatements(table.keyspace, table.name);
         }
 

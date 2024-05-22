@@ -93,15 +93,17 @@ public class RangeCommands
             concurrencyFactor = resultsPerRange == 0.0
                                 ? 1
                                 : Math.max(1, Math.min(maxConcurrencyFactor, (int) Math.ceil(command.limits().count() / resultsPerRange)));
-            logger.trace("Estimated result rows per range: {}; requested rows: {}, ranges.size(): {}; concurrent range requests: {}",
-                         resultsPerRange, command.limits().count(), replicaPlans.size(), concurrencyFactor);
+            if (logger.isTraceEnabled())
+                logger.trace("Estimated result rows per range: {}; requested rows: {}, ranges.size(): {}; concurrent range requests: {}",
+                             resultsPerRange, command.limits().count(), replicaPlans.size(), concurrencyFactor);
             Tracing.trace("Submitting range requests on {} ranges with a concurrency of {} ({} rows per range expected)",
                           replicaPlans.size(), concurrencyFactor, resultsPerRange);
         }
         else
         {
-            logger.trace("Max concurrent range requests: {}; requested rows: {}, ranges.size(): {}; concurrent range requests: {}",
-                         MAX_CONCURRENT_RANGE_REQUESTS, command.limits().count(), replicaPlans.size(), concurrencyFactor);
+            if (logger.isTraceEnabled())
+                logger.trace("Max concurrent range requests: {}; requested rows: {}, ranges.size(): {}; concurrent range requests: {}",
+                             MAX_CONCURRENT_RANGE_REQUESTS, command.limits().count(), replicaPlans.size(), concurrencyFactor);
             Tracing.trace("Submitting range requests on {} ranges with a concurrency of {}", replicaPlans.size(), concurrencyFactor);
         }
 

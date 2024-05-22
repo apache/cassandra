@@ -105,8 +105,9 @@ public abstract class SortedTableVerifier<R extends SSTableReaderWithFilter> imp
 
     protected void deserializeBloomFilter(SSTableReader sstable) throws IOException
     {
-        try (IFilter filter = FilterComponent.load(sstable.descriptor)) {
-            if (filter != null)
+        try (IFilter filter = FilterComponent.load(sstable.descriptor))
+        {
+            if (filter != null && logger.isTraceEnabled())
                 logger.trace("Filter loaded for {}", sstable);
         }
     }

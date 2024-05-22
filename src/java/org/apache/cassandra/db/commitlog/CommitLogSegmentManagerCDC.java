@@ -263,7 +263,7 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
         File cdcIndexFile = new File(DatabaseDescriptor.getCDCLogLocation(), CommitLogDescriptor.fromFileName(file.name()).cdcIndexFileName());
         if (cdcFile.exists() && !cdcIndexFile.exists())
         {
-            logger.trace("(Unopened) CDC segment {} is no longer needed and will be deleted now", cdcFile);
+            if (logger.isTraceEnabled()) logger.trace("(Unopened) CDC segment {} is no longer needed and will be deleted now", cdcFile);
             cdcFile.delete();
         }
     }

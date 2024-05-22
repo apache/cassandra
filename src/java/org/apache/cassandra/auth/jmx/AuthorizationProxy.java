@@ -191,13 +191,14 @@ public class AuthorizationProxy implements InvocationHandler
     @VisibleForTesting
     public boolean authorize(Subject subject, String methodName, Object[] args)
     {
-        logger.trace("Authorizing JMX method invocation {} for {}",
-                     methodName,
-                     subject == null ? "" :subject.toString().replaceAll("\\n", " "));
+        if (logger.isTraceEnabled())
+            logger.trace("Authorizing JMX method invocation {} for {}",
+                         methodName,
+                         subject == null ? "" : subject.toString().replaceAll("\\n", " "));
 
         if (!isAuthSetupComplete.getAsBoolean())
         {
-            logger.trace("Auth setup is not complete, refusing access");
+            if (logger.isTraceEnabled()) logger.trace("Auth setup is not complete, refusing access");
             return false;
         }
 
@@ -212,7 +213,7 @@ public class AuthorizationProxy implements InvocationHandler
         // Restrict access to certain methods by any remote user
         if (DENIED_METHODS.contains(methodName))
         {
-            logger.trace("Access denied to restricted method {}", methodName);
+            if (logger.isTraceEnabled()) logger.trace("Access denied to restricted method {}", methodName);
             return false;
         }
 
@@ -253,7 +254,7 @@ public class AuthorizationProxy implements InvocationHandler
      */
     private boolean authorizeMBeanServerMethod(RoleResource subject, String methodName)
     {
-        logger.trace("JMX invocation of {} on MBeanServer requires permission {}", methodName, Permission.DESCRIBE);
+        if (logger.isTraceEnabled()) logger.trace("JMX invocation of {} on MBeanServer requires permission {}", methodName, Permission.DESCRIBE);
         return (MBEAN_SERVER_ALLOWED_METHODS.contains(methodName) &&
                 hasPermission(subject, Permission.DESCRIBE, JMXResource.root()));
     }
@@ -281,7 +282,7 @@ public class AuthorizationProxy implements InvocationHandler
         if (null == requiredPermission)
             return false;
 
-        logger.trace("JMX invocation of {} on {} requires permission {}", methodName, targetBean, requiredPermission);
+        if (logger.isTraceEnabled()) logger.trace("JMX invocation of {} on {} requires permission {}", methodName, targetBean, requiredPermission);
 
         // find any JMXResources upon which the authenticated subject has been granted the
         // reqired permission. We'll do ObjectName-specific filtering & matching of resources later
@@ -371,7 +372,7 @@ public class AuthorizationProxy implements InvocationHandler
             }
         }
 
-        logger.trace("Subject does not have sufficient permissions on all MBeans matching the target pattern {}", target);
+        if (logger.isTraceEnabled()) logger.trace("Subject does not have sufficient permissions on all MBeans matching the target pattern {}", target);
         return false;
     }
 
@@ -405,7 +406,7 @@ public class AuthorizationProxy implements InvocationHandler
             }
         }
 
-        logger.trace("Subject does not have sufficient permissions on target MBean {}", target);
+        if (logger.isTraceEnabled()) logger.trace("Subject does not have sufficient permissions on target MBean {}", target);
         return false;
     }
 

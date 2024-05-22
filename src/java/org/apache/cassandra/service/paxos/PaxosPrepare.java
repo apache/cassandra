@@ -373,7 +373,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
         {
             InetAddressAndPort destination = participants.voter(i);
             boolean isPending = participants.electorate.isPending(destination);
-            logger.trace("{} to {}", send.payload, destination);
+            if (logger.isTraceEnabled()) logger.trace("{} to {}", send.payload, destination);
             if (shouldExecuteOnSelf(destination))
                 executeOnSelf = true;
             else

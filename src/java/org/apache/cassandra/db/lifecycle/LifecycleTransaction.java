@@ -271,7 +271,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
 
         // mark obsolete all readers that are not versions of those present in the original set
         Iterable<SSTableReader> obsolete = filterOut(concatUniq(staged.update, logged.update), originals);
-        logger.trace("Obsoleting {}", obsolete);
+        if (logger.isTraceEnabled()) logger.trace("Obsoleting {}", obsolete);
 
         accumulate = prepareForObsoletion(obsolete, log, obsoletions = new ArrayList<>(), accumulate);
         // it's safe to abort even if committed, see maybeFail in doCommit() above, in this case it will just report
@@ -409,7 +409,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
      */
     public void obsolete(SSTableReader reader)
     {
-        logger.trace("Staging for obsolescence {}", reader);
+        if (logger.isTraceEnabled()) logger.trace("Staging for obsolescence {}", reader);
         // check this is: a reader guarded by the transaction, an instance we have already worked with
         // and that we haven't already obsoleted it, nor do we have other changes staged for it
         assert identities.contains(reader.instanceId) : "only reader instances that have previously been provided may be obsoleted: " + reader;
@@ -435,7 +435,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
      */
     public void obsoleteOriginals()
     {
-        logger.trace("Staging for obsolescence {}", originals);
+        if (logger.isTraceEnabled()) logger.trace("Staging for obsolescence {}", originals);
         // if we're obsoleting, we should have no staged updates for the original files
         assert Iterables.isEmpty(filterIn(staged.update, originals)) : staged.update;
 
@@ -517,7 +517,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
      */
     public void cancel(SSTableReader cancel)
     {
-        logger.trace("Cancelling {} from transaction", cancel);
+        if (logger.isTraceEnabled()) logger.trace("Cancelling {} from transaction", cancel);
         assert originals.contains(cancel) : "may only cancel a reader in the 'original' set: " + cancel + " vs " + originals;
         assert !(staged.contains(cancel) || logged.contains(cancel)) : "may only cancel a reader that has not been updated or obsoleted in this transaction: " + cancel;
         originals.remove(cancel);
@@ -541,7 +541,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
      */
     public LifecycleTransaction split(Collection<SSTableReader> readers)
     {
-        logger.trace("Splitting {} into new transaction", readers);
+        if (logger.isTraceEnabled()) logger.trace("Splitting {} into new transaction", readers);
         checkUnused();
         for (SSTableReader reader : readers)
             assert identities.contains(reader.instanceId) : "may only split the same reader instance the transaction was opened with: " + reader;

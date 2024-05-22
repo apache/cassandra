@@ -262,7 +262,7 @@ public class SkipListMemtable extends AbstractAllocatorMemtable
             }
 
             if (heavilyContendedRowCount > 0)
-                logger.trace("High update contention in {}/{} partitions of {} ", heavilyContendedRowCount, toFlush.size(), SkipListMemtable.this);
+                if (logger.isTraceEnabled()) logger.trace("High update contention in {}/{} partitions of {} ", heavilyContendedRowCount, toFlush.size(), SkipListMemtable.this);
         }
         else
         {

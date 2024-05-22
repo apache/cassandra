@@ -44,7 +44,7 @@ public class Mx4jTool
     {
         try
         {
-            logger.trace("Will try to load mx4j now, if it's in the classpath");
+            if (logger.isTraceEnabled()) logger.trace("Will try to load mx4j now, if it's in the classpath");
             MBeanWrapper mbs = MBeanWrapper.instance;
             ObjectName processorName = new ObjectName("Server:name=XSLTProcessor");
 
@@ -67,7 +67,7 @@ public class Mx4jTool
         }
         catch (ClassNotFoundException e)
         {
-            logger.trace("Will not load MX4J, mx4j-tools.jar is not in the classpath");
+            if (logger.isTraceEnabled()) logger.trace("Will not load MX4J, mx4j-tools.jar is not in the classpath");
         }
         catch(Exception e)
         {

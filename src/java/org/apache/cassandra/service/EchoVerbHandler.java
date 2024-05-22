@@ -39,12 +39,12 @@ public class EchoVerbHandler implements IVerbHandler<NoPayload>
         // only respond if we are not shutdown
         if (!StorageService.instance.isShutdown() && !Gossiper.instance.shutdownAnnounced.get())
         {
-            logger.trace("Sending ECHO_RSP to {}", message.from());
+            if (logger.isTraceEnabled()) logger.trace("Sending ECHO_RSP to {}", message.from());
             MessagingService.instance().send(message.emptyResponse(), message.from());
         }
         else
         {
-            logger.trace("Not sending ECHO_RSP to {} - we are shutting down", message.from());
+            if (logger.isTraceEnabled()) logger.trace("Not sending ECHO_RSP to {} - we are shutting down", message.from());
         }
     }
 }

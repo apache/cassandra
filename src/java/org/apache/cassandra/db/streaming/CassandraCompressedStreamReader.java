@@ -84,7 +84,7 @@ public class CassandraCompressedStreamReader extends CassandraStreamReader
                 assert cis.chunkBytesRead() <= totalSize;
                 long sectionLength = section.upperPosition - section.lowerPosition;
 
-                logger.trace("[Stream #{}] Reading section {} with length {} from stream.", session.planId(), sectionIdx++, sectionLength);
+                if (logger.isTraceEnabled()) logger.trace("[Stream #{}] Reading section {} with length {} from stream.", session.planId(), sectionIdx++, sectionLength);
                 // skip to beginning of section inside chunk
                 cis.position(section.lowerPosition);
                 in.reset(0);

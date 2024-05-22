@@ -48,7 +48,7 @@ public class CoordinatorWarnings
 
     public static void init()
     {
-        logger.trace("CoordinatorTrackWarnings.init()");
+        if (logger.isTraceEnabled()) logger.trace("CoordinatorTrackWarnings.init()");
         if (STATE.get() != null)
         {
             if (ENABLE_DEFENSIVE_CHECKS)
@@ -60,13 +60,13 @@ public class CoordinatorWarnings
 
     public static void reset()
     {
-        logger.trace("CoordinatorTrackWarnings.reset()");
+        if (logger.isTraceEnabled()) logger.trace("CoordinatorTrackWarnings.reset()");
         STATE.remove();
     }
 
     public static void update(ReadCommand cmd, WarningsSnapshot snapshot)
     {
-        logger.trace("CoordinatorTrackWarnings.update({}, {})", cmd.metadata(), snapshot);
+        if (logger.isTraceEnabled()) logger.trace("CoordinatorTrackWarnings.update({}, {})", cmd.metadata(), snapshot);
         Map<ReadCommand, WarningsSnapshot> map = mutable();
         WarningsSnapshot previous = map.get(cmd);
         WarningsSnapshot update = WarningsSnapshot.merge(previous, snapshot);
@@ -79,7 +79,7 @@ public class CoordinatorWarnings
     public static void done()
     {
         Map<ReadCommand, WarningsSnapshot> map = readonly();
-        logger.trace("CoordinatorTrackWarnings.done() with state {}", map);
+        if (logger.isTraceEnabled()) logger.trace("CoordinatorTrackWarnings.done() with state {}", map);
         map.forEach((command, merged) -> {
             ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(command.metadata().id);
             // race condition when dropping tables, also happens in unit tests as Schema may be bypassed
