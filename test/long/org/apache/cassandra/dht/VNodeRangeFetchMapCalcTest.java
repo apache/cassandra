@@ -18,10 +18,10 @@
 
 package org.apache.cassandra.dht;
 
+import java.io.File;
 import java.io.IOException;
 import java.net.UnknownHostException;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -162,7 +162,7 @@ public class VNodeRangeFetchMapCalcTest
 
     private static Map<InetAddressAndPort, Host> tokensFromFile() throws IOException
     {
-        List<String> lines = Files.readAllLines(Path.of("test/data/vnodecluster/hosts"));
+        List<String> lines = Files.readAllLines(new File("test/data/vnodecluster/hosts").toPath());
         Map<InetAddressAndPort, Host> hosts = new HashMap<>();
         for (String line : lines)
         {
