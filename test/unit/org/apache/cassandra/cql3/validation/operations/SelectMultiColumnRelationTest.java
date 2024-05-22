@@ -88,6 +88,8 @@ public class SelectMultiColumnRelationTest extends CQLTester
                              "SELECT * FROM %s WHERE a = 0 AND (b, c, d) IN ((?, ?, ?))", 1, 2, null);
         assertInvalidMessage("Invalid null value for d in tuple (b, c, d)",
                              "SELECT * FROM %s WHERE a = 0 AND (b, c, d) IN ((?, ?, ?), (?, ?, ?))", 1, 2, null, 2, 1, 4);
+        assertInvalidMessage("Invalid null value for column b",
+                             "SELECT * FROM %s WHERE a = 0 AND b BETWEEN ? AND ?", 1, null);
 
         // Wrong type for 'd'
         assertInvalid("SELECT * FROM %s WHERE a = 0 AND (b, c, d) = (?, ?, ?)", 1, 2, "foobar");

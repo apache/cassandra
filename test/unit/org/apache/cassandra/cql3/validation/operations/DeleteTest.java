@@ -492,6 +492,9 @@ public class DeleteTest extends CQLTester
         assertInvalidMessage("Only EQ and IN relation are supported on the partition key (unless you use the token() function)",
                              "DELETE FROM %s WHERE partitionKey > ? ", 0);
 
+        assertInvalidMessage("Only EQ and IN relation are supported on the partition key (unless you use the token() function)",
+                             "DELETE FROM %s WHERE partitionKey > ? ", 0);
+
         assertInvalidMessage("Cannot use DELETE with CONTAINS",
                              "DELETE FROM %s WHERE partitionKey CONTAINS ?", 0);
 
@@ -1191,6 +1194,8 @@ public class DeleteTest extends CQLTester
         assertRows(execute("SELECT i FROM %s WHERE k = ? ORDER BY i DESC", "a"),
                    row(9), row(8), row(7), row(6), row(1), row(0)
         );
+
+        flush();
 
         execute("DELETE FROM %s WHERE k = ? AND i BETWEEN ? AND ?", "a", 2, 7);
 

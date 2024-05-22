@@ -233,6 +233,16 @@ public class SelectSingleColumnRelationTest extends CQLTester
                            "first", 7, 6, 3, 2),
                    row("first", 2, 6, 2),
                    row("first", 3, 7, 3));
+
+        assertRows(execute("select * from %s where a = ? and b between ? and ? order by b ASC",
+                           "first", 1, 2),
+                   row("first", 1, 5, 1),
+                   row("first", 2, 6, 2));
+
+        assertRows(execute("select * from %s where a = ? and b between ? and ? order by b DESC",
+                           "first", 1, 2),
+                   row("first", 2, 6, 2),
+                   row("first", 1, 5, 1));
     }
 
     @Test
@@ -612,6 +622,7 @@ public class SelectSingleColumnRelationTest extends CQLTester
         assertInvalidMessage("Invalid unset value for column s", "SELECT * from %s WHERE s = ?", unset());
         // range
         assertInvalidMessage("Invalid unset value for column i", "SELECT * from %s WHERE k = 1 AND i > ?", unset());
+        assertInvalidMessage("Invalid unset value for column i", "SELECT * from %s WHERE k = 1 AND i BETWEEN ? AND ?", 1, unset());
     }
 
     @Test
