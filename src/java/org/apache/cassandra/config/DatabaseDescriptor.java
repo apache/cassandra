@@ -2204,6 +2204,15 @@ public class DatabaseDescriptor
     public static Config.LCSEnforcementLevel getLCSEnforcementLevel() { return conf.lcs_enforcement_level; }
     public static void setLCSEnforcementLevel(Config.LCSEnforcementLevel level) { conf.lcs_enforcement_level = level; }
 
+    public static CompactionStrategyMigrationOptions getCompactionStrategyMigrationOptions()
+    {
+        return conf.compaction_strategy_migration_options;
+    }
+    public static void setCompactionStrategyMigrationOptions(CompactionStrategyMigrationOptions options)
+    {
+        conf.compaction_strategy_migration_options = options;
+    }
+
     public static int getConcurrentValidations()
     {
         return conf.concurrent_validations;

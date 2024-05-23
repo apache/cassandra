@@ -28,6 +28,8 @@ import com.google.common.collect.ImmutableList;
 
 import org.junit.Test;
 
+import org.apache.cassandra.schema.CompactionParams;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -80,6 +82,25 @@ public class CompactionStrategyMigrationOptionsTest
         // default to LCS
         assertEquals("{\"class\": \"org.apache.cassandra.db.compaction.LeveledCompactionStrategy\"}",
                      options.compaction_params_json);
+    }
+
+    public void testIsJsonValid()
+    {
+        assertTrue(CompactionStrategyMigrationOptions.isJsonValid("{\"class\": \"org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy\"}"));
+        assertTrue(CompactionStrategyMigrationOptions.isJsonValid("{\"class\": \"SizeTieredCompactionStrategy\"}"));
+        assertFalse(CompactionStrategyMigrationOptions.isJsonValid("{\"badformat\"}"));
+        assertFalse(CompactionStrategyMigrationOptions.isJsonValid("{\"class\": \"SizeTieredCompactionStrategy\", \"random\": \"32\"}"));
+        // need to specify class
+        assertFalse(CompactionStrategyMigrationOptions.isJsonValid("{\"max_threshold\": \"32\"}"));
+    }
+
+    @Test
+    public void testParseCompactionParamsJson()
+    {
+        CompactionParams params = CompactionStrategyMigrationOptions.parseCompactionParamsJson("{\"class\": \"SizeTieredCompactionStrategy\", \"min_threshold\": \"3\", \"max_threshold\": \"64\"}");
+        assertEquals("SizeTieredCompactionStrategy", params.klass().getSimpleName());
+        assertEquals(3, params.minCompactionThreshold());
+        assertEquals(64, params.maxCompactionThreshold());
     }
 
     private static Config testYaml(boolean expectFailure, List<String> config) throws IOException

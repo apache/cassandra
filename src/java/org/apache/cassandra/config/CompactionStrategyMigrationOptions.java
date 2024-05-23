@@ -21,8 +21,16 @@ package org.apache.cassandra.config;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.schema.CompactionParams;
+import org.apache.cassandra.utils.FBUtilities;
+
 public class CompactionStrategyMigrationOptions
 {
+    private static final Logger logger = LoggerFactory.getLogger(CompactionStrategyMigrationOptions.class);
+
     public final boolean enabled;
 
     public final String compaction_params_json;
@@ -45,5 +53,24 @@ public class CompactionStrategyMigrationOptions
     {
         this.enabled = enabled;
         this.compaction_params_json = compactionParamsJson;
+    }
+
+    public static boolean isJsonValid(String json)
+    {
+        try
+        {
+            parseCompactionParamsJson(json).validate();
+        }
+        catch (Exception e)
+        {
+            logger.warn("exception occured when validating compaction params Json: ", e);
+            return false;
+        }
+        return true;
+    }
+
+    public static CompactionParams parseCompactionParamsJson(String paramsJson)
+    {
+        return CompactionParams.fromMap(FBUtilities.fromJsonMap(paramsJson));
     }
 }

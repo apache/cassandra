@@ -60,6 +60,7 @@ import org.apache.cassandra.db.SizeEstimatesRecorder;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.SystemKeyspaceMigrator41;
 import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.db.compaction.CompactionStrategyMigrationManager;
 import org.apache.cassandra.db.virtual.SystemViewsKeyspace;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.db.virtual.VirtualSchemaKeyspace;
@@ -484,6 +485,9 @@ public class CassandraDaemon
             Gossiper.waitToSettle();
 
         StorageService.instance.doAuthSetup(false);
+
+        // override local compaction strategy if needed
+        CompactionStrategyMigrationManager.instance.mayOverrideLocalCompactionStrategy();
 
         // re-enable auto-compaction after gossip is settled, so correct disk boundaries are used
         for (Keyspace keyspace : Keyspace.all())
