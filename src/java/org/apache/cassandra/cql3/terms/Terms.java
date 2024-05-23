@@ -58,7 +58,7 @@ public interface Terms
         @Override
         public List<Terminal> asList()
         {
-            throw new UnsupportedOperationException();
+            throw new UnsupportedOperationException("Cannot convert UNSET_TERMINALS to a list of terminals");
         }
 
         @Override
@@ -159,6 +159,16 @@ public interface Terms
     }
 
     /**
+     * Converts these {@code Terms} into a {@code List} of {@code Term}.
+     * @return a {@code List} of {@code Term}.
+     * @throws UnsupportedOperationException if the conversion is not supported.
+     */
+    default List<? extends Term> asList()
+    {
+        throw new UnsupportedOperationException(this.getClass() + " cannot be converted in a list of Term");
+    }
+
+    /**
      * Checks if these {@code terms} knows that it contains a single {@code term}.
      * <p>
      * If the instance is a marker it will not know how many terms it represents and will return false.
@@ -198,6 +208,16 @@ public interface Terms
          * @return a String representation of the raw terms that can be used when reconstructing a CQL query string.
          */
         public abstract String getText();
+
+        /**
+         * Converts these {@code Terms.Raw} into a {@code List} of {@code Term.Raw} if supported.
+         * @return a {@code List} of {@code Term.Raw}.
+         * @throws UnsupportedOperationException if the conversion is not supported.
+         */
+        public List<? extends Term.Raw> asList()
+        {
+            throw new UnsupportedOperationException(this.getClass() + " cannot be converted in a list of Term.Raw");
+        }
 
         @Override
         public int hashCode()
@@ -257,6 +277,11 @@ public interface Terms
                 }
 
                 @Override
+                public List<? extends Term.Raw> asList() {
+                    return raws;
+                }
+
+                @Override
                 public AbstractType<?> getExactTypeIfKnown(String keyspace)
                 {
                     return null;
@@ -278,6 +303,11 @@ public interface Terms
                 public Terms prepare(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
                 {
                     return Terms.of(raw.prepare(keyspace, receiver));
+                }
+
+                @Override
+                public List<? extends Term.Raw> asList() {
+                    return Collections.singletonList(raw);
                 }
 
                 @Override
@@ -490,6 +520,11 @@ public interface Terms
                 }
 
                 @Override
+                public List<? extends Term> asList() {
+                    return Collections.singletonList(term);
+                }
+
+                @Override
                 public boolean containsSingleTerm()
                 {
                     return true;
@@ -560,6 +595,11 @@ public interface Terms
                         buffers.add(term.bindAndGetElements(options));
                     }
                     return buffers;
+                }
+
+                @Override
+                public List<? extends Term> asList() {
+                    return terms;
                 }
 
                 @Override
