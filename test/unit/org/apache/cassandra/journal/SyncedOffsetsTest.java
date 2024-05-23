@@ -57,9 +57,9 @@ public class SyncedOffsetsTest
 
         Descriptor descriptor = Descriptor.create(directory, System.currentTimeMillis(), 1);
 
-        SyncedOffsets active = SyncedOffsets.active(descriptor, syncOnMark);
+        SyncedOffsets active = SyncedOffsets.active(descriptor);
         for (int i = 0; i < n; i++)
-            active.mark(i);
+            active.mark(i, syncOnMark);
         assertEquals(n - 1, active.syncedOffset());
         active.close();
 

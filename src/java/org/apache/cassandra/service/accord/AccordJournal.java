@@ -297,6 +297,10 @@ public class AccordJournal implements IJournal, Shutdownable
     // TODO (alexp): tests for objects that go through AccordJournal
     private class JournalCallbacks implements AsyncCallbacks<Key, Object>
     {
+        private JournalCallbacks()
+        {
+        }
+
         /**
          * Queue up the record for either frame aggregation (if a protocol message) or frame application (if a frame).
          */
@@ -352,7 +356,7 @@ public class AccordJournal implements IJournal, Shutdownable
 
         private void onFrameWriteFailed(FrameRecord frame, FrameContext context, Throwable cause)
         {
-            // TODO: panic
+            // TODO (required): panic
         }
 
         @Override
@@ -364,7 +368,7 @@ public class AccordJournal implements IJournal, Shutdownable
         @Override
         public void onFlushFailed(Throwable cause)
         {
-            // TODO: panic
+            // TODO (required): panic
         }
     }
 

@@ -342,6 +342,7 @@ public class AccordCommandStore extends CommandStore implements CacheSize
     Runnable saveCommand(Command before, Command after)
     {
         Mutation mutation = AccordKeyspace.getCommandMutation(id, before, after, nextSystemTimestampMicros());
+        // TODO (required): make sure we test recovering when this has failed to be persisted
         return null != mutation ? mutation::applyUnsafe : null;
     }
 

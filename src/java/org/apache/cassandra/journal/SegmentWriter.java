@@ -101,9 +101,9 @@ final class SegmentWriter<K> implements Closeable
             throw new JournalWriteError(descriptor, file, e);
         }
 
-        try (SyncedOffsets syncedOffsets = SyncedOffsets.active(descriptor, true))
+        try (SyncedOffsets syncedOffsets = SyncedOffsets.active(descriptor))
         {
-            syncedOffsets.mark(position());
+            syncedOffsets.mark(position(), true);
         }
 
         index.persist(descriptor);

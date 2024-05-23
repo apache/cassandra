@@ -160,9 +160,6 @@ import static org.apache.cassandra.utils.Clock.Global.logInitializationOutcome;
 
 public class DatabaseDescriptor
 {
-    public static final String NO_ACCORD_PAXOS_STRATEGY_WITH_ACCORD_DISABLED_MESSAGE =
-    "Cannot use lwt_strategy \"accord\" while Accord transactions are disabled.";
-
     static
     {
         CHRONICLE_ANALYTICS_DISABLE.setBoolean(true);

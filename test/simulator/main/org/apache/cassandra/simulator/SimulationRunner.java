@@ -344,7 +344,7 @@ public class SimulationRunner
                 builder.debug(debugLevels, debugPrimaryKeys);
             }
 
-            Optional.ofNullable(lwtStrategy).ifPresent(builder::lwtStrategy);
+            Optional.ofNullable(lwtStrategy).ifPresent(builder::transactionalMode);
         }
 
         public void run(B builder) throws IOException

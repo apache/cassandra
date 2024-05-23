@@ -30,7 +30,7 @@ public class AccordSpec
 
     public volatile OptionaldPositiveInt shard_count = OptionaldPositiveInt.UNDEFINED;
 
-    public volatile DurationSpec.IntSecondsBound progress_log_schedule_delay = new DurationSpec.IntSecondsBound(1);
+    public volatile DurationSpec.IntMillisecondsBound progress_log_schedule_delay = new DurationSpec.IntMillisecondsBound(100);
 
     /**
      * When a barrier transaction is requested how many times to repeat attempting the barrier before giving up
@@ -79,7 +79,7 @@ public class AccordSpec
     {
         public int segmentSize = 32 << 20;
         public FailurePolicy failurePolicy = FailurePolicy.STOP;
-        public FlushMode flushMode = FlushMode.BATCH;
+        public FlushMode flushMode = FlushMode.PERIODIC;
         public DurationSpec.IntMillisecondsBound flushPeriod; // pulls default from 'commitlog_sync_period'
         public DurationSpec.IntMillisecondsBound periodicFlushLagBlock = new DurationSpec.IntMillisecondsBound("1500ms");
 
