@@ -60,6 +60,7 @@ import org.apache.cassandra.io.compress.LZ4Compressor;
 import org.apache.cassandra.io.filesystem.ListenableFileSystem;
 import org.apache.cassandra.io.util.FileSystems;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.service.paxos.BallotGenerator;
 import org.apache.cassandra.service.paxos.PaxosPrepare;
 import org.apache.cassandra.simulator.RandomSource.Choices;
@@ -198,7 +199,7 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
         protected HeapPool.Logged.Listener memoryListener;
         protected SimulatedTime.Listener timeListener = (i1, i2) -> {};
         protected LongConsumer onThreadLocalRandomCheck;
-        protected String lwtStrategy = "migration";
+        protected String transactionalMode = "full";
 
         public Builder<S> failures(Failures failures)
         {
@@ -575,10 +576,15 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
             return this;
         }
 
-        public Builder<S> lwtStrategy(String strategy)
+        public Builder<S> transactionalMode(String mode)
         {
-            this.lwtStrategy = strategy;
+            this.transactionalMode = mode;
             return this;
+        }
+
+        public TransactionalMode transactionalMode()
+        {
+            return TransactionalMode.fromString(transactionalMode);
         }
 
         public abstract ClusterSimulation<S> create(long seed) throws IOException;
@@ -774,7 +780,6 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
                                    .set("use_deterministic_table_id", true)
                                    .set("disk_access_mode", "standard")
                                    .set("failure_detector", SimulatedFailureDetector.Instance.class.getName())
-                                   .set("lwt_strategy", builder.lwtStrategy)
                                    .set("commitlog_compression", new ParameterizedClass(LZ4Compressor.class.getName(), emptyMap()));
                              ;
                              configUpdater.accept(threadAllocator.update(config));
@@ -866,6 +871,7 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
             simulated.register((SimulatedFutureActionScheduler) futureActionScheduler);
 
         scheduler = builder.schedulerFactory.create(random);
+        // TODO (required): we aren't passing paxos variant change parameter anymore
         options = new ClusterActions.Options(builder.topologyChangeLimit, Choices.uniform(KindOfSequence.values()).choose(random).period(builder.topologyChangeIntervalNanos, random),
                                              Choices.random(random, builder.topologyChanges),
                                              builder.consensusChangeLimit, Choices.uniform(KindOfSequence.values()).choose(random).period(builder.consensusChangeIntervalNanos, random),
