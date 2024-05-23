@@ -587,8 +587,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
 
         void complete()
         {
-            if (logger.isTraceEnabled())
-                logger.trace("Level: {}", this);
+            logger.trace("Level: {}", this);
         }
 
         /**
@@ -635,10 +634,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
                              index, sstables.size(), maxOverlap, buckets.size(), estimatedRemainingTasks);
 
             CompactionPick selected = selectedBucket.constructPick(controller);
-
-            if (logger.isTraceEnabled())
-                logger.trace("Returning compaction pick with selected compaction {}",
-                             selected);
+            logger.trace("Returning compaction pick with selected compaction {}", selected);
             return selected;
         }
 
@@ -665,8 +661,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
         {
             List<SSTableReader> liveSet = sstables;
 
-            if (logger.isTraceEnabled())
-                logger.trace("Creating compaction pick with live set {}", liveSet);
+            logger.trace("Creating compaction pick with live set {}", liveSet);
 
             List<Set<SSTableReader>> overlaps = Overlaps.constructOverlapSets(liveSet,
                                                                               UnifiedCompactionStrategy::startsAfter,

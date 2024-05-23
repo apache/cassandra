@@ -122,8 +122,7 @@ public final class DiagnosticEventPersistence
     private void onEvent(DiagnosticEvent event)
     {
         Class<? extends DiagnosticEvent> cls = event.getClass();
-        if (logger.isTraceEnabled())
-            logger.trace("Persisting received {} event", cls.getName());
+        logger.trace("Persisting received {} event", cls.getName());
         DiagnosticEventStore<Long> store = getStore(cls);
         store.store(event);
         LastEventIdBroadcaster.instance().setLastEventId(event.getClass().getName(), store.getLastEventId());

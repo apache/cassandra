@@ -81,9 +81,7 @@ public class MemtableCleanerThread<P extends MemtablePool> implements Interrupti
             else
             {
                 int numPendingTasks = this.numPendingTasks.incrementAndGet();
-
-                if (logger.isTraceEnabled())
-                    logger.trace("Invoking cleaner with {} tasks pending", numPendingTasks);
+                logger.trace("Invoking cleaner with {} tasks pending", numPendingTasks);
 
                 cleaner.clean().addCallback(this::apply);
             }

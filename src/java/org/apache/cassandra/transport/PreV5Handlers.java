@@ -214,10 +214,10 @@ public class PreV5Handlers
         {
             ClientMetrics.instance.markRequestDiscarded();
 
-            logger.trace("Discarded request of size {} with {} bytes in flight on channel. {} " + 
-                         "Global rate limiter: {} Request: {}",
-                         requestSize, channelPayloadBytesInFlight, endpointPayloadTracker,
-                         GLOBAL_REQUEST_LIMITER, request);
+            if (logger.isTraceEnabled())
+                logger.trace("Discarded request of size {} with {} bytes in flight on channel. {} Global rate limiter: {} Request: {}",
+                             requestSize, channelPayloadBytesInFlight, endpointPayloadTracker,
+                             GLOBAL_REQUEST_LIMITER, request);
 
             OverloadedException exception = overload == Overload.REQUESTS
                     ? new OverloadedException(String.format("Request breached global limit of %d requests/second. Server is " +

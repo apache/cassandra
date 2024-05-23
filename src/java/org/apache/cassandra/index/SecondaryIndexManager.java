@@ -1146,14 +1146,15 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
 
         int pageSize = (int) Math.max(1, Math.min(DEFAULT_PAGE_SIZE, targetPageSizeInBytes / meanRowSize));
 
-        logger.trace("Calculated page size {} for indexing {}.{} ({}/{}/{}/{})",
-                     pageSize,
-                     baseCfs.metadata.keyspace,
-                     baseCfs.metadata.name,
-                     meanPartitionSize,
-                     meanCellsPerPartition,
-                     meanRowsPerPartition,
-                     meanRowSize);
+        if (logger.isTraceEnabled())
+            logger.trace("Calculated page size {} for indexing {}.{} ({}/{}/{}/{})",
+                         pageSize,
+                         baseCfs.metadata.keyspace,
+                         baseCfs.metadata.name,
+                         meanPartitionSize,
+                         meanCellsPerPartition,
+                         meanRowsPerPartition,
+                         meanRowSize);
 
         return pageSize;
     }
