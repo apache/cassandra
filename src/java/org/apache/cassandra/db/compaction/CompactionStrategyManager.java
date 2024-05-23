@@ -177,7 +177,7 @@ public class CompactionStrategyManager implements INotificationConsumer
         holders = ImmutableList.of(transientRepairs, pendingRepairs, repaired, unrepaired);
 
         cfs.getTracker().subscribe(this);
-        logger.trace("{} subscribed to the data tracker.", this);
+        logger.trace("Compaction manager for {}.{} subscribed to the data tracker.", cfs.keyspace.getName(), cfs.name);
         this.cfs = cfs;
         this.compactionLogger = new CompactionLogger(cfs, this);
         this.boundariesSupplier = boundariesSupplier;

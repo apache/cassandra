@@ -348,7 +348,8 @@ public class CommitLog implements CommitLogMBean
      */
     public void discardCompletedSegments(final TableId id, final CommitLogPosition lowerBound, final CommitLogPosition upperBound)
     {
-        logger.trace("discard completed log segments for {}-{}, table {}", lowerBound, upperBound, id);
+        if (logger.isTraceEnabled())
+            logger.trace("discard completed log segments for {}-{}, table {}", lowerBound, upperBound, id);
 
         // Go thru the active segment files, which are ordered oldest to newest, marking the
         // flushed CF as clean, until we reach the segment file containing the CommitLogPosition passed
@@ -368,7 +369,7 @@ public class CommitLog implements CommitLogMBean
             {
                 if (logger.isTraceEnabled())
                     logger.trace("Not safe to delete{} commit log segment {}; dirty is {}",
-                            (iter.hasNext() ? "" : " active"), segment, segment.dirtyString());
+                                 (iter.hasNext() ? "" : " active"), segment, segment.dirtyString());
             }
 
             // Don't mark or try to delete any newer segments once we've reached the one containing the

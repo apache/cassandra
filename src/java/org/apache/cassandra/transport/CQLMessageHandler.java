@@ -274,12 +274,11 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
 
     private void logOverload(Limit endpointReserve, Limit globalReserve, Envelope.Header header, int messageSize)
     {
-        logger.trace("Discarded request of size {} with {} bytes in flight on channel. " + 
-                     "Using {}/{} bytes of endpoint limit and {}/{} bytes of global limit. " + 
-                     "Global rate limiter: {} Header: {}",
-                     messageSize, channelPayloadBytesInFlight,
-                     endpointReserve.using(), endpointReserve.limit(), globalReserve.using(), globalReserve.limit(),
-                     requestRateLimiter, header);
+        if (logger.isTraceEnabled())
+            logger.trace("Discarded request of size {} with {} bytes in flight on channel. Using {}/{} bytes of endpoint limit and {}/{} bytes of global limit. Global rate limiter: {} Header: {}",
+                         messageSize, channelPayloadBytesInFlight,
+                         endpointReserve.using(), endpointReserve.limit(), globalReserve.using(), globalReserve.limit(),
+                         requestRateLimiter, header);
     }
 
     private boolean handleProtocolException(ProtocolException exception,

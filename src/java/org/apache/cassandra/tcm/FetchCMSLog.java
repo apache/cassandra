@@ -105,7 +105,9 @@ public class FetchCMSLog
         {
             FetchCMSLog request = message.payload;
 
-            logger.trace("Received log fetch request {} from {}: start = {}, current = {}", request, message.from(), message.payload.lowerBound, ClusterMetadata.current().epoch);
+            if (logger.isTraceEnabled())
+                logger.trace("Received log fetch request {} from {}: start = {}, current = {}", request, message.from(), message.payload.lowerBound, ClusterMetadata.current().epoch);
+
             if (request.consistentFetch && !ClusterMetadataService.instance().isCurrentMember(FBUtilities.getBroadcastAddressAndPort()))
                 throw new NotCMSException("This node is not in the CMS, can't generate a consistent log fetch response to " + message.from());
 

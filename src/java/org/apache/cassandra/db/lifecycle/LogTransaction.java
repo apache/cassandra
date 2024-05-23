@@ -247,7 +247,7 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
         {
             if (!StorageService.instance.isDaemonSetupCompleted())
                 logger.info("Unfinished transaction log, deleting {} ", file);
-            else if (logger.isTraceEnabled())
+            else
                 logger.trace("Deleting {}", file);
 
             Files.delete(file.toPath());
@@ -395,8 +395,7 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
                 {
                     // If we can't successfully delete the DATA component, set the task to be retried later: see TransactionTidier
 
-                    if (logger.isTraceEnabled())
-                        logger.trace("Tidier running for old sstable {}", desc);
+                    logger.trace("Tidier running for old sstable {}", desc);
 
                     if (!desc.fileFor(Components.DATA).exists() && !wasNew)
                         logger.error("SSTableTidier ran with no existing data file for an sstable that was not new");

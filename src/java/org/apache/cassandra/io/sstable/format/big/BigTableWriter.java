@@ -282,8 +282,7 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
             }
             long indexEnd = writer.position();
 
-            if (logger.isTraceEnabled())
-                logger.trace("wrote index entry: {} at {}", indexEntry, indexStart);
+            logger.trace("wrote index entry: {} at {}", indexEntry, indexStart);
 
             summary.maybeAddEntry(key, indexStart, indexEnd, dataEnd);
         }

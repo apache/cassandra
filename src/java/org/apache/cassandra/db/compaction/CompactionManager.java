@@ -246,8 +246,10 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
         int count = compactingCF.count(cfs);
         if (count > 0 && executor.getActiveTaskCount() >= executor.getMaximumPoolSize())
         {
-            logger.trace("Background compaction is still running for {}.{} ({} remaining). Skipping",
-                         cfs.getKeyspaceName(), cfs.name, count);
+            if (logger.isTraceEnabled())
+                logger.trace("Background compaction is still running for {}.{} ({} remaining). Skipping",
+                             cfs.getKeyspaceName(), cfs.name, count);
+
             return Collections.emptyList();
         }
 
@@ -1439,10 +1441,9 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
         long totalkeysWritten = 0;
 
         long expectedBloomFilterSize = Math.max(cfs.metadata().params.minIndexInterval,
-                                               SSTableReader.getApproximateKeyCount(txn.originals()));
-        if (logger.isTraceEnabled())
-            logger.trace("Expected bloom filter size : {}", expectedBloomFilterSize);
+                                                SSTableReader.getApproximateKeyCount(txn.originals()));
 
+        logger.trace("Expected bloom filter size : {}", expectedBloomFilterSize);
         logger.info("Cleaning up {}", sstable);
 
         File compactionFileLocation = sstable.descriptor.directory;

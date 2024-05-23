@@ -133,8 +133,7 @@ public class TrieMemoryIndex extends MemoryIndex
      */
     public KeyRangeIterator search(QueryContext queryContext, Expression expression, AbstractBounds<PartitionPosition> keyRange)
     {
-        if (logger.isTraceEnabled())
-            logger.trace("Searching memtable index on expression '{}'...", expression);
+        logger.trace("Searching memtable index on expression '{}'...", expression);
 
         switch (expression.getIndexOperator())
         {

@@ -142,8 +142,7 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
 
     private Future<Result<SuccessType>> initiate(EventLoop eventLoop)
     {
-        if (logger.isTraceEnabled())
-            logger.trace("creating outbound bootstrap to {}", settings);
+        logger.trace("creating outbound bootstrap to {}", settings);
 
         if (!settings.authenticator.authenticate(settings.to.getAddress(), settings.to.getPort(), null, OUTBOUND_PRECONNECT))
         {
@@ -232,7 +231,8 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
                 InetAddressAndPort address = settings.to;
                 InetSocketAddress peer = settings.encryption.require_endpoint_verification ? new InetSocketAddress(address.getAddress(), address.getPort()) : null;
                 SslHandler sslHandler = newSslHandler(channel, sslContext, peer);
-                logger.trace("creating outbound netty SslContext: context={}, engine={}", sslContext.getClass().getName(), sslHandler.engine().getClass().getName());
+                if (logger.isTraceEnabled())
+                    logger.trace("creating outbound netty SslContext: context={}, engine={}", sslContext.getClass().getName(), sslHandler.engine().getClass().getName());
                 pipeline.addFirst(SSL_HANDLER_NAME, sslHandler);
             }
             pipeline.addLast("server-authentication", new ServerAuthenticationHandler(settings));

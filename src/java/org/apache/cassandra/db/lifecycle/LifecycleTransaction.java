@@ -347,8 +347,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
     }
     private Throwable checkpoint(Throwable accumulate)
     {
-        if (logger.isTraceEnabled())
-            logger.trace("Checkpointing staged {}", staged);
+        logger.trace("Checkpointing staged {}", staged);
 
         if (staged.isEmpty())
             return accumulate;

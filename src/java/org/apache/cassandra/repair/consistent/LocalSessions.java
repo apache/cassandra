@@ -717,7 +717,8 @@ public class LocalSessions
                                         session.getState(), state);
             if (expected != null && session.getState() != expected)
                 return false;
-            logger.trace("Changing LocalSession state from {} -> {} for {}", session.getState(), state, session.sessionID);
+            if (logger.isTraceEnabled())
+                logger.trace("Changing LocalSession state from {} -> {} for {}", session.getState(), state, session.sessionID);
             boolean wasCompleted = session.isCompleted();
             session.setState(state);
             session.setLastUpdate();

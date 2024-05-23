@@ -171,8 +171,9 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
         int remainingRows = limit - liveReturned;
         float rowsPerRange = (float) liveReturned / (float) rangesQueried;
         int concurrencyFactor = Math.max(1, Math.min(maxConcurrencyFactor, Math.round(remainingRows / rowsPerRange)));
-        logger.trace("Didn't get enough response rows; actual rows per range: {}; remaining rows: {}, new concurrent requests: {}",
-                     rowsPerRange, remainingRows, concurrencyFactor);
+        if (logger.isTraceEnabled())
+            logger.trace("Didn't get enough response rows; actual rows per range: {}; remaining rows: {}, new concurrent requests: {}",
+                         rowsPerRange, remainingRows, concurrencyFactor);
         return concurrencyFactor;
     }
 

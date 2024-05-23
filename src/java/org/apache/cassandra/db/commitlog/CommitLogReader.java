@@ -301,8 +301,7 @@ public class CommitLogReader
         while (statusTracker.shouldContinue() && reader.getFilePointer() < end && !reader.isEOF())
         {
             long mutationStart = reader.getFilePointer();
-            if (logger.isTraceEnabled())
-                logger.trace("Reading mutation at {}", mutationStart);
+            logger.trace("Reading mutation at {}", mutationStart);
 
             long claimedCRC32;
             int serializedSize;
@@ -324,7 +323,9 @@ public class CommitLogReader
                 serializedSize = reader.readInt();
                 if (serializedSize == LEGACY_END_OF_SEGMENT_MARKER)
                 {
-                    logger.trace("Encountered end of segment marker at {}", reader.getFilePointer());
+                    if (logger.isTraceEnabled())
+                        logger.trace("Encountered end of segment marker at {}", reader.getFilePointer());
+
                     statusTracker.requestTermination();
                     return;
                 }
@@ -471,8 +472,10 @@ public class CommitLogReader
         }
 
         if (logger.isTraceEnabled())
-            logger.trace("Read mutation for {}.{}: {}", mutation.getKeyspaceName(), mutation.key(),
-                         "{" + StringUtils.join(mutation.getPartitionUpdates().iterator(), ", ") + "}");
+            logger.trace("Read mutation for {}.{}: {{}}",
+                         mutation.getKeyspaceName(),
+                         mutation.key(),
+                         StringUtils.join(mutation.getPartitionUpdates().iterator(), ", "));
 
         if (shouldReplay)
             handler.handleMutation(mutation, size, entryLocation, desc);

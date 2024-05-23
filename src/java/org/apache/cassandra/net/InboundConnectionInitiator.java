@@ -322,7 +322,8 @@ public class InboundConnectionInitiator
             }
 
             assert initiate.acceptVersions != null;
-            logger.trace("Connection version {} (min {}) from {}", initiate.acceptVersions.max, initiate.acceptVersions.min, initiate.from);
+            if (logger.isTraceEnabled())
+                logger.trace("Connection version {} (min {}) from {}", initiate.acceptVersions.max, initiate.acceptVersions.min, initiate.from);
 
             final AcceptVersions accept;
 

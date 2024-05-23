@@ -252,8 +252,7 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter, I 
         if (first == null)
             first = lastWrittenKey;
 
-        if (logger.isTraceEnabled())
-            logger.trace("wrote {} at {}", key, endPosition);
+        logger.trace("wrote {} at {}", key, endPosition);
 
         return createRowIndexEntry(key, partitionLevelDeletion, finishResult);
     }
