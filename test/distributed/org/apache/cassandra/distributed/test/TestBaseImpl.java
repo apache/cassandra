@@ -36,6 +36,7 @@ import com.google.common.collect.ImmutableSet;
 import org.junit.After;
 import org.junit.BeforeClass;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.cql3.Duration;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BooleanType;
@@ -62,6 +63,8 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.shared.DistributedTestBase;
 import org.apache.cassandra.service.accord.AccordStateCache;
 
+import static java.lang.System.currentTimeMillis;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JOIN_RING;
 import static org.apache.cassandra.config.CassandraRelevantProperties.RESET_BOOTSTRAP_PROGRESS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SKIP_GC_INSPECTOR;
@@ -81,6 +84,7 @@ public class TestBaseImpl extends DistributedTestBase
     @BeforeClass
     public static void beforeClass() throws Throwable
     {
+        CassandraRelevantProperties.SIMULATOR_STARTED.setString(Long.toString(MILLISECONDS.toSeconds(currentTimeMillis())));
         ICluster.setup();
         SKIP_GC_INSPECTOR.setBoolean(true);
         AccordStateCache.validateLoadOnEvict(true);

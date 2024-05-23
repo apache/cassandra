@@ -1017,7 +1017,7 @@ public class ByteBufferUtil
 
     public static void writeLeastSignificantBytes(long register, int bytes, ByteBuffer out)
     {
-        writeMostSignificantBytesSlow(register << ((8 - bytes)*8), bytes, out);
+        writeMostSignificantBytes(register << ((8 - bytes)*8), bytes, out);
     }
 
     public static void writeMostSignificantBytes(long register, int bytes, ByteBuffer out)

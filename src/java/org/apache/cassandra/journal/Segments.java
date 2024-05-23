@@ -98,6 +98,21 @@ class Segments<K, V>
                 into.add(segment.asActive());
     }
 
+    ActiveSegment<K, V> oldestActive()
+    {
+        Segment<K, V> oldest = null;
+        for (Segment<K, V> segment : segments.values())
+            if (segment.isActive() && (oldest == null || segment.descriptor.timestamp <= oldest.descriptor.timestamp))
+                oldest = segment;
+
+        return oldest == null ? null : oldest.asActive();
+    }
+
+    Segment<K, V> get(long timestamp)
+    {
+        return segments.get(timestamp);
+    }
+
     void selectStatic(Collection<StaticSegment<K, V>> into)
     {
         for (Segment<K, V> segment : segments.values())

@@ -301,7 +301,7 @@ public class AccordService implements IAccordService, Shutdownable
 
     public static long uniqueNow()
     {
-        // TODO (correctness, now): This is not unique it's just currentTimeMillis as microseconds
+        // TODO (now, correctness): This is not unique it's just currentTimeMillis as microseconds
         return TimeUnit.MILLISECONDS.toMicros(Clock.Global.currentTimeMillis());
     }
 

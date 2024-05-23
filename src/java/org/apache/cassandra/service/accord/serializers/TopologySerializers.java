@@ -19,6 +19,7 @@
 package org.apache.cassandra.service.accord.serializers;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Set;
 
@@ -46,7 +47,7 @@ public class TopologySerializers
     {
         private NodeIdSerializer() {}
 
-        private static void serialize(Node.Id id, DataOutputPlus out) throws IOException
+        public static void serialize(Node.Id id, DataOutputPlus out) throws IOException
         {
             out.writeInt(id.id);
         }
@@ -68,7 +69,12 @@ public class TopologySerializers
             return accessor.putInt(dst, offset, id.id);
         }
 
-        private static Node.Id deserialize(DataInputPlus in) throws IOException
+        public void serialize(Node.Id id, ByteBuffer out)
+        {
+            out.putInt(id.id);
+        }
+
+        public static Node.Id deserialize(DataInputPlus in) throws IOException
         {
             return new Node.Id(in.readInt());
         }
@@ -88,6 +94,11 @@ public class TopologySerializers
         public <V> Node.Id deserialize(V src, ValueAccessor<V> accessor, int offset)
         {
             return new Node.Id(accessor.getInt(src, offset));
+        }
+
+        public <V> Node.Id deserialize(ByteBuffer src, int position)
+        {
+            return new Node.Id(src.getInt(position));
         }
 
         public int serializedSize()

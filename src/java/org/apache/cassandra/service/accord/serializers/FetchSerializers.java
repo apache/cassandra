@@ -178,17 +178,8 @@ public class FetchSerializers
             Writes writes = CommandSerializers.nullableWrites.deserialize(in, version);
 
             Result result = null;
-            switch (maxSaveStatus)
-            {
-                case PreApplied:
-                case Applying:
-                case Applied:
-                case TruncatedApply:
-                case TruncatedApplyWithOutcome:
-                case TruncatedApplyWithDeps:
-                    result = CommandSerializers.APPLIED;
-                    break;
-            }
+            if (achieved.outcome.isOrWasApply())
+                result = CommandSerializers.APPLIED;
 
             return Propagate.SerializerSupport.create(txnId,
                                                       route,

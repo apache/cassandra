@@ -16,7 +16,7 @@
   ~ limitations under the License.
   -->
 
-<configuration debug="false" scan="true" scanPeriod="60 seconds">
+<configuration debug="true" scan="true" scanPeriod="60 seconds">
   <define name="run_start" class="org.apache.cassandra.simulator.logging.RunStartDefiner" scope="system"/>
   <define name="run_seed" class="org.apache.cassandra.simulator.logging.SeedDefiner" scope="system"/>
   <define name="cluster_id" class="org.apache.cassandra.distributed.impl.ClusterIDDefiner"/>

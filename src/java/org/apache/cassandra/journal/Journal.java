@@ -35,6 +35,7 @@ import java.util.zip.CRC32;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.utils.Invariants;
 import com.codahale.metrics.Timer.Context;
 import org.agrona.collections.ObjectHashSet;
 import org.apache.cassandra.concurrent.Interruptible;
@@ -456,9 +457,6 @@ public class Journal<K, V> implements Shutdownable
         // signal the allocator thread to prepare a new segment
         wakeAllocator();
 
-        if (null != oldSegment)
-            closeActiveSegmentAndOpenAsStatic(oldSegment);
-
         // request that the journal be flushed out-of-band, as we've finished a segment
         flusher.requestExtraFlush();
     }
@@ -659,6 +657,53 @@ public class Journal<K, V> implements Shutdownable
         segments().selectActive(currentSegment.descriptor.timestamp, into);
     }
 
+    ActiveSegment<K, V> oldestActiveSegment()
+    {
+        ActiveSegment<K, V> current = currentSegment;
+        if (current == null)
+            return null;
+
+        ActiveSegment<K, V> oldest = segments().oldestActive();
+        if (oldest == null || oldest.descriptor.timestamp > current.descriptor.timestamp)
+            return current;
+
+        return oldest;
+    }
+
+    ActiveSegment<K, V> currentActiveSegment()
+    {
+        return currentSegment;
+    }
+
+    ActiveSegment<K, V> getActiveSegment(long timestamp)
+    {
+        // we can race with segment addition to the segments() collection, with a new segment appearing in currentSegment first
+        // since we are most likely to be requesting the currentSegment anyway, we resolve this case by checking currentSegment first
+        // and resort to the segments() collection only if we do not match
+        ActiveSegment<K, V> currentSegment = this.currentSegment;
+        if (currentSegment == null)
+            throw new IllegalArgumentException("Requested an active segment with timestamp " + timestamp + " but there is no currently active segment");
+        long currentSegmentTimestamp = currentSegment.descriptor.timestamp;
+        if (timestamp == currentSegmentTimestamp)
+        {
+            return currentSegment;
+        }
+        else if (timestamp > currentSegmentTimestamp)
+        {
+            throw new IllegalArgumentException("Requested a newer timestamp " + timestamp + " than the current active segment " + currentSegmentTimestamp);
+        }
+        else
+        {
+            Segment<K, V> segment = segments().get(timestamp);
+            Invariants.checkState(segment != null, "Segment %d expected to be found, but neither current segment %d nor in active segments", timestamp, currentSegmentTimestamp);
+            if (segment == null)
+                throw new IllegalArgumentException("Request the active segment " + timestamp + " but this segment does not exist");
+            if (!segment.isActive())
+                throw new IllegalArgumentException("Request the active segment " + timestamp + " but this segment is not active");
+            return segment.asActive();
+        }
+    }
+
     /**
      * Take care of a finished active segment:
      * 1. discard tail
@@ -681,7 +726,7 @@ public class Journal<K, V> implements Shutdownable
         public void run()
         {
             activeSegment.discardUnusedTail();
-            activeSegment.flush();
+            activeSegment.flush(true);
             activeSegment.persistComponents();
             replaceCompletedSegment(activeSegment, StaticSegment.open(activeSegment.descriptor, keySupport));
             activeSegment.release();

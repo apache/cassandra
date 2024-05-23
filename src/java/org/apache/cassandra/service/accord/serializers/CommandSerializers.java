@@ -19,6 +19,7 @@
 package org.apache.cassandra.service.accord.serializers;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 
 import com.google.common.base.Preconditions;
 
@@ -99,6 +100,13 @@ public class CommandSerializers
             TopologySerializers.nodeId.serialize(ts.node, out, version);
         }
 
+        public void serialize(T ts, DataOutputPlus out) throws IOException
+        {
+            out.writeLong(ts.msb);
+            out.writeLong(ts.lsb);
+            TopologySerializers.NodeIdSerializer.serialize(ts.node, out);
+        }
+
         public <V> int serialize(T ts, V dst, ValueAccessor<V> accessor, int offset)
         {
             int position = offset;
@@ -110,12 +118,26 @@ public class CommandSerializers
             return size;
         }
 
+        public void serialize(T ts, ByteBuffer out)
+        {
+            out.putLong(ts.msb);
+            out.putLong(ts.lsb);
+            TopologySerializers.nodeId.serialize(ts.node, out);
+        }
+
         @Override
         public T deserialize(DataInputPlus in, int version) throws IOException
         {
             return factory.create(in.readLong(),
                                   in.readLong(),
                                   TopologySerializers.nodeId.deserialize(in, version));
+        }
+
+        public T deserialize(DataInputPlus in) throws IOException
+        {
+            return factory.create(in.readLong(),
+                                  in.readLong(),
+                                  TopologySerializers.NodeIdSerializer.deserialize(in));
         }
 
         public <V> T deserialize(V src, ValueAccessor<V> accessor, int offset)
@@ -125,6 +147,16 @@ public class CommandSerializers
             long lsb = accessor.getLong(src, offset);
             offset += TypeSizes.LONG_SIZE;
             Node.Id node = TopologySerializers.nodeId.deserialize(src, accessor, offset);
+            return factory.create(msb, lsb, node);
+        }
+
+        public T deserialize(ByteBuffer buffer, int position)
+        {
+            long msb = buffer.getLong(position);
+            position += TypeSizes.LONG_SIZE;
+            long lsb = buffer.getLong(position);
+            position += TypeSizes.LONG_SIZE;
+            Node.Id node = TopologySerializers.nodeId.deserialize(buffer, position);
             return factory.create(msb, lsb, node);
         }
 
