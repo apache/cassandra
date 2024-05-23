@@ -269,6 +269,11 @@ public enum Operator
     },
     IN(7)
     {
+        @Override
+        public Kind kind() {
+            return Kind.MULTI_VALUE;
+        }
+
         public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
         {
             ListSerializer<?> serializer = ListType.getInstance(type, false).getSerializer();
@@ -514,6 +519,11 @@ public enum Operator
         final Comparator<ClusteringElements> comparator = new ClusteringElements.ClusteringElementsComparator(true);
 
         @Override
+        public Kind kind() {
+            return Kind.TERNARY;
+        }
+
+        @Override
         public String toString()
         {
             return "BETWEEN";
@@ -556,6 +566,14 @@ public enum Operator
     };
 
     /**
+     * The different kinds of operators
+     */
+    public enum Kind
+    {
+        BINARY, TERNARY, MULTI_VALUE;
+    };
+
+    /**
      * The binary representation of this <code>Enum</code> value.
      */
     private final int b;
@@ -583,6 +601,24 @@ public enum Operator
     public int getValue()
     {
         return b;
+    }
+
+    /**
+     * Returns the kind of this operator.
+     * @return the kind of this operator
+     */
+    public Kind kind()
+    {
+        return Kind.BINARY;
+    }
+
+    /**
+     * Checks if this operator is a ternary operator.
+     * @return {@code true} if this operator is a ternary operator, {@code false} otherwise.
+     */
+    public boolean isTernary()
+    {
+        return kind() == Kind.TERNARY;
     }
 
     /**

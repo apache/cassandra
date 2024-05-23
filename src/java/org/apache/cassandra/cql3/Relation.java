@@ -226,12 +226,10 @@ public final class Relation
      */
     public String toCQLString()
     {
-        if (operator == Operator.BETWEEN) {
-
-            return String.format("%s %s %s", rawExpressions.toCQLString(), operator, rawTerms.getText()
-                                                                                             .replace(", ", " AND ")
-                                                                                             .replace("(", "")
-                                                                                             .replace(")", ""));
+        if (operator.isTernary())
+        {
+            List<? extends Term.Raw> terms = rawTerms.asList();
+            return String.format("%s %s %s AND %s", rawExpressions.toCQLString(), operator, terms.get(0), terms.get(1));
         }
         return String.format("%s %s %s", rawExpressions.toCQLString(), operator, rawTerms.getText());
     }
