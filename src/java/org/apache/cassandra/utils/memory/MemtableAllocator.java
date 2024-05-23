@@ -208,8 +208,7 @@ public abstract class MemtableAllocator
 
             if (state == LifeCycle.DISCARDING)
             {
-                if (logger.isTraceEnabled())
-                    logger.trace("Allocated {} bytes whilst discarding", size);
+                logger.trace("Allocated {} bytes whilst discarding", size);
                 updateReclaiming();
             }
         }
@@ -226,8 +225,7 @@ public abstract class MemtableAllocator
 
             if (state == LifeCycle.DISCARDING)
             {
-                if (logger.isTraceEnabled())
-                    logger.trace("Allocated {} bytes whilst discarding", size);
+                logger.trace("Allocated {} bytes whilst discarding", size);
                 updateReclaiming();
             }
         }
@@ -250,8 +248,7 @@ public abstract class MemtableAllocator
             }
             else
             {
-                if (logger.isTraceEnabled())
-                    logger.trace("Tried to release {} bytes whilst discarding", size);
+                logger.trace("Tried to release {} bytes whilst discarding", size);
             }
         }
 

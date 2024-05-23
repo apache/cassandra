@@ -362,13 +362,12 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
             return;
         }
         double phi = hbWnd.phi(now);
-        if (logger.isTraceEnabled())
-            logger.trace("PHI for {} : {}", ep, phi);
+        logger.trace("PHI for {} : {}", ep, phi);
 
         if (PHI_FACTOR * phi > getPhiConvictThreshold())
         {
             if (logger.isTraceEnabled())
-                logger.trace("Node {} phi {} > {}; intervals: {} mean: {}ns", new Object[]{ep, PHI_FACTOR * phi, getPhiConvictThreshold(), hbWnd, hbWnd.mean()});
+                logger.trace("Node {} phi {} > {}; intervals: {} mean: {}ns", ep, PHI_FACTOR * phi, getPhiConvictThreshold(), hbWnd, hbWnd.mean());
             for (IFailureDetectionEventListener listener : fdEvntListeners)
             {
                 listener.convict(ep, phi);

@@ -172,8 +172,9 @@ public class CompactionController extends AbstractCompactionController
                 if (candidate.getMaxLocalDeletionTime() < gcBefore)
                 {
                     fullyExpired.add(candidate);
-                    logger.trace("Dropping overlap ignored expired SSTable {} (maxLocalDeletionTime={}, gcBefore={})",
-                                 candidate, candidate.getMaxLocalDeletionTime(), gcBefore);
+                    if (logger.isTraceEnabled())
+                        logger.trace("Dropping overlap ignored expired SSTable {} (maxLocalDeletionTime={}, gcBefore={})",
+                                     candidate, candidate.getMaxLocalDeletionTime(), gcBefore);
                 }
             }
             return fullyExpired;
@@ -219,8 +220,9 @@ public class CompactionController extends AbstractCompactionController
             }
             else
             {
-               logger.trace("Dropping expired SSTable {} (maxLocalDeletionTime={}, gcBefore={})",
-                        candidate, candidate.getMaxLocalDeletionTime(), gcBefore);
+                if (logger.isTraceEnabled())
+                    logger.trace("Dropping expired SSTable {} (maxLocalDeletionTime={}, gcBefore={})",
+                                 candidate, candidate.getMaxLocalDeletionTime(), gcBefore);
             }
         }
         return new HashSet<>(candidates);

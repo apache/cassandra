@@ -220,7 +220,7 @@ public final class FileUtils
         catch (FSWriteError fse)
         {
             if (logger.isTraceEnabled())
-                logger.trace("Could not hardlink file " + from + " to " + to, fse);
+                logger.trace("Could not hardlink file {} to {}", from, to, fse);
         }
     }
 
@@ -238,7 +238,7 @@ public final class FileUtils
         catch (IOException e)
         {
             if (logger.isTraceEnabled())
-                logger.trace("Could not copy file" + from + " to " + to, e);
+                logger.trace("Could not copy file {} to {}", from, to, e);
         }
     }
 

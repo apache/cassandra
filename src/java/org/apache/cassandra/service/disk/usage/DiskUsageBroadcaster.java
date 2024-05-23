@@ -91,10 +91,7 @@ public class DiskUsageBroadcaster implements IEndpointStateChangeSubscriber
     public void startBroadcasting()
     {
         monitor.start(newState -> {
-
-            if (logger.isTraceEnabled())
-                logger.trace("Disseminating disk usage info: {}", newState);
-
+            logger.trace("Disseminating disk usage info: {}", newState);
             Gossiper.instance.addLocalApplicationState(ApplicationState.DISK_USAGE,
                                                        StorageService.instance.valueFactory.diskUsage(newState.name()));
         });

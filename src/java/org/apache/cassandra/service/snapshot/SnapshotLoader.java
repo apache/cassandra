@@ -113,7 +113,7 @@ public class SnapshotLoader
 
             if (subdir.getParent().getFileName().toString().equals(SNAPSHOT_SUBDIR))
             {
-                logger.trace("Processing directory " + subdir);
+                logger.trace("Processing directory {}", subdir);
                 Matcher snapshotDirMatcher = SNAPSHOT_DIR_PATTERN.matcher(subdir.toString());
                 if (snapshotDirMatcher.find())
                 {

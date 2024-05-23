@@ -459,7 +459,8 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
                     List<Range<Token>> toFetch = new ArrayList<>(streamsFor.get(fetchFrom));
                     assert !toFetch.isEmpty();
 
-                    logger.trace("{} is about to fetch {} from {}", address, toFetch, fetchFrom);
+                    if (logger.isTraceEnabled())
+                        logger.trace("{} is about to fetch {} from {}", address, toFetch, fetchFrom);
                     SyncTask task;
                     if (address.equals(local))
                     {
