@@ -50,7 +50,9 @@ interface SyncedOffsets extends Closeable
      *
      * @param offset the offset into datafile, up to which contents have been fsynced (exclusive)
      */
-    void mark(int offset);
+    void mark(int offset, boolean fsync);
+
+    void fsync();
 
     @Override
     default void close()
@@ -60,9 +62,9 @@ interface SyncedOffsets extends Closeable
     /**
      * @return a disk-backed synced offset tracker for a new {@link ActiveSegment}
      */
-    static Active active(Descriptor descriptor, boolean syncOnMark)
+    static Active active(Descriptor descriptor)
     {
-        return new Active(descriptor, syncOnMark);
+        return new Active(descriptor);
     }
 
     /**
@@ -87,15 +89,13 @@ interface SyncedOffsets extends Closeable
     final class Active implements SyncedOffsets
     {
         private final Descriptor descriptor;
-        private final boolean syncOnMark;
 
         private final FileOutputStreamPlus output;
         private volatile int syncedOffset;
 
-        private Active(Descriptor descriptor, boolean syncOnMark)
+        private Active(Descriptor descriptor)
         {
             this.descriptor = descriptor;
-            this.syncOnMark = syncOnMark;
 
             File file = descriptor.fileFor(Component.SYNCED_OFFSETS);
             if (file.exists())
@@ -123,7 +123,7 @@ interface SyncedOffsets extends Closeable
         }
 
         @Override
-        public void mark(int offset)
+        public void mark(int offset, boolean fsync)
         {
             if (offset < syncedOffset)
                 throw new IllegalArgumentException("offset " + offset + " is smaller than previous mark " + offset);
@@ -142,10 +142,10 @@ interface SyncedOffsets extends Closeable
             }
 
             syncedOffset = offset;
-            if (syncOnMark) sync();
+            if (fsync) fsync();
         }
 
-        private void sync()
+        public void fsync()
         {
             try
             {
@@ -160,7 +160,7 @@ interface SyncedOffsets extends Closeable
         @Override
         public void close()
         {
-            if (!syncOnMark) sync();
+            fsync();
 
             try
             {
@@ -218,7 +218,13 @@ interface SyncedOffsets extends Closeable
         }
 
         @Override
-        public void mark(int offset)
+        public void mark(int offset, boolean fsync)
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void fsync()
         {
             throw new UnsupportedOperationException();
         }
@@ -235,7 +241,13 @@ interface SyncedOffsets extends Closeable
         }
 
         @Override
-        public void mark(int offset)
+        public void mark(int offset, boolean fsync)
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void fsync()
         {
             throw new UnsupportedOperationException();
         }

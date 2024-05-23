@@ -97,9 +97,8 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
-import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
-import org.apache.cassandra.db.filter.ClusteringIndexSliceFilter;
+import org.apache.cassandra.db.filter.ClusteringIndexNamesFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.RowFilter;
@@ -161,6 +160,7 @@ import org.apache.cassandra.service.accord.serializers.WaitingOnSerializer;
 import org.apache.cassandra.utils.Clock.Global;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.btree.BTree;
+import org.apache.cassandra.utils.btree.BTreeSet;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
 import static accord.utils.Invariants.checkArgument;
@@ -201,7 +201,7 @@ public class AccordKeyspace
     private static final LocalPartitioner FOR_KEYS_LOCAL_PARTITIONER =
         new LocalPartitioner(CompositeType.getInstance(Int32Type.instance, BytesType.instance, KEY_TYPE));
 
-    private static final ClusteringIndexFilter FULL_PARTITION = new ClusteringIndexSliceFilter(Slices.ALL, false);
+    private static final ClusteringIndexFilter FULL_PARTITION = new ClusteringIndexNamesFilter(BTreeSet.of(new ClusteringComparator(), Clustering.EMPTY), false);
 
     //TODO (now, performance): should this be partitioner rather than TableId?  As of this patch distributed tables should only have 1 partitioner...
     private static final ConcurrentMap<TableId, AccordRoutingKeyByteSource.Serializer> TABLE_SERIALIZERS = new ConcurrentHashMap<>();
@@ -571,6 +571,8 @@ public class AccordKeyspace
               + "data blob, "
               + "PRIMARY KEY((store_id, key_token, key))"
               + ')')
+               // TODO (expected): make this uncompressed, as not very compressable (except perhaps the primary key, but could switch to operating on tokens directly)
+//               + " WITH compression = {'enabled':'false'};")
         .partitioner(FOR_KEYS_LOCAL_PARTITIONER)
         .build();
     }
@@ -992,12 +994,12 @@ public class AccordKeyspace
 
     public static UntypedResultSet loadCommandRow(CommandStore commandStore, TxnId txnId)
     {
-        String cql = "SELECT * FROM %s.%s " +
+        String cql = "SELECT * FROM " + ACCORD_KEYSPACE_NAME + '.' + COMMANDS + ' ' +
                      "WHERE store_id = ? " +
                      "AND domain = ? " +
                      "AND txn_id=(?, ?, ?)";
 
-        return executeInternal(format(cql, ACCORD_KEYSPACE_NAME, COMMANDS),
+        return executeInternal(cql,
                                commandStore.id(),
                                txnId.domain().ordinal(),
                                txnId.msb, txnId.lsb, txnId.node.id);
@@ -1404,12 +1406,12 @@ public class AccordKeyspace
 
     public static UntypedResultSet loadTimestampsForKeyRow(CommandStore commandStore, PartitionKey key)
     {
-        String cql = "SELECT * FROM %s.%s " +
+        String cql = "SELECT * FROM " + ACCORD_KEYSPACE_NAME + '.' + TIMESTAMPS_FOR_KEY + ' ' +
                      "WHERE store_id = ? " +
                      "AND key_token = ? " +
                      "AND key=(?, ?)";
 
-        return executeInternal(format(cql, ACCORD_KEYSPACE_NAME, TIMESTAMPS_FOR_KEY),
+        return executeInternal(cql,
                                commandStore.id(),
                                serializeToken(key.token()),
                                key.table().asUUID(), key.partitionKey().getKey());
@@ -1624,9 +1626,9 @@ public class AccordKeyspace
 
     private static EpochDiskState saveEpochDiskState(EpochDiskState diskState)
     {
-        String cql = "INSERT INTO %s.%s (key, min_epoch, max_epoch) VALUES (0, ?, ?);";
-        executeInternal(format(cql, ACCORD_KEYSPACE_NAME, EPOCH_METADATA),
-                        diskState.minEpoch, diskState.maxEpoch);
+        String cql = "INSERT INTO " + ACCORD_KEYSPACE_NAME + '.' + EPOCH_METADATA + ' ' +
+                     "(key, min_epoch, max_epoch) VALUES (0, ?, ?);";
+        executeInternal(cql, diskState.minEpoch, diskState.maxEpoch);
         return diskState;
     }
 
@@ -1634,7 +1636,8 @@ public class AccordKeyspace
     @VisibleForTesting
     public static EpochDiskState loadEpochDiskState()
     {
-        String cql = "SELECT * FROM %s.%s WHERE key=0";
+        String cql = "SELECT * FROM " + ACCORD_KEYSPACE_NAME + '.' + EPOCH_METADATA + ' ' +
+                     "WHERE key=0";
         UntypedResultSet result = executeInternal(format(cql, ACCORD_KEYSPACE_NAME, EPOCH_METADATA));
         if (result.isEmpty())
             return null;
@@ -1668,8 +1671,9 @@ public class AccordKeyspace
 
         try
         {
-            String cql = "UPDATE %s.%s SET topology=? WHERE epoch=?";
-            executeInternal(format(cql, ACCORD_KEYSPACE_NAME, TOPOLOGIES),
+            String cql = "UPDATE " + ACCORD_KEYSPACE_NAME + '.' + TOPOLOGIES + ' ' +
+                         "SET topology=? WHERE epoch=?";
+            executeInternal(cql,
                             serialize(topology, LocalVersionedSerializers.topology), topology.epoch());
             flush(Topologies);
         }
@@ -1684,8 +1688,9 @@ public class AccordKeyspace
     public static EpochDiskState markRemoteTopologySync(Node.Id node, long epoch, EpochDiskState diskState)
     {
         diskState = maybeUpdateMaxEpoch(diskState, epoch);
-        String cql = "UPDATE %s.%s SET remote_sync_complete = remote_sync_complete + ? WHERE epoch = ?";
-        executeInternal(format(cql, ACCORD_KEYSPACE_NAME, TOPOLOGIES),
+        String cql = "UPDATE " + ACCORD_KEYSPACE_NAME + '.' + TOPOLOGIES + ' ' +
+                     "SET remote_sync_complete = remote_sync_complete + ? WHERE epoch = ?";
+        executeInternal(cql,
                         Collections.singleton(node.id), epoch);
         flush(Topologies);
         return diskState;
@@ -1694,8 +1699,9 @@ public class AccordKeyspace
     public static EpochDiskState markClosed(Ranges ranges, long epoch, EpochDiskState diskState)
     {
         diskState = maybeUpdateMaxEpoch(diskState, epoch);
-        String cql = "UPDATE %s.%s SET closed = closed + ? WHERE epoch = ?";
-        executeInternal(String.format(cql, ACCORD_KEYSPACE_NAME, TOPOLOGIES),
+        String cql = "UPDATE " + ACCORD_KEYSPACE_NAME + '.' + TOPOLOGIES + ' ' +
+                     "SET closed = closed + ? WHERE epoch = ?";
+        executeInternal(cql,
                         KeySerializers.rangesToBlobMap(ranges), epoch);
         flush(Topologies);
         return diskState;
@@ -1704,8 +1710,9 @@ public class AccordKeyspace
     public static EpochDiskState markRedundant(Ranges ranges, long epoch, EpochDiskState diskState)
     {
         diskState = maybeUpdateMaxEpoch(diskState, epoch);
-        String cql = "UPDATE %s.%s SET redundant = redundant + ? WHERE epoch = ?";
-        executeInternal(String.format(cql, ACCORD_KEYSPACE_NAME, TOPOLOGIES),
+        String cql = "UPDATE " + ACCORD_KEYSPACE_NAME + '.' + TOPOLOGIES + ' ' +
+                     "SET redundant = redundant + ? WHERE epoch = ?";
+        executeInternal(cql,
                         KeySerializers.rangesToBlobMap(ranges), epoch);
         flush(Topologies);
         return diskState;
@@ -1714,8 +1721,9 @@ public class AccordKeyspace
     public static EpochDiskState setNotifyingLocalSync(long epoch, Set<Node.Id> pending, EpochDiskState diskState)
     {
         diskState = maybeUpdateMaxEpoch(diskState, epoch);
-        String cql = "UPDATE %s.%s SET sync_state = ?, pending_sync_notify = ? WHERE epoch = ?";
-        executeInternal(format(cql, ACCORD_KEYSPACE_NAME, TOPOLOGIES),
+        String cql = "UPDATE " + ACCORD_KEYSPACE_NAME + '.' + TOPOLOGIES + ' ' +
+                     "SET sync_state = ?, pending_sync_notify = ? WHERE epoch = ?";
+        executeInternal(cql,
                         SyncStatus.NOTIFYING.ordinal(),
                         pending.stream().map(i -> i.id).collect(Collectors.toSet()),
                         epoch);
@@ -1725,8 +1733,9 @@ public class AccordKeyspace
     public static EpochDiskState markLocalSyncAck(Node.Id node, long epoch, EpochDiskState diskState)
     {
         diskState = maybeUpdateMaxEpoch(diskState, epoch);
-        String cql = "UPDATE %s.%s SET pending_sync_notify = pending_sync_notify - ? WHERE epoch = ?";
-        executeInternal(format(cql, ACCORD_KEYSPACE_NAME, TOPOLOGIES),
+        String cql = "UPDATE " + ACCORD_KEYSPACE_NAME + '.' + TOPOLOGIES + ' ' +
+                     "SET pending_sync_notify = pending_sync_notify - ? WHERE epoch = ?";
+        executeInternal(cql,
                         Collections.singleton(node.id), epoch);
         return diskState;
     }
@@ -1734,8 +1743,9 @@ public class AccordKeyspace
     public static EpochDiskState setCompletedLocalSync(long epoch, EpochDiskState diskState)
     {
         diskState = maybeUpdateMaxEpoch(diskState, epoch);
-        String cql = "UPDATE %s.%s SET sync_state = ?, pending_sync_notify = {} WHERE epoch = ?";
-        executeInternal(format(cql, ACCORD_KEYSPACE_NAME, TOPOLOGIES),
+        String cql = "UPDATE " + ACCORD_KEYSPACE_NAME + '.' + TOPOLOGIES + ' ' +
+                     "SET sync_state = ?, pending_sync_notify = {} WHERE epoch = ?";
+        executeInternal(cql,
                         SyncStatus.COMPLETED.ordinal(),
                         epoch);
         return diskState;
@@ -1748,8 +1758,9 @@ public class AccordKeyspace
             long delete = diskState.minEpoch;
             diskState = diskState.withNewMinEpoch(delete + 1);
             saveEpochDiskState(diskState);
-            String cql = "DELETE FROM %s.%s WHERE epoch = ?";
-            executeInternal(format(cql, ACCORD_KEYSPACE_NAME, TOPOLOGIES), delete);
+            String cql = "DELETE FROM " + ACCORD_KEYSPACE_NAME + '.' + TOPOLOGIES + ' ' +
+                         "WHERE epoch = ?";
+            executeInternal(cql, delete);
         }
         return diskState;
     }
@@ -1762,7 +1773,8 @@ public class AccordKeyspace
     @VisibleForTesting
     public static void loadEpoch(long epoch, TopologyLoadConsumer consumer) throws IOException
     {
-        String cql = format("SELECT * FROM %s.%s WHERE epoch=?", ACCORD_KEYSPACE_NAME, TOPOLOGIES);
+        String cql = "SELECT * FROM " + ACCORD_KEYSPACE_NAME + '.' + TOPOLOGIES + ' ' +
+                     "WHERE epoch=?";
 
         UntypedResultSet result = executeInternal(cql, epoch);
         checkState(!result.isEmpty(), "Nothing found for epoch %d", epoch);

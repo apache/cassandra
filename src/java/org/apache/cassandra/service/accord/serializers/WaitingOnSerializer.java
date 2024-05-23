@@ -21,9 +21,11 @@ package org.apache.cassandra.service.accord.serializers;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
+import accord.local.Command;
 import accord.local.Command.WaitingOn;
 import accord.primitives.Keys;
 import accord.primitives.Routable;
+import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.ImmutableBitSet;
 import accord.utils.Invariants;
@@ -32,14 +34,18 @@ import accord.utils.SortedArrays.SortedArrayList;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.utils.vint.VIntCoding;
 
 public class WaitingOnSerializer
 {
     public static void serialize(TxnId txnId, WaitingOn waitingOn, DataOutputPlus out) throws IOException
     {
-        out.writeUnsignedVInt32(waitingOn.keys.size());
-        out.writeUnsignedVInt32(waitingOn.txnIds.size());
+        if (txnId.kind().awaitsOnlyDeps())
+        {
+            Timestamp executeAtLeast = waitingOn.executeAtLeast();
+            out.writeBoolean(executeAtLeast != null);
+            if (executeAtLeast != null)
+                CommandSerializers.timestamp.serialize(executeAtLeast, out);
+        }
         int keyCount = waitingOn.keys.size();
         int txnIdCount = waitingOn.txnIds.size();
         int waitingOnLength = (txnIdCount + keyCount + 63) / 64;
@@ -53,8 +59,12 @@ public class WaitingOnSerializer
 
     public static WaitingOn deserialize(TxnId txnId, Keys keys, SortedArrayList<TxnId> txnIds, DataInputPlus in) throws IOException
     {
-        int a = in.readUnsignedVInt32();
-        int b = in.readUnsignedVInt32();
+        Timestamp executeAtLeast = null;
+        if (txnId.kind().awaitsOnlyDeps())
+        {
+            if (in.readBoolean())
+                executeAtLeast = CommandSerializers.timestamp.deserialize(in);
+        }
         int waitingOnLength = (txnIds.size() + keys.size() + 63) / 64;
         ImmutableBitSet waitingOn = deserialize(waitingOnLength, in);
         ImmutableBitSet appliedOrInvalidated = null;
@@ -63,17 +73,26 @@ public class WaitingOnSerializer
             int appliedOrInvalidatedLength = (txnIds.size() + 63) / 64;
             appliedOrInvalidated = deserialize(appliedOrInvalidatedLength, in);
         }
-        return new WaitingOn(keys, txnIds, waitingOn, appliedOrInvalidated);
+
+        WaitingOn result = new WaitingOn(keys, txnIds, waitingOn, appliedOrInvalidated);
+        if (executeAtLeast != null)
+            result = new Command.WaitingOnWithExecuteAt(result, executeAtLeast);
+        return result;
     }
 
-    public static long serializedSize(WaitingOn waitingOn)
+    public static long serializedSize(TxnId txnId, WaitingOn waitingOn)
     {
         int keyCount = waitingOn.keys.size();
         int txnIdCount = waitingOn.txnIds.size();
         int waitingOnLength = (txnIdCount + keyCount + 63) / 64;
         long size = serializedSize(waitingOnLength, waitingOn.waitingOn);
-        size += TypeSizes.sizeofUnsignedVInt(keyCount);
-        size += TypeSizes.sizeofUnsignedVInt(txnIdCount);
+        if (txnId.kind().awaitsOnlyDeps())
+        {
+            Timestamp executeAtLeast = waitingOn.executeAtLeast();
+            size += 1;
+            if (executeAtLeast != null)
+                size += CommandSerializers.timestamp.serializedSize();
+        }
         if (waitingOn.appliedOrInvalidated == null)
             return size;
 
@@ -113,10 +132,24 @@ public class WaitingOnSerializer
         if (txnId.domain() == Routable.Domain.Range)
             appliedOrInvalidatedLength = (txnIdCount + 63) / 64;
 
-        ByteBuffer out = ByteBuffer.allocate(TypeSizes.sizeofUnsignedVInt(keyCount) + TypeSizes.sizeofUnsignedVInt(txnIdCount)
-                                             + TypeSizes.LONG_SIZE * (waitingOnLength + appliedOrInvalidatedLength));
-        VIntCoding.writeUnsignedVInt32(keyCount, out);
-        VIntCoding.writeUnsignedVInt32(txnIdCount, out);
+        int size = TypeSizes.LONG_SIZE * (waitingOnLength + appliedOrInvalidatedLength);
+        Timestamp executeAtLeast = null;
+        if (txnId.kind().awaitsOnlyDeps())
+        {
+            executeAtLeast = waitingOn.executeAtLeast();
+            size += 1;
+            if (executeAtLeast != null)
+                size += CommandSerializers.timestamp.serializedSize();
+        }
+
+        ByteBuffer out = ByteBuffer.allocate(size);
+        if (txnId.kind().awaitsOnlyDeps())
+        {
+            out.put((byte)(executeAtLeast != null ? 1 : 0));
+            if (executeAtLeast != null)
+                CommandSerializers.timestamp.serialize(executeAtLeast, out);
+        }
+
         serialize(waitingOnLength, waitingOn.waitingOn, out);
         if (appliedOrInvalidatedLength > 0)
             serialize(appliedOrInvalidatedLength, waitingOn.appliedOrInvalidated, out);
@@ -133,12 +166,18 @@ public class WaitingOnSerializer
 
     public static WaitingOn deserialize(TxnId txnId, Keys keys, SortedArrayList<TxnId> txnIds, ByteBuffer in) throws IOException
     {
-        int waitingOnLength = (txnIds.size() + keys.size() + 63) / 64;
         int position = in.position();
-        int a = VIntCoding.readUnsignedVInt32(in, position);
-        position += TypeSizes.sizeofUnsignedVInt(a);
-        int b = VIntCoding.readUnsignedVInt32(in, position);
-        position += TypeSizes.sizeofUnsignedVInt(a);
+        Timestamp executeAtLeast = null;
+        if (txnId.kind().awaitsOnlyDeps())
+        {
+            if (in.get(position++) != 0)
+            {
+                executeAtLeast = CommandSerializers.timestamp.deserialize(in, position);
+                position += CommandSerializers.timestamp.serializedSize();
+            }
+        }
+
+        int waitingOnLength = (txnIds.size() + keys.size() + 63) / 64;
         ImmutableBitSet waitingOn = deserialize(position, waitingOnLength, in);
         ImmutableBitSet appliedOrInvalidated = null;
         if (txnId.domain() == Routable.Domain.Range)
@@ -147,7 +186,11 @@ public class WaitingOnSerializer
             int appliedOrInvalidatedLength = (txnIds.size() + 63) / 64;
             appliedOrInvalidated = deserialize(position, appliedOrInvalidatedLength, in);
         }
-        return new WaitingOn(keys, txnIds, waitingOn, appliedOrInvalidated);
+
+        WaitingOn result = new WaitingOn(keys, txnIds, waitingOn, appliedOrInvalidated);
+        if (executeAtLeast != null)
+            result = new Command.WaitingOnWithExecuteAt(result, executeAtLeast);
+        return result;
     }
 
     private static ImmutableBitSet deserialize(int position, int length, ByteBuffer in)

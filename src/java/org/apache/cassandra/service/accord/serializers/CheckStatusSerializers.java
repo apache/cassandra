@@ -223,8 +223,7 @@ public class CheckStatusSerializers
                     Writes writes = CommandSerializers.nullableWrites.deserialize(in, version);
 
                     Result result = null;
-                    if (maxKnowledgeStatus == SaveStatus.PreApplied || maxKnowledgeStatus == SaveStatus.Applied
-                        || maxKnowledgeStatus == SaveStatus.TruncatedApply || maxKnowledgeStatus == SaveStatus.TruncatedApplyWithOutcome || maxKnowledgeStatus == SaveStatus.TruncatedApplyWithDeps)
+                    if (maxKnowledgeStatus.known.outcome.isOrWasApply())
                         result = CommandSerializers.APPLIED;
 
                     return createOk(map, maxKnowledgeStatus, maxStatus, maxPromised, maxAcceptedOrCommitted, acceptedOrCommitted, executeAt,

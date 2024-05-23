@@ -50,6 +50,7 @@ import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.impl.Query;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.simulator.Action;
 import org.apache.cassandra.simulator.Debug;
 import org.apache.cassandra.simulator.RunnableActionScheduler;
@@ -123,10 +124,12 @@ public class PairOfSequencesAccordSimulation extends AbstractPairOfSequencesPaxo
 
     private final float writeRatio;
     private final HistoryValidator validator;
+    private final TransactionalMode transactionalMode;
 
     public PairOfSequencesAccordSimulation(SimulatedSystems simulated,
                                            Cluster cluster,
                                            ClusterActions.Options clusterOptions,
+                                           TransactionalMode transactionalMode,
                                            float readRatio,
                                            int concurrency, IntRange simulateKeyForSeconds, IntRange withinKeyConcurrency,
                                            ConsistencyLevel serialConsistency, RunnableActionScheduler scheduler, Debug debug,
@@ -139,6 +142,7 @@ public class PairOfSequencesAccordSimulation extends AbstractPairOfSequencesPaxo
               scheduler, debug,
               seed, primaryKeys,
               runForNanos, jitter);
+        this.transactionalMode = transactionalMode;
         this.writeRatio = 1F - readRatio;
         HistoryValidator validator = new StrictSerializabilityValidator(primaryKeys);
         if (CassandraRelevantProperties.TEST_HISTORY_VALIDATOR_LOGGING_ENABLED.getBoolean())
@@ -149,7 +153,7 @@ public class PairOfSequencesAccordSimulation extends AbstractPairOfSequencesPaxo
     @Override
     protected String createTableStmt()
     {
-        return "CREATE TABLE " + KEYSPACE + ".tbl (pk int, count int, seq text, PRIMARY KEY (pk))";
+        return String.format("CREATE TABLE " + KEYSPACE + ".tbl (pk int, count int, seq text, PRIMARY KEY (pk)) WITH transactional_mode = '%s'", transactionalMode);
     }
 
     @Override

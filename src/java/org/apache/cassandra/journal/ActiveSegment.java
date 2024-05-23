@@ -24,6 +24,7 @@ import java.nio.channels.FileChannel;
 import java.nio.file.StandardOpenOption;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.concurrent.locks.LockSupport;
 
 import com.codahale.metrics.Timer;
@@ -50,6 +51,9 @@ final class ActiveSegment<K, V> extends Segment<K, V>
      * Everything before this offset has been written and flushed.
      */
     private volatile int lastFlushedOffset = 0;
+    private volatile int lastFsyncOffset = 0;
+    @SuppressWarnings("rawtypes")
+    private static final AtomicIntegerFieldUpdater<ActiveSegment> lastFsyncOffsetUpdater = AtomicIntegerFieldUpdater.newUpdater(ActiveSegment.class, "lastFsyncOffset");
 
     /*
      * End position of the buffer; initially set to its capacity and
@@ -86,7 +90,7 @@ final class ActiveSegment<K, V> extends Segment<K, V>
     @SuppressWarnings("resource")
     static <K, V> ActiveSegment<K, V> create(Descriptor descriptor, Params params, KeySupport<K> keySupport)
     {
-        SyncedOffsets syncedOffsets = SyncedOffsets.active(descriptor, true);
+        SyncedOffsets syncedOffsets = SyncedOffsets.active(descriptor);
         InMemoryIndex<K> index = InMemoryIndex.create(keySupport);
         Metadata metadata = Metadata.create();
         return new ActiveSegment<>(descriptor, params, syncedOffsets, index, metadata, keySupport);
@@ -152,7 +156,7 @@ final class ActiveSegment<K, V> extends Segment<K, V>
         boolean isEmpty = discardUnusedTail();
         if (!isEmpty)
         {
-            flush();
+            flush(true);
             if (persistComponents) persistComponents();
         }
         release();
@@ -261,19 +265,35 @@ final class ActiveSegment<K, V> extends Segment<K, V>
      * TODO FIXME: calls from outside Flusher + callbacks
      * @return last synced offset
      */
-    synchronized int flush()
+    synchronized int flush(boolean fsync)
     {
         int allocatePosition = this.allocatePosition.get();
         if (lastFlushedOffset >= allocatePosition)
             return lastFlushedOffset;
 
         waitForModifications();
-        flushInternal();
+        if (fsync)
+        {
+            fsyncInternal();
+            lastFsyncOffsetUpdater.accumulateAndGet(this, allocatePosition, Math::max);
+        }
         lastFlushedOffset = allocatePosition;
         int syncedOffset = Math.min(allocatePosition, endOfBuffer);
-        syncedOffsets.mark(syncedOffset);
+        syncedOffsets.mark(syncedOffset, fsync);
         flushComplete.signalAll();
         return syncedOffset;
+    }
+
+    // provides no ordering guarantees
+    void fsync()
+    {
+        int lastFlushed = lastFlushedOffset;
+        if (lastFsyncOffset >= lastFlushed)
+            return;
+
+        fsyncInternal();
+        syncedOffsets.fsync();
+        lastFsyncOffsetUpdater.accumulateAndGet(this, lastFlushed, Math::max);
     }
 
     private void waitForFlush(int position)
@@ -297,7 +317,7 @@ final class ActiveSegment<K, V> extends Segment<K, V>
         appendOrder.awaitNewBarrier();
     }
 
-    private void flushInternal()
+    private void fsyncInternal()
     {
         try
         {
@@ -312,6 +332,11 @@ final class ActiveSegment<K, V> extends Segment<K, V>
     boolean isCompletedAndFullyFlushed(int syncedOffset)
     {
         return syncedOffset >= endOfBuffer;
+    }
+
+    boolean isCompletedAndFullyFsynced()
+    {
+        return lastFsyncOffset >= endOfBuffer;
     }
 
     /**
