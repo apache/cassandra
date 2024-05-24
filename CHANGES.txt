@@ -1,5 +1,5 @@
 3.11.18
- *
+ * Add bootstrap options to control sources of streaming (CASSANDRA-19733)
 
 
 3.11.17

@@ -39,6 +39,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.TokenMetadata;
+import org.apache.cassandra.service.BootstrapOptionsParser;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.*;
 import org.apache.cassandra.utils.FBUtilities;
@@ -80,6 +81,8 @@ public class BootStrapper extends ProgressEventNotifierSupport
                                                    true);
         streamer.addSourceFilter(new RangeStreamer.FailureDetectorSourceFilter(FailureDetector.instance));
         streamer.addSourceFilter(new RangeStreamer.ExcludeLocalNodeFilter());
+        BootstrapSourceFilter sourceFilter = BootstrapOptionsParser.parse(tokenMetadata, DatabaseDescriptor.getEndpointSnitch());
+        streamer.addSourceFilter(sourceFilter);
 
         for (String keyspaceName : Schema.instance.getNonLocalStrategyKeyspaces())
         {
