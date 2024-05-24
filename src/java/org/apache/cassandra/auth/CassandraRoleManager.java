@@ -54,6 +54,8 @@ import org.mindrot.jbcrypt.BCrypt;
 import static org.apache.cassandra.config.CassandraRelevantProperties.AUTH_BCRYPT_GENSALT_LOG2_ROUNDS;
 import static org.apache.cassandra.service.QueryState.forInternalCalls;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import java.text.SimpleDateFormat;
+
 
 /**
  * Responsible for the creation, maintenance and deletion of roles
@@ -137,11 +139,11 @@ public class CassandraRoleManager implements IRoleManager
     public CassandraRoleManager()
     {
         supportedOptions = DatabaseDescriptor.getAuthenticator() instanceof PasswordAuthenticator
-                         ? ImmutableSet.of(Option.LOGIN, Option.SUPERUSER, Option.PASSWORD, Option.HASHED_PASSWORD)
-                         : ImmutableSet.of(Option.LOGIN, Option.SUPERUSER);
+                           ? ImmutableSet.of(Option.LOGIN, Option.SUPERUSER, Option.PASSWORD, Option.HASHED_PASSWORD)
+                           : ImmutableSet.of(Option.LOGIN, Option.SUPERUSER);
         alterableOptions = DatabaseDescriptor.getAuthenticator() instanceof PasswordAuthenticator
-                         ? ImmutableSet.of(Option.PASSWORD, Option.HASHED_PASSWORD)
-                         : ImmutableSet.<Option>of();
+                           ? ImmutableSet.of(Option.PASSWORD, Option.HASHED_PASSWORD)
+                           : ImmutableSet.<Option>of();
     }
 
     @Override
@@ -255,19 +257,19 @@ public class CassandraRoleManager implements IRoleManager
             throw new IllegalStateException(String.format("Cannot create a role '%s' when identities already exists for it", role.getRoleName()));
         }
         String insertCql = options.getPassword().isPresent() || options.getHashedPassword().isPresent()
-                         ? String.format("INSERT INTO %s.%s (role, is_superuser, can_login, salted_hash) VALUES ('%s', %s, %s, '%s')",
-                                         SchemaConstants.AUTH_KEYSPACE_NAME,
-                                         AuthKeyspace.ROLES,
-                                         escape(role.getRoleName()),
-                                         options.getSuperuser().orElse(false),
-                                         options.getLogin().orElse(false),
-                                         options.getHashedPassword().orElseGet(() -> escape(hashpw(options.getPassword().get()))))
-                         : String.format("INSERT INTO %s.%s (role, is_superuser, can_login) VALUES ('%s', %s, %s)",
-                                         SchemaConstants.AUTH_KEYSPACE_NAME,
-                                         AuthKeyspace.ROLES,
-                                         escape(role.getRoleName()),
-                                         options.getSuperuser().orElse(false),
-                                         options.getLogin().orElse(false));
+                           ? String.format("INSERT INTO %s.%s (role, is_superuser, can_login, salted_hash, password_set_date) VALUES ('%s', %s, %s, '%s',todate(now()))",
+                                           SchemaConstants.AUTH_KEYSPACE_NAME,
+                                           AuthKeyspace.ROLES,
+                                           escape(role.getRoleName()),
+                                           options.getSuperuser().orElse(false),
+                                           options.getLogin().orElse(false),
+                                           options.getHashedPassword().orElseGet(() -> escape(hashpw(options.getPassword().get()))))
+                           : String.format("INSERT INTO %s.%s (role, is_superuser, can_login, password_set_date) VALUES ('%s', %s, %s, todate(now()) )",
+                                           SchemaConstants.AUTH_KEYSPACE_NAME,
+                                           AuthKeyspace.ROLES,
+                                           escape(role.getRoleName()),
+                                           options.getSuperuser().orElse(false),
+                                           options.getLogin().orElse(false));
         process(insertCql, consistencyForRoleWrite(role.getRoleName()));
     }
 
@@ -447,7 +449,7 @@ public class CassandraRoleManager implements IRoleManager
     @VisibleForTesting
     public static String createDefaultRoleQuery()
     {
-        return String.format("INSERT INTO %s.%s (role, is_superuser, can_login, salted_hash) VALUES ('%s', true, true, '%s') USING TIMESTAMP 0",
+        return String.format("INSERT INTO %s.%s (role, is_superuser, can_login, salted_hash, password_set_date) VALUES ('%s', true, true, '%s', todate(now()) ) USING TIMESTAMP 0",
                              SchemaConstants.AUTH_KEYSPACE_NAME,
                              AuthKeyspace.ROLES,
                              DEFAULT_SUPERUSER_NAME,
@@ -613,6 +615,7 @@ public class CassandraRoleManager implements IRoleManager
      */
     private String optionsToAssignments(Map<Option, Object> options)
     {
+        String currentDate = new SimpleDateFormat("yyyy-MM-dd").format(new Date());
         return options.entrySet()
                       .stream()
                       .map(entry ->
@@ -624,9 +627,9 @@ public class CassandraRoleManager implements IRoleManager
                                    case SUPERUSER:
                                        return String.format("is_superuser = %s", entry.getValue());
                                    case PASSWORD:
-                                       return String.format("salted_hash = '%s'", escape(hashpw((String) entry.getValue())));
+                                       return String.format("salted_hash = '%s', password_set_date = '%s'", escape(hashpw((String) entry.getValue())), currentDate);
                                    case HASHED_PASSWORD:
-                                       return String.format("salted_hash = '%s'", (String) entry.getValue());
+                                       return String.format("salted_hash = '%s', password_set_date = '%s'", (String) entry.getValue(),  currentDate);
                                    default:
                                        return null;
                                }
@@ -712,3 +715,4 @@ public class CassandraRoleManager implements IRoleManager
         };
     }
 }
+
