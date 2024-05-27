@@ -137,11 +137,11 @@ public class CassandraRoleManager implements IRoleManager
     public CassandraRoleManager()
     {
         supportedOptions = DatabaseDescriptor.getAuthenticator() instanceof PasswordAuthenticator
-                         ? ImmutableSet.of(Option.LOGIN, Option.SUPERUSER, Option.PASSWORD, Option.HASHED_PASSWORD)
-                         : ImmutableSet.of(Option.LOGIN, Option.SUPERUSER);
+                           ? ImmutableSet.of(Option.LOGIN, Option.SUPERUSER, Option.PASSWORD, Option.HASHED_PASSWORD)
+                           : ImmutableSet.of(Option.LOGIN, Option.SUPERUSER);
         alterableOptions = DatabaseDescriptor.getAuthenticator() instanceof PasswordAuthenticator
-                         ? ImmutableSet.of(Option.PASSWORD, Option.HASHED_PASSWORD)
-                         : ImmutableSet.<Option>of();
+                           ? ImmutableSet.of(Option.PASSWORD, Option.HASHED_PASSWORD)
+                           : ImmutableSet.<Option>of();
     }
 
     @Override
@@ -149,17 +149,23 @@ public class CassandraRoleManager implements IRoleManager
     {
         loadRoleStatement();
         loadIdentityStatement();
-        if (asyncRoleSetup)
+        if (!asyncRoleSetup)
         {
-            scheduleSetupTask(() -> {
+            try
+            {
+                // Try to set up synchronously
                 setupDefaultRole();
-                return null;
-            });
+                return;
+            }
+            catch (Throwable t)
+            {
+                // We tried to execute the task in a sync way, but failed. Try asynchronous setup.
+            }
         }
-        else
-        {
+        scheduleSetupTask(() -> {
             setupDefaultRole();
-        }
+            return null;
+        });
     }
 
     @Override
