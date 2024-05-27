@@ -1050,4 +1050,23 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void setMinTrackedPartitionSize(String value);
     public long getMinTrackedPartitionTombstoneCount();
     public void setMinTrackedPartitionTombstoneCount(long value);
+
+    String getCQLStartTime();
+    void setCQLStartTime(String value);
+
+    double getNativeTransportQueueMaxItemAgeThreshold();
+    void setNativeTransportQueueMaxItemAgeThreshold(double threshold);
+
+    long getNativeTransportMinBackoffOnQueueOverloadInMillis();
+    long getNativeTransportMaxBackoffOnQueueOverloadInMillis();
+    void setNativeTransportBackoffOnQueueOverloadInMillis(long min, long max);
+
+    boolean getNativeTransportThrowOnOverload();
+    void setNativeTransportThrowOnOverload(boolean throwOnOverload);
+
+    long getNativeTransportTimeoutMillis();
+    void setNativeTransportTimeoutMillis(long deadlineMillis);
+
+    boolean getEnforceNativeDeadlineForHints();
+    void setEnforceNativeDeadlineForHints(boolean value);
 }
