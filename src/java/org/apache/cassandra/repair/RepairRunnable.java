@@ -38,6 +38,7 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.repair.state.ParticipateState;
 import org.apache.cassandra.utils.concurrent.Future;
@@ -88,7 +89,6 @@ import static org.apache.cassandra.repair.state.AbstractState.COMPLETE;
 import static org.apache.cassandra.repair.state.AbstractState.INIT;
 import static org.apache.cassandra.service.QueryState.forInternalCalls;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class RepairRunnable implements Runnable, ProgressEventNotifier, RepairNotifier
 {
@@ -532,7 +532,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier, RepairNo
                     QueryOptions options = QueryOptions.forInternalCalls(ConsistencyLevel.ONE, Lists.newArrayList(sessionIdBytes,
                                                                                                                   tminBytes,
                                                                                                                   tmaxBytes));
-                    ResultMessage.Rows rows = statement.execute(forInternalCalls(), options, nanoTime());
+                    ResultMessage.Rows rows = statement.execute(forInternalCalls(), options, Dispatcher.RequestTime.forImmediateExecution());
                     UntypedResultSet result = UntypedResultSet.create(rows.result);
 
                     for (UntypedResultSet.Row r : result)

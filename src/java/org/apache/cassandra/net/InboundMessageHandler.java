@@ -403,24 +403,24 @@ public class InboundMessageHandler extends AbstractMessageHandler
     {
         /**
          * Actually handle the message. Runs on the appropriate {@link Stage} for the {@link Verb}.
-         *
+         * <p>
          * Small messages will come pre-deserialized. Large messages will be deserialized on the stage,
          * just in time, and only then processed.
          */
         public void run()
         {
             Header header = header();
-            long currentTimeNanos = approxTime.now();
-            boolean expired = approxTime.isAfter(currentTimeNanos, header.expiresAtNanos);
+            long approxStartTimeNanos = approxTime.now();
+            boolean expired = approxTime.isAfter(approxStartTimeNanos, header.expiresAtNanos);
 
             boolean processed = false;
             try
             {
-                callbacks.onExecuting(size(), header, currentTimeNanos - header.createdAtNanos, NANOSECONDS);
+                callbacks.onExecuting(size(), header, approxStartTimeNanos - header.createdAtNanos, NANOSECONDS);
 
                 if (expired)
                 {
-                    callbacks.onExpired(size(), header, currentTimeNanos - header.createdAtNanos, NANOSECONDS);
+                    callbacks.onExpired(size(), header, approxStartTimeNanos - header.createdAtNanos, NANOSECONDS);
                     return;
                 }
 
@@ -441,7 +441,7 @@ public class InboundMessageHandler extends AbstractMessageHandler
 
                 releaseResources();
 
-                callbacks.onExecuted(size(), header, approxTime.now() - currentTimeNanos, NANOSECONDS);
+                callbacks.onExecuted(size(), header, approxTime.now() - approxStartTimeNanos, NANOSECONDS);
             }
         }
 

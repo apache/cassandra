@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Strings;
+import com.google.common.annotations.VisibleForTesting;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -94,16 +95,33 @@ public class PipelineConfigurator
     private final boolean keepAlive;
     private final EncryptionOptions.TlsEncryptionPolicy tlsEncryptionPolicy;
     private final Dispatcher dispatcher;
+    // Shared between pre-v5 and CQLMessage handlers
+    private final QueueBackpressure queueBackpressure;
 
     public PipelineConfigurator(boolean epoll,
                                 boolean keepAlive,
-                                boolean legacyFlusher,
+                                EncryptionOptions.TlsEncryptionPolicy encryptionPolicy,
+                                Dispatcher dispatcher)
+    {
+        this.epoll               = epoll;
+        this.keepAlive           = keepAlive;
+        this.tlsEncryptionPolicy = encryptionPolicy;
+        this.dispatcher          = dispatcher;
+        this.queueBackpressure   = QueueBackpressure.DEFAULT;
+    }
+
+    @Deprecated
+    @VisibleForTesting
+    public PipelineConfigurator(boolean epoll,
+                                boolean keepAlive,
+                                boolean useLegacyFlusher,
                                 EncryptionOptions.TlsEncryptionPolicy encryptionPolicy)
     {
         this.epoll               = epoll;
         this.keepAlive           = keepAlive;
         this.tlsEncryptionPolicy = encryptionPolicy;
-        this.dispatcher          = dispatcher(legacyFlusher);
+        this.dispatcher          = new Dispatcher(useLegacyFlusher);
+        this.queueBackpressure   = QueueBackpressure.DEFAULT;
     }
 
     public ChannelFuture initializeChannel(final EventLoopGroup workerGroup,
@@ -283,7 +301,12 @@ public class PipelineConfigurator
         int queueCapacity = DatabaseDescriptor.getNativeTransportReceiveQueueCapacityInBytes();
         ClientResourceLimits.ResourceProvider resourceProvider = resourceProvider(resourceAllocator);
         AbstractMessageHandler.OnHandlerClosed onClosed = handler -> resourceProvider.release();
-        boolean throwOnOverload = "1".equals(options.get(StartupMessage.THROW_ON_OVERLOAD));
+        String fromOptions = options.get(StartupMessage.THROW_ON_OVERLOAD);
+        boolean throwOnOverload;
+        if (fromOptions == null)
+            throwOnOverload = DatabaseDescriptor.getNativeTransportThrowOnOverload();
+        else
+            throwOnOverload = "1".equals(fromOptions);
 
         CQLMessageHandler.MessageConsumer<Message.Request> messageConsumer = messageConsumer();
         CQLMessageHandler<Message.Request> processor =
@@ -295,6 +318,7 @@ public class PipelineConfigurator
                                     messageConsumer,
                                     payloadAllocator,
                                     queueCapacity,
+                                    queueBackpressure,
                                     resourceProvider,
                                     onClosed,
                                     errorHandler,
@@ -329,7 +353,7 @@ public class PipelineConfigurator
 
     protected CQLMessageHandler.MessageConsumer<Message.Request> messageConsumer()
     {
-        return dispatcher::dispatch;
+        return dispatcher;
     }
 
     protected Message.Decoder<Message.Request> messageDecoder()
@@ -363,7 +387,7 @@ public class PipelineConfigurator
         pipeline.addBefore(INITIAL_HANDLER, MESSAGE_COMPRESSOR, Envelope.Compressor.instance);
         pipeline.addBefore(INITIAL_HANDLER, MESSAGE_DECODER, PreV5Handlers.ProtocolDecoder.instance);
         pipeline.addBefore(INITIAL_HANDLER, MESSAGE_ENCODER, PreV5Handlers.ProtocolEncoder.instance);
-        pipeline.addBefore(INITIAL_HANDLER, LEGACY_MESSAGE_PROCESSOR, new PreV5Handlers.LegacyDispatchHandler(dispatcher, limits));
+        pipeline.addBefore(INITIAL_HANDLER, LEGACY_MESSAGE_PROCESSOR, new PreV5Handlers.LegacyDispatchHandler(dispatcher, queueBackpressure, limits));
         pipeline.remove(INITIAL_HANDLER);
         onNegotiationComplete(pipeline);
     }

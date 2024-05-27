@@ -48,6 +48,7 @@ import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.reads.ReadCallback;
 import org.apache.cassandra.service.reads.repair.ReadRepairEvent.ReadRepairEventType;
+import org.apache.cassandra.transport.Dispatcher;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
@@ -116,9 +117,10 @@ public class DiagEventsBlockingReadRepairTest extends AbstractReadRepairTest
         return handler.awaitRepairsUntil(nanoTime(), NANOSECONDS);
     }
 
-    public InstrumentedReadRepair createInstrumentedReadRepair(ReadCommand command, ReplicaPlan.Shared<?,?> replicaPlan, long queryStartNanoTime)
+    @Override
+    public InstrumentedReadRepair createInstrumentedReadRepair(ReadCommand command, ReplicaPlan.Shared<?,?> replicaPlan, Dispatcher.RequestTime requestTime)
     {
-        return new DiagnosticBlockingRepairHandler(command, replicaPlan, queryStartNanoTime);
+        return new DiagnosticBlockingRepairHandler(command, replicaPlan, requestTime);
     }
 
     private static DiagnosticPartitionReadRepairHandler createRepairHandler(Map<Replica, Mutation> repairs, ReplicaPlan.ForWrite writePlan)
@@ -131,9 +133,9 @@ public class DiagEventsBlockingReadRepairTest extends AbstractReadRepairTest
         private Set<InetAddressAndPort> recipients = Collections.emptySet();
         private ReadCallback readCallback = null;
 
-        DiagnosticBlockingRepairHandler(ReadCommand command, ReplicaPlan.Shared<?,?> replicaPlan, long queryStartNanoTime)
+        DiagnosticBlockingRepairHandler(ReadCommand command, ReplicaPlan.Shared<?,?> replicaPlan, Dispatcher.RequestTime requestTime)
         {
-            super(command, replicaPlan, queryStartNanoTime);
+            super(command, replicaPlan, requestTime);
             DiagnosticEventService.instance().subscribe(ReadRepairEvent.class, this::onRepairEvent);
         }
 

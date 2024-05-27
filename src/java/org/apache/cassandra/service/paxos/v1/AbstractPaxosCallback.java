@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.service.paxos.v1;
 
+import org.apache.cassandra.transport.Dispatcher;
+import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -27,7 +29,6 @@ import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.concurrent.CountDownLatch.newCountDownLatch;
 
 public abstract class AbstractPaxosCallback<T> implements RequestCallback<T>
@@ -35,14 +36,14 @@ public abstract class AbstractPaxosCallback<T> implements RequestCallback<T>
     protected final CountDownLatch latch;
     protected final int targets;
     private final ConsistencyLevel consistency;
-    private final long queryStartNanoTime;
+    private final Dispatcher.RequestTime requestTime;
 
-    public AbstractPaxosCallback(int targets, ConsistencyLevel consistency, long queryStartNanoTime)
+    public AbstractPaxosCallback(int targets, ConsistencyLevel consistency, Dispatcher.RequestTime requestTime)
     {
         this.targets = targets;
         this.consistency = consistency;
         latch = newCountDownLatch(targets);
-        this.queryStartNanoTime = queryStartNanoTime;
+        this.requestTime = requestTime;
     }
 
     public int getResponseCount()
@@ -54,7 +55,9 @@ public abstract class AbstractPaxosCallback<T> implements RequestCallback<T>
     {
         try
         {
-            long timeout = DatabaseDescriptor.getWriteRpcTimeout(NANOSECONDS) - (nanoTime() - queryStartNanoTime);
+            long now = Clock.Global.nanoTime();
+            long timeout = requestTime.computeTimeout(now, DatabaseDescriptor.getWriteRpcTimeout(NANOSECONDS));
+
             if (!latch.await(timeout, NANOSECONDS))
                 throw new WriteTimeoutException(WriteType.CAS, consistency, getResponseCount(), targets);
         }

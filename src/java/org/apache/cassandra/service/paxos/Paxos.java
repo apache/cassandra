@@ -88,6 +88,7 @@ import org.apache.cassandra.service.reads.DataResolver;
 import org.apache.cassandra.service.reads.repair.NoopReadRepair;
 import org.apache.cassandra.service.paxos.cleanup.PaxosTableRepairs;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.triggers.TriggerExecutor;
 import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.CollectionSerializer;
@@ -808,21 +809,20 @@ public class Paxos
         return read.rowIterator();
     }
 
-    public static PartitionIterator read(SinglePartitionReadCommand.Group group, ConsistencyLevel consistencyForConsensus)
+    public static PartitionIterator read(SinglePartitionReadCommand.Group group, ConsistencyLevel consistencyForConsensus, Dispatcher.RequestTime requestTime)
             throws InvalidRequestException, UnavailableException, ReadFailureException, ReadTimeoutException
     {
-        long start = nanoTime();
-        long deadline = start + DatabaseDescriptor.getReadRpcTimeout(NANOSECONDS);
-        return read(group, consistencyForConsensus, start, deadline);
+        long deadline = requestTime.computeDeadline(DatabaseDescriptor.getReadRpcTimeout(NANOSECONDS));
+        return read(group, consistencyForConsensus, requestTime, deadline);
     }
 
     public static PartitionIterator read(SinglePartitionReadCommand.Group group, ConsistencyLevel consistencyForConsensus, long deadline)
             throws InvalidRequestException, UnavailableException, ReadFailureException, ReadTimeoutException
     {
-        return read(group, consistencyForConsensus, nanoTime(), deadline);
+        return read(group, consistencyForConsensus, Dispatcher.RequestTime.forImmediateExecution(), deadline);
     }
 
-    private static PartitionIterator read(SinglePartitionReadCommand.Group group, ConsistencyLevel consistencyForConsensus, long start, long deadline)
+    private static PartitionIterator read(SinglePartitionReadCommand.Group group, ConsistencyLevel consistencyForConsensus, Dispatcher.RequestTime requestTime, long deadline)
             throws InvalidRequestException, UnavailableException, ReadFailureException, ReadTimeoutException
     {
         if (group.queries.size() > 1)
@@ -889,7 +889,9 @@ public class Paxos
         }
         finally
         {
-            long latency = nanoTime() - start;
+            // We track latency based on request processing time, since the amount of time that request spends in the queue
+            // is not a representative metric of replica performance.
+            long latency = nanoTime() - requestTime.startedAtNanos();
             readMetrics.addNano(latency);
             casReadMetrics.addNano(latency);
             readMetricsMap.get(consistencyForConsensus).addNano(latency);
@@ -1028,7 +1030,7 @@ public class Paxos
                     // round's proposal (if any).
                     PaxosPrepare.Success success = prepare.success();
 
-                    DataResolver<?, ?> resolver = new DataResolver(query, success.participants, NoopReadRepair.instance, query.creationTimeNanos());
+                    DataResolver<?, ?> resolver = new DataResolver(query, success.participants, NoopReadRepair.instance, new Dispatcher.RequestTime(query.creationTimeNanos()));
                     for (int i = 0 ; i < success.responses.size() ; ++i)
                         resolver.preprocess(success.responses.get(i));
 

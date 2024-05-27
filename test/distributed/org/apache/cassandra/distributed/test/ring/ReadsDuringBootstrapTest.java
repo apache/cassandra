@@ -62,6 +62,7 @@ public class ReadsDuringBootstrapTest extends TestBaseImpl
                                         .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(expandedNodeCount, "dc0", "rack0"))
                                         .withConfig(config -> config.with(NETWORK, GOSSIP)
                                                                     .set("read_request_timeout", String.format("%dms", Integer.MAX_VALUE))
+                                                                    .set("native_transport_timeout", String.format("%dms", Integer.MAX_VALUE))
                                                                     .set("request_timeout", String.format("%dms", Integer.MAX_VALUE)))
                                         .withInstanceInitializer(BB::install)
                                         .start())

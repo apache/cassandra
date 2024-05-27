@@ -30,12 +30,12 @@ import org.apache.cassandra.cql3.statements.ModificationStatement;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
 import static java.lang.String.format;
 import static java.util.Collections.emptyMap;
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.junit.Assert.assertEquals;
 
 public class CustomNowInSecondsTest extends CQLTester
@@ -156,7 +156,7 @@ public class CustomNowInSecondsTest extends CQLTester
             new BatchStatement(BatchStatement.Type.UNLOGGED, VariableSpecifications.empty(), statements, Attributes.none());
 
         // execute an BATCH message with now set to [now + 1 day], with ttl = 1, making its effective ttl = 1 day + 1.
-        QueryProcessor.instance.processBatch(batch, qs, batchQueryOptions(now + day), emptyMap(), nanoTime());
+        QueryProcessor.instance.processBatch(batch, qs, batchQueryOptions(now + day), emptyMap(), Dispatcher.RequestTime.forImmediateExecution());
 
         // verify that despite TTL having passed at now + 1 the rows are still there.
         assertEquals(2, executeSelect(format("SELECT * FROM %s.%s", ks, tbl), now + 1, false).size());
@@ -185,12 +185,12 @@ public class CustomNowInSecondsTest extends CQLTester
         if (prepared)
         {
             CQLStatement statement = QueryProcessor.parseStatement(query, cs);
-            return QueryProcessor.instance.processPrepared(statement, qs, queryOptions(nowInSeconds), emptyMap(), nanoTime());
+            return QueryProcessor.instance.processPrepared(statement, qs, queryOptions(nowInSeconds), emptyMap(), Dispatcher.RequestTime.forImmediateExecution());
         }
         else
         {
             CQLStatement statement = QueryProcessor.instance.parse(query, qs, queryOptions(nowInSeconds));
-            return QueryProcessor.instance.process(statement, qs, queryOptions(nowInSeconds), emptyMap(), nanoTime());
+            return QueryProcessor.instance.process(statement, qs, queryOptions(nowInSeconds), emptyMap(), Dispatcher.RequestTime.forImmediateExecution());
         }
     }
 
