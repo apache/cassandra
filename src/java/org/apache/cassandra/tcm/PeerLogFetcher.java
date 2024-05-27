@@ -94,7 +94,7 @@ public class PeerLogFetcher
             RemoteProcessor.sendWithCallbackAsync(fetchRes,
                                                   Verb.TCM_FETCH_PEER_LOG_REQ,
                                                   new FetchPeerLog(before),
-                                                  new RemoteProcessor.CandidateIterator(Collections.singletonList(remote)),
+                                                  new RemoteProcessor.CandidateIterator(Collections.singletonList(remote), false),
                                                   Retry.Deadline.after(DatabaseDescriptor.getCmsAwaitTimeout().to(TimeUnit.NANOSECONDS),
                                                                        new Retry.Jitter(TCMMetrics.instance.fetchLogRetries)));
 
