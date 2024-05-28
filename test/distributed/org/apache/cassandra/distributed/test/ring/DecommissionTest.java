@@ -35,6 +35,7 @@ import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.NodeToolResult;
+import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -133,7 +134,7 @@ public class DecommissionTest extends TestBaseImpl
     @Test
     public void testMixedVersionBlockDecom() throws IOException {
         try (Cluster cluster = builder().withNodes(3)
-                                        .withConfig(config -> config.with(GOSSIP))
+                                        .withConfig(config -> config.with(GOSSIP, NETWORK))
                                         .start())
         {
             cluster.get(3).nodetoolResult("decommission", "--force").asserts().success();
@@ -157,7 +158,7 @@ public class DecommissionTest extends TestBaseImpl
                                                                      new NodeVersion(new CassandraVersion("6.0.0"),
                                                                                      NodeVersion.CURRENT_METADATA_VERSION)));
             });
-
+            ClusterUtils.waitForCMSToQuiesce(cluster, cluster.get(1), 3);
             NodeToolResult res = cluster.get(2).nodetoolResult("decommission", "--force");
             res.asserts().failure();
             assertTrue(res.getStdout().contains("Upgrade in progress"));
