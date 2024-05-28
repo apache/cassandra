@@ -337,6 +337,13 @@ public class GcCompactionBenchTest extends CQLTester
         testGcCompaction(TombstoneOption.NONE, TombstoneOption.NONE, SIZE_TIERED_STRATEGY);
     }
 
+    @Test
+    public void testMixedTombstonesSizeTiered() throws Throwable
+    {
+        testGcCompaction(TombstoneOption.CELL, TombstoneOption.ROW, SIZE_TIERED_STRATEGY);
+    }
+
+
     int countTombstoneMarkers(ColumnFamilyStore cfs)
     {
         return count(cfs, x -> x.isRangeTombstoneMarker());
