@@ -474,6 +474,7 @@ public enum CassandraRelevantProperties
     SET_SEP_THREAD_NAME("cassandra.set_sep_thread_name", "true"),
     SHUTDOWN_ANNOUNCE_DELAY_IN_MS("cassandra.shutdown_announce_in_ms", "2000"),
     SIZE_RECORDER_INTERVAL("cassandra.size_recorder_interval", "300"),
+    SKIP_AUTH_SETUP("cassandra.skip_auth_setup", "false"),
     SKIP_GC_INSPECTOR("cassandra.skip_gc_inspector", "false"),
     SKIP_PAXOS_REPAIR_ON_TOPOLOGY_CHANGE("cassandra.skip_paxos_repair_on_topology_change"),
     /** If necessary for operational purposes, permit certain keyspaces to be ignored for paxos topology repairs. */

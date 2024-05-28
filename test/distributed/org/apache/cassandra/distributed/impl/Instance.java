@@ -849,7 +849,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     public void postStartup()
     {
         sync(() ->
-            StorageService.instance.doAuthSetup()
+            StorageService.instance.doAuthSetup(false)
         ).run();
     }
 
@@ -940,8 +940,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                 () -> SSTableReader.shutdownBlocking(1L, MINUTES),
                                 () -> shutdownAndWait(Collections.singletonList(ActiveRepairService.repairCommandExecutor())),
                                 () -> ActiveRepairService.instance().shutdownNowAndWait(1L, MINUTES),
-                                () -> SnapshotManager.shutdownAndWait(1L, MINUTES),
-                                () -> EpochAwareDebounce.instance.shutdownAndWait(1L, MINUTES)
+                                () -> EpochAwareDebounce.instance.close(),
+                                () -> SnapshotManager.shutdownAndWait(1L, MINUTES)
             );
 
             internodeMessagingStarted = false;

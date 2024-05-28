@@ -56,14 +56,17 @@ public class HintedHandoffAddRemoveNodesTest extends TestBaseImpl
     @Test
     public void shouldAvoidHintTransferOnDecommission() throws Exception
     {
-        try (Cluster cluster = init(builder().withNodes(3)
+        // This test was written with expectation that auth table is going to be empty. Since auth setup became syncrhonous for tests
+        // we need to skip it now, since otherwise streaming will fail.
+        try (WithProperties properties = new WithProperties().set(CassandraRelevantProperties.SKIP_AUTH_SETUP, "true");
+             Cluster cluster = init(builder().withNodes(3)
                                              .withConfig(config -> config.set("transfer_hints_on_decommission", false)
                                                                          .set("progress_barrier_timeout", "1000ms")
                                                                          .set("progress_barrier_backoff", "100ms")
                                                                          // Just to make test pass faster
                                                                          .set("progress_barrier_min_consistency_level", NODE_LOCAL)
                                                                          .set("progress_barrier_default_consistency_level", NODE_LOCAL)
-                                                                         .with(GOSSIP))
+                                                                         .with(GOSSIP, NETWORK))
                                              .start()))
         {
             cluster.schemaChange(withKeyspace("CREATE TABLE %s.decom_no_hints_test (key int PRIMARY KEY, value int)"));
@@ -83,6 +86,7 @@ public class HintedHandoffAddRemoveNodesTest extends TestBaseImpl
             assertThat(hintsAfterShutdown).isEqualTo(1);
 
             cluster.get(2).runOnInstance(() -> setProgressBarrierMinConsistencyLevel(org.apache.cassandra.db.ConsistencyLevel.ONE));
+            ClusterUtils.waitForCMSToQuiesce(cluster, cluster.get(1), 3);
             cluster.get(2).nodetoolResult("decommission", "--force").asserts().success();
             long hintsDeliveredByDecom = countHintsDelivered(cluster.get(2));
             String mode = cluster.get(2).callOnInstance(() -> StorageService.instance.getOperationMode());

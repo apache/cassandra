@@ -22,7 +22,6 @@ import java.util.Collections;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.function.Function;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,6 +34,7 @@ import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.log.LogState;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.Promise;
 
@@ -74,40 +74,54 @@ public class PeerLogFetcher
 
     public Future<ClusterMetadata> asyncFetchLog(InetAddressAndPort remote, Epoch awaitAtleast)
     {
-        Function<Promise<LogState>, ClusterMetadata> fn = promise -> fetchLogEntriesAndWaitInternal(promise, remote, awaitAtleast);
-        return EpochAwareDebounce.instance.getAsync(fn, awaitAtleast);
+        return EpochAwareDebounce.instance.getAsync(() -> fetchLogEntriesAndWaitInternal(remote, awaitAtleast), awaitAtleast);
     }
 
-    private ClusterMetadata fetchLogEntriesAndWaitInternal(Promise<LogState> remoteRequest, InetAddressAndPort remote, Epoch awaitAtleast)
+    private Future<ClusterMetadata> fetchLogEntriesAndWaitInternal(InetAddressAndPort remote, Epoch awaitAtleast)
     {
         Epoch before = ClusterMetadata.current().epoch;
         if (before.isEqualOrAfter(awaitAtleast))
-            return ClusterMetadata.current();
+        {
+            Promise<ClusterMetadata> res = new AsyncPromise<>();
+            res.setSuccess(ClusterMetadata.current());
+            return res;
+        }
 
+        Promise<LogState> fetchRes = new AsyncPromise<>();
         logger.info("Fetching log from {}, at least {}", remote, awaitAtleast);
-
         try (Timer.Context ctx = TCMMetrics.instance.fetchPeerLogLatency.time())
         {
-            RemoteProcessor.sendWithCallbackAsync(remoteRequest,
+            RemoteProcessor.sendWithCallbackAsync(fetchRes,
                                                   Verb.TCM_FETCH_PEER_LOG_REQ,
                                                   new FetchPeerLog(before),
-                                                  new RemoteProcessor.CandidateIterator(Collections.singletonList(remote)),
+                                                  new RemoteProcessor.CandidateIterator(Collections.singletonList(remote), false),
                                                   Retry.Deadline.after(DatabaseDescriptor.getCmsAwaitTimeout().to(TimeUnit.NANOSECONDS),
                                                                        new Retry.Jitter(TCMMetrics.instance.fetchLogRetries)));
-            LogState logState = remoteRequest.awaitUninterruptibly().get();
-            log.append(logState);
-            ClusterMetadata fetched = log.waitForHighestConsecutive();
-            if (fetched.epoch.isEqualOrAfter(awaitAtleast))
-            {
-                TCMMetrics.instance.peerLogEntriesFetched(before, logState.latestEpoch());
-                return fetched;
-            }
+
+            return fetchRes.map((logState) -> {
+                log.append(logState);
+                ClusterMetadata fetched = log.waitForHighestConsecutive();
+                if (fetched.epoch.isEqualOrAfter(awaitAtleast))
+                {
+                    TCMMetrics.instance.peerLogEntriesFetched(before, logState.latestEpoch());
+                    return fetched;
+                }
+                else
+                {
+                    throw new IllegalStateException(String.format("Queried for epoch %s, but could not catch up", awaitAtleast));
+                }
+            });
+
         }
         catch (Throwable t)
         {
+            fetchRes.cancel(true);
             JVMStabilityInspector.inspectThrowable(t);
+
             logger.warn("Unable to fetch log entries from " + remote, t);
+            Promise<ClusterMetadata> res = new AsyncPromise<>();
+            res.setFailure(new IllegalStateException("Unable to fetch log entries from " + remote, t));
+            return res;
         }
-        return ClusterMetadata.current();
     }
 }

@@ -446,7 +446,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     private boolean isSurveyMode = TEST_WRITE_SURVEY.getBoolean(false);
     /* true if node is rebuilding and receiving data */
     private volatile boolean initialized = false;
-    private final AtomicBoolean authSetupCalled = new AtomicBoolean(false);
+    private final AtomicBoolean authSetupCalled = new AtomicBoolean(CassandraRelevantProperties.SKIP_AUTH_SETUP.getBoolean());
     private volatile boolean authSetupComplete = false;
 
     /* the probability for tracing any particular request, 0 disables tracing and 1 enables for all */
@@ -1093,12 +1093,17 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         InProgressSequences.finishInProgressSequences(id);
     }
 
+    void doAuthSetup()
+    {
+        doAuthSetup(true);
+    }
+
     @VisibleForTesting
-    public void doAuthSetup()
+    public void doAuthSetup(boolean async)
     {
         if (!authSetupCalled.getAndSet(true))
         {
-            DatabaseDescriptor.getRoleManager().setup();
+            DatabaseDescriptor.getRoleManager().setup(async);
             DatabaseDescriptor.getAuthenticator().setup();
             DatabaseDescriptor.getAuthorizer().setup();
             DatabaseDescriptor.getNetworkAuthorizer().setup();
