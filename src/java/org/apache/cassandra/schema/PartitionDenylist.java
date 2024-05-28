@@ -303,7 +303,8 @@ public class PartitionDenylist
                !SchemaConstants.TRACE_KEYSPACE_NAME.equals(keyspace) &&
                !SchemaConstants.VIRTUAL_SCHEMA.equals(keyspace) &&
                !SchemaConstants.VIRTUAL_VIEWS.equals(keyspace) &&
-               !SchemaConstants.AUTH_KEYSPACE_NAME.equals(keyspace);
+               !SchemaConstants.AUTH_KEYSPACE_NAME.equals(keyspace) &&
+               !SchemaConstants.METADATA_KEYSPACE_NAME.equals(keyspace);
     }
 
     public boolean isKeyPermitted(final String keyspace, final String table, final ByteBuffer key)

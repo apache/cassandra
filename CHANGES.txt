@@ -1,4 +1,5 @@
 5.1
+ * Disallow denylisting keys in system_cluster_metadata (CASSANDRA-19713)
  * Fix gossip status after replacement (CASSANDRA-19712)
  * Ignore repair requests for system_cluster_metadata (CASSANDRA-19711)
  * Avoid ClassCastException when verifying tables with reversed partitioner (CASSANDRA-19710)
