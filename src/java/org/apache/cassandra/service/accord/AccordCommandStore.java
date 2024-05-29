@@ -488,7 +488,9 @@ public class AccordCommandStore extends CommandStore implements CacheSize
         timestampsForKeys.values().forEach(AccordSafeState::preExecute);
         if (commandsForRanges != null)
             commandsForRanges.preExecute();
-        current = new AccordSafeCommandStore(preLoadContext, commands, timestampsForKeys, commandsForKeys, commandsForRanges, this);
+
+        current = AccordSafeCommandStore.create(preLoadContext, commands, timestampsForKeys, commandsForKeys, commandsForRanges, this);
+
         return current;
     }
 
