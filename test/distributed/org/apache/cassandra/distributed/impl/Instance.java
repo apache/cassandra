@@ -52,6 +52,7 @@ import org.slf4j.LoggerFactory;
 
 import io.netty.util.concurrent.GlobalEventExecutor;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.auth.AuthCache;
 import org.apache.cassandra.batchlog.Batch;
 import org.apache.cassandra.batchlog.BatchlogManager;
@@ -825,6 +826,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
         CassandraDaemon.getInstanceForTesting().completeSetup();
         CassandraDaemon.enableAutoCompaction(Schema.instance.getKeyspaces());
+
+        AuditLogManager.instance.initialize();
 
         if (config.has(NATIVE_PROTOCOL))
         {

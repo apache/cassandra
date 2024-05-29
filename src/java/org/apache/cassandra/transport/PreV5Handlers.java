@@ -18,9 +18,13 @@
 
 package org.apache.cassandra.transport;
 
+import java.net.SocketAddress;
+import java.security.cert.CertificateException;
 import java.util.List;
+import javax.net.ssl.SSLException;
 
 import com.google.common.base.Predicate;
+import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,10 +38,14 @@ import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.MessageToMessageDecoder;
 import io.netty.handler.codec.MessageToMessageEncoder;
+import org.apache.cassandra.auth.AuthEvents;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.exceptions.AuthenticationException;
 import org.apache.cassandra.exceptions.OverloadedException;
 import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.net.ResourceLimits;
+import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.ClientResourceLimits.Overload;
 import org.apache.cassandra.transport.messages.ErrorMessage;
 import org.apache.cassandra.utils.JVMStabilityInspector;
@@ -334,13 +342,22 @@ public class PreV5Handlers
                 if (isFatal(cause))
                     future.addListener((ChannelFutureListener) f -> ctx.close());
             }
-            
-            if (DatabaseDescriptor.getClientErrorReportingExclusions().contains(ctx.channel().remoteAddress()))
+
+            SocketAddress remoteAddress = ctx.channel().remoteAddress();
+            AuthenticationException authenticationException = maybeExtractAndWrapAuthenticationException(cause);
+            if (authenticationException != null)
+            {
+                QueryState queryState = new QueryState(ClientState.forExternalCalls(remoteAddress));
+                AuthEvents.instance.notifyAuthFailure(queryState, authenticationException);
+            }
+
+            if (remoteAddress != null && DatabaseDescriptor.getClientErrorReportingExclusions().contains(remoteAddress))
             {
                 // Sometimes it is desirable to ignore exceptions from specific IPs; such as when security scans are
                 // running.  To avoid polluting logs and metrics, metrics are not updated when the IP is in the exclude
                 // list.
-                logger.debug("Excluding client exception for {}; address contained in client_error_reporting_exclusions", ctx.channel().remoteAddress(), cause);
+                logger.debug("Excluding client exception for {}; address contained in client_error_reporting_exclusions",
+                             remoteAddress, cause);
                 return;
             }
             ExceptionHandlers.logClientNetworkingExceptions(cause);
@@ -350,6 +367,25 @@ public class PreV5Handlers
         private static boolean isFatal(Throwable cause)
         {
             return cause instanceof ProtocolException; // this matches previous versions which didn't annotate exceptions as fatal or not
+        }
+
+        private static AuthenticationException maybeExtractAndWrapAuthenticationException(Throwable cause)
+        {
+            CertificateException certificateException = ExceptionUtils.throwableOfType(cause, CertificateException.class);
+
+            if (certificateException != null)
+            {
+                return new AuthenticationException(certificateException.getMessage(), cause);
+            }
+
+            SSLException sslException = ExceptionUtils.throwableOfType(cause, SSLException.class);
+
+            if (sslException != null)
+            {
+                return new AuthenticationException(sslException.getMessage(), cause);
+            }
+
+            return null;
         }
     }
 

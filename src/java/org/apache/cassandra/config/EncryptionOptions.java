@@ -332,6 +332,7 @@ public class EncryptionOptions
         putSslContextFactoryParameter(sslContextFactoryParameters, ConfigKey.ENABLED, this.enabled);
         putSslContextFactoryParameter(sslContextFactoryParameters, ConfigKey.OPTIONAL, this.optional);
         putSslContextFactoryParameter(sslContextFactoryParameters, ConfigKey.MAX_CERTIFICATE_VALIDITY_PERIOD, this.max_certificate_validity_period);
+        putSslContextFactoryParameter(sslContextFactoryParameters, ConfigKey.CERTIFICATE_VALIDITY_WARN_THRESHOLD, this.certificate_validity_warn_threshold);
     }
 
     private void initializeSslContextFactory()
