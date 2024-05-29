@@ -242,7 +242,7 @@ public class AuditLogEntry
             operation = entry.operation;
             options = entry.options;
             state = entry.state;
-            metadata = entry.metadata;
+            metadata = Map.copyOf(entry.metadata);
         }
 
         public Builder setType(AuditLogEntryType type)
