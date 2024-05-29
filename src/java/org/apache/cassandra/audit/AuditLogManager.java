@@ -23,13 +23,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
-
 import javax.annotation.Nullable;
 import javax.management.openmbean.CompositeData;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -79,7 +77,7 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
         }
         else
         {
-            logger.debug("Audit logging is disabled.");
+            logger.info("Audit logging is disabled.");
             auditLogger = new NoOpAuditLogger(Collections.emptyMap());
         }
 
