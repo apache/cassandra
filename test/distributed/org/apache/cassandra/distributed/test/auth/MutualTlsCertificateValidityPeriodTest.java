@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.distributed.test.auth;
 
+import java.io.File;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.file.Path;
@@ -124,13 +125,14 @@ public class MutualTlsCertificateValidityPeriodTest extends TestBaseImpl
                                  .set("client_encryption_options.keystore_password", SERVER_KEYSTORE_PASSWORD)
                                  .set("client_encryption_options.truststore", truststorePath.toString())
                                  .set("client_encryption_options.truststore_password", SERVER_TRUSTSTORE_PASSWORD)
-                                 .set("client_encryption_options.require_endpoint_verification", "false")
-                                 .set("client_encryption_options.max_certificate_validity_period", "30d")
-                                 .set("client_encryption_options.certificate_validity_warn_threshold", "5d")
+                                 .set("client_encryption_options.require_endpoint_verification", "true")
+                                 .set("audit_logging_options.enabled", "true")
+                                 .set("audit_logging_options.logger.class_name", "FileAuditLogger")
+                                 .set("audit_logging_options.included_categories", "AUTH")
                                  .with(Feature.NATIVE_PROTOCOL, Feature.GOSSIP));
         CLUSTER = builder.start();
 
-        configureIdentity();
+        configureIdentity(CLUSTER, getSSLOptions(null, truststorePath));
     }
 
     @AfterClass
@@ -163,9 +165,9 @@ public class MutualTlsCertificateValidityPeriodTest extends TestBaseImpl
     @Test
     public void testExpiringCertificate() throws Exception
     {
-        Path clientKeystorePath = generateClientCertificate(null);
+        Path clientKeystorePath = generateClientCertificate(null, tempFolder.getRoot(), CA);
 
-        com.datastax.driver.core.Cluster driver = JavaDriverUtils.create(CLUSTER, null, b -> b.withSSL(getSSLOptions(clientKeystorePath)));
+        com.datastax.driver.core.Cluster driver = JavaDriverUtils.create(CLUSTER, null, b -> b.withSSL(getSSLOptions(clientKeystorePath, truststorePath)));
 
         testWithDriver(driver, (Session session) -> {
             ResultSet clientView = session.execute(new SimpleStatement("SELECT * FROM system_views.clients"));
@@ -193,9 +195,9 @@ public class MutualTlsCertificateValidityPeriodTest extends TestBaseImpl
     public void testCertificateReachingMaxValidityPeriod() throws Exception
     {
         Path clientKeystorePath = generateClientCertificate(b -> b.notBefore(Instant.now().minus(26, ChronoUnit.DAYS))
-                                                                  .notAfter(Instant.now().plus(4, ChronoUnit.DAYS).minus(1, ChronoUnit.MINUTES)));
+                                                                  .notAfter(Instant.now().plus(4, ChronoUnit.DAYS).minus(1, ChronoUnit.MINUTES)), tempFolder.getRoot(), CA);
 
-        com.datastax.driver.core.Cluster driver = JavaDriverUtils.create(CLUSTER, null, b -> b.withSSL(getSSLOptions(clientKeystorePath)));
+        com.datastax.driver.core.Cluster driver = JavaDriverUtils.create(CLUSTER, null, b -> b.withSSL(getSSLOptions(clientKeystorePath, truststorePath)));
 
         testWithDriver(driver, (Session session) -> {
             ResultSet clientView = session.execute(new SimpleStatement("SELECT * FROM system_views.clients"));
@@ -222,9 +224,9 @@ public class MutualTlsCertificateValidityPeriodTest extends TestBaseImpl
     @Test
     public void testFailsWhenCertificateExceedsMaxAllowedValidityPeriod() throws Exception
     {
-        Path clientKeystorePath = generateClientCertificate(b -> b.notAfter(Instant.now().plus(365, ChronoUnit.DAYS)));
+        Path clientKeystorePath = generateClientCertificate(b -> b.notAfter(Instant.now().plus(365, ChronoUnit.DAYS)), tempFolder.getRoot(), CA);
 
-        com.datastax.driver.core.Cluster driver = JavaDriverUtils.create(CLUSTER, null, b -> b.withSSL(getSSLOptions(clientKeystorePath)));
+        com.datastax.driver.core.Cluster driver = JavaDriverUtils.create(CLUSTER, null, b -> b.withSSL(getSSLOptions(clientKeystorePath, truststorePath)));
 
         try
         {
@@ -242,9 +244,9 @@ public class MutualTlsCertificateValidityPeriodTest extends TestBaseImpl
     public void testFailsWhenCertificateIsExpired() throws Exception
     {
         Path clientKeystorePath = generateClientCertificate(b -> b.notBefore(Instant.now().minus(30, ChronoUnit.DAYS))
-                                                                  .notAfter(Instant.now().minus(10, ChronoUnit.DAYS)));
+                                                                  .notAfter(Instant.now().minus(10, ChronoUnit.DAYS)), tempFolder.getRoot(), CA);
 
-        com.datastax.driver.core.Cluster driver = JavaDriverUtils.create(CLUSTER, null, b -> b.withSSL(getSSLOptions(clientKeystorePath)));
+        com.datastax.driver.core.Cluster driver = JavaDriverUtils.create(CLUSTER, null, b -> b.withSSL(getSSLOptions(clientKeystorePath, truststorePath)));
 
         try
         {
@@ -270,12 +272,12 @@ public class MutualTlsCertificateValidityPeriodTest extends TestBaseImpl
         }
     }
 
-    public static SSLOptions getSSLOptions(Path keystorePath) throws RuntimeException
+    public static SSLOptions getSSLOptions(Path keystorePath, Path truststorePath) throws RuntimeException
     {
         try
         {
             return RemoteEndpointAwareJdkSSLOptions.builder()
-                                                   .withSSLContext(getClientSslContextFactory(keystorePath)
+                                                   .withSSLContext(getClientSslContextFactory(keystorePath, truststorePath)
                                                                    .createJSSESslContext(EncryptionOptions.ClientAuth.OPTIONAL))
                                                    .build();
         }
@@ -285,7 +287,7 @@ public class MutualTlsCertificateValidityPeriodTest extends TestBaseImpl
         }
     }
 
-    private static ISslContextFactory getClientSslContextFactory(Path keystorePath)
+    private static ISslContextFactory getClientSslContextFactory(Path keystorePath, Path truststorePath)
     {
         ImmutableMap.Builder<String, Object> params = ImmutableMap.<String, Object>builder()
                                                                   .put("truststore", truststorePath.toString())
@@ -300,17 +302,21 @@ public class MutualTlsCertificateValidityPeriodTest extends TestBaseImpl
         return new SimpleClientSslContextFactory(params.build());
     }
 
-    private static void configureIdentity()
+    static void configureIdentity(ICluster<IInvokableInstance> cluster, SSLOptions sslOptions)
     {
-        withAuthenticatedSession(CLUSTER.get(1), DEFAULT_SUPERUSER_NAME, DEFAULT_SUPERUSER_PASSWORD, session -> {
+        withAuthenticatedSession(cluster.get(1), DEFAULT_SUPERUSER_NAME, DEFAULT_SUPERUSER_PASSWORD, session -> {
             session.execute("CREATE ROLE cassandra_ssl_test WITH LOGIN = true");
             session.execute(String.format("ADD IDENTITY '%s' TO ROLE 'cassandra_ssl_test'", IDENTITY));
             // GRANT select to cassandra_ssl_test to be able to query the system_views.clients virtual table
             session.execute("GRANT SELECT ON ALL KEYSPACES to cassandra_ssl_test");
-        });
+        }, sslOptions);
     }
 
-    static void withAuthenticatedSession(IInvokableInstance instance, String username, String password, Consumer<Session> consumer)
+    static void withAuthenticatedSession(IInvokableInstance instance,
+                                         String username,
+                                         String password,
+                                         Consumer<Session> consumer,
+                                         SSLOptions sslOptions)
     {
         // wait for existing roles
         Auth.waitForExistingRoles(instance);
@@ -321,7 +327,7 @@ public class MutualTlsCertificateValidityPeriodTest extends TestBaseImpl
 
         com.datastax.driver.core.Cluster.Builder builder = com.datastax.driver.core.Cluster.builder()
                                                                                            .withLoadBalancingPolicy(lbc)
-                                                                                           .withSSL(getSSLOptions(null))
+                                                                                           .withSSL(sslOptions)
                                                                                            .withAuthProvider(new PlainTextAuthProvider(username, password))
                                                                                            .addContactPoint(address.getHostAddress())
                                                                                            .withPort(nativeInetSocketAddress.getPort());
@@ -332,9 +338,13 @@ public class MutualTlsCertificateValidityPeriodTest extends TestBaseImpl
         }
     }
 
-    private Path generateClientCertificate(Function<CertificateBuilder, CertificateBuilder> customizeCertificate) throws Exception
+    static Path generateSelfSignedCertificate(Function<CertificateBuilder, CertificateBuilder> customizeCertificate, File targetDirectory) throws Exception
     {
+        return generateClientCertificate(customizeCertificate, targetDirectory, null);
+    }
 
+    static Path generateClientCertificate(Function<CertificateBuilder, CertificateBuilder> customizeCertificate, File targetDirectory, CertificateBundle ca) throws Exception
+    {
         CertificateBuilder builder = new CertificateBuilder().subject("CN=Apache Cassandra, OU=ssl_test, O=Unknown, L=Unknown, ST=Unknown, C=Unknown")
                                                              .notBefore(Instant.now().minus(1, ChronoUnit.DAYS))
                                                              .notAfter(Instant.now().plus(1, ChronoUnit.DAYS))
@@ -345,7 +355,9 @@ public class MutualTlsCertificateValidityPeriodTest extends TestBaseImpl
         {
             builder = customizeCertificate.apply(builder);
         }
-        CertificateBundle ssc = builder.buildIssuedBy(CA);
-        return ssc.toTempKeyStorePath(tempFolder.getRoot().toPath(), KEYSTORE_PASSWORD, KEYSTORE_PASSWORD);
+        CertificateBundle ssc = ca != null
+                                ? builder.buildIssuedBy(ca)
+                                : builder.buildSelfSigned();
+        return ssc.toTempKeyStorePath(targetDirectory.toPath(), KEYSTORE_PASSWORD, KEYSTORE_PASSWORD);
     }
 }

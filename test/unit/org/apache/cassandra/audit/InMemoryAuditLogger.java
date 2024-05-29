@@ -21,6 +21,8 @@ import java.util.LinkedList;
 import java.util.Map;
 import java.util.Queue;
 
+import com.google.common.annotations.VisibleForTesting;
+
 public class InMemoryAuditLogger implements IAuditLogger
 {
     final Queue<AuditLogEntry> inMemQueue = new LinkedList<>();
@@ -48,5 +50,11 @@ public class InMemoryAuditLogger implements IAuditLogger
     {
         enabled = false;
         inMemQueue.clear();
+    }
+
+    @VisibleForTesting
+    public Queue<AuditLogEntry> internalQueue()
+    {
+        return inMemQueue;
     }
 }
