@@ -53,13 +53,13 @@ import static org.apache.cassandra.audit.AuditLogEntryType.LOGIN_ERROR;
 import static org.apache.cassandra.audit.AuditLogEntryType.LOGIN_SUCCESS;
 import static org.apache.cassandra.auth.CassandraRoleManager.DEFAULT_SUPERUSER_NAME;
 import static org.apache.cassandra.auth.CassandraRoleManager.DEFAULT_SUPERUSER_PASSWORD;
-import static org.apache.cassandra.distributed.test.auth.MutualTlsCertificateValidityPeriodTest.configureIdentity;
-import static org.apache.cassandra.distributed.test.auth.MutualTlsCertificateValidityPeriodTest.generateClientCertificate;
-import static org.apache.cassandra.distributed.test.auth.MutualTlsCertificateValidityPeriodTest.generateSelfSignedCertificate;
-import static org.apache.cassandra.distributed.test.auth.MutualTlsCertificateValidityPeriodTest.getSSLOptions;
-import static org.apache.cassandra.distributed.test.auth.MutualTlsCertificateValidityPeriodTest.withAuthenticatedSession;
 import static org.apache.cassandra.transport.TlsTestUtils.SERVER_KEYSTORE_PASSWORD;
 import static org.apache.cassandra.transport.TlsTestUtils.SERVER_TRUSTSTORE_PASSWORD;
+import static org.apache.cassandra.transport.TlsTestUtils.configureIdentity;
+import static org.apache.cassandra.transport.TlsTestUtils.generateClientCertificate;
+import static org.apache.cassandra.transport.TlsTestUtils.generateSelfSignedCertificate;
+import static org.apache.cassandra.transport.TlsTestUtils.getSSLOptions;
+import static org.apache.cassandra.transport.TlsTestUtils.withAuthenticatedSession;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
 
@@ -202,7 +202,7 @@ public class AuthAuditLoggingTest extends TestBaseImpl
         Path clientKeystorePath = generateClientCertificate(null, tempFolder.getRoot(), CA);
         CharSequence expectedLogStringRegex = "^user:cassandra_ssl_test\\|host:.*/127.0.0.1:\\d+\\|source:/127.0.0.1" +
                                               "\\|port:\\d+\\|timestamp:\\d+\\|type:LOGIN_SUCCESS\\|category:AUTH" +
-                                              "\\|operation:LOGIN SUCCESSFUL\\|identity:spiffe://test.cassandra.apache.org/dTest/mtls$";
+                                              "\\|operation:LOGIN SUCCESSFUL\\|identity:spiffe://test.cassandra.apache.org/unitTest/mtls$";
 
         try (com.datastax.driver.core.Cluster c = JavaDriverUtils.create(CLUSTER, null, b -> b.withSSL(getSSLOptions(clientKeystorePath, truststorePath)));
              Session session = c.connect())
@@ -249,7 +249,7 @@ public class AuthAuditLoggingTest extends TestBaseImpl
                                               "\\|operation:LOGIN FAILURE; PKIX path validation failed.*$";
 
         Path expiredCertPath = generateClientCertificate(b -> b.notBefore(Instant.now().minus(30, ChronoUnit.DAYS))
-                                                                         .notAfter(Instant.now().minus(10, ChronoUnit.DAYS)), tempFolder.getRoot(), CA);
+                                                               .notAfter(Instant.now().minus(10, ChronoUnit.DAYS)), tempFolder.getRoot(), CA);
 
         testMtlsAuthenticationFailure(expiredCertPath, "Authentication should fail with an expired certificate", expectedLogStringRegex);
     }
@@ -262,7 +262,7 @@ public class AuthAuditLoggingTest extends TestBaseImpl
                                               "\\|operation:LOGIN FAILURE; Unable to extract Spiffe from the certificate.*$";
 
         Path invalidSpiffeCertPath = generateClientCertificate(b -> b.clearSubjectAlternativeNames()
-                                                                         .addSanUriName(NON_SPIFFE_IDENTITY), tempFolder.getRoot(), CA);
+                                                                     .addSanUriName(NON_SPIFFE_IDENTITY), tempFolder.getRoot(), CA);
 
         testMtlsAuthenticationFailure(invalidSpiffeCertPath, "Authentication should fail with an invalid spiffe certificate", expectedLogStringRegex);
     }
@@ -275,7 +275,7 @@ public class AuthAuditLoggingTest extends TestBaseImpl
                                               "\\|operation:LOGIN FAILURE; Certificate identity 'spiffe://test.cassandra.apache.org/dTest/notMapped' not authorized.*$";
 
         Path unmappedIdentityCertPath = generateClientCertificate(b -> b.clearSubjectAlternativeNames()
-                                                                         .addSanUriName(NON_MAPPED_IDENTITY), tempFolder.getRoot(), CA);
+                                                                        .addSanUriName(NON_MAPPED_IDENTITY), tempFolder.getRoot(), CA);
 
         testMtlsAuthenticationFailure(unmappedIdentityCertPath, "Authentication should fail with a certificate that doesn't map to a role", expectedLogStringRegex);
     }
