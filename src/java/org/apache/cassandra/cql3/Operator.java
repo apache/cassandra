@@ -559,6 +559,64 @@ public enum Operator
         }
 
         @Override
+        public Operator negate()
+        {
+            return NOT_BETWEEN;
+        }
+
+        @Override
+        public boolean canBeUsedWith(ColumnsExpression.Kind kind)
+        {
+            return kind != ColumnsExpression.Kind.MAP_ELEMENT;
+        }
+    },
+    NOT_BETWEEN(17)
+    {
+        @Override
+        public Kind kind() {
+            return Kind.TERNARY;
+        }
+
+        @Override
+        public String toString()
+        {
+            return "NOT BETWEEN";
+        }
+
+        @Override
+        public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
+        {
+            return !BETWEEN.isSatisfiedBy(type, leftOperand, rightOperand);
+        }
+
+        @Override
+        public boolean requiresFilteringOrIndexingFor(ColumnMetadata.Kind columnKind)
+        {
+            return columnKind != ColumnMetadata.Kind.CLUSTERING;
+        }
+
+        @Override
+        public void restrict(RangeSet<ClusteringElements> rangeSet, List<ClusteringElements> args)
+        {
+            assert args.size() == 2 : this + " accepts exactly two values";
+            RangeSet<ClusteringElements> excludedRanges = ClusteringElements.all();
+            BETWEEN.restrict(excludedRanges, args);
+            rangeSet.removeAll(excludedRanges);
+        }
+
+        @Override
+        public boolean isSlice()
+        {
+            return true;
+        }
+
+        @Override
+        public Operator negate()
+        {
+            return BETWEEN;
+        }
+
+        @Override
         public boolean canBeUsedWith(ColumnsExpression.Kind kind)
         {
             return kind != ColumnsExpression.Kind.MAP_ELEMENT;

@@ -1782,6 +1782,8 @@ relation[WhereClause.Builder clauses]
     : name=cident type=relationType t=term { $clauses.add(Relation.singleColumn(name, type, t)); }
     | name=cident K_BETWEEN betweenValues=singleColumnBetweenValues
             { $clauses.add(Relation.singleColumn($name.id, Operator.BETWEEN, betweenValues)); }
+    | name=cident K_NOT K_BETWEEN betweenValues=singleColumnBetweenValues
+            { $clauses.add(Relation.singleColumn($name.id, Operator.NOT_BETWEEN, betweenValues)); }
     | name=cident K_LIKE t=term { $clauses.add(Relation.singleColumn(name, Operator.LIKE, t)); }
     | name=cident K_IS K_NOT K_NULL { $clauses.add(Relation.singleColumn(name, Operator.IS_NOT, Constants.NULL_LITERAL)); }
     | K_TOKEN l=tupleOfIdentifiers type=relationType t=term
@@ -1817,6 +1819,12 @@ relation[WhereClause.Builder clauses]
             | m1=markerForTuple K_AND m2=markerForTuple
                     { $clauses.add(Relation.multiColumn(ids, Operator.BETWEEN, Terms.Raw.of(List.of(m1, m2)))); }
             )
+      | K_NOT K_BETWEEN
+                    ( t1=tupleLiteral K_AND t2=tupleLiteral
+                            { $clauses.add(Relation.multiColumn(ids, Operator.NOT_BETWEEN, Terms.Raw.of(List.of(t1, t2)))); }
+                    | m1=markerForTuple K_AND m2=markerForTuple
+                            { $clauses.add(Relation.multiColumn(ids, Operator.NOT_BETWEEN, Terms.Raw.of(List.of(m1, m2)))); }
+                    )
       )
     | '(' relation[$clauses] ')'
     ;
