@@ -609,7 +609,7 @@ public class ClusteringElementsTest
             ClusteringElements oneFiveOne = elements(columns, 1, 5, 1);
             ClusteringElements twoFiveFive = elements(columns, 2, 5, 5);
 
-            ArrayList<ClusteringElements> elementsList = new ArrayList<>();
+            List<ClusteringElements> elementsList = new ArrayList<>();
             elementsList.add(zeroZeroZero);
             elementsList.add(oneFiveOne);
             elementsList.add(oneThreeZero);
@@ -618,7 +618,7 @@ public class ClusteringElementsTest
             elementsList.add(oneThreeFive);
             elementsList.add(oneZeroOne);
 
-            Comparator<ClusteringElements> comparator = new ClusteringElements.ClusteringElementsComparator(true);
+            Comparator<ClusteringElements> comparator = ClusteringElements.CQL_COMPARATOR;
             elementsList.sort(comparator);
 
             assertEquals(zeroZeroZero, elementsList.get(0));
@@ -629,6 +629,22 @@ public class ClusteringElementsTest
             assertEquals(oneFiveOne, elementsList.get(5));
             assertEquals(twoFiveFive, elementsList.get(6));
         }
+    }
+
+    @Test
+    public void testForCQLComparatorWithDifferentLength()
+    {
+        ClusteringElements one = elements(newClusteringColumns(ASC), 1);
+        ClusteringElements oneZero = elements(newClusteringColumns(ASC, ASC), 1, 0);
+        ClusteringElements oneZeroOne = elements(newClusteringColumns(ASC, ASC, ASC), 1, 0, 1);
+
+        assertEquals(0, ClusteringElements.CQL_COMPARATOR.compare(one, one));
+        assertEquals(0, ClusteringElements.CQL_COMPARATOR.compare(one, oneZero));
+        assertEquals(0, ClusteringElements.CQL_COMPARATOR.compare(oneZero, one));
+        assertEquals(0, ClusteringElements.CQL_COMPARATOR.compare(one, oneZeroOne));
+        assertEquals(0, ClusteringElements.CQL_COMPARATOR.compare(oneZeroOne, one));
+        assertEquals(0, ClusteringElements.CQL_COMPARATOR.compare(oneZero, oneZeroOne));
+        assertEquals(0, ClusteringElements.CQL_COMPARATOR.compare(oneZeroOne, oneZero));
     }
 
     private void assertUnsupported(String expectedMsg, Runnable r)
