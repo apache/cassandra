@@ -236,26 +236,9 @@ public class AuthAuditLoggingTest extends TestBaseImpl
         CharSequence expectedLogStringRegex = "^user:null\\|host:.*/127.0.0.1:\\d+\\|timestamp:\\d+" +
                                               "\\|type:LOGIN_ERROR\\|category:AUTH" +
                                               "\\|operation:LOGIN FAILURE; Empty client certificate chain.*$";
-        Path clientKeystorePath = generateSelfSignedCertificate(null, tempFolder.getRoot());
+        Path untrustedCertPath = generateSelfSignedCertificate(null, tempFolder.getRoot());
 
-        try (com.datastax.driver.core.Cluster c = JavaDriverUtils.create(CLUSTER, null, b -> b.withSSL(getSSLOptions(clientKeystorePath, truststorePath)));
-             Session ignored = c.connect())
-        {
-            fail("Authentication should fail with a self-signed certificate");
-        }
-        catch (com.datastax.driver.core.exceptions.NoHostAvailableException exception)
-        {
-            CLUSTER.get(1).runOnInstance(() -> {
-                // We should have events recorded for the control connection and the session connection
-                Queue<AuditLogEntry> auditLogEntries = ((InMemoryAuditLogger) AuditLogManager.instance.getLogger()).internalQueue();
-                AuditLogEntry entry = maybeGetAuditLogEntry(auditLogEntries);
-                assertThat(entry).isNotNull();
-                assertThat(entry.getHost().toString(false)).matches(".*/127.0.0.1");
-                assertThat(entry.getUser()).isNull();
-                assertThat(entry.getType()).isEqualTo(LOGIN_ERROR);
-                assertThat(entry.getLogString()).matches(expectedLogStringRegex);
-            });
-        }
+        testMtlsAuthenticationFailure(untrustedCertPath, "Authentication should fail with a self-signed certificate", expectedLogStringRegex);
     }
 
     @Test
@@ -265,28 +248,10 @@ public class AuthAuditLoggingTest extends TestBaseImpl
                                               "\\|type:LOGIN_ERROR\\|category:AUTH" +
                                               "\\|operation:LOGIN FAILURE; PKIX path validation failed.*$";
 
-        Path expiredClientKeystorePath = generateClientCertificate(b -> b.notBefore(Instant.now().minus(30, ChronoUnit.DAYS))
+        Path expiredCertPath = generateClientCertificate(b -> b.notBefore(Instant.now().minus(30, ChronoUnit.DAYS))
                                                                          .notAfter(Instant.now().minus(10, ChronoUnit.DAYS)), tempFolder.getRoot(), CA);
 
-        try (com.datastax.driver.core.Cluster c = JavaDriverUtils.create(CLUSTER, null, b -> b.withSSL(getSSLOptions(expiredClientKeystorePath, truststorePath)));
-             Session ignored = c.connect())
-        {
-            fail("Authentication should fail with an expired certificate");
-        }
-        catch (com.datastax.driver.core.exceptions.NoHostAvailableException exception)
-        {
-            CLUSTER.get(1).runOnInstance(() -> {
-                // We should have events recorded for the control connection and the session connection
-                Queue<AuditLogEntry> auditLogEntries = ((InMemoryAuditLogger) AuditLogManager.instance.getLogger()).internalQueue();
-                AuditLogEntry entry = maybeGetAuditLogEntry(auditLogEntries);
-
-                assertThat(entry).isNotNull();
-                assertThat(entry.getHost().toString(false)).matches(".*/127.0.0.1");
-                assertThat(entry.getUser()).isNull();
-                assertThat(entry.getType()).isEqualTo(LOGIN_ERROR);
-                assertThat(entry.getLogString()).matches(expectedLogStringRegex);
-            });
-        }
+        testMtlsAuthenticationFailure(expiredCertPath, "Authentication should fail with an expired certificate", expectedLogStringRegex);
     }
 
     @Test
@@ -296,28 +261,10 @@ public class AuthAuditLoggingTest extends TestBaseImpl
                                               "\\|port:\\d+\\|timestamp:\\d+\\|type:LOGIN_ERROR\\|category:AUTH" +
                                               "\\|operation:LOGIN FAILURE; Unable to extract Spiffe from the certificate.*$";
 
-        Path expiredClientKeystorePath = generateClientCertificate(b -> b.clearSubjectAlternativeNames()
+        Path invalidSpiffeCertPath = generateClientCertificate(b -> b.clearSubjectAlternativeNames()
                                                                          .addSanUriName(NON_SPIFFE_IDENTITY), tempFolder.getRoot(), CA);
 
-        try (com.datastax.driver.core.Cluster c = JavaDriverUtils.create(CLUSTER, null, b -> b.withSSL(getSSLOptions(expiredClientKeystorePath, truststorePath)));
-             Session ignored = c.connect())
-        {
-            fail("Authentication should fail with an invalid spiffe certificate");
-        }
-        catch (com.datastax.driver.core.exceptions.NoHostAvailableException exception)
-        {
-            CLUSTER.get(1).runOnInstance(() -> {
-                // We should have events recorded for the control connection and the session connection
-                Queue<AuditLogEntry> auditLogEntries = ((InMemoryAuditLogger) AuditLogManager.instance.getLogger()).internalQueue();
-                AuditLogEntry entry = maybeGetAuditLogEntry(auditLogEntries);
-
-                assertThat(entry).isNotNull();
-                assertThat(entry.getHost().toString(false)).matches(".*/127.0.0.1");
-                assertThat(entry.getUser()).isNull();
-                assertThat(entry.getType()).isEqualTo(LOGIN_ERROR);
-                assertThat(entry.getLogString()).matches(expectedLogStringRegex);
-            });
-        }
+        testMtlsAuthenticationFailure(invalidSpiffeCertPath, "Authentication should fail with an invalid spiffe certificate", expectedLogStringRegex);
     }
 
     @Test
@@ -327,13 +274,18 @@ public class AuthAuditLoggingTest extends TestBaseImpl
                                               "\\|port:\\d+\\|timestamp:\\d+\\|type:LOGIN_ERROR\\|category:AUTH" +
                                               "\\|operation:LOGIN FAILURE; Certificate identity 'spiffe://test.cassandra.apache.org/dTest/notMapped' not authorized.*$";
 
-        Path expiredClientKeystorePath = generateClientCertificate(b -> b.clearSubjectAlternativeNames()
+        Path unmappedIdentityCertPath = generateClientCertificate(b -> b.clearSubjectAlternativeNames()
                                                                          .addSanUriName(NON_MAPPED_IDENTITY), tempFolder.getRoot(), CA);
 
-        try (com.datastax.driver.core.Cluster c = JavaDriverUtils.create(CLUSTER, null, b -> b.withSSL(getSSLOptions(expiredClientKeystorePath, truststorePath)));
+        testMtlsAuthenticationFailure(unmappedIdentityCertPath, "Authentication should fail with a certificate that doesn't map to a role", expectedLogStringRegex);
+    }
+
+    static void testMtlsAuthenticationFailure(Path clientKeystorePath, String failureMessage, CharSequence expectedLogStringRegex)
+    {
+        try (com.datastax.driver.core.Cluster c = JavaDriverUtils.create(CLUSTER, null, b -> b.withSSL(getSSLOptions(clientKeystorePath, truststorePath)));
              Session ignored = c.connect())
         {
-            fail("Authentication should fail with a certificate that doesn't map to a role");
+            fail(failureMessage);
         }
         catch (com.datastax.driver.core.exceptions.NoHostAvailableException exception)
         {
@@ -341,7 +293,6 @@ public class AuthAuditLoggingTest extends TestBaseImpl
                 // We should have events recorded for the control connection and the session connection
                 Queue<AuditLogEntry> auditLogEntries = ((InMemoryAuditLogger) AuditLogManager.instance.getLogger()).internalQueue();
                 AuditLogEntry entry = maybeGetAuditLogEntry(auditLogEntries);
-
                 assertThat(entry).isNotNull();
                 assertThat(entry.getHost().toString(false)).matches(".*/127.0.0.1");
                 assertThat(entry.getUser()).isNull();
