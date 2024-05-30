@@ -242,7 +242,7 @@ public class AuditLogEntry
             operation = entry.operation;
             options = entry.options;
             state = entry.state;
-            metadata = Map.copyOf(entry.metadata);
+            metadata = entry.metadata != null ? Map.copyOf(entry.metadata) : null;
         }
 
         public Builder setType(AuditLogEntryType type)
@@ -326,7 +326,7 @@ public class AuditLogEntry
 
         public Builder setMetadata(Map<String, Object> metadata)
         {
-            this.metadata = Map.copyOf(metadata);
+            this.metadata = metadata != null ? Map.copyOf(metadata) : null;
             return this;
         }
 

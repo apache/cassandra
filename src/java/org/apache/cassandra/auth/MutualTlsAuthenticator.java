@@ -239,7 +239,7 @@ public class MutualTlsAuthenticator implements IAuthenticator
             // Report metrics on client certificate expiration
             MutualTlsMetrics.instance.clientCertificateExpirationDays.update(daysToCertificateExpiration);
 
-            return new AuthenticatedUser(role, MTLS, Collections.singletonMap(METADATA_IDENTITY_KEY, identity));
+            return new AuthenticatedUser(role, MTLS, Map.of(METADATA_IDENTITY_KEY, identity));
         }
 
         @Override
