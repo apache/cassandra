@@ -39,6 +39,7 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.transport.Dispatcher;
 
 import static org.apache.cassandra.auth.AuthKeyspace.IDENTITY_TO_ROLES;
 import static org.apache.cassandra.cql3.statements.AddIdentityStatementTest.defineSchema;
@@ -83,7 +84,7 @@ public class DropIdentityStatementTest
     public void testDroppingValidIdentity()
     {
         DatabaseDescriptor.getRoleManager().addIdentity(IDENTITY, "cassandra");
-        QueryProcessor.process(DROP_QUERY, ConsistencyLevel.QUORUM, getClientState(), 10L);
+        QueryProcessor.process(DROP_QUERY, ConsistencyLevel.QUORUM, getClientState(), Dispatcher.RequestTime.forImmediateExecution());
         assertFalse(DatabaseDescriptor.getRoleManager().isExistingIdentity(IDENTITY));
     }
 
@@ -107,7 +108,7 @@ public class DropIdentityStatementTest
         String query = String.format("DROP IDENTITY '%s';", IDENTITY);
         expectedException.expect(UnauthorizedException.class);
         expectedException.expectMessage("User readwrite_user does not have sufficient privileges to perform the requested operation");
-        QueryProcessor.process(query, ConsistencyLevel.QUORUM, new QueryState(state), 10L);
+        QueryProcessor.process(query, ConsistencyLevel.QUORUM, new QueryState(state), Dispatcher.RequestTime.forImmediateExecution());
     }
 
     @Test
@@ -122,7 +123,7 @@ public class DropIdentityStatementTest
 
         // Dropping role should remove identities associated with it
         String query = "DROP ROLE readwrite_user";
-        QueryProcessor.process(query,  ConsistencyLevel.QUORUM, getClientState(), 10L);
+        QueryProcessor.process(query, ConsistencyLevel.QUORUM, getClientState(), Dispatcher.RequestTime.forImmediateExecution());
 
         Map<String, String > m = DatabaseDescriptor.getRoleManager().authorizedIdentities();
         assertFalse(m.containsKey(IDENTITY));
@@ -139,19 +140,19 @@ public class DropIdentityStatementTest
 
         // Identity in the table & IF EXISTS in query should succeed
         DatabaseDescriptor.getRoleManager().addIdentity(IDENTITY, "cassandra");
-        QueryProcessor.process(dropQueryWithIfExists, ConsistencyLevel.QUORUM, getClientState(), 10L);
+        QueryProcessor.process(dropQueryWithIfExists, ConsistencyLevel.QUORUM, getClientState(), Dispatcher.RequestTime.forImmediateExecution());
 
         // Identity not in the table & IF EXISTS in query should succeed
-        QueryProcessor.process(dropQueryWithIfExists, ConsistencyLevel.QUORUM, getClientState(), 10L);
+        QueryProcessor.process(dropQueryWithIfExists, ConsistencyLevel.QUORUM, getClientState(), Dispatcher.RequestTime.forImmediateExecution());
 
         String dropQueryWithOutIfExists = String.format("DROP IDENTITY '%s'", IDENTITY);
         // Identity in the table & no IF EXISTS in query should succeed
         DatabaseDescriptor.getRoleManager().addIdentity(IDENTITY, "cassandra");
-        QueryProcessor.process(dropQueryWithOutIfExists, ConsistencyLevel.QUORUM, getClientState(), 10L);
+        QueryProcessor.process(dropQueryWithOutIfExists, ConsistencyLevel.QUORUM, getClientState(), Dispatcher.RequestTime.forImmediateExecution());
 
         // Identity not in the table & no IF EXISTS in query should fail
         expectedException.expect(InvalidRequestException.class);
         expectedException.expectMessage(String.format("identity '%s' doesn't exist", IDENTITY));
-        QueryProcessor.process(dropQueryWithOutIfExists, ConsistencyLevel.QUORUM, getClientState(), 10L);
+        QueryProcessor.process(dropQueryWithOutIfExists, ConsistencyLevel.QUORUM, getClientState(), Dispatcher.RequestTime.forImmediateExecution());
     }
 }

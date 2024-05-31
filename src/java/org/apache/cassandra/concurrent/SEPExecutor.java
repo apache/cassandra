@@ -85,6 +85,21 @@ public class SEPExecutor implements LocalAwareExecutorPlus, SEPExecutorMBean
     }
 
     @Override
+    public long oldestTaskQueueTime()
+    {
+        Runnable task = tasks.peek();
+        if (!(task instanceof FutureTask))
+            return 0L;
+
+        FutureTask<?> futureTask = (FutureTask<?>) task;
+        DebuggableTask debuggableTask = futureTask.debuggableTask();
+        if (debuggableTask == null)
+            return 0L;
+
+        return debuggableTask.elapsedSinceCreation();
+    }
+
+    @Override
     public int getMaxTasksQueued()
     {
         return Integer.MAX_VALUE;

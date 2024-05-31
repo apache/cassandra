@@ -78,7 +78,7 @@ public class ConnectionTrackerTest
     {
         final String ODD_USER = "odd";
         final String EVEN_USER = "even";
-        ConnectionTracker connectionTracker = new ConnectionTracker();
+        ConnectionTracker connectionTracker = new ConnectionTracker(() -> true);
         registerConnections(connectionTracker, 6, (addr) -> {
             // if port divisible by 10, return 0, this will be treated as an anonymous user.
             if (addr.getPort() % 10 == 0)
@@ -111,15 +111,14 @@ public class ConnectionTrackerTest
     @Test
     public void testShouldNotCountChannelsMissingConnectionAttribute()
     {
-        ConnectionTracker connectionTracker = new ConnectionTracker();
+        ConnectionTracker connectionTracker = new ConnectionTracker(() -> true);
         registerConnections(connectionTracker, 10);
 
         // Given a ServerConnection registered that lacks a 'Connection.attributeKey' attribute, it should
         // be skipped over when counting client connections.
         InetSocketAddress socketAddress = new InetSocketAddress(InetAddress.getLoopbackAddress(), 9042);
         Channel c = new EmbeddedChannelWithSocketAddress(socketAddress);
-        Connection connection = new ServerConnection(c, ProtocolVersion.V5, (c1, c2) -> {
-        });
+        Connection connection = new ServerConnection(c, ProtocolVersion.V5, NO_OP_TRACKER);
         // intentionally omit setting Connection attribute.
         connectionTracker.addConnection(c, connection);
 
@@ -131,15 +130,14 @@ public class ConnectionTrackerTest
     @Test
     public void testShouldNotCountNonServerConnection()
     {
-        ConnectionTracker connectionTracker = new ConnectionTracker();
+        ConnectionTracker connectionTracker = new ConnectionTracker(() -> true);
         registerConnections(connectionTracker, 10);
 
         // Given a Connection registered that is not a 'ServerConnection' it should be skipped over when counting client
         // connections.
         InetSocketAddress socketAddress = new InetSocketAddress(InetAddress.getLoopbackAddress(), 9042);
         Channel c = new EmbeddedChannelWithSocketAddress(socketAddress);
-        Connection connection = new Connection(c, ProtocolVersion.V5, (c1, c2) -> {
-        });
+        Connection connection = new Connection(c, ProtocolVersion.V5, NO_OP_TRACKER);
         c.attr(Connection.attributeKey).set(connection);
         connectionTracker.addConnection(c, connection);
 
@@ -151,7 +149,7 @@ public class ConnectionTrackerTest
     @Test(expected = IllegalArgumentException.class)
     public void testShouldThrowThrowable()
     {
-        ConnectionTracker connectionTracker = new ConnectionTracker();
+        ConnectionTracker connectionTracker = new ConnectionTracker(() -> true);
         registerConnections(connectionTracker, 10);
 
         // Mock a ServerConnection such that when you attempt to access its connection attribute, an unhandled throwable
@@ -159,8 +157,7 @@ public class ConnectionTrackerTest
         InetSocketAddress socketAddress = new InetSocketAddress(InetAddress.getLoopbackAddress(), 9042);
         Channel c = new EmbeddedChannelWithSocketAddress(socketAddress);
         Channel spyChannel = Mockito.spy(c);
-        Connection connection = new ServerConnection(c, ProtocolVersion.V5, (c1, c2) -> {
-        });
+        Connection connection = new ServerConnection(c, ProtocolVersion.V5, NO_OP_TRACKER);
         c.attr(Connection.attributeKey).set(connection);
         Mockito.when(spyChannel.attr(Connection.attributeKey)).thenThrow(new IllegalArgumentException("Unexpected behavior"));
         connectionTracker.addConnection(spyChannel, connection);
@@ -174,7 +171,19 @@ public class ConnectionTrackerTest
      */
     private ServerConnection createAuthenticatedConnection(Channel channel, AuthenticatedUser user)
     {
-        ServerConnection connection = new ServerConnection(channel, ProtocolVersion.V5, (c1, c2) -> {
+        ServerConnection connection = new ServerConnection(channel, ProtocolVersion.V5, new Connection.Tracker()
+        {
+            @Override
+            public void addConnection(Channel ch, Connection connection)
+            {
+
+            }
+
+            @Override
+            public boolean isRunning()
+            {
+                return false;
+            }
         });
 
         if (user == null)
@@ -239,4 +248,18 @@ public class ConnectionTrackerTest
             return this.socketAddress;
         }
     }
+
+    private final Connection.Tracker NO_OP_TRACKER =  new Connection.Tracker()
+    {
+        @Override
+        public void addConnection(Channel ch, Connection connection)
+        {
+        }
+
+        @Override
+        public boolean isRunning()
+        {
+            return true;
+        }
+    };
 }

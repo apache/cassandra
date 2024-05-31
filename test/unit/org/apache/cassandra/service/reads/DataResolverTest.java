@@ -75,6 +75,7 @@ import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.transformations.Register;
 import org.apache.cassandra.tcm.transformations.UnsafeJoin;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.Util.assertClustering;
@@ -82,7 +83,6 @@ import static org.apache.cassandra.Util.assertColumn;
 import static org.apache.cassandra.Util.assertColumns;
 import static org.apache.cassandra.db.ClusteringBound.Kind;
 import static org.apache.cassandra.db.ConsistencyLevel.ALL;
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -137,7 +137,7 @@ public class DataResolverTest extends AbstractReadResponseTest
     public void testResolveNewerSingleRow()
     {
         EndpointsForRange replicas = makeReplicas(2);
-        DataResolver resolver = new DataResolver(command, plan(replicas, ALL), readRepair, nanoTime());
+        DataResolver resolver = new DataResolver(command, plan(replicas, ALL), readRepair, Dispatcher.RequestTime.forImmediateExecution());
         InetAddressAndPort peer1 = replicas.get(0).endpoint();
         resolver.preprocess(response(command, peer1, iter(new RowUpdateBuilder(cfm, nowInSec, 0L, dk).clustering("1")
                                                                                                      .add("c1", "v1")
@@ -169,7 +169,7 @@ public class DataResolverTest extends AbstractReadResponseTest
     public void testResolveDisjointSingleRow()
     {
         EndpointsForRange replicas = makeReplicas(2);
-        DataResolver resolver = new DataResolver(command, plan(replicas, ALL), readRepair, nanoTime());
+        DataResolver resolver = new DataResolver(command, plan(replicas, ALL), readRepair, Dispatcher.RequestTime.forImmediateExecution());
         InetAddressAndPort peer1 = replicas.get(0).endpoint();
         resolver.preprocess(response(command, peer1, iter(new RowUpdateBuilder(cfm, nowInSec, 0L, dk).clustering("1")
                                                                                                      .add("c1", "v1")
@@ -206,7 +206,7 @@ public class DataResolverTest extends AbstractReadResponseTest
     public void testResolveDisjointMultipleRows() throws UnknownHostException
     {
         EndpointsForRange replicas = makeReplicas(2);
-        DataResolver resolver = new DataResolver(command, plan(replicas, ALL), readRepair, nanoTime());
+        DataResolver resolver = new DataResolver(command, plan(replicas, ALL), readRepair, Dispatcher.RequestTime.forImmediateExecution());
         InetAddressAndPort peer1 = replicas.get(0).endpoint();
         resolver.preprocess(response(command, peer1, iter(new RowUpdateBuilder(cfm, nowInSec, 0L, dk).clustering("1")
                                                                                                      .add("c1", "v1")
@@ -253,7 +253,7 @@ public class DataResolverTest extends AbstractReadResponseTest
     public void testResolveDisjointMultipleRowsWithRangeTombstones()
     {
         EndpointsForRange replicas = makeReplicas(4);
-        DataResolver resolver = new DataResolver(command, plan(replicas, ALL), readRepair, nanoTime());
+        DataResolver resolver = new DataResolver(command, plan(replicas, ALL), readRepair, Dispatcher.RequestTime.forImmediateExecution());
 
         RangeTombstone tombstone1 = tombstone("1", "11", 1, nowInSec);
         RangeTombstone tombstone2 = tombstone("3", "31", 1, nowInSec);
@@ -334,7 +334,7 @@ public class DataResolverTest extends AbstractReadResponseTest
     public void testResolveWithOneEmpty()
     {
         EndpointsForRange replicas = makeReplicas(2);
-        DataResolver resolver = new DataResolver(command, plan(replicas, ALL), readRepair, nanoTime());
+        DataResolver resolver = new DataResolver(command, plan(replicas, ALL), readRepair, Dispatcher.RequestTime.forImmediateExecution());
         InetAddressAndPort peer1 = replicas.get(0).endpoint();
         resolver.preprocess(response(command, peer1, iter(new RowUpdateBuilder(cfm, nowInSec, 1L, dk).clustering("1")
                                                                                                      .add("c2", "v2")
@@ -365,7 +365,7 @@ public class DataResolverTest extends AbstractReadResponseTest
     {
         EndpointsForRange replicas = makeReplicas(2);
         TestableReadRepair readRepair = new TestableReadRepair(command);
-        DataResolver resolver = new DataResolver(command, plan(replicas, ALL), readRepair, nanoTime());
+        DataResolver resolver = new DataResolver(command, plan(replicas, ALL), readRepair, Dispatcher.RequestTime.forImmediateExecution());
         resolver.preprocess(response(command, replicas.get(0).endpoint(), EmptyIterators.unfilteredPartition(cfm)));
         resolver.preprocess(response(command, replicas.get(1).endpoint(), EmptyIterators.unfilteredPartition(cfm)));
 
@@ -381,7 +381,7 @@ public class DataResolverTest extends AbstractReadResponseTest
     public void testResolveDeleted()
     {
         EndpointsForRange replicas = makeReplicas(2);
-        DataResolver resolver = new DataResolver(command, plan(replicas, ALL), readRepair, nanoTime());
+        DataResolver resolver = new DataResolver(command, plan(replicas, ALL), readRepair, Dispatcher.RequestTime.forImmediateExecution());
         // one response with columns timestamped before a delete in another response
         InetAddressAndPort peer1 = replicas.get(0).endpoint();
         resolver.preprocess(response(command, peer1, iter(new RowUpdateBuilder(cfm, nowInSec, 0L, dk).clustering("1")
@@ -407,7 +407,7 @@ public class DataResolverTest extends AbstractReadResponseTest
     public void testResolveMultipleDeleted()
     {
         EndpointsForRange replicas = makeReplicas(4);
-        DataResolver resolver = new DataResolver(command, plan(replicas, ALL), readRepair, nanoTime());
+        DataResolver resolver = new DataResolver(command, plan(replicas, ALL), readRepair, Dispatcher.RequestTime.forImmediateExecution());
         // deletes and columns with interleaved timestamp, with out of order return sequence
         InetAddressAndPort peer1 = replicas.get(0).endpoint();
         resolver.preprocess(response(command, peer1, fullPartitionDelete(cfm, dk, 0, nowInSec)));
@@ -492,7 +492,7 @@ public class DataResolverTest extends AbstractReadResponseTest
     private void resolveRangeTombstonesOnBoundary(long timestamp1, long timestamp2)
     {
         EndpointsForRange replicas = makeReplicas(2);
-        DataResolver resolver = new DataResolver(command, plan(replicas, ALL), readRepair, nanoTime());
+        DataResolver resolver = new DataResolver(command, plan(replicas, ALL), readRepair, Dispatcher.RequestTime.forImmediateExecution());
         InetAddressAndPort peer1 = replicas.get(0).endpoint();
         InetAddressAndPort peer2 = replicas.get(1).endpoint();
 
@@ -566,7 +566,7 @@ public class DataResolverTest extends AbstractReadResponseTest
      */
     private void testRepairRangeTombstoneBoundary(EndpointsForRange replicas, int timestamp1, int timestamp2, int timestamp3) throws UnknownHostException
     {
-        DataResolver resolver = new DataResolver(command, plan(replicas, ALL), readRepair, nanoTime());
+        DataResolver resolver = new DataResolver(command, plan(replicas, ALL), readRepair, Dispatcher.RequestTime.forImmediateExecution());
         InetAddressAndPort peer1 = replicas.get(0).endpoint();
         InetAddressAndPort peer2 = replicas.get(1).endpoint();
 
@@ -619,7 +619,7 @@ public class DataResolverTest extends AbstractReadResponseTest
     {
         EndpointsForRange replicas = makeReplicas(2);
 
-        DataResolver resolver = new DataResolver(command, plan(replicas, ALL), readRepair, nanoTime());
+        DataResolver resolver = new DataResolver(command, plan(replicas, ALL), readRepair, Dispatcher.RequestTime.forImmediateExecution());
         InetAddressAndPort peer1 = replicas.get(0).endpoint();
         InetAddressAndPort peer2 = replicas.get(1).endpoint();
 
@@ -658,7 +658,7 @@ public class DataResolverTest extends AbstractReadResponseTest
     public void testRepairRangeTombstoneWithPartitionDeletion2()
     {
         EndpointsForRange replicas = makeReplicas(2);
-        DataResolver resolver = new DataResolver(command, plan(replicas, ALL), readRepair, nanoTime());
+        DataResolver resolver = new DataResolver(command, plan(replicas, ALL), readRepair, Dispatcher.RequestTime.forImmediateExecution());
         InetAddressAndPort peer1 = replicas.get(0).endpoint();
         InetAddressAndPort peer2 = replicas.get(1).endpoint();
 
@@ -742,7 +742,7 @@ public class DataResolverTest extends AbstractReadResponseTest
         EndpointsForRange replicas = makeReplicas(2);
         ReadCommand cmd = Util.cmd(cfs2, dk).withNowInSeconds(nowInSec).build();
         TestableReadRepair readRepair = new TestableReadRepair(cmd);
-        DataResolver resolver = new DataResolver(cmd, plan(replicas, ALL), readRepair, nanoTime());
+        DataResolver resolver = new DataResolver(cmd, plan(replicas, ALL), readRepair, Dispatcher.RequestTime.forImmediateExecution());
 
         long[] ts = {100, 200};
 
@@ -794,7 +794,7 @@ public class DataResolverTest extends AbstractReadResponseTest
         EndpointsForRange replicas = makeReplicas(2);
         ReadCommand cmd = Util.cmd(cfs2, dk).withNowInSeconds(nowInSec).build();
         TestableReadRepair readRepair = new TestableReadRepair(cmd);
-        DataResolver resolver = new DataResolver(cmd, plan(replicas, ALL), readRepair, nanoTime());
+        DataResolver resolver = new DataResolver(cmd, plan(replicas, ALL), readRepair, Dispatcher.RequestTime.forImmediateExecution());
 
         long[] ts = {100, 200};
 
@@ -838,7 +838,7 @@ public class DataResolverTest extends AbstractReadResponseTest
         EndpointsForRange replicas = makeReplicas(2);
         ReadCommand cmd = Util.cmd(cfs2, dk).withNowInSeconds(nowInSec).build();
         TestableReadRepair readRepair = new TestableReadRepair(cmd);
-        DataResolver resolver = new DataResolver(cmd, plan(replicas, ALL), readRepair, nanoTime());
+        DataResolver resolver = new DataResolver(cmd, plan(replicas, ALL), readRepair, Dispatcher.RequestTime.forImmediateExecution());
 
         long[] ts = {100, 200};
 
@@ -888,7 +888,7 @@ public class DataResolverTest extends AbstractReadResponseTest
         EndpointsForRange replicas = makeReplicas(2);
         ReadCommand cmd = Util.cmd(cfs2, dk).withNowInSeconds(nowInSec).build();
         TestableReadRepair readRepair = new TestableReadRepair(cmd);
-        DataResolver resolver = new DataResolver(cmd, plan(replicas, ALL), readRepair, nanoTime());
+        DataResolver resolver = new DataResolver(cmd, plan(replicas, ALL), readRepair, Dispatcher.RequestTime.forImmediateExecution());
 
         long[] ts = {100, 200};
 
@@ -944,7 +944,7 @@ public class DataResolverTest extends AbstractReadResponseTest
         verifier.expectDigest(peer1, digest1, true);
         verifier.expectDigest(peer2, digest1, true);
 
-        DataResolver resolver = resolverWithVerifier(command, plan(replicas, ALL), readRepair, nanoTime(), verifier);
+        DataResolver resolver = resolverWithVerifier(command, plan(replicas, ALL), readRepair, Dispatcher.RequestTime.forImmediateExecution(), verifier);
 
         resolver.preprocess(response(peer1, iter(PartitionUpdate.emptyUpdate(cfm, dk)), digest1, true, command));
         resolver.preprocess(response(peer2, iter(PartitionUpdate.emptyUpdate(cfm, dk)), digest1, true, command));
@@ -964,7 +964,7 @@ public class DataResolverTest extends AbstractReadResponseTest
         verifier.expectDigest(peer1, digest1, false);
         verifier.expectDigest(peer2, digest1, true);
 
-        DataResolver resolver = resolverWithVerifier(command, plan(replicas, ALL), readRepair, nanoTime(), verifier);
+        DataResolver resolver = resolverWithVerifier(command, plan(replicas, ALL), readRepair, Dispatcher.RequestTime.forImmediateExecution(), verifier);
 
         resolver.preprocess(response(peer1, iter(PartitionUpdate.emptyUpdate(cfm, dk)), digest1, false, command));
         resolver.preprocess(response(peer2, iter(PartitionUpdate.emptyUpdate(cfm, dk)), digest1, true, command));
@@ -984,7 +984,7 @@ public class DataResolverTest extends AbstractReadResponseTest
         verifier.expectDigest(peer1, digest1, false);
         verifier.expectDigest(peer2, digest1, false);
 
-        DataResolver resolver = resolverWithVerifier(command, plan(replicas, ALL), readRepair, nanoTime(), verifier);
+        DataResolver resolver = resolverWithVerifier(command, plan(replicas, ALL), readRepair, Dispatcher.RequestTime.forImmediateExecution(), verifier);
 
         resolver.preprocess(response(peer1, iter(PartitionUpdate.emptyUpdate(cfm, dk)), digest1, false, command));
         resolver.preprocess(response(peer2, iter(PartitionUpdate.emptyUpdate(cfm, dk)), digest1, false, command));
@@ -1004,7 +1004,7 @@ public class DataResolverTest extends AbstractReadResponseTest
         verifier.expectDigest(peer1, digest1, true);
         verifier.expectDigest(peer2, digest1, true);
 
-        DataResolver resolver = resolverWithVerifier(command, plan(replicas, ALL), readRepair, nanoTime(), verifier);
+        DataResolver resolver = resolverWithVerifier(command, plan(replicas, ALL), readRepair, Dispatcher.RequestTime.forImmediateExecution(), verifier);
 
         resolver.preprocess(response(peer1, iter(PartitionUpdate.emptyUpdate(cfm,dk)), digest1, true, command));
         resolver.preprocess(response(peer2, iter(PartitionUpdate.emptyUpdate(cfm, dk)), digest1, true, command));
@@ -1024,7 +1024,7 @@ public class DataResolverTest extends AbstractReadResponseTest
         verifier.expectDigest(peer1, digest1, true);
         verifier.expectDigest(peer2, digest1, false);
 
-        DataResolver resolver = resolverWithVerifier(command, plan(replicas, ALL), readRepair, nanoTime(), verifier);
+        DataResolver resolver = resolverWithVerifier(command, plan(replicas, ALL), readRepair, Dispatcher.RequestTime.forImmediateExecution(), verifier);
 
         resolver.preprocess(response(peer1, iter(PartitionUpdate.emptyUpdate(cfm,dk)), digest1, true, command));
         resolver.preprocess(response(peer2, iter(PartitionUpdate.emptyUpdate(cfm, dk)), digest1, false, command));
@@ -1044,7 +1044,7 @@ public class DataResolverTest extends AbstractReadResponseTest
         verifier.expectDigest(peer1, digest1, false);
         verifier.expectDigest(peer2, digest1, false);
 
-        DataResolver resolver = resolverWithVerifier(command, plan(replicas, ALL), readRepair, nanoTime(), verifier);
+        DataResolver resolver = resolverWithVerifier(command, plan(replicas, ALL), readRepair, Dispatcher.RequestTime.forImmediateExecution(), verifier);
 
         resolver.preprocess(response(peer1, iter(PartitionUpdate.emptyUpdate(cfm, dk)), digest1, false, command));
         resolver.preprocess(response(peer2, iter(PartitionUpdate.emptyUpdate(cfm, dk)), digest1, false, command));
@@ -1065,7 +1065,7 @@ public class DataResolverTest extends AbstractReadResponseTest
         verifier.expectDigest(peer1, digest1, true);
         verifier.expectDigest(peer2, digest1, true);
 
-        DataResolver resolver = resolverWithVerifier(command, plan(replicas, ALL), readRepair, nanoTime(), verifier);
+        DataResolver resolver = resolverWithVerifier(command, plan(replicas, ALL), readRepair, Dispatcher.RequestTime.forImmediateExecution(), verifier);
 
         resolver.preprocess(response(peer1, iter(new RowUpdateBuilder(cfm, nowInSec, 1L, dk).clustering("1") .buildUpdate()), digest1, true, command));
         resolver.preprocess(response(peer2, iter(PartitionUpdate.emptyUpdate(cfm, dk)), digest1, true, command));
@@ -1086,7 +1086,7 @@ public class DataResolverTest extends AbstractReadResponseTest
         verifier.expectDigest(peer1, digest1, true);
         verifier.expectDigest(peer2, digest2, true);
 
-        DataResolver resolver = resolverWithVerifier(command, plan(replicas, ALL), readRepair, nanoTime(), verifier);
+        DataResolver resolver = resolverWithVerifier(command, plan(replicas, ALL), readRepair, Dispatcher.RequestTime.forImmediateExecution(), verifier);
 
         resolver.preprocess(response(peer1, iter(PartitionUpdate.emptyUpdate(cfm, dk)), digest1, true, command));
         resolver.preprocess(response(peer2, iter(PartitionUpdate.emptyUpdate(cfm, dk)), digest2, true, command));
@@ -1107,7 +1107,7 @@ public class DataResolverTest extends AbstractReadResponseTest
         verifier.expectDigest(peer1, digest1, false);
         verifier.expectDigest(peer2, digest2, true);
 
-        DataResolver resolver = resolverWithVerifier(command, plan(replicas, ALL), readRepair, nanoTime(), verifier);
+        DataResolver resolver = resolverWithVerifier(command, plan(replicas, ALL), readRepair, Dispatcher.RequestTime.forImmediateExecution(), verifier);
 
         resolver.preprocess(response(peer1, iter(PartitionUpdate.emptyUpdate(cfm, dk)), digest1, false, command));
         resolver.preprocess(response(peer2, iter(PartitionUpdate.emptyUpdate(cfm, dk)), digest2, true, command));
@@ -1128,7 +1128,7 @@ public class DataResolverTest extends AbstractReadResponseTest
         verifier.expectDigest(peer1, digest1, false);
         verifier.expectDigest(peer2, digest2, false);
 
-        DataResolver resolver = resolverWithVerifier(command, plan(replicas, ALL), readRepair, nanoTime(), verifier);
+        DataResolver resolver = resolverWithVerifier(command, plan(replicas, ALL), readRepair, Dispatcher.RequestTime.forImmediateExecution(), verifier);
 
         resolver.preprocess(response(peer1, iter(PartitionUpdate.emptyUpdate(cfm, dk)), digest1, false, command));
         resolver.preprocess(response(peer2, iter(PartitionUpdate.emptyUpdate(cfm, dk)), digest2, false, command));
@@ -1149,7 +1149,7 @@ public class DataResolverTest extends AbstractReadResponseTest
         verifier.expectDigest(peer1, digest1, true);
         verifier.expectDigest(peer2, digest2, true);
 
-        DataResolver resolver = resolverWithVerifier(command, plan(replicas, ALL), readRepair, nanoTime(), verifier);
+        DataResolver resolver = resolverWithVerifier(command, plan(replicas, ALL), readRepair, Dispatcher.RequestTime.forImmediateExecution(), verifier);
 
         resolver.preprocess(response(peer1, iter(new RowUpdateBuilder(cfm, nowInSec, 1L, dk).clustering("1") .buildUpdate()), digest1, true, command));
         resolver.preprocess(response(peer2, iter(PartitionUpdate.emptyUpdate(cfm, dk)), digest2, true, command));
@@ -1169,7 +1169,7 @@ public class DataResolverTest extends AbstractReadResponseTest
         TestRepairedDataVerifier verifier = new TestRepairedDataVerifier();
         verifier.expectDigest(peer1, digest1, true);
 
-        DataResolver resolver = resolverWithVerifier(command, plan(replicas, ALL), readRepair, nanoTime(), verifier);
+        DataResolver resolver = resolverWithVerifier(command, plan(replicas, ALL), readRepair, Dispatcher.RequestTime.forImmediateExecution(), verifier);
 
         resolver.preprocess(response(peer1, iter(PartitionUpdate.emptyUpdate(cfm,dk)), digest1, true, command));
 
@@ -1191,7 +1191,7 @@ public class DataResolverTest extends AbstractReadResponseTest
         InetAddressAndPort peer2 = replicas.get(1).endpoint();
         verifier.expectDigest(peer1, digest1, true);
 
-        DataResolver resolver = resolverWithVerifier(command, plan(replicas, ALL), readRepair, nanoTime(), verifier);
+        DataResolver resolver = resolverWithVerifier(command, plan(replicas, ALL), readRepair, Dispatcher.RequestTime.forImmediateExecution(), verifier);
 
         resolver.preprocess(response(peer1, iter(PartitionUpdate.emptyUpdate(cfm,dk)), digest1, true, command));
         // peer2 is advertising an older version, so when we deserialize its response there are two things to note:
@@ -1223,7 +1223,7 @@ public class DataResolverTest extends AbstractReadResponseTest
         InetAddressAndPort peer2 = replicas.get(1).endpoint();
         verifier.expectDigest(peer1, digest1, true);
 
-        DataResolver resolver = resolverWithVerifier(command, plan(replicas, ALL), readRepair, nanoTime(), verifier);
+        DataResolver resolver = resolverWithVerifier(command, plan(replicas, ALL), readRepair, Dispatcher.RequestTime.forImmediateExecution(), verifier);
 
         resolver.preprocess(response(peer1, iter(PartitionUpdate.emptyUpdate(cfm,dk)), digest1, true, command));
         resolver.preprocess(response(peer2, iter(PartitionUpdate.emptyUpdate(cfm,dk)), digest2, true, command));
@@ -1252,15 +1252,15 @@ public class DataResolverTest extends AbstractReadResponseTest
     private DataResolver resolverWithVerifier(final ReadCommand command,
                                               final ReplicaPlan.SharedForRangeRead plan,
                                               final ReadRepair readRepair,
-                                              final long queryStartNanoTime,
+                                              final Dispatcher.RequestTime requestTime,
                                               final RepairedDataVerifier verifier)
     {
         class TestableDataResolver extends DataResolver
         {
 
-            public TestableDataResolver(ReadCommand command, ReplicaPlan.SharedForRangeRead plan, ReadRepair readRepair, long queryStartNanoTime)
+            public TestableDataResolver(ReadCommand command, ReplicaPlan.SharedForRangeRead plan, ReadRepair readRepair, Dispatcher.RequestTime requestTime)
             {
-                super(command, plan, readRepair, queryStartNanoTime, true);
+                super(command, plan, readRepair, requestTime, true);
             }
 
             protected RepairedDataVerifier getRepairedDataVerifier(ReadCommand command)
@@ -1269,7 +1269,7 @@ public class DataResolverTest extends AbstractReadResponseTest
             }
         }
 
-        return new TestableDataResolver(command, plan, readRepair, queryStartNanoTime);
+        return new TestableDataResolver(command, plan, readRepair, requestTime);
     }
 
     private void assertRepairContainsDeletions(Mutation mutation,

@@ -22,7 +22,10 @@ import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.LockSupport;
+import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
 
 import org.slf4j.Logger;
@@ -65,7 +68,7 @@ public class Server implements CassandraDaemon.Server
     private static final Logger logger = LoggerFactory.getLogger(Server.class);
     private static final boolean useEpoll = NativeTransportService.useEpoll();
 
-    private final ConnectionTracker connectionTracker = new ConnectionTracker();
+    private final ConnectionTracker connectionTracker;
 
     private final Connection.Factory connectionFactory = new Connection.Factory()
     {
@@ -80,7 +83,7 @@ public class Server implements CassandraDaemon.Server
     private final AtomicBoolean isRunning = new AtomicBoolean(false);
     private final PipelineConfigurator pipelineConfigurator;
     private final EventLoopGroup workerGroup;
-
+    private final Dispatcher dispatcher;
     private Server (Builder builder)
     {
         this.socket = builder.getSocket();
@@ -97,14 +100,16 @@ public class Server implements CassandraDaemon.Server
                 workerGroup = new NioEventLoopGroup();
         }
 
+        dispatcher = new Dispatcher(DatabaseDescriptor.useNativeTransportLegacyFlusher());
         pipelineConfigurator = builder.pipelineConfigurator != null
                                ? builder.pipelineConfigurator
                                : new PipelineConfigurator(useEpoll,
                                                           DatabaseDescriptor.getRpcKeepAlive(),
-                                                          DatabaseDescriptor.useNativeTransportLegacyFlusher(),
-                                                          builder.tlsEncryptionPolicy);
+                                                          builder.tlsEncryptionPolicy,
+                                                          dispatcher);
 
         EventNotifier notifier = builder.eventNotifier != null ? builder.eventNotifier : new EventNotifier();
+        connectionTracker = new ConnectionTracker(isRunning::get);
         notifier.registerConnectionTracker(connectionTracker);
         StorageService.instance.register(notifier);
         Schema.instance.registerListener(notifier);
@@ -112,8 +117,13 @@ public class Server implements CassandraDaemon.Server
 
     public void stop()
     {
-        if (isRunning.compareAndSet(true, false))
-            close();
+        stop(false);
+    }
+
+    public void stop(boolean force)
+    {
+         if (isRunning.compareAndSet(true, false))
+             close(force);
     }
 
     public boolean isRunning()
@@ -177,8 +187,14 @@ public class Server implements CassandraDaemon.Server
         connectionTracker.protocolVersionTracker.clear();
     }
 
-    private void close()
+    private void close(boolean force)
     {
+        if (!force)
+        {
+            while (!dispatcher.isDone())
+                LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(100));
+        }
+
         // Close opened connections
         connectionTracker.closeAll();
 
@@ -266,11 +282,13 @@ public class Server implements CassandraDaemon.Server
         public final ChannelGroup allChannels = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
         private final EnumMap<Event.Type, ChannelGroup> groups = new EnumMap<>(Event.Type.class);
         private final ProtocolVersionTracker protocolVersionTracker = new ProtocolVersionTracker();
+        private final BooleanSupplier isRunning;
 
-        public ConnectionTracker()
+        public ConnectionTracker(BooleanSupplier isRunning)
         {
             for (Event.Type type : Event.Type.values())
                 groups.put(type, new DefaultChannelGroup(type.toString(), GlobalEventExecutor.INSTANCE));
+            this.isRunning = isRunning;
         }
 
         public void addConnection(Channel ch, Connection connection)
@@ -279,6 +297,11 @@ public class Server implements CassandraDaemon.Server
 
             if (ch.remoteAddress() instanceof InetSocketAddress)
                 protocolVersionTracker.addConnection(((InetSocketAddress) ch.remoteAddress()).getAddress(), connection.getVersion());
+        }
+
+        public boolean isRunning()
+        {
+            return isRunning.getAsBoolean();
         }
 
         public void register(Event.Type type, Channel ch)
@@ -302,7 +325,7 @@ public class Server implements CassandraDaemon.Server
 
         void closeAll()
         {
-            allChannels.close().awaitUninterruptibly();
+            allChannels.flush().close().awaitUninterruptibly();
         }
 
         int countConnectedClients()

@@ -41,6 +41,7 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.transport.Dispatcher;
 
 import static org.apache.cassandra.auth.AuthKeyspace.IDENTITY_TO_ROLES;
 import static org.apache.cassandra.schema.SchemaConstants.AUTH_KEYSPACE_NAME;
@@ -97,17 +98,17 @@ public class AddIdentityStatementTest
     @Test
     public void testAddingValidIdentity()
     {
-        QueryProcessor.process(ADD_QUERY, ConsistencyLevel.QUORUM, getClientState(), 10L);
+        QueryProcessor.process(ADD_QUERY, ConsistencyLevel.QUORUM, getClientState(), Dispatcher.RequestTime.forImmediateExecution());
         assertEquals(USER_ROLE, DatabaseDescriptor.getRoleManager().roleForIdentity(IDENTITY));
     }
 
     @Test
     public void testAddingExistingIdentity()
     {
-        QueryProcessor.process(ADD_QUERY, ConsistencyLevel.QUORUM, getClientState(), 10L);
+        QueryProcessor.process(ADD_QUERY, ConsistencyLevel.QUORUM, getClientState(), Dispatcher.RequestTime.forImmediateExecution());
         expectedException.expect(InvalidRequestException.class);
         expectedException.expectMessage(IDENTITY +" already exists");
-        QueryProcessor.process(ADD_QUERY, ConsistencyLevel.QUORUM, getClientState(), 10L);
+        QueryProcessor.process(ADD_QUERY, ConsistencyLevel.QUORUM, getClientState(), Dispatcher.RequestTime.forImmediateExecution());
     }
 
     @Test
@@ -133,7 +134,7 @@ public class AddIdentityStatementTest
         String query = String.format("ADD IDENTITY '%s' TO ROLE 'non-existing-role';", IDENTITY);
         expectedException.expect(InvalidRequestException.class);
         expectedException.expectMessage("Can not add identity for non-existent role 'non-existing-role'");
-        QueryProcessor.process(query, ConsistencyLevel.QUORUM, getClientState(), 10L);
+        QueryProcessor.process(query, ConsistencyLevel.QUORUM, getClientState(), Dispatcher.RequestTime.forImmediateExecution());
     }
 
     @Test
@@ -148,7 +149,7 @@ public class AddIdentityStatementTest
         String query = String.format("ADD IDENTITY '%s' TO ROLE 'readwrite_user';", IDENTITY);
         expectedException.expect(UnauthorizedException.class);
         expectedException.expectMessage("User readwrite_user does not have sufficient privileges to perform the requested operation");
-        QueryProcessor.process(query, ConsistencyLevel.QUORUM, new QueryState(state), 10L);
+        QueryProcessor.process(query, ConsistencyLevel.QUORUM, new QueryState(state), Dispatcher.RequestTime.forImmediateExecution());
     }
 
 
@@ -171,23 +172,23 @@ public class AddIdentityStatementTest
         String addQueryWithIfNotExists = String.format("ADD IDENTITY IF NOT EXISTS '%s' TO ROLE '%s';", IDENTITY, USER_ROLE);
 
         // Identity not in the table & add identity query with IF NOT EXISTS should succeed
-        QueryProcessor.process(addQueryWithIfNotExists, ConsistencyLevel.QUORUM, getClientState(), 10L);
+        QueryProcessor.process(addQueryWithIfNotExists, ConsistencyLevel.QUORUM, getClientState(), Dispatcher.RequestTime.forImmediateExecution());
         assertEquals(USER_ROLE, DatabaseDescriptor.getRoleManager().roleForIdentity(IDENTITY));
 
         // Identity in the table & add identity query with IF NOT EXISTS should succeed
-        QueryProcessor.process(addQueryWithIfNotExists, ConsistencyLevel.QUORUM, getClientState(), 10L);
+        QueryProcessor.process(addQueryWithIfNotExists, ConsistencyLevel.QUORUM, getClientState(), Dispatcher.RequestTime.forImmediateExecution());
         assertEquals(USER_ROLE, DatabaseDescriptor.getRoleManager().roleForIdentity(IDENTITY));
 
         clear();
         String addQueryWithOutIfNotExists = String.format("ADD IDENTITY '%s' TO ROLE '%s';", IDENTITY, USER_ROLE);
         // Identity not in the table & add identity query without IF NOT EXISTS should succeed
-        QueryProcessor.process(addQueryWithOutIfNotExists, ConsistencyLevel.QUORUM, getClientState(), 10L);
+        QueryProcessor.process(addQueryWithOutIfNotExists, ConsistencyLevel.QUORUM, getClientState(), Dispatcher.RequestTime.forImmediateExecution());
         assertEquals(USER_ROLE, DatabaseDescriptor.getRoleManager().roleForIdentity(IDENTITY));
 
         // Identity in the table & add identity query without IF NOT EXISTS should fail
         expectedException.expect(InvalidRequestException.class);
         expectedException.expectMessage(IDENTITY + " already exists");
-        QueryProcessor.process(addQueryWithOutIfNotExists, ConsistencyLevel.QUORUM, getClientState(), 10L);
+        QueryProcessor.process(addQueryWithOutIfNotExists, ConsistencyLevel.QUORUM, getClientState(), Dispatcher.RequestTime.forImmediateExecution());
     }
 
     static QueryState getClientState()

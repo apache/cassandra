@@ -38,6 +38,7 @@ import com.google.common.util.concurrent.RateLimiter;
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.slf4j.Logger;
@@ -84,7 +85,6 @@ import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternalWithPaging;
 import static org.apache.cassandra.net.Verb.MUTATION_REQ;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class BatchlogManager implements BatchlogManagerMBean
 {
@@ -504,7 +504,7 @@ public class BatchlogManager implements BatchlogManagerMBean
                 }
             }
 
-            ReplayWriteResponseHandler<Mutation> handler = new ReplayWriteResponseHandler<>(replicaPlan, mutation, nanoTime());
+            ReplayWriteResponseHandler<Mutation> handler = new ReplayWriteResponseHandler<>(replicaPlan, mutation, Dispatcher.RequestTime.forImmediateExecution());
             Message<Mutation> message = Message.outWithFlag(MUTATION_REQ, mutation, MessageFlag.CALL_BACK_ON_FAILURE);
             for (Replica replica : replicaPlan.liveAndDown())
                 MessagingService.instance().sendWriteWithCallback(message, replica, handler);
@@ -541,9 +541,9 @@ public class BatchlogManager implements BatchlogManagerMBean
             private final Set<InetAddressAndPort> undelivered = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
             // TODO: should we be hinting here, since presumably batch log will retry? Maintaining historical behaviour for the moment.
-            ReplayWriteResponseHandler(ReplicaPlan.ForWrite replicaPlan, Supplier<Mutation> hintOnFailure, long queryStartNanoTime)
+            ReplayWriteResponseHandler(ReplicaPlan.ForWrite replicaPlan, Supplier<Mutation> hintOnFailure, Dispatcher.RequestTime requestTime)
             {
-                super(replicaPlan, null, WriteType.UNLOGGED_BATCH, hintOnFailure, queryStartNanoTime);
+                super(replicaPlan, null, WriteType.UNLOGGED_BATCH, hintOnFailure, requestTime);
                 Iterables.addAll(undelivered, replicaPlan.contacts().endpoints());
             }
 
