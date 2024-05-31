@@ -47,6 +47,7 @@ import accord.primitives.Keys;
 import accord.primitives.Ranges;
 import accord.primitives.Routable;
 import accord.primitives.RoutableKey;
+import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
@@ -88,6 +89,7 @@ public class SimulatedAccordCommandStore implements AutoCloseable
     public final AccordCommandStore store;
     public final Node.Id nodeId;
     public final Topology topology;
+    public final Topologies topologies;
     public final MockJournal journal;
     public final ScheduledExecutorPlus unorderedScheduled;
     public final List<String> evictions = new ArrayList<>();
@@ -189,6 +191,7 @@ public class SimulatedAccordCommandStore implements AutoCloseable
         });
 
         this.topology = AccordTopology.createAccordTopology(ClusterMetadata.current());
+        this.topologies = new Topologies.Single(SizeOfIntersectionSorter.SUPPLIER, topology);
         var rangesForEpoch = new CommandStores.RangesForEpoch(topology.epoch(), topology.ranges(), store);
         updateHolder.add(topology.epoch(), rangesForEpoch, topology.ranges());
         updateHolder.updateGlobal(topology.ranges());
@@ -209,6 +212,21 @@ public class SimulatedAccordCommandStore implements AutoCloseable
         return new TxnId(timeService.epoch(), timeService.now(), kind, domain, nodeId);
     }
 
+    public void maybeCacheEvict(Seekables<?, ?> keysOrRanges)
+    {
+        switch (keysOrRanges.domain())
+        {
+            case Key:
+                maybeCacheEvict((Keys) keysOrRanges, Ranges.EMPTY);
+                break;
+            case Range:
+                maybeCacheEvict(Keys.EMPTY, (Ranges) keysOrRanges);
+                break;
+            default:
+                throw new UnsupportedOperationException("Unknown domain: " + keysOrRanges.domain());
+        }
+    }
+
     public void maybeCacheEvict(Keys keys, Ranges ranges)
     {
         AccordStateCache cache = store.cache();
@@ -217,7 +235,7 @@ public class SimulatedAccordCommandStore implements AutoCloseable
             if (TxnId.class.equals(keyType))
             {
                 Command command = (Command) state.state().get();
-                if (command.known().definition.isKnown()
+                if (command != null && command.known().definition.isKnown()
                     && (command.partialTxn().keys().intersects(keys) || ranges.intersects(command.partialTxn().keys()))
                     && shouldEvict.getAsBoolean())
                     cache.maybeEvict(state);
@@ -322,7 +340,7 @@ public class SimulatedAccordCommandStore implements AutoCloseable
     public Pair<TxnId, AsyncResult<PreAccept.PreAcceptOk>> enqueuePreAccept(Txn txn, FullRoute<?> route)
     {
         TxnId txnId = nextTxnId(txn.kind(), txn.keys().domain());
-        PreAccept preAccept = new PreAccept(nodeId, new Topologies.Single(SizeOfIntersectionSorter.SUPPLIER, topology), txnId, txn, route);
+        PreAccept preAccept = new PreAccept(nodeId, topologies, txnId, txn, route);
         return Pair.create(txnId, processAsync(preAccept, safe -> {
             var reply = preAccept.apply(safe);
             Assertions.assertThat(reply.isOk()).isTrue();
@@ -334,7 +352,7 @@ public class SimulatedAccordCommandStore implements AutoCloseable
     {
         TxnId txnId = nextTxnId(txn.kind(), txn.keys().domain());
         Ballot ballot = Ballot.fromValues(timeService.epoch(), timeService.now(), nodeId);
-        BeginRecovery br = new BeginRecovery(nodeId, new Topologies.Single(SizeOfIntersectionSorter.SUPPLIER, topology), txnId, txn, route, ballot);
+        BeginRecovery br = new BeginRecovery(nodeId, topologies, txnId, txn, route, ballot);
 
         return Pair.create(txnId, processAsync(br, safe -> {
             var reply = br.apply(safe);

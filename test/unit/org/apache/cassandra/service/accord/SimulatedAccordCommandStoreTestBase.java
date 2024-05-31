@@ -37,14 +37,19 @@ import accord.messages.BeginRecovery;
 import accord.messages.PreAccept;
 import accord.primitives.Ballot;
 import accord.primitives.Deps;
+import accord.primitives.FullRangeRoute;
 import accord.primitives.FullRoute;
 import accord.primitives.Keys;
 import accord.primitives.LatestDeps;
 import accord.primitives.Range;
 import accord.primitives.Ranges;
+import accord.primitives.Routable;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.topology.Topologies;
+import accord.utils.Gen;
+import accord.utils.Gens;
+import accord.utils.Invariants;
 import accord.utils.async.AsyncChains;
 import accord.utils.async.AsyncResult;
 import org.apache.cassandra.ServerTestUtils;
@@ -57,11 +62,13 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
+import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.Pair;
 import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.schema.SchemaConstants.ACCORD_KEYSPACE_NAME;
+import static org.apache.cassandra.service.accord.AccordTestUtils.createTxn;
 
 public abstract class SimulatedAccordCommandStoreTestBase extends CQLTester
 {
@@ -77,6 +84,21 @@ public abstract class SimulatedAccordCommandStoreTestBase extends CQLTester
 
     protected enum DepsMessage
     {PreAccept, BeginRecovery, PreAcceptThenBeginRecovery}
+
+    protected static final Gen<Gen<Routable.Domain>> mixedDomainGen = Gens.enums().allMixedDistribution(Routable.Domain.class);
+    protected static final Gen<Gen.LongGen> mixedTokenGen = top -> {
+        switch (top.nextInt(0, 3))
+        {
+            case 0: // all
+                return rs -> rs.nextLong(Long.MIN_VALUE  + 1, Long.MAX_VALUE);
+            case 1: // small
+                return rs -> rs.nextLong(0, 100);
+            case 2: // medium
+                return rs -> rs.nextLong(0, Long.MAX_VALUE);
+            default:
+                throw new AssertionError();
+        }
+    };
 
     protected static TableMetadata intTbl, reverseTokenTbl;
     protected static Node.Id nodeId;
@@ -344,5 +366,54 @@ public abstract class SimulatedAccordCommandStoreTestBase extends CQLTester
             for (var key : keyConflicts.keySet())
                 Assertions.assertThat(deps.keyDeps.txnIds(key)).describedAs("Txn %s for key %s", txnId, key).isEqualTo(keyConflicts.get(key));
         }
+    }
+
+    protected static Gen<Pair<Txn, FullRoute<?>>> randomTxn(Gen<Routable.Domain> domainGen, Gen.LongGen tokenGen)
+    {
+        TableMetadata tbl = reverseTokenTbl;
+        Invariants.checkArgument(tbl.partitioner == Murmur3Partitioner.instance, "Only murmur partitioner is supported; given %s", tbl.partitioner.getClass());
+        Gen<PartitionKey> keyGen = rs -> new PartitionKey(tbl.id, tbl.partitioner.decorateKey(Murmur3Partitioner.LongToken.keyForToken(tokenGen.nextLong(rs))));
+        Gen<Range> rangeGen = rs -> {
+            long a = tokenGen.nextLong(rs);
+            long b = tokenGen.nextLong(rs);
+            while (a == b)
+                b = tokenGen.nextLong(rs);
+            if (a > b)
+            {
+                long tmp = a;
+                a = b;
+                b = tmp;
+            }
+            return tokenRange(tbl.id, a, b);
+        };
+        return rs -> {
+            Routable.Domain domain = domainGen.next(rs);
+            switch (domain)
+            {
+                case Key:
+                {
+                    Keys keys = Keys.of(Gens.lists(keyGen).unique().ofSizeBetween(1, 5).next(rs));
+                    List<String> inserts = new ArrayList<>(keys.size());
+                    List<Object> binds = new ArrayList<>(keys.size());
+                    for (int i = 0; i < keys.size(); i++)
+                    {
+                        inserts.add(String.format("INSERT INTO %s (pk) VALUES (?)", tbl));
+                        binds.add(((PartitionKey) keys.get(i)).partitionKey().getKey());
+                    }
+                    Txn txn = createTxn(wrapInTxn(inserts), binds);
+                    FullRoute<?> route = keys.toRoute(keys.get(0).toUnseekable());
+                    return Pair.create(txn, route);
+                }
+                case Range:
+                {
+                    Ranges ranges = Ranges.of(Gens.arrays(Range.class, rangeGen).unique().ofSizeBetween(1, 5).next(rs));
+                    Txn txn = createTxn(Txn.Kind.ExclusiveSyncPoint, ranges);
+                    FullRangeRoute route = ranges.toRoute(ranges.get(0).end());
+                    return Pair.create(txn, route);
+                }
+                default:
+                    throw new UnsupportedOperationException(domain.name());
+            }
+        };
     }
 }

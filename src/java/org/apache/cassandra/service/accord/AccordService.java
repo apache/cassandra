@@ -25,6 +25,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
@@ -568,11 +569,11 @@ public class AccordService implements IAccordService, Shutdownable
         }
     }
 
-    private void handleLocalRequest(LocalRequest<?> request, Node node)
+    private <R> void handleLocalRequest(LocalRequest<R> request, BiConsumer<? super R, Throwable> callback, Node node)
     {
         // currently, we only create LocalRequests that have side effects and need to be persisted
         Invariants.checkState(request.type().hasSideEffects());
-        journal.appendLocalRequest(request);
+        journal.appendLocalRequest(request, callback);
     }
 
     private static RequestTimeoutException newTimeout(TxnId txnId, Txn txn, ConsistencyLevel consistencyLevel)

@@ -21,61 +21,25 @@ package org.apache.cassandra.service.accord;
 import java.util.NavigableMap;
 import java.util.Objects;
 
-import accord.primitives.Range;
 import accord.primitives.Ranges;
 import accord.primitives.TxnId;
 import accord.utils.async.AsyncChains;
 import accord.utils.async.AsyncResult;
 import org.apache.cassandra.utils.Pair;
 
-public class AccordSafeCommandsForRanges implements AccordSafeState<Range, CommandsForRanges>
+public class AccordSafeCommandsForRanges extends ImmutableAccordSafeState<Ranges, CommandsForRanges>
 {
     private final AsyncResult<Pair<CommandsForRangesLoader.Watcher, NavigableMap<TxnId, CommandsForRangesLoader.Summary>>> chain;
-    private final Ranges ranges;
-    private boolean invalidated;
-    private CommandsForRanges original, current;
 
     public AccordSafeCommandsForRanges(Ranges ranges, AsyncResult<Pair<CommandsForRangesLoader.Watcher, NavigableMap<TxnId, CommandsForRangesLoader.Summary>>> chain)
     {
-        this.ranges = ranges;
+        super(ranges);
         this.chain = chain;
     }
 
     public Ranges ranges()
     {
-        return ranges;
-    }
-
-    @Override
-    public CommandsForRanges current()
-    {
-        checkNotInvalidated();
-        return current;
-    }
-
-    @Override
-    public void invalidate()
-    {
-        invalidated = true;
-    }
-
-    @Override
-    public boolean invalidated()
-    {
-        return invalidated;
-    }
-
-    @Override
-    public void set(CommandsForRanges update)
-    {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public CommandsForRanges original()
-    {
-        checkNotInvalidated();
-        return original;
+        return key();
     }
 
     @Override
@@ -85,17 +49,11 @@ public class AccordSafeCommandsForRanges implements AccordSafeState<Range, Comma
         Pair<CommandsForRangesLoader.Watcher, NavigableMap<TxnId, CommandsForRangesLoader.Summary>> pair = AsyncChains.getUnchecked(chain);
         pair.left.close();
         pair.left.get().entrySet().forEach(e -> pair.right.put(e.getKey(), e.getValue()));
-        current = original = new CommandsForRanges(ranges, pair.right);
+        original = new CommandsForRanges(key, pair.right);
     }
 
     @Override
-    public void postExecute()
-    {
-        checkNotInvalidated();
-    }
-
-    @Override
-    public AccordCachingState<Range, CommandsForRanges> global()
+    public AccordCachingState<Ranges, CommandsForRanges> global()
     {
         throw new UnsupportedOperationException();
     }
@@ -106,13 +64,13 @@ public class AccordSafeCommandsForRanges implements AccordSafeState<Range, Comma
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AccordSafeCommandsForRanges that = (AccordSafeCommandsForRanges) o;
-        return Objects.equals(original, that.original) && Objects.equals(current, that.current);
+        return Objects.equals(original, that.original);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(original, current);
+        return Objects.hash(original);
     }
 
     @Override
@@ -122,7 +80,6 @@ public class AccordSafeCommandsForRanges implements AccordSafeState<Range, Comma
                "chain=" + chain +
                ", invalidated=" + invalidated +
                ", original=" + original +
-               ", current=" + current +
                '}';
     }
 }
