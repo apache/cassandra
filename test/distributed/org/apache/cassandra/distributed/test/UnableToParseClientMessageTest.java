@@ -40,6 +40,7 @@ import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.Envelope;
 import org.apache.cassandra.transport.Message;
 import org.apache.cassandra.transport.ProtocolVersion;
@@ -262,7 +263,7 @@ public class UnableToParseClientMessageTest extends TestBaseImpl
         }
 
         @Override
-        protected Response execute(QueryState queryState, long queryStartNanoTime, boolean traceRequest)
+        protected Response execute(QueryState queryState, Dispatcher.RequestTime requestTime, boolean traceRequest)
         {
             throw new AssertionError("execute not supported");
         }

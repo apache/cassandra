@@ -17,6 +17,9 @@
  */
 package org.apache.cassandra.concurrent;
 
+import java.util.concurrent.Callable;
+
+import org.apache.cassandra.utils.MonotonicClock;
 import org.apache.cassandra.utils.Shared;
 
 import static org.apache.cassandra.utils.Shared.Recursive.INTERFACES;
@@ -29,6 +32,11 @@ import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 @Shared(scope = SIMULATION, inner = INTERFACES)
 public interface DebuggableTask
 {
+    public default long elapsedSinceCreation()
+    {
+        return MonotonicClock.Global.approxTime.now() - creationTimeNanos();
+    }
+
     public long creationTimeNanos();
 
     public long startTimeNanos();
@@ -36,6 +44,7 @@ public interface DebuggableTask
     public String description();
     
     interface RunnableDebuggableTask extends Runnable, DebuggableTask {}
+    interface CallableDebuggableTask<T> extends Callable<T>, DebuggableTask {}
 
     /**
      * Wraps a {@link DebuggableTask} to include the name of the thread running it.

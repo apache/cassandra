@@ -69,6 +69,7 @@ import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.CassandraUInt;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.TimeUUID;
@@ -76,8 +77,8 @@ import org.apache.cassandra.utils.TimeUUID;
 import static com.google.common.collect.Iterables.any;
 import static com.google.common.collect.Iterables.filter;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
-import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 import static org.apache.cassandra.db.partitions.UnfilteredPartitionIterators.MergeListener.NOOP;
+import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 
 /**
  * General interface for storage-engine read commands (common to both range and
@@ -789,14 +790,19 @@ public abstract class ReadCommand extends AbstractReadQuery
     /**
      * Creates a message for this command.
      */
-    public Message<ReadCommand> createMessage(boolean trackRepairedData)
+    public Message<ReadCommand> createMessage(boolean trackRepairedData, Dispatcher.RequestTime requestTime)
     {
-        Message<ReadCommand> msg = trackRepairedData
-                                   ? Message.outWithFlags(verb(), this, MessageFlag.CALL_BACK_ON_FAILURE, MessageFlag.TRACK_REPAIRED_DATA)
-                                   : Message.outWithFlag(verb(), this, MessageFlag.CALL_BACK_ON_FAILURE);
+        List<MessageFlag> flags = new ArrayList<>(3);
+        flags.add(MessageFlag.CALL_BACK_ON_FAILURE);
         if (trackWarnings)
-            msg = msg.withFlag(MessageFlag.TRACK_WARNINGS);
-        return msg;
+            flags.add(MessageFlag.TRACK_WARNINGS);
+        if (trackRepairedData)
+            flags.add(MessageFlag.TRACK_REPAIRED_DATA);
+
+        return Message.outWithFlags(verb(),
+                                    this,
+                                    requestTime,
+                                    flags);
     }
 
     protected abstract boolean intersects(SSTableReader sstable);

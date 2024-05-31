@@ -33,6 +33,7 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.exceptions.OverloadedException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.StorageProxy;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Future;
@@ -40,7 +41,6 @@ import org.apache.cassandra.utils.concurrent.FutureCombiner;
 
 import static java.util.Collections.singletonList;
 import static org.apache.cassandra.db.ConsistencyLevel.ANY;
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /**
  * ThreadLocal state for a tracing session. The presence of an instance of this class as a ThreadLocal denotes that an
@@ -113,7 +113,7 @@ public class TraceStateImpl extends TraceState
     {
         try
         {
-            StorageProxy.mutate(singletonList(mutation), ANY, nanoTime());
+            StorageProxy.mutate(singletonList(mutation), ANY, Dispatcher.RequestTime.forImmediateExecution());
         }
         catch (OverloadedException e)
         {

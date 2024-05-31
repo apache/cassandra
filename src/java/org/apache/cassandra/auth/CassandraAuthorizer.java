@@ -46,11 +46,10 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
-
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /**
  * CassandraAuthorizer is an IAuthorizer implementation that keeps
@@ -421,7 +420,7 @@ public class CassandraAuthorizer implements IAuthorizer
 
     ResultMessage.Rows select(SelectStatement statement, QueryOptions options)
     {
-        return statement.execute(QueryState.forInternalCalls(), options, nanoTime());
+        return statement.execute(QueryState.forInternalCalls(), options, Dispatcher.RequestTime.forImmediateExecution());
     }
 
     /**
@@ -439,7 +438,7 @@ public class CassandraAuthorizer implements IAuthorizer
         QueryProcessor.instance.processBatch(statement,
                                              QueryState.forInternalCalls(),
                                              BatchQueryOptions.withoutPerStatementVariables(options),
-                                             nanoTime());
+                                             Dispatcher.RequestTime.forImmediateExecution());
     }
 
     public static ConsistencyLevel authWriteConsistencyLevel()

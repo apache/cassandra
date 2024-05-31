@@ -139,7 +139,12 @@ public class NativeTransportService
      */
     public void stop()
     {
-        servers.forEach(Server::stop);
+        stop(false);
+    }
+
+    public void stop(boolean force)
+    {
+        servers.forEach((s) -> s.stop(force));
     }
 
     /**

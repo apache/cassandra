@@ -45,6 +45,7 @@ import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.repair.messages.FailSession;
 import org.apache.cassandra.repair.messages.RepairMessage;
 import org.apache.cassandra.repair.state.ParticipateState;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.commons.lang3.time.DurationFormatUtils;
@@ -551,7 +552,7 @@ public class RepairCoordinator implements Runnable, ProgressEventNotifier, Repai
                     QueryOptions options = QueryOptions.forInternalCalls(ConsistencyLevel.ONE, Lists.newArrayList(sessionIdBytes,
                                                                                                                   tminBytes,
                                                                                                                   tmaxBytes));
-                    ResultMessage.Rows rows = statement.execute(forInternalCalls(), options, ctx.clock().nanoTime());
+                    ResultMessage.Rows rows = statement.execute(forInternalCalls(), options, new Dispatcher.RequestTime(ctx.clock().nanoTime()));
                     UntypedResultSet result = UntypedResultSet.create(rows.result);
 
                     for (UntypedResultSet.Row r : result)

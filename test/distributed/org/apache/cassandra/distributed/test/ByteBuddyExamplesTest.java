@@ -36,6 +36,7 @@ import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.transport.messages.ResultMessage.Rows;
 
@@ -116,7 +117,7 @@ public class ByteBuddyExamplesTest extends TestBaseImpl
                            .load(cl, ClassLoadingStrategy.Default.INJECTION);
         }
 
-        public static ResultMessage.Rows execute(QueryState state, QueryOptions options, long queryStartNanoTime, @SuperCall Callable<ResultMessage.Rows> r) throws Exception
+        public static ResultMessage.Rows execute(QueryState state, QueryOptions options, Dispatcher.RequestTime requestTime, @SuperCall Callable<ResultMessage.Rows> r) throws Exception
         {
             Rows res = r.call();
 
