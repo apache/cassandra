@@ -23,6 +23,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
 
+import javax.annotation.Nullable;
+
 import org.junit.Before;
 import org.junit.Test;
 
@@ -30,10 +32,14 @@ import accord.api.Key;
 import accord.impl.basic.SimulatedFault;
 import accord.local.PreLoadContext;
 import accord.local.SafeCommandStore;
+import accord.messages.PreAccept;
+import accord.primitives.FullRoute;
 import accord.primitives.Keys;
 import accord.primitives.Range;
 import accord.primitives.Ranges;
 import accord.primitives.Seekables;
+import accord.primitives.Txn;
+import accord.primitives.TxnId;
 import accord.utils.Gen;
 import accord.utils.Gens;
 import accord.utils.RandomSource;
@@ -48,6 +54,7 @@ import org.apache.cassandra.service.accord.SimulatedAccordCommandStoreTestBase;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.utils.Pair;
 import org.assertj.core.api.Assertions;
 
 import static accord.utils.Property.qt;
@@ -58,6 +65,7 @@ public class SimulatedAsyncOperationTest extends SimulatedAccordCommandStoreTest
     public void precondition()
     {
         Assertions.assertThat(intTbl.partitioner).isEqualTo(Murmur3Partitioner.instance);
+        Assertions.assertThat(reverseTokenTbl.partitioner).isEqualTo(Murmur3Partitioner.instance);
     }
 
     @Test
@@ -73,20 +81,22 @@ public class SimulatedAsyncOperationTest extends SimulatedAccordCommandStoreTest
         qt().withExamples(100).check(rs -> test(rs, 100, intTbl, actionGen));
     }
 
+    enum Operation { Task, PreAccept }
+
     private static void test(RandomSource rs, int numSamples, TableMetadata tbl, Gen<Action> actionGen) throws Exception
     {
         AccordKeyspace.unsafeClear();
+        Gen<Operation> operationGen = Gens.enums().all(Operation.class);
 
         int numKeys = rs.nextInt(20, 1000);
         long minToken = 0;
         long maxToken = numKeys;
 
         Gen<Key> keyGen = Gens.longs().between(minToken + 1, maxToken).map(t -> new PartitionKey(tbl.id, tbl.partitioner.decorateKey(LongToken.keyForToken(t))));
-
-
         Gen<Keys> keysGen = Gens.lists(keyGen).unique().ofSizeBetween(1, 10).map(l -> Keys.of(l));
         Gen<Ranges> rangesGen = Gens.lists(rangeInsideRange(tbl.id, minToken, maxToken)).uniqueBestEffort().ofSizeBetween(1, 10).map(l -> Ranges.of(l.toArray(Range[]::new)));
         Gen<Seekables<?, ?>> seekablesGen = Gens.oneOf(keysGen, rangesGen);
+        Gen<Pair<Txn, FullRoute<?>>> txnGen = randomTxn(mixedDomainGen.next(rs), mixedTokenGen.next(rs));
 
         try (var instance = new SimulatedAccordCommandStore(rs))
         {
@@ -94,14 +104,46 @@ public class SimulatedAsyncOperationTest extends SimulatedAccordCommandStoreTest
             Counter counter = new Counter();
             for (int i = 0; i < numSamples; i++)
             {
-                PreLoadContext ctx = PreLoadContext.contextFor(seekablesGen.next(rs));
-                operation(instance, ctx, actionGen.next(rs), rs::nextBoolean).begin((ignore, failure) -> {
-                    counter.counter++;
-                    if (failure != null && !(failure instanceof SimulatedFault)) throw new AssertionError("Unexpected error", failure);
-                });
+                Operation op = operationGen.next(rs);
+                switch (op)
+                {
+                    case Task:
+                    {
+                        PreLoadContext ctx = PreLoadContext.contextFor(seekablesGen.next(rs));
+                        instance.maybeCacheEvict(ctx.keys());
+                        operation(instance, ctx, actionGen.next(rs), rs::nextBoolean).begin(counter);
+                    }
+                    break;
+                    case PreAccept:
+                    {
+                        Pair<Txn, FullRoute<?>> txnWithRoute = txnGen.next(rs);
+                        Txn txn = txnWithRoute.left;
+                        Action action = actionGen.next(rs);
+                        TxnId txnId = instance.nextTxnId(txn.kind(), txn.keys().domain());
+                        FullRoute<?> route = txnWithRoute.right;
+                        PreAccept preAccept = new PreAccept(nodeId, instance.topologies, txnId, txn, route) {
+                            @Override
+                            public PreAcceptReply apply(SafeCommandStore safeStore)
+                            {
+                                PreAcceptReply result = super.apply(safeStore);
+                                if (action == Action.FAILURE)
+                                    throw new SimulatedFault("PreAccept failed for keys " + keys());
+                                return result;
+                            }
+                        };
+                        instance.maybeCacheEvict(txn.keys());
+                        instance.processAsync(preAccept).begin(counter);
+                    }
+                    break;
+                    default:
+                        throw new UnsupportedOperationException(op.name());
+                }
             }
             instance.processAll();
             Assertions.assertThat(counter.counter).isEqualTo(numSamples);
+            instance.store.cache().stream().forEach(e -> {
+                Assertions.assertThat(e.referenceCount()).isEqualTo(0);
+            });
         }
     }
 
@@ -146,9 +188,17 @@ public class SimulatedAsyncOperationTest extends SimulatedAccordCommandStoreTest
         };
     }
 
-    private static class Counter
+    private static class Counter implements BiConsumer<Object, Throwable>
     {
         int counter = 0;
+
+        @Override
+        public void accept(Object o, Throwable failure)
+        {
+            counter++;
+            if (failure != null && !(failure instanceof SimulatedFault))
+                throw new AssertionError("Unexpected error", failure);
+        }
     }
 
     private static class SimulatedOperation extends AsyncOperation<Void>

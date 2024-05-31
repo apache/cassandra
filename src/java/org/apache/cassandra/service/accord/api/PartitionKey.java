@@ -33,6 +33,7 @@ import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -147,8 +148,8 @@ public final class PartitionKey extends AccordRoutableKey implements Key
         public PartitionKey deserialize(DataInputPlus in, int version) throws IOException
         {
             TableId tableId = TableId.deserialize(in);
-            TableMetadata metadata = Schema.instance.getExistingTableMetadata(tableId);
-            DecoratedKey key = metadata.partitioner.decorateKey(ByteBufferUtil.readWithShortLength(in));
+            IPartitioner partitioner = Schema.instance.getExistingTablePartitioner(tableId);
+            DecoratedKey key = partitioner.decorateKey(ByteBufferUtil.readWithShortLength(in));
             return new PartitionKey(tableId, key);
         }
 

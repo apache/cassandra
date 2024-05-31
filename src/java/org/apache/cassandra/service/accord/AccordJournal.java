@@ -40,6 +40,14 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Multimap;
 import com.google.common.primitives.Ints;
+
+import accord.local.Bootstrap.CreateBootstrapCompleteMarkerTransaction;
+import accord.local.Bootstrap.MarkBootstrapComplete;
+import accord.messages.ApplyThenWaitUntilApplied;
+import org.agrona.collections.Long2ObjectHashMap;
+import org.agrona.collections.LongArrayList;
+import org.agrona.collections.ObjectHashSet;
+import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,7 +57,6 @@ import accord.local.SerializerSupport;
 import accord.messages.AbstractEpochRequest;
 import accord.messages.Accept;
 import accord.messages.Apply;
-import accord.messages.ApplyThenWaitUntilApplied;
 import accord.messages.BeginRecovery;
 import accord.messages.Commit;
 import accord.messages.LocalRequest;
@@ -65,9 +72,6 @@ import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
 import accord.utils.MapReduceConsume;
-import org.agrona.collections.Long2ObjectHashMap;
-import org.agrona.collections.LongArrayList;
-import org.agrona.collections.ObjectHashSet;
 import org.apache.cassandra.concurrent.Interruptible;
 import org.apache.cassandra.concurrent.ManyToOneConcurrentLinkedQueue;
 import org.apache.cassandra.concurrent.SequentialExecutorPlus;
@@ -97,6 +101,7 @@ import org.apache.cassandra.service.accord.serializers.EnumSerializer;
 import org.apache.cassandra.service.accord.serializers.FetchSerializers;
 import org.apache.cassandra.service.accord.serializers.InformDurableSerializers;
 import org.apache.cassandra.service.accord.serializers.InformOfTxnIdSerializers;
+import org.apache.cassandra.service.accord.serializers.LocalBootstrapSerializers;
 import org.apache.cassandra.service.accord.serializers.PreacceptSerializers;
 import org.apache.cassandra.service.accord.serializers.RecoverySerializers;
 import org.apache.cassandra.service.accord.serializers.SetDurableSerializers;
@@ -104,7 +109,6 @@ import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.concurrent.Semaphore;
 import org.apache.cassandra.utils.vint.VIntCoding;
-import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.jctools.queues.SpscLinkedQueue;
 
 import static accord.messages.MessageType.ACCEPT_INVALIDATE_REQ;
@@ -114,6 +118,8 @@ import static accord.messages.MessageType.APPLY_MINIMAL_REQ;
 import static accord.messages.MessageType.APPLY_THEN_WAIT_UNTIL_APPLIED_REQ;
 import static accord.messages.MessageType.BEGIN_INVALIDATE_REQ;
 import static accord.messages.MessageType.BEGIN_RECOVER_REQ;
+import static accord.messages.MessageType.BOOTSTRAP_ATTEMPT_COMPLETE_MARKER;
+import static accord.messages.MessageType.BOOTSTRAP_ATTEMPT_MARK_BOOTSTRAP_COMPLETE;
 import static accord.messages.MessageType.COMMIT_INVALIDATE_REQ;
 import static accord.messages.MessageType.COMMIT_MAXIMAL_REQ;
 import static accord.messages.MessageType.COMMIT_SLOW_PATH_REQ;
@@ -256,11 +262,11 @@ public class AccordJournal implements IJournal, Shutdownable
     /**
      * Accord protocol messages originating from local node, e.g. Propagate.
      */
-    public void appendLocalRequest(LocalRequest<?> request)
+    public <R> void appendLocalRequest(LocalRequest<R> request, BiConsumer<? super R, Throwable> callback)
     {
         Type type = Type.fromMessageType(request.type());
         Key key = new Key(type.txnId(request), type);
-        journal.asyncWrite(key, request, SENTINEL_HOSTS, null);
+        journal.asyncWrite(key, request, SENTINEL_HOSTS, callback);
     }
 
     @VisibleForTesting
@@ -313,7 +319,7 @@ public class AccordJournal implements IJournal, Shutdownable
             if (key.type.isRemoteRequest())
                 frameAggregator.onWrite(RemoteRequestContext.create(((Request) value).waitForEpoch(), (ResponseContext) writeContext, pointer));
             else if (key.type.isLocalRequest())
-                frameAggregator.onWrite(LocalRequestContext.create((LocalRequest<?>) value, pointer));
+                frameAggregator.onWrite(LocalRequestContext.create((LocalRequest<?>) value, (BiConsumer<?, Throwable>) writeContext, pointer));
             else
                 frameApplicator.onWrite(pointer, size, (FrameContext) writeContext);
         }
@@ -404,9 +410,9 @@ public class AccordJournal implements IJournal, Shutdownable
             this.callback = callback;
         }
 
-        static LocalRequestContext create(LocalRequest<?> request, RecordPointer pointer)
+        static LocalRequestContext create(LocalRequest<?> request, BiConsumer<?, Throwable> callback, RecordPointer pointer)
         {
-            return new LocalRequestContext(request.waitForEpoch(), request.callback(), pointer);
+            return new LocalRequestContext(request.waitForEpoch(), callback, pointer);
         }
     }
 
@@ -762,6 +768,10 @@ public class AccordJournal implements IJournal, Shutdownable
         INTEROP_COMMIT_MAXIMAL        (84, INTEROP_COMMIT_MAXIMAL_REQ, STABLE_MAXIMAL_REQ,   AccordInteropCommit.serializer, TXN),
         INTEROP_APPLY_MINIMAL         (85, INTEROP_APPLY_MINIMAL_REQ,  APPLY_MINIMAL_REQ,    AccordInteropApply.serializer,  TXN),
         INTEROP_APPLY_MAXIMAL         (86, INTEROP_APPLY_MAXIMAL_REQ,  APPLY_MAXIMAL_REQ,    AccordInteropApply.serializer,  TXN),
+
+        /* Accord Bootstrap local messages */
+        BOOTSTRAP_ATTEMPT_COMPLETE_MARKER           (90, MessageType.BOOTSTRAP_ATTEMPT_COMPLETE_MARKER,         LocalBootstrapSerializers.createBootstrapCompleteMarkerTransaction, LOCAL),
+        BOOTSTRAP_ATTEMPT_MARK_BOOTSTRAP_COMPLETE   (91, MessageType.BOOTSTRAP_ATTEMPT_MARK_BOOTSTRAP_COMPLETE, LocalBootstrapSerializers.markBootstrapComplete,                    LOCAL),
         ;
 
         final int id;
@@ -1182,13 +1192,14 @@ public class AccordJournal implements IJournal, Shutdownable
 
         private void applyRequest(RecordPointer pointer, RequestContext context, long preAcceptTimeout)
         {
-            Request request = (Request) cachedRecords.remove(pointer);
-            Type type = Type.fromMessageType(request.type());
+            Message message = (Message) cachedRecords.remove(pointer);
+            Type type = Type.fromMessageType(message.type());
             if (type == Type.PRE_ACCEPT || type == Type.BEGIN_RECOVER)
                 context.preAcceptTimeout(preAcceptTimeout);
 
             if (type.isRemoteRequest())
             {
+                Request request = (Request) message;
                 RemoteRequestContext ctx = (RemoteRequestContext) context;
                 Id from = endpointMapper.mappedId(ctx.from());
                 request.process(node, from, ctx);
@@ -1199,7 +1210,7 @@ public class AccordJournal implements IJournal, Shutdownable
                 LocalRequestContext ctx = (LocalRequestContext) context;
                 // TODO (expected): Make Propagate PreAccept receive preAcceptTimeout and timestamps
                 //noinspection unchecked,rawtypes
-                ((LocalRequest) request).process(node, ctx.callback);
+                ((LocalRequest) message).process(node, ctx.callback);
             }
         }
 
@@ -1452,6 +1463,18 @@ public class AccordJournal implements IJournal, Shutdownable
         {
             return readMessage(txnId, APPLY_THEN_WAIT_UNTIL_APPLIED_REQ, ApplyThenWaitUntilApplied.class);
         }
+
+        @Override
+        public CreateBootstrapCompleteMarkerTransaction bootstrapAttemptCompleteMarker()
+        {
+            return readMessage(txnId, MessageType.BOOTSTRAP_ATTEMPT_COMPLETE_MARKER, CreateBootstrapCompleteMarkerTransaction.class);
+        }
+
+        @Override
+        public MarkBootstrapComplete bootstrapAttemptMarkBootstrapComplete()
+        {
+            return readMessage(txnId, MessageType.BOOTSTRAP_ATTEMPT_MARK_BOOTSTRAP_COMPLETE, MarkBootstrapComplete.class);
+        }
     }
 
     private final class LoggingMessageProvider implements SerializerSupport.MessageProvider
@@ -1622,6 +1645,24 @@ public class AccordJournal implements IJournal, Shutdownable
             ApplyThenWaitUntilApplied apply = provider.applyThenWaitUntilApplied();
             logger.debug("Fetched {} message for {}: {}", APPLY_THEN_WAIT_UNTIL_APPLIED_REQ, txnId, apply);
             return apply;
+        }
+
+        @Override
+        public CreateBootstrapCompleteMarkerTransaction bootstrapAttemptCompleteMarker()
+        {
+            logger.debug("Fetching {} message for {}", BOOTSTRAP_ATTEMPT_COMPLETE_MARKER, txnId);
+            CreateBootstrapCompleteMarkerTransaction msg = provider.bootstrapAttemptCompleteMarker();
+            logger.debug("Fetched {} message for {}: {}", BOOTSTRAP_ATTEMPT_COMPLETE_MARKER, txnId, msg);
+            return msg;
+        }
+
+        @Override
+        public MarkBootstrapComplete bootstrapAttemptMarkBootstrapComplete()
+        {
+            logger.debug("Fetching {} message for {}", BOOTSTRAP_ATTEMPT_MARK_BOOTSTRAP_COMPLETE, txnId);
+            MarkBootstrapComplete msg = provider.bootstrapAttemptMarkBootstrapComplete();
+            logger.debug("Fetched {} message for {}: {}", BOOTSTRAP_ATTEMPT_MARK_BOOTSTRAP_COMPLETE, txnId, msg);
+            return msg;
         }
     }
 }

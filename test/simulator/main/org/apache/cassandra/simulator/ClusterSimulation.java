@@ -198,7 +198,6 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
         protected HeapPool.Logged.Listener memoryListener;
         protected SimulatedTime.Listener timeListener = (i1, i2) -> {};
         protected LongConsumer onThreadLocalRandomCheck;
-        protected String lwtStrategy = "migration";
 
         public Builder<S> failures(Failures failures)
         {
@@ -575,12 +574,6 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
             return this;
         }
 
-        public Builder<S> lwtStrategy(String strategy)
-        {
-            this.lwtStrategy = strategy;
-            return this;
-        }
-
         public abstract ClusterSimulation<S> create(long seed) throws IOException;
     }
 
@@ -774,7 +767,7 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
                                    .set("use_deterministic_table_id", true)
                                    .set("disk_access_mode", "standard")
                                    .set("failure_detector", SimulatedFailureDetector.Instance.class.getName())
-                                   .set("lwt_strategy", builder.lwtStrategy)
+                                   .set("accord.default_transactional_mode", "full")
                                    .set("commitlog_compression", new ParameterizedClass(LZ4Compressor.class.getName(), emptyMap()));
                              ;
                              configUpdater.accept(threadAllocator.update(config));

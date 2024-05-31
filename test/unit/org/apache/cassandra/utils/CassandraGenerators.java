@@ -21,14 +21,17 @@ import java.lang.reflect.Modifier;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Deque;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -37,6 +40,7 @@ import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Sets;
 import org.apache.commons.lang3.builder.MultilineRecursiveToStringStyle;
 import org.apache.commons.lang3.builder.ReflectionToStringBuilder;
 
@@ -79,6 +83,7 @@ import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableParams;
+import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.utils.AbstractTypeGenerators.ValueDomain;
 import org.quicktheories.core.Gen;
 import org.quicktheories.core.RandomnessSource;
@@ -201,6 +206,19 @@ public final class CassandraGenerators
         private Gen<Integer> numRegularColumnsGen = SourceDSL.integers().between(1, 5);
         private Gen<Integer> numStaticColumnsGen = SourceDSL.integers().between(0, 2);
         private Gen<String> memtableKeyGen = null;
+        @Nullable
+        private Gen<TransactionalMode> transactionalMode = null;
+
+        public TableMetadataBuilder withTransactionalMode(Gen<TransactionalMode> transactionalMode)
+        {
+            this.transactionalMode = transactionalMode;
+            return this;
+        }
+
+        public TableMetadataBuilder withTransactionalMode(TransactionalMode transactionalMode)
+        {
+            return withTransactionalMode(SourceDSL.arbitrary().constant(transactionalMode));
+        }
 
         public TableMetadataBuilder withKnownMemtables()
         {
@@ -349,10 +367,13 @@ public final class CassandraGenerators
                 withPrimaryColumnTypeGen(Generators.filter(defaultTypeGen, t -> !AbstractTypeGenerators.UNSAFE_EQUALITY.contains(t.getClass())));
 
             String ks = ksNameGen.generate(rnd);
+            AbstractTypeGenerators.overrideUDTKeyspace(ks);
             String tableName = tableNameGen.generate(rnd);
             TableParams.Builder params = TableParams.builder();
             if (memtableKeyGen != null)
                 params.memtable(MemtableParams.get(memtableKeyGen.generate(rnd)));
+            if (transactionalMode != null)
+                params.transactionalMode(transactionalMode.generate(rnd));
             TableMetadata.Builder builder = TableMetadata.builder(ks, tableName, tableIdGen.generate(rnd))
                                                          .partitioner(PARTITIONER_GEN.generate(rnd))
                                                          .kind(tableKindGen.generate(rnd))
@@ -373,6 +394,8 @@ public final class CassandraGenerators
                 builder.addColumn(createColumnDefinition(ks, tableName, ColumnMetadata.Kind.STATIC, createdColumnNames, staticColTypeGen == null ? defaultTypeGen : staticColTypeGen, rnd));
             for (int i = 0; i < numRegularColumns; i++)
                 builder.addColumn(createColumnDefinition(ks, tableName, ColumnMetadata.Kind.REGULAR, createdColumnNames, regularColTypeGen == null ? defaultTypeGen : regularColTypeGen, rnd));
+
+            AbstractTypeGenerators.clearUDTKeyspace();
 
             return builder.build();
         }
@@ -427,27 +450,7 @@ public final class CassandraGenerators
 
     public static Gen<ByteBuffer[]> data(TableMetadata metadata, @Nullable Gen<ValueDomain> valueDomainGen)
     {
-        AbstractTypeGenerators.TypeSupport<?>[] types = new AbstractTypeGenerators.TypeSupport[metadata.columns().size()];
-        Iterator<ColumnMetadata> it = metadata.allColumnsInSelectOrder();
-        int partitionColumns = metadata.partitionKeyColumns().size();
-        int clusteringColumns = metadata.clusteringColumns().size();
-        int primaryKeyColumns = partitionColumns + clusteringColumns;
-        for (int i = 0; it.hasNext(); i++)
-        {
-            ColumnMetadata col = it.next();
-            types[i] = AbstractTypeGenerators.getTypeSupportWithNulls(col.type, i < partitionColumns ? null : valueDomainGen);
-            if (i < partitionColumns)
-                types[i] = types[i].withoutEmptyData();
-            if (i >= partitionColumns && i < primaryKeyColumns)
-                // clustering doesn't allow null...
-                types[i] = types[i].mapBytes(b -> b == null ? ByteBufferUtil.EMPTY_BYTE_BUFFER : b);
-        }
-        return rnd -> {
-            ByteBuffer[] row = new ByteBuffer[types.length];
-            for (int i = 0; i < row.length; i++)
-                row[i] = types[i].bytesGen().generate(rnd);
-            return row;
-        };
+        return new DataGeneratorBuilder(metadata).withValueDomain(valueDomainGen).build();
     }
 
     /**
@@ -824,5 +827,146 @@ public final class CassandraGenerators
     public static Gen<DecoratedKey> decoratedKeys(Gen<IPartitioner> partitionerGen, Gen<ByteBuffer> keyGen)
     {
         return rs -> partitionerGen.generate(rs).decorateKey(keyGen.generate(rs));
+    }
+
+    public static String insertCqlAllColumns(TableMetadata metadata)
+    {
+        StringBuilder sb = new StringBuilder();
+        sb.append("INSERT INTO ").append(metadata.toString()).append(" (");
+        Iterator<ColumnMetadata> cols = metadata.allColumnsInSelectOrder();
+        while (cols.hasNext())
+            sb.append(cols.next().name.toCQLString()).append(", ");
+        sb.setLength(sb.length() - 2); // remove last ", "
+        sb.append(") VALUES (");
+        for (int i = 0; i < metadata.columns().size(); i++)
+        {
+            if (i > 0)
+                sb.append(", ");
+            sb.append('?');
+        }
+        sb.append(')');
+        return sb.toString();
+    }
+
+    public static void visitUDTs(TableMetadata metadata, Consumer<UserType> fn)
+    {
+        Set<UserType> udts = CassandraGenerators.extractUDTs(metadata);
+        if (!udts.isEmpty())
+        {
+            Deque<UserType> pending = new ArrayDeque<>(udts);
+            Set<ByteBuffer> visited = new HashSet<>();
+            while (!pending.isEmpty())
+            {
+                UserType next = pending.poll();
+                Set<UserType> subTypes = AbstractTypeGenerators.extractUDTs(next);
+                subTypes.remove(next); // it includes self
+                if (subTypes.isEmpty() || subTypes.stream().allMatch(t -> visited.contains(t.name)))
+                {
+                    fn.accept(next);
+                    visited.add(next.name);
+                }
+                else
+                {
+                    pending.add(next);
+                }
+            }
+        }
+    }
+
+    public static class DataGeneratorBuilder
+    {
+        private final TableMetadata metadata;
+        @Nullable
+        private Gen<ValueDomain> valueDomainGen = null;
+
+        public DataGeneratorBuilder(TableMetadata metadata)
+        {
+            this.metadata = metadata;
+        }
+
+        public DataGeneratorBuilder withValueDomain(@Nullable Gen<ValueDomain> valueDomainGen)
+        {
+            this.valueDomainGen = valueDomainGen;
+            return this;
+        }
+
+        public Gen<Gen<ByteBuffer[]>> build(Gen<Integer> numUniqPartitionsGen)
+        {
+            AbstractTypeGenerators.TypeSupport<?>[] types = typeSupport();
+            return rnd -> {
+                int numPartitions = numUniqPartitionsGen.generate(rnd);
+                Set<List<ByteBuffer>> partitions = Sets.newHashSetWithExpectedSize(numPartitions);
+                int partitionColumns = metadata.partitionKeyColumns().size();
+                for (int i = 0; i < numPartitions; i++)
+                {
+                    List<ByteBuffer> pk = new ArrayList<>(partitionColumns);
+                    int attempts = 0;
+                    do
+                    {
+                        attempts++;
+                        pk.clear();
+                        for (int c = 0; c < partitionColumns; c++)
+                            pk.add(types[c].bytesGen().generate(rnd));
+                    }
+                    while (!partitions.add(pk) && attempts < 42);
+                }
+                List<List<ByteBuffer>> deterministicOrder = new ArrayList<>(partitions);
+                deterministicOrder.sort((a, b) -> {
+                    int rc = 0;
+                    for (int i = 0; i < a.size(); i++)
+                    {
+                        rc = a.get(i).compareTo(b.get(i));
+                        if (rc != 0) return rc;
+                    }
+                    return rc;
+                });
+
+                Gen<List<ByteBuffer>> pkGen = SourceDSL.arbitrary().pick(deterministicOrder);
+
+                return next -> {
+                    // select partition
+                    List<ByteBuffer> pk = pkGen.generate(next);
+                    // generate rest
+                    ByteBuffer[] row = new ByteBuffer[types.length];
+                    for (int i = 0; i < pk.size(); i++)
+                        row[i] = pk.get(i);
+
+                    for (int i = partitionColumns; i < row.length; i++)
+                        row[i] = types[i].bytesGen().generate(rnd);
+                    return row;
+                };
+            };
+        }
+
+        public Gen<ByteBuffer[]> build()
+        {
+            AbstractTypeGenerators.TypeSupport<?>[] types = typeSupport();
+            return rnd -> {
+                ByteBuffer[] row = new ByteBuffer[types.length];
+                for (int i = 0; i < row.length; i++)
+                    row[i] = types[i].bytesGen().generate(rnd);
+                return row;
+            };
+        }
+
+        private AbstractTypeGenerators.TypeSupport<?>[] typeSupport()
+        {
+            AbstractTypeGenerators.TypeSupport<?>[] types = new AbstractTypeGenerators.TypeSupport[metadata.columns().size()];
+            Iterator<ColumnMetadata> it = metadata.allColumnsInSelectOrder();
+            int partitionColumns = metadata.partitionKeyColumns().size();
+            int clusteringColumns = metadata.clusteringColumns().size();
+            int primaryKeyColumns = partitionColumns + clusteringColumns;
+            for (int i = 0; it.hasNext(); i++)
+            {
+                ColumnMetadata col = it.next();
+                types[i] = AbstractTypeGenerators.getTypeSupportWithNulls(col.type, i < partitionColumns ? null : valueDomainGen);
+                if (i < partitionColumns)
+                    types[i] = types[i].withoutEmptyData();
+                if (i >= partitionColumns && i < primaryKeyColumns)
+                    // clustering doesn't allow null...
+                    types[i] = types[i].mapBytes(b -> b == null ? ByteBufferUtil.EMPTY_BYTE_BUFFER : b);
+            }
+            return types;
+        }
     }
 }
