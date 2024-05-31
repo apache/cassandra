@@ -23,8 +23,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
 
-import javax.annotation.Nullable;
-
 import org.junit.Before;
 import org.junit.Test;
 
