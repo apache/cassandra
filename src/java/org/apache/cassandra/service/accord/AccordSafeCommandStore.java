@@ -344,4 +344,10 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
         if (commandsForRanges != null)
             commandsForRanges.postExecute();
     }
+
+    @Override
+    public String toString()
+    {
+        return "AccordSafeCommandStore(id=" + commandStore().id() + ")";
+    }
 }

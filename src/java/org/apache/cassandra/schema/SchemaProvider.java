@@ -141,6 +141,11 @@ public interface SchemaProvider
         return metadata == null ? null : metadata.partitioner;
     }
 
+    default IPartitioner getExistingTablePartitioner(TableId id) throws UnknownTableException
+    {
+        return getExistingTableMetadata(id).partitioner;
+    }
+
     @Nullable
     default TableMetadataRef getTableMetadataRef(TableId id)
     {
