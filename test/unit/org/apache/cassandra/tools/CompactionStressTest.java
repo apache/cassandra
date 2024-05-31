@@ -19,10 +19,15 @@
 package org.apache.cassandra.tools;
 
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+
 import org.apache.cassandra.io.util.File;
 import org.junit.Test;
 
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
+
+import static org.apache.cassandra.config.CassandraRelevantProperties.LOG_DIR;
 
 public class CompactionStressTest extends OfflineToolUtils
 {
@@ -34,8 +39,13 @@ public class CompactionStressTest extends OfflineToolUtils
     }
 
     @Test
-    public void testWriteAndCompact()
+    public void testWriteAndCompact() throws Exception
     {
+        Path tmpDir = Files.createTempDirectory("CompactionStressTest");
+        // For the implementation of CompactionLogger, set the LOG_DIR to a tmp
+        // directory, the generated compaction.log file will be thrown in.
+        LOG_DIR.setString(tmpDir.toString());
+
         ClassLoader classLoader = getClass().getClassLoader();
         File file = new File(classLoader.getResource("blogpost.yaml").getFile());
         String profileFile = file.absolutePath();
@@ -60,6 +70,8 @@ public class CompactionStressTest extends OfflineToolUtils
                                       profileFile,
                                       "-t",
                                       "8");
-              tool.assertOnCleanExit();
+        tool.assertOnCleanExit();
+        // clear property
+        LOG_DIR.clearValue(); // checkstyle: suppress nearby 'clearValueSystemPropertyUsage'
     }
 }

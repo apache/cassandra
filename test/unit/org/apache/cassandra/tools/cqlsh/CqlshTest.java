@@ -29,6 +29,8 @@ import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.tools.ToolRunner;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
 
@@ -133,7 +135,10 @@ public class CqlshTest extends CQLTester
         Path csv = prepareCSVFile(rows);
 
         // when running COPY via cqlsh
-        ToolRunner.ToolResult result = ToolRunner.invokeCqlsh(format("COPY %s.%s FROM '%s'", KEYSPACE, currentTable(), csv.toAbsolutePath()));
+        Path tmpDir = Files.createTempDirectory("CqlshTest");
+        File tempFile = FileUtils.createTempFile("testCopyOnlyThoseRowsThatMatchVectorTypeSize", "", new File(tmpDir));
+        // Since this test has failure, with ERRFILE option of COPY command, we can put the err file to tmp directory
+        ToolRunner.ToolResult result = ToolRunner.invokeCqlsh(format("COPY %s.%s FROM '%s' WITH ERRFILE = '%s'", KEYSPACE, currentTable(), csv.toAbsolutePath(), tempFile));
 
         // then only rows that match type size should be imported
         result.asserts().failure();
