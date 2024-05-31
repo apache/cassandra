@@ -22,7 +22,6 @@ import accord.local.CommandsForKey;
 import accord.local.KeyHistory;
 import accord.local.PreLoadContext;
 import accord.primitives.*;
-import accord.utils.Invariants;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
 import accord.utils.async.AsyncResult;
@@ -196,7 +195,11 @@ public class AsyncLoader
 
     private AsyncChain<Set<? extends Key>> findOverlappingKeys(Ranges ranges)
     {
-        Invariants.checkArgument(!ranges.isEmpty());
+        if (ranges.isEmpty())
+        {
+            // During topology changes some shards may be included with empty ranges
+            return AsyncChains.success(Collections.emptySet());
+        }
 
         List<AsyncChain<Set<PartitionKey>>> chains = new ArrayList<>(ranges.size());
         for (Range range : ranges)

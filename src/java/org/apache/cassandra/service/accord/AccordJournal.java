@@ -40,6 +40,12 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Multimap;
 import com.google.common.primitives.Ints;
+
+import accord.messages.ApplyThenWaitUntilApplied;
+import org.agrona.collections.Long2ObjectHashMap;
+import org.agrona.collections.LongArrayList;
+import org.agrona.collections.ObjectHashSet;
+import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,7 +55,6 @@ import accord.local.SerializerSupport;
 import accord.messages.AbstractEpochRequest;
 import accord.messages.Accept;
 import accord.messages.Apply;
-import accord.messages.ApplyThenWaitUntilApplied;
 import accord.messages.BeginRecovery;
 import accord.messages.Commit;
 import accord.messages.LocalRequest;
@@ -65,9 +70,6 @@ import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
 import accord.utils.MapReduceConsume;
-import org.agrona.collections.Long2ObjectHashMap;
-import org.agrona.collections.LongArrayList;
-import org.agrona.collections.ObjectHashSet;
 import org.apache.cassandra.concurrent.Interruptible;
 import org.apache.cassandra.concurrent.ManyToOneConcurrentLinkedQueue;
 import org.apache.cassandra.concurrent.SequentialExecutorPlus;
@@ -104,7 +106,6 @@ import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.concurrent.Semaphore;
 import org.apache.cassandra.utils.vint.VIntCoding;
-import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.jctools.queues.SpscLinkedQueue;
 
 import static accord.messages.MessageType.ACCEPT_INVALIDATE_REQ;
@@ -256,11 +257,11 @@ public class AccordJournal implements IJournal, Shutdownable
     /**
      * Accord protocol messages originating from local node, e.g. Propagate.
      */
-    public void appendLocalRequest(LocalRequest<?> request)
+    public <R> void appendLocalRequest(LocalRequest<R> request, BiConsumer<? super R, Throwable> callback)
     {
         Type type = Type.fromMessageType(request.type());
         Key key = new Key(type.txnId(request), type);
-        journal.asyncWrite(key, request, SENTINEL_HOSTS, null);
+        journal.asyncWrite(key, request, SENTINEL_HOSTS, callback);
     }
 
     @VisibleForTesting
@@ -313,7 +314,7 @@ public class AccordJournal implements IJournal, Shutdownable
             if (key.type.isRemoteRequest())
                 frameAggregator.onWrite(RemoteRequestContext.create(((Request) value).waitForEpoch(), (ResponseContext) writeContext, pointer));
             else if (key.type.isLocalRequest())
-                frameAggregator.onWrite(LocalRequestContext.create((LocalRequest<?>) value, pointer));
+                frameAggregator.onWrite(LocalRequestContext.create((LocalRequest<?>) value, (BiConsumer<?, Throwable>) writeContext, pointer));
             else
                 frameApplicator.onWrite(pointer, size, (FrameContext) writeContext);
         }
@@ -404,9 +405,9 @@ public class AccordJournal implements IJournal, Shutdownable
             this.callback = callback;
         }
 
-        static LocalRequestContext create(LocalRequest<?> request, RecordPointer pointer)
+        static LocalRequestContext create(LocalRequest<?> request, BiConsumer<?, Throwable> callback, RecordPointer pointer)
         {
-            return new LocalRequestContext(request.waitForEpoch(), request.callback(), pointer);
+            return new LocalRequestContext(request.waitForEpoch(), callback, pointer);
         }
     }
 
@@ -1182,13 +1183,14 @@ public class AccordJournal implements IJournal, Shutdownable
 
         private void applyRequest(RecordPointer pointer, RequestContext context, long preAcceptTimeout)
         {
-            Request request = (Request) cachedRecords.remove(pointer);
-            Type type = Type.fromMessageType(request.type());
+            Message message = (Message) cachedRecords.remove(pointer);
+            Type type = Type.fromMessageType(message.type());
             if (type == Type.PRE_ACCEPT || type == Type.BEGIN_RECOVER)
                 context.preAcceptTimeout(preAcceptTimeout);
 
             if (type.isRemoteRequest())
             {
+                Request request = (Request) message;
                 RemoteRequestContext ctx = (RemoteRequestContext) context;
                 Id from = endpointMapper.mappedId(ctx.from());
                 request.process(node, from, ctx);
@@ -1199,7 +1201,7 @@ public class AccordJournal implements IJournal, Shutdownable
                 LocalRequestContext ctx = (LocalRequestContext) context;
                 // TODO (expected): Make Propagate PreAccept receive preAcceptTimeout and timestamps
                 //noinspection unchecked,rawtypes
-                ((LocalRequest) request).process(node, ctx.callback);
+                ((LocalRequest) message).process(node, ctx.callback);
             }
         }
 
