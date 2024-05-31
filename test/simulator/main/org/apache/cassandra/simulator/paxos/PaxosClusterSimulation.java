@@ -69,6 +69,11 @@ class PaxosClusterSimulation extends ClusterSimulation<PaxosSimulation> implemen
             random.reset(seed);
             return new PaxosClusterSimulation(random, seed, uniqueNum, this);
         }
+
+        public String lwtStrategy()
+        {
+            return lwtStrategy;
+        }
     }
 
     PaxosClusterSimulation(RandomSource random, long seed, int uniqueNum, Builder builder) throws IOException

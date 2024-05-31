@@ -21,6 +21,7 @@ package org.apache.cassandra.service.accord;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -43,7 +44,6 @@ import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.async.AsyncChains;
 import accord.utils.async.AsyncResult;
-import org.apache.cassandra.concurrent.CopyOnWriteMap;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.index.accord.RoutesSearcher;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
@@ -53,8 +53,7 @@ public class CommandsForRangesLoader
 {
     private final RoutesSearcher searcher = new RoutesSearcher();
     //TODO (now, durability): find solution for this...
-    // single writer multiple consumer pattern... write is done from SafeStore and reads are down in Read Stage
-    private final Map<TxnId, Ranges> historicalTransaction = new CopyOnWriteMap<>();
+    private final Map<TxnId, Ranges> historicalTransaction = new HashMap<>();
     private final AccordCommandStore store;
 
     public CommandsForRangesLoader(AccordCommandStore store)
@@ -192,7 +191,7 @@ public class CommandsForRangesLoader
         {
             if (cacheHits.containsKey(txnId))
                 continue;
-            var cmd = historicalTransaction.containsKey(txnId) ? loadHistoricTxn(txnId) : store.loadCommand(txnId);
+            var cmd = store.loadCommand(txnId);
             if (cmd == null)
                 continue; // unknown command
             var summary = create(cmd, ranges, durableBefore);
@@ -201,14 +200,6 @@ public class CommandsForRangesLoader
             map.put(txnId, summary);
         }
         return map;
-    }
-
-    private Command loadHistoricTxn(TxnId txnId)
-    {
-        // this method is only here so stack traces show that we are loading a historic txn
-        // There is a bug where a Range ExclusiveSyncPoint is known about, but it is not in journal...  This method
-        // only exists to help shead light on the origins of this txn
-        return store.loadCommand(txnId);
     }
 
     private static Summary create(Command cmd, Ranges cacheRanges, @Nullable DurableBefore durableBefore)

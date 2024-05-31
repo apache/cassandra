@@ -46,6 +46,7 @@ public class AccordSimulationRunner extends SimulationRunner
         protected void run(long seed, AccordClusterSimulation.Builder builder) throws IOException
         {
             beforeAll();
+            builder.applyHandicaps();
             super.run(seed, builder);
         }
     }
@@ -59,6 +60,7 @@ public class AccordSimulationRunner extends SimulationRunner
         protected void run(long seed, AccordClusterSimulation.Builder builder) throws IOException
         {
             beforeAll();
+            builder.applyHandicaps();
             super.run(seed, builder);
         }
     }
@@ -72,6 +74,7 @@ public class AccordSimulationRunner extends SimulationRunner
         protected void run(long seed, AccordClusterSimulation.Builder builder) throws IOException
         {
             beforeAll();
+            builder.applyHandicaps();
             super.run(seed, builder);
         }
     }

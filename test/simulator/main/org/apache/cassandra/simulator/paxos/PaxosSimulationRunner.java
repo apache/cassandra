@@ -69,6 +69,12 @@ public class PaxosSimulationRunner extends SimulationRunner
         @Override
         protected void run( long seed, PaxosClusterSimulation.Builder builder) throws IOException
         {
+            if (Objects.equals(builder.lwtStrategy(), "accord"))
+            {
+                // Apply handicaps
+                builder.dcs(new IntRange(1, 1));
+                builder.nodes(new IntRange(3, 3));
+            }
             super.run(seed, builder);
         }
     }

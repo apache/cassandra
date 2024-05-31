@@ -271,6 +271,9 @@ public class SimulationRunner
         @Option(name = { "--capture" }, title = "wait,wake,now", description = "Capture thread stack traces alongside events, choose from (wait,wake,now)")
         protected String capture;
 
+        @Option(name = { "--lwt-strategy" }, title = "migration|accord]", description = "What execution strategy to use for CAS and serial read")
+        protected String lwtStrategy;
+
         protected void propagate(B builder)
         {
             builder.threadCount(threadCount);
@@ -340,6 +343,8 @@ public class SimulationRunner
                                                  .orElse(new int[0]);
                 builder.debug(debugLevels, debugPrimaryKeys);
             }
+
+            Optional.ofNullable(lwtStrategy).ifPresent(builder::lwtStrategy);
         }
 
         public void run(B builder) throws IOException

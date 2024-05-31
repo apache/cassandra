@@ -732,18 +732,6 @@ public final class AbstractTypeGenerators
         return userTypeGen(elementGen, sizeGen, ksGen, nameGen, BOOLEAN_GEN);
     }
 
-    private static ThreadLocal<String> OVERRIDE_KEYSPACE = new ThreadLocal<>();
-
-    public static void overrideUDTKeyspace(String ks)
-    {
-        OVERRIDE_KEYSPACE.set(ks);
-    }
-
-    public static void clearUDTKeyspace()
-    {
-        OVERRIDE_KEYSPACE.remove();
-    }
-
     public static Gen<UserType> userTypeGen(Gen<AbstractType<?>> elementGen, Gen<Integer> sizeGen, Gen<String> ksGen, Gen<String> nameGen, Gen<Boolean> multiCellGen)
     {
         Gen<FieldIdentifier> fieldNameGen = IDENTIFIER_GEN.map(FieldIdentifier::forQuoted);
@@ -752,9 +740,7 @@ public final class AbstractTypeGenerators
             int numElements = sizeGen.generate(rnd);
             List<AbstractType<?>> fieldTypes = new ArrayList<>(numElements);
             LinkedHashSet<FieldIdentifier> fieldNames = new LinkedHashSet<>(numElements);
-            String ks = OVERRIDE_KEYSPACE.get();
-            if (ks == null)
-                ks = ksGen.generate(rnd);
+            String ks = ksGen.generate(rnd);
             String name = nameGen.generate(rnd);
             ByteBuffer nameBB = AsciiType.instance.decompose(name);
 
