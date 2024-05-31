@@ -6,6 +6,8 @@ Merged from 4.0:
  * Make LWT conditions behavior on frozen and non-frozen columns consistent for null column values (CASSANDRA-19637)
  * Add timeout specifically for bootstrapping nodes (CASSANDRA-15439)
  * Bring Redhat packge dirs/ownership/perms in line with Debian package (CASSANDRA-19565)
+Merged from 3.11:
+ * Add bootstrap options to control sources of streaming (CASSANDRA-19733)
 
 
 4.1.5
