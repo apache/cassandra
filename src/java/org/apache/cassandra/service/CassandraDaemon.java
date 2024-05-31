@@ -111,6 +111,12 @@ public class CassandraDaemon
         return instance;
     }
 
+    @VisibleForTesting
+    public NativeTransportService nativeTransportService()
+    {
+        return nativeTransportService;
+    }
+
     static {
         // Need to register metrics before instrumented appender is created(first access to LoggerFactory).
         SharedMetricRegistries.getOrCreate("logback-metrics").addListener(new MetricRegistryListener.Base()
@@ -818,12 +824,16 @@ public class CassandraDaemon
             StorageService.instance.setRpcReady(true);
     }
 
+    @Deprecated(since = "5.0.0")
     public void stopNativeTransport()
     {
+        stopNativeTransport(false);
+    }
+
+    public void stopNativeTransport(boolean force)
+    {
         if (nativeTransportService != null)
-        {
-            nativeTransportService.stop();
-        }
+            nativeTransportService.stop(force);
     }
 
     public boolean isNativeTransportRunning()

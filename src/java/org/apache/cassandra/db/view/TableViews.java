@@ -38,6 +38,7 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.service.StorageProxy;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.btree.BTreeSet;
@@ -149,7 +150,7 @@ public class TableViews extends AbstractCollection<View>
 
         // Read modified rows
         long nowInSec = FBUtilities.nowInSeconds();
-        long queryStartNanoTime = nanoTime();
+        Dispatcher.RequestTime requestTime = Dispatcher.RequestTime.forImmediateExecution();
         SinglePartitionReadCommand command = readExistingRowsCommand(update, views, nowInSec);
         if (command == null)
             return;
@@ -166,7 +167,7 @@ public class TableViews extends AbstractCollection<View>
         Keyspace.openAndGetStore(update.metadata()).metric.viewReadTime.update(nanoTime() - start, TimeUnit.NANOSECONDS);
 
         if (!mutations.isEmpty())
-            StorageProxy.mutateMV(update.partitionKey().getKey(), mutations, writeCommitLog, baseComplete, queryStartNanoTime);
+            StorageProxy.mutateMV(update.partitionKey().getKey(), mutations, writeCommitLog, baseComplete, requestTime);
     }
 
 

@@ -18,13 +18,23 @@
  */
 package org.apache.cassandra.metrics;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import com.google.common.annotations.VisibleForTesting;
 
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.Reservoir;
+import com.codahale.metrics.Timer;
 import org.apache.cassandra.transport.*;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
@@ -41,15 +51,17 @@ public final class ClientMetrics
     private Meter authSuccess;
     private Meter authFailure;
     private AtomicInteger pausedConnections;
-    
+
     @SuppressWarnings({ "unused", "FieldCanBeLocal" })
     private Gauge<Integer> pausedConnectionsGauge;
-    
+    private Meter connectionPaused;
     private Meter requestDiscarded;
     private Meter requestDispatched;
 
+    private Meter timedOutBeforeProcessing;
     private Meter protocolException;
     private Meter unknownException;
+    private Timer queueTime;
 
     private ClientMetrics()
     {
@@ -65,11 +77,22 @@ public final class ClientMetrics
         authFailure.mark();
     }
 
-    public void pauseConnection() { pausedConnections.incrementAndGet(); }
+    @VisibleForTesting
+    public int getNumberOfPausedConnections()
+    {
+        return (int) connectionPaused.getCount();
+    }
+
+    public void pauseConnection()
+    {
+        connectionPaused.mark();
+        pausedConnections.incrementAndGet();
+    }
     public void unpauseConnection() { pausedConnections.decrementAndGet(); }
 
     public void markRequestDiscarded() { requestDiscarded.mark(); }
     public void markRequestDispatched() { requestDispatched.mark(); }
+    public void markTimedOutBeforeProcessing() { timedOutBeforeProcessing.mark(); }
 
     public List<ConnectedClient> allConnectedClients()
     {
@@ -120,13 +143,16 @@ public final class ClientMetrics
 
         pausedConnections = new AtomicInteger();
         pausedConnectionsGauge = registerGauge("PausedConnections", pausedConnections::get);
+        connectionPaused = registerMeter("ConnectionPaused");
         requestDiscarded = registerMeter("RequestDiscarded");
         requestDispatched = registerMeter("RequestDispatched");
 
+        timedOutBeforeProcessing = registerMeter("TimedOutBeforeProcessing");
         protocolException = registerMeter("ProtocolException");
         unknownException = registerMeter("UnknownException");
 
         initialized = true;
+        queueTime = registerTimer("Queued");
     }
 
     private int countConnectedClients()
@@ -190,5 +216,15 @@ public final class ClientMetrics
     private Meter registerMeter(String name)
     {
         return Metrics.meter(factory.createMetricName(name));
+    }
+
+    public Timer registerTimer(String name)
+    {
+        return Metrics.timer(factory.createMetricName(name));
+    }
+
+    public void queueTime(long value, TimeUnit unit)
+    {
+        queueTime.update(value, unit);
     }
 }

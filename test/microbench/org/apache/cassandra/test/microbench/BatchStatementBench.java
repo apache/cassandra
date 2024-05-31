@@ -43,6 +43,7 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaTestUtil;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.FBUtilities;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -64,8 +65,6 @@ import org.openjdk.jmh.runner.options.Options;
 import org.openjdk.jmh.runner.options.OptionsBuilder;
 
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
-
 
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
@@ -89,7 +88,7 @@ public class BatchStatementBench
     String table = "tbl";
 
     long nowInSec = FBUtilities.nowInSeconds();
-    long queryStartTime = nanoTime();
+    Dispatcher.RequestTime queryStartTime = Dispatcher.RequestTime.forImmediateExecution();
     BatchStatement bs;
     BatchQueryOptions bqo;
 

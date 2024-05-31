@@ -36,6 +36,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.messages.*;
 import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.utils.MonotonicClock;
 import org.apache.cassandra.utils.ReflectionUtils;
 import org.apache.cassandra.utils.TimeUUID;
 
@@ -203,10 +204,12 @@ public abstract class Message
     public static abstract class Request extends Message
     {
         private boolean tracingRequested;
-
+        public final long createdAtNanos;
         protected Request(Type type)
         {
             super(type);
+
+            createdAtNanos = MonotonicClock.Global.preciseTime.now();
 
             if (type.direction != Direction.REQUEST)
                 throw new IllegalArgumentException();
@@ -228,9 +231,9 @@ public abstract class Message
             return false;
         }
 
-        protected abstract Response execute(QueryState queryState, long queryStartNanoTime, boolean traceRequest);
+        protected abstract Response execute(QueryState queryState, Dispatcher.RequestTime requestTime, boolean traceRequest);
 
-        public final Response execute(QueryState queryState, long queryStartNanoTime)
+        public final Response execute(QueryState queryState, Dispatcher.RequestTime requestTime)
         {
             boolean shouldTrace = false;
             TimeUUID tracingSessionId = null;
@@ -253,7 +256,7 @@ public abstract class Message
             Response response;
             try
             {
-                response = execute(queryState, queryStartNanoTime, shouldTrace);
+                response = execute(queryState, requestTime, shouldTrace);
             }
             finally
             {
@@ -275,6 +278,15 @@ public abstract class Message
         boolean isTracingRequested()
         {
             return tracingRequested;
+        }
+
+        @Override
+        public String toString()
+        {
+            return "Request{" +
+                   "tracingRequested=" + tracingRequested +
+                   ", createdAtNanos=" + createdAtNanos +
+                   '}';
         }
     }
 

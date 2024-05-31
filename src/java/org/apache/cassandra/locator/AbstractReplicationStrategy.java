@@ -46,6 +46,7 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.DatacenterSyncWriteResponseHandler;
 import org.apache.cassandra.service.DatacenterWriteResponseHandler;
 import org.apache.cassandra.service.WriteResponseHandler;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.FBUtilities;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
@@ -136,32 +137,32 @@ public abstract class AbstractReplicationStrategy
                                                                        Runnable callback,
                                                                        WriteType writeType,
                                                                        Supplier<Mutation> hintOnFailure,
-                                                                       long queryStartNanoTime)
+                                                                       Dispatcher.RequestTime requestTime)
     {
         return getWriteResponseHandler(replicaPlan, callback, writeType, hintOnFailure,
-                                       queryStartNanoTime, DatabaseDescriptor.getIdealConsistencyLevel());
+                                       requestTime, DatabaseDescriptor.getIdealConsistencyLevel());
     }
 
     public <T> AbstractWriteResponseHandler<T> getWriteResponseHandler(ReplicaPlan.ForWrite replicaPlan,
                                                                        Runnable callback,
                                                                        WriteType writeType,
                                                                        Supplier<Mutation> hintOnFailure,
-                                                                       long queryStartNanoTime,
+                                                                       Dispatcher.RequestTime requestTime,
                                                                        ConsistencyLevel idealConsistencyLevel)
     {
         AbstractWriteResponseHandler<T> resultResponseHandler;
         if (replicaPlan.consistencyLevel().isDatacenterLocal())
         {
             // block for in this context will be localnodes block.
-            resultResponseHandler = new DatacenterWriteResponseHandler<T>(replicaPlan, callback, writeType, hintOnFailure, queryStartNanoTime);
+            resultResponseHandler = new DatacenterWriteResponseHandler<T>(replicaPlan, callback, writeType, hintOnFailure, requestTime);
         }
         else if (replicaPlan.consistencyLevel() == ConsistencyLevel.EACH_QUORUM && (this instanceof NetworkTopologyStrategy))
         {
-            resultResponseHandler = new DatacenterSyncWriteResponseHandler<T>(replicaPlan, callback, writeType, hintOnFailure, queryStartNanoTime);
+            resultResponseHandler = new DatacenterSyncWriteResponseHandler<T>(replicaPlan, callback, writeType, hintOnFailure, requestTime);
         }
         else
         {
-            resultResponseHandler = new WriteResponseHandler<T>(replicaPlan, callback, writeType, hintOnFailure, queryStartNanoTime);
+            resultResponseHandler = new WriteResponseHandler<T>(replicaPlan, callback, writeType, hintOnFailure, requestTime);
         }
 
         //Check if tracking the ideal consistency level is configured
@@ -181,7 +182,7 @@ public abstract class AbstractReplicationStrategy
                                                                                        callback,
                                                                                        writeType,
                                                                                        hintOnFailure,
-                                                                                       queryStartNanoTime,
+                                                                                       requestTime,
                                                                                        idealConsistencyLevel);
                 resultResponseHandler.setIdealCLResponseHandler(idealHandler);
             }

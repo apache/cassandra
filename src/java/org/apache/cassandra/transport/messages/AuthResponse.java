@@ -69,7 +69,7 @@ public class AuthResponse extends Message.Request
     }
 
     @Override
-    protected Response execute(QueryState queryState, long queryStartNanoTime, boolean traceRequest)
+    protected Response execute(QueryState queryState, Dispatcher.RequestTime requestTime, boolean traceRequest)
     {
         try
         {
