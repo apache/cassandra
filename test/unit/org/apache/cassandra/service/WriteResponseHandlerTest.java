@@ -46,6 +46,7 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static java.util.concurrent.TimeUnit.DAYS;
@@ -145,7 +146,7 @@ public class WriteResponseHandlerTest
     {
         long startingCount = ks.metric.idealCLWriteLatency.latency.getCount();
         //Specify query start time in past to ensure minimum latency measurement
-        AbstractWriteResponseHandler awr = createWriteResponseHandler(ConsistencyLevel.LOCAL_QUORUM, ConsistencyLevel.EACH_QUORUM, nanoTime() - DAYS.toNanos(1));
+        AbstractWriteResponseHandler awr = createWriteResponseHandler(ConsistencyLevel.LOCAL_QUORUM, ConsistencyLevel.EACH_QUORUM, new Dispatcher.RequestTime(nanoTime() - DAYS.toNanos(1)));
 
         //dc1
         awr.onResponse(createDummyMessage(0));
@@ -260,13 +261,13 @@ public class WriteResponseHandlerTest
 
     private static AbstractWriteResponseHandler createWriteResponseHandler(ConsistencyLevel cl, ConsistencyLevel ideal)
     {
-        return createWriteResponseHandler(cl, ideal, nanoTime());
+        return createWriteResponseHandler(cl, ideal, Dispatcher.RequestTime.forImmediateExecution());
     }
 
-    private static AbstractWriteResponseHandler createWriteResponseHandler(ConsistencyLevel cl, ConsistencyLevel ideal, long queryStartTime)
+    private static AbstractWriteResponseHandler createWriteResponseHandler(ConsistencyLevel cl, ConsistencyLevel ideal, Dispatcher.RequestTime requestTime)
     {
         return ks.getReplicationStrategy().getWriteResponseHandler(ReplicaPlans.forWrite(ks, cl, (cm) -> targets, (cm) -> pending, Epoch.FIRST, Predicates.alwaysTrue(), ReplicaPlans.writeAll),
-                                                                   null, WriteType.SIMPLE, null, queryStartTime, ideal);
+                                                                   null, WriteType.SIMPLE, null, requestTime, ideal);
     }
 
     private static Message createDummyMessage(int target)

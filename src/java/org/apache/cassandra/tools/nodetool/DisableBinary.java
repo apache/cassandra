@@ -18,16 +18,19 @@
 package org.apache.cassandra.tools.nodetool;
 
 import io.airlift.airline.Command;
-
+import io.airlift.airline.Option;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
 @Command(name = "disablebinary", description = "Disable native transport (binary protocol)")
 public class DisableBinary extends NodeToolCmd
 {
+    @Option(title = "force", name = { "-f", "--force"}, description = "Use -f to interrupt client requests that have already started")
+    private boolean force = false;
+
     @Override
     public void execute(NodeProbe probe)
     {
-        probe.stopNativeTransport();
+        probe.stopNativeTransport(force);
     }
 }

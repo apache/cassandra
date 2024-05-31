@@ -586,13 +586,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
     }
 
-    public void stopNativeTransport()
+    public void stopNativeTransport(boolean force)
     {
         if (daemon == null)
         {
             throw new IllegalStateException("No configured daemon");
         }
-        daemon.stopNativeTransport();
+        daemon.stopNativeTransport(force);
     }
 
     public boolean isNativeTransportRunning()
@@ -5541,4 +5541,71 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (!skipNotificationListeners)
             super.addNotificationListener(listener, filter, handback);
     }
+
+    @Override
+    public double getNativeTransportQueueMaxItemAgeThreshold()
+    {
+        return DatabaseDescriptor.getNativeTransportQueueMaxItemAgeThreshold();
+    }
+
+    @Override
+    public void setNativeTransportQueueMaxItemAgeThreshold(double threshold)
+    {
+        DatabaseDescriptor.setNativeTransportMaxQueueItemAgeThreshold(threshold);
+    }
+
+    @Override
+    public long getNativeTransportMinBackoffOnQueueOverloadInMillis()
+    {
+        return DatabaseDescriptor.getNativeTransportMinBackoffOnQueueOverload(MILLISECONDS);
+    }
+
+    @Override
+    public long getNativeTransportMaxBackoffOnQueueOverloadInMillis()
+    {
+        return DatabaseDescriptor.getNativeTransportMaxBackoffOnQueueOverload(MILLISECONDS);
+    }
+
+    @Override
+    public void setNativeTransportBackoffOnQueueOverloadInMillis(long min, long max)
+    {
+        DatabaseDescriptor.setNativeTransportBackoffOnQueueOverload(min, max, MILLISECONDS);
+    }
+
+    @Override
+    public boolean getNativeTransportThrowOnOverload()
+    {
+        return DatabaseDescriptor.getNativeTransportThrowOnOverload();
+    }
+
+    @Override
+    public void setNativeTransportThrowOnOverload(boolean throwOnOverload)
+    {
+        DatabaseDescriptor.setNativeTransportThrowOnOverload(throwOnOverload);
+    }
+
+    @Override
+    public long getNativeTransportTimeoutMillis()
+    {
+        return DatabaseDescriptor.getNativeTransportTimeout(MILLISECONDS);
+    }
+
+    @Override
+    public void setNativeTransportTimeoutMillis(long deadlineMillis)
+    {
+        DatabaseDescriptor.setNativeTransportTimeout(deadlineMillis, MILLISECONDS);
+    }
+
+    @Override
+    public boolean getEnforceNativeDeadlineForHints()
+    {
+        return DatabaseDescriptor.getEnforceNativeDeadlineForHints();
+    }
+
+    @Override
+    public void setEnforceNativeDeadlineForHints(boolean value)
+    {
+        DatabaseDescriptor.setEnforceNativeDeadlineForHints(value);
+    }
+
 }

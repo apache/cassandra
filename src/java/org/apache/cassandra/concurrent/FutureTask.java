@@ -89,6 +89,34 @@ public class FutureTask<V> extends AsyncFuture<V> implements RunnableFuture<V>
 
     public static <T> Callable<T> callable(Runnable run)
     {
+        if (run instanceof DebuggableTask.RunnableDebuggableTask)
+        {
+            return new DebuggableTask.CallableDebuggableTask<T>()
+            {
+                final RunnableDebuggableTask task = (RunnableDebuggableTask) run;
+                public T call()
+                {
+                    run.run();
+                    return null;
+                }
+
+                public long creationTimeNanos()
+                {
+                    return task.creationTimeNanos();
+                }
+
+                public long startTimeNanos()
+                {
+                    return task.startTimeNanos();
+                }
+
+                public String description()
+                {
+                    return task.description();
+                }
+            };
+        }
+
         return new Callable<T>()
         {
             public T call()

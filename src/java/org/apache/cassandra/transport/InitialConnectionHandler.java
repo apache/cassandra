@@ -26,7 +26,6 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.cassandra.transport.ClientResourceLimits.Overload;
-import org.apache.cassandra.utils.MonotonicClock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -149,8 +148,7 @@ public class InitialConnectionHandler extends ByteToMessageDecoder
                         promise = new VoidChannelPromise(ctx.channel(), false);
                     }
 
-                    long approxStartTimeNanos = MonotonicClock.Global.approxTime.now();
-                    final Message.Response response = Dispatcher.processRequest(ctx.channel(), startup, Overload.NONE, approxStartTimeNanos);
+                    final Message.Response response = Dispatcher.processRequest(ctx.channel(), startup, Overload.NONE, Dispatcher.RequestTime.forImmediateExecution());
 
                     outbound = response.encode(inbound.header.version);
                     ctx.writeAndFlush(outbound, promise);

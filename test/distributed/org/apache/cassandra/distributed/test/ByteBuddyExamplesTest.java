@@ -37,6 +37,7 @@ import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.transport.messages.ResultMessage.Rows;
 
@@ -81,7 +82,7 @@ public class ByteBuddyExamplesTest extends TestBaseImpl
 
         public static AtomicBoolean enabled = new AtomicBoolean(false);
 
-        public static ResultMessage execute(QueryState v1, QueryOptions v2, long v3, @SuperCall Callable<ResultMessage> zuper) throws Exception
+        public static ResultMessage execute(QueryState v1, QueryOptions v2, Dispatcher.RequestTime v3, @SuperCall Callable<ResultMessage> zuper) throws Exception
         {
             if (enabled.get())
                 throw new RuntimeException();
@@ -125,7 +126,7 @@ public class ByteBuddyExamplesTest extends TestBaseImpl
                            .load(cl, ClassLoadingStrategy.Default.INJECTION);
         }
 
-        public static ResultMessage.Rows execute(QueryState state, QueryOptions options, long queryStartNanoTime, @SuperCall Callable<ResultMessage.Rows> r) throws Exception
+        public static ResultMessage.Rows execute(QueryState state, QueryOptions options, Dispatcher.RequestTime request3Time, @SuperCall Callable<ResultMessage.Rows> r) throws Exception
         {
             Rows res = r.call();
 

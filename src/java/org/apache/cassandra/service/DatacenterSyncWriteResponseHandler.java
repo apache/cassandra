@@ -31,6 +31,7 @@ import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.WriteType;
+import org.apache.cassandra.transport.Dispatcher;
 
 /**
  * This class blocks for a quorum of responses _in all datacenters_ (CL.EACH_QUORUM).
@@ -46,10 +47,10 @@ public class DatacenterSyncWriteResponseHandler<T> extends AbstractWriteResponse
                                               Runnable callback,
                                               WriteType writeType,
                                               Supplier<Mutation> hintOnFailure,
-                                              long queryStartNanoTime)
+                                              Dispatcher.RequestTime requestTime)
     {
         // Response is been managed by the map so make it 1 for the superclass.
-        super(replicaPlan, callback, writeType, hintOnFailure, queryStartNanoTime);
+        super(replicaPlan, callback, writeType, hintOnFailure, requestTime);
         assert replicaPlan.consistencyLevel() == ConsistencyLevel.EACH_QUORUM;
 
         if (replicaPlan.replicationStrategy() instanceof NetworkTopologyStrategy)

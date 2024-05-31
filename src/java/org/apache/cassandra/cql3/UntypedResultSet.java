@@ -48,11 +48,10 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.pager.QueryPager;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
-
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /** a utility for doing internal cql-based queries */
 public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
@@ -291,7 +290,7 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
                         if (pager.isExhausted())
                             return endOfData();
 
-                        try (PartitionIterator iter = pager.fetchPage(pageSize, cl, clientState, nanoTime()))
+                        try (PartitionIterator iter = pager.fetchPage(pageSize, cl, clientState, Dispatcher.RequestTime.forImmediateExecution()))
                         {
                             currentPage = select.process(iter, nowInSec, true, clientState).rows.iterator();
                         }

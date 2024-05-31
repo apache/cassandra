@@ -40,6 +40,7 @@ import org.apache.cassandra.service.reads.DataResolver;
 import org.apache.cassandra.service.reads.ReadCallback;
 import org.apache.cassandra.service.reads.repair.NoopReadRepair;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.CloseableIterator;
 
 /**
@@ -62,9 +63,9 @@ public class ScanAllRangesCommandIterator extends RangeCommandIterator
     ScanAllRangesCommandIterator(Keyspace keyspace, CloseableIterator<ReplicaPlan.ForRangeRead> replicaPlans,
                                  PartitionRangeReadCommand command,
                                  int totalRangeCount,
-                                 long queryStartNanoTime)
+                                 Dispatcher.RequestTime requestTime)
     {
-        super(replicaPlans, command, totalRangeCount, totalRangeCount, totalRangeCount, queryStartNanoTime);
+        super(replicaPlans, command, totalRangeCount, totalRangeCount, totalRangeCount, requestTime);
         Preconditions.checkState(command.isTopK());
 
         this.keyspace = keyspace;
@@ -91,14 +92,14 @@ public class ScanAllRangesCommandIterator extends RangeCommandIterator
 
         ReplicaPlan.ForRangeRead plan = ReplicaPlans.forFullRangeRead(keyspace, consistencyLevel, command.dataRange().keyRange(), replicasToQuery, totalRangeCount);
         ReplicaPlan.SharedForRangeRead sharedReplicaPlan = ReplicaPlan.shared(plan);
-        DataResolver<EndpointsForRange, ReplicaPlan.ForRangeRead> resolver = new DataResolver<>(command, sharedReplicaPlan, NoopReadRepair.instance, queryStartNanoTime, false);
-        ReadCallback<EndpointsForRange, ReplicaPlan.ForRangeRead> handler = new ReadCallback<>(resolver, command, sharedReplicaPlan, queryStartNanoTime);
+        DataResolver<EndpointsForRange, ReplicaPlan.ForRangeRead> resolver = new DataResolver<>(command, sharedReplicaPlan, NoopReadRepair.instance, requestTime, false);
+        ReadCallback<EndpointsForRange, ReplicaPlan.ForRangeRead> handler = new ReadCallback<>(resolver, command, sharedReplicaPlan, requestTime);
 
         int nodes = 0;
         for (InetAddressAndPort endpoint : replicasToQuery)
         {
             Tracing.trace("Enqueuing request to {}", endpoint);
-            Message<ReadCommand> message = command.createMessage(false);
+            Message<ReadCommand> message = command.createMessage(false, requestTime);
             MessagingService.instance().sendWithCallback(message, endpoint, handler);
             nodes++;
         }

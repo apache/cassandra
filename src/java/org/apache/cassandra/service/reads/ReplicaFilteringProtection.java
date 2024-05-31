@@ -72,6 +72,7 @@ import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.reads.repair.NoopReadRepair;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.btree.BTreeSet;
 
@@ -100,7 +101,7 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
     private final Keyspace keyspace;
     private final ReadCommand command;
     private final ConsistencyLevel consistency;
-    private final long queryStartNanoTime;
+    private final Dispatcher.RequestTime requestTime;
     private final E sources;
     private final TableMetrics tableMetrics;
 
@@ -121,7 +122,7 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
     ReplicaFilteringProtection(Keyspace keyspace,
                                ReadCommand command,
                                ConsistencyLevel consistency,
-                               long queryStartNanoTime,
+                               Dispatcher.RequestTime requestTime,
                                E sources,
                                int cachedRowsWarnThreshold,
                                int cachedRowsFailThreshold)
@@ -129,7 +130,7 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
         this.keyspace = keyspace;
         this.command = command;
         this.consistency = consistency;
-        this.queryStartNanoTime = queryStartNanoTime;
+        this.requestTime = requestTime;
         this.sources = sources;
         this.originalPartitions = new ArrayList<>(sources.size());
 
@@ -148,19 +149,19 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
     {
         @SuppressWarnings("unchecked")
         DataResolver<EndpointsForToken, ReplicaPlan.ForTokenRead> resolver =
-            new DataResolver<>(cmd, replicaPlan, (NoopReadRepair<EndpointsForToken, ReplicaPlan.ForTokenRead>) NoopReadRepair.instance, queryStartNanoTime);
+            new DataResolver<>(cmd, replicaPlan, (NoopReadRepair<EndpointsForToken, ReplicaPlan.ForTokenRead>) NoopReadRepair.instance, requestTime);
 
-        ReadCallback<EndpointsForToken, ReplicaPlan.ForTokenRead> handler = new ReadCallback<>(resolver, cmd, replicaPlan, queryStartNanoTime);
+        ReadCallback<EndpointsForToken, ReplicaPlan.ForTokenRead> handler = new ReadCallback<>(resolver, cmd, replicaPlan, requestTime);
 
         if (source.isSelf())
         {
-            Stage.READ.maybeExecuteImmediately(new StorageProxy.LocalReadRunnable(cmd, handler));
+            Stage.READ.maybeExecuteImmediately(new StorageProxy.LocalReadRunnable(cmd, handler, requestTime));
         }
         else
         {
             if (source.isTransient())
                 cmd = cmd.copyAsTransientQuery(source);
-            MessagingService.instance().sendWithCallback(cmd.createMessage(false), source.endpoint(), handler);
+            MessagingService.instance().sendWithCallback(cmd.createMessage(false, requestTime), source.endpoint(), handler);
         }
 
         // We don't call handler.get() because we want to preserve tombstones since we're still in the middle of merging node results.

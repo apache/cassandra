@@ -28,6 +28,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.transport.Dispatcher;
 
 /**
  * Handles blocking writes for ONE, ANY, TWO, THREE, QUORUM, and ALL consistency levels.
@@ -44,15 +45,15 @@ public class WriteResponseHandler<T> extends AbstractWriteResponseHandler<T>
                                 Runnable callback,
                                 WriteType writeType,
                                 Supplier<Mutation> hintOnFailure,
-                                long queryStartNanoTime)
+                                Dispatcher.RequestTime requestTime)
     {
-        super(replicaPlan, callback, writeType, hintOnFailure, queryStartNanoTime);
+        super(replicaPlan, callback, writeType, hintOnFailure, requestTime);
         responses = blockFor();
     }
 
-    public WriteResponseHandler(ReplicaPlan.ForWrite replicaPlan, WriteType writeType, Supplier<Mutation> hintOnFailure, long queryStartNanoTime)
+    public WriteResponseHandler(ReplicaPlan.ForWrite replicaPlan, WriteType writeType, Supplier<Mutation> hintOnFailure, Dispatcher.RequestTime requestTime)
     {
-        this(replicaPlan, null, writeType, hintOnFailure, queryStartNanoTime);
+        this(replicaPlan, null, writeType, hintOnFailure, requestTime);
     }
 
     public void onResponse(Message<T> m)

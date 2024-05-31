@@ -22,7 +22,9 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.*;
 import org.apache.cassandra.tracing.Tracing;
 
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.db.commitlog.CommitLogSegment.ENTRY_OVERHEAD_SIZE;
+import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 
 public class MutationVerbHandler extends AbstractMutationVerbHandler<Mutation>
 {
@@ -41,6 +43,13 @@ public class MutationVerbHandler extends AbstractMutationVerbHandler<Mutation>
 
     public void doVerb(Message<Mutation> message)
     {
+        if (approxTime.now() > message.expiresAtNanos())
+        {
+            Tracing.trace("Discarding mutation from {} (timed out)", message.from());
+            MessagingService.instance().metrics.recordDroppedMessage(message, message.elapsedSinceCreated(NANOSECONDS), NANOSECONDS);
+            return;
+        }
+
         message.payload.validateSize(MessagingService.current_version, ENTRY_OVERHEAD_SIZE);
 
         // Check if there were any forwarding headers in this message

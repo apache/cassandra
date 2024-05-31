@@ -102,8 +102,13 @@ public class NativeTransportService
      */
     public void stop()
     {
+        stop(false);
+    }
+
+    public void stop(boolean force)
+    {
         if (server != null)
-            server.stop();
+            server.stop(force);
     }
 
     /**
