@@ -1238,7 +1238,7 @@ public class AccordKeyspace
             WaitingOnProvider waitingOn = deserializeWaitingOn(txnId, row);
             MessageProvider messages = commandStore.makeMessageProvider(txnId);
 
-            return SerializerSupport.reconstruct(commandStore.unsafeRangesForEpoch(), attrs, status, executeAt, executeAtLeast, promised, accepted, waitingOn, messages);
+            return SerializerSupport.reconstruct(commandStore.agent(), commandStore.unsafeRangesForEpoch(), attrs, status, executeAt, executeAtLeast, promised, accepted, waitingOn, messages);
         }
         catch (Throwable t)
         {
