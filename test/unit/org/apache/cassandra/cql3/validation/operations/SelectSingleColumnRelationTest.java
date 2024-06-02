@@ -672,7 +672,7 @@ public class SelectSingleColumnRelationTest extends CQLTester
         assertInvalidMessage("Undefined column name d", "SELECT c AS d FROM %s WHERE d CONTAINS 0");
         assertInvalidMessage("Undefined column name d", "SELECT c AS d FROM %s WHERE d CONTAINS KEY 0");
         assertInvalidMessage("Undefined column name d", "SELECT d FROM %s WHERE a = 0");
-        assertInvalidMessage("Undefined column name d", "SELECT d FROM %s WHERE a BETWEEN 0 AND 0");
+        assertInvalidMessage("Undefined column name d", "SELECT b AS d FROM %s WHERE d BETWEEN 0 AND 2");
     }
 
     @Test
