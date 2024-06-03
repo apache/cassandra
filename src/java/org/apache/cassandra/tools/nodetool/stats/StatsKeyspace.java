@@ -34,6 +34,8 @@ public class StatsKeyspace
     public long readCount;
     public long writeCount;
     public int pendingFlushes;
+    public long spaceUsedLive;
+    public long spaceUsedTotal;
     private double totalReadTime;
     private double totalWriteTime;
 
@@ -60,6 +62,8 @@ public class StatsKeyspace
             totalWriteTime += (long) probe.getColumnFamilyMetric(name, tableName, "WriteTotalLatency");
         }
         pendingFlushes += (long) probe.getColumnFamilyMetric(name, tableName, "PendingFlushes");
+        spaceUsedLive += (long) probe.getColumnFamilyMetric(name, tableName, "LiveDiskSpaceUsed");
+        spaceUsedTotal += (long) probe.getColumnFamilyMetric(name, tableName, "TotalDiskSpaceUsed");
     }
 
     public double readLatency()
