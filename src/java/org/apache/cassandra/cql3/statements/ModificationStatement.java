@@ -26,6 +26,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.auth.Permission;
+import org.apache.cassandra.cql3.constraints.ConstraintViolationException;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.Replica;
@@ -800,6 +801,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
             for (ByteBuffer key : keys)
             {
                 Validation.validateKey(metadata(), key);
+                Validation.checkConstraints(metadata(), key);
                 DecoratedKey dk = metadata().partitioner.decorateKey(key);
 
                 PartitionUpdate.Builder updateBuilder = collector.getPartitionUpdateBuilder(metadata(), dk, options.getConsistency());
@@ -810,11 +812,31 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                 }
                 else
                 {
+                    // Clustering keys need to be checked on their own
                     for (Clustering<?> clustering : clusterings)
                     {
                         clustering.validate();
+                        checkClusteringConstraints(clustering);
                         addUpdateForKey(updateBuilder, clustering, params);
                     }
+                }
+            }
+        }
+    }
+
+    private void checkClusteringConstraints(Clustering<?> clustering)
+    {
+        for (ColumnMetadata column : metadata.clusteringColumns())
+        {
+            if (column.hasConstraint())
+            {
+                try
+                {
+                    clustering.checkConstraints(column.position(), metadata.comparator, column.getColumnConstraints());
+                }
+                catch (ConstraintViolationException e)
+                {
+                    throw new InvalidRequestException(e.getMessage(), e);
                 }
             }
         }

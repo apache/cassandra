@@ -32,6 +32,7 @@ import org.apache.cassandra.auth.DataResource;
 import org.apache.cassandra.auth.IResource;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.constraints.ColumnConstraints;
 import org.apache.cassandra.cql3.functions.masking.ColumnMask;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.marshal.*;
@@ -56,6 +57,7 @@ public final class CreateTableStatement extends AlterSchemaStatement
     private final Map<ColumnIdentifier, ColumnProperties.Raw> rawColumns;
     private final Set<ColumnIdentifier> staticColumns;
     private final List<ColumnIdentifier> partitionKeyColumns;
+    private final Map<ColumnIdentifier, ColumnConstraints> columnConstraints;
     private final List<ColumnIdentifier> clusteringColumns;
 
     private final LinkedHashMap<ColumnIdentifier, Boolean> clusteringOrder;
@@ -72,6 +74,7 @@ public final class CreateTableStatement extends AlterSchemaStatement
                                 Set<ColumnIdentifier> staticColumns,
                                 List<ColumnIdentifier> partitionKeyColumns,
                                 List<ColumnIdentifier> clusteringColumns,
+                                Map<ColumnIdentifier, ColumnConstraints> columnConstraints,
                                 LinkedHashMap<ColumnIdentifier, Boolean> clusteringOrder,
                                 TableAttributes attrs,
                                 boolean ifNotExists,
@@ -84,6 +87,7 @@ public final class CreateTableStatement extends AlterSchemaStatement
         this.staticColumns = staticColumns;
         this.partitionKeyColumns = partitionKeyColumns;
         this.clusteringColumns = clusteringColumns;
+        this.columnConstraints = columnConstraints;
 
         this.clusteringOrder = clusteringOrder;
         this.attrs = attrs;
@@ -343,13 +347,13 @@ public final class CreateTableStatement extends AlterSchemaStatement
         for (int i = 0; i < partitionKeyColumns.size(); i++)
         {
             ColumnProperties properties = partitionKeyColumnProperties.get(i);
-            builder.addPartitionKeyColumn(partitionKeyColumns.get(i), properties.type, properties.mask);
+            builder.addPartitionKeyColumn(partitionKeyColumns.get(i), properties.type, properties.mask, columnConstraints.get(partitionKeyColumns.get(i)));
         }
 
         for (int i = 0; i < clusteringColumns.size(); i++)
         {
             ColumnProperties properties = clusteringColumnProperties.get(i);
-            builder.addClusteringColumn(clusteringColumns.get(i), properties.type, properties.mask);
+            builder.addClusteringColumn(clusteringColumns.get(i), properties.type, properties.mask, columnConstraints.get(clusteringColumns.get(i)));
         }
 
         if (useCompactStorage)
@@ -360,11 +364,12 @@ public final class CreateTableStatement extends AlterSchemaStatement
         {
             columns.forEach((column, properties) -> {
                 if (staticColumns.contains(column))
-                    builder.addStaticColumn(column, properties.type, properties.mask);
+                    builder.addStaticColumn(column, properties.type, properties.mask, columnConstraints.get(column));
                 else
-                    builder.addRegularColumn(column, properties.type, properties.mask);
+                    builder.addRegularColumn(column, properties.type, properties.mask, columnConstraints.get(column));
             });
         }
+
         return builder;
     }
 
@@ -506,6 +511,7 @@ public final class CreateTableStatement extends AlterSchemaStatement
         private final Map<ColumnIdentifier, ColumnProperties.Raw> rawColumns = new HashMap<>();
         private final Set<ColumnIdentifier> staticColumns = new HashSet<>();
         private final List<ColumnIdentifier> clusteringColumns = new ArrayList<>();
+        private final Map<ColumnIdentifier, ColumnConstraints> columnConstraints = new HashMap<>();
 
         private List<ColumnIdentifier> partitionKeyColumns;
 
@@ -531,6 +537,7 @@ public final class CreateTableStatement extends AlterSchemaStatement
                                             staticColumns,
                                             partitionKeyColumns,
                                             clusteringColumns,
+                                            columnConstraints,
                                             clusteringOrder,
                                             attrs,
                                             ifNotExists,
@@ -559,14 +566,17 @@ public final class CreateTableStatement extends AlterSchemaStatement
             return name.getName();
         }
 
-        public void addColumn(ColumnIdentifier column, CQL3Type.Raw type, boolean isStatic, ColumnMask.Raw mask)
+        public void addColumn(ColumnIdentifier column, CQL3Type.Raw type, boolean isStatic, ColumnMask.Raw mask, ColumnConstraints.Raw constraints)
         {
-
             if (null != rawColumns.put(column, new ColumnProperties.Raw(type, mask)))
                 throw ire("Duplicate column '%s' declaration for table '%s'", column, name);
 
             if (isStatic)
                 staticColumns.add(column);
+            if (null == constraints)
+                columnConstraints.put(column, ColumnConstraints.NO_OP);
+            else
+                columnConstraints.put(column, constraints.prepare());
         }
 
         public void setCompactStorage()

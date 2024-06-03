@@ -60,6 +60,7 @@
 *** xref:cassandra:developing/cql/json.adoc[JSON]
 *** xref:cassandra:developing/cql/security.adoc[Security]
 *** xref:cassandra:developing/cql/triggers.adoc[Triggers]
+*** xref:cassandra:developing/cql/constraints.adoc[Constraints]
 *** xref:cassandra:developing/cql/appendices.adoc[Appendices]
 *** xref:cassandra:developing/cql/changes.adoc[Changes]
 *** xref:cassandra:developing/cql/SASI.adoc[SASI]

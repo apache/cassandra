@@ -618,6 +618,12 @@ public class UserType extends TupleType implements SchemaElement
         return "field " + fieldName(i);
     }
 
+    @Override
+    public boolean isConstrainable()
+    {
+        return false;
+    }
+
     private enum ConflictBehavior
     {
         LOG {

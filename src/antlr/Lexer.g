@@ -129,6 +129,7 @@ K_GROUP:       G R O U P;
 K_CLUSTER:     C L U S T E R;
 K_INTERNALS:   I N T E R N A L S;
 K_ONLY:        O N L Y;
+K_CHECK:       C H E C K;
 
 K_GRANT:       G R A N T;
 K_ALL:         A L L;

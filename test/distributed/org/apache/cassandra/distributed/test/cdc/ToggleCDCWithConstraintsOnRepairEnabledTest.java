@@ -22,17 +22,17 @@ package org.apache.cassandra.distributed.test.cdc;
 import org.junit.Test;
 
 
-public class ToggleCDCOnRepairEnabledTest extends ToggleCDCOnRepair
+public class ToggleCDCWithConstraintsOnRepairEnabledTest extends ToggleCDCOnRepair
 {
     @Test
-    public void testCDCOnRepairIsEnabled() throws Exception
+    public void testCDCWithConstraintsOnRepairIsEnabled() throws Exception
     {
-        testCDCOnRepairEnabled(true, getRepairEnabledRepairAssertion(), false);
+        testCDCOnRepairEnabled(true, getRepairEnabledRepairAssertion(), true);
     }
 
     @Test
-    public void testCDCOnRepairIsDisabled() throws Exception
+    public void testCDCWithConstraintsOnRepairIsDisabled() throws Exception
     {
-        testCDCOnRepairEnabled(false, getRepairDisabledRepairAssertion(), false);
+        testCDCOnRepairEnabled(false, getRepairDisabledRepairAssertion(), true);
     }
 }

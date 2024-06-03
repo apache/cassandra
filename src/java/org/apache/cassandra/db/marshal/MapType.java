@@ -456,4 +456,10 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
 
         return getSerializer().getSerializedValue(((Cell<?>) columnData).buffer(), keyOrIndex, getValuesType());
     }
+
+    @Override
+    public boolean isConstrainable()
+    {
+        return false;
+    }
 }
