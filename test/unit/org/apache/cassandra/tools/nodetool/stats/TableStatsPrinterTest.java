@@ -523,6 +523,8 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tWrite Count: 12\n" +
         "\tWrite Latency: 0.000 ms\n" +
         "\tPending Flushes: 233666\n" +
+        "\tSpace used (live): 0\n" +
+        "\tSpace used (total): 0\n" +
         String.format(duplicateTabs(expectedDefaultTable1Output), "table1") +
         String.format(duplicateTabs(expectedDefaultTable2Output), "table2") +
         String.format(duplicateTabs(expectedDefaultTable3Output), "table3") +
@@ -533,6 +535,8 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tWrite Count: 3\n" +
         "\tWrite Latency: 0.000 ms\n" +
         "\tPending Flushes: 4449\n" +
+        "\tSpace used (live): 0\n" +
+        "\tSpace used (total): 0\n" +
         String.format(duplicateTabs(expectedDefaultTable4Output), "table4") +
         String.format(duplicateTabs(expectedDefaultTable5Output), "table5") +
         "----------------\n" +
@@ -542,6 +546,8 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tWrite Count: 0\n" +
         "\tWrite Latency: NaN ms\n" +
         "\tPending Flushes: 66\n" +
+        "\tSpace used (live): 0\n" +
+        "\tSpace used (total): 0\n" +
         String.format(duplicateTabs(expectedDefaultTable6Output), "table6") +
         "----------------\n";
 
@@ -559,6 +565,8 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tWrite Count: 12\n" +
         "\tWrite Latency: 0.000 ms\n" +
         "\tPending Flushes: 233666\n" +
+        "\tSpace used (live): 0 bytes\n" +
+        "\tSpace used (total): 0 bytes\n" +
         String.format(duplicateTabs(expectedDefaultHumanReadableTable1Output), "table1") +
         String.format(duplicateTabs(expectedDefaultHumanReadableTable2Output), "table2") +
         String.format(duplicateTabs(expectedDefaultHumanReadableTable3Output), "table3") +
@@ -569,6 +577,8 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tWrite Count: 3\n" +
         "\tWrite Latency: 0.000 ms\n" +
         "\tPending Flushes: 4449\n" +
+        "\tSpace used (live): 0 bytes\n" +
+        "\tSpace used (total): 0 bytes\n" +
         String.format(duplicateTabs(expectedDefaultHumanReadableTable4Output), "table4") +
         String.format(duplicateTabs(expectedDefaultHumanReadableTable5Output), "table5") +
         "----------------\n" +
@@ -578,6 +588,8 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tWrite Count: 0\n" +
         "\tWrite Latency: NaN ms\n" +
         "\tPending Flushes: 66\n" +
+        "\tSpace used (live): 0 bytes\n" +
+        "\tSpace used (total): 0 bytes\n" +
         String.format(duplicateTabs(expectedDefaultHumanReadableTable6Output), "table6") +
         "----------------\n";
 
@@ -746,9 +758,11 @@ public class TableStatsPrinterTest extends TableStatsTestBase
                                  "      }\n" +
                                  "    },\n" +
                                  "    \"read_latency_ms\" : 0.0,\n" +
+                                 "    \"space_used_live\" : \"0\",\n" +
                                  "    \"pending_flushes\" : 66,\n" +
                                  "    \"write_count\" : 0,\n" +
                                  "    \"read_latency\" : 0.0,\n" +
+                                 "    \"space_used_total\" : \"0\",\n" +
                                  "    \"read_count\" : 5\n" +
                                  "  },\n" +
                                  "  \"total_number_of_tables\" : 0\n" +
@@ -813,9 +827,11 @@ public class TableStatsPrinterTest extends TableStatsTestBase
                                  "      percent_repaired: 0.0\n" +
                                  "      space_used_by_snapshots_total: '0'\n" +
                                  "  read_latency_ms: 0.0\n" +
+                                 "  space_used_live: '0'\n" +
                                  "  pending_flushes: 66\n" +
                                  "  write_count: 0\n" +
                                  "  read_latency: 0.0\n" +
+                                 "  space_used_total: '0'\n" +
                                  "  read_count: 5\n" +
                                  "total_number_of_tables: 0\n" +
                                  "\n");

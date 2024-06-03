@@ -1958,7 +1958,21 @@ public class NodeProbe implements AutoCloseable
                 case "WriteTotalLatency":
                 case "ReadTotalLatency":
                 case "PendingFlushes":
-                    return JMX.newMBeanProxy(mbeanServerConn, oName, CassandraMetricsRegistry.JmxCounterMBean.class).getCount();
+                {
+                    // these are gauges for keyspace metrics, not counters
+                    if (!Strings.isNullOrEmpty(ks) &&
+                        Strings.isNullOrEmpty(cf) &&
+                        (metricName.equals("TotalDiskSpaceUsed") ||
+                         metricName.equals("LiveDiskSpaceUsed") ||
+                         metricName.equals("MemtableSwitchCount")))
+                    {
+                        return JMX.newMBeanProxy(mbeanServerConn, oName, CassandraMetricsRegistry.JmxGaugeMBean.class).getValue();
+                    }
+                    else
+                    {
+                        return JMX.newMBeanProxy(mbeanServerConn, oName, CassandraMetricsRegistry.JmxCounterMBean.class).getCount();
+                    }
+                }
                 case "CoordinatorReadLatency":
                 case "CoordinatorScanLatency":
                 case "ReadLatency":

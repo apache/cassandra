@@ -67,6 +67,8 @@ public class TableStatsPrinter<T extends StatsHolder>
                 out.println("\tWrite Count: " + keyspace.writeCount);
                 out.println("\tWrite Latency: " + FBUtilities.prettyPrintLatency(keyspace.writeLatency()));
                 out.println("\tPending Flushes: " + keyspace.pendingFlushes);
+                out.println("\tSpace used (live): " + formatDataSize(keyspace.spaceUsedLive, data.humanReadable));
+                out.println("\tSpace used (total): " + formatDataSize(keyspace.spaceUsedTotal, data.humanReadable));
 
                 // print each table's information
                 List<StatsTable> tables = keyspace.tables;
