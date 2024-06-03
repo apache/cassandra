@@ -82,6 +82,8 @@ public class TableStatsHolder implements StatsHolder
             mpKeyspace.put("write_count", keyspace.writeCount);
             mpKeyspace.put("write_latency_ms", keyspace.writeLatency());
             mpKeyspace.put("pending_flushes", keyspace.pendingFlushes);
+            mpKeyspace.put("space_used_live", format(keyspace.spaceUsedLive, humanReadable));
+            mpKeyspace.put("space_used_total", format(keyspace.spaceUsedTotal, humanReadable));
 
             // store each table's metrics to map
             List<StatsTable> tables = keyspace.tables;
@@ -197,6 +199,7 @@ public class TableStatsHolder implements StatsHolder
                 if (stats == null)
                 {
                     stats = new StatsKeyspace(probe, keyspaceName);
+                    stats.initialize();
                     keyspaceStats.put(keyspaceName, stats);
                 }
                 stats.add(tableProxy);
