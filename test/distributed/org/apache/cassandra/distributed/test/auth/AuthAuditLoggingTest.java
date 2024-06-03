@@ -233,8 +233,9 @@ public class AuthAuditLoggingTest extends TestBaseImpl
     public void testMutualTlsAuthenticationFailedWithUntrustedCertificate() throws Exception
     {
         configureMutualTlsAuthenticator();
-        CharSequence expectedLogStringRegex = "^user:null\\|host:.*/127.0.0.1:\\d+\\|timestamp:\\d+" +
-                                              "\\|type:LOGIN_ERROR\\|category:AUTH" +
+        // optionally match source/port because in MacOS source/port are null
+        CharSequence expectedLogStringRegex = "^user:null\\|host:.*/127.0.0.1:\\d+(\\|source:/127.0.0.1\\|port:\\d+)?" +
+                                              "\\|timestamp:\\d+\\|type:LOGIN_ERROR\\|category:AUTH" +
                                               "\\|operation:LOGIN FAILURE; Empty client certificate chain.*$";
         Path untrustedCertPath = generateSelfSignedCertificate(null, tempFolder.getRoot());
 
@@ -244,8 +245,9 @@ public class AuthAuditLoggingTest extends TestBaseImpl
     @Test
     public void testMutualTlsAuthenticationFailedWithExpiredCertificate() throws Exception
     {
-        CharSequence expectedLogStringRegex = "^user:null\\|host:.*/127.0.0.1:\\d+\\|timestamp:\\d+" +
-                                              "\\|type:LOGIN_ERROR\\|category:AUTH" +
+        // optionally match source/port because in MacOS source/port are null
+        CharSequence expectedLogStringRegex = "^user:null\\|host:.*/127.0.0.1:\\d+(\\|source:/127.0.0.1\\|port:\\d+)?" +
+                                              "\\|timestamp:\\d+\\|type:LOGIN_ERROR\\|category:AUTH" +
                                               "\\|operation:LOGIN FAILURE; PKIX path validation failed.*$";
 
         Path expiredCertPath = generateClientCertificate(b -> b.notBefore(Instant.now().minus(30, ChronoUnit.DAYS))
