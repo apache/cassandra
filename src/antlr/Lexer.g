@@ -129,6 +129,8 @@ K_GROUP:       G R O U P;
 K_CLUSTER:     C L U S T E R;
 K_INTERNALS:   I N T E R N A L S;
 K_ONLY:        O N L Y;
+K_CONSTRAINT:  C O N S T R A I N T;
+K_CHECK:       C H E C K;
 
 K_GRANT:       G R A N T;
 K_ALL:         A L L;
@@ -186,6 +188,8 @@ K_WRITETIME:   W R I T E T I M E;
 K_MAXWRITETIME:M A X W R I T E T I M E;
 K_DATE:        D A T E;
 K_TIME:        T I M E;
+
+K_LENGTH:      L E N G T H;
 
 K_NULL:        N U L L;
 K_NOT:         N O T;

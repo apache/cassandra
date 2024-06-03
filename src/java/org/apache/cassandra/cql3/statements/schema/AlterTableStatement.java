@@ -42,7 +42,9 @@ import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.cql3.CqlConstraint;
 import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.ConstraintViolationException;
 import org.apache.cassandra.cql3.QualifiedName;
 import org.apache.cassandra.cql3.functions.masking.ColumnMask;
 import org.apache.cassandra.db.guardrails.Guardrails;
@@ -703,6 +705,79 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         }
     }
 
+    public static class DropConstraint extends AlterTableStatement
+    {
+        final ColumnIdentifier constraintName;
+
+        DropConstraint(String keyspaceName, String tableName, boolean ifTableExists, ColumnIdentifier constraintName)
+        {
+            super(keyspaceName, tableName, ifTableExists);
+            this.constraintName = constraintName;
+        }
+
+        @Override
+        public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table, ClusterMetadata metadata)
+        {
+            boolean removed = false;
+            TableMetadata.Builder tableBuilder = table.unbuild().epoch(epoch);
+            for(CqlConstraint constraint : tableBuilder.constraints())
+            {
+                if (constraint.constraintName == constraintName)
+                {
+                    tableBuilder.removeConstraint(constraint);
+                    removed = true;
+                }
+            }
+            if (!removed)
+            {
+                throw new ConstraintViolationException("Constraint '" + constraintName + "' does not exist");
+            }
+
+            Views.Builder viewsBuilder = keyspace.views.unbuild();
+            TableMetadata tableMetadata = tableBuilder.build();
+            tableMetadata.validate();
+
+            return keyspace.withSwapped(keyspace.tables.withSwapped(tableMetadata))
+                           .withSwapped(viewsBuilder.build());
+        }
+    }
+
+    public static class AddConstraint extends AlterTableStatement
+    {
+        final ColumnIdentifier constraintName;
+        final CqlConstraint constraint;
+
+        AddConstraint(String keyspaceName, String tableName, boolean ifTableExists, ColumnIdentifier constraintName, CqlConstraint constraint)
+        {
+            super(keyspaceName, tableName, ifTableExists);
+            this.constraintName = constraintName;
+            this.constraint = constraint;
+        }
+
+        @Override
+        public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table, ClusterMetadata metadata)
+        {
+            TableMetadata.Builder tableBuilder = table.unbuild().epoch(epoch);
+
+            for (CqlConstraint con : tableBuilder.constraints())
+            {
+                if (con.constraintName == constraintName)
+                {
+                    throw new ConstraintViolationException(format("Can't add an already existing constraint %s.", constraintName));
+                }
+            }
+
+            tableBuilder.addConstraint(constraint);
+
+            Views.Builder viewsBuilder = keyspace.views.unbuild();
+            TableMetadata tableMetadata = tableBuilder.build();
+            tableMetadata.validate();
+
+            return keyspace.withSwapped(keyspace.tables.withSwapped(tableMetadata))
+                           .withSwapped(viewsBuilder.build());
+        }
+    }
+
     public static final class Raw extends CQLStatement.Raw
     {
         private enum Kind
@@ -713,13 +788,17 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             DROP_COLUMNS,
             RENAME_COLUMNS,
             ALTER_OPTIONS,
-            DROP_COMPACT_STORAGE
+            DROP_COMPACT_STORAGE,
+            DROP_CONSTRAINT,
+            ADD_CONSTRAINT
         }
 
         private final QualifiedName name;
         private final boolean ifTableExists;
         private boolean ifColumnExists;
         private boolean ifColumnNotExists;
+        private ColumnIdentifier constraintName;
+        private CqlConstraint constraint;
 
         private Kind kind;
 
@@ -742,8 +821,14 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
 
         public Raw(QualifiedName name, boolean ifTableExists)
         {
+            this(name, ifTableExists, null);
+        }
+
+        public Raw(QualifiedName name, boolean ifTableExists, ColumnIdentifier constraintName)
+        {
             this.name = name;
             this.ifTableExists = ifTableExists;
+            this.constraintName = constraintName;
         }
 
         public AlterTableStatement prepare(ClientState state)
@@ -760,6 +845,8 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
                 case        RENAME_COLUMNS: return new RenameColumns(keyspaceName, tableName, renamedColumns, ifTableExists, ifColumnExists);
                 case         ALTER_OPTIONS: return new AlterOptions(keyspaceName, tableName, attrs, ifTableExists);
                 case  DROP_COMPACT_STORAGE: return new DropCompactStorage(keyspaceName, tableName, ifTableExists);
+                case       DROP_CONSTRAINT: return new DropConstraint(keyspaceName, tableName, ifTableExists, constraintName);
+                case       ADD_CONSTRAINT: return new AddConstraint(keyspaceName, tableName, ifTableExists, constraintName, constraint);
             }
 
             throw new AssertionError();
@@ -802,6 +889,19 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         public void dropCompactStorage()
         {
             kind = Kind.DROP_COMPACT_STORAGE;
+        }
+
+        public void dropConstraint(ColumnIdentifier name)
+        {
+            kind = Kind.DROP_CONSTRAINT;
+            this.constraintName = name;
+        }
+
+        public void addConstraint(ColumnIdentifier name, CqlConstraint constraint)
+        {
+            kind = Kind.ADD_CONSTRAINT;
+            this.constraintName = name;
+            this.constraint = constraint;
         }
 
         public void timestamp(long timestamp)

@@ -46,6 +46,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.auth.DataResource;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.CqlConstraint;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.CqlBuilder;
 import org.apache.cassandra.cql3.SchemaElement;
@@ -196,6 +197,9 @@ public class TableMetadata implements SchemaElement
     public final DataResource resource;
     public TableMetadataRef ref;
 
+    // table constraints
+    protected Set<CqlConstraint> constraints;
+
     protected TableMetadata(Builder builder)
     {
         flags = Sets.immutableEnumSet(builder.flags);
@@ -235,6 +239,8 @@ public class TableMetadata implements SchemaElement
             ref = TableMetadataRef.forIndex(Schema.instance, this, keyspace, indexName, id);
         else
             ref = TableMetadataRef.withInitialReference(new TableMetadataRef(Schema.instance, keyspace, name, id), this);
+
+        constraints = builder.constraints();
     }
 
     public static Builder builder(String keyspace, String table)
@@ -258,6 +264,7 @@ public class TableMetadata implements SchemaElement
                .droppedColumns(droppedColumns)
                .indexes(indexes)
                .triggers(triggers)
+               .addConstraints(constraints)
                .epoch(epoch);
     }
 
@@ -354,6 +361,11 @@ public class TableMetadata implements SchemaElement
     public Columns staticColumns()
     {
         return regularAndStaticColumns.statics;
+    }
+
+    public Set<CqlConstraint> constraints()
+    {
+        return constraints;
     }
 
     /*
@@ -527,6 +539,13 @@ public class TableMetadata implements SchemaElement
             except("Missing partition keys for table %s", toString());
 
         indexes.validate(this);
+
+        for (ColumnMetadata columnMetadata : this.columns())
+        {
+            CqlConstraint constraint = columnMetadata.getColumnConstraint();
+            if (constraint != null)
+                constraint.validateConstraint(columnMetadata, this);
+        }
     }
 
     /**
@@ -805,6 +824,8 @@ public class TableMetadata implements SchemaElement
         private final List<ColumnMetadata> clusteringColumns = new ArrayList<>();
         private final List<ColumnMetadata> regularAndStaticColumns = new ArrayList<>();
 
+        private final Set<CqlConstraint> constraints = new LinkedHashSet<>();
+
         private Builder(String keyspace, String name, TableId id)
         {
             this.keyspace = keyspace;
@@ -1019,7 +1040,12 @@ public class TableMetadata implements SchemaElement
 
         public Builder addPartitionKeyColumn(ColumnIdentifier name, AbstractType<?> type, @Nullable ColumnMask mask)
         {
-            return addColumn(new ColumnMetadata(keyspace, this.name, name, type, partitionKeyColumns.size(), ColumnMetadata.Kind.PARTITION_KEY, mask));
+            return addPartitionKeyColumn(name, type, mask, null);
+        }
+
+        public Builder addPartitionKeyColumn(ColumnIdentifier name, AbstractType<?> type, @Nullable ColumnMask mask, @Nullable CqlConstraint cqlConstraint)
+        {
+            return addColumn(new ColumnMetadata(keyspace, this.name, name, type, partitionKeyColumns.size(), ColumnMetadata.Kind.PARTITION_KEY, mask, cqlConstraint));
         }
 
         public Builder addClusteringColumn(String name, AbstractType<?> type)
@@ -1039,7 +1065,12 @@ public class TableMetadata implements SchemaElement
 
         public Builder addClusteringColumn(ColumnIdentifier name, AbstractType<?> type, @Nullable ColumnMask mask)
         {
-            return addColumn(new ColumnMetadata(keyspace, this.name, name, type, clusteringColumns.size(), ColumnMetadata.Kind.CLUSTERING, mask));
+            return addClusteringColumn(name, type, mask, null);
+        }
+
+        public Builder addClusteringColumn(ColumnIdentifier name, AbstractType<?> type, @Nullable ColumnMask mask, @Nullable CqlConstraint cqlConstraint)
+        {
+            return addColumn(new ColumnMetadata(keyspace, this.name, name, type, clusteringColumns.size(), ColumnMetadata.Kind.CLUSTERING, mask, cqlConstraint));
         }
 
         public Builder addRegularColumn(String name, AbstractType<?> type)
@@ -1059,7 +1090,12 @@ public class TableMetadata implements SchemaElement
 
         public Builder addRegularColumn(ColumnIdentifier name, AbstractType<?> type, @Nullable ColumnMask mask)
         {
-            return addColumn(new ColumnMetadata(keyspace, this.name, name, type, ColumnMetadata.NO_POSITION, ColumnMetadata.Kind.REGULAR, mask));
+            return addRegularColumn(name, type, mask, null);
+        }
+
+        public Builder addRegularColumn(ColumnIdentifier name, AbstractType<?> type, @Nullable ColumnMask mask, @Nullable CqlConstraint cqlConstraint)
+        {
+            return addColumn(new ColumnMetadata(keyspace, this.name, name, type, ColumnMetadata.NO_POSITION, ColumnMetadata.Kind.REGULAR, mask, cqlConstraint));
         }
 
         public Builder addStaticColumn(String name, AbstractType<?> type)
@@ -1079,7 +1115,12 @@ public class TableMetadata implements SchemaElement
 
         public Builder addStaticColumn(ColumnIdentifier name, AbstractType<?> type, @Nullable ColumnMask mask)
         {
-            return addColumn(new ColumnMetadata(keyspace, this.name, name, type, ColumnMetadata.NO_POSITION, ColumnMetadata.Kind.STATIC, mask));
+            return addStaticColumn(name, type, mask, null);
+        }
+
+        public Builder addStaticColumn(ColumnIdentifier name, AbstractType<?> type, @Nullable ColumnMask mask, @Nullable CqlConstraint cqlConstraint)
+        {
+            return addColumn(new ColumnMetadata(keyspace, this.name, name, type, ColumnMetadata.NO_POSITION, ColumnMetadata.Kind.STATIC, mask, cqlConstraint));
         }
 
         public Builder addColumn(ColumnMetadata column)
@@ -1134,6 +1175,29 @@ public class TableMetadata implements SchemaElement
         public Builder recordColumnDrop(ColumnMetadata column, long timeMicros)
         {
             droppedColumns.put(column.name.bytes, new DroppedColumn(column.withNewType(column.type.expandUserTypes()), timeMicros));
+            return this;
+        }
+
+        public Set<CqlConstraint> constraints()
+        {
+            return constraints;
+        }
+
+        public Builder addConstraints(Set<CqlConstraint> constraints)
+        {
+            this.constraints.addAll(constraints);
+            return this;
+        }
+
+        public Builder addConstraint(CqlConstraint constraint)
+        {
+            this.constraints.add(constraint);
+            return this;
+        }
+
+        public Builder removeConstraint(CqlConstraint constraint)
+        {
+            this.constraints.remove(constraint);
             return this;
         }
 
@@ -1375,6 +1439,16 @@ public class TableMetadata implements SchemaElement
 
         builder.decreaseIndent()
                .append(')');
+
+        if (!constraints().isEmpty())
+        {
+            for(CqlConstraint constraint : constraints())
+            {
+                builder.append(", CONSTRAINT ").append(constraint.constraintName);
+                constraint.appendCqlTo(builder);
+                builder.newLine();
+            }
+        }
 
         builder.append(" WITH ")
                .increaseIndent();
@@ -1679,7 +1753,7 @@ public class TableMetadata implements SchemaElement
                 for (ColumnMetadata c : regularAndStaticColumns)
                 {
                     if (c.isStatic())
-                        columns.add(new ColumnMetadata(c.ksName, c.cfName, c.name, c.type, -1, ColumnMetadata.Kind.REGULAR, c.getMask()));
+                        columns.add(new ColumnMetadata(c.ksName, c.cfName, c.name, c.type, -1, ColumnMetadata.Kind.REGULAR, c.getMask(), c.getColumnConstraint()));
                 }
                 otherColumns = columns.iterator();
             }

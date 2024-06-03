@@ -30,6 +30,7 @@ import com.google.common.collect.Collections2;
 import com.google.common.collect.Lists;
 
 import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.CqlConstraint;
 import org.apache.cassandra.cql3.functions.masking.ColumnMask;
 import org.apache.cassandra.cql3.selection.Selectable;
 import org.apache.cassandra.cql3.selection.Selector;
@@ -115,6 +116,9 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
     @Nullable
     private final ColumnMask mask;
 
+    @Nullable
+    private final CqlConstraint cqlConstraint;
+
     private static long comparisonOrder(Kind kind, boolean isComplex, long position, ColumnIdentifier name)
     {
         assert position >= 0 && position < 1 << 12;
@@ -126,42 +130,60 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
 
     public static ColumnMetadata partitionKeyColumn(TableMetadata table, ByteBuffer name, AbstractType<?> type, int position)
     {
-        return new ColumnMetadata(table, name, type, position, Kind.PARTITION_KEY, null);
+        return new ColumnMetadata(table, name, type, position, Kind.PARTITION_KEY, null, null);
     }
 
     public static ColumnMetadata partitionKeyColumn(String keyspace, String table, String name, AbstractType<?> type, int position)
     {
-        return new ColumnMetadata(keyspace, table, ColumnIdentifier.getInterned(name, true), type, position, Kind.PARTITION_KEY, null);
+        return new ColumnMetadata(keyspace, table, ColumnIdentifier.getInterned(name, true), type, position, Kind.PARTITION_KEY, null, null);
     }
 
     public static ColumnMetadata clusteringColumn(TableMetadata table, ByteBuffer name, AbstractType<?> type, int position)
     {
-        return new ColumnMetadata(table, name, type, position, Kind.CLUSTERING, null);
+        return new ColumnMetadata(table, name, type, position, Kind.CLUSTERING, null, null);
     }
 
     public static ColumnMetadata clusteringColumn(String keyspace, String table, String name, AbstractType<?> type, int position)
     {
-        return new ColumnMetadata(keyspace, table, ColumnIdentifier.getInterned(name, true), type, position, Kind.CLUSTERING, null);
+        return new ColumnMetadata(keyspace, table, ColumnIdentifier.getInterned(name, true), type, position, Kind.CLUSTERING, null, null);
     }
 
     public static ColumnMetadata regularColumn(TableMetadata table, ByteBuffer name, AbstractType<?> type)
     {
-        return new ColumnMetadata(table, name, type, NO_POSITION, Kind.REGULAR, null);
+        return new ColumnMetadata(table, name, type, NO_POSITION, Kind.REGULAR, null, null);
     }
 
     public static ColumnMetadata regularColumn(String keyspace, String table, String name, AbstractType<?> type)
     {
-        return new ColumnMetadata(keyspace, table, ColumnIdentifier.getInterned(name, true), type, NO_POSITION, Kind.REGULAR, null);
+        return new ColumnMetadata(keyspace, table, ColumnIdentifier.getInterned(name, true), type, NO_POSITION, Kind.REGULAR, null, null);
     }
 
     public static ColumnMetadata staticColumn(TableMetadata table, ByteBuffer name, AbstractType<?> type)
     {
-        return new ColumnMetadata(table, name, type, NO_POSITION, Kind.STATIC, null);
+        return new ColumnMetadata(table, name, type, NO_POSITION, Kind.STATIC, null, null);
     }
 
     public static ColumnMetadata staticColumn(String keyspace, String table, String name, AbstractType<?> type)
     {
-        return new ColumnMetadata(keyspace, table, ColumnIdentifier.getInterned(name, true), type, NO_POSITION, Kind.STATIC, null);
+        return new ColumnMetadata(keyspace, table, ColumnIdentifier.getInterned(name, true), type, NO_POSITION, Kind.STATIC, null, null);
+    }
+
+    public ColumnMetadata(TableMetadata table,
+                          ByteBuffer name,
+                          AbstractType<?> type,
+                          int position,
+                          Kind kind,
+                          @Nullable ColumnMask mask,
+                          @Nullable CqlConstraint cqlConstraint)
+    {
+        this(table.keyspace,
+             table.name,
+             ColumnIdentifier.getInterned(name, UTF8Type.instance),
+             type,
+             position,
+             kind,
+             mask,
+             cqlConstraint);
     }
 
     public ColumnMetadata(TableMetadata table,
@@ -177,7 +199,8 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
              type,
              position,
              kind,
-             mask);
+             mask,
+             null);
     }
 
     @VisibleForTesting
@@ -188,6 +211,19 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
                           int position,
                           Kind kind,
                           @Nullable ColumnMask mask)
+    {
+        this(ksName, cfName, name, type, position, kind, mask, null);
+    }
+
+    @VisibleForTesting
+    public ColumnMetadata(String ksName,
+                          String cfName,
+                          ColumnIdentifier name,
+                          AbstractType<?> type,
+                          int position,
+                          Kind kind,
+                          @Nullable ColumnMask mask,
+                          @Nullable CqlConstraint cqlConstraint)
     {
         super(ksName, cfName, name, type);
         assert name != null && type != null && kind != null;
@@ -206,6 +242,7 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
         this.asymmetricCellPathComparator = cellPathComparator == null ? null : (a, b) -> cellPathComparator.compare(((Cell<?>)a).path(), (CellPath) b);
         this.comparisonOrder = comparisonOrder(kind, isComplex(), Math.max(0, position), name);
         this.mask = mask;
+        this.cqlConstraint = cqlConstraint;
     }
 
     private static Comparator<CellPath> makeCellPathComparator(Kind kind, AbstractType<?> type)
@@ -237,22 +274,27 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
 
     public ColumnMetadata copy()
     {
-        return new ColumnMetadata(ksName, cfName, name, type, position, kind, mask);
+        return new ColumnMetadata(ksName, cfName, name, type, position, kind, mask, cqlConstraint);
     }
 
     public ColumnMetadata withNewName(ColumnIdentifier newName)
     {
-        return new ColumnMetadata(ksName, cfName, newName, type, position, kind, mask);
+        return new ColumnMetadata(ksName, cfName, newName, type, position, kind, mask, cqlConstraint);
     }
 
     public ColumnMetadata withNewType(AbstractType<?> newType)
     {
-        return new ColumnMetadata(ksName, cfName, name, newType, position, kind, mask);
+        return new ColumnMetadata(ksName, cfName, name, newType, position, kind, mask, cqlConstraint);
     }
 
     public ColumnMetadata withNewMask(@Nullable ColumnMask newMask)
     {
-        return new ColumnMetadata(ksName, cfName, name, type, position, kind, newMask);
+        return new ColumnMetadata(ksName, cfName, name, type, position, kind, newMask, cqlConstraint);
+    }
+
+    public ColumnMetadata withNewColumnConstraint(@Nullable CqlConstraint newCqlConstraint)
+    {
+        return new ColumnMetadata(ksName, cfName, name, type, position, kind, mask, newCqlConstraint);
     }
 
     public boolean isPartitionKey()
@@ -273,6 +315,11 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
     public boolean isMasked()
     {
         return mask != null;
+    }
+
+    public boolean hasConstraint()
+    {
+        return cqlConstraint != null;
     }
 
     public boolean isRegular()
@@ -299,6 +346,12 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
         return mask;
     }
 
+    @Nullable
+    public CqlConstraint getColumnConstraint()
+    {
+        return cqlConstraint;
+    }
+
     @Override
     public boolean equals(Object o)
     {
@@ -320,7 +373,8 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
             && position == other.position
             && ksName.equals(other.ksName)
             && cfName.equals(other.cfName)
-            && Objects.equals(mask, other.mask);
+            && Objects.equals(mask, other.mask)
+            && Objects.equals(cqlConstraint, other.cqlConstraint);
     }
 
     Optional<Difference> compare(ColumnMetadata other)
@@ -351,6 +405,7 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
             result = 31 * result + (kind == null ? 0 : kind.hashCode());
             result = 31 * result + position;
             result = 31 * result + (mask == null ? 0 : mask.hashCode());
+            result = 31 * result + (cqlConstraint == null ? 0 : cqlConstraint.hashCode());
             hash = result;
         }
         return result;
@@ -516,6 +571,9 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
 
         if (isMasked())
             mask.appendCqlTo(builder);
+
+        if (hasConstraint())
+            cqlConstraint.appendCqlTo(builder);
     }
 
     public static String toCQLString(Iterable<ColumnMetadata> defs)
@@ -609,6 +667,9 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
             out.writeBoolean(t.mask != null);
             if (t.mask != null)
                 ColumnMask.serializer.serialize(t.mask, out, version);
+            out.writeBoolean(t.cqlConstraint != null);
+            if (t.cqlConstraint != null)
+                CqlConstraint.serializer.serialize(t.cqlConstraint, out, version);
         }
 
         public ColumnMetadata deserialize(DataInputPlus in, Types types, UserFunctions functions, Version version) throws IOException
@@ -627,7 +688,12 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
             boolean masked = in.readBoolean();
             if (masked)
                 mask = ColumnMask.serializer.deserialize(in, ksName, type, types, functions, version);
-            return new ColumnMetadata(ksName, tableName, new ColumnIdentifier(nameBB, name), type, position, kind, mask);
+            CqlConstraint cqlConstraint = null;
+            boolean hasConstraint = in.readBoolean();
+            if (hasConstraint)
+                cqlConstraint = CqlConstraint.serializer.deserialize(in, ksName, type, types, functions, version);
+
+            return new ColumnMetadata(ksName, tableName, new ColumnIdentifier(nameBB, name), type, position, kind, mask, cqlConstraint);
         }
 
         public long serializedSize(ColumnMetadata t, Version version)

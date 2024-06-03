@@ -19,7 +19,10 @@ package org.apache.cassandra.cql3.statements;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
@@ -40,6 +43,7 @@ import org.apache.cassandra.utils.Pair;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
 
+import static com.fasterxml.jackson.databind.type.LogicalType.Map;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkContainsNoDuplicates;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 
@@ -57,9 +61,10 @@ public class UpdateStatement extends ModificationStatement
                             Operations operations,
                             StatementRestrictions restrictions,
                             Conditions conditions,
-                            Attributes attrs)
+                            Attributes attrs,
+                            Map<String, String> columnValues)
     {
-        super(type, bindVariables, metadata, operations, restrictions, conditions, attrs);
+        super(type, bindVariables, metadata, operations, restrictions, conditions, attrs, columnValues);
     }
 
     @Override
@@ -190,13 +195,20 @@ public class UpdateStatement extends ModificationStatement
                                                                            false,
                                                                            false);
 
+            Map<String, String> columnMap = new HashMap<>();
+            for (int i = 0; i < columnNames.size(); i++)
+            {
+                columnMap.put(columnNames.get(i).toString(), columnValues.get(i).toString());
+            }
+
             return new UpdateStatement(type,
                                        bindVariables,
                                        metadata,
                                        operations,
                                        restrictions,
                                        conditions,
-                                       attrs);
+                                       attrs,
+                                       columnMap);
         }
     }
 
@@ -267,7 +279,8 @@ public class UpdateStatement extends ModificationStatement
                                        operations,
                                        restrictions,
                                        conditions,
-                                       attrs);
+                                       attrs,
+                                       java.util.Map.of());
         }
     }
 
@@ -333,7 +346,8 @@ public class UpdateStatement extends ModificationStatement
                                        operations,
                                        restrictions,
                                        conditions,
-                                       attrs);
+                                       attrs,
+                                       java.util.Map.of());
         }
     }
     
