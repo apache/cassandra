@@ -619,6 +619,15 @@ public enum Operator
     }
 
     /**
+     * Checks if this operator is a multi-value operator.
+     * @return {@code true} if this operator is a multi-value operator, {@code false} otherwise.
+     */
+    public boolean isMultiValue()
+    {
+        return kind() == Kind.MULTI_VALUE;
+    }
+
+    /**
      * Deserializes a <code>Operator</code> instance from the specified input.
      *
      * @param input the input to read from

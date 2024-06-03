@@ -114,7 +114,7 @@ public final class Relation
      */
     public static Relation multiColumn(List<ColumnIdentifier> identifiers, Operator operator, Term.Raw rawTerm)
     {
-        assert operator != Operator.IN && operator != Operator.BETWEEN;
+        assert !operator.isTernary() && !operator.isMultiValue();
         return new Relation(ColumnsExpression.Raw.multiColumn(identifiers), operator, Terms.Raw.of(rawTerm));
     }
 
