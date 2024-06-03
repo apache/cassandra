@@ -23,6 +23,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.regex.Pattern;
 
+import org.apache.cassandra.cql3.constraints.ColumnConstraint;
+import org.apache.cassandra.cql3.constraints.ColumnConstraints;
+import org.apache.cassandra.cql3.constraints.ConstraintViolationException;
 import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.transport.ProtocolVersion;
@@ -45,6 +48,13 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
     public boolean allowsEmpty()
     {
         return true;
+    }
+
+    @Override
+    public boolean isConstrainable()
+    {
+        // Constraints are not supported for composite types
+        return false;
     }
 
     public <VL, VR> int compareCustom(VL left, ValueAccessor<VL> accessorL, VR right, ValueAccessor<VR> accessorR)
@@ -281,7 +291,8 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
         validate(bb, ByteBufferAccessor.instance);
     }
 
-    public  <V> void validate(V input, ValueAccessor<V> accessor)
+    @Override
+    public <V> void validate(V input, ValueAccessor<V> accessor)
     {
         boolean isStatic = readIsStatic(input, accessor);
         int offset = startingOffset(isStatic);
@@ -313,6 +324,55 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
 
             previous = value;
             ++i;
+        }
+    }
+
+    @Override
+    public void checkConstraints(ByteBuffer input, ColumnConstraints constraints) throws ConstraintViolationException
+    {
+        // no constraints defined for the partition keys
+        if (!constraints.hasRelevantConstraints())
+            return;
+
+        ValueAccessor<ByteBuffer> accessor = ByteBufferAccessor.instance;
+
+        boolean isStatic = readIsStatic(input, accessor);
+        int offset = startingOffset(isStatic);
+
+        int i = 0;
+        List<ByteBuffer> partitionKeyValues = new ArrayList<>();
+        while (!accessor.isEmptyFromOffset(input, offset))
+        {
+            AbstractType<?> comparator = getComparator(i, input, accessor, offset);
+            offset += getComparatorSize(i, input, accessor, offset);
+
+            int length = accessor.getUnsignedShort(input, offset);
+            offset += 2;
+
+            ByteBuffer value = accessor.slice(input, offset, length);
+//            partitionKeyValues.add(comparator.compose(value));
+            partitionKeyValues.add(value);
+            offset += length;
+
+            accessor.getByte(input, offset++);
+            ++i;
+        }
+
+        if (partitionKeyValues.size() != constraints.getConstraints().size())
+        {
+            // contraints list should have the exact size of partition key values.
+            // Noop constraints are filled for the partition key columns w/o any constraints.
+            throw new IllegalStateException("The number of constraints (" + partitionKeyValues.size() + ") "
+                                            + "should be the same with the number of partition key columns ("
+                                            + constraints.getConstraints().size() + ")");
+        }
+
+        for (int k = 0; k < constraints.getConstraints().size(); k++)
+        {
+            AbstractType<?> comparator = getComparator(i, input, accessor, offset);
+            ByteBuffer value = partitionKeyValues.get(k);
+            ColumnConstraint constraint = constraints.getConstraints().get(k);
+            constraint.evaluate(comparator, value);
         }
     }
 

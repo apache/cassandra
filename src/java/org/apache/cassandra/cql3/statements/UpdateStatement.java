@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.cql3.statements;
 
+import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -26,12 +27,15 @@ import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.conditions.ColumnCondition;
 import org.apache.cassandra.cql3.conditions.Conditions;
+import org.apache.cassandra.cql3.constraints.ColumnConstraint;
 import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
 import org.apache.cassandra.cql3.terms.Constants;
 import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.Slice;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
@@ -93,7 +97,9 @@ public class UpdateStatement extends ModificationStatement
             for (int i = 0, isize = updates.size(); i < isize; i++)
                 updates.get(i).execute(updateBuilder.partitionKey(), params);
 
-            updateBuilder.add(params.buildRow());
+            Row row = params.buildRow();
+            evaluateConstraintsForRow(row, metadata);
+            updateBuilder.add(row);
         }
 
         if (updatesStaticRow())
@@ -347,5 +353,27 @@ public class UpdateStatement extends ModificationStatement
     public AuditLogContext getAuditLogContext()
     {
         return new AuditLogContext(AuditLogEntryType.UPDATE, keyspace(), table());
+    }
+
+    public static void evaluateConstraintsForRow(Row row, TableMetadata metadata)
+    {
+        for (ColumnMetadata column : metadata.columnsWithConstraints)
+        {
+            Cell<?> cell = row.getCell(column);
+            if (cell != null)
+            {
+                ColumnMetadata columnMetadata = cell.column();
+                ByteBuffer cellData = cell.buffer();
+                evaluateConstraint(columnMetadata, cellData);
+            }
+        }
+    }
+
+    public static void evaluateConstraint(ColumnMetadata columnMetadata, ByteBuffer cellData)
+    {
+        for (ColumnConstraint constraint : columnMetadata.getColumnConstraints().getConstraints())
+        {
+            constraint.evaluate(columnMetadata.type, cellData);
+        }
     }
 }

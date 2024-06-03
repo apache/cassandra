@@ -31,6 +31,9 @@ import java.util.Objects;
 import org.apache.cassandra.cql3.AssignmentTestable;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.ColumnSpecification;
+import org.apache.cassandra.cql3.constraints.ColumnConstraint;
+import org.apache.cassandra.cql3.constraints.ColumnConstraints;
+import org.apache.cassandra.cql3.constraints.ConstraintViolationException;
 import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.cql3.functions.ArgumentDeserializer;
 import org.apache.cassandra.db.rows.Cell;
@@ -202,6 +205,25 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
     public <V> void validate(V value, ValueAccessor<V> accessor) throws MarshalException
     {
         getSerializer().validate(value, accessor);
+    }
+
+    public void checkConstraints(ByteBuffer bytes, ColumnConstraints constraints) throws ConstraintViolationException
+    {
+        if (constraints.isEmpty())
+            return;
+
+        T value = getSerializer().deserialize(bytes);
+        constraints.evaluate(this, bytes);
+    }
+
+    public void checkConstraints(ByteBuffer bytes, List<ColumnConstraint> constraints) throws ConstraintViolationException
+    {
+        if (constraints.isEmpty())
+            return;
+
+        T value = getSerializer().deserialize(bytes);
+        for (ColumnConstraint constraint : constraints)
+            constraint.evaluate(this, bytes);
     }
 
     public final int compare(ByteBuffer left, ByteBuffer right)
@@ -525,6 +547,11 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
         return getSerializer().isNull(buffer, accessor);
     }
 
+    public boolean isNumber()
+    {
+        return unwrap() instanceof org.apache.cassandra.db.marshal.NumberType;
+    }
+
     // This assumes that no empty values are passed
     public void writeValue(ByteBuffer value, DataOutputPlus out) throws IOException
     {
@@ -798,5 +825,10 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
 
             return type.compose(buffer);
         }
+    }
+
+    public boolean isConstrainable()
+    {
+        return true;
     }
 }

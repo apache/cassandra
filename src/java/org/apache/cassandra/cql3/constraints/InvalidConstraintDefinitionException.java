@@ -16,23 +16,17 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.distributed.test.cdc;
+package org.apache.cassandra.cql3.constraints;
 
+import org.apache.cassandra.exceptions.InvalidRequestException;
 
-import org.junit.Test;
-
-
-public class ToggleCDCOnRepairEnabledTest extends ToggleCDCOnRepair
+/**
+ * Thrown to indicate that the CQL constraint is not valid
+ */
+public class InvalidConstraintDefinitionException extends InvalidRequestException
 {
-    @Test
-    public void testCDCOnRepairIsEnabled() throws Exception
+    public InvalidConstraintDefinitionException(String msg)
     {
-        testCDCOnRepairEnabled(true, getRepairEnabledRepairAssertion(), false);
-    }
-
-    @Test
-    public void testCDCOnRepairIsDisabled() throws Exception
-    {
-        testCDCOnRepairEnabled(false, getRepairDisabledRepairAssertion(), false);
+        super(msg);
     }
 }

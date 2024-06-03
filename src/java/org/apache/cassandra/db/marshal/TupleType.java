@@ -616,4 +616,10 @@ public class TupleType extends MultiElementType<ByteBuffer>
     {
         throw new UnsupportedOperationException("Multicell tuples are not supported");
     }
+
+    @Override
+    public boolean isConstrainable()
+    {
+        return false;
+    }
 }

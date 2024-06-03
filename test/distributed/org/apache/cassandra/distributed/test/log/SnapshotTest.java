@@ -51,6 +51,7 @@ public class SnapshotTest extends TestBaseImpl
                                              .start()))
         {
             cluster.schemaChange(withKeyspace("create table %s.tbl (id int primary key, x int)"));
+            cluster.schemaChange(withKeyspace("create table %s.tblconstraints (id int primary key, x int check x > 100 and x < 200, v text check LENGTH(v) > 10)"));
             cluster.schemaChange(withKeyspace("CREATE OR REPLACE FUNCTION %s.fLog (input double) CALLED ON NULL INPUT RETURNS double LANGUAGE java AS 'return Double.valueOf(Math.log(input.doubleValue()));';"));
             cluster.schemaChange(withKeyspace("CREATE OR REPLACE FUNCTION %s.avgState ( state tuple<int,bigint>, val int ) CALLED ON NULL INPUT RETURNS tuple<int,bigint> LANGUAGE java AS \n" +
                                               "  'if (val !=null) { state.setInt(0, state.getInt(0)+1); state.setLong(1, state.getLong(1)+val.intValue()); } return state;'; "));

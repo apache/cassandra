@@ -781,9 +781,22 @@ tableDefinition[CreateTableStatement.Raw stmt]
 
 tableColumns[CreateTableStatement.Raw stmt]
     @init { boolean isStatic = false; }
-    : k=ident v=comparatorType (K_STATIC { isStatic = true; })? (mask=columnMask)? { $stmt.addColumn(k, v, isStatic, mask); }
+    : k=ident v=comparatorType (K_STATIC { isStatic = true; })? (mask=columnMask)? (constraints=columnConstraints)? { $stmt.addColumn(k, v, isStatic, mask, constraints); }
         (K_PRIMARY K_KEY { $stmt.setPartitionKeyColumn(k); })?
     | K_PRIMARY K_KEY '(' tablePartitionKey[stmt] (',' c=ident { $stmt.markClusteringColumn(c); } )* ')'
+    ;
+
+columnConstraints returns [ColumnConstraints.Raw constraints]
+    @init {
+        boolean isStatic = false;
+        List constraintsList = new ArrayList();
+    }
+    : K_CHECK cc=columnConstraint { constraintsList.add(cc); } (K_AND cc=columnConstraint { constraintsList.add(cc); })* { $constraints = new ColumnConstraints.Raw(constraintsList); }
+    ;
+
+columnConstraint returns [ColumnConstraint columnConstraint]
+    : funcName=ident '(' k=ident ')' op=relationType t=value { $columnConstraint = new FunctionColumnConstraint.Raw(funcName, k, op, t.getText()).prepare(); }
+    | k=ident op=relationType t=value { $columnConstraint = new ScalarColumnConstraint.Raw(k, op, t.getText()).prepare(); }
     ;
 
 columnMask returns [ColumnMask.Raw mask]
@@ -965,7 +978,9 @@ alterTableStatement returns [AlterTableStatement.Raw stmt]
 
       | K_ALTER ( K_IF K_EXISTS { $stmt.ifColumnExists(true); } )? id=cident
               ( mask=columnMask { $stmt.mask(id, mask); }
-              | K_DROP K_MASKED { $stmt.mask(id, null); } )
+              | K_DROP K_MASKED { $stmt.mask(id, null); }
+              | K_DROP K_CHECK { $stmt.dropConstraints(id); }
+              | (constraints=columnConstraints) { $stmt.alterConstraints(id, constraints); })
 
       | K_ADD ( K_IF K_NOT K_EXISTS { $stmt.ifColumnNotExists(true); } )?
               (        id=ident  v=comparatorType  b=isStaticColumn (m=columnMask)? { $stmt.add(id,  v,  b, m);  }
@@ -2067,5 +2082,6 @@ basic_unreserved_keyword returns [String str]
         | K_VECTOR
         | K_ANN
         | K_BETWEEN
+        | K_CHECK
         ) { $str = $k.text; }
     ;

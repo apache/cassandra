@@ -244,4 +244,10 @@ public class ReversedType<T> extends AbstractType<T>
     {
         return baseType.unwrap();
     }
+
+    @Override
+    public boolean isConstrainable()
+    {
+        return unwrap().isConstrainable();
+    }
 }

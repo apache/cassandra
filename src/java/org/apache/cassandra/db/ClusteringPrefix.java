@@ -24,6 +24,7 @@ import java.util.function.ToIntFunction;
 
 import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.config.*;
+import org.apache.cassandra.cql3.constraints.ColumnConstraints;
 import org.apache.cassandra.db.marshal.ByteArrayAccessor;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.CompositeType;
@@ -750,6 +751,11 @@ public interface ClusteringPrefix<V> extends IMeasurableMemory, Clusterable<V>
             return false;
 
         return equals(prefix, (ClusteringPrefix<?>) o);
+    }
+
+    default void checkConstraints(int clusterIndex, ClusteringComparator comparator, ColumnConstraints constraints)
+    {
+        comparator.subtype(clusterIndex).checkConstraints(accessor().toBuffer(get(clusterIndex)), constraints);
     }
 
 }
