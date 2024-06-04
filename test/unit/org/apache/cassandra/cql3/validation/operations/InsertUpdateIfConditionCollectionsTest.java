@@ -767,23 +767,148 @@ public class InsertUpdateIfConditionCollectionsTest extends CQLTester
     }
 
     @Test
-    public void testFrozenWithNullValues() throws Throwable
+    public void testListConditionsWithNullValues() throws Throwable
     {
-        createTable(String.format("CREATE TABLE %%s (k int PRIMARY KEY, m %s)", "frozen<list<text>>"));
-        execute("INSERT INTO %s (k, m) VALUES (0, null)");
+        for (boolean frozen : new boolean[]{true, false})
+        {
+            String type = frozen ? "frozen<list<text>>" : "list<text>";
+            createTable(String.format("CREATE TABLE %%s (k int PRIMARY KEY, l %s)", type));
+            execute("INSERT INTO %s (k, l) VALUES (0, null)");
+            execute("INSERT INTO %s (k, l) VALUES (1, null)");
 
-        assertRows(execute("UPDATE %s SET m = ? WHERE k = 0 IF m = ?", list("test"), list("comparison")), row(false, null));
+            for (String operator : new String[]{ ">", "<", ">=", "<=", "=" })
+            {
+                assertRows(execute("UPDATE %s SET l = ? WHERE k = 0 IF l " + operator + " ?", list("test"), list("comparison")), row(false, null));
+            }
 
-        createTable(String.format("CREATE TABLE %%s (k int PRIMARY KEY, m %s)", "frozen<map<text,int>>"));
-        execute("INSERT INTO %s (k, m) VALUES (0, null)");
+            assertRows(execute("UPDATE %s SET l = ? WHERE k = 0 IF l != NULL", list("test")), row(false, null));
+            assertRows(execute("UPDATE %s SET l = ? WHERE k = 0 IF l = NULL", list("test")), row(true));
+            assertRows(execute("SELECT l FROM %s WHERE k = 0"), row(list("test")));
 
-        assertRows(execute("UPDATE %s SET m = ? WHERE k = 0 IF m = ?", map("test", 3), map("comparison", 2)), row(false, null));
+            if (!frozen)
+            {
+                assertRows(execute("UPDATE %s SET l = ? WHERE k = 1 IF l != []", list("test")), row(false, null));
+                assertRows(execute("UPDATE %s SET l = ? WHERE k = 1 IF l = []", list("test")), row(true));
+                assertRows(execute("SELECT l FROM %s WHERE k = 1"), row(list("test")));
+            }
 
-        createTable(String.format("CREATE TABLE %%s (k int PRIMARY KEY, m %s)", "frozen<set<text>>"));
-        execute("INSERT INTO %s (k, m) VALUES (0, null)");
+            for (String operator : new String[]{ ">", "<", ">=", "<=" })
+            {
+                assertInvalidMessage("Invalid comparison with null for operator \"" + operator + '"',
+                                     "UPDATE %s SET l = ? WHERE k = 0 IF l " + operator + " NULL", list("test"));
 
-        assertRows(execute("UPDATE %s SET m = ? WHERE k = 0 IF m = ?", set("test"), set("comparison")), row(false, null));
+                if (!frozen)
+                    assertInvalidMessage("Invalid comparison with an empty list for operator \"" + operator + '"',
+                                         "UPDATE %s SET l = ? WHERE k = 0 IF l " + operator + " []", list("test"));
+            }
+        }
     }
+
+    @Test
+    public void testSetConditionsWithNullValues() throws Throwable
+    {
+        for (boolean frozen : new boolean[]{true, false})
+        {
+            String type = frozen ? "frozen<set<text>>" : "set<text>";
+            createTable(String.format("CREATE TABLE %%s (k int PRIMARY KEY, s %s)", type));
+            execute("INSERT INTO %s (k, s) VALUES (0, null)");
+            execute("INSERT INTO %s (k, s) VALUES (1, null)");
+
+            for (String operator : new String[]{ ">", "<", ">=", "<=", "=" })
+            {
+                assertRows(execute("UPDATE %s SET s = ? WHERE k = 0 IF s " + operator + " ?", set("test"), set("comparison")), row(false, null));
+            }
+
+            assertRows(execute("UPDATE %s SET s = ? WHERE k = 0 IF s != NULL", set("test")), row(false, null));
+            assertRows(execute("UPDATE %s SET s = ? WHERE k = 0 IF s = NULL", set("test")), row(true));
+            assertRows(execute("SELECT s FROM %s WHERE k = 0"), row(set("test")));
+
+            if (!frozen)
+            {
+                assertRows(execute("UPDATE %s SET s = ? WHERE k = 1 IF s != {}", set("test")), row(false, null));
+                assertRows(execute("UPDATE %s SET s = ? WHERE k = 1 IF s = {}", set("test")), row(true));
+                assertRows(execute("SELECT s FROM %s WHERE k = 1"), row(set("test")));
+            }
+
+            for (String operator : new String[]{ ">", "<", ">=", "<=" })
+            {
+                assertInvalidMessage("Invalid comparison with null for operator \"" + operator + '"',
+                                     "UPDATE %s SET s = ? WHERE k = 0 IF s " + operator + " NULL", set("test"));
+
+                if (!frozen)
+                    assertInvalidMessage("Invalid comparison with an empty set for operator \"" + operator + '"',
+                                         "UPDATE %s SET s = ? WHERE k = 0 IF s " + operator + " {}", set("test"));
+            }
+        }
+    }
+
+    @Test
+    public void testMapConditionsWithNullValues() throws Throwable
+    {
+        for (boolean frozen : new boolean[]{true, false})
+        {
+            String type = frozen ? "frozen<map<text,int>>" : "map<text,int>";
+            createTable(String.format("CREATE TABLE %%s (k int PRIMARY KEY, m %s)", type));
+            execute("INSERT INTO %s (k, m) VALUES (0, null)");
+            execute("INSERT INTO %s (k, m) VALUES (1, null)");
+
+            for (String operator : new String[]{ ">", "<", ">=", "<=", "=" })
+            {
+                assertRows(execute("UPDATE %s SET m = ? WHERE k = 0 IF m " + operator + " ?", map("test", 3), map("comparison", 2)), row(false, null));
+            }
+
+            assertRows(execute("UPDATE %s SET m = ? WHERE k = 0 IF m != NULL", map("test", 3)), row(false, null));
+            assertRows(execute("UPDATE %s SET m = ? WHERE k = 0 IF m = NULL", map("test", 3)), row(true));
+            assertRows(execute("SELECT m FROM %s WHERE k = 0"), row(map("test", 3)));
+
+            if (!frozen)
+            {
+                assertRows(execute("UPDATE %s SET m = ? WHERE k = 1 IF m != {}", map("test", 3)), row(false, null));
+                assertRows(execute("UPDATE %s SET m = ? WHERE k = 1 IF m = {}", map("test", 3)), row(true));
+                assertRows(execute("SELECT m FROM %s WHERE k = 1"), row(map("test", 3)));
+            }
+
+            for (String operator : new String[]{ ">", "<", ">=", "<=" })
+            {
+                assertInvalidMessage("Invalid comparison with null for operator \"" + operator + '"',
+                                     "UPDATE %s SET m = ? WHERE k = 0 IF m " + operator + " NULL", map("test", 3));
+
+                if (!frozen)
+                    assertInvalidMessage("Invalid comparison with an empty map for operator \"" + operator + '"',
+                                         "UPDATE %s SET m = ? WHERE k = 0 IF m " + operator + " {}", map("test", 3));
+            }
+        }
+    }
+
+    @Test
+    public void testUdtConditionsWithNullValues() throws Throwable
+    {
+        for (boolean frozen : new boolean[]{true, false})
+        {
+            String userType = createType("CREATE TYPE %s (a int, b int)");
+            String type = frozen ? "frozen<" + userType + '>' : userType;
+            createTable(String.format("CREATE TABLE %%s (k int PRIMARY KEY, t %s)", type));
+            execute("INSERT INTO %s (k, t) VALUES (0, null)");
+
+            for (String operator : new String[]{ ">", "<", ">=", "<=", "=" })
+            {
+                assertRows(execute("UPDATE %s SET t = ? WHERE k = 0 IF t " + operator + " ?",
+                                   userType("a", 1, "b", 2), userType("a", 4, "b", 5)),
+                           row(false, null));
+            }
+
+            assertRows(execute("UPDATE %s SET t = ? WHERE k = 0 IF t != NULL", userType("a", 1, "b", 2)), row(false, null));
+            assertRows(execute("UPDATE %s SET t = ? WHERE k = 0 IF t = NULL", userType("a", 1, "b", 2)), row(true));
+            assertRows(execute("SELECT t FROM %s WHERE k = 0"), row(userType("a", 1, "b", 2)));
+
+            for (String operator : new String[]{ ">", "<", ">=", "<=" })
+            {
+                assertInvalidMessage("Invalid comparison with null for operator \"" + operator + '"',
+                                     "UPDATE %s SET t = ? WHERE k = 0 IF t " + operator + " NULL", userType("a", 1, "b", 2));
+            }
+        }
+    }
+
     /**
      * Test expanded functionality from CASSANDRA-6839,
      * migrated from cql_tests.py:TestCQL.expanded_map_item_conditional_test()
