@@ -303,9 +303,9 @@ public final class SimpleRestriction implements SingleRestriction
                 List<ByteBuffer> buffers = bindAndGet(options);
 
                 ColumnMetadata column = firstColumn();
-                if (operator == Operator.IN)
+                if (operator == Operator.IN || operator == Operator.BETWEEN)
                 {
-                    filter.add(column, operator, inValues(column, buffers));
+                    filter.add(column, operator, multiInputOperatorValues(column, buffers));
                 }
                 else if (operator == Operator.LIKE)
                 {
@@ -344,7 +344,7 @@ public final class SimpleRestriction implements SingleRestriction
                                                                              .map(elements -> elements.get(0))
                                                                              .collect(Collectors.toList());
 
-                        filter.add(firstColumn(), Operator.IN, inValues(firstColumn(), values));
+                        filter.add(firstColumn(), Operator.IN, multiInputOperatorValues(firstColumn(), values));
                     }
                     else
                     {
@@ -361,14 +361,20 @@ public final class SimpleRestriction implements SingleRestriction
         }
     }
 
-    private static ByteBuffer inValues(ColumnMetadata column, List<ByteBuffer> values)
+    private static ByteBuffer multiInputOperatorValues(ColumnMetadata column, List<ByteBuffer> values)
     {
+
         return ListType.getInstance(column.type, false).pack(values);
     }
 
     @Override
     public String toString()
     {
+        if (operator.isTernary())
+        {
+            List<? extends Term> terms = values.asList();
+            return String.format("%s %s %s AND %s", columnsExpression.toCQLString(), operator, terms.get(0), terms.get(1));
+        }
         return String.format("%s %s %s", columnsExpression.toCQLString(), operator, values);
     }
 }
