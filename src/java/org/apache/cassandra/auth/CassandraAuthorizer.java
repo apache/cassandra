@@ -46,7 +46,6 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
-import org.apache.cassandra.service.reads.range.RangeCommands;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
