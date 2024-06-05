@@ -248,7 +248,7 @@ public final class SimpleRestriction implements SingleRestriction
                 ClusteringElements byteBuffers = ClusteringElements.of(columnsExpression.columnSpecification(), value);
                 elements.add(byteBuffers);
             }
-            return elements;
+            return Collections.unmodifiableList(elements);
         }
         return Collections.emptyList();
     }
@@ -262,7 +262,7 @@ public final class SimpleRestriction implements SingleRestriction
                 ClusteringElements byteBuffers = ClusteringElements.of(columnsExpression.columns(), value);
                 elements.add(byteBuffers);
             }
-            return elements;
+            return Collections.unmodifiableList(elements);
         }
         return Collections.emptyList();
     }
