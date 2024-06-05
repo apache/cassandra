@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.EnumMap;
 import java.util.IdentityHashMap;
 
+import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.concurrent.ExecutorFactory;
@@ -33,6 +34,7 @@ import org.apache.cassandra.simulator.cluster.ClusterActionListener.NoOpListener
 import org.apache.cassandra.simulator.cluster.ClusterActions;
 import org.apache.cassandra.simulator.cluster.ClusterActions.Options;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
+import org.apache.cassandra.utils.concurrent.Semaphore;
 
 import static org.apache.cassandra.simulator.cluster.ClusterActions.InitialConfiguration.initializeAll;
 import static org.apache.cassandra.simulator.cluster.ClusterActions.Options.noActions;
@@ -80,6 +82,43 @@ public class TrivialSimulationTest extends SimulationTestBase
                              }
                          });
                      }
+                 }),
+                 () -> {});
+    }
+
+    @Test
+    public void semaphoreTest()
+    {
+        simulate(arr(() -> {
+                     ExecutorPlus executor = ExecutorFactory.Global.executorFactory().pooled("semaphore-test-", 10);
+                     Semaphore semaphore = Semaphore.newSemaphore(5);
+                     CountDownLatch latch = CountDownLatch.newCountDownLatch(5);
+
+                     for (int i = 0; i < 5; i++)
+                     {
+                         executor.submit(() -> {
+                             for (int j = 0; j < 100; j++)
+                             {
+                                 int permits = semaphore.permits();
+                                 Assert.assertTrue(permits + " should be non negative", permits >= 0);
+
+                                 try
+                                 {
+                                     semaphore.acquire(1);
+                                     semaphore.release(1);
+                                 }
+                                 catch (Throwable e)
+                                 {
+                                     throw new RuntimeException(e);
+                                 }
+                             }
+                             latch.decrement();
+                         });
+                     }
+
+                     latch.awaitUninterruptibly();
+                     int permits = semaphore.permits();
+                     Assert.assertEquals(5, permits);
                  }),
                  () -> {});
     }

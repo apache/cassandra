@@ -24,6 +24,7 @@ import java.util.Collections;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntSupplier;
+import java.util.function.LongConsumer;
 import java.util.function.Predicate;
 
 import com.google.common.collect.Iterators;
@@ -42,6 +43,7 @@ import org.apache.cassandra.simulator.ActionSchedule.Work;
 import org.apache.cassandra.simulator.asm.InterceptClasses;
 import org.apache.cassandra.simulator.asm.NemesisFieldSelectors;
 import org.apache.cassandra.simulator.systems.Failures;
+import org.apache.cassandra.simulator.systems.InterceptedWait;
 import org.apache.cassandra.simulator.systems.InterceptibleThread;
 import org.apache.cassandra.simulator.systems.InterceptingExecutorFactory;
 import org.apache.cassandra.simulator.systems.InterceptingGlobalMethods;
@@ -62,7 +64,6 @@ import static org.apache.cassandra.simulator.ActionSchedule.Mode.UNLIMITED;
 import static org.apache.cassandra.simulator.ClusterSimulation.ISOLATE;
 import static org.apache.cassandra.simulator.ClusterSimulation.SHARE;
 import static org.apache.cassandra.simulator.SimulatorUtils.failWithOOM;
-import static org.apache.cassandra.simulator.systems.InterceptedWait.CaptureSites.Capture.NONE;
 import static org.apache.cassandra.simulator.utils.KindOfSequence.UNIFORM;
 import static org.apache.cassandra.utils.Shared.Scope.ANY;
 import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
@@ -229,10 +230,16 @@ public class SimulationTestBase
         InstanceClassLoader classLoader = new InstanceClassLoader(1, 1, AbstractCluster.CURRENT_VERSION.classpath,
                                                                   Thread.currentThread().getContextClassLoader(),
                                                                   sharedClassPredicate,
-                                                                  new InterceptClasses((x) -> () -> 1.0f, (x) -> () -> 1.0f, NemesisFieldSelectors.get(), ClassLoader.getSystemClassLoader(), sharedClassPredicate.negate())::apply);
+                                                                  new InterceptClasses((x) -> () -> 1.0f, (x) -> () -> 1.0f,
+                                                                                       NemesisFieldSelectors.get(),
+                                                                                       ClassLoader.getSystemClassLoader(),
+                                                                                       sharedClassPredicate.negate())::apply);
 
         ThreadGroup tg = new ThreadGroup("test");
-        InterceptorOfGlobalMethods interceptorOfGlobalMethods = new InterceptingGlobalMethods(NONE, null, failures, random);
+        InterceptedWait.CaptureSites.Capture capture = new InterceptedWait.CaptureSites.Capture(false, false, false);
+        InterceptorOfGlobalMethods interceptorOfGlobalMethods = IsolatedExecutor.transferAdhoc((IIsolatedExecutor.SerializableQuadFunction<InterceptedWait.CaptureSites.Capture, LongConsumer, Consumer<Throwable>, RandomSource, InterceptorOfGlobalMethods>) InterceptingGlobalMethods::new, classLoader)
+                                                                                .apply(capture, (ignore) -> {}, failures, random);
+
         InterceptingExecutorFactory factory = execution.factory(interceptorOfGlobalMethods, classLoader, tg);
 
         time.setup(1, classLoader);
