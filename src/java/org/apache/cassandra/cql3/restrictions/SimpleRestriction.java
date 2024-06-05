@@ -243,9 +243,7 @@ public final class SimpleRestriction implements SingleRestriction
     {
         List<ByteBuffer> values = bindAndGet(options);
         if (values.isEmpty())
-        {
             return Collections.emptyList();
-        }
 
         List<ClusteringElements> elements = new ArrayList<>(values.size());
         for (int i = 0; i < values.size(); i++)
@@ -257,9 +255,7 @@ public final class SimpleRestriction implements SingleRestriction
     {
         List<List<ByteBuffer>> values = bindAndGetElements(options);
         if (values.isEmpty())
-        {
             return Collections.emptyList();
-        }
 
         List<ClusteringElements> elements = new ArrayList<>(values.size());
         for (int i = 0; i < values.size(); i++)
