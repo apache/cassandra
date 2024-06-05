@@ -26,6 +26,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import javax.management.MBeanServer;
@@ -59,24 +60,31 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
      * bytes of direct memory requires via ByteBuffer.allocateDirect that have not been GCed.
      */
     final static Field BITS_TOTAL_CAPACITY;
+    // The hard limit for direct memory allocation, typically controlled by the -XX:MaxDirectMemorySize JVM option.
+    final static Field BITS_MAX;
+    // This represents the amount of direct memory that has been reserved for future use but not necessarily allocated yet.
+    final static Field BITS_RESERVED;
 
-    
     static
     {
-        Field temp = null;
+        Field totalTempField = null;
+        Field maxTempField = null;
+        Field reservedTempField = null;
         try
         {
             Class<?> bitsClass = Class.forName("java.nio.Bits");
-            Field f = bitsClass.getDeclaredField("TOTAL_CAPACITY");
-            f.setAccessible(true);
-            temp = f;
+            totalTempField = getField(bitsClass, "TOTAL_CAPACITY");
+            maxTempField = getField(bitsClass, "MAX_MEMORY");
+            reservedTempField = getField(bitsClass, "RESERVED_MEMORY");
         }
         catch (Throwable t)
         {
             logger.debug("Error accessing field of java.nio.Bits", t);
             //Don't care, will just return the dummy value -1 if we can't get at the field in this JVM
         }
-        BITS_TOTAL_CAPACITY = temp;
+        BITS_TOTAL_CAPACITY = totalTempField;
+        BITS_MAX = maxTempField;
+        BITS_RESERVED = reservedTempField;
     }
 
     static final class State
@@ -303,28 +311,70 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
     public double[] getAndResetStats()
     {
         State state = getTotalSinceLastCheck();
-        double[] r = new double[7];
+        double[] r = new double[9];
         r[0] = TimeUnit.NANOSECONDS.toMillis(nanoTime() - state.startNanos);
         r[1] = state.maxRealTimeElapsed;
         r[2] = state.totalRealTimeElapsed;
         r[3] = state.sumSquaresRealTimeElapsed;
         r[4] = state.totalBytesReclaimed;
         r[5] = state.count;
-        r[6] = getAllocatedDirectMemory();
+        r[6] = getTotalDirectMemory();
+        r[7] = getMaxDirectMemory();
+        r[8] = getReservedDirectMemory();
 
         return r;
     }
 
-    private static long getAllocatedDirectMemory()
+    private static long getTotalDirectMemory()
     {
-        if (BITS_TOTAL_CAPACITY == null) return -1;
+        return getFieldValue(BITS_TOTAL_CAPACITY, true);
+    }
+
+    private static long getMaxDirectMemory()
+    {
+        return getFieldValue(BITS_MAX, false);
+    }
+
+    private static long getReservedDirectMemory()
+    {
+        return getFieldValue(BITS_RESERVED, true);
+    }
+
+    private static Field getField(Class<?> clazz, String fieldName)
+    {
         try
         {
-            return BITS_TOTAL_CAPACITY.getLong(null);
+            Field field = clazz.getDeclaredField(fieldName);
+            field.setAccessible(true);
+            return field;
         }
         catch (Throwable t)
         {
-            logger.trace("Error accessing field of java.nio.Bits", t);
+            logger.trace("Error accessing field {} of {}", fieldName, clazz.getName(), t);
+            // Return null to indicate failure
+            return null;
+        }
+    }
+
+    /**
+     * From the implementation of java.nio.Bits, we can infer that TOTAL_CAPACITY/RESERVED_MEMORY is AtomicLong
+     * and MAX_MEMORY is long. This method works well with JDK 11/17
+     * */
+    private static long getFieldValue(Field field, boolean isAtomicLong)
+    {
+        if (field == null) return -1;
+        try
+        {
+            if (isAtomicLong) {
+                AtomicLong atomicLong = (AtomicLong) field.get(null);
+                return atomicLong.get();
+            } else {
+                return field.getLong(null);
+            }
+        }
+        catch (Throwable t)
+        {
+            logger.trace("Error accessing field value of {}", field.getName(), t);
             //Don't care how or why we failed to get the value in this JVM. Return -1 to indicate failure
             return -1;
         }
