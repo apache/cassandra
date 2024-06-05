@@ -18,118 +18,239 @@
 package org.apache.cassandra.simulator.test;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
-import java.util.UUID;
-import java.util.concurrent.CopyOnWriteArrayList;
-import javax.annotation.Nullable;
+import java.util.zip.Checksum;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.jimfs.Jimfs;
 
-import accord.topology.TopologyUtils;
+import org.apache.cassandra.concurrent.ExecutorFactory;
+import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.config.AccordSpec;
-import org.apache.cassandra.schema.*;
-import org.junit.Ignore;
+import org.apache.cassandra.config.Config;
+import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.io.filesystem.ListenableFileSystem;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.journal.AsyncCallbacks;
+import org.apache.cassandra.journal.Journal;
+import org.apache.cassandra.journal.KeySupport;
+import org.apache.cassandra.journal.ValueSerializer;
+
+import org.junit.Assert;
 import org.junit.Test;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import accord.Utils;
-import accord.api.Data;
-import accord.api.RoutingKey;
-import accord.api.Update;
-import accord.api.Write;
-import accord.local.Node;
-import accord.messages.MessageType;
-import accord.messages.PreAccept;
-import accord.messages.TxnRequest;
-import accord.primitives.FullKeyRoute;
-import accord.primitives.FullRoute;
-import accord.primitives.Keys;
-import accord.primitives.Ranges;
-import accord.primitives.Seekables;
-import accord.primitives.Timestamp;
-import accord.primitives.Txn;
-import accord.primitives.TxnId;
-import accord.topology.Topologies;
-import org.apache.cassandra.concurrent.ExecutorFactory;
-import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
-import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.commitlog.CommitLog;
-import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.io.util.Files;
-import org.apache.cassandra.service.accord.AccordJournal;
-import org.apache.cassandra.service.accord.TokenRange;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey;
-import org.apache.cassandra.service.accord.api.PartitionKey;
-import org.apache.cassandra.service.accord.txn.TxnNamedRead;
-import org.apache.cassandra.service.accord.txn.TxnQuery;
-import org.apache.cassandra.service.accord.txn.TxnRead;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Isolated;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
 
 public class AccordJournalSimulationTest extends SimulationTestBase
 {
     @Test
-    @Ignore // TODO: re-enable
-    public void test() throws IOException
+    public void simpleRWTest()
     {
-        simulate(arr(() -> run()),
-                 () -> check());
+        simulate(arr(() -> {
+                    ListenableFileSystem fs = new ListenableFileSystem(Jimfs.newFileSystem());
+                    File.unsafeSetFilesystem(fs);
+                    DatabaseDescriptor.daemonInitialization();
+                    DatabaseDescriptor.setCommitLogCompression(new ParameterizedClass("LZ4Compressor", ImmutableMap.of())); //
+                    DatabaseDescriptor.setCommitLogWriteDiskAccessMode(Config.DiskAccessMode.standard);
+                    DatabaseDescriptor.initializeCommitLogDiskAccessMode();
+                    DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
+                    DatabaseDescriptor.setAccordJournalDirectory("/journal");
+                    new File("/journal").createDirectoriesIfNotExists();
+
+                    DatabaseDescriptor.setDumpHeapOnUncaughtException(false);
+
+                    Keyspace.setInitialized();
+
+                    State.journal = new Journal<>("AccordJournal",
+                            new File("/journal"),
+                            new AccordSpec.JournalSpec(),
+                            new TestCallbacks(),
+                            new IdentityKeySerializer(),
+                            new IdentityValueSerializer());
+                }),
+                () -> check());
     }
 
-    private static void run()
+    public static void check()
     {
-        for (int i = 0; i < State.events; i++)
-        {
-            int finalI = i;
-            State.executor.execute(() -> State.append(finalI));
-        }
-
+        State.journal.start();
         try
         {
-            State.eventsDurable.await();
-            State.logger.info("All events are durable done!");
+            final int count = 100;
+            for (int i = 0; i < count; i++)
+            {
+                int finalI = i;
+                State.executor.submit(() -> State.journal.asyncWrite("test" + finalI, "test" + finalI, Collections.singleton(1), null));
+            }
+
+            State.latch.await();
+
+            for (int i = 0; i < count; i++)
+            {
+                State.logger.debug("Reading {}", i);
+                Assert.assertEquals(State.journal.readFirst("test" + i), "test" + i);
+            }
         }
+
         catch (InterruptedException e)
         {
-            throw new AssertionError(e);
-        }
-
-        if (!State.exceptions.isEmpty())
-        {
-            AssertionError error = new AssertionError("Exceptions found during test");
-            State.exceptions.forEach(error::addSuppressed);
-            throw error;
-        }
-
-        State.journal.shutdown();
-        State.logger.info("Run complete");
-    }
-
-    private static void check()
-    {
-        State.logger.info("Check starting");
-        State.journal.start(null); // to avoid a while true deadlock
-        try
-        {
-            for (int i = 0; i < State.events; i++)
-            {
-                TxnRequest<?> event = State.journal.readMessage(State.toTxnId(i), MessageType.PRE_ACCEPT_REQ, PreAccept.class);
-                State.logger.info("Event {} -> {}", i, event);
-                if (event == null)
-                    throw new AssertionError(String.format("Unable to read event %d", i));
-            }
-            State.logger.info("Check complete");
+            throw new RuntimeException(e);
         }
         finally
         {
             State.journal.shutdown();
+
+            if (!State.thrown.isEmpty())
+            {
+                AssertionError throwable = new AssertionError("Caught exceptions");
+                for (Throwable t: State.thrown)
+                    throwable.addSuppressed(t);
+                throw throwable;
+            }
+        }
+    }
+
+    public static class TestCallbacks implements AsyncCallbacks<String, String>
+    {
+
+        @Override
+        public void onWrite(long segment, int position, int size, String key, String value, Object writeContext)
+        {
+            State.latch.decrement();
+        }
+
+        @Override
+        public void onWriteFailed(String key, String value, Object writeContext, Throwable cause)
+        {
+            State.thrown.add(new IllegalStateException("Write failed for " + key));
+            State.latch.decrement();
+        }
+
+        @Override
+        public void onFlush(long segment, int position)
+        {
+        }
+
+        @Override
+        public void onFlushFailed(Throwable cause)
+        {
+            State.thrown.add(new RuntimeException("Could not flush", cause));
+        }
+    }
+
+    @Isolated
+    public static class IdentityValueSerializer implements ValueSerializer<String, String>
+    {
+        @Override
+        public int serializedSize(String key, String value, int userVersion)
+        {
+            return TypeSizes.INT_SIZE + key.length();
+        }
+
+        @Override
+        public void serialize(String key, String value, DataOutputPlus out, int userVersion) throws IOException
+        {
+            out.writeInt(key.length());
+            out.writeBytes(key);
+        }
+
+        @Override
+        public String deserialize(String key, DataInputPlus in, int userVersion) throws IOException
+        {
+            int size = in.readInt();
+            byte[] value = new byte[size];
+            for (int i = 0; i < size; i++)
+                value[i] = in.readByte();
+
+            return new String(value);
+        }
+    }
+
+    @Isolated
+    public static class IdentityKeySerializer implements KeySupport<String>
+    {
+        private final byte aByte = 0xd;
+        @Override
+        public int serializedSize(int userVersion)
+        {
+            return 16;
+        }
+
+        @Override
+        public void serialize(String key, DataOutputPlus out, int userVersion) throws IOException
+        {
+            int maxSize = 16 - TypeSizes.INT_SIZE;
+            if (key.length() > maxSize)
+                throw new IllegalStateException();
+
+            out.writeInt(key.length());
+            out.writeBytes(key);
+            int remaining = maxSize - key.length();
+            for (int i = 0; i < remaining; i++)
+                out.writeByte(aByte + i);
+        }
+
+        @Override
+        public String deserialize(DataInputPlus in, int userVersion) throws IOException
+        {
+            int size = in.readInt();
+            byte[] key = new byte[size];
+            for (int i = 0; i < size; i++)
+                key[i] = in.readByte();
+
+            int maxSize = 16 - TypeSizes.INT_SIZE;
+            int remaining = maxSize - size;
+            for (int i = 0; i < remaining; i++)
+                Assert.assertEquals(aByte + i, in.readByte());
+
+            return new String(key);
+        }
+
+        @Override
+        public String deserialize(ByteBuffer buffer, int position, int userVersion)
+        {
+            int size = buffer.getInt();
+            byte[] key = new byte[size];
+            for (int i = 0; i < size; i++)
+                key[i] = buffer.get();
+
+            int maxSize = 16 - TypeSizes.INT_SIZE;
+            int remaining = maxSize - size;
+            for (int i = 0; i < remaining; i++)
+                Assert.assertEquals(aByte + i, buffer.get());
+
+            return new String(key);
+        }
+
+        @Override
+        public void updateChecksum(Checksum crc, String key, int userVersion)
+        {
+            crc.update(key.getBytes());
+        }
+
+        @Override
+        public int compareWithKeyAt(String key, ByteBuffer buffer, int position, int userVersion)
+        {
+            throw new IllegalStateException();
+        }
+
+        @Override
+        public int compare(String o1, String o2)
+        {
+            return o1.compareTo(o2);
         }
     }
 
@@ -137,131 +258,9 @@ public class AccordJournalSimulationTest extends SimulationTestBase
     public static class State
     {
         private static final Logger logger = LoggerFactory.getLogger(State.class);
-        private static final String KEYSPACE = "test";
-
-        static
-        {
-            Files.newGlobalInMemoryFileSystem();
-            DatabaseDescriptor.clientWithDaemonConfig();
-            DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
-            DatabaseDescriptor.setAccordJournalDirectory("/journal");
-            new File("/journal").createDirectoriesIfNotExists();
-            DatabaseDescriptor.setCommitLogCompression(new ParameterizedClass("LZ4Compressor", ImmutableMap.of()));
-            DatabaseDescriptor.setDumpHeapOnUncaughtException(false);
-
-            // in order to do journal.read, we need all this setup first!
-            Keyspace.setInitialized();
-            Schema.instance.submit(SchemaTransformations.addKeyspace(KeyspaceMetadata.create(State.KEYSPACE, KeyspaceParams.simple(1)), true));
-            Keyspace ks = Keyspace.open(State.KEYSPACE);
-            ks.initCfCustom(ColumnFamilyStore.createColumnFamilyStore(ks, TableMetadataRef.forOfflineTools(TableMetadata.builder(State.KEYSPACE, State.KEYSPACE)
-                                                                                                                        .addPartitionKeyColumn("pk", Int32Type.instance)
-                                                                                                                        .build()).get(), false));
-
-            try
-            {
-                CommitLog.instance.shutdownBlocking();
-            }
-            catch (InterruptedException e)
-            {
-                // ignore
-            }
-        }
-        private static final ExecutorPlus executor = ExecutorFactory.Global.executorFactory().pooled("name", 10);
-        private static final AccordJournal journal = new AccordJournal(null, new AccordSpec.JournalSpec());
-        private static final int events = 100;
-        private static final CountDownLatch eventsWritten = CountDownLatch.newCountDownLatch(events);
-        private static final CountDownLatch eventsDurable = CountDownLatch.newCountDownLatch(events);
-        private static final List<Throwable> exceptions = new CopyOnWriteArrayList<>();
-
-        static
-        {
-            journal.start(null);
-        }
-
-        public static void append(int event)
-        {
-            TxnRequest<?> request = toRequest(event);
-//            journal.appendMessageTest(request, executor, new AsyncWriteCallback()
-//            {
-//                @Override
-//                public void run()
-//                {
-//                    durable(event);
-//                }
-//
-//                @Override
-//                public void onFailure(Throwable error)
-//                {
-//                    eventsDurable.decrement(); // to make sure we don't block forever
-//                    exceptions.add(error);
-//                }
-//            });
-            eventsWritten.decrement();
-            logger.info("append({}); remaining {}", event, eventsWritten.count());
-        }
-
-        private static void durable(int event)
-        {
-            eventsDurable.decrement();
-            logger.info("durable({}); remaining {}", event, eventsDurable.count());
-        }
-
-        private static TxnRequest<?> toRequest(int event)
-        {
-            TxnId id = toTxnId(event);
-            Ranges ranges = Ranges.of(new TokenRange(AccordRoutingKey.SentinelKey.min(tableId), AccordRoutingKey.SentinelKey.max(tableId)));
-            Topologies topologies = Utils.topologies(TopologyUtils.initialTopology(new Node.Id[] { node}, ranges, 3));
-            Keys keys = Keys.of(toKey(0));
-            Txn txn = new Txn.InMemory(keys, new TxnRead(new TxnNamedRead[0], keys, null), TxnQuery.ALL, new NoopUpdate());
-            FullRoute<?> route = route();
-            return new PreAccept(node, topologies, id, txn, route);
-        }
-
-        private static TxnId toTxnId(int event)
-        {
-            return TxnId.fromValues(1, event, 0, node);
-        }
-
-        private static PartitionKey toKey(int a)
-        {
-            return new PartitionKey(tableId, Murmur3Partitioner.instance.decorateKey(ByteBufferUtil.bytes(a)));
-        }
-
-        private static final TableId tableId = TableId.fromUUID(new UUID(0, 0));
-        private static final Node.Id node = new Node.Id(0);
-
-        private static FullRoute<?> route()
-        {
-            return new FullKeyRoute(key, true, new RoutingKey[]{ key });
-        }
-
-        private static final RoutingKey key = new AccordRoutingKey.TokenKey(tableId, new Murmur3Partitioner.LongToken(42));
-    }
-
-    public static class NoopUpdate implements Update
-    {
-        @Override
-        public Seekables<?, ?> keys()
-        {
-            return null;
-        }
-
-        @Override
-        public Write apply(Timestamp executeAt, @Nullable Data data)
-        {
-            return null;
-        }
-
-        @Override
-        public Update slice(Ranges ranges)
-        {
-            return null;
-        }
-
-        @Override
-        public Update merge(Update other)
-        {
-            return null;
-        }
+        static Journal<String, String> journal;
+        static CountDownLatch latch = CountDownLatch.newCountDownLatch(100);
+        static List<Throwable> thrown = new ArrayList<>();
+        static ExecutorPlus executor = ExecutorFactory.Global.executorFactory().pooled("name", 10);
     }
 }
