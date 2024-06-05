@@ -242,27 +242,28 @@ public final class SimpleRestriction implements SingleRestriction
     private List<ClusteringElements> bindAndGetSingleTermClusteringElements(QueryOptions options)
     {
         List<ByteBuffer> values = bindAndGet(options);
-        if (!values.isEmpty())
+        if (values.isEmpty())
         {
-            List<ClusteringElements> elements = new ArrayList<>(values.size());
-            for (ByteBuffer value : values)
-                elements.add(ClusteringElements.of(columnsExpression.columnSpecification(), value));
-            return Collections.unmodifiableList(elements);
+            return Collections.emptyList();
         }
-        return Collections.emptyList();
+
+        List<ClusteringElements> elements = new ArrayList<>(values.size());
+        for (int i = 0; i < values.size(); i++)
+            elements.add(ClusteringElements.of(columnsExpression.columnSpecification(), values.get(i)));
+        return elements;
     }
 
     private List<ClusteringElements> bindAndGetMultiTermClusteringElements(QueryOptions options)
     {
         List<List<ByteBuffer>> values = bindAndGetElements(options);
-        if (!values.isEmpty())
-        {
-            List<ClusteringElements> elements = new ArrayList<>(values.size());
-            for (List<ByteBuffer> value : values)
-                elements.add(ClusteringElements.of(columnsExpression.columns(), value));
-            return Collections.unmodifiableList(elements);
+        if (values.isEmpty()) {
+            return Collections.emptyList();
         }
-        return Collections.emptyList();
+
+        List<ClusteringElements> elements = new ArrayList<>(values.size());
+        for (int i = 0; i < values.size(); i++)
+            elements.add(ClusteringElements.of(columnsExpression.columns(), values.get(i)));
+        return elements;
     }
 
     private List<ByteBuffer> bindAndGet(QueryOptions options)
