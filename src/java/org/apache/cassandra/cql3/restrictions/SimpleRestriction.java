@@ -226,25 +226,34 @@ public final class SimpleRestriction implements SingleRestriction
 
     private List<ClusteringElements> bindAndGetClusteringElements(QueryOptions options)
     {
-        List<ClusteringElements> elements = new ArrayList<>();
         switch (columnsExpression.kind())
         {
             case SINGLE_COLUMN:
             case TOKEN:
-                for (ByteBuffer b : bindAndGet(options)) {
-                    ClusteringElements byteBuffers = ClusteringElements.of(columnsExpression.columnSpecification(), b);
-                    elements.add(byteBuffers);
-                }
-                return elements;
+                return bindAndGetSingleTermClusteringElements(options);
             case MULTI_COLUMN:
-                for (List<ByteBuffer> buffers : bindAndGetElements(options)) {
-                    ClusteringElements byteBuffers = ClusteringElements.of(columnsExpression.columns(), buffers);
-                    elements.add(byteBuffers);
-                }
-                return elements;
+                return bindAndGetMultiTermClusteringElements(options);
             default:
                 throw new UnsupportedOperationException();
         }
+    }
+
+    private List<ClusteringElements> bindAndGetSingleTermClusteringElements(QueryOptions options) {
+        List<ClusteringElements> elements = new ArrayList<>();
+        for (ByteBuffer b : bindAndGet(options)) {
+            ClusteringElements byteBuffers = ClusteringElements.of(columnsExpression.columnSpecification(), b);
+            elements.add(byteBuffers);
+        }
+        return elements;
+    }
+
+    private List<ClusteringElements> bindAndGetMultiTermClusteringElements(QueryOptions options) {
+        List<ClusteringElements> elements = new ArrayList<>();
+        for (List<ByteBuffer> buffers : bindAndGetElements(options)) {
+            ClusteringElements byteBuffers = ClusteringElements.of(columnsExpression.columns(), buffers);
+            elements.add(byteBuffers);
+        }
+        return elements;
     }
 
     private List<ByteBuffer> bindAndGet(QueryOptions options)
