@@ -242,12 +242,11 @@ public final class SimpleRestriction implements SingleRestriction
     private List<ClusteringElements> bindAndGetSingleTermClusteringElements(QueryOptions options)
     {
         List<ByteBuffer> values = bindAndGet(options);
-        if (!values.isEmpty()) {
+        if (!values.isEmpty())
+        {
             List<ClusteringElements> elements = new ArrayList<>(values.size());
-            for (ByteBuffer value : values) {
-                ClusteringElements byteBuffers = ClusteringElements.of(columnsExpression.columnSpecification(), value);
-                elements.add(byteBuffers);
-            }
+            for (ByteBuffer value : values)
+                elements.add(ClusteringElements.of(columnsExpression.columnSpecification(), value));
             return Collections.unmodifiableList(elements);
         }
         return Collections.emptyList();
@@ -256,12 +255,11 @@ public final class SimpleRestriction implements SingleRestriction
     private List<ClusteringElements> bindAndGetMultiTermClusteringElements(QueryOptions options)
     {
         List<List<ByteBuffer>> values = bindAndGetElements(options);
-        if (!values.isEmpty()) {
+        if (!values.isEmpty())
+        {
             List<ClusteringElements> elements = new ArrayList<>(values.size());
-            for (List<ByteBuffer> value : values) {
-                ClusteringElements byteBuffers = ClusteringElements.of(columnsExpression.columns(), value);
-                elements.add(byteBuffers);
-            }
+            for (List<ByteBuffer> value : values)
+                elements.add(ClusteringElements.of(columnsExpression.columns(), value));
             return Collections.unmodifiableList(elements);
         }
         return Collections.emptyList();
