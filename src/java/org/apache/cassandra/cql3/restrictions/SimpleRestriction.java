@@ -256,7 +256,8 @@ public final class SimpleRestriction implements SingleRestriction
     private List<ClusteringElements> bindAndGetMultiTermClusteringElements(QueryOptions options)
     {
         List<List<ByteBuffer>> values = bindAndGetElements(options);
-        if (values.isEmpty()) {
+        if (values.isEmpty())
+        {
             return Collections.emptyList();
         }
 
