@@ -19,6 +19,7 @@
 package org.apache.cassandra.cql3.restrictions;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -225,17 +226,22 @@ public final class SimpleRestriction implements SingleRestriction
 
     private List<ClusteringElements> bindAndGetClusteringElements(QueryOptions options)
     {
+        List<ClusteringElements> elements = new ArrayList<>();
         switch (columnsExpression.kind())
         {
             case SINGLE_COLUMN:
             case TOKEN:
-                return bindAndGet(options).stream()
-                                          .map(b ->  ClusteringElements.of(columnsExpression.columnSpecification(), b))
-                                          .collect(Collectors.toList());
+                for (ByteBuffer b : bindAndGet(options)) {
+                    ClusteringElements byteBuffers = ClusteringElements.of(columnsExpression.columnSpecification(), b);
+                    elements.add(byteBuffers);
+                }
+                return elements;
             case MULTI_COLUMN:
-                return bindAndGetElements(options).stream()
-                                                  .map(buffers -> ClusteringElements.of(columnsExpression.columns(), buffers))
-                                                  .collect(Collectors.toList());
+                for (List<ByteBuffer> buffers : bindAndGetElements(options)) {
+                    ClusteringElements byteBuffers = ClusteringElements.of(columnsExpression.columns(), buffers);
+                    elements.add(byteBuffers);
+                }
+                return elements;
             default:
                 throw new UnsupportedOperationException();
         }
