@@ -638,6 +638,11 @@ public enum Operator
     NOT_IN(16)
     {
         @Override
+        public Kind kind() {
+            return Kind.MULTI_VALUE;
+        }
+
+        @Override
         public String toString()
         {
             return "NOT IN";
@@ -917,7 +922,7 @@ public enum Operator
             case SINGLE_COLUMN:
                 ColumnMetadata firstColumn = expression.firstColumn();
                 AbstractType<?> columnType = firstColumn.type;
-                if (isSlice())
+                if (isSlice() && this != Operator.NEQ)
                 {
                     if (columnType.referencesDuration())
                     {

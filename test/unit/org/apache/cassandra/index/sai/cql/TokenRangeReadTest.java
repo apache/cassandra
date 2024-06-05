@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.index.sai.cql;
 
+import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
 import org.junit.Test;
 
 import org.apache.cassandra.index.sai.SAITester;
@@ -52,11 +53,11 @@ public class TokenRangeReadTest extends SAITester
         execute("INSERT INTO %S(k1, v1) values(2, {'a', 'd'})");
 
         beforeAndAfterFlush(() -> {
-            assertRows(execute("SELECT k1 FROM %s WHERE v1 NOT CONTAINS 'd'"), row(1));
-            assertRows(execute("SELECT k1 FROM %s WHERE token(k1) >= token(1) AND token(k1) <= token(1) AND v1 NOT CONTAINS 'z'"), row(1));
-            assertRows(execute("SELECT k1 FROM %s WHERE token(k1) >= token(2) AND token(k1) <= token(2) AND v1 NOT CONTAINS 'z'"), row(2));
-            assertEmpty(execute("SELECT k1 FROM %s WHERE token(k1) > token(2) AND token(k1) <= token(2) AND v1 NOT CONTAINS 'z'"));
-            assertEmpty(execute("SELECT k1 FROM %s WHERE token(k1) >= token(2) AND token(k1) < token(2) AND v1 NOT CONTAINS 'z'"));
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE, "SELECT k1 FROM %s WHERE v1 NOT CONTAINS 'd'");
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE, "SELECT k1 FROM %s WHERE token(k1) >= token(1) AND token(k1) <= token(1) AND v1 NOT CONTAINS 'z'");
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE, "SELECT k1 FROM %s WHERE token(k1) >= token(2) AND token(k1) <= token(2) AND v1 NOT CONTAINS 'z'");
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE, "SELECT k1 FROM %s WHERE token(k1) > token(2) AND token(k1) <= token(2) AND v1 NOT CONTAINS 'z'");
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE, "SELECT k1 FROM %s WHERE token(k1) >= token(2) AND token(k1) < token(2) AND v1 NOT CONTAINS 'z'");
         });
     }
 }

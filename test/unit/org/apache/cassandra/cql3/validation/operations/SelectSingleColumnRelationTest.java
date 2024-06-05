@@ -65,7 +65,7 @@ public class SelectSingleColumnRelationTest extends CQLTester
                              "SELECT * FROM %s WHERE c = 0 AND b IN (?)", set(0));
         assertInvalidMessage("Collection column 'b' (set<int>) cannot be restricted by a 'BETWEEN' relation",
                              "SELECT * FROM %s WHERE c = 0 AND b BETWEEN ? AND ?", set(0), set(0));
-        assertInvalidMessage("Unsupported '!=' relation: b != 5",
+        assertInvalidMessage("Collection column 'b' (set<int>) cannot be restricted by a '!=' relation",
                 "SELECT * FROM %s WHERE c = 0 AND b != 5");
         assertInvalidMessage("Collection column 'b' (set<int>) cannot be restricted by a 'NOT IN' relation",
                              "SELECT * FROM %s WHERE c = 0 AND b NOT IN (?)", set(0));
