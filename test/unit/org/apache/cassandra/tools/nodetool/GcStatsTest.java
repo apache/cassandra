@@ -18,16 +18,23 @@
 
 package org.apache.cassandra.tools.nodetool;
 
-import java.util.Arrays;
+import org.apache.commons.lang3.StringUtils;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.service.GCInspector;
 import org.apache.cassandra.tools.ToolRunner;
+import org.apache.cassandra.tools.ToolRunner.ToolResult;
+import org.apache.cassandra.tools.nodetool.stats.GcStatsHolder;
 import org.apache.cassandra.utils.JsonUtils;
-import org.junit.BeforeClass;
-import org.junit.Test;
 import org.yaml.snakeyaml.Yaml;
 
+import static java.lang.Double.parseDouble;
+import static java.util.Arrays.asList;
+import static org.apache.cassandra.tools.nodetool.stats.GcStatsHolder.MAX_DIRECT_MEMORY;
+import static org.apache.cassandra.tools.nodetool.stats.GcStatsHolder.RESERVED_DIRECT_MEMORY;
+import static org.apache.cassandra.tools.nodetool.stats.GcStatsHolder.ALLOCATED_DIRECT_MEMORY;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 
@@ -46,41 +53,44 @@ public class GcStatsTest extends CQLTester
     public void testMaybeChangeDocs()
     {
         // If you added, modified options or help, please update docs if necessary
-        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("help", "gcstats");
+        ToolResult tool = ToolRunner.invokeNodetool("help", "gcstats");
         tool.assertOnCleanExit();
 
-        String help =   "NAME\n" +
-                        "        nodetool gcstats - Print GC Statistics\n" +
-                        "\n" +
-                        "SYNOPSIS\n" +
-                        "        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]\n" +
-                        "                [(-pp | --print-port)] [(-pw <password> | --password <password>)]\n" +
-                        "                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]\n" +
-                        "                [(-u <username> | --username <username>)] gcstats\n" +
-                        "                [(-F <format> | --format <format>)]\n" +
-                        "\n" +
-                        "OPTIONS\n" +
-                        "        -F <format>, --format <format>\n" +
-                        "            Output format (json, yaml)\n" +
-                        "\n" +
-                        "        -h <host>, --host <host>\n" +
-                        "            Node hostname or ip address\n" +
-                        "\n" +
-                        "        -p <port>, --port <port>\n" +
-                        "            Remote jmx agent port number\n" +
-                        "\n" +
-                        "        -pp, --print-port\n" +
-                        "            Operate in 4.0 mode with hosts disambiguated by port number\n" +
-                        "\n" +
-                        "        -pw <password>, --password <password>\n" +
-                        "            Remote jmx agent password\n" +
-                        "\n" +
-                        "        -pwf <passwordFilePath>, --password-file <passwordFilePath>\n" +
-                        "            Path to the JMX password file\n" +
-                        "\n" +
-                        "        -u <username>, --username <username>\n" +
-                        "            Remote jmx agent username\n" +
-                        "\n";
+        String help = "NAME\n" +
+                      "        nodetool gcstats - Print GC Statistics\n" +
+                      "\n" +
+                      "SYNOPSIS\n" +
+                      "        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]\n" +
+                      "                [(-pp | --print-port)] [(-pw <password> | --password <password>)]\n" +
+                      "                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]\n" +
+                      "                [(-u <username> | --username <username>)] gcstats\n" +
+                      "                [(-F <format> | --format <format>)] [(-H | --human-readable)]\n" +
+                      "\n" +
+                      "OPTIONS\n" +
+                      "        -F <format>, --format <format>\n" +
+                      "            Output format (json, yaml, table)\n" +
+                      "\n" +
+                      "        -h <host>, --host <host>\n" +
+                      "            Node hostname or ip address\n" +
+                      "\n" +
+                      "        -H, --human-readable\n" +
+                      "            Display gcstats with human-readable units\n" +
+                      "\n" +
+                      "        -p <port>, --port <port>\n" +
+                      "            Remote jmx agent port number\n" +
+                      "\n" +
+                      "        -pp, --print-port\n" +
+                      "            Operate in 4.0 mode with hosts disambiguated by port number\n" +
+                      "\n" +
+                      "        -pw <password>, --password <password>\n" +
+                      "            Remote jmx agent password\n" +
+                      "\n" +
+                      "        -pwf <passwordFilePath>, --password-file <passwordFilePath>\n" +
+                      "            Path to the JMX password file\n" +
+                      "\n" +
+                      "        -u <username>, --username <username>\n" +
+                      "            Remote jmx agent username\n" +
+                      "\n";
 
         assertThat(tool.getStdout().trim()).isEqualTo(help.trim());
     }
@@ -88,59 +98,75 @@ public class GcStatsTest extends CQLTester
     @Test
     public void testDefaultGcStatsOutput()
     {
-        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("gcstats");
+        ToolResult tool = ToolRunner.invokeNodetool("gcstats");
         tool.assertOnCleanExit();
         String output = tool.getStdout();
-        assertThat(output).contains("Interval (ms)");
-        assertThat(output).contains("Max GC Elapsed (ms)");
-        assertThat(output).contains("Total GC Elapsed (ms)");
-        assertThat(output).contains("GC Reclaimed (MB)");
-        assertThat(output).contains("Collections");
-        assertThat(output).contains("Direct Memory Bytes");
+        for (String value : GcStatsHolder.columnDescriptionMap.values())
+            assertThat(output).contains(value);
     }
 
     @Test
     public void testJsonGcStatsOutput()
     {
-        Arrays.asList("-F", "--format").forEach(arg -> {
-            ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("gcstats", arg, "json");
+        asList("-F", "--format").forEach(arg -> {
+            ToolResult tool = ToolRunner.invokeNodetool("gcstats", arg, "json");
             tool.assertOnCleanExit();
             String json = tool.getStdout();
             assertThatCode(() -> JsonUtils.JSON_OBJECT_MAPPER.readTree(json)).doesNotThrowAnyException();
-            assertThat(json).containsPattern("\"interval_ms\"");
-            assertThat(json).containsPattern("\"stdev_gc_elapsed_ms\"");
-            assertThat(json).containsPattern("\"collections\"");
-            assertThat(json).containsPattern("\"max_gc_elapsed_ms\"");
-            assertThat(json).containsPattern("\"gc_reclaimed_mb\"");
-            assertThat(json).containsPattern("\"total_gc_elapsed_ms\"");
-            assertThat(json).containsPattern("\"direct_memory_bytes\"");
+
+            for (String key : GcStatsHolder.columnDescriptionMap.keySet())
+                assertThat(json).contains(key);
         });
     }
 
     @Test
     public void testYamlGcStatsOutput()
     {
-        Arrays.asList("-F", "--format").forEach(arg -> {
-            ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("gcstats", arg, "yaml");
+        asList("-F", "--format").forEach(arg -> {
+            ToolResult tool = ToolRunner.invokeNodetool("gcstats", arg, "yaml");
             tool.assertOnCleanExit();
             String yamlOutput = tool.getStdout();
             Yaml yaml = new Yaml();
             assertThatCode(() -> yaml.load(yamlOutput)).doesNotThrowAnyException();
-            assertThat(yamlOutput).containsPattern("interval_ms:");
-            assertThat(yamlOutput).containsPattern("stdev_gc_elapsed_ms:");
-            assertThat(yamlOutput).containsPattern("collections:");
-            assertThat(yamlOutput).containsPattern("max_gc_elapsed_ms:");
-            assertThat(yamlOutput).containsPattern("gc_reclaimed_mb:");
-            assertThat(yamlOutput).containsPattern("total_gc_elapsed_ms:");
-            assertThat(yamlOutput).containsPattern("direct_memory_bytes:");
+
+            for (String key : GcStatsHolder.columnDescriptionMap.keySet())
+                assertThat(yamlOutput).containsPattern(key);
         });
     }
 
     @Test
-    public void testInvalidFormatOption() throws Exception
+    public void testInvalidFormatOption()
     {
-        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("gcstats", "-F", "invalid_format");
+        ToolResult tool = ToolRunner.invokeNodetool("gcstats", "-F", "invalid_format");
         assertThat(tool.getExitCode()).isEqualTo(1);
-        assertThat(tool.getStdout()).contains("arguments for -F are json, yaml only.");
+        assertThat(tool.getStdout()).contains("arguments for -F are json, yaml, table only.");
+    }
+
+    @Test
+    public void testWithoutNoOption()
+    {
+        ToolResult tool = ToolRunner.invokeNodetool("gcstats");
+        tool.assertOnCleanExit();
+
+        for (String value : GcStatsHolder.columnDescriptionMap.values())
+            assertThat(tool.getStdout()).contains(value);
+    }
+
+    @Test
+    public void testWithHumanReadableOption()
+    {
+        ToolResult tool = ToolRunner.invokeNodetool("gcstats", "--human-readable", "-F", "table");
+        tool.assertOnCleanExit();
+        String gcStatsOutput = tool.getStdout();
+
+        for (String value : GcStatsHolder.columnDescriptionMap.values())
+            assertThat(tool.getStdout()).contains(value);
+
+        String total = StringUtils.substringBetween(gcStatsOutput, GcStatsHolder.columnDescriptionMap.get(ALLOCATED_DIRECT_MEMORY), "\n").trim();
+        assertThat(parseDouble(total.split(" ")[0])).isGreaterThan(0);
+        String max = StringUtils.substringBetween(gcStatsOutput, GcStatsHolder.columnDescriptionMap.get(MAX_DIRECT_MEMORY), "\n").trim();
+        assertThat(parseDouble(max.split(" ")[0])).isGreaterThan(0);
+        String reserved = StringUtils.substringBetween(gcStatsOutput, GcStatsHolder.columnDescriptionMap.get(RESERVED_DIRECT_MEMORY), "\n").trim();
+        assertThat(parseDouble(reserved.split(" ")[0])).isGreaterThan(0);
     }
 }
