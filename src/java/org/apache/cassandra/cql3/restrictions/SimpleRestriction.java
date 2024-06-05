@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.restrictions;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -240,22 +241,30 @@ public final class SimpleRestriction implements SingleRestriction
 
     private List<ClusteringElements> bindAndGetSingleTermClusteringElements(QueryOptions options)
     {
-        List<ClusteringElements> elements = new ArrayList<>();
-        for (ByteBuffer b : bindAndGet(options)) {
-            ClusteringElements byteBuffers = ClusteringElements.of(columnsExpression.columnSpecification(), b);
-            elements.add(byteBuffers);
+        List<ByteBuffer> values = bindAndGet(options);
+        if (!values.isEmpty()) {
+            List<ClusteringElements> elements = new ArrayList<>();
+            for (ByteBuffer value : values) {
+                ClusteringElements byteBuffers = ClusteringElements.of(columnsExpression.columnSpecification(), value);
+                elements.add(byteBuffers);
+            }
+            return elements;
         }
-        return elements;
+        return Collections.emptyList();
     }
 
     private List<ClusteringElements> bindAndGetMultiTermClusteringElements(QueryOptions options)
     {
-        List<ClusteringElements> elements = new ArrayList<>();
-        for (List<ByteBuffer> buffers : bindAndGetElements(options)) {
-            ClusteringElements byteBuffers = ClusteringElements.of(columnsExpression.columns(), buffers);
-            elements.add(byteBuffers);
+        List<List<ByteBuffer>> values = bindAndGetElements(options);
+        if (!values.isEmpty()) {
+            List<ClusteringElements> elements = new ArrayList<>();
+            for (List<ByteBuffer> value : values) {
+                ClusteringElements byteBuffers = ClusteringElements.of(columnsExpression.columns(), value);
+                elements.add(byteBuffers);
+            }
+            return elements;
         }
-        return elements;
+        return Collections.emptyList();
     }
 
     private List<ByteBuffer> bindAndGet(QueryOptions options)
