@@ -238,7 +238,8 @@ public final class SimpleRestriction implements SingleRestriction
         }
     }
 
-    private List<ClusteringElements> bindAndGetSingleTermClusteringElements(QueryOptions options) {
+    private List<ClusteringElements> bindAndGetSingleTermClusteringElements(QueryOptions options)
+    {
         List<ClusteringElements> elements = new ArrayList<>();
         for (ByteBuffer b : bindAndGet(options)) {
             ClusteringElements byteBuffers = ClusteringElements.of(columnsExpression.columnSpecification(), b);
@@ -247,7 +248,8 @@ public final class SimpleRestriction implements SingleRestriction
         return elements;
     }
 
-    private List<ClusteringElements> bindAndGetMultiTermClusteringElements(QueryOptions options) {
+    private List<ClusteringElements> bindAndGetMultiTermClusteringElements(QueryOptions options)
+    {
         List<ClusteringElements> elements = new ArrayList<>();
         for (List<ByteBuffer> buffers : bindAndGetElements(options)) {
             ClusteringElements byteBuffers = ClusteringElements.of(columnsExpression.columns(), buffers);
