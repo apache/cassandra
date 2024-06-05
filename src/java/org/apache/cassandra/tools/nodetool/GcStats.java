@@ -17,31 +17,32 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
+import io.airlift.airline.Command;
+import io.airlift.airline.Option;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 import org.apache.cassandra.tools.nodetool.stats.GcStatsHolder;
 import org.apache.cassandra.tools.nodetool.stats.GcStatsPrinter;
-import org.apache.cassandra.tools.nodetool.stats.StatsPrinter;
-
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
 
 @Command(name = "gcstats", description = "Print GC Statistics")
 public class GcStats extends NodeToolCmd
 {
     @Option(title = "format",
-            name = {"-F", "--format"},
-            description = "Output format (json, yaml)")
+    name = { "-F", "--format" },
+    description = "Output format (json, yaml, table)")
     private String outputFormat = "";
+
+    @Option(title = "human_readable",
+    name = { "-H", "--human-readable" },
+    description = "Display gcstats with human-readable units")
+    private boolean humanReadable = false;
 
     @Override
     public void execute(NodeProbe probe)
     {
-        if (!outputFormat.isEmpty() && !"json".equals(outputFormat) && !"yaml".equals(outputFormat))
-            throw new IllegalArgumentException("arguments for -F are json, yaml only.");
+        if (!outputFormat.isEmpty() && !"json".equals(outputFormat) && !"yaml".equals(outputFormat) && !"table".equals(outputFormat))
+            throw new IllegalArgumentException("arguments for -F are json, yaml, table only.");
 
-        GcStatsHolder data = new GcStatsHolder(probe);
-        StatsPrinter<GcStatsHolder> printer = GcStatsPrinter.from(outputFormat);
-        printer.print(data, probe.output().out);
+        GcStatsPrinter.from(outputFormat).print(new GcStatsHolder(probe, humanReadable), probe.output().out);
     }
 }

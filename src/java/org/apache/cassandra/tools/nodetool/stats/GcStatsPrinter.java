@@ -19,7 +19,11 @@
 package org.apache.cassandra.tools.nodetool.stats;
 
 import java.io.PrintStream;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+
+import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
 
 /**
  * Printer for GC statistics.
@@ -40,32 +44,54 @@ public class GcStatsPrinter
                 return new StatsPrinter.JsonPrinter<>();
             case "yaml":
                 return new StatsPrinter.YamlPrinter<>();
+            case "table":
+                return new TablePrinter();
             default:
-                return new DefaultPrinter();
+                return new LegacyPrinter();
+        }
+    }
+
+    public static class TablePrinter implements StatsPrinter<GcStatsHolder>
+    {
+        /**
+         * Prints GC statistics in a human-readable table format.
+         *
+         * @param data The GC statistics data holder.
+         * @param out  The output stream to print to.
+         */
+        @Override
+        public void print(GcStatsHolder data, PrintStream out)
+        {
+            Map<String, Object> stats = data.convert2Map();
+            TableBuilder tableBuilder = new TableBuilder();
+
+            for (Map.Entry<String, Object> entry : stats.entrySet())
+                tableBuilder.add(GcStatsHolder.columnDescriptionMap.get(entry.getKey()), entry.getValue().toString());
+
+            tableBuilder.printTo(out);
         }
     }
 
     /**
      * Default printer for GC statistics.
      */
-    public static class DefaultPrinter implements StatsPrinter<GcStatsHolder>
+    public static class LegacyPrinter implements StatsPrinter<GcStatsHolder>
     {
-        /**
-         * Prints GC statistics in a human-readable table format.
-         *
-         * @param data The GC statistics data holder.
-         * @param out The output stream to print to.
-         */
         @Override
         public void print(GcStatsHolder data, PrintStream out)
         {
             Map<String, Object> stats = data.convert2Map();
+            TableBuilder tableBuilder = new TableBuilder();
 
-            out.printf("%20s%20s%20s%20s%20s%20s%25s%n", "Interval (ms)", "Max GC Elapsed (ms)", "Total GC Elapsed (ms)",
-                    "Stdev GC Elapsed (ms)", "GC Reclaimed (MB)", "Collections", "Direct Memory Bytes");
-            out.printf("%20.0f%20.0f%20.0f%20.0f%20.0f%20.0f%25d%n", stats.get("interval_ms"), stats.get("max_gc_elapsed_ms"),
-                    stats.get("total_gc_elapsed_ms"), stats.get("stdev_gc_elapsed_ms"), stats.get("gc_reclaimed_mb"),
-                    stats.get("collections"), (long) stats.get("direct_memory_bytes"));
+            tableBuilder.add(new ArrayList<>(GcStatsHolder.columnDescriptionMap.values()));
+
+            List<String> values = new ArrayList<>();
+            for (String key : GcStatsHolder.columnDescriptionMap.keySet())
+                values.add(stats.get(key).toString());
+
+            tableBuilder.add(values);
+
+            tableBuilder.printTo(out);
         }
     }
 }
