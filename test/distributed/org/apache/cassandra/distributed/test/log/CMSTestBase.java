@@ -92,9 +92,14 @@ public class CMSTestBase
 
         public CMSSut(IIsolatedExecutor.SerializableFunction<LocalLog, Processor> processorFactory, boolean addListeners, TokenPlacementModel.ReplicationFactor rf)
         {
+            this(processorFactory, addListeners, Mockito.mock(SchemaProvider.class), rf);
+        }
+
+        public CMSSut(IIsolatedExecutor.SerializableFunction<LocalLog, Processor> processorFactory, boolean addListeners, SchemaProvider schemaProvider, TokenPlacementModel.ReplicationFactor rf)
+        {
             partitioner = Murmur3Partitioner.instance;
             this.rf = rf;
-            schemaProvider = Mockito.mock(SchemaProvider.class);
+            this.schemaProvider = schemaProvider;
             ClusterMetadata initial = new ClusterMetadata(partitioner);
             log = LocalLog.logSpec()
                           .sync()
@@ -127,7 +132,7 @@ public class CMSTestBase
             }, schemaProvider));
         }
 
-        public void close() throws Exception
+        public void close()
         {
             ClusterMetadataService.unsetInstance();
         }
