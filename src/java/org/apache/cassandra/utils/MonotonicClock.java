@@ -248,7 +248,7 @@ public interface MonotonicClock
 
     public static class SystemClock extends AbstractEpochSamplingClock
     {
-        private SystemClock()
+        public SystemClock()
         {
             super(Clock.Global::currentTimeMillis);
         }
