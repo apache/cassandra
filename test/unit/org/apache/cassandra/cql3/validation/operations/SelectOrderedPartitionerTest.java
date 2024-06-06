@@ -147,7 +147,6 @@ public class SelectOrderedPartitionerTest extends CQLTester
         });
     }
 
-
     @Test
     public void testTokenFunctionWithSingleColumnPartitionKey() throws Throwable
     {
@@ -156,6 +155,7 @@ public class SelectOrderedPartitionerTest extends CQLTester
 
         assertRows(execute("SELECT * FROM %s WHERE token(a) >= token(?)", 0), row(0, "a"));
         assertRows(execute("SELECT * FROM %s WHERE token(a) >= token(?) and token(a) < token(?)", 0, 1), row(0, "a"));
+        assertRows(execute("SELECT * FROM %s WHERE token(a) BETWEEN token(?) and token(?)", 0, 1), row(0, "a"));
         assertInvalid("SELECT * FROM %s WHERE token(a) > token(?)", "a");
         assertInvalidMessage("The token() function must contains only partition key components",
                              "SELECT * FROM %s WHERE token(a, b) >= token(?, ?)", "b", 0);
@@ -167,12 +167,18 @@ public class SelectOrderedPartitionerTest extends CQLTester
 
         assertInvalidMessage("More than one restriction was found for the start bound on a",
                              "SELECT * FROM %s WHERE token(a) > token(?) AND token(a) > token(?)", 1, 2);
+        assertInvalidMessage("More than one restriction was found for the start bound on a",
+                             "SELECT * FROM %s WHERE token(a) > token(?) AND token(a) BETWEEN token(?) AND token(?)", 1, 2, 3);
         assertInvalidMessage("More than one restriction was found for the end bound on a",
                              "SELECT * FROM %s WHERE token(a) <= token(?) AND token(a) < token(?)", 1, 2);
+        assertInvalidMessage("More than one restriction was found for the end bound on a",
+                             "SELECT * FROM %s WHERE token(a) <= token(?) AND token(a) BETWEEN token(?) AND token(?)", 1, 2, 3);
         assertInvalidMessage("a cannot be restricted by more than one relation if it includes an Equal",
                              "SELECT * FROM %s WHERE token(a) > token(?) AND token(a) = token(?)", 1, 2);
         assertInvalidMessage("a cannot be restricted by more than one relation if it includes an Equal",
                              "SELECT * FROM %s WHERE  token(a) = token(?) AND token(a) > token(?)", 1, 2);
+        assertInvalidMessage("a cannot be restricted by more than one relation if it includes an Equal",
+                             "SELECT * FROM %s WHERE  token(a) = token(?) AND token(a) BETWEEN token(?) AND token(?)", 1, 2, 3);
     }
 
     @Test
@@ -197,15 +203,25 @@ public class SelectOrderedPartitionerTest extends CQLTester
         assertRows(execute("SELECT * FROM %s WHERE token(a, b) > token(?, ?) and token(a, b) < token(?, ?)", 0, "a", 0, "d"),
                    row(0, "b"),
                    row(0, "c"));
+        assertRows(execute("SELECT * FROM %s WHERE token(a, b) between token(?, ?) and token(?, ?)", 0, "b", 0, "d"),
+                   row(0, "b"),
+                   row(0, "c"));
         assertInvalidMessage("The token() function must be applied to all partition key components or none of them",
                              "SELECT * FROM %s WHERE token(a) > token(?) and token(b) > token(?)", 0, "a");
         assertInvalidMessage("The token() function must be applied to all partition key components or none of them",
                              "SELECT * FROM %s WHERE token(a) > token(?, ?) and token(a) < token(?, ?) and token(b) > token(?, ?) ",
                              0, "a", 0, "d", 0, "a");
+        assertInvalidMessage("The token() function must be applied to all partition key components or none of them",
+                             "SELECT * FROM %s WHERE token(a) BETWEEN token(?, ?) AND token(?, ?) and token(b) > token(?, ?) ",
+                             0, "a", 0, "d", 0, "a");
         assertInvalidMessage("The token function arguments must be in the partition key order: a, b",
                              "SELECT * FROM %s WHERE token(b, a) > token(0, 'c')");
+        assertInvalidMessage("The token function arguments must be in the partition key order: a, b",
+                             "SELECT * FROM %s WHERE token(b, a) BETWEEN token(0, 'c') AND token(0, 'f')");
         assertInvalidMessage("The token() function must be applied to all partition key components or none of them",
                              "SELECT * FROM %s WHERE token(a, b) > token(?, ?) and token(b) < token(?, ?)", 0, "a", 0, "a");
+        assertInvalidMessage("The token() function must be applied to all partition key components or none of them",
+                             "SELECT * FROM %s WHERE token(a) > token(?, ?) and token(b) > token(?, ?)", 0, "a", 0, "a");
         assertInvalidMessage("The token() function must be applied to all partition key components or none of them",
                              "SELECT * FROM %s WHERE token(a) > token(?, ?) and token(b) > token(?, ?)", 0, "a", 0, "a");
     }
@@ -272,6 +288,8 @@ public class SelectOrderedPartitionerTest extends CQLTester
         assertEmpty(execute("SELECT * FROM %s WHERE token(a) <= token(?) AND a = ?;", 2, 3));
         assertEmpty(execute("SELECT * FROM %s WHERE token(a) = token(?) AND a = ?;", 2, 3));
         assertRows(execute("SELECT * FROM %s WHERE token(a) >= token(?) AND token(a) <= token(?) AND a = ?;", 2, 2, 2),
+                   row(2, 2));
+        assertRows(execute("SELECT * FROM %s WHERE token(a) BETWEEN token(?) AND token(?) AND a = ?;", 2, 2, 2),
                    row(2, 2));
         assertEmpty(execute("SELECT * FROM %s WHERE token(a) >= token(?) AND token(a) < token(?) AND a = ?;", 2, 2, 2));
         assertEmpty(execute("SELECT * FROM %s WHERE token(a) > token(?) AND token(a) <= token(?) AND a = ?;", 2, 2, 2));

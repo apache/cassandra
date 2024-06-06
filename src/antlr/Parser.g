@@ -1784,8 +1784,8 @@ relation[WhereClause.Builder clauses]
             { $clauses.add(Relation.singleColumn($name.id, Operator.BETWEEN, betweenValues)); }
     | name=cident K_LIKE t=term { $clauses.add(Relation.singleColumn(name, Operator.LIKE, t)); }
     | name=cident K_IS K_NOT K_NULL { $clauses.add(Relation.singleColumn(name, Operator.IS_NOT, Constants.NULL_LITERAL)); }
-    | K_TOKEN l=tupleOfIdentifiers type=relationType t=term
-        { $clauses.add(Relation.token(l, type, t)); }
+    | K_TOKEN l=tupleOfIdentifiers type=relationType t=term { $clauses.add(Relation.token(l, type, t)); }
+    | K_TOKEN l=tupleOfIdentifiers K_BETWEEN betweenValues=singleColumnBetweenValues { $clauses.add(Relation.token(l, Operator.BETWEEN, betweenValues)); }
     | name=cident K_IN marker=inMarker
         { $clauses.add(Relation.singleColumn(name, Operator.IN, marker)); }
     | name=cident K_IN inValues=singleColumnInValues
