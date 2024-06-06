@@ -1,4 +1,5 @@
 4.1.6
+ * Reduce info logging from automatic paxos repair (CASSANDRA-19445)
  * Support legacy plain_text_auth section in credentials file removed unintentionally (CASSANDRA-19498)
 Merged from 4.0:
  * Add timeout specifically for bootstrapping nodes (CASSANDRA-15439)
