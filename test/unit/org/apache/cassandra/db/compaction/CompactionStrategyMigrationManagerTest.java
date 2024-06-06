@@ -121,6 +121,9 @@ public class CompactionStrategyMigrationManagerTest
         });
         // system schemas should be unchanged
         compactionStrategyUnchangedForSystemSchemas();
+
+        assertEquals(6, CompactionStrategyMigrationManager.instance.getNumCfsToMigrate());
+        assertEquals(0, CompactionStrategyMigrationManager.instance.getPendingTasksForMigration());
     }
 
     @Test
@@ -149,6 +152,9 @@ public class CompactionStrategyMigrationManagerTest
 
         // system schemas should be unchanged
         compactionStrategyUnchangedForSystemSchemas();
+
+        assertEquals(3, CompactionStrategyMigrationManager.instance.getNumCfsToMigrate());
+        assertEquals(0, CompactionStrategyMigrationManager.instance.getPendingTasksForMigration());
     }
 
     @Test
@@ -191,6 +197,9 @@ public class CompactionStrategyMigrationManagerTest
 
         // system schemas should be unchanged
         compactionStrategyUnchangedForSystemSchemas();
+
+        assertEquals(2, CompactionStrategyMigrationManager.instance.getNumCfsToMigrate());
+        assertEquals(0, CompactionStrategyMigrationManager.instance.getPendingTasksForMigration());
     }
 
     @Test
@@ -208,6 +217,9 @@ public class CompactionStrategyMigrationManagerTest
 
         // nothing should be changed
         compactionStrategyUnchangedForAllSchemas();
+
+        assertEquals(0, CompactionStrategyMigrationManager.instance.getNumCfsToMigrate());
+        assertEquals(0, CompactionStrategyMigrationManager.instance.getPendingTasksForMigration());
     }
 
     private void compactionStrategyUnchangedForAllSchemas()

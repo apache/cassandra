@@ -486,7 +486,9 @@ public class CassandraDaemon
 
         StorageService.instance.doAuthSetup(false);
 
-        // override local compaction strategy if needed
+        // override local compaction strategy if needed, before re-enabling auto compaction
+        // This is mainly for overriding compaction strategy for joined node
+        // For new node, override is done in prepareForBootstrap before bootstrapping
         CompactionStrategyMigrationManager.instance.mayOverrideLocalCompactionStrategy();
 
         // re-enable auto-compaction after gossip is settled, so correct disk boundaries are used

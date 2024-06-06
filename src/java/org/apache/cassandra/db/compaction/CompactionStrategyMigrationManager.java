@@ -21,6 +21,7 @@ package org.apache.cassandra.db.compaction;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
@@ -34,15 +35,19 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.utils.MBeanWrapper;
 
-public class CompactionStrategyMigrationManager
+public class CompactionStrategyMigrationManager implements CompactionStrategyMigrationManagerMBean
 {
     private static final Logger logger = LoggerFactory.getLogger(CompactionStrategyMigrationManager.class);
+    public static final String MBEAN_NAME = "org.apache.cassandra.db:type=CompactionStrategyMigrationManager";
     public static final CompactionStrategyMigrationManager instance = new CompactionStrategyMigrationManager();
     public Map<ColumnFamilyStore, CompactionParams> cfsToMigrate = new HashMap<>();
 
     private CompactionStrategyMigrationManager()
     {
+        if (!MBeanWrapper.instance.isRegistered(MBEAN_NAME))
+            MBeanWrapper.instance.registerMBean(this, MBEAN_NAME);
     }
 
     public void setup(CompactionStrategyMigrationOptions options)
@@ -163,6 +168,20 @@ public class CompactionStrategyMigrationManager
             return false;
         }
         return true;
+    }
+
+    public long getNumCfsToMigrate()
+    {
+        return cfsToMigrate.size();
+    }
+
+    public long getPendingTasksForMigration()
+    {
+        AtomicLong res = new AtomicLong(0L);
+        cfsToMigrate.forEach((cfs, params) -> {
+            res.addAndGet(cfs.getCompactionStrategyManager().getEstimatedRemainingTasks());
+        });
+        return res.get();
     }
 
     @VisibleForTesting

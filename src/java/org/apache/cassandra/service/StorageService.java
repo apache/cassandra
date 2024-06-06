@@ -87,6 +87,7 @@ import com.google.common.util.concurrent.Uninterruptibles;
 
 import org.apache.cassandra.audit.AuditUsersCacheService;
 import org.apache.cassandra.cql3.QueryHandler;
+import org.apache.cassandra.db.compaction.CompactionStrategyMigrationManager;
 import org.apache.cassandra.db.monitoring.MonitoringSchemaChangeListener;
 import org.apache.cassandra.dht.RangeStreamer.FetchReplica;
 import org.apache.cassandra.fql.FullQueryLogger;
@@ -2084,6 +2085,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         setMode(Mode.JOINING, "waiting for ring information", true);
         waitForSchema(schemaTimeoutMillis, ringTimeoutMillis);
         setMode(Mode.JOINING, "schema complete, ready to bootstrap", true);
+
+        // Override local compaction strategy for new nodes before bootstrapping to avoid re-compacting after the node
+        // is joined. This need to be called after waitForSchema so the new node already has the cfs info locally
+        CompactionStrategyMigrationManager.instance.mayOverrideLocalCompactionStrategy();
+
         setMode(Mode.JOINING, "waiting for pending range calculation", true);
         PendingRangeCalculatorService.instance.blockUntilFinished();
         setMode(Mode.JOINING, "calculation complete, ready to bootstrap", true);
