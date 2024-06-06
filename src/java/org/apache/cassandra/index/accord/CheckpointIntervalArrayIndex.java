@@ -615,6 +615,8 @@ public class CheckpointIntervalArrayIndex
                 }, (i1, i2, i3, i4, startIdx, endIdx) -> {
                     try
                     {
+                        if (startIdx == endIdx)
+                            return;
                         reader.maybeSeek(indexInput, stats, SortedListReader.SeekReason.SCAN, reader.fileOffsetStart(startIdx));
                         for (int i = startIdx; i < endIdx; i++)
                         {
