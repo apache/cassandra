@@ -2077,6 +2077,42 @@ drop_compact_storage_enabled: false
 # column_value_size_warn_threshold:
 # column_value_size_fail_threshold:
 #
+# Guardrail to warn or fail when writing ascii column values larger than threshold.
+# This guardrail is only applied to the values of regular columns because both the serialized partitions keys and the
+# values of the components of the clustering key already have a fixed, relatively small size limit of 65535 bytes, which
+# is probably lesser than the thresholds defined here.
+# The two thresholds default to null to disable.
+# Min unit: B
+# column_ascii_value_size_warn_threshold:
+# column_ascii_value_size_fail_threshold:
+#
+# Guardrail to warn or fail when writing blob column values larger than threshold.
+# This guardrail is only applied to the values of regular columns because both the serialized partitions keys and the
+# values of the components of the clustering key already have a fixed, relatively small size limit of 65535 bytes, which
+# is probably lesser than the thresholds defined here.
+# The two thresholds default to null to disable.
+# Min unit: B
+# column_blob_value_size_warn_threshold:
+# column_blob_value_size_fail_threshold:
+#
+# Guardrail to warn or fail when writing text column values larger than threshold.
+# This guardrail is only applied to the values of regular columns because both the serialized partitions keys and the
+# values of the components of the clustering key already have a fixed, relatively small size limit of 65535 bytes, which
+# is probably lesser than the thresholds defined here.
+# The two thresholds default to null to disable.
+# Min unit: B
+# column_text_value_size_warn_threshold:
+# column_text_value_size_fail_threshold:
+#
+# Guardrail to warn or fail when writing varchar column values larger than threshold.
+# This guardrail is only applied to the values of regular columns because both the serialized partitions keys and the
+# values of the components of the clustering key already have a fixed, relatively small size limit of 65535 bytes, which
+# is probably lesser than the thresholds defined here.
+# The two thresholds default to null to disable.
+# Min unit: B
+# column_varchar_value_size_warn_threshold:
+# column_varchar_value_size_fail_threshold:
+#
 # Guardrail to warn or fail when encountering larger size of collection data than threshold.
 # At query time this guardrail is applied only to the collection fragment that is being writen, even though in the case
 # of non-frozen collections there could be unaccounted parts of the collection on the sstables. This is done this way to
@@ -2087,6 +2123,39 @@ drop_compact_storage_enabled: false
 # collection_size_warn_threshold:
 # Min unit: B
 # collection_size_fail_threshold:
+#
+# Guardrail to warn or fail when encountering larger size of map data than threshold.
+# At query time this guardrail is applied only to the collection fragment that is being writen, even though in the case
+# of non-frozen collections there could be unaccounted parts of the collection on the sstables. This is done this way to
+# prevent read-before-write. The guardrail is also checked at sstable write time to detect large non-frozen collections,
+# although in that case exceeding the fail threshold will only log an error message, without interrupting the operation.
+# The two thresholds default to null to disable.
+# Min unit: B
+# collection_map_size_warn_threshold:
+# Min unit: B
+# collection_map_size_fail_threshold:
+#
+# Guardrail to warn or fail when encountering larger size of set data than threshold.
+# At query time this guardrail is applied only to the collection fragment that is being writen, even though in the case
+# of non-frozen collections there could be unaccounted parts of the collection on the sstables. This is done this way to
+# prevent read-before-write. The guardrail is also checked at sstable write time to detect large non-frozen collections,
+# although in that case exceeding the fail threshold will only log an error message, without interrupting the operation.
+# The two thresholds default to null to disable.
+# Min unit: B
+# collection_set_size_warn_threshold:
+# Min unit: B
+# collection_set_size_fail_threshold:
+#
+# Guardrail to warn or fail when encountering larger size of list data than threshold.
+# At query time this guardrail is applied only to the collection fragment that is being writen, even though in the case
+# of non-frozen collections there could be unaccounted parts of the collection on the sstables. This is done this way to
+# prevent read-before-write. The guardrail is also checked at sstable write time to detect large non-frozen collections,
+# although in that case exceeding the fail threshold will only log an error message, without interrupting the operation.
+# The two thresholds default to null to disable.
+# Min unit: B
+# collection_list_size_warn_threshold:
+# Min unit: B
+# collection_list_size_fail_threshold:
 #
 # Guardrail to warn or fail when encountering more elements in collection than threshold.
 # At query time this guardrail is applied only to the collection fragment that is being writen, even though in the case

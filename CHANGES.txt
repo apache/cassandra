@@ -1,4 +1,5 @@
 5.1
+ * Add per type max size guardrails (CASSANDRA-19677)
  * Add support for the BETWEEN operator in WHERE clauses (CASSANDRA-19604)
  * Replace Stream iteration with for-loop for SimpleRestriction::bindAndGetClusteringElements (CASSANDRA-19679)
  * Consolidate logging on trace level (CASSANDRA-19632)
