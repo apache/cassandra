@@ -57,7 +57,7 @@ public class CompactionStrategyMigrationManagerTest
                                     SchemaLoader.standardCFMD(KS_1, STCS_TBL)
                                                 .compaction(CompactionParams.stcs(Collections.emptyMap())),
                                     SchemaLoader.standardCFMD(KS_1, LCS_TBL)
-                                                .compaction(CompactionParams.lcs(Collections.emptyMap())),
+                                                .compaction(CompactionParams.lcs(Collections.singletonMap("sstable_size_in_mb", "1"))),
                                     SchemaLoader.standardCFMD(KS_1, TWCS_TBL)
                                                 .compaction(CompactionParams.twcs(Collections.emptyMap())));
         SchemaLoader.createKeyspace(KS_2,
@@ -65,7 +65,7 @@ public class CompactionStrategyMigrationManagerTest
                                     SchemaLoader.standardCFMD(KS_2, STCS_TBL)
                                                 .compaction(CompactionParams.stcs(Collections.emptyMap())),
                                     SchemaLoader.standardCFMD(KS_2, LCS_TBL)
-                                                .compaction(CompactionParams.lcs(Collections.emptyMap())),
+                                                .compaction(CompactionParams.lcs(Collections.singletonMap("sstable_size_in_mb", "1"))),
                                     SchemaLoader.standardCFMD(KS_2, TWCS_TBL)
                                                 .compaction(CompactionParams.twcs(Collections.emptyMap())));
         for (Keyspace ks : Keyspace.all())
@@ -109,20 +109,26 @@ public class CompactionStrategyMigrationManagerTest
         DatabaseDescriptor.setCompactionStrategyMigrationOptions(options);
         assertTrue(DatabaseDescriptor.getCompactionStrategyMigrationOptions().enabled);
 
-        CompactionParams expectedParams = CompactionParams.lcs(Collections.emptyMap());
         CompactionStrategyMigrationManager.instance.mayOverrideLocalCompactionStrategy();
 
         // user schemas should be changed to LCS
         Keyspace.open(KS_1).getColumnFamilyStores().forEach(cfs -> {
-            assertEquals(expectedParams, cfs.getCompactionStrategyManager().getCompactionParams());
+            assertEquals(LeveledCompactionStrategy.class, cfs.getCompactionStrategyManager().getCompactionParams().klass());
         });
         Keyspace.open(KS_2).getColumnFamilyStores().forEach(cfs -> {
-            assertEquals(expectedParams, cfs.getCompactionStrategyManager().getCompactionParams());
+            assertEquals(LeveledCompactionStrategy.class, cfs.getCompactionStrategyManager().getCompactionParams().klass());
         });
         // system schemas should be unchanged
         compactionStrategyUnchangedForSystemSchemas();
 
-        assertEquals(6, CompactionStrategyMigrationManager.instance.getNumCfsToMigrate());
+        // schema with the same target compaction strategy preserved former params
+        assertEquals(originalCompactionParams.get(Keyspace.open(KS_1).getColumnFamilyStore(LCS_TBL)),
+                     Keyspace.open(KS_1).getColumnFamilyStore(LCS_TBL).getCompactionStrategyManager().getCompactionParams());
+        assertEquals(originalCompactionParams.get(Keyspace.open(KS_2).getColumnFamilyStore(LCS_TBL)),
+                     Keyspace.open(KS_2).getColumnFamilyStore(LCS_TBL).getCompactionStrategyManager().getCompactionParams());
+
+        // only 4 non-LCS schema are counted
+        assertEquals(4, CompactionStrategyMigrationManager.instance.getNumCfsToMigrate());
         assertEquals(0, CompactionStrategyMigrationManager.instance.getPendingTasksForMigration());
     }
 
@@ -135,13 +141,12 @@ public class CompactionStrategyMigrationManagerTest
         assertTrue(DatabaseDescriptor.getCompactionStrategyMigrationOptions().enabled);
         assertTrue(DatabaseDescriptor.getCompactionStrategyMigrationOptions().keyspace_options.containsKey(KS_1));
         assertTrue(DatabaseDescriptor.getCompactionStrategyMigrationOptions().table_options.isEmpty());
-        CompactionParams expectedParams = CompactionParams.lcs(Collections.emptyMap());
 
         CompactionStrategyMigrationManager.instance.mayOverrideLocalCompactionStrategy();
 
         // KS_1 should be overriden
         Keyspace.open(KS_1).getColumnFamilyStores().forEach(cfs -> {
-            assertEquals(expectedParams, cfs.getCompactionStrategyManager().getCompactionParams());
+            assertEquals(LeveledCompactionStrategy.class, cfs.getCompactionStrategyManager().getCompactionParams().klass());
         });
 
         // KS_2 should be unchanged
@@ -153,7 +158,14 @@ public class CompactionStrategyMigrationManagerTest
         // system schemas should be unchanged
         compactionStrategyUnchangedForSystemSchemas();
 
-        assertEquals(3, CompactionStrategyMigrationManager.instance.getNumCfsToMigrate());
+        // schema with the same target compaction strategy preserved former params
+        assertEquals(originalCompactionParams.get(Keyspace.open(KS_1).getColumnFamilyStore(LCS_TBL)),
+                     Keyspace.open(KS_1).getColumnFamilyStore(LCS_TBL).getCompactionStrategyManager().getCompactionParams());
+        assertEquals(originalCompactionParams.get(Keyspace.open(KS_2).getColumnFamilyStore(LCS_TBL)),
+                     Keyspace.open(KS_2).getColumnFamilyStore(LCS_TBL).getCompactionStrategyManager().getCompactionParams());
+
+        // only 2 non-LCS schema are counted
+        assertEquals(2, CompactionStrategyMigrationManager.instance.getNumCfsToMigrate());
         assertEquals(0, CompactionStrategyMigrationManager.instance.getPendingTasksForMigration());
     }
 

@@ -65,7 +65,11 @@ public class CompactionStrategyMigrationManager implements CompactionStrategyMig
             userKeyspaces.forEach(keyspace -> {
                 for (ColumnFamilyStore cfs : Keyspace.open(keyspace).getColumnFamilyStores())
                 {
-                    cfsToMigrate.put(cfs, params);
+                    if (!cfs.getCompactionStrategyManager().getCompactionParams().klass().equals(params.klass()))
+                    {
+                        // do override only when compaction strategy is different
+                        cfsToMigrate.put(cfs, params);
+                    }
                 }
             });
         }
@@ -80,7 +84,11 @@ public class CompactionStrategyMigrationManager implements CompactionStrategyMig
                     CompactionParams params = CompactionStrategyMigrationOptions.parseCompactionParamsJson(paramsJson);
                     for (ColumnFamilyStore cfs : Keyspace.open(keyspace).getColumnFamilyStores())
                     {
-                        cfsToMigrate.put(cfs, params);
+                        if (!cfs.getCompactionStrategyManager().getCompactionParams().klass().equals(params.klass()))
+                        {
+                            // do override only when compaction strategy is different
+                            cfsToMigrate.put(cfs, params);
+                        }
                     }
                 }
             });
@@ -100,7 +108,12 @@ public class CompactionStrategyMigrationManager implements CompactionStrategyMig
                 if (isJsonValid(paramsJson) && isTableFoundInUserKeyspaces(userKeyspaces, keyspace, table))
                 {
                     CompactionParams params = CompactionStrategyMigrationOptions.parseCompactionParamsJson(paramsJson);
-                    cfsToMigrate.put(Keyspace.open(keyspace).getColumnFamilyStore(table), params);
+                    ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
+                    if (!cfs.getCompactionStrategyManager().getCompactionParams().klass().equals(params.klass()))
+                    {
+                        // do override only when compaction strategy is different
+                        cfsToMigrate.put(cfs, params);
+                    }
                 }
             });
         }
