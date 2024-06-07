@@ -1088,7 +1088,7 @@ public class AccordJournal implements IJournal, Shutdownable
             {
                 ArrayList<RecordPointer> pointers = new ArrayList<>(requests.size());
                 for (RequestContext req : requests) pointers.add(req.pointer);
-                FrameRecord frame = new FrameRecord(node.uniqueNow(), pointers, node.agent().preAcceptTimeout());
+                FrameRecord frame = new FrameRecord(node.time().uniqueNow(), pointers, node.agent().preAcceptTimeout());
                 FrameContext context = new FrameContext(requests);
                 appendAuxiliaryRecord(frame, context);
             }

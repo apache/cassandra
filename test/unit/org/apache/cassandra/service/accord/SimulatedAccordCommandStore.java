@@ -133,6 +133,11 @@ public class SimulatedAccordCommandStore implements AutoCloseable
                 return unixWrapper.applyAsLong(unit);
             }
 
+            public Timestamp uniqueNow()
+            {
+                return Timestamp.fromValues(epoch(), now(), nodeId);
+            }
+
             @Override
             public Timestamp uniqueNow(Timestamp atLeast)
             {

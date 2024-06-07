@@ -21,6 +21,7 @@ package org.apache.cassandra.service.accord;
 import accord.api.BarrierType;
 import accord.local.DurableBefore;
 import accord.local.Node.Id;
+import accord.local.NodeTimeService;
 import accord.local.RedundantBefore;
 import accord.messages.Request;
 import accord.primitives.Ranges;
@@ -93,6 +94,8 @@ public interface IAccordService
     void setCacheSize(long kb);
 
     TopologyManager topology();
+
+    NodeTimeService time();
 
     void startup();
 

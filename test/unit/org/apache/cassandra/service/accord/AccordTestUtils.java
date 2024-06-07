@@ -375,6 +375,11 @@ public class AccordTestUtils
             @Override public Timestamp uniqueNow(Timestamp atLeast) { return Timestamp.fromValues(1, now.getAsLong(), node); }
             @Override
             public long unix(TimeUnit timeUnit) { return NodeTimeService.unixWrapper(TimeUnit.MICROSECONDS, this::now).applyAsLong(timeUnit); }
+
+            public Timestamp uniqueNow()
+            {
+                return Timestamp.fromValues(1, now.getAsLong(), node);
+            }
         };
 
         SingleEpochRanges holder = new SingleEpochRanges(Ranges.of(range));
@@ -396,8 +401,8 @@ public class AccordTestUtils
             @Override public long epoch() {return 1; }
             @Override public long now() {return now.getAsLong(); }
             @Override public Timestamp uniqueNow(Timestamp atLeast) { return Timestamp.fromValues(1, now.getAsLong(), node); }
-            @Override
-            public long unix(TimeUnit timeUnit) { return NodeTimeService.unixWrapper(TimeUnit.MICROSECONDS, this::now).applyAsLong(timeUnit); }
+            @Override public Timestamp uniqueNow() { return Timestamp.fromValues(1, now.getAsLong(), node); }
+            @Override public long unix(TimeUnit timeUnit) { return NodeTimeService.unixWrapper(TimeUnit.MICROSECONDS, this::now).applyAsLong(timeUnit); }
         };
 
         AccordJournal journal = new AccordJournal(null, new AccordSpec.JournalSpec());

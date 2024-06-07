@@ -33,7 +33,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.concurrent.GuardedBy;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
 import com.google.common.primitives.Ints;
 
 import accord.coordinate.Barrier;
@@ -138,6 +137,7 @@ public class AccordService implements IAccordService, Shutdownable
     private final CoordinateDurabilityScheduling durabilityScheduling;
     private final AccordVerbHandler<? extends Request> requestHandler;
     private final LocalConfig configuration;
+
     @GuardedBy("this")
     private State state = State.INIT;
 
@@ -186,6 +186,12 @@ public class AccordService implements IAccordService, Shutdownable
         public TopologyManager topology()
         {
             throw new UnsupportedOperationException("Cannot return topology when accord.enabled = false in cassandra.yaml");
+        }
+
+        @Override
+        public NodeTimeService time()
+        {
+            throw new UnsupportedOperationException("Cannot return time when accord.enabled = false in cassandra.yaml");
         }
 
         @Override
@@ -288,18 +294,6 @@ public class AccordService implements IAccordService, Shutdownable
         return i;
     }
 
-    public static long uniqueNow()
-    {
-        // TODO (correctness, now): This is not unique it's just currentTimeMillis as microseconds
-        return TimeUnit.MILLISECONDS.toMicros(Clock.Global.currentTimeMillis());
-    }
-
-    public static long unix(TimeUnit timeUnit)
-    {
-        Preconditions.checkArgument(timeUnit != TimeUnit.NANOSECONDS, "Nanoseconds since the epoch doesn't fit in a long");
-        return timeUnit.convert(Clock.Global.currentTimeMillis(), TimeUnit.MILLISECONDS);
-    }
-
     private AccordService(Id localId)
     {
         Invariants.checkState(localId != null, "static localId must be set before instantiating AccordService");
@@ -312,12 +306,13 @@ public class AccordService implements IAccordService, Shutdownable
         this.dataStore = new AccordDataStore();
         this.configuration = new AccordConfiguration(DatabaseDescriptor.getRawConfig());
         this.journal = new AccordJournal(configService, DatabaseDescriptor.getAccord().journal);
+        LongSupplier systemTime = () -> Clock.Global.currentTimeMillis() * 1000L;
         this.node = new Node(localId,
                              messageSink,
                              this::handleLocalRequest,
                              configService,
-                             AccordService::uniqueNow,
-                             NodeTimeService.unixWrapper(TimeUnit.MICROSECONDS, AccordService::uniqueNow),
+                             systemTime,
+                             NodeTimeService.unixWrapper(TimeUnit.MICROSECONDS, systemTime),
                              () -> dataStore,
                              new KeyspaceSplitter(new EvenSplit<>(DatabaseDescriptor.getAccordShardCount(), getPartitioner().accordSplitter())),
                              agent,
@@ -504,6 +499,11 @@ public class AccordService implements IAccordService, Shutdownable
     public TopologyManager topology()
     {
         return node.topology();
+    }
+
+    public NodeTimeService time()
+    {
+        return node.time();
     }
 
     /**
