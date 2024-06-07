@@ -353,12 +353,14 @@ public final class Maps
                     dataSize += cell.dataSize();
                 }
                 Guardrails.collectionSize.guard(dataSize, column.name.toString(), false, params.clientState);
+                Guardrails.collectionMapSize.guard(dataSize, column.name.toString(), false, params.clientState);
             }
             else
             {
                 Guardrails.itemsPerCollection.guard(type.collectionSize(elements), column.name.toString(), false, params.clientState);
                 Cell<?> cell = params.addCell(column, value.get());
                 Guardrails.collectionSize.guard(cell.dataSize(), column.name.toString(), false, params.clientState);
+                Guardrails.collectionMapSize.guard(cell.dataSize(), column.name.toString(), false, params.clientState);
             }
         }
     }
