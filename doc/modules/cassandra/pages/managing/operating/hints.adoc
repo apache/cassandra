@@ -153,6 +153,10 @@ megabytes. |`128MiB`
 |`hints_compression` |Compression to apply to the hint files. If
 omitted, hints files will be written uncompressed. LZ4, Snappy, and
 Deflate compressors are supported. |`LZ4Compressor`
+
+|`auto_hints_cleanup_enabled` |Enable / disable automatic cleanup for the
+expired and orphaned hints files. Disable the option in order to preserve
+those hints on the disk. Available since version 4.1. |`false`
 |===
 
 == Configuring Hints at Runtime with `nodetool`
