@@ -19,6 +19,8 @@
 # Wrapper script for running a split or regexp of tests (excluding python dtests)
 #
 
+[ $DEBUG ] && set -x
+
 set -o errexit
 set -o pipefail
 

@@ -106,6 +106,9 @@ pipeline {
     }
   }
   post {
+    failure {
+      echo "ERROR pipeline failed – not all tests were run"
+    }
     always {
       sendNotifications()
     }
@@ -334,14 +337,16 @@ def build(command, cell) {
           def logfile = "stage-logs/${JOB_NAME}_${BUILD_NUMBER}_${cell.step}${cell_suffix}_attempt${attempt}.log.xz"
           def script_vars = "#!/bin/bash \n set -o pipefail ; " // pipe to tee needs pipefail
           script_vars = "${script_vars} m2_dir=\'${WORKSPACE}/build/m2\'"
-          def status = sh label: "RUNNING ${cell.step}...", script: "${script_vars} ${build_script} ${cell.jdk} 2>&1 | tee >( xz -c > build/${logfile} )", returnStatus: true
-          dir("build") {
-            archiveArtifacts artifacts: "${logfile}", fingerprint: true
-            copyToNightlies("${logfile}", "${cell.step}/jdk${cell.jdk}/${cell.arch}/")
-          }
-          if (0 != status) { error("Stage ${cell.step}${cell_suffix} failed with exit status ${status}") }
-          if ("jar" == cell.step) { // TODO only stash the project built files. all dependency libraries are restored from the local maven repo using `ant resolver-dist-lib`
-            stash name: "${cell.arch}_${cell.jdk}"
+          timeout(time: 1, unit: 'HOURS') {
+            def status = sh label: "RUNNING ${cell.step}...", script: "${script_vars} ${build_script} ${cell.jdk} 2>&1 | tee >( xz -c > build/${logfile} )", returnStatus: true
+            dir("build") {
+              archiveArtifacts artifacts: "${logfile}", fingerprint: true
+              copyToNightlies("${logfile}", "${cell.step}/jdk${cell.jdk}/${cell.arch}/")
+            }
+            if (0 != status) { error("Stage ${cell.step}${cell_suffix} failed with exit status ${status}") }
+            if ("jar" == cell.step) {
+              stash name: "${cell.arch}_${cell.jdk}"
+            }
           }
           dir("build") {
             copyToNightlies("${command.toCopy}", "${cell.step}/jdk${cell.jdk}/${cell.arch}/")
@@ -376,13 +381,15 @@ def test(command, cell) {
             script_vars = "${script_vars} cython=\'${cell.cython}\'"
           }
           script_vars = fetchDTestsSource(command, script_vars)
-          buildJVMDTestJars(cell, script_vars, logfile)
-          def status = sh label: "RUNNING TESTS ${cell.step}...", script: "${script_vars} .build/docker/run-tests.sh ${cell.step} '${cell.split}/${splits}' ${cell.jdk} 2>&1 | tee >( xz -c > build/${logfile} )", returnStatus: true
-          dir("build") {
-            archiveArtifacts artifacts: "${logfile}", fingerprint: true
-            copyToNightlies("${logfile}", "${cell.step}/${cell.arch}/jdk${cell.jdk}/python${cell.python}/cython_${cell.cython}/" + "split_${cell.split}_${splits}".replace("/", "_"))
+          timeout(time: 1, unit: 'HOURS') { // best throughput with each cell at ~10 minutes
+            buildJVMDTestJars(cell, script_vars, logfile)
+            def status = sh label: "RUNNING TESTS ${cell.step}...", script: "${script_vars} .build/docker/run-tests.sh ${cell.step} '${cell.split}/${splits}' ${cell.jdk} 2>&1 | tee >( xz -c > build/${logfile} )", returnStatus: true
+            dir("build") {
+              archiveArtifacts artifacts: "${logfile}", fingerprint: true
+              copyToNightlies("${logfile}", "${cell.step}/${cell.arch}/jdk${cell.jdk}/python${cell.python}/cython_${cell.cython}/" + "split_${cell.split}_${splits}".replace("/", "_"))
+            }
+            if (0 != status) { error("Stage ${cell.step}${cell_suffix} failed with exit status ${status}") }
           }
-          if (0 != status) { error("Stage ${cell.step}${cell_suffix} failed with exit status ${status}") }
           dir("build") {
             sh """
                 mkdir -p test/output/${cell.step}
