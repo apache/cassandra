@@ -208,6 +208,7 @@ fi
 
 # the docker container's env
 docker_envs="--env TEST_SCRIPT=${test_script} --env JAVA_VERSION=${java_version} --env PYTHON_VERSION=${python_version} --env cython=${cython} --env ANT_OPTS=\"${ANT_OPTS}\""
+[ $DEBUG ] && docker_envs="${docker_envs} --env DEBUG=1"
 
 split_str="0_0"
 if [[ "${split_chunk}" =~ ^[0-9]+/[0-9]+$ ]]; then
