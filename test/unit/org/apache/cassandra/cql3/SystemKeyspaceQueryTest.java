@@ -21,9 +21,13 @@ package org.apache.cassandra.cql3;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.db.SystemKeyspace;
-import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.utils.TimeUUID;
+
+import static org.apache.cassandra.db.SystemKeyspace.BATCHES;
+import static org.apache.cassandra.db.SystemKeyspace.LOCAL;
+import static org.apache.cassandra.db.SystemKeyspace.METADATA_LOG;
+import static org.apache.cassandra.db.SystemKeyspace.SNAPSHOT_TABLE_NAME;
+import static org.apache.cassandra.schema.SchemaConstants.SYSTEM_KEYSPACE_NAME;
 
 public class SystemKeyspaceQueryTest extends CQLTester
 {
@@ -34,19 +38,19 @@ public class SystemKeyspaceQueryTest extends CQLTester
     }
 
     @Test
-    public void testSelectsWithDifferentPartitioners() throws Throwable
+    public void testSelectsWithDifferentPartitioners()
     {
         // Verify that querying tables which use ReversedLongLocalPartitioner doesn't cause an error
         assertRowCountNet(executeNet(String.format("SELECT * FROM %s.%s WHERE epoch = 1",
-                                                    SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.METADATA_LOG)), 0);
+                                                   SYSTEM_KEYSPACE_NAME, METADATA_LOG)), 0);
         assertRowCountNet(executeNet(String.format("SELECT * FROM %s.%s WHERE epoch = 1",
-                                          SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.SNAPSHOT_TABLE_NAME)), 0);
+                                                   SYSTEM_KEYSPACE_NAME, SNAPSHOT_TABLE_NAME)), 0);
         // system.batches table uses LocalPartitioner
         assertRowCountNet(executeNet(String.format("SELECT * FROM %s.%s WHERE id = %s",
-                                          SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.BATCHES,
-                                          TimeUUID.Generator.nextTimeUUID())), 0);
+                                                   SYSTEM_KEYSPACE_NAME, BATCHES,
+                                                   TimeUUID.Generator.nextTimeUUID())), 0);
         // Query a table using the global system partitioner
         assertRowCountNet(executeNet(String.format("SELECT * FROM %s.%s WHERE key = 'invalidkey'",
-                                                   SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.LOCAL)), 0);
+                                                   SYSTEM_KEYSPACE_NAME, LOCAL)), 0);
     }
 }
