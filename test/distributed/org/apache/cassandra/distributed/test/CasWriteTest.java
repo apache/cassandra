@@ -44,19 +44,33 @@ import org.junit.rules.ExpectedException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.SinglePartitionReadCommand;
+import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.ICluster;
+import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IMessageFilters;
 import org.apache.cassandra.distributed.shared.InstanceClassLoader;
 import org.apache.cassandra.exceptions.CasWriteTimeoutException;
 import org.apache.cassandra.exceptions.CasWriteUnknownResultException;
+import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.notifications.SSTableMetadataChanged;
+import org.apache.cassandra.service.paxos.Ballot;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.TimeUUID;
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
 
+import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.INTERNALLY_FORCED;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 import static org.hamcrest.CoreMatchers.containsString;
@@ -68,6 +82,7 @@ public class CasWriteTest extends TestBaseImpl
     private static ICluster cluster;
     private static final AtomicInteger pkGen = new AtomicInteger(1_000); // preserve any pk values less than 1000 for manual queries.
     private static final Logger logger = LoggerFactory.getLogger(CasWriteTest.class);
+    private static final long GC_GRACE_SECONDS = 10;
 
     @Rule
     public ExpectedException thrown = ExpectedException.none();
@@ -75,8 +90,10 @@ public class CasWriteTest extends TestBaseImpl
     @BeforeClass
     public static void setupCluster() throws Throwable
     {
-        cluster = init(Cluster.build().withNodes(3).start());
-        cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
+        cluster = init(Cluster.build().withNodes(3).withConfig(config -> config.set("paxos_state_purging", "repaired")
+                                                                               .set("paxos_variant", "v2")
+                                                                               .set("paxos_cache_size", "0MiB")).start());
+        cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck)) WITH gc_grace_seconds = " + GC_GRACE_SECONDS);
     }
 
     @AfterClass
@@ -295,6 +312,125 @@ public class CasWriteTest extends TestBaseImpl
         Assert.fail("Expecting test to throw a CasWriteUnknownResultException");
     }
 
+    @Test
+    public void testStaleCommitInSystemPaxos() throws InterruptedException
+    {
+        cluster.filters().reset();
+        int extraKeys = 10;
+        int pk = pkGen.getAndAdd(extraKeys + 1);
+
+        cluster.coordinator(1).execute(mkCasInsertQuery((a) -> pk, 1, 1), ConsistencyLevel.ALL);
+        for (int i = 1 ; i <= 3 ; ++i)
+        {
+            ((IInvokableInstance)cluster.get(i)).runOnInstance(() -> DatabaseDescriptor.setPaxosPurgeGrace(0));
+        }
+
+        long insertTimestamp = ((IInvokableInstance)cluster.get(3)).applyOnInstance(pk_ -> {
+            ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore("tbl");
+            DecoratedKey key = cfs.decorateKey(Int32Type.instance.decompose(pk_));
+            return SystemKeyspace.loadPaxosState(key, cfs.metadata.get(), FBUtilities.nowInSeconds()).committed.ballot.uuidTimestamp();
+        }, pk);
+
+        ((IInvokableInstance)cluster.get(3)).runOnInstance(() -> {
+            ColumnFamilyStore cfs = Keyspace.open("system").getColumnFamilyStore("paxos");
+            cfs.forceFlush(INTERNALLY_FORCED).awaitUninterruptibly();
+            cfs.getLiveSSTables().forEach(s -> {
+                try
+                {
+                    StatsMetadata oldMetadata = s.getSSTableMetadata();
+                    s.mutateLevelAndReload(3);
+                    cfs.getCompactionStrategyManager().handleNotification(new SSTableMetadataChanged(s, oldMetadata), null);
+                }
+                catch (Throwable t)
+                {
+                    t.printStackTrace();
+                }
+            });
+        });
+        cluster.coordinator(1).execute(mkCasDeleteQuery((a) -> pk, 1, 1), ConsistencyLevel.ALL);
+
+        long deleteTimestamp = ((IInvokableInstance)cluster.get(3)).applyOnInstance(pk_ -> {
+            ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore("tbl");
+            DecoratedKey key = cfs.decorateKey(Int32Type.instance.decompose(pk_));
+            return SystemKeyspace.loadPaxosState(key, cfs.metadata.get(), FBUtilities.nowInSeconds()).committed.ballot.uuidTimestamp();
+        }, pk);
+
+        cluster.get(1).nodetool("repair", "--paxos-only", KEYSPACE, "tbl");
+
+        // write and flush enough data to trigger purge of the deletion commit, without touching the earlier insertion commit that is in a higher level
+        for (int i = 0 ; i < 10 ; ++i)
+        {
+            for (int j = 1; j <= extraKeys ; ++j)
+            {
+                final int pkj = pk + j;
+                cluster.coordinator(1).execute(mkCasInsertQuery(a -> pkj, i, 1), ConsistencyLevel.ALL);
+            }
+            for (int k = 1 ; k <= 3 ; ++k)
+            {
+                ((IInvokableInstance)cluster.get(k)).runOnInstance(() -> {
+                    ColumnFamilyStore cfs = Keyspace.open("system").getColumnFamilyStore("paxos");
+                    cfs.forceFlush(INTERNALLY_FORCED).awaitUninterruptibly();
+                    ColumnFamilyStore cfs2 = Keyspace.open(KEYSPACE).getColumnFamilyStore("tbl");
+                    cfs2.forceFlush(INTERNALLY_FORCED).awaitUninterruptibly();
+                });
+            }
+        }
+
+        for (int k = 1 ; k <= 3 ; ++k)
+        {
+            ((IInvokableInstance)cluster.get(k)).runOnInstance(() -> {
+                ColumnFamilyStore cfs = Keyspace.open("system").getColumnFamilyStore("paxos");
+                while (cfs.getCompactionStrategyManager().getEstimatedRemainingTasks() > 0)
+                {
+                    try { Thread.sleep(1000); }
+                    catch (InterruptedException e) { throw new RuntimeException(e); }
+                }
+            });
+        }
+
+        long repairTimestamp = ((IInvokableInstance)cluster.get(3)).applyOnInstance(pk_ -> {
+            ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore("tbl");
+            DecoratedKey key = cfs.decorateKey(Int32Type.instance.decompose(pk_));
+            return cfs.getPaxosRepairHistory().ballotForToken(key.getToken()).uuidTimestamp();
+        }, pk);
+
+        long afterRepairTimestampOn1 = ((IInvokableInstance)cluster.get(1)).applyOnInstance(pk_ -> {
+            ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore("tbl");
+            DecoratedKey key = cfs.decorateKey(Int32Type.instance.decompose(pk_));
+            return SystemKeyspace.loadPaxosState(key, cfs.metadata.get(), FBUtilities.nowInSeconds()).committed.ballot.uuidTimestamp();
+        }, pk);
+
+        long afterRepairTimestampOn3 = ((IInvokableInstance)cluster.get(3)).applyOnInstance(pk_ -> {
+            ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore("tbl");
+            DecoratedKey key = cfs.decorateKey(Int32Type.instance.decompose(pk_));
+            return SystemKeyspace.loadPaxosState(key, cfs.metadata.get(), FBUtilities.nowInSeconds()).committed.ballot.uuidTimestamp();
+        }, pk);
+
+        Assert.assertEquals(Ballot.none().uuidTimestamp(), afterRepairTimestampOn1);
+
+        logger.info("Waiting for tombstone to be purgeable");
+        Thread.sleep(GC_GRACE_SECONDS * 1000);
+        while (FBUtilities.timestampMicros() - (GC_GRACE_SECONDS * 1000_000) < TimeUUID.rawTimestampToUnixMicros(deleteTimestamp))
+            Thread.sleep(1000);
+
+        cluster.get(1).nodetool("compact", KEYSPACE, "tbl");
+
+        for (int i = 1 ; i <= 3 ; ++i)
+        {
+            int partitionCount = ((IInvokableInstance)cluster.get(3)).applyOnInstance(pk_ -> {
+                ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore("tbl");
+                DecoratedKey key = cfs.decorateKey(Int32Type.instance.decompose(pk_));
+                return Util.getAllUnfiltered(SinglePartitionReadCommand.create(cfs.metadata.get(), FBUtilities.nowInSeconds(), key, cfs.metadata.get().comparator.make(Int32Type.instance.decompose(1)))).size();
+            }, pk);
+            Assert.assertEquals(0, partitionCount);
+        }
+
+        cluster.filters().allVerbs().from(1).to(2).drop();
+        // we must first perform a write as the read has proposal stability and so responds async
+        cluster.coordinator(1).execute("UPDATE " + KEYSPACE + ".tbl SET v = 2 WHERE ck = 1 AND pk = " + pk + " IF EXISTS", ConsistencyLevel.SERIAL, ConsistencyLevel.QUORUM);
+        Assert.assertArrayEquals(new Object[0], cluster.coordinator(1).execute("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = " + pk, ConsistencyLevel.SERIAL));
+    }
+
     private static boolean isPaxosVariant2()
     {
         return Config.PaxosVariant.v2.name().equals(cluster.coordinator(1).instance().config().getString("paxos_variant"));
@@ -309,6 +445,13 @@ public class CasWriteTest extends TestBaseImpl
     private String mkCasInsertQuery(Function<AtomicInteger, Integer> pkFunc, int ck, int v)
     {
         String query = String.format("INSERT INTO %s.tbl (pk, ck, v) VALUES (%d, %d, %d) IF NOT EXISTS", KEYSPACE, pkFunc.apply(pkGen), ck, v);
+        logger.info("Generated query: " + query);
+        return query;
+    }
+
+    private String mkCasDeleteQuery(Function<AtomicInteger, Integer> pkFunc, int ck, int v)
+    {
+        String query = String.format("DELETE FROM %s.tbl WHERE pk = %d AND ck = 1 IF EXISTS", KEYSPACE, pkFunc.apply(pkGen));
         logger.info("Generated query: " + query);
         return query;
     }

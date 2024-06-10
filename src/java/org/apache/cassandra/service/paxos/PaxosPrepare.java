@@ -27,6 +27,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import org.slf4j.Logger;
@@ -286,8 +287,8 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
     private final List<Message<ReadResponse>> readResponses;
     private boolean haveReadResponseWithLatest;
     private boolean haveQuorumOfPermissions; // permissions => SUCCESS or READ_SUCCESS
-    private List<InetAddressAndPort> withLatest; // promised and have latest commit
-    private List<InetAddressAndPort> needLatest; // promised without having witnessed latest commit, nor yet been refreshed by us
+    private @Nonnull List<InetAddressAndPort> withLatest; // promised and have latest commit
+    private @Nullable List<InetAddressAndPort> needLatest; // promised without having witnessed latest commit, nor yet been refreshed by us
     private int failures; // failed either on initial request or on refresh
     private boolean hasProposalStability = true; // no successful modifying proposal could have raced with us and not been seen
     private boolean hasOnlyPromises = true;
@@ -506,11 +507,26 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
         }
 
         if (permitted.lowBound > maxLowBound)
+        {
             maxLowBound = permitted.lowBound;
+            if (!latestCommitted.isNone() && latestCommitted.ballot.uuidTimestamp() < maxLowBound)
+            {
+                latestCommitted = Committed.none(request.partitionKey, request.table);
+                haveReadResponseWithLatest = !readResponses.isEmpty();
+                if (needLatest != null)
+                {
+                    withLatest.addAll(needLatest);
+                    needLatest.clear();
+                }
+            }
+        }
 
         if (!haveQuorumOfPermissions)
         {
-            CompareResult compareLatest = permitted.latestCommitted.compareWith(latestCommitted);
+            Committed newLatestCommitted = permitted.latestCommitted;
+            if (newLatestCommitted.ballot.uuidTimestamp() < maxLowBound) newLatestCommitted = Committed.none(request.partitionKey, request.table);
+            CompareResult compareLatest = newLatestCommitted.compareWith(latestCommitted);
+
             switch (compareLatest)
             {
                 default: throw new IllegalStateException();
