@@ -36,7 +36,7 @@ import static java.nio.ByteBuffer.allocate;
  * This test doesn't include the activation of the guardrail during sstable writes, these cases are covered by the dtest
  * {@link org.apache.cassandra.distributed.test.guardrails.GuardrailCollectionSizeOnSSTableWriteTest}.
  */
-public class GuardrailCollectionMapSizeTest extends GuardrailCollectionTypeSpecificSizeTest
+public class GuardrailCollectionMapSizeTest extends GuardrailCollectionTypeSpecificSizeTester
 {
     public GuardrailCollectionMapSizeTest()
     {

@@ -32,15 +32,15 @@ import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.BYTES;
  * This test doesn't include the activation of the guardrail during sstable writes, these cases are covered by the dtest
  * {@link org.apache.cassandra.distributed.test.guardrails.GuardrailCollectionSizeOnSSTableWriteTest}.
  */
-public abstract class GuardrailCollectionTypeSpecificSizeTest extends ThresholdTester
+public abstract class GuardrailCollectionTypeSpecificSizeTester extends ThresholdTester
 {
     protected static final int WARN_THRESHOLD = 1024; // bytes
     protected static final int FAIL_THRESHOLD = WARN_THRESHOLD * 4; // bytes
 
-    public GuardrailCollectionTypeSpecificSizeTest(Threshold threshold,
-                                                   TriConsumer<Guardrails, String, String> setter,
-                                                   Function<Guardrails, String> warnGetter,
-                                                   Function<Guardrails, String> failGetter)
+    public GuardrailCollectionTypeSpecificSizeTester(Threshold threshold,
+                                                     TriConsumer<Guardrails, String, String> setter,
+                                                     Function<Guardrails, String> warnGetter,
+                                                     Function<Guardrails, String> failGetter)
     {
         super(WARN_THRESHOLD + "B",
               FAIL_THRESHOLD + "B",
