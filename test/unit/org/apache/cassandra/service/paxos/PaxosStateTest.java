@@ -143,7 +143,7 @@ public class PaxosStateTest
     {
         String key = "key" + System.nanoTime();
         String key2 = key + 'A';
-        Accepted accepted = new AcceptedWithTTL(newProposal(1, key), 1);
+        Accepted accepted = new AcceptedWithTTL(newProposal(1, key), SystemKeyspace.legacyPaxosTtlSec(metadata) + 1);
         PaxosState.legacyPropose(accepted);
         PaxosState.legacyPropose(new AcceptedWithTTL(newProposal(1, key2), 10000));
 
@@ -165,7 +165,7 @@ public class PaxosStateTest
         // clear cache to read from disk
         PaxosState.RECENT.clear();
 
-        Committed committed = new CommittedWithTTL(accepted, 1);
+        Committed committed = new CommittedWithTTL(accepted, SystemKeyspace.legacyPaxosTtlSec(metadata) + 1);
         Committed empty = emptyProposal(key).accepted().committed();
         PaxosState.commitDirect(committed);
 
@@ -219,8 +219,8 @@ public class PaxosStateTest
         Committed committed = new Committed(accepted);
         Committed empty = emptyProposal(key).accepted().committed();
         DatabaseDescriptor.setPaxosStatePurging(legacy); // write with TTLs
-        committed = new CommittedWithTTL(committed, -1); // for equality test
         PaxosState.commitDirect(committed);
+        committed = new CommittedWithTTL(committed, -1); // for equality test
 
         DatabaseDescriptor.setPaxosStatePurging(repaired);
         // not expired if read in the past
