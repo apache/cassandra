@@ -160,6 +160,14 @@ public class Keyspace
         return open(table.keyspace).getColumnFamilyStore(table.id);
     }
 
+    public static ColumnFamilyStore openAndGetStoreIfExists(TableMetadata table)
+    {
+        Keyspace keyspace = open(table.keyspace);
+        if (keyspace == null)
+            return null;
+        return keyspace.getIfExists(table.id);
+    }
+
     /**
      * Removes every SSTable in the directory from the appropriate Tracker's view.
      * @param directory the unreadable directory, possibly with SSTables in it, but not necessarily.
@@ -200,6 +208,11 @@ public class Keyspace
         if (cfs == null)
             throw new IllegalArgumentException(String.format("Unknown CF %s %s", id, columnFamilyStores));
         return cfs;
+    }
+
+    public ColumnFamilyStore getIfExists(TableId id)
+    {
+        return columnFamilyStores.get(id);
     }
 
     public boolean hasColumnFamilyStore(TableId id)
