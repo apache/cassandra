@@ -2375,6 +2375,12 @@ public abstract class CQLTester
         void apply() throws Throwable;
     }
 
+    @FunctionalInterface
+    public interface CheckedSupplier
+    {
+        ResultMessage get() throws Throwable;
+    }
+
     /**
      * Runs the given function before and after a flush of sstables.  This is useful for checking that behavior is
      * the same whether data is in memtables or sstables.

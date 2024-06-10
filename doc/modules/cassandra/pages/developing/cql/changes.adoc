@@ -5,6 +5,7 @@ The following describes the changes in each version of CQL.
 == 3.4.8
 
 * Add support for the BETWEEN operator in WHERE clauses (`19604`)
+* Add support for GENERATED PASSWORD clause (`17457`)
 
 == 3.4.7
 

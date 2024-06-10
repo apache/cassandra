@@ -5255,4 +5255,9 @@ public class DatabaseDescriptor
     {
         return conf.triggers_policy;
     }
+
+    public static boolean isPasswordValidatorReconfigurationEnabled()
+    {
+        return conf.password_validator_reconfiguration_enabled;
+    }
 }
