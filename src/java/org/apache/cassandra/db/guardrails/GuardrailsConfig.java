@@ -280,6 +280,58 @@ public interface GuardrailsConfig
     DataStorageSpec.LongBytesBound getColumnValueSizeFailThreshold();
 
     /**
+     * @return The threshold to warn when writing ascii column values larger than threshold.
+     */
+    @Nullable
+    DataStorageSpec.LongBytesBound getColumnAsciiValueSizeWarnThreshold();
+
+
+    /**
+     * @return The threshold to prevent writing ascii column values larger than threshold.
+     */
+    @Nullable
+    DataStorageSpec.LongBytesBound getColumnAsciiValueSizeFailThreshold();
+
+    /**
+     * @return The threshold to whan when writing blob column values larger than threshold.
+     */
+    @Nullable
+    DataStorageSpec.LongBytesBound getColumnBlobValueSizeWarnThreshold();
+
+
+    /**
+     * @return The threshold to prevent writing column blob values larger than threshold.
+     */
+    @Nullable
+    DataStorageSpec.LongBytesBound getColumnBlobValueSizeFailThreshold();
+
+    /**
+     * @return The threshold to warn when writing text column values larger than threshold.
+     */
+    @Nullable
+    DataStorageSpec.LongBytesBound getColumnTextValueSizeWarnThreshold();
+
+
+    /**
+     * @return The threshold to prevent writing text column values larger than threshold.
+     */
+    @Nullable
+    DataStorageSpec.LongBytesBound getColumnTextValueSizeFailThreshold();
+
+    /**
+     * @return The threshold to warn when writing varchar column values larger than threshold.
+     */
+    @Nullable
+    DataStorageSpec.LongBytesBound getColumnVarcharValueSizeWarnThreshold();
+
+
+    /**
+     * @return The threshold to prevent writing varchar column values larger than threshold.
+     */
+    @Nullable
+    DataStorageSpec.LongBytesBound getColumnVarcharValueSizeFailThreshold();
+
+    /**
      * @return The threshold to warn when encountering a collection with larger data size than threshold.
      */
     @Nullable
@@ -290,6 +342,42 @@ public interface GuardrailsConfig
      */
     @Nullable
     DataStorageSpec.LongBytesBound getCollectionSizeFailThreshold();
+
+    /**
+     * @return The threshold to warn when encountering a map collection with larger data size than threshold.
+     */
+    @Nullable
+    DataStorageSpec.LongBytesBound getCollectionMapSizeWarnThreshold();
+
+    /**
+     * @return The threshold to prevent map collections with larger data size than threshold.
+     */
+    @Nullable
+    DataStorageSpec.LongBytesBound getCollectionMapSizeFailThreshold();
+
+    /**
+     * @return The threshold to warn when encountering a set collection with larger data size than threshold.
+     */
+    @Nullable
+    DataStorageSpec.LongBytesBound getCollectionSetSizeWarnThreshold();
+
+    /**
+     * @return The threshold to prevent set collections with larger data size than threshold.
+     */
+    @Nullable
+    DataStorageSpec.LongBytesBound getCollectionSetSizeFailThreshold();
+
+    /**
+     * @return The threshold to warn when encountering a list collection with larger data size than threshold.
+     */
+    @Nullable
+    DataStorageSpec.LongBytesBound getCollectionListSizeWarnThreshold();
+
+    /**
+     * @return The threshold to prevent list collections with larger data size than threshold.
+     */
+    @Nullable
+    DataStorageSpec.LongBytesBound getCollectionListSizeFailThreshold();
 
     /**
      * @return The threshold to warn when encountering more elements in a collection than threshold.
