@@ -37,6 +37,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.audit.AuditLogOptions;
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.guardrails.CustomGuardrailConfig;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.index.internal.CassandraIndex;
 import org.apache.cassandra.io.compress.BufferType;
@@ -939,6 +940,9 @@ public class Config
     public volatile DurationSpec.LongMicrosecondsBound maximum_timestamp_fail_threshold = null;
     public volatile DurationSpec.LongMicrosecondsBound minimum_timestamp_warn_threshold = null;
     public volatile DurationSpec.LongMicrosecondsBound minimum_timestamp_fail_threshold = null;
+
+    public volatile boolean password_validator_reconfiguration_enabled = true;
+    public volatile CustomGuardrailConfig password_validator = new CustomGuardrailConfig();
 
     /**
      * The variants of paxos implementation and semantics supported by Cassandra.

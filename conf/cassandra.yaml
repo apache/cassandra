@@ -2148,6 +2148,67 @@ drop_compact_storage_enabled: false
 # This would also apply to system keyspaces.
 # maximum_replication_factor_warn_threshold: -1
 # maximum_replication_factor_fail_threshold: -1
+#
+# Guardrail to warn or fail when setting / altering a password.
+# Supported character sets are (both upper and lower-case): English, Cyrillic and modern Cyrillic, Czech, German, Polish.
+# Password is invalid if all characters are from non-supported character set. If a password is otherwise valid,
+# but it contains characters from unsupported language, these characters contribute only to password length rule.
+# All digits and all following special characters are supported too: !"#$%&()*+,-./:;<=>?@[\]^_`{|}~
+#password_validator:
+#  # Implementation class of a validator. When not in form of FQCN, the
+#  # package name org.apache.cassandra.db.guardrails.validators is prepended.
+#  # By default, there is no validator.
+#  class_name: CassandraPasswordValidator
+#  # Implementation class of related generator which generates values which are valid when
+#  # tested against this validator. When not in form of FQCN, the
+#  # package name org.apache.cassandra.db.guardrails.generators is prepended.
+#  # By default, there is no generator.
+#  generator_class_name: CassandraPasswordGenerator
+#  # There are four characteristics:
+#  # upper-case, lower-case, special character and digit.
+#  # If this value is set e.g. to 3, a password has to consist of 3 out of 4 characteristics.
+#  # For example, it has to contain at least 2 upper-case characters, 2 lower-case, and 2 digits to pass,
+#  # but it does not have to contain any special characters.
+#  # If number of characteristics found in the password is less than or equal to this number, it will emit warning.
+#  characteristic_warn: 3
+#  # If number of characteristics found in the password is less than or equal to this number, it will emit failure.
+#  characteristic_fail: 2
+#  # Maximum length of a password. Defaults to 1000.
+#  max_length: 1000
+#  # If password is shorter than this value, the validator will emit a warning.
+#  length_warn: 12
+#  # If a password is shorter than this value, the validator will emit a failure.
+#  length_fail: 8
+#  # If a password does not contain at least n upper-case characters, the validator will emit a warning.
+#  upper_case_warn: 2
+#  # If a password does not contain at least n upper-case characters, the validator will emit a failure.
+#  upper_case_fail: 1
+#  # If a password does not contain at least n lower-case characters, the validator will emit a warning.
+#  lower_case_warn: 2
+#  # If a password does not contain at least n lower-case characters, the validator will emit a failure.
+#  lower_case_fail: 1
+#  # If a password does not contain at least n digits, the validator will emit a warning.
+#  digit_warn: 2
+#  # If a password does not contain at least n digits, the validator will emit a failure.
+#  digit_fail: 1
+#  # If a password does not contain at least n special characters, the validator will emit a warning.
+#  special_warn: 2
+#  # If a password does not contain at least n special characters, the validator will emit a failure.
+#  special_fail: 1
+#  # If a password contain illegal sequences that at least this long, it is invalid.
+#  # Illegal sequences might be either alphabetical (form 'abcde'),
+#  # numerical (form '34567'), or US qwerty (form 'asdfg') as well as sequencies from supported character sets.
+#  # The minimum value for this property is 3, by default it is set to 5.
+#  illegal_sequence_length: 5
+#  # If set to true, a user will be informed what policies a suggested password is missing in order to be valid.
+#  # Defaults to true.
+#  detailed_messages: true
+
+# If this is set to false, then it is not possible to call reconfiguration
+# method in GuardrailsMBean. It will effectively forbid the reconfiguration of password validator in runtime.
+# You would need to stop the node, change the configuration in cassandra.yaml and start the node again.
+# Defaults to true, which means that reconfiguration of password validator via JMX is possible.
+# password_validator_reconfiguration_enabled: true
 
 # Guardrail to enable a CREATE or ALTER TABLE statement when default_time_to_live is set to 0
 # and the table is using TimeWindowCompactionStrategy compaction or a subclass of it.

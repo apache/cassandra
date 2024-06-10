@@ -65,7 +65,7 @@ public abstract class Guardrail
     private volatile long lastFailInMs = 0;
 
     /** Should throw exception if null client state is provided. */
-    private volatile boolean throwOnNullClientState = false;
+    protected volatile boolean throwOnNullClientState = false;
 
     Guardrail(String name, @Nullable String reason)
     {

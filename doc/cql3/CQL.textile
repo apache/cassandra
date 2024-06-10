@@ -18,7 +18,7 @@
 #
 -->
 
-h1. Cassandra Query Language (CQL) v3.4.7
+h1. Cassandra Query Language (CQL) v3.4.8
 
 
 
@@ -1280,6 +1280,7 @@ bc(syntax)..
 <create-role-stmt> ::= CREATE ROLE ( IF NOT EXISTS )? <identifier> ( WITH <option> ( AND <option> )* )?
 
 <option> ::= ("HASHED")? PASSWORD = <string>
+           | GENERATED PASSWORD
            | LOGIN = <boolean>
            | SUPERUSER = <boolean>
            | OPTIONS = <map_literal>
@@ -1298,6 +1299,7 @@ CREATE ROLE bob WITH PASSWORD = 'password_b' AND LOGIN = true AND SUPERUSER = tr
 CREATE ROLE carlos WITH OPTIONS = { 'custom_option1' : 'option1_value', 'custom_option2' : 99 };
 CREATE ROLE rob WITH LOGIN = true and PASSWORD = 'password_c' AND ACCESS FROM ALL CIDRS;
 CREATE ROLE hob WITH LOGIN = true and PASSWORD = 'password_d' AND ACCESS FROM CIDRS { 'region1' };
+CREATE ROLE tom WITH LOGIN = true and GENERATED PASSWORD;
 
 
 By default roles do not possess @LOGIN@ privileges or @SUPERUSER@ status.
@@ -1315,6 +1317,10 @@ h4(#createRolePwd). Setting credentials for internal authentication
 Use the @WITH PASSWORD@ clause to set a password for internal authentication, enclosing the password in single quotation marks.
 If internal authentication has not been set up or the role does not have @LOGIN@ privileges, the @WITH PASSWORD@ clause is not necessary.
 
+When @WITH GENERATED PASSWORD@ is used, Cassandra provides out-of-the-box CassandraPasswordValidator and CassandraPasswordGenerator
+under "password_validator" configuration property in cassandra.yaml. The usage of this clause will generate a password for a given password strength policy, as configured,
+and such password is returned to a client in CQL shell after query is executed. @GENERATED PASSWORD@ can not be used together with @HASHED PASSWORD@ nor with @PASSWORD@ alone.
+
 h4(#createRoleConditional). Creating a role conditionally
 
 Attempting to create an existing role results in an invalid query condition unless the @IF NOT EXISTS@ option is used. If the option is used and the role exists, the statement is a no-op.
@@ -1330,7 +1336,8 @@ __Syntax:__
 bc(syntax).. 
 <alter-role-stmt> ::= ALTER ROLE (IF EXISTS)? <identifier> ( WITH <option> ( AND <option> )* )?
 
-<option> ::= PASSWORD = <string>
+<option> ::= ("HASHED")? PASSWORD = <string>
+           | GENERATED PASSWORD
            | LOGIN = <boolean>
            | SUPERUSER = <boolean>
            | OPTIONS = <map_literal>
@@ -1343,9 +1350,10 @@ p.
 __Sample:__
 
 bc(sample). 
-ALTER ROLE bob WITH PASSWORD = 'PASSWORD_B' AND SUPERUSER = false;
-ALTER ROLE rob WITH LOGIN = true and PASSWORD = 'password_c' AND ACCESS FROM ALL CIDRS;
-ALTER ROLE hob WITH LOGIN = true and PASSWORD = 'password_d' AND ACCESS FROM CIDRS { 'region1' };
+ALTER ROLE IF EXISTS bob WITH PASSWORD = 'PASSWORD_B' AND SUPERUSER = false;
+ALTER ROLE IF EXISTS rob WITH LOGIN = true and PASSWORD = 'password_c' AND ACCESS FROM ALL CIDRS;
+ALTER ROLE IF EXISTS hob WITH LOGIN = true and PASSWORD = 'password_d' AND ACCESS FROM CIDRS { 'region1' };
+ALTER ROLE IF EXISTS hob WITH LOGIN = true and GENERATED PASSWORD;
 
 Conditions on executing @ALTER ROLE@ statements:
 
@@ -1458,10 +1466,12 @@ Prior to the introduction of roles in Cassandra 2.2, authentication and authoriz
 
 __Syntax:__ 
 
-bc(syntax).. 
-<create-user-statement> ::= CREATE USER ( IF NOT EXISTS )? <identifier> ( WITH ("HASHED")? PASSWORD <string> )? (<option>)?
+bc(syntax)..
+<create-user-statement> ::= CREATE USER ( IF NOT EXISTS )? <identifier> ( WITH <option> ( AND <option> )* )?
 
-<option> ::= SUPERUSER
+<option> ::= ("HASHED")? PASSWORD = <string>
+           | GENERATED PASSWORD
+           | SUPERUSER
            | NOSUPERUSER
 p. 
 
@@ -1470,6 +1480,7 @@ __Sample:__
 bc(sample). 
 CREATE USER alice WITH PASSWORD 'password_a' SUPERUSER;
 CREATE USER bob WITH PASSWORD 'password_b' NOSUPERUSER;
+CREATE USER tom WITH GENERATED PASSWORD;
 
 @CREATE USER@ is equivalent to @CREATE ROLE@ where the @LOGIN@ option is @true@. So, the following pairs of statements are equivalent:
 
@@ -1495,9 +1506,11 @@ h3(#alterUserStmt). ALTER USER
 __Syntax:__ 
 
 bc(syntax).. 
-<alter-user-statement> ::= ALTER USER (IF EXISTS)? <identifier> ( WITH PASSWORD <string> )? ( <option> )?
+<alter-user-statement> ::= ALTER USER (IF EXISTS)? <identifier> ( WITH <option> ( AND <option> )* )?
 
-<option> ::= SUPERUSER
+<option> ::= ("HASHED")? PASSWORD = <string>
+           | GENERATED PASSWORD
+           | SUPERUSER
            | NOSUPERUSER
 p. 
 If the user does not exist, the statement will return an error, unless @IF EXISTS@ is used in which case the operation is a no-op.
@@ -2659,6 +2672,11 @@ The following type names are not currently used by CQL, but are reserved for pot
 h2(#changes). Changes
 
 The following describes the changes in each version of CQL.
+
+h3. 3.4.8
+
+* Add support for the BETWEEN operator in WHERE clauses (see "CASSANDRA-19604":https://issues.apache.org/jira/browse/CASSANDRA-19604)
+* Add support for GENERATED PASSWORD clause (see "CASSANDRA-17457":https://issues.apache.org/jira/browse/CASSANDRA-17457)
 
 h3. 3.4.7
 

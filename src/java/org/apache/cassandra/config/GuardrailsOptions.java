@@ -30,8 +30,11 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cql3.statements.schema.TableAttributes;
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.guardrails.CustomGuardrailConfig;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.guardrails.GuardrailsConfig;
+import org.apache.cassandra.db.guardrails.ValueGenerator;
+import org.apache.cassandra.db.guardrails.ValueValidator;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.disk.usage.DiskUsageMonitor;
 
@@ -93,6 +96,7 @@ public class GuardrailsOptions implements GuardrailsConfig
                                  config.sai_sstable_indexes_per_query_fail_threshold,
                                  "sai_sstable_indexes_per_query",
                                  false);
+        validatePasswordValidator(config.password_validator);
     }
 
     @Override
@@ -817,6 +821,12 @@ public class GuardrailsOptions implements GuardrailsConfig
         return config.maximum_replication_factor_fail_threshold;
     }
 
+    @Override
+    public CustomGuardrailConfig getPasswordValidatorConfig()
+    {
+        return config.password_validator;
+    }
+
     public void setMaximumReplicationFactorThreshold(int warn, int fail)
     {
         validateMaxRFThreshold(warn, fail);
@@ -890,7 +900,7 @@ public class GuardrailsOptions implements GuardrailsConfig
     }
 
     @Override
-    public  DurationSpec.LongMicrosecondsBound getMaximumTimestampWarnThreshold()
+    public DurationSpec.LongMicrosecondsBound getMaximumTimestampWarnThreshold()
     {
         return config.maximum_timestamp_warn_threshold;
     }
@@ -919,7 +929,7 @@ public class GuardrailsOptions implements GuardrailsConfig
     }
 
     @Override
-    public  DurationSpec.LongMicrosecondsBound getMinimumTimestampWarnThreshold()
+    public DurationSpec.LongMicrosecondsBound getMinimumTimestampWarnThreshold()
     {
         return config.minimum_timestamp_warn_threshold;
     }
@@ -1257,5 +1267,18 @@ public class GuardrailsOptions implements GuardrailsConfig
             throw new IllegalArgumentException(format("Invalid value for data_disk_usage_max_disk_size: " +
                                                       "%s specified, but only %s are actually available on disk",
                                                       maxDiskSize, FileUtils.stringifyFileSize(diskSize)));
+    }
+
+    /**
+     * This method tests not only valid configuration, but also that what we generate with
+     * a generator passes its validator, so we avoid the situation when a configuration would be valid according
+     * to a concrete implementation of a password validator but passwords it would generate would not pass
+     * its validator which is clearly not desired.
+     *
+     * @param config configuration to use for generator and validator
+     */
+    private static void validatePasswordValidator(CustomGuardrailConfig config)
+    {
+        ValueGenerator.getGenerator("password", config).generate(ValueValidator.getValidator("password", config));
     }
 }

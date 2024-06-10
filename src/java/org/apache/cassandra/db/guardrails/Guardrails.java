@@ -19,6 +19,7 @@
 package org.apache.cassandra.db.guardrails;
 
 import java.util.Collections;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -450,6 +451,11 @@ public final class Guardrails implements GuardrailsMBean
                      (isWarning, value) ->
                      isWarning ? "Replica disk usage exceeds warning threshold"
                                : "Write request failed because disk usage exceeds failure threshold");
+    /**
+     * Guardrail on passwords for CREATE / ALTER ROLE statements.
+     */
+    public static final PasswordGuardrail password =
+    new PasswordGuardrail(() -> CONFIG_PROVIDER.getOrCreate(null).getPasswordValidatorConfig());
 
     static
     {
@@ -489,8 +495,8 @@ public final class Guardrails implements GuardrailsMBean
                      state -> maximumTimestampAsRelativeMicros(CONFIG_PROVIDER.getOrCreate(state).getMaximumTimestampWarnThreshold()),
                      state -> maximumTimestampAsRelativeMicros(CONFIG_PROVIDER.getOrCreate(state).getMaximumTimestampFailThreshold()),
                      (isWarning, what, value, threshold) ->
-                    format("The modification to table %s has a timestamp %s after the maximum allowable %s threshold %s",
-                           what, value, isWarning ? "warning" : "failure", threshold));
+                     format("The modification to table %s has a timestamp %s after the maximum allowable %s threshold %s",
+                            what, value, isWarning ? "warning" : "failure", threshold));
 
     public static final MinThreshold minimumAllowableTimestamp =
     new MinThreshold("minimum_timestamp",
@@ -1176,6 +1182,18 @@ public final class Guardrails implements GuardrailsMBean
     public void setMaximumReplicationFactorThreshold (int warn, int fail)
     {
         DEFAULT_CONFIG.setMaximumReplicationFactorThreshold(warn, fail);
+    }
+
+    @Override
+    public Map<String, Object> getPasswordValidatorConfig()
+    {
+        return password.getConfig();
+    }
+
+    @Override
+    public void reconfigurePasswordValidator(Map<String, Object> config)
+    {
+        password.reconfigure(config);
     }
 
     @Override

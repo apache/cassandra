@@ -84,6 +84,10 @@ New features
     - Authentication mode is exposed in system_views.clients table, nodetool clientstats and ClientMetrics 
       to help operators identify which authentication modes are being used. nodetool clientstats introduces --verbose flag 
       behind which this information is visible.
+    - CEP-24 - Password validation / generation. When built-in 'password_validator' guardrail is enabled, it will
+      generate a password of configured password strength policy upon role creation or alteration
+      when 'GENERATED PASSWORD' clause is used. Character sets supported are: English, Cyrillic, modern Cyrillic,
+      German, Polish and Czech.
 
 
 Upgrading

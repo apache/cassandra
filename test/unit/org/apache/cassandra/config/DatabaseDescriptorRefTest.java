@@ -170,6 +170,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.db.commitlog.CommitLogSegmentManagerFactory",
     "org.apache.cassandra.db.commitlog.CommitLogSegmentManagerStandard",
     "org.apache.cassandra.db.commitlog.DefaultCommitLogSegmentMgrFactory",
+    "org.apache.cassandra.db.guardrails.CustomGuardrailConfig",
     "org.apache.cassandra.db.guardrails.GuardrailsConfig",
     "org.apache.cassandra.db.guardrails.GuardrailsConfig$ConsistencyLevels",
     "org.apache.cassandra.db.guardrails.GuardrailsConfig$TableProperties",

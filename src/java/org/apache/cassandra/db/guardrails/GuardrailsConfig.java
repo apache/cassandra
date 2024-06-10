@@ -540,4 +540,9 @@ public interface GuardrailsConfig
      * @param enabled {@code true} if a query without partition key is enabled or not
      */
     void setNonPartitionRestrictedQueryEnabled(boolean enabled);
+
+    /**
+     * @return configuration for password validation guardrail.
+     */
+    CustomGuardrailConfig getPasswordValidatorConfig();
 }

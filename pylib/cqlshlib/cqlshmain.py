@@ -541,7 +541,7 @@ class Shell(cmd.Cmd):
             ksname = self.current_keyspace
         ksmeta = self.get_keyspace_meta(ksname)
         if tablename not in ksmeta.tables:
-            if ksname == 'system_auth' and tablename in ['roles', 'role_permissions']:
+            if ksname == 'system_auth' and tablename in ['roles', 'role_permissions', 'generated_password']:
                 self.get_fake_auth_table_meta(ksname, tablename)
             else:
                 raise ColumnFamilyNotFound("Column family {} not found".format(tablename))
@@ -564,6 +564,10 @@ class Shell(cmd.Cmd):
             table_meta.columns['role'] = ColumnMetadata(table_meta, 'role', cassandra.cqltypes.UTF8Type)
             table_meta.columns['resource'] = ColumnMetadata(table_meta, 'resource', cassandra.cqltypes.UTF8Type)
             table_meta.columns['permission'] = ColumnMetadata(table_meta, 'permission', cassandra.cqltypes.UTF8Type)
+        elif tablename == 'generated_password':
+            ks_meta = KeyspaceMetadata(ksname, True, None, None)
+            table_meta = TableMetadata(ks_meta, 'generated_password')
+            table_meta.columns['generated_password'] = ColumnMetadata(table_meta, 'generated_password', cassandra.cqltypes.UTF8Type)
         else:
             raise ColumnFamilyNotFound("Column family {} not found".format(tablename))
 
@@ -932,6 +936,10 @@ class Shell(cmd.Cmd):
             self.print_result(result, self.get_table_meta('system_auth', 'roles'))
         elif statement.query_string.lower().startswith("list"):
             self.print_result(result, self.get_table_meta('system_auth', 'role_permissions'))
+        elif statement.query_string.lower().startswith("create user") or statement.query_string.lower().startswith("create role"):
+            self.print_result(result, self.get_table_meta('system_auth', 'generated_password'))
+        elif statement.query_string.lower().startswith("alter user") or statement.query_string.lower().startswith("alter role"):
+            self.print_result(result, self.get_table_meta('system_auth', 'generated_password'))
         elif result:
             # CAS INSERT/UPDATE
             self.writeresult("")
