@@ -1,4 +1,5 @@
 5.1
+ * Relax slow_query_log_timeout for MultiNodeSAITest (CASSANDRA-19693)
  * Audit Log entries are missing identity for mTLS connections (CASSANDRA-19669)
  * Add support for the BETWEEN operator in WHERE clauses (CASSANDRA-19604)
  * Replace Stream iteration with for-loop for SimpleRestriction::bindAndGetClusteringElements (CASSANDRA-19679)
