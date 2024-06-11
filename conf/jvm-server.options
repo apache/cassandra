@@ -137,6 +137,9 @@
 # comment out this entry to enable IPv6 support).
 -Djava.net.preferIPv4Stack=true
 
+# Disable chronicle analytics. See CASSANDRA-19656
+-Dchronicle.analytics.disable=true
+
 ### Debug options
 
 # uncomment to enable flight recorder

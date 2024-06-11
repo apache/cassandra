@@ -48,6 +48,7 @@
  * Add the ability to disable bulk loading of SSTables (CASSANDRA-18781)
  * Clean up obsolete functions and simplify cql_version handling in cqlsh (CASSANDRA-18787)
 Merged from 5.0:
+ * Disable chronicle analytics (CASSANDRA-19656)
  * Replace Stream iteration with for-loop for StorageProxy::updateCoordinatorWriteLatencyTableMetric (CASSANDRA-19676)
  * Enforce metric naming contract if scope is used in a metric name (CASSANDRA-19619)
  * Avoid reading of the same IndexInfo from disk many times for a large partition (CASSANDRA-19557)
