@@ -366,12 +366,6 @@ public class CompositeType extends AbstractCompositeType
     }
 
     @Override
-    public List<AbstractType<?>> getComponents()
-    {
-        return subTypes;
-    }
-
-    @Override
     public boolean isCompatibleWith(AbstractType<?> previous)
     {
         if (Objects.equals(this, previous))

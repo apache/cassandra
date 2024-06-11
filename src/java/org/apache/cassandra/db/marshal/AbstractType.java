@@ -22,7 +22,6 @@ import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -529,15 +528,6 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
     public String toString(boolean ignoreFreezing)
     {
         return this.toString();
-    }
-
-    /**
-     * Return a list of the "subcomponents" this type has.
-     * This always return a singleton list with the type itself except for CompositeType.
-     */
-    public List<AbstractType<?>> getComponents()
-    {
-        return Collections.<AbstractType<?>>singletonList(this);
     }
 
     /**
