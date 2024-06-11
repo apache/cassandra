@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 5.1
  * Audit Log entries are missing identity for mTLS connections (CASSANDRA-19669)
  * Add support for the BETWEEN operator in WHERE clauses (CASSANDRA-19604)
@@ -47,7 +48,6 @@
  * Add the ability to disable bulk loading of SSTables (CASSANDRA-18781)
  * Clean up obsolete functions and simplify cql_version handling in cqlsh (CASSANDRA-18787)
 Merged from 5.0:
- * Refresh stale paxos commit (CASSANDRA-19617)
  * Replace Stream iteration with for-loop for StorageProxy::updateCoordinatorWriteLatencyTableMetric (CASSANDRA-19676)
  * Enforce metric naming contract if scope is used in a metric name (CASSANDRA-19619)
  * Avoid reading of the same IndexInfo from disk many times for a large partition (CASSANDRA-19557)
@@ -86,6 +86,7 @@ Merged from 5.0:
  * Fix resource cleanup after SAI query timeouts (CASSANDRA-19177)
  * Suppress CVE-2023-6481 (CASSANDRA-19184)
 Merged from 4.1:
+ * Refresh stale paxos commit (CASSANDRA-19617)
  * Reduce info logging from automatic paxos repair (CASSANDRA-19445)
  * Support legacy plain_text_auth section in credentials file removed unintentionally (CASSANDRA-19498)
  * Make queries visible to the "system_views.queries" virtual table at the coordinator level (CASSANDRA-19577)
