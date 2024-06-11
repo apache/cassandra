@@ -29,6 +29,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
@@ -37,9 +38,6 @@ import com.google.common.primitives.Ints;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.codahale.metrics.MetricRegistry;
-import com.datastax.driver.core.Metadata;
-import com.datastax.shaded.metrics.JmxReporter;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import org.antlr.runtime.RecognitionException;
@@ -81,7 +79,6 @@ import org.apache.cassandra.metrics.ClientRequestMetrics;
 import org.apache.cassandra.metrics.ClientRequestsMetricsHolder;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.optimizer.PlanSelector;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaChangeListener;
@@ -273,9 +270,6 @@ public class QueryProcessor implements QueryHandler
         }
     }
 
-    private static final AtomicInteger throughputCounter = new AtomicInteger(0);
-
-
     public ResultMessage processStatement(CQLStatement statement, QueryState queryState, QueryOptions options, long queryStartNanoTime)
     throws RequestExecutionException, RequestValidationException
     {
@@ -284,38 +278,11 @@ public class QueryProcessor implements QueryHandler
         statement.authorize(clientState);
         statement.validate(clientState);
 
-        long startTime = System.nanoTime();
-
-        throughputCounter.incrementAndGet();
-
         ResultMessage result = options.getConsistency() == ConsistencyLevel.NODE_LOCAL
-                         ? processNodeLocalStatement(statement, queryState, options)
-                         : statement.execute(queryState, options, queryStartNanoTime);
-
-       // End timer
-       long endTime = System.nanoTime();
-       long duration = endTime - startTime;
-
-       logger.info("Execution time for statement: {} ms", duration / 1_000_000);
+                             ? processNodeLocalStatement(statement, queryState, options)
+                             : statement.execute(queryState, options, queryStartNanoTime);
 
         return result == null ? new ResultMessage.Void() : result;
-    }
-
-    public static int getThroughput() {
-        return throughputCounter.get();
-    }
-
-
-    public class MetricsCollector {
-        private final MetricRegistry metrics = new MetricRegistry();
-        private final JmxReporter reporter;
-    
-        public MetricsCollector() {
-            reporter = JmxReporter.forRegistry(metrics).build();
-            reporter.start();
-        }
-    
-        // Add methods to collect specific metrics if needed
     }
 
     private ResultMessage processNodeLocalStatement(CQLStatement statement, QueryState queryState, QueryOptions options)
@@ -773,13 +740,6 @@ public class QueryProcessor implements QueryHandler
         Prepared prepared = parseAndPrepare(queryString, clientState, false);
         CQLStatement statement = prepared.statement;
 
-
-        // Extract additional metadata for optimization
-        Metadata metadata = extractMetadata(statement);
-
-        // Pass metadata to the Query Planner
-        queryPlanner.addMetadata(prepared, metadata);
-
         int boundTerms = statement.getBindVariables().size();
         if (boundTerms > FBUtilities.MAX_UNSIGNED_SHORT)
             throw new InvalidRequestException(String.format("Too many markers(?). %d markers exceed the allowed maximum of %d", boundTerms, FBUtilities.MAX_UNSIGNED_SHORT));
@@ -807,176 +767,6 @@ public class QueryProcessor implements QueryHandler
 
             return nonQualifiedWithKeyspace;
         }
-    }
-
-    public class CostEstimator {
-
-        // Example cost factors
-        private static final int INDEX_SCAN_COST = 1;
-        private static final int FULL_TABLE_SCAN_COST = 10;
-    
-        public Map<ExecutionPlan, Integer> estimateCosts(List<ExecutionPlan> plans) {
-            Map<ExecutionPlan, Integer> planCosts = new HashMap<>();
-    
-            for (ExecutionPlan plan : plans) {
-                int cost = estimateCost(plan);
-                planCosts.put(plan, cost);
-            }
-    
-            return planCosts;
-        }
-    
-        private int estimateCost(ExecutionPlan plan) {
-            int cost = 0;
-    
-            for (String step : ((ExecutionPlan) plan).getSteps()) {
-                if (step.contains("index scan")) {
-                    cost += INDEX_SCAN_COST;
-                } else if (step.contains("full table scan")) {
-                    cost += FULL_TABLE_SCAN_COST;
-                }
-            }
-    
-            return cost;
-        }
-    }
-
-    private final QueryPlanner queryPlanner = new QueryPlanner();
-
-    public class QueryPlanner {
-        private final List<ExecutionPlan> plans = new ArrayList<>();
-        private final CostEstimator costEstimator = new CostEstimator();
-        private final PlanSelector planSelector = new PlanSelector();
-
-        private final Map<CQLStatement, Metadata> metadataMap = new HashMap<>();
-    
-        public void addMetadata(Prepared prepared, Metadata metadata) {
-            metadataMap.put((CQLStatement) prepared, metadata);
-        }
-
-        public void addMetadata(CQLStatement statement, Metadata metadata) {
-            // Generate execution plans based on the metadata
-            generatePlans(statement, metadata);
-        }
-    
-        private void generatePlans(CQLStatement statement, Metadata metadata) {
-            // Clear previous plans
-            plans.clear();
-    
-            // Example plan generation logic
-            String tableName = metadata.getTableName();
-            String[] planSteps1 = {
-                "Step 1: Use index scan on " + tableName,
-                "Step 2: Filter results"
-            };
-            ExecutionPlan plan1 = new ExecutionPlan("Index Scan Plan", planSteps1);
-    
-            String[] planSteps2 = {
-                "Step 1: Use full table scan on " + tableName,
-                "Step 2: Filter results"
-            };
-            ExecutionPlan plan2 = new ExecutionPlan("Full Table Scan Plan", planSteps2);
-    
-            plans.add(plan1);
-            plans.add(plan2);
-        }
-
-        public ExecutionPlan selectOptimalPlan() {
-            // Evaluate plans
-            Map<ExecutionPlan, Integer> planCosts = costEstimator.estimateCosts(plans);
-            // Select the best plan
-            return PlanSelector.selectBestPlan(planCosts);
-        }
-    
-    
-        public Map<ExecutionPlan, Integer> evaluatePlans() {
-            return costEstimator.estimateCosts(plans);
-        }
-    
-        public List<ExecutionPlan> getPlans() {
-            return plans;
-        }
-    }
-
-    public class Metadata {
-        private String tableName;
-        private String indexName;
-        private String[] columns;
-        private String conditions;
-        
-    
-        public String getTableName() {
-            return tableName;
-        }
-    
-        public void setTableName(String tableName) {
-            this.tableName = tableName;
-        }
-    
-        public String getIndexName() {
-            return indexName;
-        }
-    
-        public void setIndexName(String indexName) {
-            this.indexName = indexName;
-        }
-    
-        public String[] getColumns() {
-            return columns;
-        }
-    
-        public void setColumns(String[] columns) {
-            this.columns = columns;
-        }
-    
-        public String getConditions() {
-            return conditions;
-        }
-    
-        public void setConditions(String conditions) {
-            this.conditions = conditions;
-        }
-    }
-
-    public class ExecutionPlan {
-        private String[] steps;
-        private String planName;
-    
-        // Constructor
-        public ExecutionPlan(String planName, String[] steps) {
-            this.planName = planName;
-            this.steps = steps;
-        }
-    
-        // Getters and setters
-        public String[] getSteps() {
-            return steps;
-        }
-    
-        public void setSteps(String[] steps) {
-            this.steps = steps;
-        }
-    
-        public String getPlanName() {
-            return planName;
-        }
-    
-        public void setPlanName(String planName) {
-            this.planName = planName;
-        }
-    }
-
-    private Metadata extractMetadata(CQLStatement statement) {
-        Metadata metadata = new Metadata();
-        // Implement logic to extract metadata from the statement
-        // This could include information about table names, column names, indexes, etc.
-        // For example:
-        if (statement instanceof SelectStatement) {
-            SelectStatement selectStatement = (SelectStatement) statement;
-            metadata.setTableName(selectStatement.keyspace() + "." + selectStatement.table());
-            // Add other metadata extraction logic as needed
-        }
-        return metadata;
     }
 
     private static MD5Digest computeId(String queryString, String keyspace)

@@ -1,0 +1,622 @@
+From 43af2201244d5ae463adfe676cedc2753bb9d839 Mon Sep 17 00:00:00 2001
+From: mrunal512 <mkgaikwa@uci.edu>
+Date: Tue, 11 Jun 2024 12:00:53 -0700
+Subject: [PATCH] New Feature: Advanced Query Optimizer
+
+---
+ .../cassandra/cql3/CQLFragmentParser.java     |  19 +-
+ .../org/apache/cassandra/cql3/CqlLexer.java   |   8 +
+ .../org/apache/cassandra/cql3/CqlParser.java  |   8 +
+ .../apache/cassandra/cql3/PlanSelector.java   |  20 ++
+ .../apache/cassandra/cql3/QueryProcessor.java | 216 +++++++++++++++++-
+ .../cassandra/optimizer/PlanSelector.java     |  22 ++
+ .../cassandra/cql3/CostEstimatorTest.java     |  26 +++
+ .../cassandra/cql3/ExecutionPlanTest.java     |  16 ++
+ .../apache/cassandra/cql3/MetaDataTest.java   |  21 ++
+ .../cassandra/cql3/PlanSelectorTest.java      |  25 ++
+ .../cassandra/cql3/QueryPlannerTest.java      |  26 +++
+ .../cql3/QueryProcessorIntegrationTest.java   |  39 ++++
+ 12 files changed, 440 insertions(+), 6 deletions(-)
+ create mode 100644 src/java/org/apache/cassandra/cql3/CqlLexer.java
+ create mode 100644 src/java/org/apache/cassandra/cql3/CqlParser.java
+ create mode 100644 src/java/org/apache/cassandra/cql3/PlanSelector.java
+ create mode 100644 src/java/org/apache/cassandra/optimizer/PlanSelector.java
+ create mode 100644 test/unit/org/apache/cassandra/cql3/CostEstimatorTest.java
+ create mode 100644 test/unit/org/apache/cassandra/cql3/ExecutionPlanTest.java
+ create mode 100644 test/unit/org/apache/cassandra/cql3/MetaDataTest.java
+ create mode 100644 test/unit/org/apache/cassandra/cql3/PlanSelectorTest.java
+ create mode 100644 test/unit/org/apache/cassandra/cql3/QueryPlannerTest.java
+ create mode 100644 test/unit/org/apache/cassandra/cql3/QueryProcessorIntegrationTest.java
+
+diff --git a/src/java/org/apache/cassandra/cql3/CQLFragmentParser.java b/src/java/org/apache/cassandra/cql3/CQLFragmentParser.java
+index d6f4732bfe..6b8894a5cd 100644
+--- a/src/java/org/apache/cassandra/cql3/CQLFragmentParser.java
++++ b/src/java/org/apache/cassandra/cql3/CQLFragmentParser.java
+@@ -23,6 +23,7 @@ import org.antlr.runtime.CharStream;
+ import org.antlr.runtime.CommonTokenStream;
+ import org.antlr.runtime.RecognitionException;
+ import org.antlr.runtime.TokenStream;
++import org.apache.cassandra.cql3.CQLStatement.Raw;
+ import org.apache.cassandra.exceptions.SyntaxException;
+ 
+ /**
+@@ -65,11 +66,11 @@ public final class CQLFragmentParser
+         // Lexer and parser
+         ErrorCollector errorCollector = new ErrorCollector(input);
+         CharStream stream = new ANTLRStringStream(input);
+-        CqlLexer lexer = new CqlLexer(stream);
++        CqlLexer lexer = new CqlLexer();
+         lexer.addErrorListener(errorCollector);
+ 
+-        TokenStream tokenStream = new CommonTokenStream(lexer);
+-        CqlParser parser = new CqlParser(tokenStream);
++        TokenStream tokenStream = new CommonTokenStream();
++        CqlParser parser = new CqlParser();
+         parser.addErrorListener(errorCollector);
+ 
+         // Parse the query string to a statement instance
+@@ -81,4 +82,16 @@ public final class CQLFragmentParser
+ 
+         return r;
+     }
++
++    public static Raw parseAnyUnhandled(Object parserFunction, String queryStr) {
++        return null;
++    }
++
++    public static Raw parseAnyUnhandled(Object parserFunction, String queryStr) {
++        return null;
++    }
++
++    public static Raw parseAnyUnhandled(Object parserFunction, String queryStr) {
++        return null;
++    }
+ }
+diff --git a/src/java/org/apache/cassandra/cql3/CqlLexer.java b/src/java/org/apache/cassandra/cql3/CqlLexer.java
+new file mode 100644
+index 0000000000..7844d1f6b9
+--- /dev/null
++++ b/src/java/org/apache/cassandra/cql3/CqlLexer.java
+@@ -0,0 +1,8 @@
++package org.apache.cassandra.cql3;
++
++public class CqlLexer {
++
++    public void addErrorListener(ErrorCollector errorCollector) {
++    }
++
++}
+diff --git a/src/java/org/apache/cassandra/cql3/CqlParser.java b/src/java/org/apache/cassandra/cql3/CqlParser.java
+new file mode 100644
+index 0000000000..731cc3e837
+--- /dev/null
++++ b/src/java/org/apache/cassandra/cql3/CqlParser.java
+@@ -0,0 +1,8 @@
++package org.apache.cassandra.cql3;
++
++public class CqlParser {
++
++    public void addErrorListener(ErrorCollector errorCollector) {
++    }
++
++}
+diff --git a/src/java/org/apache/cassandra/cql3/PlanSelector.java b/src/java/org/apache/cassandra/cql3/PlanSelector.java
+new file mode 100644
+index 0000000000..265174b423
+--- /dev/null
++++ b/src/java/org/apache/cassandra/cql3/PlanSelector.java
+@@ -0,0 +1,20 @@
++package org.apache.cassandra.optimizer;
++
++import java.util.Map;
++
++public class PlanSelector {
++
++    public ExecutionPlan selectBestPlan(Map<ExecutionPlan, Integer> planCosts) {
++        ExecutionPlan bestPlan = null;
++        int lowestCost = Integer.MAX_VALUE;
++
++        for (Map.Entry<ExecutionPlan, Integer> entry : planCosts.entrySet()) {
++            if (entry.getValue() < lowestCost) {
++                lowestCost = entry.getValue();
++                bestPlan = entry.getKey();
++            }
++        }
++
++        return bestPlan;
++    }
++}
+diff --git a/src/java/org/apache/cassandra/cql3/QueryProcessor.java b/src/java/org/apache/cassandra/cql3/QueryProcessor.java
+index 3cbad02362..5d03fbe705 100644
+--- a/src/java/org/apache/cassandra/cql3/QueryProcessor.java
++++ b/src/java/org/apache/cassandra/cql3/QueryProcessor.java
+@@ -29,7 +29,6 @@ import java.util.concurrent.ConcurrentMap;
+ import java.util.concurrent.TimeUnit;
+ import java.util.concurrent.atomic.AtomicInteger;
+ import java.util.stream.Collectors;
+-
+ import com.google.common.annotations.VisibleForTesting;
+ import com.google.common.base.Predicate;
+ import com.google.common.collect.Iterables;
+@@ -38,6 +37,9 @@ import com.google.common.primitives.Ints;
+ import org.slf4j.Logger;
+ import org.slf4j.LoggerFactory;
+ 
++import com.codahale.metrics.MetricRegistry;
++import com.datastax.driver.core.Metadata;
++import com.datastax.shaded.metrics.JmxReporter;
+ import com.github.benmanes.caffeine.cache.Cache;
+ import com.github.benmanes.caffeine.cache.Caffeine;
+ import org.antlr.runtime.RecognitionException;
+@@ -79,6 +81,7 @@ import org.apache.cassandra.metrics.ClientRequestMetrics;
+ import org.apache.cassandra.metrics.ClientRequestsMetricsHolder;
+ import org.apache.cassandra.net.Message;
+ import org.apache.cassandra.net.MessagingService;
++import org.apache.cassandra.optimizer.PlanSelector;
+ import org.apache.cassandra.schema.KeyspaceMetadata;
+ import org.apache.cassandra.schema.Schema;
+ import org.apache.cassandra.schema.SchemaChangeListener;
+@@ -270,6 +273,9 @@ public class QueryProcessor implements QueryHandler
+         }
+     }
+ 
++    private static final AtomicInteger throughputCounter = new AtomicInteger(0);
++
++
+     public ResultMessage processStatement(CQLStatement statement, QueryState queryState, QueryOptions options, long queryStartNanoTime)
+     throws RequestExecutionException, RequestValidationException
+     {
+@@ -278,13 +284,40 @@ public class QueryProcessor implements QueryHandler
+         statement.authorize(clientState);
+         statement.validate(clientState);
+ 
++        long startTime = System.nanoTime();
++
++        throughputCounter.incrementAndGet();
++
+         ResultMessage result = options.getConsistency() == ConsistencyLevel.NODE_LOCAL
+-                             ? processNodeLocalStatement(statement, queryState, options)
+-                             : statement.execute(queryState, options, queryStartNanoTime);
++                         ? processNodeLocalStatement(statement, queryState, options)
++                         : statement.execute(queryState, options, queryStartNanoTime);
++
++       // End timer
++       long endTime = System.nanoTime();
++       long duration = endTime - startTime;
++
++       logger.info("Execution time for statement: {} ms", duration / 1_000_000);
+ 
+         return result == null ? new ResultMessage.Void() : result;
+     }
+ 
++    public static int getThroughput() {
++        return throughputCounter.get();
++    }
++
++
++    public class MetricsCollector {
++        private final MetricRegistry metrics = new MetricRegistry();
++        private final JmxReporter reporter;
++    
++        public MetricsCollector() {
++            reporter = JmxReporter.forRegistry(metrics).build();
++            reporter.start();
++        }
++    
++        // Add methods to collect specific metrics if needed
++    }
++
+     private ResultMessage processNodeLocalStatement(CQLStatement statement, QueryState queryState, QueryOptions options)
+     {
+         if (!ENABLE_NODELOCAL_QUERIES.getBoolean())
+@@ -740,6 +773,13 @@ public class QueryProcessor implements QueryHandler
+         Prepared prepared = parseAndPrepare(queryString, clientState, false);
+         CQLStatement statement = prepared.statement;
+ 
++
++        // Extract additional metadata for optimization
++        Metadata metadata = extractMetadata(statement);
++
++        // Pass metadata to the Query Planner
++        queryPlanner.addMetadata(prepared, metadata);
++
+         int boundTerms = statement.getBindVariables().size();
+         if (boundTerms > FBUtilities.MAX_UNSIGNED_SHORT)
+             throw new InvalidRequestException(String.format("Too many markers(?). %d markers exceed the allowed maximum of %d", boundTerms, FBUtilities.MAX_UNSIGNED_SHORT));
+@@ -769,6 +809,176 @@ public class QueryProcessor implements QueryHandler
+         }
+     }
+ 
++    public class CostEstimator {
++
++        // Example cost factors
++        private static final int INDEX_SCAN_COST = 1;
++        private static final int FULL_TABLE_SCAN_COST = 10;
++    
++        public Map<ExecutionPlan, Integer> estimateCosts(List<ExecutionPlan> plans) {
++            Map<ExecutionPlan, Integer> planCosts = new HashMap<>();
++    
++            for (ExecutionPlan plan : plans) {
++                int cost = estimateCost(plan);
++                planCosts.put(plan, cost);
++            }
++    
++            return planCosts;
++        }
++    
++        private int estimateCost(ExecutionPlan plan) {
++            int cost = 0;
++    
++            for (String step : ((ExecutionPlan) plan).getSteps()) {
++                if (step.contains("index scan")) {
++                    cost += INDEX_SCAN_COST;
++                } else if (step.contains("full table scan")) {
++                    cost += FULL_TABLE_SCAN_COST;
++                }
++            }
++    
++            return cost;
++        }
++    }
++
++    private final QueryPlanner queryPlanner = new QueryPlanner();
++
++    public class QueryPlanner {
++        private final List<ExecutionPlan> plans = new ArrayList<>();
++        private final CostEstimator costEstimator = new CostEstimator();
++        private final PlanSelector planSelector = new PlanSelector();
++
++        private final Map<CQLStatement, Metadata> metadataMap = new HashMap<>();
++    
++        public void addMetadata(Prepared prepared, Metadata metadata) {
++            metadataMap.put((CQLStatement) prepared, metadata);
++        }
++
++        public void addMetadata(CQLStatement statement, Metadata metadata) {
++            // Generate execution plans based on the metadata
++            generatePlans(statement, metadata);
++        }
++    
++        private void generatePlans(CQLStatement statement, Metadata metadata) {
++            // Clear previous plans
++            plans.clear();
++    
++            // Example plan generation logic
++            String tableName = metadata.getTableName();
++            String[] planSteps1 = {
++                "Step 1: Use index scan on " + tableName,
++                "Step 2: Filter results"
++            };
++            ExecutionPlan plan1 = new ExecutionPlan("Index Scan Plan", planSteps1);
++    
++            String[] planSteps2 = {
++                "Step 1: Use full table scan on " + tableName,
++                "Step 2: Filter results"
++            };
++            ExecutionPlan plan2 = new ExecutionPlan("Full Table Scan Plan", planSteps2);
++    
++            plans.add(plan1);
++            plans.add(plan2);
++        }
++
++        public ExecutionPlan selectOptimalPlan() {
++            // Evaluate plans
++            Map<ExecutionPlan, Integer> planCosts = costEstimator.estimateCosts(plans);
++            // Select the best plan
++            return PlanSelector.selectBestPlan(planCosts);
++        }
++    
++    
++        public Map<ExecutionPlan, Integer> evaluatePlans() {
++            return costEstimator.estimateCosts(plans);
++        }
++    
++        public List<ExecutionPlan> getPlans() {
++            return plans;
++        }
++    }
++
++    public class Metadata {
++        private String tableName;
++        private String indexName;
++        private String[] columns;
++        private String conditions;
++        
++    
++        public String getTableName() {
++            return tableName;
++        }
++    
++        public void setTableName(String tableName) {
++            this.tableName = tableName;
++        }
++    
++        public String getIndexName() {
++            return indexName;
++        }
++    
++        public void setIndexName(String indexName) {
++            this.indexName = indexName;
++        }
++    
++        public String[] getColumns() {
++            return columns;
++        }
++    
++        public void setColumns(String[] columns) {
++            this.columns = columns;
++        }
++    
++        public String getConditions() {
++            return conditions;
++        }
++    
++        public void setConditions(String conditions) {
++            this.conditions = conditions;
++        }
++    }
++
++    public class ExecutionPlan {
++        private String[] steps;
++        private String planName;
++    
++        // Constructor
++        public ExecutionPlan(String planName, String[] steps) {
++            this.planName = planName;
++            this.steps = steps;
++        }
++    
++        // Getters and setters
++        public String[] getSteps() {
++            return steps;
++        }
++    
++        public void setSteps(String[] steps) {
++            this.steps = steps;
++        }
++    
++        public String getPlanName() {
++            return planName;
++        }
++    
++        public void setPlanName(String planName) {
++            this.planName = planName;
++        }
++    }
++
++    private Metadata extractMetadata(CQLStatement statement) {
++        Metadata metadata = new Metadata();
++        // Implement logic to extract metadata from the statement
++        // This could include information about table names, column names, indexes, etc.
++        // For example:
++        if (statement instanceof SelectStatement) {
++            SelectStatement selectStatement = (SelectStatement) statement;
++            metadata.setTableName(selectStatement.keyspace() + "." + selectStatement.table());
++            // Add other metadata extraction logic as needed
++        }
++        return metadata;
++    }
++
+     private static MD5Digest computeId(String queryString, String keyspace)
+     {
+         String toHash = keyspace == null ? queryString : keyspace + queryString;
+diff --git a/src/java/org/apache/cassandra/optimizer/PlanSelector.java b/src/java/org/apache/cassandra/optimizer/PlanSelector.java
+new file mode 100644
+index 0000000000..aa1e2af2c7
+--- /dev/null
++++ b/src/java/org/apache/cassandra/optimizer/PlanSelector.java
+@@ -0,0 +1,22 @@
++package org.apache.cassandra.optimizer;
++
++import java.util.Map;
++
++import org.apache.cassandra.cql3.QueryProcessor.ExecutionPlan;
++
++public class PlanSelector {
++
++    public static ExecutionPlan selectBestPlan(Map<ExecutionPlan, Integer> planCosts) {
++        ExecutionPlan bestPlan = null;
++        int lowestCost = Integer.MAX_VALUE;
++
++        for (Map.Entry<ExecutionPlan, Integer> entry : planCosts.entrySet()) {
++            if (entry.getValue() < lowestCost) {
++                lowestCost = entry.getValue();
++                bestPlan = entry.getKey();
++            }
++        }
++
++        return bestPlan;
++    }
++}
+diff --git a/test/unit/org/apache/cassandra/cql3/CostEstimatorTest.java b/test/unit/org/apache/cassandra/cql3/CostEstimatorTest.java
+new file mode 100644
+index 0000000000..45dd13041f
+--- /dev/null
++++ b/test/unit/org/apache/cassandra/cql3/CostEstimatorTest.java
+@@ -0,0 +1,26 @@
++package org.apache.cassandra.optimizer;
++
++import org.apache.cassandra.cql3.CQLStatement;
++import static org.mockito.Mockito.*;
++import static org.junit.Assert.*;
++import org.junit.Test;
++
++import java.util.List;
++
++public class QueryPlannerTest {
++
++    @Test
++    public void testGeneratePlans() {
++        QueryPlanner planner = new QueryPlanner();
++        CQLStatement statement = mock(CQLStatement.class);
++        Metadata metadata = new Metadata();
++        metadata.setTableName("users");
++
++        planner.addMetadata(statement, metadata);
++        List<ExecutionPlan> plans = planner.getPlans();
++
++        assertEquals(2, plans.size());
++        assertEquals("Index Scan Plan", plans.get(0).getPlanName());
++        assertEquals("Full Table Scan Plan", plans.get(1).getPlanName());
++    }
++}
+diff --git a/test/unit/org/apache/cassandra/cql3/ExecutionPlanTest.java b/test/unit/org/apache/cassandra/cql3/ExecutionPlanTest.java
+new file mode 100644
+index 0000000000..b4d86fcce0
+--- /dev/null
++++ b/test/unit/org/apache/cassandra/cql3/ExecutionPlanTest.java
+@@ -0,0 +1,16 @@
++package org.apache.cassandra.optimizer;
++
++import static org.junit.Assert.*;
++import org.junit.Test;
++
++public class ExecutionPlanTest {
++
++    @Test
++    public void testExecutionPlan() {
++        String[] steps = {"Step 1: Use index scan", "Step 2: Filter results"};
++        ExecutionPlan plan = new ExecutionPlan("Index Scan Plan", steps);
++
++        assertEquals("Index Scan Plan", plan.getPlanName());
++        assertArrayEquals(steps, plan.getSteps());
++    }
++}
+diff --git a/test/unit/org/apache/cassandra/cql3/MetaDataTest.java b/test/unit/org/apache/cassandra/cql3/MetaDataTest.java
+new file mode 100644
+index 0000000000..8bf21de889
+--- /dev/null
++++ b/test/unit/org/apache/cassandra/cql3/MetaDataTest.java
+@@ -0,0 +1,21 @@
++package org.apache.cassandra.optimizer;
++
++import static org.junit.Assert.*;
++import org.junit.Test;
++
++public class MetadataTest {
++
++    @Test
++    public void testMetadata() {
++        Metadata metadata = new Metadata();
++        metadata.setTableName("users");
++        metadata.setIndexName("user_id_idx");
++        metadata.setColumns(new String[]{"user_id", "name"});
++        metadata.setConditions("user_id = 123");
++
++        assertEquals("users", metadata.getTableName());
++        assertEquals("user_id_idx", metadata.getIndexName());
++        assertArrayEquals(new String[]{"user_id", "name"}, metadata.getColumns());
++        assertEquals("user_id = 123", metadata.getConditions());
++    }
++}
+diff --git a/test/unit/org/apache/cassandra/cql3/PlanSelectorTest.java b/test/unit/org/apache/cassandra/cql3/PlanSelectorTest.java
+new file mode 100644
+index 0000000000..33d17658ff
+--- /dev/null
++++ b/test/unit/org/apache/cassandra/cql3/PlanSelectorTest.java
+@@ -0,0 +1,25 @@
++package org.apache.cassandra.optimizer;
++
++import static org.junit.Assert.*;
++import org.junit.Test;
++
++import java.util.HashMap;
++import java.util.Map;
++
++public class PlanSelectorTest {
++
++    @Test
++    public void testSelectBestPlan() {
++        PlanSelector selector = new PlanSelector();
++        ExecutionPlan plan1 = new ExecutionPlan("Plan 1", new String[]{"index scan"});
++        ExecutionPlan plan2 = new ExecutionPlan("Plan 2", new String[]{"full table scan"});
++
++        Map<ExecutionPlan, Integer> planCosts = new HashMap<>();
++        planCosts.put(plan1, 1);
++        planCosts.put(plan2, 10);
++
++        ExecutionPlan bestPlan = selector.selectBestPlan(planCosts);
++
++        assertEquals("Plan 1", bestPlan.getPlanName());
++    }
++}
+diff --git a/test/unit/org/apache/cassandra/cql3/QueryPlannerTest.java b/test/unit/org/apache/cassandra/cql3/QueryPlannerTest.java
+new file mode 100644
+index 0000000000..45dd13041f
+--- /dev/null
++++ b/test/unit/org/apache/cassandra/cql3/QueryPlannerTest.java
+@@ -0,0 +1,26 @@
++package org.apache.cassandra.optimizer;
++
++import org.apache.cassandra.cql3.CQLStatement;
++import static org.mockito.Mockito.*;
++import static org.junit.Assert.*;
++import org.junit.Test;
++
++import java.util.List;
++
++public class QueryPlannerTest {
++
++    @Test
++    public void testGeneratePlans() {
++        QueryPlanner planner = new QueryPlanner();
++        CQLStatement statement = mock(CQLStatement.class);
++        Metadata metadata = new Metadata();
++        metadata.setTableName("users");
++
++        planner.addMetadata(statement, metadata);
++        List<ExecutionPlan> plans = planner.getPlans();
++
++        assertEquals(2, plans.size());
++        assertEquals("Index Scan Plan", plans.get(0).getPlanName());
++        assertEquals("Full Table Scan Plan", plans.get(1).getPlanName());
++    }
++}
+diff --git a/test/unit/org/apache/cassandra/cql3/QueryProcessorIntegrationTest.java b/test/unit/org/apache/cassandra/cql3/QueryProcessorIntegrationTest.java
+new file mode 100644
+index 0000000000..132a1eb2a0
+--- /dev/null
++++ b/test/unit/org/apache/cassandra/cql3/QueryProcessorIntegrationTest.java
+@@ -0,0 +1,39 @@
++package org.apache.cassandra.cql3;
++
++import org.apache.cassandra.optimizer.QueryPlanner;
++import org.apache.cassandra.optimizer.ExecutionPlan;
++import org.apache.cassandra.optimizer.Metadata;
++import org.apache.cassandra.service.ClientState;
++import org.junit.Before;
++import org.junit.Test;
++
++import static org.mockito.Mockito.*;
++import static org.junit.Assert.*;
++
++public class QueryProcessorIntegrationTest {
++
++    private QueryProcessor queryProcessor;
++    private QueryPlanner queryPlanner;
++    private ClientState clientState;
++
++    @Before
++    public void setUp() {
++        queryProcessor = QueryProcessor.instance;
++        queryPlanner = new QueryPlanner();
++        clientState = mock(ClientState.class);
++    }
++
++    @Test
++    public void testPrepare() {
++        String query = "SELECT * FROM users WHERE user_id = 123";
++        Metadata metadata = new Metadata();
++        metadata.setTableName("users");
++
++        when(clientState.getRawKeyspace()).thenReturn(null);
++        ResultMessage.Prepared prepared = queryProcessor.prepare(query, clientState);
++
++        // Verify that the optimal plan was selected
++        ExecutionPlan optimalPlan = queryPlanner.selectOptimalPlan();
++        assertNotNull(optimalPlan);
++    }
++}
+-- 
+2.43.0
+

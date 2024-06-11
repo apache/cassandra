@@ -23,7 +23,6 @@ import org.antlr.runtime.CharStream;
 import org.antlr.runtime.CommonTokenStream;
 import org.antlr.runtime.RecognitionException;
 import org.antlr.runtime.TokenStream;
-import org.apache.cassandra.cql3.CQLStatement.Raw;
 import org.apache.cassandra.exceptions.SyntaxException;
 
 /**
@@ -66,11 +65,11 @@ public final class CQLFragmentParser
         // Lexer and parser
         ErrorCollector errorCollector = new ErrorCollector(input);
         CharStream stream = new ANTLRStringStream(input);
-        CqlLexer lexer = new CqlLexer();
+        CqlLexer lexer = new CqlLexer(stream);
         lexer.addErrorListener(errorCollector);
 
-        TokenStream tokenStream = new CommonTokenStream();
-        CqlParser parser = new CqlParser();
+        TokenStream tokenStream = new CommonTokenStream(lexer);
+        CqlParser parser = new CqlParser(tokenStream);
         parser.addErrorListener(errorCollector);
 
         // Parse the query string to a statement instance
@@ -81,17 +80,5 @@ public final class CQLFragmentParser
         errorCollector.throwFirstSyntaxError();
 
         return r;
-    }
-
-    public static Raw parseAnyUnhandled(Object parserFunction, String queryStr) {
-        return null;
-    }
-
-    public static Raw parseAnyUnhandled(Object parserFunction, String queryStr) {
-        return null;
-    }
-
-    public static Raw parseAnyUnhandled(Object parserFunction, String queryStr) {
-        return null;
     }
 }

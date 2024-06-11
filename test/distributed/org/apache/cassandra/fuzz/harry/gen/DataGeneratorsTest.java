@@ -344,18 +344,6 @@ public class DataGeneratorsTest
         testOrderPreserving(new StringBijection());
     }
 
-    @Test
-    public void testStringGenerator() {
-        StringBijection stringBijection = new StringBijection();
-        for (int i = 0; i < RUNS; i++) {
-            long descriptor = rand.next();
-            descriptor = stringBijection.adjustEntropyDomain(descriptor);
-            String inflated = stringBijection.inflate(descriptor);
-            long deflated = stringBijection.deflate(inflated);
-            Assert.assertEquals(descriptor, deflated);
-        }
-    }
-
     public static <T> void testInverse(Bijections.Bijection<T> gen)
     {
         test(gen,

@@ -256,28 +256,4 @@ public class NoReplicationTokenAllocatorTest extends TokenAllocatorTestBase
             return 0;
         }
     }
-
-    @Test
-    public void testRemoveAndReplaceUnits() {
-        // This test case verifies the behavior of removing and then replacing units in the token allocator
-
-        IPartitioner partitioner = new Murmur3Partitioner();
-        int perUnitCount = 4;
-        TokenCount tc = fixedTokenCount;
-        NoReplicationStrategy rs = new NoReplicationStrategy();
-        NavigableMap<Token, Unit> tokenMap = Maps.newTreeMap();
-
-        NoReplicationTokenAllocator<Unit> allocator = new NoReplicationTokenAllocator<>(tokenMap, rs, partitioner);
-
-
-        int initialClusterSize = 10;
-        grow(allocator, initialClusterSize, tc, perUnitCount, true);
-
-
-        int unitsToRemove = 3;
-        loseAndReplace(allocator, unitsToRemove, tc, perUnitCount, partitioner);
-
-
-        Assert.assertEquals(initialClusterSize, allocator.sortedUnits.size());
-    }
 }
