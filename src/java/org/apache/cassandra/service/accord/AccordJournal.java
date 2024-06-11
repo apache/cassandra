@@ -41,8 +41,6 @@ import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Multimap;
 import com.google.common.primitives.Ints;
 
-import accord.local.Bootstrap.CreateBootstrapCompleteMarkerTransaction;
-import accord.local.Bootstrap.MarkBootstrapComplete;
 import accord.messages.ApplyThenWaitUntilApplied;
 import org.agrona.collections.Long2ObjectHashMap;
 import org.agrona.collections.LongArrayList;
@@ -101,7 +99,6 @@ import org.apache.cassandra.service.accord.serializers.EnumSerializer;
 import org.apache.cassandra.service.accord.serializers.FetchSerializers;
 import org.apache.cassandra.service.accord.serializers.InformDurableSerializers;
 import org.apache.cassandra.service.accord.serializers.InformOfTxnIdSerializers;
-import org.apache.cassandra.service.accord.serializers.LocalBootstrapSerializers;
 import org.apache.cassandra.service.accord.serializers.PreacceptSerializers;
 import org.apache.cassandra.service.accord.serializers.RecoverySerializers;
 import org.apache.cassandra.service.accord.serializers.SetDurableSerializers;
@@ -118,8 +115,6 @@ import static accord.messages.MessageType.APPLY_MINIMAL_REQ;
 import static accord.messages.MessageType.APPLY_THEN_WAIT_UNTIL_APPLIED_REQ;
 import static accord.messages.MessageType.BEGIN_INVALIDATE_REQ;
 import static accord.messages.MessageType.BEGIN_RECOVER_REQ;
-import static accord.messages.MessageType.BOOTSTRAP_ATTEMPT_COMPLETE_MARKER;
-import static accord.messages.MessageType.BOOTSTRAP_ATTEMPT_MARK_BOOTSTRAP_COMPLETE;
 import static accord.messages.MessageType.COMMIT_INVALIDATE_REQ;
 import static accord.messages.MessageType.COMMIT_MAXIMAL_REQ;
 import static accord.messages.MessageType.COMMIT_SLOW_PATH_REQ;
@@ -768,10 +763,6 @@ public class AccordJournal implements IJournal, Shutdownable
         INTEROP_COMMIT_MAXIMAL        (84, INTEROP_COMMIT_MAXIMAL_REQ, STABLE_MAXIMAL_REQ,   AccordInteropCommit.serializer, TXN),
         INTEROP_APPLY_MINIMAL         (85, INTEROP_APPLY_MINIMAL_REQ,  APPLY_MINIMAL_REQ,    AccordInteropApply.serializer,  TXN),
         INTEROP_APPLY_MAXIMAL         (86, INTEROP_APPLY_MAXIMAL_REQ,  APPLY_MAXIMAL_REQ,    AccordInteropApply.serializer,  TXN),
-
-        /* Accord Bootstrap local messages */
-        BOOTSTRAP_ATTEMPT_COMPLETE_MARKER           (90, MessageType.BOOTSTRAP_ATTEMPT_COMPLETE_MARKER,         LocalBootstrapSerializers.createBootstrapCompleteMarkerTransaction, LOCAL),
-        BOOTSTRAP_ATTEMPT_MARK_BOOTSTRAP_COMPLETE   (91, MessageType.BOOTSTRAP_ATTEMPT_MARK_BOOTSTRAP_COMPLETE, LocalBootstrapSerializers.markBootstrapComplete,                    LOCAL),
         ;
 
         final int id;
@@ -1463,18 +1454,6 @@ public class AccordJournal implements IJournal, Shutdownable
         {
             return readMessage(txnId, APPLY_THEN_WAIT_UNTIL_APPLIED_REQ, ApplyThenWaitUntilApplied.class);
         }
-
-        @Override
-        public CreateBootstrapCompleteMarkerTransaction bootstrapAttemptCompleteMarker()
-        {
-            return readMessage(txnId, MessageType.BOOTSTRAP_ATTEMPT_COMPLETE_MARKER, CreateBootstrapCompleteMarkerTransaction.class);
-        }
-
-        @Override
-        public MarkBootstrapComplete bootstrapAttemptMarkBootstrapComplete()
-        {
-            return readMessage(txnId, MessageType.BOOTSTRAP_ATTEMPT_MARK_BOOTSTRAP_COMPLETE, MarkBootstrapComplete.class);
-        }
     }
 
     private final class LoggingMessageProvider implements SerializerSupport.MessageProvider
@@ -1645,24 +1624,6 @@ public class AccordJournal implements IJournal, Shutdownable
             ApplyThenWaitUntilApplied apply = provider.applyThenWaitUntilApplied();
             logger.debug("Fetched {} message for {}: {}", APPLY_THEN_WAIT_UNTIL_APPLIED_REQ, txnId, apply);
             return apply;
-        }
-
-        @Override
-        public CreateBootstrapCompleteMarkerTransaction bootstrapAttemptCompleteMarker()
-        {
-            logger.debug("Fetching {} message for {}", BOOTSTRAP_ATTEMPT_COMPLETE_MARKER, txnId);
-            CreateBootstrapCompleteMarkerTransaction msg = provider.bootstrapAttemptCompleteMarker();
-            logger.debug("Fetched {} message for {}: {}", BOOTSTRAP_ATTEMPT_COMPLETE_MARKER, txnId, msg);
-            return msg;
-        }
-
-        @Override
-        public MarkBootstrapComplete bootstrapAttemptMarkBootstrapComplete()
-        {
-            logger.debug("Fetching {} message for {}", BOOTSTRAP_ATTEMPT_MARK_BOOTSTRAP_COMPLETE, txnId);
-            MarkBootstrapComplete msg = provider.bootstrapAttemptMarkBootstrapComplete();
-            logger.debug("Fetched {} message for {}: {}", BOOTSTRAP_ATTEMPT_MARK_BOOTSTRAP_COMPLETE, txnId, msg);
-            return msg;
         }
     }
 }
