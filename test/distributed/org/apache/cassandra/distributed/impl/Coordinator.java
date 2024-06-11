@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.distributed.impl;
 
-import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -43,14 +42,14 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.reads.thresholds.CoordinatorWarnings;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
 
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static org.apache.cassandra.distributed.impl.CoordinatorHelper.toCassandraSerialCL;
 
 public class Coordinator implements ICoordinator
 {
@@ -93,10 +92,6 @@ public class Coordinator implements ICoordinator
         }
     }
 
-    protected static org.apache.cassandra.db.ConsistencyLevel toCassandraSerialCL(ConsistencyLevel cl)
-    {
-        return toCassandraCL(cl == null ? ConsistencyLevel.SERIAL : cl);
-    }
 
     public static SimpleQueryResult unsafeExecuteInternal(String query, ConsistencyLevel consistencyLevel, Object[] boundValues)
     {
@@ -105,7 +100,7 @@ public class Coordinator implements ICoordinator
 
     public static SimpleQueryResult unsafeExecuteInternal(String query, ConsistencyLevel serialConsistencyLevel, ConsistencyLevel commitConsistencyLevel, Object[] boundValues)
     {
-        ClientState clientState = makeFakeClientState();
+        ClientState clientState = CoordinatorHelper.makeFakeClientState();
         CQLStatement prepared = QueryProcessor.getStatement(query, clientState);
         List<ByteBuffer> boundBBValues = new ArrayList<>();
         for (Object boundValue : boundValues)
@@ -128,7 +123,7 @@ public class Coordinator implements ICoordinator
                                                        toCassandraSerialCL(serialConsistencyLevel),
                                                        ProtocolVersion.CURRENT,
                                                        null),
-                                   nanoTime());
+                                   Dispatcher.RequestTime.forImmediateExecution());
             // Collect warnings reported during the query.
             CoordinatorWarnings.done();
             if (res != null)
@@ -161,7 +156,7 @@ public class Coordinator implements ICoordinator
     @Override
     public SimpleQueryResult executeWithResult(String query, ConsistencyLevel serialConsistencyLevel, ConsistencyLevel commitConsistencyLevel, Object... boundValues)
     {
-        return instance.sync(() -> unsafeExecuteInternal(query, serialConsistencyLevel, commitConsistencyLevel, boundValues)).call();
+        return instance.sync(() -> CoordinatorHelper.unsafeExecuteInternal(query, serialConsistencyLevel, commitConsistencyLevel, boundValues)).call();
     }
 
     @Override
@@ -171,7 +166,7 @@ public class Coordinator implements ICoordinator
             throw new IllegalArgumentException("Page size should be strictly positive but was " + pageSize);
 
         return instance.sync(() -> {
-            ClientState clientState = makeFakeClientState();
+            ClientState clientState = CoordinatorHelper.makeFakeClientState();
             ConsistencyLevel consistencyLevel = ConsistencyLevel.valueOf(consistencyLevelOrigin.name());
             CQLStatement prepared = QueryProcessor.getStatement(query, clientState);
             final List<ByteBuffer> boundBBValues = new ArrayList<>();
@@ -181,7 +176,7 @@ public class Coordinator implements ICoordinator
             prepared.validate(clientState);
             assert prepared instanceof SelectStatement : "Only SELECT statements can be executed with paging";
 
-            long nanoTime = nanoTime();
+            Dispatcher.RequestTime requestTime = Dispatcher.RequestTime.forImmediateExecution();
             SelectStatement selectStatement = (SelectStatement) prepared;
 
             QueryState queryState = new QueryState(clientState);
@@ -195,9 +190,9 @@ public class Coordinator implements ICoordinator
                                                               selectStatement.keyspace());
 
 
-            ResultMessage.Rows initialRows = selectStatement.execute(queryState, initialOptions, nanoTime);
+            ResultMessage.Rows initialRows = selectStatement.execute(queryState, initialOptions, requestTime);
             Iterator<Object[]> iter = new Iterator<Object[]>() {
-                ResultMessage.Rows rows = selectStatement.execute(queryState, initialOptions, nanoTime);
+                ResultMessage.Rows rows = selectStatement.execute(queryState, initialOptions, requestTime);
                 Iterator<Object[]> iter = RowUtil.toIter(rows);
 
                 public boolean hasNext()
@@ -217,7 +212,7 @@ public class Coordinator implements ICoordinator
                                                                    ProtocolVersion.CURRENT,
                                                                    selectStatement.keyspace());
 
-                    rows = selectStatement.execute(queryState, nextOptions, nanoTime);
+                    rows = selectStatement.execute(queryState, nextOptions, requestTime);
                     iter = Iterators.forArray(RowUtil.toObjects(initialRows.result.metadata.names, rows.result.rows));
 
                     return hasNext();
@@ -233,8 +228,4 @@ public class Coordinator implements ICoordinator
         }).call();
     }
 
-    public static ClientState makeFakeClientState()
-    {
-        return ClientState.forExternalCalls(new InetSocketAddress(FBUtilities.getJustLocalAddress(), 9042));
-    }
 }

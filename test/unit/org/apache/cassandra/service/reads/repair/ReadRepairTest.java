@@ -77,7 +77,7 @@ public class ReadRepairTest
     {
         public InstrumentedReadRepairHandler(Map<Replica, Mutation> repairs, ReplicaPlan.ForWrite writePlan)
         {
-            super(Util.dk("not a valid key"), repairs, writePlan, e -> targets.endpoints().contains(e));
+            super(Util.dk("not a valid key"), repairs, writePlan);
         }
 
         Map<InetAddressAndPort, Mutation> mutationsSent = new HashMap<>();
@@ -315,10 +315,10 @@ public class ReadRepairTest
     }
 
     /**
-     * For dc local consistency levels, noop mutations and responses from remote dcs should not affect effective blockFor
+     * For dc local consistency levels, if repair map has remote DC node, we will get assertion failure
      */
-    @Test
-    public void remoteDCTest() throws Exception
+    @Test(expected = IllegalStateException.class)
+    public void remoteDCNodeInvolveInLocalConsistencyTest() throws Exception
     {
         Map<Replica, Mutation> repairs = new HashMap<>();
         repairs.put(target1, mutation(cell1));
@@ -330,22 +330,7 @@ public class ReadRepairTest
         EndpointsForRange participants = EndpointsForRange.of(target1, target2, remote1, remote2);
         EndpointsForRange targets = EndpointsForRange.of(target1, target2);
 
-        InstrumentedReadRepairHandler handler = createRepairHandler(repairs, participants, targets);
-        handler.sendInitialRepairs();
-        Assert.assertEquals(2, handler.mutationsSent.size());
-        Assert.assertTrue(handler.mutationsSent.containsKey(target1.endpoint()));
-        Assert.assertTrue(handler.mutationsSent.containsKey(remote1.endpoint()));
-
-        Assert.assertEquals(1, handler.waitingOn());
-        Assert.assertFalse(getCurrentRepairStatus(handler));
-
-        handler.ack(remote1.endpoint());
-        Assert.assertEquals(1, handler.waitingOn());
-        Assert.assertFalse(getCurrentRepairStatus(handler));
-
-        handler.ack(target1.endpoint());
-        Assert.assertEquals(0, handler.waitingOn());
-        Assert.assertTrue(getCurrentRepairStatus(handler));
+        createRepairHandler(repairs, participants, targets);
     }
 
     private boolean getCurrentRepairStatus(BlockingPartitionRepair handler)

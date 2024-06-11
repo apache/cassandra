@@ -30,7 +30,6 @@ import com.datastax.driver.core.PlainTextAuthProvider;
 import com.datastax.driver.core.Row;
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.policies.DCAwareRoundRobinPolicy;
-import org.apache.cassandra.auth.CassandraRoleManager;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.ICoordinator;
@@ -38,6 +37,7 @@ import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IMessageFilters.Filter;
 import org.apache.cassandra.distributed.api.TokenSupplier;
+import org.apache.cassandra.distributed.util.Auth;
 import org.apache.cassandra.locator.SimpleSeedProvider;
 import org.apache.cassandra.service.StorageService;
 
@@ -82,7 +82,7 @@ public class AuthTest extends TestBaseImpl
                                                                     .set("authenticator", "PasswordAuthenticator"))
                                         .start())
         {
-            waitForExistingRoles(cluster.get(1));
+            Auth.waitForExistingRoles(cluster.get(1));
 
             long writeTime = getPasswordWritetime(cluster.coordinator(1));
             // TIMESTAMP 0 in action
@@ -101,7 +101,7 @@ public class AuthTest extends TestBaseImpl
             Filter from = cluster.filters().allVerbs().outbound().drop();
 
             secondNode.startup();
-            waitForExistingRoles(secondNode);
+            Auth.waitForExistingRoles(secondNode);
 
             long passwordWritetimeOnSecondNode = getPasswordWritetime(cluster.coordinator(2));
 
@@ -162,14 +162,6 @@ public class AuthTest extends TestBaseImpl
         config.set("seed_provider", new IInstanceConfig.ParameterizedClass(SimpleSeedProvider.class.getName(),
                                                                            Collections.singletonMap("seeds", "127.0.0.1, 127.0.0.2")));
         return cluster.bootstrap(config);
-    }
-
-    private void waitForExistingRoles(IInvokableInstance instance)
-    {
-        await().pollDelay(1, SECONDS)
-               .pollInterval(1, SECONDS)
-               .atMost(30, SECONDS)
-               .until(() -> instance.callOnInstance(CassandraRoleManager::hasExistingRoles));
     }
 
     private long getPasswordWritetime(ICoordinator coordinator)

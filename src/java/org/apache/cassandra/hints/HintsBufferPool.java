@@ -82,6 +82,15 @@ final class HintsBufferPool implements Closeable
         return min;
     }
 
+    public void clearEarliestHintsForHostId(UUID hostId)
+    {
+        currentBuffer().clearEarliestHintForHostId(hostId);
+        Iterator<HintsBuffer> it = reserveBuffers.iterator();
+
+        while (it.hasNext())
+            it.next().clearEarliestHintForHostId(hostId);
+    }
+
     private HintsBuffer.Allocation allocate(int hintSize)
     {
         HintsBuffer current = currentBuffer();

@@ -180,6 +180,7 @@ public abstract class AbstractStrategyHolder
         return new GroupedSSTableContainer(this);
     }
 
+    public abstract void addSSTable(SSTableReader sstable);
     public abstract void addSSTables(GroupedSSTableContainer sstables);
 
     public abstract void removeSSTables(GroupedSSTableContainer sstables);

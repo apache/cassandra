@@ -26,6 +26,7 @@ import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
 public abstract class AuthenticationStatement extends CQLStatement.Raw implements CQLStatement
@@ -35,7 +36,8 @@ public abstract class AuthenticationStatement extends CQLStatement.Raw implement
         return this;
     }
 
-    public ResultMessage execute(QueryState state, QueryOptions options, long queryStartNanoTime)
+    @Override
+    public ResultMessage execute(QueryState state, QueryOptions options, Dispatcher.RequestTime requestTime)
     throws RequestExecutionException, RequestValidationException
     {
         return execute(state.getClientState());
@@ -43,6 +45,7 @@ public abstract class AuthenticationStatement extends CQLStatement.Raw implement
 
     public abstract ResultMessage execute(ClientState state) throws RequestExecutionException, RequestValidationException;
 
+    @Override
     public ResultMessage executeLocally(QueryState state, QueryOptions options)
     {
         // executeLocally is for local query only, thus altering users doesn't make sense and is not supported

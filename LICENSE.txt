@@ -209,11 +209,11 @@
    code for these subcomponents is subject to the terms and
    conditions of the following licenses.
 
-   This product bundles a file (AbstractIterator.java) from Chronicle-Bytes,
+   This product bundles a file (Dump.java) from Chronicle-Bytes,
    copyright higherfrequencytrading.com, which is available under an
    Apache License version 2.
 
-   This product bundles a file (AbstractIterator.java) from Guava,
+   This product bundles a file (AbstractGuavaIterator.java) from Guava,
    copyright The Guava Authors, which is available under an
    Apache License version 2.
 
@@ -221,7 +221,7 @@
    copyright The Android Open Source Project, which is available under an
    Apache License version 2.
 
-   This product bundles several files (LongTimSort.java) from PATRICIA Trie
+   This product bundles several files (PatriciaTrie.java) from PATRICIA Trie
    copyright Roger Kapsi and Sam Berlin, which is available under an
    Apache License version 2.
 
@@ -238,3 +238,15 @@
    
    This product bundles code (internalOffer) that is written by Doug Lea and
    Martin Buchholz available under a Creative Commons zero license.
+
+   This product bundles code (cassandra-driver-internal-only-*.zip) from the Datastax Java Driver
+   copyright DataStax, Inc., which is available under an Apache License version 2.
+
+   This product bundles code (cassandra-driver-internal-only-*.zip) from python-smhasher
+   copyright Austin Appleby and Patrick Hensley, which is available under a MIT license.
+
+   This product bundles code (cassandra-driver-internal-only-*.zip) from the OrderedDict
+   copyright Raymond Hettinger, which is available under a MIT license.
+
+   This product bundles code (cassandra-driver-internal-only-*.zip) from the MagnetoDB
+   copyright Mirantis Inc., which is available under an Apache License version 2.

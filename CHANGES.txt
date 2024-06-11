@@ -1,3 +1,88 @@
+4.1.6
+ * Refresh stale paxos commit (CASSANDRA-19617)
+ * Reduce info logging from automatic paxos repair (CASSANDRA-19445)
+ * Support legacy plain_text_auth section in credentials file removed unintentionally (CASSANDRA-19498)
+Merged from 4.0:
+ * Add timeout specifically for bootstrapping nodes (CASSANDRA-15439)
+ * Bring Redhat packge dirs/ownership/perms in line with Debian package (CASSANDRA-19565)
+
+
+4.1.5
+ * Make queries visible to the "system_views.queries" virtual table at the coordinator level (CASSANDRA-19577)
+ * Concurrent equivalent schema updates lead to unresolved disagreement (CASSANDRA-19578)
+ * Fix hints delivery for a node going down repeatedly (CASSANDRA-19495)
+ * Do not go to disk for reading hints file sizes (CASSANDRA-19477)
+ * Fix system_views.settings to handle array types (CASSANDRA-19475)
+Merged from 4.0:
+ * Make nodetool import congruent with the documentation by not relying on the folder structure of the imported SSTable files (CASSANDRA-19401)
+ * IR may leak SSTables with pending repair when coming from streaming (CASSANDRA-19182)
+ * Streaming exception race creates corrupt transaction log files that prevent restart (CASSANDRA-18736)
+ * Fix CQL tojson timestamp output on negative timestamp values before Gregorian calendar reform in 1582 (CASSANDRA-19566)
+ * Fix few types issues and implement types compatibility tests (CASSANDRA-19479)
+ * Optionally avoid hint transfer during decommission (CASSANDRA-19525)
+ * Change logging to TRACE when failing to get peer certificate (CASSANDRA-19508)
+ * Push LocalSessions info logs to debug (CASSANDRA-18335)
+ * Filter remote DC replicas out when constructing the initial replica plan for the local read repair (CASSANDRA-19120)
+ * Remove redundant code in StorageProxy#sendToHintedReplicas (CASSANDRA-19412)
+ * Remove bashisms for mx4j tool in cassandra-env.sh (CASSANDRA-19416)
+Merged from 3.11:
+ * Move ClientWarn.State#warnings to a thread-safe list (CASSANDRA-19427)
+Merged from 3.0:
+ * Fix SCM URL link (CASSANDRA-19422)
+
+
+4.1.4
+ * Memoize Cassandra verion and add a backoff interval for failed schema pulls (CASSANDRA-18902)
+ * Fix StackOverflowError on ALTER after many previous schema changes (CASSANDRA-19166)
+ * Fixed the inconsistency between distributedKeyspaces and distributedAndLocalKeyspaces (CASSANDRA-18747)
+ * Internode legacy SSL storage port certificate is not hot reloaded on update (CASSANDRA-18681)
+ * Nodetool paxos-only repair is no longer incremental (CASSANDRA-18466)
+ * Waiting indefinitely on ReceivedMessage response in StreamSession#receive() can cause deadlock (CASSANDRA-18733)
+ * Allow empty keystore_password in encryption_options (CASSANDRA-18778)
+ * Skip ColumnFamilyStore#topPartitions initialization when client or tool mode (CASSANDRA-18697)
+Merged from 4.0:
+ * Add new concurrent_merkle_tree_requests config property to prevent OOM during multi-range and/or multi-table repairs (CASSANDRA-19336)
+ * Skip version check if an endpoint is dead state in Gossiper#upgradeFromVersionSupplier (CASSANDRA-19187)
+ * Fix Gossiper::hasMajorVersion3Nodes to return false during minor upgrade (CASSANDRA-18999)
+ * Revert unnecessary read lock acquisition when reading ring version in TokenMetadata introduced in CASSANDRA-16286 (CASSANDRA-19107)
+ * Support max SSTable size in sorted CQLSSTableWriter (CASSANDRA-18941)
+ * Fix nodetool repair_admin summarize-pending command to not throw exception (CASSANDRA-19014)
+ * Fix cassandra-stress in simplenative mode with prepared statements (CASSANDRA-18744)
+ * Fix filtering system ks sstables for relocation on startup (CASSANDRA-18963)
+ * Remove completed coordinator sessions (CASSANDRA-18903)
+ * Make StartupConnectivityChecker only run a connectivity check if there are no nodes which are running a version prior to Cassandra 4 (CASSANDRA-18968)
+ * Retrieve keyspaces metadata and schema version concistently in DescribeStatement (CASSANDRA-18921)
+ * Gossip NPE due to shutdown event corrupting empty statuses (CASSANDRA-18913)
+ * Fix closing iterator in SecondaryIndexBuilder (CASSANDRA-18361)
+ * Update hdrhistogram to 2.1.12 (CASSANDRA-18893)
+ * Improve performance of compactions when table does not have an index (CASSANDRA-18773)
+ * JMH improvements - faster build and async profiler (CASSANDRA-18871)
+ * Enable 3rd party JDK installations for Debian package (CASSANDRA-18844)
+ * Fix NTS log message when an unrecognized strategy option is passed (CASSANDRA-18679)
+ * Fix BulkLoader ignoring cipher suites options (CASSANDRA-18582)
+ * Migrate Python optparse to argparse (CASSANDRA-17914)
+Merged from 3.11:
+ * Fix delayed SSTable release with unsafe_aggressive_sstable_expiration (CASSANDRA-18756)
+ * Revert CASSANDRA-18543 (CASSANDRA-18854)
+ * Fix NPE when using udfContext in UDF after a restart of a node (CASSANDRA-18739)
+Merged from 3.0:
+ * Backport CASSANDRA-16418 to 3.x (CASSANDRA-18824)
+ * Suppress CVE-2023-6378 (CASSANDRA-19142) 
+ * Do not set RPC_READY to false on transports shutdown in order to not fail counter updates for deployments with coordinator and storage nodes with transports turned off (CASSANDRA-18935)
+ * Suppress CVE-2023-44487 (CASSANDRA-18943)
+ * Fix nodetool enable/disablebinary to correctly set rpc readiness in gossip (CASSANDRA-18935)
+ * Implement the logic in bin/stop-server (CASSANDRA-18838) 
+ * Upgrade snappy-java to 1.1.10.4 (CASSANDRA-18878)
+ * Add cqlshrc.sample and credentials.sample into Debian package (CASSANDRA-18818)
+ * Refactor validation logic in StorageService.rebuild (CASSANDRA-18803)
+ * Make alternation of a user type validate the same way as creation of a user type does (CASSANDRA-18585)
+ * CQLSH emits a warning when the server version doesn't match (CASSANDRA-18745)
+ * Fix missing speculative retries in tablestats (CASSANDRA-18767)
+ * Fix Requires for Java for RPM package (CASSANDRA-18751)
+ * Fix CQLSH online help topic link (CASSANDRA-17534)
+ * Remove unused suppressions (CASSANDRA-18724)
+
+
 4.1.3
  * Add a virtual table that exposes currently running queries (CASSANDRA-15241)
 Merged from 4.0:
@@ -5321,7 +5406,7 @@ Merged from 1.0:
  * avoid recursion in leveled compaction (CASSANDRA-4587)
  * increase stack size under Java7 to 180K
  * Log(info) schema changes (CASSANDRA-4547)
- * Change nodetool setcachecapcity to manipulate global caches (CASSANDRA-4563)
+ * Change nodetool setcachecapacity to manipulate global caches (CASSANDRA-4563)
  * (cql3) fix setting compaction strategy (CASSANDRA-4597)
  * fix broken system.schema_* timestamps on system startup (CASSANDRA-4561)
  * fix wrong skip of cache saving (CASSANDRA-4533)

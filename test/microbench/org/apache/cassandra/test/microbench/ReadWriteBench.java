@@ -34,7 +34,7 @@ import org.openjdk.jmh.annotations.*;
 @Fork(value = 1)
 @Threads(1)
 @State(Scope.Benchmark)
-public class ReadWriteTest extends CQLTester
+public class ReadWriteBench extends CQLTester
 {
     static String keyspace;
     String table;

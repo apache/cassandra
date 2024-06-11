@@ -260,6 +260,9 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                     FailSession failure = (FailSession) message.payload;
                     ActiveRepairService.instance.consistent.coordinated.handleFailSessionMessage(failure);
                     ActiveRepairService.instance.consistent.local.handleFailSessionMessage(message.from(), failure);
+                    ParticipateState p = ActiveRepairService.instance.participate(failure.sessionID);
+                    if (p != null)
+                        p.phase.fail("Failure message from " + message.from());
                     break;
 
                 case STATUS_REQ:

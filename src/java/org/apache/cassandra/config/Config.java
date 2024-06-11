@@ -196,6 +196,8 @@ public class Config
     @Replaces(oldName = "repair_session_space_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_INT, deprecated = true)
     public volatile DataStorageSpec.IntMebibytesBound repair_session_space = null;
 
+    public volatile int concurrent_merkle_tree_requests = 0;
+
     public volatile boolean use_offheap_merkle_trees = true;
 
     public int storage_port = 7000;
@@ -421,6 +423,7 @@ public class Config
 
     public ParameterizedClass hints_compression;
     public volatile boolean auto_hints_cleanup_enabled = false;
+    public volatile boolean transfer_hints_on_decommission = true;
 
     public volatile boolean incremental_backups = false;
     public boolean trickle_fsync = false;
@@ -1173,4 +1176,20 @@ public class Config
 
         logger.info("Node configuration:[{}]", Joiner.on("; ").join(configMap.entrySet()));
     }
+
+    public enum CQLStartTime
+    {
+        REQUEST, // uses a timestamp that represent the start of processing of the request
+        QUEUE    // uses a timestamp that represents when the request was enqueued
+    }
+    public volatile CQLStartTime cql_start_time = CQLStartTime.REQUEST;
+
+    public boolean native_transport_throw_on_overload = false;
+    public double native_transport_queue_max_item_age_threshold = Double.MAX_VALUE;
+    public DurationSpec.LongMillisecondsBound native_transport_min_backoff_on_queue_overload = new DurationSpec.LongMillisecondsBound("10ms");
+    public DurationSpec.LongMillisecondsBound native_transport_max_backoff_on_queue_overload = new DurationSpec.LongMillisecondsBound("200ms");
+
+    // 3.0 Cassandra Driver has its "read" timeout set to 12 seconds. Our recommendation is match this.
+    public DurationSpec.LongMillisecondsBound native_transport_timeout = new DurationSpec.LongMillisecondsBound("12000ms");
+    public boolean enforce_native_deadline_for_hints = false;
 }

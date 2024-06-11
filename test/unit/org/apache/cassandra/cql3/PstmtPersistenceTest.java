@@ -32,12 +32,12 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SchemaKeyspaceTables;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.MD5Digest;
 
 import static java.util.Collections.emptyMap;
 import static org.apache.cassandra.service.QueryState.forInternalCalls;
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.junit.Assert.*;
 
 public class PstmtPersistenceTest extends CQLTester
@@ -132,7 +132,7 @@ public class PstmtPersistenceTest extends CQLTester
     {
         QueryProcessor.Prepared prepared = handler.getPrepared(stmtId);
         Assert.assertNotNull(prepared);
-        handler.processPrepared(prepared.statement, forInternalCalls(), options, emptyMap(), nanoTime());
+        handler.processPrepared(prepared.statement, forInternalCalls(), options, emptyMap(), Dispatcher.RequestTime.forImmediateExecution());
     }
 
     @Test

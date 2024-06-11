@@ -50,8 +50,8 @@ public class NormalRepairTask extends AbstractRepairTask
     }
 
     @Override
-    public Future<CoordinatedRepairResult> performUnsafe(ExecutorPlus executor)
+    public Future<CoordinatedRepairResult> performUnsafe(ExecutorPlus executor, Scheduler validationScheduler)
     {
-        return runRepair(parentSession, false, executor, commonRanges, cfnames);
+        return runRepair(parentSession, false, executor, validationScheduler, commonRanges, cfnames);
     }
 }

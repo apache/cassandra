@@ -51,6 +51,7 @@ import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.*;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.btree.BTreeSet;
 
@@ -436,12 +437,12 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
     }
 
     @Override
-    public PartitionIterator execute(ConsistencyLevel consistency, ClientState state, long queryStartNanoTime) throws RequestExecutionException
+    public PartitionIterator execute(ConsistencyLevel consistency, ClientState state, Dispatcher.RequestTime requestTime) throws RequestExecutionException
     {
         if (clusteringIndexFilter.isEmpty(metadata().comparator))
             return EmptyIterators.partition();
 
-        return StorageProxy.read(Group.one(this), consistency, queryStartNanoTime);
+        return StorageProxy.read(Group.one(this), consistency, requestTime);
     }
 
     protected void recordLatency(TableMetrics metric, long latencyNanos)
@@ -1218,9 +1219,9 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                    new Group(commands, limits);
         }
 
-        public PartitionIterator execute(ConsistencyLevel consistency, ClientState state, long queryStartNanoTime) throws RequestExecutionException
+        public PartitionIterator execute(ConsistencyLevel consistency, ClientState state, Dispatcher.RequestTime requestTime) throws RequestExecutionException
         {
-            return StorageProxy.read(this, consistency, queryStartNanoTime);
+            return StorageProxy.read(this, consistency, requestTime);
         }
     }
 
@@ -1232,13 +1233,13 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         }
 
         @Override
-        public PartitionIterator execute(ConsistencyLevel consistency, ClientState state, long queryStartNanoTime) throws RequestExecutionException
+        public PartitionIterator execute(ConsistencyLevel consistency, ClientState state, Dispatcher.RequestTime requestTime) throws RequestExecutionException
         {
             if (queries.size() == 1)
-                return queries.get(0).execute(consistency, state, queryStartNanoTime);
+                return queries.get(0).execute(consistency, state, requestTime);
 
             return PartitionIterators.concat(queries.stream()
-                                                    .map(q -> q.execute(consistency, state, queryStartNanoTime))
+                                                    .map(q -> q.execute(consistency, state, requestTime))
                                                     .collect(Collectors.toList()));
         }
     }
@@ -1311,7 +1312,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         }
 
         @Override
-        public PartitionIterator execute(ConsistencyLevel consistency, ClientState state, long queryStartNanoTime) throws RequestExecutionException
+        public PartitionIterator execute(ConsistencyLevel consistency, ClientState state, Dispatcher.RequestTime requestTime) throws RequestExecutionException
         {
             return executeInternal(executionController());
         }

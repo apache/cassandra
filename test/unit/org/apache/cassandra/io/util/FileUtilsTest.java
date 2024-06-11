@@ -122,11 +122,11 @@ public class FileUtilsTest
     @Test
     public void testIsContained()
     {
-        assertTrue(FileUtils.isContained(new File("/tmp/abc"), new File("/tmp/abc")));
-        assertFalse(FileUtils.isContained(new File("/tmp/abc"), new File("/tmp/abcd")));
-        assertTrue(FileUtils.isContained(new File("/tmp/abc"), new File("/tmp/abc/d")));
-        assertTrue(FileUtils.isContained(new File("/tmp/abc/../abc"), new File("/tmp/abc/d")));
-        assertFalse(FileUtils.isContained(new File("/tmp/abc/../abc"), new File("/tmp/abcc")));
+        assertTrue(FileUtils.isContained(new File("/testroot/abc"), new File("/testroot/abc")));
+        assertFalse(FileUtils.isContained(new File("/testroot/abc"), new File("/testroot/abcd")));
+        assertTrue(FileUtils.isContained(new File("/testroot/abc"), new File("/testroot/abc/d")));
+        assertTrue(FileUtils.isContained(new File("/testroot/abc/../abc"), new File("/testroot/abc/d")));
+        assertFalse(FileUtils.isContained(new File("/testroot/abc/../abc"), new File("/testroot/abcc")));
     }
 
     @Test

@@ -79,4 +79,9 @@ public interface ResizableThreadPool
     {
         return -1;
     }
+
+    default long oldestTaskQueueTime()
+    {
+        return 0;
+    }
 }

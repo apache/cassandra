@@ -197,7 +197,8 @@ public class DefaultSchemaUpdateHandler implements SchemaUpdateHandler, IEndpoin
         // no-op
     }
 
-    private synchronized SchemaTransformationResult applyMutations(Collection<Mutation> schemaMutations)
+    @VisibleForTesting
+    synchronized SchemaTransformationResult applyMutations(Collection<Mutation> schemaMutations)
     {
         // fetch the current state of schema for the affected keyspaces only
         DistributedSchema before = schema;
@@ -253,7 +254,7 @@ public class DefaultSchemaUpdateHandler implements SchemaUpdateHandler, IEndpoin
 
     private void updateSchema(SchemaTransformationResult update, boolean local)
     {
-        if (!update.diff.isEmpty())
+        if (!update.diff.isEmpty() || !update.after.getVersion().equals(schema.getVersion()))
         {
             this.schema = update.after;
             logger.debug("Schema updated: {}", update);

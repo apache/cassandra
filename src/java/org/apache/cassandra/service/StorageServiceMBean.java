@@ -856,6 +856,10 @@ public interface StorageServiceMBean extends NotificationEmitter
     /** Sets the hinted handoff throttle in KiB per second, per delivery thread. */
     public void setHintedHandoffThrottleInKB(int throttleInKB);
 
+    public boolean getTransferHintsOnDecommission();
+    public void setTransferHintsOnDecommission(boolean enabled);
+
+
     /**
      * Resume bootstrap streaming when there is failed data streaming.
      *
@@ -1046,4 +1050,23 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void setMinTrackedPartitionSize(String value);
     public long getMinTrackedPartitionTombstoneCount();
     public void setMinTrackedPartitionTombstoneCount(long value);
+
+    String getCQLStartTime();
+    void setCQLStartTime(String value);
+
+    double getNativeTransportQueueMaxItemAgeThreshold();
+    void setNativeTransportQueueMaxItemAgeThreshold(double threshold);
+
+    long getNativeTransportMinBackoffOnQueueOverloadInMillis();
+    long getNativeTransportMaxBackoffOnQueueOverloadInMillis();
+    void setNativeTransportBackoffOnQueueOverloadInMillis(long min, long max);
+
+    boolean getNativeTransportThrowOnOverload();
+    void setNativeTransportThrowOnOverload(boolean throwOnOverload);
+
+    long getNativeTransportTimeoutMillis();
+    void setNativeTransportTimeoutMillis(long deadlineMillis);
+
+    boolean getEnforceNativeDeadlineForHints();
+    void setEnforceNativeDeadlineForHints(boolean value);
 }

@@ -607,7 +607,11 @@ public class CompactionManager implements CompactionManagerMBean
     {
         assert !cfStore.isIndex();
         Keyspace keyspace = cfStore.keyspace;
-
+        if (!StorageService.instance.getTokenMetadata().getPendingRanges(keyspace.getName(), FBUtilities.getBroadcastAddressAndPort()).isEmpty())
+        {
+            logger.info("Cleanup cannot run while node has pending ranges for keyspace {} table {}, wait for node addition/decommission to complete and try again", cfStore.keyspace.getName(), cfStore.getTableName());
+            return AllSSTableOpStatus.ABORTED;
+        }
         // if local ranges is empty, it means no data should remain
         final RangesAtEndpoint replicas = StorageService.instance.getLocalReplicas(keyspace.getName());
         final Set<Range<Token>> allRanges = replicas.ranges();
@@ -1257,7 +1261,7 @@ public class CompactionManager implements CompactionManagerMBean
     /* Used in tests. */
     public void disableAutoCompaction()
     {
-        for (String ksname : Schema.instance.getNonSystemKeyspaces().names())
+        for (String ksname : Schema.instance.distributedKeyspaces().names())
         {
             for (ColumnFamilyStore cfs : Keyspace.open(ksname).getColumnFamilyStores())
                 cfs.disableAutoCompaction();

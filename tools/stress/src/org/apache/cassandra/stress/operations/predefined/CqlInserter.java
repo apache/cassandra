@@ -71,9 +71,9 @@ public class CqlInserter extends CqlOperation<Integer>
     }
 
     @Override
-    protected CqlRunOp<Integer> buildRunOp(ClientWrapper client, String query, Object queryId, List<Object> params, ByteBuffer key)
+    protected CqlRunOp<Integer> buildRunOp(QueryExecutor<?> queryExecutor, List<Object> params, ByteBuffer key)
     {
-        return new CqlRunOpAlwaysSucceed(client, query, queryId, params, key, 1);
+        return new CqlRunOpAlwaysSucceed(queryExecutor, params, key, 1);
     }
 
     public boolean isWrite()

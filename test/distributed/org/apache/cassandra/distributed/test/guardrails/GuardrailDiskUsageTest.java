@@ -39,6 +39,7 @@ import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.util.Auth;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.disk.usage.DiskUsageBroadcaster;
 import org.apache.cassandra.service.disk.usage.DiskUsageMonitor;
@@ -75,6 +76,8 @@ public class GuardrailDiskUsageTest extends GuardrailTester
                                                 .set("data_disk_usage_percentage_fail_threshold", 99)
                                                 .set("authenticator", "PasswordAuthenticator"))
                               .start(), 1);
+
+        Auth.waitForExistingRoles(cluster.get(1));
 
         // create a regular user, since the default superuser is excluded from guardrails
         com.datastax.driver.core.Cluster.Builder builder = com.datastax.driver.core.Cluster.builder().addContactPoint("127.0.0.1");

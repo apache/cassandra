@@ -38,7 +38,9 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.TimeUUID;
+import org.apache.cassandra.repair.state.ParticipateState;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.commons.lang3.time.DurationFormatUtils;
 import org.slf4j.Logger;
@@ -87,7 +89,6 @@ import static org.apache.cassandra.repair.state.AbstractState.COMPLETE;
 import static org.apache.cassandra.repair.state.AbstractState.INIT;
 import static org.apache.cassandra.service.QueryState.forInternalCalls;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class RepairRunnable implements Runnable, ProgressEventNotifier, RepairNotifier
 {
@@ -102,6 +103,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier, RepairNo
 
     private final List<ProgressListener> listeners = new ArrayList<>();
     private final AtomicReference<Throwable> firstError = new AtomicReference<>(null);
+    final Scheduler validationScheduler;
 
     private TraceState traceState;
 
@@ -109,6 +111,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier, RepairNo
     {
         this.state = new CoordinatorState(cmd, keyspace, options);
         this.storageService = storageService;
+        this.validationScheduler = Scheduler.build(DatabaseDescriptor.getConcurrentMerkleTreeRequests());
 
         this.tag = "repair:" + cmd;
         ActiveRepairService.instance.register(state);
@@ -200,6 +203,9 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier, RepairNo
             reason = error != null ? error.getMessage() : "Some repair failed";
         }
         state.phase.fail(reason);
+        ParticipateState p = ActiveRepairService.instance.participate(state.id);
+        if (p != null)
+            p.phase.fail(reason);
         String completionMessage = String.format("Repair command #%d finished with error", state.cmd);
 
         // Note we rely on the first message being the reason for the failure
@@ -420,7 +426,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier, RepairNo
 
         ExecutorPlus executor = createExecutor();
         state.phase.repairSubmitted();
-        Future<CoordinatedRepairResult> f = task.perform(executor);
+        Future<CoordinatedRepairResult> f = task.perform(executor, validationScheduler);
         f.addCallback((result, failure) -> {
             state.phase.repairCompleted();
             try
@@ -526,7 +532,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier, RepairNo
                     QueryOptions options = QueryOptions.forInternalCalls(ConsistencyLevel.ONE, Lists.newArrayList(sessionIdBytes,
                                                                                                                   tminBytes,
                                                                                                                   tmaxBytes));
-                    ResultMessage.Rows rows = statement.execute(forInternalCalls(), options, nanoTime());
+                    ResultMessage.Rows rows = statement.execute(forInternalCalls(), options, Dispatcher.RequestTime.forImmediateExecution());
                     UntypedResultSet result = UntypedResultSet.create(rows.result);
 
                     for (UntypedResultSet.Row r : result)

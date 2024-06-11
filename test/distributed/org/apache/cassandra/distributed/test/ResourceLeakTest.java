@@ -47,6 +47,7 @@ import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.JMX;
 import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
+import static org.apache.cassandra.distributed.test.jmx.JMXGetterCheckTest.testAllValidGetters;
 import static org.apache.cassandra.utils.FBUtilities.now;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -145,6 +146,30 @@ public class ResourceLeakTest extends TestBaseImpl
         }
     }
 
+    static void testJmx(Cluster cluster)
+    {
+        try
+        {
+            for (IInvokableInstance instance : cluster.get(1, cluster.size()))
+            {
+                IInstanceConfig config = instance.config();
+                try (JMXConnector jmxc = JMXUtil.getJmxConnector(config, 5))
+                {
+                    MBeanServerConnection mbsc = jmxc.getMBeanServerConnection();
+                    // instances get their default domain set to their IP address, so us it
+                    // to check that we are actually connecting to the correct instance
+                    String defaultDomain = mbsc.getDefaultDomain();
+                    Assert.assertThat(defaultDomain, startsWith(JMXUtil.getJmxHost(config) + ":" + config.jmxPort()));
+                }
+            }
+            testAllValidGetters(cluster);
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
     void doTest(int numClusterNodes, Consumer<IInstanceConfig> updater) throws Throwable
     {
         doTest(numClusterNodes, updater, ignored -> {});
@@ -225,27 +250,7 @@ public class ResourceLeakTest extends TestBaseImpl
     @Test
     public void looperJmxTest() throws Throwable
     {
-        doTest(1, config -> config.with(JMX), cluster -> {
-            // NOTE: At some point, the hostname of the broadcastAddress can be resolved
-            // and then the `getHostString`, which would otherwise return the IP address,
-            // starts returning `localhost` - use `.getAddress().getHostAddress()` to work around this.
-            for (IInvokableInstance instance:cluster.get(1, cluster.size()))
-            {
-                IInstanceConfig config = instance.config();
-                try (JMXConnector jmxc = JMXUtil.getJmxConnector(config))
-                {
-                    MBeanServerConnection mbsc = jmxc.getMBeanServerConnection();
-                    // instances get their default domain set to their IP address, so us it
-                    // to check that we are actually connecting to the correct instance
-                    String defaultDomain = mbsc.getDefaultDomain();
-                    Assert.assertThat(defaultDomain, startsWith(JMXUtil.getJmxHost(config) + ":" + config.jmxPort()));
-                }
-                catch (IOException e)
-                {
-                    throw new RuntimeException(e);
-                }
-            }
-        });
+        doTest(2, config -> config.with(JMX), ResourceLeakTest::testJmx);
         if (forceCollection)
         {
             System.runFinalization();
@@ -258,7 +263,10 @@ public class ResourceLeakTest extends TestBaseImpl
     @Test
     public void looperEverythingTest() throws Throwable
     {
-        doTest(1, config -> config.with(Feature.values()));
+        doTest(2, config -> config.with(Feature.values()),
+               cluster -> {
+                   testJmx(cluster);
+               });
         if (forceCollection)
         {
             System.runFinalization();

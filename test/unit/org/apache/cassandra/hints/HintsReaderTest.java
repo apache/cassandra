@@ -29,6 +29,8 @@ import java.util.function.Function;
 
 import com.google.common.collect.Iterables;
 import org.apache.cassandra.io.util.File;
+
+import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -46,6 +48,7 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaTestUtil;
 import org.apache.cassandra.schema.TableMetadata;
+import org.hamcrest.Matchers;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -96,6 +99,8 @@ public class HintsReaderTest
             }
             FileUtils.clean(buffer);
         }
+
+        Assert.assertThat(descriptor.hintsFileSize(directory), Matchers.greaterThan(0L));
     }
 
     private void readHints(int num, int numTable)

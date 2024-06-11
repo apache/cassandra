@@ -1,3 +1,20 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+#
 ---
 repaired_data_tracking_for_range_reads_enabled: "java.lang.Boolean"
 block_for_peers_timeout_in_secs: "java.lang.Integer"
@@ -17,6 +34,7 @@ audit_logging_options:
   archive_command: "java.lang.String"
   included_keyspaces: "java.lang.String"
   max_log_size: "java.lang.Long"
+  allow_nodetool_archive_command: "java.lang.Boolean"
   block: "java.lang.Boolean"
   excluded_users: "java.lang.String"
   max_queue_weight: "java.lang.Integer"
@@ -55,6 +73,7 @@ full_query_logging_options:
   log_dir: "java.lang.String"
   archive_command: "java.lang.String"
   max_log_size: "java.lang.Long"
+  allow_nodetool_archive_command: "java.lang.Boolean"
   block: "java.lang.Boolean"
   roll_cycle: "java.lang.String"
   max_queue_weight: "java.lang.Integer"
@@ -119,6 +138,7 @@ allocate_tokens_for_keyspace: "java.lang.String"
 diagnostic_events_enabled: "java.lang.Boolean"
 storage_port: "java.lang.Integer"
 counter_cache_size_in_mb: "java.lang.Long"
+repair_request_timeout_in_ms: "java.lang.Long"
 dynamic_snitch_reset_interval_in_ms: "java.lang.Integer"
 tracetype_query_ttl: "java.lang.Integer"
 autocompaction_on_startup_enabled: "java.lang.Boolean"

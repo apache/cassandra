@@ -113,7 +113,7 @@ public class TokenMetadata
 
     // signals replication strategies that nodes have joined or left the ring and they need to recompute ownership
     @GuardedBy("lock")
-    private long ringVersion = 0;
+    private volatile long ringVersion = 0;
 
     public TokenMetadata()
     {
@@ -1405,16 +1405,7 @@ public class TokenMetadata
 
     public long getRingVersion()
     {
-        lock.readLock().lock();
-
-        try
-        {
-            return ringVersion;
-        }
-        finally
-        {
-            lock.readLock().unlock();
-        }
+        return ringVersion;
     }
 
     public void invalidateCachedRings()

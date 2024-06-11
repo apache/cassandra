@@ -22,7 +22,7 @@ import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import java.nio.ByteBuffer;
-import java.text.SimpleDateFormat;
+import java.text.Format;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -32,7 +32,6 @@ import java.time.temporal.ChronoField;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
-import java.util.TimeZone;
 import java.util.regex.Pattern;
 
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
@@ -105,23 +104,29 @@ public class TimestampSerializer extends TypeSerializer<Date>
 
     private static final Pattern timestampPattern = Pattern.compile("^-?\\d+$");
 
-    private static final FastThreadLocal<SimpleDateFormat> FORMATTER_UTC = new FastThreadLocal<SimpleDateFormat>()
+    private static final FastThreadLocal<Format> FORMATTER_UTC = new FastThreadLocal<Format>()
     {
-        protected SimpleDateFormat initialValue()
+        protected java.text.Format initialValue()
         {
-            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSX");
-            sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
-            return sdf;
+            return new DateTimeFormatterBuilder()
+                   .appendPattern("yyyy-MM-dd'T'HH:mm:ss.SSSX")
+                   .parseDefaulting(ChronoField.NANO_OF_DAY, 0)
+                   .toFormatter()
+                   .withZone(ZoneId.of("UTC"))
+                   .toFormat();
         }
     };
 
-    private static final FastThreadLocal<SimpleDateFormat> FORMATTER_TO_JSON = new FastThreadLocal<SimpleDateFormat>()
+    private static final FastThreadLocal<Format> FORMATTER_TO_JSON = new FastThreadLocal<Format>()
     {
-        protected SimpleDateFormat initialValue()
+        protected java.text.Format initialValue()
         {
-            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSSX");
-            sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
-            return sdf;
+            return new DateTimeFormatterBuilder()
+                   .appendPattern("yyyy-MM-dd HH:mm:ss.SSSX")
+                   .parseDefaulting(ChronoField.NANO_OF_DAY, 0)
+                   .toFormatter()
+                   .withZone(ZoneId.of("UTC"))
+                   .toFormat();
         }
     };
 
@@ -171,7 +176,7 @@ public class TimestampSerializer extends TypeSerializer<Date>
         throw new MarshalException(String.format("Unable to parse a date/time from '%s'", source));
     }
 
-    public static SimpleDateFormat getJsonDateFormatter()
+    public static Format getJsonDateFormatter()
     {
     	return FORMATTER_TO_JSON.get();
     }
@@ -189,7 +194,7 @@ public class TimestampSerializer extends TypeSerializer<Date>
 
     public String toStringUTC(Date value)
     {
-        return value == null ? "" : FORMATTER_UTC.get().format(value);
+        return value == null ? "" : FORMATTER_UTC.get().format(value.toInstant());
     }
 
     public Class<Date> getType()
@@ -206,6 +211,6 @@ public class TimestampSerializer extends TypeSerializer<Date>
     {
         return buffer == null || !buffer.hasRemaining()
                ? "null"
-               : FORMATTER_UTC.get().format(deserialize(buffer));
+               : FORMATTER_UTC.get().format(deserialize(buffer).toInstant());
     }
 }

@@ -46,7 +46,7 @@ BuildRoot:     %{_tmppath}/%{relname}root-%(%{__id_u} -n)
 BuildRequires: ant >= 1.9
 BuildRequires: ant-junit >= 1.9
 
-Requires:      (jre-1.8.0 or jre-11)
+Requires:      (java-1.8.0-headless or java-11-headless)
 Requires:      python(abi) >= 3.6
 Requires:      procps-ng >= 3.3
 Requires(pre): user(cassandra)
@@ -82,10 +82,7 @@ mkdir -p %{buildroot}/%{_sysconfdir}/security/limits.d
 mkdir -p %{buildroot}/%{_sysconfdir}/default
 mkdir -p %{buildroot}/usr/sbin
 mkdir -p %{buildroot}/usr/bin
-mkdir -p %{buildroot}/var/lib/%{username}/commitlog
-mkdir -p %{buildroot}/var/lib/%{username}/data
-mkdir -p %{buildroot}/var/lib/%{username}/saved_caches
-mkdir -p %{buildroot}/var/lib/%{username}/hints
+mkdir -p %{buildroot}/var/lib/%{username}
 mkdir -p %{buildroot}/var/run/%{username}
 mkdir -p %{buildroot}/var/log/%{username}
 ( cd pylib && %{__python} setup.py install --no-compile --root %{buildroot}; )
@@ -97,6 +94,7 @@ patch -p1 < debian/patches/cassandra_logdir_fix.diff
 sed -i 's/^# hints_directory:/hints_directory:/' conf/cassandra.yaml
 
 # remove other files not being installed
+rm -f bin/stop-server
 rm -f bin/*.orig
 rm -f bin/cassandra.in.sh
 rm -f lib/sigar-bin/*winnt*  # strip segfaults on dll..
@@ -154,14 +152,13 @@ exit 0
 %attr(755,root,root) %{_bindir}/sstableupgrade
 %attr(755,root,root) %{_bindir}/sstableutil
 %attr(755,root,root) %{_bindir}/sstableverify
-%attr(755,root,root) %{_bindir}/stop-server
 %attr(755,root,root) %{_sbindir}/cassandra
 %attr(755,root,root) /%{_sysconfdir}/rc.d/init.d/%{username}
 %{_sysconfdir}/default/%{username}
 %{_sysconfdir}/security/limits.d/%{username}.conf
 /usr/share/%{username}*
 %config(noreplace) /%{_sysconfdir}/%{username}
-%attr(755,%{username},%{username}) %config(noreplace) /var/lib/%{username}/*
+%attr(755,%{username},%{username}) %config(noreplace) /var/lib/%{username}
 %attr(755,%{username},%{username}) /var/log/%{username}*
 %attr(755,%{username},%{username}) /var/run/%{username}*
 %{python_sitelib}/cqlshlib/

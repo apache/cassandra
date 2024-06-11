@@ -53,7 +53,7 @@ public class PendingRangeCalculatorService
     private final AtLeastOnceTrigger update = executor.atLeastOnceTrigger(() -> {
         PendingRangeCalculatorServiceDiagnostics.taskStarted(1);
         long start = currentTimeMillis();
-        Collection<String> keyspaces = Schema.instance.getNonLocalStrategyKeyspaces().names();
+        Collection<String> keyspaces = Schema.instance.distributedKeyspaces().names();
         for (String keyspaceName : keyspaces)
             calculatePendingRanges(Keyspace.open(keyspaceName).getReplicationStrategy(), keyspaceName);
         if (logger.isTraceEnabled())

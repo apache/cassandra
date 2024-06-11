@@ -29,42 +29,66 @@ import javax.management.MBeanOperationInfo;
 import javax.management.MBeanServerConnection;
 import javax.management.ObjectName;
 import javax.management.remote.JMXConnector;
-import javax.management.remote.JMXConnectorFactory;
-import javax.management.remote.JMXServiceURL;
 
 import com.google.common.collect.ImmutableSet;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
+import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.shared.JMXUtil;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 
 public class JMXGetterCheckTest extends TestBaseImpl
 {
     private static final Set<String> IGNORE_ATTRIBUTES = ImmutableSet.of(
-    "org.apache.cassandra.net:type=MessagingService:BackPressurePerHost" // throws unsupported saying the feature was removed... dropped in CASSANDRA-15375
+    "org.apache.cassandra.net:type=MessagingService:BackPressurePerHost", // throws unsupported saying the feature was removed... dropped in CASSANDRA-15375
+    "org.apache.cassandra.db:type=DynamicEndpointSnitch:Scores" // when running in multiple-port-one-IP mode, this fails
+
     );
     private static final Set<String> IGNORE_OPERATIONS = ImmutableSet.of(
     "org.apache.cassandra.db:type=StorageService:stopDaemon", // halts the instance, which then causes the JVM to exit
     "org.apache.cassandra.db:type=StorageService:drain", // don't drain, it stops things which can cause other APIs to be unstable as we are in a stopped state
     "org.apache.cassandra.db:type=StorageService:stopGossiping", // if we stop gossip this can cause other issues, so avoid
-    "org.apache.cassandra.db:type=StorageService:resetLocalSchema" // this will fail when there are no other nodes which can serve schema
+    "org.apache.cassandra.db:type=StorageService:resetLocalSchema", // this will fail when there are no other nodes which can serve schema
+    "org.apache.cassandra.db:type=StorageService:joinRing", // Causes bootstrapping errors
+    "org.apache.cassandra.db:type=StorageService:clearConnectionHistory", // Throws a NullPointerException
+    "org.apache.cassandra.db:type=StorageService:startGossiping", // causes multiple loops to fail
+    "org.apache.cassandra.db:type=StorageService:startNativeTransport", // causes multiple loops to fail
+    "org.apache.cassandra.db:type=Tables,keyspace=system,table=local:loadNewSSTables" // Shouldn't attempt to load SSTables as sometimes the temp directories don't work
     );
-
-    public static final String JMX_SERVICE_URL_FMT = "service:jmx:rmi:///jndi/rmi://%s:%d/jmxrmi";
 
     @Test
     public void testGetters() throws Exception
     {
-        try (Cluster cluster = Cluster.build(1).withConfig(c -> c.with(Feature.values())).start())
+        for (int i=0; i < 2; i++)
         {
-            IInvokableInstance instance = cluster.get(1);
+            try (Cluster cluster = Cluster.build(1).withConfig(c -> c.with(Feature.values())).start())
+            {
+                testAllValidGetters(cluster);
+            }
+        }
+    }
 
-            String jmxHost = instance.config().broadcastAddress().getAddress().getHostAddress();
-            String url = String.format(JMX_SERVICE_URL_FMT, jmxHost, instance.config().jmxPort());
+    /**
+     * Tests JMX getters and operations.
+     * Useful for more than just testing getters, it also is used in JMXFeatureTest
+     * to make sure we've touched the complete JMX code path.
+     * @param cluster the cluster to test
+     * @throws Exception several kinds of exceptions can be thrown, mostly from JMX infrastructure issues.
+     */
+    public static void testAllValidGetters(Cluster cluster) throws Exception
+    {
+        for (IInvokableInstance instance: cluster)
+        {
+            if (instance.isShutdown())
+            {
+                continue;
+            }
+            IInstanceConfig config = instance.config();
             List<Named> errors = new ArrayList<>();
-            try (JMXConnector jmxc = JMXConnectorFactory.connect(new JMXServiceURL(url), null))
+            try (JMXConnector jmxc = JMXUtil.getJmxConnector(config))
             {
                 MBeanServerConnection mbsc = jmxc.getMBeanServerConnection();
                 Set<ObjectName> metricNames = new TreeSet<>(mbsc.queryNames(null, null));

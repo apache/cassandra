@@ -32,7 +32,6 @@ import static org.junit.Assert.assertEquals;
 import static org.apache.cassandra.distributed.action.GossipHelper.statusToBootstrap;
 import static org.apache.cassandra.distributed.action.GossipHelper.statusToDecommission;
 import static org.apache.cassandra.distributed.action.GossipHelper.withProperty;
-import static org.apache.cassandra.distributed.test.ring.BootstrapTest.populate;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.distributed.api.TokenSupplier.evenlyDistributedTokens;
@@ -42,11 +41,11 @@ public class CleanupFailureTest extends TestBaseImpl
     @Test
     public void cleanupDuringDecommissionTest() throws Throwable
     {
-        try (Cluster cluster = builder().withNodes(2)
-                                        .withTokenSupplier(evenlyDistributedTokens(2))
-                                        .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(2, "dc0", "rack0"))
-                                        .withConfig(config -> config.with(NETWORK, GOSSIP))
-                                        .start())
+        try (Cluster cluster = init(builder().withNodes(2)
+                                             .withTokenSupplier(evenlyDistributedTokens(2))
+                                             .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(2, "dc0", "rack0"))
+                                             .withConfig(config -> config.with(NETWORK, GOSSIP))
+                                             .start(), 1))
         {
             IInvokableInstance nodeToDecommission = cluster.get(1);
             IInvokableInstance nodeToRemainInCluster = cluster.get(2);
@@ -55,9 +54,9 @@ public class CleanupFailureTest extends TestBaseImpl
             cluster.forEach(statusToDecommission(nodeToDecommission));
 
             // Add data to cluster while node is decomissioning
-            int NUM_ROWS = 100;
-            populate(cluster, 0, NUM_ROWS, 1, 1, ConsistencyLevel.ONE);
-            cluster.forEach(c -> c.flush(KEYSPACE));
+            int numRows = 100;
+            cluster.schemaChange("CREATE TABLE IF NOT EXISTS " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
+            insertData(cluster, 1, numRows, ConsistencyLevel.ONE);
 
             // Check data before cleanup on nodeToRemainInCluster
             assertEquals(100, nodeToRemainInCluster.executeInternal("SELECT * FROM " + KEYSPACE + ".tbl").length);
@@ -78,11 +77,11 @@ public class CleanupFailureTest extends TestBaseImpl
         int originalNodeCount = 1;
         int expandedNodeCount = originalNodeCount + 1;
 
-        try (Cluster cluster = builder().withNodes(originalNodeCount)
-                                        .withTokenSupplier(evenlyDistributedTokens(expandedNodeCount))
-                                        .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(expandedNodeCount, "dc0", "rack0"))
-                                        .withConfig(config -> config.with(NETWORK, GOSSIP))
-                                        .start())
+        try (Cluster cluster = init(builder().withNodes(originalNodeCount)
+                                             .withTokenSupplier(evenlyDistributedTokens(expandedNodeCount))
+                                             .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(expandedNodeCount, "dc0", "rack0"))
+                                             .withConfig(config -> config.with(NETWORK, GOSSIP))
+                                             .start(), 2))
         {
             IInstanceConfig config = cluster.newInstanceConfig();
             IInvokableInstance bootstrappingNode = cluster.bootstrap(config);
@@ -93,19 +92,28 @@ public class CleanupFailureTest extends TestBaseImpl
             cluster.forEach(statusToBootstrap(bootstrappingNode));
 
             // Add data to cluster while node is bootstrapping
-            int NUM_ROWS = 100;
-            populate(cluster, 0, NUM_ROWS, 1, 2, ConsistencyLevel.ONE);
-            cluster.forEach(c -> c.flush(KEYSPACE));
+            int numRows = 100;
+            cluster.schemaChange("CREATE TABLE IF NOT EXISTS " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
+            insertData(cluster, 1, numRows, ConsistencyLevel.ONE);
 
             // Check data before cleanup on bootstrappingNode
-            assertEquals(NUM_ROWS, bootstrappingNode.executeInternal("SELECT * FROM " + KEYSPACE + ".tbl").length);
+            assertEquals(numRows, bootstrappingNode.executeInternal("SELECT * FROM " + KEYSPACE + ".tbl").length);
 
             // Run cleanup on bootstrappingNode
             NodeToolResult result = bootstrappingNode.nodetoolResult("cleanup");
             result.asserts().stderrContains("Node is involved in cluster membership changes. Not safe to run cleanup.");
 
             // Check data after cleanup on bootstrappingNode
-            assertEquals(NUM_ROWS, bootstrappingNode.executeInternal("SELECT * FROM " + KEYSPACE + ".tbl").length);
+            assertEquals(numRows, bootstrappingNode.executeInternal("SELECT * FROM " + KEYSPACE + ".tbl").length);
         }
+    }
+
+    private void insertData(Cluster cluster, int node, int numberOfRows, ConsistencyLevel cl)
+    {
+        for (int i = 0; i < numberOfRows; i++)
+        {
+            cluster.coordinator(node).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (?, ?, ?)", cl, i, i, i);
+        }
+        cluster.forEach(c -> c.flush(KEYSPACE));
     }
 }

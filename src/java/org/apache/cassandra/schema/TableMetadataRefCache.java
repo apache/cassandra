@@ -18,13 +18,15 @@
 
 package org.apache.cassandra.schema;
 
-import java.util.Collections;
 import java.util.Map;
 
 import com.google.common.collect.MapDifference;
 import com.google.common.collect.Maps;
 
 import org.apache.cassandra.utils.Pair;
+
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.unmodifiableMap;
 
 /**
  * Manages the cached {@link TableMetadataRef} objects which holds the references to {@link TableMetadata} objects.
@@ -35,7 +37,7 @@ import org.apache.cassandra.utils.Pair;
  */
 class TableMetadataRefCache
 {
-    public final static TableMetadataRefCache EMPTY = new TableMetadataRefCache(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
+    public final static TableMetadataRefCache EMPTY = new TableMetadataRefCache(emptyMap(), emptyMap(), emptyMap());
 
     // UUID -> mutable metadata ref map. We have to update these in place every time a table changes.
     private final Map<TableId, TableMetadataRef> metadataRefs;
@@ -46,13 +48,13 @@ class TableMetadataRefCache
     // (keyspace name, index name) -> mutable metadata ref map. We have to update these in place every time an index changes.
     private final Map<Pair<String, String>, TableMetadataRef> indexMetadataRefs;
 
-    public TableMetadataRefCache(Map<TableId, TableMetadataRef> metadataRefs,
+    private TableMetadataRefCache(Map<TableId, TableMetadataRef> metadataRefs,
                                  Map<Pair<String, String>, TableMetadataRef> metadataRefsByName,
                                  Map<Pair<String, String>, TableMetadataRef> indexMetadataRefs)
     {
-        this.metadataRefs = Collections.unmodifiableMap(metadataRefs);
-        this.metadataRefsByName = Collections.unmodifiableMap(metadataRefsByName);
-        this.indexMetadataRefs = Collections.unmodifiableMap(indexMetadataRefs);
+        this.metadataRefs = metadataRefs;
+        this.metadataRefsByName = metadataRefsByName;
+        this.indexMetadataRefs = indexMetadataRefs;
     }
 
     /**
@@ -107,7 +109,11 @@ class TableMetadataRefCache
                    .map(MapDifference.ValueDifference::rightValue)
                    .forEach(indexTable -> indexMetadataRefs.get(Pair.create(indexTable.keyspace, indexTable.indexName().get())).set(indexTable));
 
-        return new TableMetadataRefCache(metadataRefs, metadataRefsByName, indexMetadataRefs);
+        // Avoid re-wrapping the map if no changes
+        return new TableMetadataRefCache(
+            hasCreatedOrDroppedTablesOrViews ? unmodifiableMap(metadataRefs) : metadataRefs,
+            hasCreatedOrDroppedTablesOrViews ? unmodifiableMap(metadataRefsByName) : metadataRefsByName,
+            hasCreatedOrDroppedIndexes ? unmodifiableMap(indexMetadataRefs) : indexMetadataRefs);
     }
 
     private void putRef(Map<TableId, TableMetadataRef> metadataRefs,

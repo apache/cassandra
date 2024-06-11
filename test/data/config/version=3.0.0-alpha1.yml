@@ -1,3 +1,20 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+#
 ---
 trickle_fsync: "java.lang.Boolean"
 rpc_listen_backlog: "java.lang.Integer"
@@ -39,6 +56,7 @@ listen_address: "java.lang.String"
 native_transport_max_concurrent_connections_per_ip: "java.lang.Long"
 rpc_keepalive: "java.lang.Boolean"
 request_scheduler: "java.lang.String"
+allow_extra_insecure_udfs: "java.lang.Boolean"
 rpc_interface_prefer_ipv6: "java.lang.Boolean"
 check_for_duplicate_rows_during_compaction: "java.lang.Boolean"
 request_timeout_in_ms: "java.lang.Long"
@@ -68,6 +86,7 @@ permissions_update_interval_in_ms: "java.lang.Integer"
 tombstone_failure_threshold: "java.lang.Integer"
 authenticator: "java.lang.String"
 max_mutation_size_in_kb: "java.lang.Integer"
+allow_insecure_udfs: "java.lang.Boolean"
 cache_load_timeout_seconds: "java.lang.Integer"
 initial_token: "java.lang.String"
 batch_size_warn_threshold_in_kb: "java.lang.Integer"
@@ -162,6 +181,7 @@ hints_compression:
   class_name: "java.lang.String"
   parameters: "java.util.Map"
 commitlog_periodic_queue_size: "java.lang.Integer"
+force_new_prepared_statement_behaviour: "java.lang.Boolean"
 hinted_handoff_enabled: "java.lang.Boolean"
 max_value_size_in_mb: "java.lang.Integer"
 memtable_flush_writers: "java.lang.Integer"

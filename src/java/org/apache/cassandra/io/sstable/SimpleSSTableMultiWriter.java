@@ -80,6 +80,12 @@ public class SimpleSSTableMultiWriter implements SSTableMultiWriter
         return writer.getFilePointer();
     }
 
+    @Override
+    public long getOnDiskBytesWritten()
+    {
+        return writer.getEstimatedOnDiskBytesWritten();
+    }
+
     public TableId getTableId()
     {
         return writer.metadata().id;

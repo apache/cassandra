@@ -17,7 +17,9 @@
  */
 package org.apache.cassandra.fql;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -674,7 +676,7 @@ public class FullQueryLoggerTest extends CQLTester
     }
 
     @Test
-    public void testJMXArchiveCommand()
+    public void testJMXArchiveCommand() throws IOException
     {
         FullQueryLoggerOptions options = new FullQueryLoggerOptions();
 
@@ -691,7 +693,8 @@ public class FullQueryLoggerTest extends CQLTester
 
         options.allow_nodetool_archive_command = true;
         options.archive_command = "/xyz/not/null";
-        options.log_dir = "/tmp/abc";
+        Path tmpDir = Files.createTempDirectory("FullQueryLoggerTest");
+        options.log_dir = tmpDir.resolve("abc").toString();
         DatabaseDescriptor.setFullQueryLogOptions(options);
         StorageService.instance.enableFullQueryLogger(options.log_dir, options.roll_cycle, false, 1000, 1000, null, 0);
         assertTrue(FullQueryLogger.instance.isEnabled());

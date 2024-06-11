@@ -159,7 +159,7 @@ public class SimpleStrategyTest
     {
         TokenMetadata tmd;
         AbstractReplicationStrategy strategy;
-        for (String keyspaceName : Schema.instance.getNonLocalStrategyKeyspaces().names())
+        for (String keyspaceName : Schema.instance.distributedKeyspaces().names())
         {
             tmd = new TokenMetadata();
             strategy = getStrategy(keyspaceName, tmd, new SimpleSnitch());
@@ -214,7 +214,7 @@ public class SimpleStrategyTest
         tmd.addBootstrapToken(bsToken, bootstrapEndpoint);
 
         AbstractReplicationStrategy strategy = null;
-        for (String keyspaceName : Schema.instance.getNonLocalStrategyKeyspaces().names())
+        for (String keyspaceName : Schema.instance.distributedKeyspaces().names())
         {
             strategy = getStrategy(keyspaceName, tmd, new SimpleSnitch());
 

@@ -47,7 +47,6 @@ import com.google.common.util.concurrent.Uninterruptibles;
 import org.apache.cassandra.concurrent.*;
 import org.apache.cassandra.concurrent.FutureTask;
 import org.apache.cassandra.config.CassandraRelevantProperties;
-import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.net.Verb;
@@ -124,6 +123,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         SILENT_SHUTDOWN_STATES.add(VersionedValue.STATUS_BOOTSTRAPPING);
         SILENT_SHUTDOWN_STATES.add(VersionedValue.STATUS_BOOTSTRAPPING_REPLACE);
     }
+
     private static final List<String> ADMINISTRATIVELY_INACTIVE_STATES = Arrays.asList(VersionedValue.HIBERNATE,
                                                                                        VersionedValue.REMOVED_TOKEN,
                                                                                        VersionedValue.STATUS_LEFT);
@@ -143,7 +143,10 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     // Maximimum difference between generation value and local time we are willing to accept about a peer
     static final int MAX_GENERATION_DIFFERENCE = 86400 * 365;
-    private final long fatClientTimeout;
+
+    // half of QUARATINE_DELAY, to ensure justRemovedEndpoints has enough leeway to prevent re-gossip
+    private static final long FAT_CLIENT_TIMEOUT = (QUARANTINE_DELAY / 2);
+    private static final long FAILED_BOOTSTRAP_TIMEOUT = getFailedBootstrapTimeout();
     private final Random random = new Random();
 
     /* subscribers for interest in EndpointState change */
@@ -152,9 +155,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     /* live member set */
     @VisibleForTesting
     final Set<InetAddressAndPort> liveEndpoints = new ConcurrentSkipListSet<>();
-
-    /* Inflight echo requests. */
-    private final Set<InetAddressAndPort> inflightEcho = new ConcurrentSkipListSet<>();
 
     /* unreachable member set */
     private final Map<InetAddressAndPort, Long> unreachableEndpoints = new ConcurrentHashMap<>();
@@ -191,6 +191,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
      * This property and anything that checks it should be removed in 5.0
      */
     private volatile boolean upgradeInProgressPossible = true;
+    private volatile boolean hasNodeWithUnknownVersion = false;
 
     public void clearUnsafe()
     {
@@ -227,14 +228,17 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         }
 
         // Check the release version of all the peers it heard of. Not necessary the peer that it has/had contacted with.
-        boolean allHostsHaveKnownVersion = true;
-        for (InetAddressAndPort host : endpointStateMap.keySet())
+        hasNodeWithUnknownVersion = false;
+        for (Entry<InetAddressAndPort, EndpointState> entry : endpointStateMap.entrySet())
         {
-            CassandraVersion version = getReleaseVersion(host);
+            CassandraVersion version = getReleaseVersion(entry.getKey());
 
+            // if it is dead state, we skip the version check
+            if (isDeadState(entry.getValue()))
+                continue;
             //Raced with changes to gossip state, wait until next iteration
             if (version == null)
-                allHostsHaveKnownVersion = false;
+                hasNodeWithUnknownVersion = true;
             else if (version.compareTo(minVersion) < 0)
                 minVersion = version;
         }
@@ -242,7 +246,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         if (minVersion.compareTo(SystemKeyspace.CURRENT_VERSION) < 0)
             return new ExpiringMemoizingSupplier.Memoized<>(minVersion);
 
-        if (!allHostsHaveKnownVersion)
+        if (hasNodeWithUnknownVersion)
             return new ExpiringMemoizingSupplier.NotMemoized<>(minVersion);
 
         upgradeInProgressPossible = false;
@@ -270,6 +274,25 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             return Long.parseLong(newVLT);
         }
         return 259200 * 1000; // 3 days
+    }
+
+    private static long getFailedBootstrapTimeout()
+    {
+        String newtimeout = CassandraRelevantProperties.FAILED_BOOTSTRAP_TIMEOUT.getString();
+        if (newtimeout != null)
+        {
+            long longValue = Long.parseLong(newtimeout);
+            if (longValue == -1)
+            {
+                longValue = Long.MAX_VALUE;
+            }
+            logger.info("Overriding FAILED_BOOTSTRAP_TIMEOUT to {}ms", longValue);
+            return longValue;
+        }
+        else
+        {
+            return FAT_CLIENT_TIMEOUT * 2;
+        }
     }
 
     private static boolean isInGossipStage()
@@ -363,8 +386,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     @VisibleForTesting
     public Gossiper(boolean registerJmx)
     {
-        // half of QUARATINE_DELAY, to ensure justRemovedEndpoints has enough leeway to prevent re-gossip
-        fatClientTimeout = (QUARANTINE_DELAY / 2);
         /* register with the Failure Detector for receiving Failure detector events */
         FailureDetector.instance.registerFailureDetectionEventListener(this);
 
@@ -594,7 +615,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     {
         checkProperThreadForStateMutation();
         EndpointState epState = endpointStateMap.get(endpoint);
-        if (epState == null)
+        if (epState == null || epState.isStateEmpty())
             return;
         VersionedValue shutdown = StorageService.instance.valueFactory.shutdown(true);
         epState.addApplicationState(ApplicationState.STATUS_WITH_PORT, shutdown);
@@ -664,7 +685,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             return;
 
         liveEndpoints.remove(endpoint);
-        inflightEcho.remove(endpoint);
         unreachableEndpoints.remove(endpoint);
         MessagingService.instance().versions.reset(endpoint);
         quarantineEndpoint(endpoint);
@@ -1086,6 +1106,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             {
                 // check if this is a fat client. fat clients are removed automatically from
                 // gossip after FatClientTimeout.  Do not remove dead states here.
+                long fatClientTimeout = getFatClientTimeoutForEndpoint(epState);
                 if (isGossipOnlyMember(endpoint)
                     && !justRemovedEndpoints.containsKey(endpoint)
                     && TimeUnit.NANOSECONDS.toMillis(nowNano - epState.getUpdateTimestamp()) > fatClientTimeout)
@@ -1131,6 +1152,24 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                 }
             }
         }
+    }
+
+    private static long getFatClientTimeoutForEndpoint(EndpointState epState)
+    {
+        return isBootstrappingState(epState) ?
+                FAILED_BOOTSTRAP_TIMEOUT :
+                FAT_CLIENT_TIMEOUT;
+    }
+
+    private static boolean isBootstrappingState(EndpointState epState)
+    {
+        String status = getGossipStatus(epState);
+        if (status.isEmpty())
+        {
+            return false;
+        }
+
+        return VersionedValue.BOOTSTRAPPING_STATUS.contains(status);
     }
 
     protected long getExpireTimeForEndpoint(InetAddressAndPort endpoint)
@@ -1338,45 +1377,13 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     private void markAlive(final InetAddressAndPort addr, final EndpointState localState)
     {
-        if (inflightEcho.contains(addr))
-        {
-            return;
-        }
-        inflightEcho.add(addr);
-
         localState.markDead();
 
         Message<NoPayload> echoMessage = Message.out(ECHO_REQ, noPayload);
         logger.trace("Sending ECHO_REQ to {}", addr);
-        RequestCallback echoHandler = new RequestCallback()
+        RequestCallback echoHandler = msg ->
         {
-            @Override
-            public void onResponse(Message msg)
-            {
-                // force processing of the echo response onto the gossip stage, as it comes in on the REQUEST_RESPONSE stage
-                runInGossipStageBlocking(() -> {
-                    try
-                    {
-                        realMarkAlive(addr, localState);
-                    }
-                    finally
-                    {
-                        inflightEcho.remove(addr);
-                    }
-                });
-            }
-
-            @Override
-            public boolean invokeOnFailure()
-            {
-                return true;
-            }
-
-            @Override
-            public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
-            {
-                inflightEcho.remove(addr);
-            }
+            runInGossipStageBlocking(() -> realMarkAlive(addr, localState));
         };
 
         MessagingService.instance().sendWithCallback(echoMessage, addr, echoHandler);
@@ -1432,7 +1439,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         if (!disableEndpointRemoval)
         {
             liveEndpoints.remove(addr);
-            inflightEcho.remove(addr);
             unreachableEndpoints.put(addr, nanoTime());
         }
     }
@@ -1564,7 +1570,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
             EndpointState localEpStatePtr = endpointStateMap.get(ep);
             EndpointState remoteState = entry.getValue();
-            if (!hasMajorVersion3Nodes())
+            if (!hasMajorVersion3OrUnknownNodes())
                 remoteState.removeMajorVersion3LegacyApplicationStates();
 
             /*
@@ -1652,7 +1658,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         localState.addApplicationStates(updatedStates);
 
         // get rid of legacy fields once the cluster is not in mixed mode
-        if (!hasMajorVersion3Nodes())
+        if (!hasMajorVersion3OrUnknownNodes())
             localState.removeMajorVersion3LegacyApplicationStates();
 
         // need to run STATUS or STATUS_WITH_PORT first to handle BOOT_REPLACE correctly (else won't be a member, so TOKENS won't be processed)
@@ -2329,14 +2335,12 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         int totalPolls = 0;
         int numOkay = 0;
         int epSize = Gossiper.instance.getEndpointCount();
-        int liveSize = Gossiper.instance.getLiveMembers().size();
         while (numOkay < GOSSIP_SETTLE_POLL_SUCCESSES_REQUIRED)
         {
             Uninterruptibles.sleepUninterruptibly(GOSSIP_SETTLE_POLL_INTERVAL_MS, TimeUnit.MILLISECONDS);
             int currentSize = Gossiper.instance.getEndpointCount();
-            int currentLive = Gossiper.instance.getLiveMembers().size();
             totalPolls++;
-            if (currentSize == epSize && currentLive == liveSize)
+            if (currentSize == epSize)
             {
                 logger.debug("Gossip looks settled.");
                 numOkay++;
@@ -2347,7 +2351,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                 numOkay = 0;
             }
             epSize = currentSize;
-            liveSize = currentLive;
             if (forceAfter > 0 && totalPolls > forceAfter)
             {
                 logger.warn("Gossip not settled but startup forced by cassandra.skip_wait_for_gossip_to_settle. Gossip total polls: {}",
@@ -2393,12 +2396,12 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
      * Returns {@code false} only if the information about the version of each node in the cluster is available and
      * ALL the nodes are on 4.0+ (regardless of the patch version).
      */
-    public boolean hasMajorVersion3Nodes()
+    public boolean hasMajorVersion3OrUnknownNodes()
     {
         return isUpgradingFromVersionLowerThan(CassandraVersion.CASSANDRA_4_0) || // this is quite obvious
                // however if we discovered only nodes at current version so far (in particular only this node),
                // but still there are nodes with unknown version, we also want to report that the cluster may have nodes at 3.x
-               upgradeInProgressPossible && !isUpgradingFromVersionLowerThan(SystemKeyspace.CURRENT_VERSION.familyLowerBound.get());
+               hasNodeWithUnknownVersion;
     }
 
     /**

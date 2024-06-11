@@ -389,7 +389,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     /* the probability for tracing any particular request, 0 disables tracing and 1 enables for all */
     private double traceProbability = 0.0;
 
-    private enum Mode { STARTING, NORMAL, JOINING, LEAVING, DECOMMISSIONED, MOVING, DRAINING, DRAINED }
+    public enum Mode { STARTING, NORMAL, JOINING, LEAVING, DECOMMISSIONED, MOVING, DRAINING, DRAINED }
     private volatile Mode operationMode = Mode.STARTING;
 
     /* Used for tracking drain progress */
@@ -1297,7 +1297,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     private void executePreJoinTasks(boolean bootstrap)
     {
         StreamSupport.stream(ColumnFamilyStore.all().spliterator(), false)
-                .filter(cfs -> Schema.instance.getUserKeyspaces().names().contains(cfs.keyspace.getName()))
+                .filter(cfs -> Schema.instance.getUserKeyspaces().contains(cfs.keyspace.getName()))
                 .forEach(cfs -> cfs.indexManager.executePreJoinTasksBlocking(bootstrap));
     }
 
@@ -1379,39 +1379,30 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void rebuild(String sourceDc, String keyspace, String tokens, String specificSources)
     {
-        try
+        if (sourceDc != null)
         {
-            // check ongoing rebuild
-            if (!isRebuilding.compareAndSet(false, true))
+            TokenMetadata.Topology topology = getTokenMetadata().cloneOnlyTokenMap().getTopology();
+            Set<String> availableDCs = topology.getDatacenterEndpoints().keySet();
+            if (!availableDCs.contains(sourceDc))
             {
-                throw new IllegalStateException("Node is still rebuilding. Check nodetool netstats.");
-            }
-
-            if (sourceDc != null)
-            {
-                TokenMetadata.Topology topology = getTokenMetadata().cloneOnlyTokenMap().getTopology();
-                Set<String> availableDCs = topology.getDatacenterEndpoints().keySet();
-                if (!availableDCs.contains(sourceDc))
-                {
-                    throw new IllegalArgumentException(String.format("Provided datacenter '%s' is not a valid datacenter, available datacenters are: %s",
-                                                                     sourceDc, String.join(",", availableDCs)));
-                }
+                throw new IllegalArgumentException(String.format("Provided datacenter '%s' is not a valid datacenter, available datacenters are: %s",
+                                                                 sourceDc, String.join(",", availableDCs)));
             }
         }
-        catch (Throwable ex)
+
+        if (keyspace == null && tokens != null)
         {
-            isRebuilding.set(false);
-            throw ex;
+            throw new IllegalArgumentException("Cannot specify tokens without keyspace.");
+        }
+
+        // check ongoing rebuild
+        if (!isRebuilding.compareAndSet(false, true))
+        {
+            throw new IllegalStateException("Node is still rebuilding. Check nodetool netstats.");
         }
 
         try
         {
-            // check the arguments
-            if (keyspace == null && tokens != null)
-            {
-                throw new IllegalArgumentException("Cannot specify tokens without keyspace.");
-            }
-
             logger.info("rebuild from dc: {}, {}, {}", sourceDc == null ? "(any dc)" : sourceDc,
                         keyspace == null ? "(All keyspaces)" : keyspace,
                         tokens == null ? "(All tokens)" : tokens);
@@ -1432,7 +1423,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
             if (keyspace == null)
             {
-                for (String keyspaceName : Schema.instance.getNonLocalStrategyKeyspaces().names())
+                for (String keyspaceName : Schema.instance.distributedKeyspaces().names())
                     streamer.addRanges(keyspaceName, getLocalReplicas(keyspaceName));
             }
             else if (tokens == null)
@@ -2099,7 +2090,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      * All MVs have been created during bootstrap, so mark them as built
      */
     private void markViewsAsBuilt() {
-        for (String keyspace : Schema.instance.getUserKeyspaces().names())
+        for (String keyspace : Schema.instance.getUserKeyspaces())
         {
             for (ViewMetadata view: Schema.instance.getKeyspaceMetadata(keyspace).views)
                 SystemKeyspace.finishViewBuildStatus(view.keyspace(), view.name());
@@ -2329,7 +2320,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         // some people just want to get a visual representation of things. Allow null and set it to the first
         // non-system keyspace.
         if (keyspace == null)
-            keyspace = Schema.instance.getNonLocalStrategyKeyspaces().iterator().next().name;
+            keyspace = Schema.instance.distributedKeyspaces().iterator().next().name;
 
         Map<List<String>, List<String>> map = new HashMap<>();
         for (Map.Entry<Range<Token>, EndpointsForRange> entry : tokenMetadata.getPendingRangesMM(keyspace).asMap().entrySet())
@@ -2383,7 +2374,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         // some people just want to get a visual representation of things. Allow null and set it to the first
         // non-system keyspace.
         if (keyspace == null)
-            keyspace = Schema.instance.getNonLocalStrategyKeyspaces().iterator().next().name;
+            keyspace = Schema.instance.distributedKeyspaces().iterator().next().name;
 
         List<Range<Token>> ranges = getAllRanges(sortedTokens);
         return constructRangeToEndpointMap(keyspace, ranges);
@@ -3487,7 +3478,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         InetAddressAndPort myAddress = FBUtilities.getBroadcastAddressAndPort();
 
-        for (String keyspaceName : Schema.instance.getNonLocalStrategyKeyspaces().names())
+        for (String keyspaceName : Schema.instance.distributedKeyspaces().names())
         {
             logger.debug("Restoring replica count for keyspace {}", keyspaceName);
             EndpointsByReplica changedReplicas = getChangedReplicasForLeaving(keyspaceName, endpoint, tokenMetadata, Keyspace.open(keyspaceName).getReplicationStrategy());
@@ -3929,7 +3920,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (SchemaConstants.isLocalSystemKeyspace(keyspaceName))
             throw new RuntimeException("Cleanup of the system keyspace is neither necessary nor wise");
 
-        if (tokenMetadata.getPendingRanges(keyspaceName, getBroadcastAddressAndPort()).size() > 0)
+        if (!tokenMetadata.getPendingRanges(keyspaceName, getBroadcastAddressAndPort()).isEmpty())
             throw new RuntimeException("Node is involved in cluster membership changes. Not safe to run cleanup.");
 
         CompactionManager.AllSSTableOpStatus status = CompactionManager.AllSSTableOpStatus.SUCCESSFUL;
@@ -4626,7 +4617,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         List<Future<?>> futures = new ArrayList<>();
 
-        Keyspaces keyspaces = Schema.instance.getNonLocalStrategyKeyspaces();
+        Keyspaces keyspaces = Schema.instance.distributedKeyspaces();
         for (String ksName : keyspaces.names())
         {
             if (SchemaConstants.REPLICATED_SYSTEM_KEYSPACE_NAMES.contains(ksName))
@@ -4977,7 +4968,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             if (operationMode != Mode.LEAVING) // If we're already decommissioning there is no point checking RF/pending ranges
             {
                 int rf, numNodes;
-                for (String keyspaceName : Schema.instance.getNonLocalStrategyKeyspaces().names())
+                for (String keyspaceName : Schema.instance.distributedKeyspaces().names())
                 {
                     if (!force)
                     {
@@ -5065,7 +5056,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         Map<String, EndpointsByReplica> rangesToStream = new HashMap<>();
 
-        for (String keyspaceName : Schema.instance.getNonLocalStrategyKeyspaces().names())
+        for (String keyspaceName : Schema.instance.distributedKeyspaces().names())
         {
             EndpointsByReplica rangesMM = getChangedReplicasForLeaving(keyspaceName, FBUtilities.getBroadcastAddressAndPort(), tokenMetadata, Keyspace.open(keyspaceName).getReplicationStrategy());
 
@@ -5093,9 +5084,20 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         logger.debug("waiting for batch log processing.");
         batchlogReplay.get();
 
-        setMode(Mode.LEAVING, "streaming hints to other nodes", true);
+        Future<?> hintsSuccess = ImmediateFuture.success(null);
 
-        Future hintsSuccess = streamHints();
+        if (DatabaseDescriptor.getTransferHintsOnDecommission())
+        {
+            setMode(Mode.LEAVING, "streaming hints to other nodes", true);
+            hintsSuccess = streamHints();
+        }
+        else
+        {
+            setMode(Mode.LEAVING, "pausing dispatch and deleting hints", true);
+            DatabaseDescriptor.setHintedHandoffEnabled(false);
+            HintsService.instance.pauseDispatch();
+            HintsService.instance.deleteAllHints();
+        }
 
         // wait for the transfer runnables to signal the latch.
         logger.debug("waiting for stream acks.");
@@ -5179,7 +5181,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             throw new UnsupportedOperationException("This node has more than one token and cannot be moved thusly.");
         }
 
-        List<String> keyspacesToProcess = ImmutableList.copyOf(Schema.instance.getNonLocalStrategyKeyspaces().names());
+        List<String> keyspacesToProcess = ImmutableList.copyOf(Schema.instance.distributedKeyspaces().names());
 
         PendingRangeCalculatorService.instance.blockUntilFinished();
         // checking if data is moving to this node
@@ -5326,7 +5328,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         Collection<Token> tokens = tokenMetadata.getTokens(endpoint);
 
         // Find the endpoints that are going to become responsible for data
-        for (String keyspaceName : Schema.instance.getNonLocalStrategyKeyspaces().names())
+        for (String keyspaceName : Schema.instance.distributedKeyspaces().names())
         {
             // if the replication factor is 1 the data is lost so we shouldn't wait for confirmation
             if (Keyspace.open(keyspaceName).getReplicationStrategy().getReplicationFactor().allReplicas == 1)
@@ -5510,12 +5512,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
             // count CFs first, since forceFlush could block for the flushWriter to get a queue slot empty
             totalCFs = 0;
-            for (Keyspace keyspace : Keyspace.nonSystem())
+            for (Keyspace keyspace : Keyspace.nonLocalStrategy())
                 totalCFs += keyspace.getColumnFamilyStores().size();
             remainingCFs = totalCFs;
             // flush
             List<Future<?>> flushes = new ArrayList<>();
-            for (Keyspace keyspace : Keyspace.nonSystem())
+            for (Keyspace keyspace : Keyspace.nonLocalStrategy())
             {
                 for (ColumnFamilyStore cfs : keyspace.getColumnFamilyStores())
                     flushes.add(cfs.forceFlush(ColumnFamilyStore.FlushReason.DRAIN));
@@ -5759,9 +5761,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
         else
         {
-            Collection<String> userKeyspaces = Schema.instance.getUserKeyspaces().names();
+            Collection<String> userKeyspaces = Schema.instance.getUserKeyspaces();
 
-            if (userKeyspaces.size() > 0)
+            if (!userKeyspaces.isEmpty())
             {
                 keyspace = userKeyspaces.iterator().next();
                 AbstractReplicationStrategy replicationStrategy = Schema.instance.getKeyspaceInstance(keyspace).getReplicationStrategy();
@@ -5830,7 +5832,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public List<String> getKeyspaces()
     {
-        return Lists.newArrayList(Schema.instance.distributedAndLocalKeyspaces().names());
+        return Lists.newArrayList(Schema.instance.getKeyspaces());
     }
 
     public List<String> getNonSystemKeyspaces()
@@ -5840,7 +5842,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public List<String> getNonLocalStrategyKeyspaces()
     {
-        return Lists.newArrayList(Schema.instance.getNonLocalStrategyKeyspaces().names());
+        return Lists.newArrayList(Schema.instance.distributedKeyspaces().names());
     }
 
     public Map<String, String> getViewBuildStatuses(String keyspace, String view, boolean withPort)
@@ -6372,6 +6374,17 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         DatabaseDescriptor.setHintedHandoffThrottleInKiB(throttleInKB);
         logger.info("updated hinted_handoff_throttle to {} KiB", throttleInKB);
+    }
+
+    public boolean getTransferHintsOnDecommission()
+    {
+        return DatabaseDescriptor.getTransferHintsOnDecommission();
+    }
+
+    public void setTransferHintsOnDecommission(boolean enabled)
+    {
+        DatabaseDescriptor.setTransferHintsOnDecommission(enabled);
+        logger.info("updated transfer_hints_on_decommission to {}", enabled);
     }
 
     @Override
@@ -6969,4 +6982,83 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         DatabaseDescriptor.setMinTrackedPartitionTombstoneCount(value);
     }
+
+    @Override
+    public String getCQLStartTime()
+    {
+        return DatabaseDescriptor.getCQLStartTime().toString();
+    }
+
+    @Override
+    public void setCQLStartTime(String value)
+    {
+        DatabaseDescriptor.setCQLStartTime(Config.CQLStartTime.valueOf(value));
+    }
+
+    @Override
+    public double getNativeTransportQueueMaxItemAgeThreshold()
+    {
+        return DatabaseDescriptor.getNativeTransportQueueMaxItemAgeThreshold();
+    }
+
+    @Override
+    public void setNativeTransportQueueMaxItemAgeThreshold(double threshold)
+    {
+        DatabaseDescriptor.setNativeTransportMaxQueueItemAgeThreshold(threshold);
+    }
+
+    @Override
+    public long getNativeTransportMinBackoffOnQueueOverloadInMillis()
+    {
+        return DatabaseDescriptor.getNativeTransportMinBackoffOnQueueOverload(MILLISECONDS);
+    }
+
+    @Override
+    public long getNativeTransportMaxBackoffOnQueueOverloadInMillis()
+    {
+        return DatabaseDescriptor.getNativeTransportMaxBackoffOnQueueOverload(MILLISECONDS);
+    }
+
+    @Override
+    public void setNativeTransportBackoffOnQueueOverloadInMillis(long min, long max)
+    {
+        DatabaseDescriptor.setNativeTransportBackoffOnQueueOverload(min, max, MILLISECONDS);
+    }
+
+    @Override
+    public boolean getNativeTransportThrowOnOverload()
+    {
+        return DatabaseDescriptor.getNativeTransportThrowOnOverload();
+    }
+
+    @Override
+    public void setNativeTransportThrowOnOverload(boolean throwOnOverload)
+    {
+        DatabaseDescriptor.setNativeTransportThrowOnOverload(throwOnOverload);
+    }
+
+    @Override
+    public long getNativeTransportTimeoutMillis()
+    {
+        return DatabaseDescriptor.getNativeTransportTimeout(MILLISECONDS);
+    }
+
+    @Override
+    public void setNativeTransportTimeoutMillis(long deadlineMillis)
+    {
+        DatabaseDescriptor.setNativeTransportTimeout(deadlineMillis, MILLISECONDS);
+    }
+
+    @Override
+    public boolean getEnforceNativeDeadlineForHints()
+    {
+        return DatabaseDescriptor.getEnforceNativeDeadlineForHints();
+    }
+
+    @Override
+    public void setEnforceNativeDeadlineForHints(boolean value)
+    {
+        DatabaseDescriptor.setEnforceNativeDeadlineForHints(value);
+    }
+
 }

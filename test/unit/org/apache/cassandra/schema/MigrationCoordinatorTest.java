@@ -31,6 +31,7 @@ import java.util.UUID;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
@@ -40,6 +41,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ImmediateExecutor;
+import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.gms.ApplicationState;
@@ -56,6 +58,7 @@ import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
+import org.awaitility.Awaitility;
 import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
 import org.mockito.internal.creation.MockSettingsImpl;
@@ -338,6 +341,8 @@ public class MigrationCoordinatorTest
             prev = next;
             Assert.assertFalse(wrapper.coordinator.awaitSchemaRequests(1));
 
+            Awaitility.await().atMost(5, TimeUnit.SECONDS).pollDelay(100, TimeUnit.MILLISECONDS)
+                      .until(() -> ScheduledExecutors.nonPeriodicTasks.getPendingTaskCount() == 0 && ScheduledExecutors.nonPeriodicTasks.getActiveTaskCount() == 0);
             Assert.assertEquals(2, wrapper.requests.size());
         }
         logger.info("{} -> {}", EP1, ep1requests);

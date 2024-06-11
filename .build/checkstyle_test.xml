@@ -59,6 +59,13 @@
       <property name="classes" value=""/>
     </module>
 
+    <module name="RegexpSinglelineJava">
+      <property name="id" value="hardcodeTmpDirectoryUsage"/>
+      <property name="format" value="(File|Directory)\(&quot;/tmp"/>
+      <property name="ignoreComments" value="true"/>
+      <property name="message" value="Please do not hardcode '/tmp' for test files and directories. Use Files.createTempDirectory to create a base test directory instead." />
+    </module>
+
     <module name="RedundantImport"/>
     <module name="UnusedImports"/>
   </module>
