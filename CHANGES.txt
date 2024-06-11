@@ -1,4 +1,5 @@
 5.0-beta2
+ * Avoid streams in the common case for UpdateTransaction creation (CASSANDRA-19675)
  * Only wait until native_transport_timeout for dispatcher to finish (CASSANDRA-19697)
  * Disable chronicle analytics (CASSANDRA-19656)
  * Replace Stream iteration with for-loop for StorageProxy::updateCoordinatorWriteLatencyTableMetric (CASSANDRA-19676)
