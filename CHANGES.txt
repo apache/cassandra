@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 5.1
  * Relax slow_query_log_timeout for MultiNodeSAITest (CASSANDRA-19693)
  * Audit Log entries are missing identity for mTLS connections (CASSANDRA-19669)
