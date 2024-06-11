@@ -422,7 +422,7 @@ abstract class ElementsSelector extends Selector
 
         protected ByteBuffer extractSelection(ByteBuffer collection)
         {
-            return type.getSerializer().getSliceFromSerialized(collection, from, to, type.nameComparator(), type.isFrozenCollection());
+            return type.getSerializer().getSliceFromSerialized(collection, from, to, type.nameComparator(), !type.isMultiCell());
         }
 
         @Override

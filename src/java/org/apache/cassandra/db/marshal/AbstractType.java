@@ -320,11 +320,6 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
         return false;
     }
 
-    public boolean isFrozenCollection()
-    {
-        return isCollection() && !isMultiCell();
-    }
-
     public boolean isReversed()
     {
         return false;
