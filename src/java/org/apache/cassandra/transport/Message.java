@@ -21,6 +21,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.nio.ByteBuffer;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -187,6 +188,15 @@ public abstract class Message
 
     public Map<String, ByteBuffer> getCustomPayload()
     {
+        if(customPayload != null && ! customPayload.isEmpty())
+        {
+            Map<String, String> res = new HashMap<>();
+            for (Map.Entry entry : customPayload.entrySet())
+            {
+                res.put((String) entry.getKey(), new String(((ByteBuffer) entry.getValue()).array()));
+            }
+            logger.info("Client context data in query message: {}", res);
+        }
         return customPayload;
     }
 

@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.cassandra.transport.ClientResourceLimits.Overload;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -148,6 +149,11 @@ public class InitialConnectionHandler extends ByteToMessageDecoder
                         configurator.configureLegacyPipeline(ctx, allocator);
                         promise = new VoidChannelPromise(ctx.channel(), false);
                     }
+
+                    // Logging the client context data if exists
+                    String serviceName = startup.options.get(StartupMessage.SERVICE);
+                    if (StringUtils.isNoneEmpty(serviceName))
+                        logger.info("Client context data: {}", startup.options);
 
                     final Message.Response response = Dispatcher.processRequest(ctx.channel(), startup, Overload.NONE, Dispatcher.RequestTime.forImmediateExecution());
 

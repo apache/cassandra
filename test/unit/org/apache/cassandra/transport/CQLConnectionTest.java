@@ -1088,6 +1088,7 @@ public class CQLConnectionTest
             // Send an initial STARTUP message to kick off the handshake with the server
             Map<String, String> options = new HashMap<>();
             options.put(StartupMessage.CQL_VERSION, QueryProcessor.CQL_VERSION.toString());
+            options.put(StartupMessage.SERVICE, "TestService");
             if (codec.encoder instanceof FrameEncoderLZ4)
                 options.put(StartupMessage.COMPRESSION, "LZ4");
             Connection connection = new Connection(channel, ProtocolVersion.V5, (ch, connection1) -> {});
