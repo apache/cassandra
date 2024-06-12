@@ -38,6 +38,7 @@ import accord.utils.Invariants;
 import accord.utils.async.AsyncChains;
 import org.apache.cassandra.cache.CacheSize;
 import org.apache.cassandra.concurrent.ExecutorPlus;
+import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.metrics.AccordStateCacheMetrics;
 import org.apache.cassandra.metrics.CacheAccessMetrics;
 import org.apache.cassandra.service.accord.AccordCachingState.Status;
@@ -398,6 +399,12 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
             if (node == null)
                 return null;
             return safeRefFactory.apply(node);
+        }
+
+        public void initialLoad(K key, V initial)
+        {
+            AccordCachingState<K, V> node = acquire(key, false);
+            node.load(ImmediateExecutor.INSTANCE, (k) -> initial);
         }
 
         private AccordCachingState<K, V> acquire(K key, boolean onlyIfLoaded)

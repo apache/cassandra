@@ -38,7 +38,6 @@ import accord.local.NodeTimeService;
 import accord.local.PreLoadContext;
 import accord.local.SafeCommandStore;
 import accord.messages.BeginRecovery;
-import accord.messages.Message;
 import accord.messages.PreAccept;
 import accord.messages.TxnRequest;
 import accord.primitives.Ballot;
@@ -332,8 +331,6 @@ public class SimulatedAccordCommandStore implements AutoCloseable
 
     public <T> AsyncResult<T> processAsync(PreLoadContext loadCtx, Function<? super SafeCommandStore, T> function)
     {
-        if (loadCtx instanceof Message)
-            journal.appendMessageBlocking((Message) loadCtx);
         return store.submit(loadCtx, function).beginAsResult();
     }
 
