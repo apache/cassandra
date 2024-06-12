@@ -167,12 +167,6 @@ public class ListType<T> extends CollectionType<List<T>>
         return new Lists.DelayedValue(terms);
     }
 
-    public ByteBuffer getSliceFromSerialized(ByteBuffer collection, ByteBuffer from, ByteBuffer to)
-    {
-        // We don't support slicing on lists so we don't need that function
-        throw new UnsupportedOperationException();
-    }
-
     @Override
     public String toJSONString(ByteBuffer buffer, ProtocolVersion protocolVersion)
     {
