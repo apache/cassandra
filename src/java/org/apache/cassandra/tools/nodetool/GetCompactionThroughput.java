@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
+import java.util.Map;
+
 import com.google.common.math.DoubleMath;
 
 import io.airlift.airline.Command;
@@ -38,13 +40,18 @@ public class GetCompactionThroughput extends NodeToolCmd
         double throughput = probe.getCompactionThroughputMebibytesAsDouble();
 
         if (compactionThroughputAsDouble)
-            probe.output().out.println("Current compaction throughput: " + throughput + " MiB/s");
+            probe.output().out.println("Current compaction throughput limit: " + throughput + " MiB/s");
         else
         {
             if (!DoubleMath.isMathematicalInteger(throughput))
                 throw new RuntimeException("Use the -d flag to quiet this error and get the exact throughput in MiB/s");
 
-            probe.output().out.println("Current compaction throughput: " + probe.getCompactionThroughput() + " MB/s");
+            probe.output().out.println("Current compaction throughput limit: " + probe.getCompactionThroughput() + " MB/s");
         }
+
+        Map<String, String> currentCompactionThroughputMetricsMap = probe.getCurrentCompactionThroughput();
+        probe.output().out.println("Current compaction throughput (1 minute): " + currentCompactionThroughputMetricsMap.get("1minute") + " MB/s");
+        probe.output().out.println("Current compaction throughput (5 minute): " + currentCompactionThroughputMetricsMap.get("5minute") + " MB/s");
+        probe.output().out.println("Current compaction throughput (15 minute): " + currentCompactionThroughputMetricsMap.get("15minute") + " MB/s");
     }
 }

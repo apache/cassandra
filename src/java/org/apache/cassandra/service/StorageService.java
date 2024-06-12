@@ -78,6 +78,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.codahale.metrics.Meter;
 import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.audit.AuditLogOptions;
 import org.apache.cassandra.auth.AuthCacheService;
@@ -1413,6 +1414,17 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         CompactionManager.instance.setRateInBytes(valueInBytes);
         logger.info("compactionthroughput: throttle set to {} mebibytes per second (was {} mebibytes per second)",
                     value, oldValue);
+    }
+
+    public Map<String, String> getCurrentCompactionThroughput()
+    {
+        HashMap<String, String> result = new LinkedHashMap<>();
+        Meter rate = CompactionManager.instance.getCompactionThroughput();
+        double mb = 1024.0 * 1024.0;
+        result.put("1minute", String.format("%.3f", rate.getOneMinuteRate() / mb));
+        result.put("5minute", String.format("%.3f", rate.getFiveMinuteRate() / mb));
+        result.put("15minute", String.format("%.3f", rate.getFifteenMinuteRate() / mb));
+        return result;
     }
 
     public int getBatchlogReplayThrottleInKB()
