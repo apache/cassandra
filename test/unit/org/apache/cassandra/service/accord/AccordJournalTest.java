@@ -33,7 +33,6 @@ import accord.utils.Gens;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.service.accord.AccordJournal.Key;
 import org.apache.cassandra.utils.AsymmetricOrdering;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.FBUtilities.Order;
@@ -58,12 +57,12 @@ public class AccordJournalTest
         qt().forAll(keyGen()).check(key ->
         {
             buffer.clear();
-            int expectedSize = Key.SUPPORT.serializedSize(1);
-            Key.SUPPORT.serialize(key, buffer, 1);
+            int expectedSize = JournalKey.SUPPORT.serializedSize(1);
+            JournalKey.SUPPORT.serialize(key, buffer, 1);
             assertThat(buffer.getLength()).isEqualTo(expectedSize);
             try (DataInputBuffer input = new DataInputBuffer(buffer.unsafeGetBufferAndFlip(), false))
             {
-                Key read = Key.SUPPORT.deserialize(input, 1);
+                JournalKey read = JournalKey.SUPPORT.deserialize(input, 1);
                 assertThat(read).isEqualTo(key);
             }
         });
@@ -74,29 +73,29 @@ public class AccordJournalTest
     {
         qt().forAll(Gens.lists(keyGen()).ofSizeBetween(2, 100)).check(keys ->
         {
-            keys.sort(Key.SUPPORT);
+            keys.sort(JournalKey.SUPPORT);
 
             List<ByteBuffer> buffers = new ArrayList<>(keys.size());
-            for (Key k : keys) buffers.add(toBuffer(k));
+            for (JournalKey k : keys) buffers.add(toBuffer(k));
 
             for (int i = 0; i < keys.size(); i++)
             {
-                Key outerKey = keys.get(i);
+                JournalKey outerKey = keys.get(i);
                 for (int j = 0; j < keys.size(); j++)
                 {
-                    Key innerKey = keys.get(j);
+                    JournalKey innerKey = keys.get(j);
                     ByteBuffer innerBuffer = buffers.get(j);
-                    Order expected = FBUtilities.compare(outerKey, innerKey, Key.SUPPORT);
-                    Order actual = FBUtilities.compare(outerKey, innerBuffer, new AsymmetricOrdering<Key, ByteBuffer>()
+                    Order expected = FBUtilities.compare(outerKey, innerKey, JournalKey.SUPPORT);
+                    Order actual = FBUtilities.compare(outerKey, innerBuffer, new AsymmetricOrdering<JournalKey, ByteBuffer>()
                     {
                         @Override
-                        public int compareAsymmetric(Key left, ByteBuffer right)
+                        public int compareAsymmetric(JournalKey left, ByteBuffer right)
                         {
-                            return Key.SUPPORT.compareWithKeyAt(left, right, 0, 1);
+                            return JournalKey.SUPPORT.compareWithKeyAt(left, right, 0, 1);
                         }
 
                         @Override
-                        public int compare(@Nullable Key left, @Nullable Key right)
+                        public int compare(@Nullable JournalKey left, @Nullable JournalKey right)
                         {
                             throw new UnsupportedOperationException();
                         }
@@ -107,11 +106,11 @@ public class AccordJournalTest
         });
     }
 
-    private static ByteBuffer toBuffer(Key k)
+    private static ByteBuffer toBuffer(JournalKey k)
     {
-        try (DataOutputBuffer buffer = new DataOutputBuffer(Key.SUPPORT.serializedSize(1)))
+        try (DataOutputBuffer buffer = new DataOutputBuffer(JournalKey.SUPPORT.serializedSize(1)))
         {
-            Key.SUPPORT.serialize(k, buffer, 1);
+            JournalKey.SUPPORT.serialize(k, buffer, 1);
             return buffer.unsafeGetBufferAndFlip();
         }
         catch (IOException e)
@@ -120,10 +119,10 @@ public class AccordJournalTest
         }
     }
 
-    private Gen<Key> keyGen()
+    private Gen<JournalKey> keyGen()
     {
         Gen<TxnId> txnIdGen = AccordGens.txnIds();
         Gen<AccordJournal.Type> typeGen = Gens.enums().all(AccordJournal.Type.class);
-        return rs -> new Key(txnIdGen.next(rs), typeGen.next(rs));
+        return rs -> new JournalKey(txnIdGen.next(rs), typeGen.next(rs));
     }
 }

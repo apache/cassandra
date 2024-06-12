@@ -98,6 +98,15 @@ class Segments<K, V>
                 into.add(segment.asActive());
     }
 
+    boolean isSwitched(ActiveSegment<K, V> active)
+    {
+        for (Segment<K, V> segment : segments.values())
+            if (!segment.isActive() && active.descriptor.equals(segment.descriptor))
+                return true;
+
+        return false;
+    }
+
     ActiveSegment<K, V> oldestActive()
     {
         Segment<K, V> oldest = null;
@@ -169,6 +178,14 @@ class Segments<K, V>
             if (null != refs)
                 refs.release();
         }
+    }
+
+    boolean isFlushed(RecordPointer recordPointer)
+    {
+        Segment<K, V> segment = segments.get(recordPointer.segment);
+        if (null == segment)
+            throw new IllegalArgumentException("Can not reference segment " + recordPointer.segment);
+        return segment.isFlushed(recordPointer.position);
     }
 
     ReferencedSegment<K, V> selectAndReference(long segmentTimestamp)

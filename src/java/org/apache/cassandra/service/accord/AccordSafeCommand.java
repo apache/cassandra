@@ -91,10 +91,16 @@ public class AccordSafeCommand extends SafeCommand implements AccordSafeState<Tx
         this.current = command;
     }
 
+    @Override
     public Command original()
     {
         checkNotInvalidated();
         return original;
+    }
+
+    public SavedCommand.SavedDiff diff()
+    {
+        return SavedCommand.diff(original, current);
     }
 
     @Override
@@ -125,14 +131,14 @@ public class AccordSafeCommand extends SafeCommand implements AccordSafeState<Tx
     }
 
     @Override
-    public void addListener(Command.TransientListener listener)
+    public void addListener(TransientListener listener)
     {
         checkNotInvalidated();
         global.addListener(listener);
     }
 
     @Override
-    public boolean removeListener(Command.TransientListener listener)
+    public boolean removeListener(TransientListener listener)
     {
         checkNotInvalidated();
         return global.removeListener(listener);

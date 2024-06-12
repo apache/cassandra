@@ -23,15 +23,18 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.LockSupport;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.zip.CRC32;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -53,6 +56,7 @@ import org.apache.cassandra.utils.Crc;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Simulate;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
+import org.jctools.queues.MpscUnboundedArrayQueue;
 
 import static java.lang.String.format;
 import static java.util.Comparator.comparing;
@@ -88,7 +92,6 @@ public class Journal<K, V> implements Shutdownable
     final String name;
     final File directory;
     final Params params;
-    final AsyncCallbacks<K, V> callbacks;
 
     final KeySupport<K> keySupport;
     final ValueSerializer<K, V> valueSerializer;
@@ -112,29 +115,93 @@ public class Journal<K, V> implements Shutdownable
     private final WaitQueue segmentPrepared = newWaitQueue();
     private final WaitQueue allocatorThreadWaitQueue = newWaitQueue();
     private final BooleanSupplier allocatorThreadWaitCondition = () -> (availableSegment == null);
+    private final FlusherCallbacks flusherCallbacks;
 
     SequentialExecutorPlus closer;
     //private final Set<Descriptor> invalidations = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
+    private class FlusherCallbacks implements Flusher.Callbacks
+    {
+        private final MpscUnboundedArrayQueue<WaitingFor> waitingFor = new MpscUnboundedArrayQueue<>(256);
+        private List<WaitingFor> drained = new ArrayList<>();
+
+        @Override
+        public void onFlush(long segment, int position)
+        {
+            waitingFor.drain(drained::add);
+            List<WaitingFor> remaining = new ArrayList<>();
+            for (WaitingFor wait : drained)
+            {
+                if (wait.segment == segment && wait.position <= position)
+                    wait.run();
+                else
+                    remaining.add(wait);
+            }
+            drained = remaining;
+        }
+
+        @Override
+        public void onFlushFailed(Throwable cause)
+        {
+            // TODO: panic
+        }
+
+        private void submit(RecordPointer pointer, Runnable runnable)
+        {
+            if (isFlushed(pointer))
+                runnable.run();
+            else
+            {
+                waitingFor.add(new WaitingFor(pointer.segment, pointer.position, runnable));
+                flusher.requestExtraFlush();
+            }
+        }
+    }
+
+    private static class WaitingFor extends RecordPointer implements Runnable
+    {
+        private final Runnable onFlush;
+
+        public WaitingFor(long segment, int position, Runnable onFlush)
+        {
+            super(segment, position);
+            this.onFlush = onFlush;
+        }
+
+        public void run()
+        {
+            onFlush.run();
+        }
+    }
+
     public Journal(String name,
                    File directory,
                    Params params,
-                   AsyncCallbacks<K, V> callbacks,
                    KeySupport<K> keySupport,
                    ValueSerializer<K, V> valueSerializer)
     {
         this.name = name;
         this.directory = directory;
         this.params = params;
-        this.callbacks = callbacks;
 
         this.keySupport = keySupport;
         this.valueSerializer = valueSerializer;
 
         this.metrics = new Metrics<>(name);
-        this.flusher = new Flusher<>(this);
+        this.flusherCallbacks = new FlusherCallbacks();
+        this.flusher = new Flusher<>(this, flusherCallbacks);
         //this.invalidator = new Invalidator<>(this);
         //this.compactor = new Compactor<>(this);
+    }
+
+    public boolean isFlushed(RecordPointer recordPointer)
+    {
+        return segments.get().isFlushed(recordPointer);
+    }
+
+    public void onFlush(RecordPointer recordPointer, Runnable runnable)
+    {
+        flusherCallbacks.submit(recordPointer, runnable);
     }
 
     public void start()
@@ -267,6 +334,34 @@ public class Journal<K, V> implements Shutdownable
         return null;
     }
 
+    // TODO: This should be improved with new index that should take better care of handling multiple items
+    public List<V> readAll(K id)
+    {
+        EntrySerializer.EntryHolder<K> holder = new EntrySerializer.EntryHolder<>();
+        List<V> res = new ArrayList<>(2);
+        try (ReferencedSegments<K, V> segments = selectAndReference(id))
+        {
+            for (Segment<K, V> segment : segments.all())
+            {
+                segment.readAll(id, holder, () -> {
+                    try (DataInputBuffer in = new DataInputBuffer(holder.value, false))
+                    {
+                        Invariants.checkState(Objects.equals(holder.key, id),
+                                              "%s != %s", holder.key, id);
+                        res.add(valueSerializer.deserialize(holder.key, in, segment.descriptor.userVersion));
+                        holder.clear();
+                    }
+                    catch (IOException e)
+                    {
+                        // can only throw if serializer is buggy
+                        throw new RuntimeException(e);
+                    }
+                });
+            }
+        }
+        return res;
+    }
+
     /**
      * Looks up a record by the provided id, if the value satisfies the provided condition.
      * <p/>
@@ -371,13 +466,13 @@ public class Journal<K, V> implements Shutdownable
      * @param record the record to store
      * @param hosts hosts expected to invalidate the record
      */
-    public void write(K id, V record, Set<Integer> hosts)
+    public void blockingWrite(K id, V record, Set<Integer> hosts)
     {
         try (DataOutputBuffer dob = DataOutputBuffer.scratchBuffer.get())
         {
             valueSerializer.serialize(id, record, dob, params.userVersion());
             ActiveSegment<K, V>.Allocation alloc = allocate(dob.getLength(), hosts);
-            alloc.write(id, dob.unsafeGetBufferAndFlip(), hosts);
+            alloc.writeInternal(id, dob.unsafeGetBufferAndFlip(), hosts);
             flusher.waitForFlush(alloc);
         }
         catch (IOException e)
@@ -397,19 +492,22 @@ public class Journal<K, V> implements Shutdownable
      * @param record the record to store
      * @param hosts hosts expected to invalidate the record
      */
-    public void asyncWrite(K id, V record, Set<Integer> hosts, Object writeContext)
+    public RecordPointer asyncWrite(K id, V record, Set<Integer> hosts)
     {
+        RecordPointer recordPointer;
         try (DataOutputBuffer dob = DataOutputBuffer.scratchBuffer.get())
         {
             valueSerializer.serialize(id, record, dob, params.userVersion());
             ActiveSegment<K, V>.Allocation alloc = allocate(dob.getLength(), hosts);
-            alloc.asyncWrite(id, record, dob.unsafeGetBufferAndFlip(), hosts, writeContext, callbacks);
+            recordPointer = alloc.write(id, dob.unsafeGetBufferAndFlip(), hosts);
             flusher.asyncFlush(alloc);
         }
-        catch (Throwable e)
+        catch (IOException e)
         {
-            callbacks.onWriteFailed(id, record, writeContext, e);
+            // exception during record serialization into the scratch buffer
+            throw new RuntimeException(e);
         }
+        return recordPointer;
     }
 
     private ActiveSegment<K, V>.Allocation allocate(int entrySize, Set<Integer> hosts)
@@ -756,6 +854,17 @@ public class Journal<K, V> implements Shutdownable
             segment.forEachRecord(consumer);
     }
 
+    @VisibleForTesting
+    public void closeCurrentSegmentForTesting()
+    {
+        ActiveSegment<K, V> segment = currentSegment;
+        advanceSegment(segment);
+        while (!segments().isSwitched(segment))
+        {
+            LockSupport.parkNanos(1000);
+        }
+    }
+
     /*
      * Static helper methods used by journal components
      */
@@ -814,5 +923,12 @@ public class Journal<K, V> implements Shutdownable
         return format("%s. %d bytes required for next journal segment but only %d bytes available. " +
                       "Check %s to see if not enough free space is the reason for this error.",
                       message, segmentSize, availableDiskSpace, directory);
+    }
+
+    @VisibleForTesting
+    public void truncateForTesting()
+    {
+        advanceSegment(null);
+        segments.set(Segments.none());
     }
 }
