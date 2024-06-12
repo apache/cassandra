@@ -78,6 +78,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.codahale.metrics.Meter;
 import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.audit.AuditLogOptions;
 import org.apache.cassandra.auth.AuthCacheService;
@@ -245,6 +246,7 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.REPLACE_AD
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_WRITE_SURVEY;
 import static org.apache.cassandra.index.SecondaryIndexManager.getIndexName;
 import static org.apache.cassandra.index.SecondaryIndexManager.isIndexColumnFamily;
+import static org.apache.cassandra.io.util.FileUtils.ONE_MIB;
 import static org.apache.cassandra.schema.SchemaConstants.isLocalSystemKeyspace;
 import static org.apache.cassandra.service.ActiveRepairService.ParentRepairStatus;
 import static org.apache.cassandra.service.ActiveRepairService.repairCommandExecutor;
@@ -1413,6 +1415,21 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         CompactionManager.instance.setRateInBytes(valueInBytes);
         logger.info("compactionthroughput: throttle set to {} mebibytes per second (was {} mebibytes per second)",
                     value, oldValue);
+    }
+
+    /**
+     * Get the Current Compaction Throughput
+     * key is 1/5/15minute time dimension for statistics
+     * value is the metric double string (unit is:mib/s)
+     */
+    public Map<String, String> getCurrentCompactionThroughputMebibytesPerSec()
+    {
+        HashMap<String, String> result = new LinkedHashMap<>();
+        Meter rate = CompactionManager.instance.getCompactionThroughput();
+        result.put("1minute", String.format("%.3f", rate.getOneMinuteRate() / ONE_MIB));
+        result.put("5minute", String.format("%.3f", rate.getFiveMinuteRate() / ONE_MIB));
+        result.put("15minute", String.format("%.3f", rate.getFifteenMinuteRate() / ONE_MIB));
+        return result;
     }
 
     public int getBatchlogReplayThrottleInKB()

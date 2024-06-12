@@ -81,6 +81,17 @@ public class SetGetCompactionThroughputTest extends CQLTester
         assertPreciseMibFlagNeeded();
     }
 
+    @Test
+    public void testCurrentCompactionThroughput()
+    {
+        ToolResult tool = invokeNodetool("getcompactionthroughput");
+        tool.assertOnCleanExit();
+
+        assertThat(tool.getStdout()).containsPattern("Current compaction throughput \\(1 minute\\): \\d+\\.\\d+ MiB/s");
+        assertThat(tool.getStdout()).containsPattern("Current compaction throughput \\(5 minute\\): \\d+\\.\\d+ MiB/s");
+        assertThat(tool.getStdout()).containsPattern("Current compaction throughput \\(15 minute\\): \\d+\\.\\d+ MiB/s");
+    }
+
     private static void assertSetGetValidThroughput(int throughput)
     {
         ToolResult tool = invokeNodetool("setcompactionthroughput", String.valueOf(throughput));
@@ -129,9 +140,9 @@ public class SetGetCompactionThroughputTest extends CQLTester
         tool.assertOnCleanExit();
 
         if (expected > 0)
-            assertThat(tool.getStdout()).contains("Current compaction throughput: " + expected + " MB/s");
+            assertThat(tool.getStdout()).contains("Current compaction throughput: " + expected + " MiB/s");
         else
-            assertThat(tool.getStdout()).contains("Current compaction throughput: 0 MB/s");
+            assertThat(tool.getStdout()).contains("Current compaction throughput: 0 MiB/s");
     }
 
     private static void assertGetThroughputDouble(double expected)

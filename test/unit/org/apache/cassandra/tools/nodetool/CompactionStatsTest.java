@@ -140,6 +140,9 @@ public class CompactionStatsTest extends CQLTester
         assertThat(stdout).containsPattern("15 minute rate\\s+[0-9]*.[0-9]*[0-9]*/minute");
         assertThat(stdout).containsPattern("mean rate\\s+[0-9]*.[0-9]*[0-9]*/hour");
         assertThat(stdout).containsPattern("compaction throughput \\(MiB/s\\)\\s+throttling disabled \\(0\\)");
+        assertThat(stdout).containsPattern("current compaction throughput \\(1 minute\\)\\s+[0-9]*.[0-9]*[0-9]* MiB/s");
+        assertThat(stdout).containsPattern("current compaction throughput \\(5 minute\\)\\s+[0-9]*.[0-9]*[0-9]* MiB/s");
+        assertThat(stdout).containsPattern("current compaction throughput \\(15 minute\\)\\s+[0-9]*.[0-9]*[0-9]* MiB/s");
 
         CompactionManager.instance.active.finishCompaction(compactionHolder);
         waitForNumberOfPendingTasks(0, "compactionstats");
