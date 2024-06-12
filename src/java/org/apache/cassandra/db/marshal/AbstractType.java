@@ -30,10 +30,13 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
-import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Streams;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cql3.AssignmentTestable;
 import org.apache.cassandra.cql3.CQL3Type;
@@ -68,6 +71,8 @@ import static org.apache.cassandra.db.marshal.AbstractType.ComparisonType.CUSTOM
 @Unmetered
 public abstract class AbstractType<T> implements Comparator<ByteBuffer>, AssignmentTestable
 {
+    private final static Logger logger = LoggerFactory.getLogger(AbstractType.class);
+
     private final static int VARIABLE_LENGTH = -1;
 
     public enum ComparisonType
@@ -105,14 +110,26 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
     {
         this.isMultiCell = isMultiCell;
         this.comparisonType = comparisonType;
-        this.subTypes = subTypes;
         this.isByteOrderComparable = comparisonType == ComparisonType.BYTE_ORDER;
 
         // A frozen type can only have frozen subtypes, basically by definition. So make sure we don't mess it up
         // when constructing types by forgetting to set some multi-cell flag.
-        Preconditions.checkArgument(isMultiCell || subTypes.stream().noneMatch(AbstractType::isMultiCell),
-                                    "Detected corrupted type: creating a frozen %s but with some non-frozen sub-types %s. " +
-                                    "This is likely a bug and should be reported.", getClass(), subTypes);
+        if (!isMultiCell)
+        {
+            if (Iterables.any(subTypes, AbstractType::isMultiCell))
+                this.subTypes = ImmutableList.copyOf(Iterables.transform(subTypes, AbstractType::freeze));
+            else
+                this.subTypes = subTypes;
+        }
+        else
+        {
+            this.subTypes = subTypes;
+        }
+        if (subTypes != this.subTypes)
+            logger.warn("Detected corrupted type: creating a frozen {} but with some non-frozen subtypes {}. " +
+                        "This is likely a bug and should be reported.",
+                        getClass(),
+                        subTypes.stream().filter(AbstractType::isMultiCell).map(AbstractType::toString).collect(Collectors.joining(", ")));
 
         try
         {
