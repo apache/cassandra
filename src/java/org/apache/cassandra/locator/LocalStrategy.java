@@ -17,9 +17,9 @@
  */
 package org.apache.cassandra.locator;
 
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
@@ -34,7 +34,7 @@ import org.apache.cassandra.utils.FBUtilities;
 public class LocalStrategy extends SystemStrategy
 {
     private static final ReplicationFactor RF = ReplicationFactor.fullOnly(1);
-    private static Map<IPartitioner, EntireRange> perPartitionerRanges = new ConcurrentHashMap<>();
+    private static final Map<IPartitioner, EntireRange> perPartitionerRanges = new IdentityHashMap<>();
 
     public LocalStrategy(String keyspaceName, Map<String, String> configOptions)
     {
@@ -61,15 +61,7 @@ public class LocalStrategy extends SystemStrategy
 
     private EntireRange getRange(IPartitioner partitioner)
     {
-        // No need to synchronize here. In the unlikely event of a race, it's
-        // safe and cheap to create duplicates and overwrite in the cache.
-        EntireRange range = perPartitionerRanges.get(partitioner);
-        if (range == null)
-        {
-            range = new EntireRange(partitioner);
-            perPartitionerRanges.put(partitioner, range);
-        }
-        return range;
+        return perPartitionerRanges.computeIfAbsent(partitioner, EntireRange::new);
     }
 
     /**
