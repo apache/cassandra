@@ -386,7 +386,7 @@ public abstract class Operation
                     ColumnSpecification vr = new ColumnSpecification(receiver.ksName,
                                                                      receiver.cfName,
                                                                      receiver.name,
-                                                                     SetType.getInstance(((MapType)receiver.type).getKeysType(), false));
+                                                                     SetType.getInstance(((MapType)receiver.type).getKeysType().freeze(), false));
                     Term term;
                     try
                     {

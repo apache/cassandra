@@ -827,7 +827,7 @@ public class RowFilter implements Iterable<RowFilter.Expression>
                     type = ((MapType<?, ?>)type).nameComparator();
                     break;
                 case IN:
-                    type = ListType.getInstance(type, false);
+                    type = ListType.getInstance(type.freeze(), false);
                     break;
                 default:
                     break;

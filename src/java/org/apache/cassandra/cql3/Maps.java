@@ -147,7 +147,7 @@ public abstract class Maps
             if (valueType == null)
                 valueType = mapper.apply(entry.right);
             if (keyType != null && valueType != null)
-                return MapType.getInstance(keyType, valueType, false);
+                return MapType.getInstance(keyType.freeze(), valueType.freeze(), false);
         }
         return null;
     }
@@ -165,7 +165,7 @@ public abstract class Maps
         if (valueType == null)
             return null;
 
-        return  MapType.getInstance(keyType, valueType, false);
+        return  MapType.getInstance(keyType.freeze(), valueType.freeze(), false);
     }
 
     public static class Literal extends Term.Raw

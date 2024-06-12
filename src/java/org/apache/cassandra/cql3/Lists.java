@@ -130,7 +130,7 @@ public abstract class Lists
                                                           java.util.function.Function<T, AbstractType<?>> mapper)
     {
         Optional<AbstractType<?>> type = items.stream().map(mapper).filter(Objects::nonNull).findFirst();
-        return type.isPresent() ? ListType.getInstance(type.get(), false) : null;
+        return type.map(abstractType -> ListType.getInstance(abstractType.freeze(), false)).orElse(null);
     }
 
     public static <T> ListType<?> getPreferredCompatibleType(List<T> items,
@@ -138,7 +138,7 @@ public abstract class Lists
     {
         Set<AbstractType<?>> types = items.stream().map(mapper).filter(Objects::nonNull).collect(Collectors.toSet());
         AbstractType<?> type = AssignmentTestable.getCompatibleTypeIfKnown(types);
-        return type == null ? null : ListType.getInstance(type, false);
+        return type == null ? null : ListType.getInstance(type.freeze(), false);
     }
 
     public static class Literal extends Term.Raw

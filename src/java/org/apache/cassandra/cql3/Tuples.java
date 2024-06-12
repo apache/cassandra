@@ -365,7 +365,7 @@ public class Tuples
 
             ColumnIdentifier identifier = new ColumnIdentifier(inName.toString(), true);
             TupleType type = new TupleType(types.build());
-            return new ColumnSpecification(receivers.get(0).ksName, receivers.get(0).cfName, identifier, ListType.getInstance(type, false));
+            return new ColumnSpecification(receivers.get(0).ksName, receivers.get(0).cfName, identifier, ListType.getInstance(type.freeze(), false));
         }
 
         public AbstractType<?> getExactTypeIfKnown(String keyspace)

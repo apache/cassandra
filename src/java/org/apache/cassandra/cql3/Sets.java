@@ -129,7 +129,7 @@ public abstract class Sets
                                                         java.util.function.Function<T, AbstractType<?>> mapper)
     {
         Optional<AbstractType<?>> type = items.stream().map(mapper).filter(Objects::nonNull).findFirst();
-        return type.isPresent() ? SetType.getInstance(type.get(), false) : null;
+        return type.isPresent() ? SetType.getInstance(type.get().freeze(), false) : null;
     }
 
     public static <T> SetType<?> getPreferredCompatibleType(List<T> items,
@@ -137,7 +137,7 @@ public abstract class Sets
     {
         Set<AbstractType<?>> types = items.stream().map(mapper).filter(Objects::nonNull).collect(Collectors.toSet());
         AbstractType<?> type = AssignmentTestable.getCompatibleTypeIfKnown(types);
-        return type == null ? null : SetType.getInstance(type, false);
+        return type == null ? null : SetType.getInstance(type.freeze(), false);
     }
 
     public static class Literal extends Term.Raw

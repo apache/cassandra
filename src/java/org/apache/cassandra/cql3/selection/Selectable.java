@@ -330,7 +330,7 @@ public interface Selectable extends AssignmentTestable
         public AbstractType<?> getExactTypeIfKnown(String keyspace)
         {
             AbstractType<?> type = kind.returnType;
-            return column.type.isMultiCell() && !kind.aggregatesMultiCell() ? ListType.getInstance(type, false) : type;
+            return column.type.isMultiCell() && !kind.aggregatesMultiCell() ? ListType.getInstance(type.freeze(), false) : type;
         }
 
         @Override

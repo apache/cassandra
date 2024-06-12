@@ -111,7 +111,7 @@ public enum Operator
 
         public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
         {
-            ListSerializer<?> serializer = ListType.getInstance(type, false).getSerializer();
+            ListSerializer<?> serializer = ListType.getInstance(type.freeze(), false).getSerializer();
             return serializer.anyMatch(rightOperand, r -> type.compareForCQL(leftOperand, r) == 0);
         }
     },
