@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * [SO-30918] Upgrade caffeine to 3.1.8
  * [SO-30900] Implement disk headroom safeguard for incremental repair
  * [SO-30882] Add the logging for the client context data in Cassandra server
  * [SO-30795] CompactionStrategyMigrationManager should only overrides non-LCS compaction params
