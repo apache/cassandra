@@ -4231,6 +4231,16 @@ public class DatabaseDescriptor
         conf.reject_repair_compaction_threshold = value;
     }
 
+    public static double getIncrementalRepairDiskHeadroomRejectRatio()
+    {
+        return conf.incremental_repair_disk_headroom_reject_ratio;
+    }
+
+    public static void setIncrementalRepairDiskHeadroomRejectRatio(double value)
+    {
+        conf.incremental_repair_disk_headroom_reject_ratio = value;
+    }
+
     public static int getInitialRangeTombstoneListAllocationSize()
     {
         return conf.initial_range_tombstone_list_allocation_size;
