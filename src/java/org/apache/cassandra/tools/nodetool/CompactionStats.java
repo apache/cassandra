@@ -111,6 +111,10 @@ public class CompactionStats extends NodeToolCmd
 
         double configured = probe.getStorageService().getCompactionThroughtputMibPerSecAsDouble();
         tableBuilder.add("compaction throughput (MiB/s)", configured == 0 ? "throttling disabled (0)" : Double.toString(configured));
+        Map<String, String> currentCompactionThroughputMetricsMap = probe.getCurrentCompactionThroughputMiBPerSec();
+        tableBuilder.add("current compaction throughput (1 minute)", currentCompactionThroughputMetricsMap.get("1minute") + " MiB/s");
+        tableBuilder.add("current compaction throughput (5 minute)", currentCompactionThroughputMetricsMap.get("5minute") + " MiB/s");
+        tableBuilder.add("current compaction throughput (15 minute)", currentCompactionThroughputMetricsMap.get("15minute") + " MiB/s");
     }
 
     public static void reportCompactionTable(List<Map<String,String>> compactions, long compactionThroughputInBytes, boolean humanReadable, PrintStream out, TableBuilder table)
