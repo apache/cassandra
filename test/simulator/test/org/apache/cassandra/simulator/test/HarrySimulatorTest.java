@@ -115,9 +115,9 @@ import static org.apache.cassandra.simulator.cluster.ClusterActions.Options.noAc
  *
  * And then run your test using the following settings (omit add-* if you are running on jdk8):
  *
-        -Dstorage-config=$MODULE_DIR$/test/conf
+        -Dstorage-config=/Users/ifesdjeen/p/java/cassandra-accord/test/conf
         -Djava.awt.headless=true
-        -javaagent:$MODULE_DIR$/lib/jamm-0.4.0.jar
+        -javaagent:/Users/ifesdjeen/p/java/cassandra-accord/lib/jamm-0.4.0.jar
         -ea
         -Dcassandra.debugrefcount=true
         -Xss384k
@@ -139,15 +139,15 @@ import static org.apache.cassandra.simulator.cluster.ClusterActions.Options.noAc
         -Dcassandra.test.messagingService.nonGracefulShutdown=true
         -Dcassandra.use_nix_recursive_delete=true
         -Dcie-cassandra.disable_schema_drop_log=true
-        -Dlogback.configurationFile=file://$MODULE_DIR$/test/conf/logback-simulator.xml
+        -Dlogback.configurationFile=file:///Users/ifesdjeen/p/java/cassandra-accord/test/conf/logback-simulator.xml
         -Dcassandra.ring_delay_ms=10000
         -Dcassandra.tolerate_sstable_size=true
         -Dcassandra.skip_sync=true
         -Dcassandra.debugrefcount=false
         -Dcassandra.test.simulator.determinismcheck=strict
         -Dcassandra.test.simulator.print_asm=none
-        -javaagent:$MODULE_DIR$/build/test/lib/jars/simulator-asm.jar
-        -Xbootclasspath/a:$MODULE_DIR$/build/test/lib/jars/simulator-bootstrap.jar
+        -javaagent:/Users/ifesdjeen/p/java/cassandra-accord/build/test/lib/jars/simulator-asm.jar
+        -Xbootclasspath/a:/Users/ifesdjeen/p/java/cassandra-accord/build/test/lib/jars/simulator-bootstrap.jar
         -XX:ActiveProcessorCount=4
         -XX:-TieredCompilation
         -XX:-BackgroundCompilation

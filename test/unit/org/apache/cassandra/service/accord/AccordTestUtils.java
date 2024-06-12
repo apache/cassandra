@@ -34,6 +34,9 @@ import javax.annotation.Nullable;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+import org.apache.cassandra.ServerTestUtils;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.io.util.File;
 import org.junit.Assert;
 
 import accord.api.Data;
@@ -95,6 +98,7 @@ import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.concurrent.Condition;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static accord.primitives.Routable.Domain.Key;
@@ -400,6 +404,9 @@ public class AccordTestUtils
             public long unix(TimeUnit timeUnit) { return NodeTimeService.unixWrapper(TimeUnit.MICROSECONDS, this::now).applyAsLong(timeUnit); }
         };
 
+
+        if (new File(DatabaseDescriptor.getAccordJournalDirectory()).exists())
+            ServerTestUtils.cleanupDirectory(DatabaseDescriptor.getAccordJournalDirectory());
         AccordJournal journal = new AccordJournal(null, new AccordSpec.JournalSpec());
         journal.start(null);
 
@@ -498,4 +505,19 @@ public class AccordTestUtils
         return range(token(left), token(right));
     }
 
+    public static void appendCommandsBlocking(AccordCommandStore commandStore, Command after)
+    {
+        appendCommandsBlocking(commandStore, null, after);
+    }
+
+    public static void appendCommandsBlocking(AccordCommandStore commandStore, Command before, Command after)
+    {
+        SavedCommand.SavedDiff diff = SavedCommand.diff(before, after);
+        if (diff != null)
+        {
+            Condition condition = Condition.newOneTimeCondition();
+            commandStore.appendCommands(Collections.singletonList(diff), null, condition::signal);
+            condition.awaitUninterruptibly(30, TimeUnit.SECONDS);
+        }
+    }
 }

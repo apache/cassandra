@@ -25,7 +25,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Objects;
 import java.util.Set;
@@ -52,20 +51,14 @@ import accord.api.Key;
 import accord.local.CommandsForKey;
 import accord.impl.TimestampsForKey;
 import accord.local.Command;
-import accord.local.Command.WaitingOn;
 import accord.local.CommandStore;
-import accord.local.CommonAttributes;
 import accord.local.DurableBefore;
 import accord.local.Listeners;
 import accord.local.Node;
 import accord.local.RedundantBefore;
 import accord.local.SaveStatus;
-import accord.local.SerializerSupport;
-import accord.local.SerializerSupport.MessageProvider;
-import accord.local.SerializerSupport.WaitingOnProvider;
 import accord.local.Status;
 import accord.local.Status.Durability;
-import accord.primitives.Ballot;
 import accord.primitives.Ranges;
 import accord.primitives.Routable;
 import accord.primitives.Route;
@@ -115,7 +108,6 @@ import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.BTreeRow;
 import org.apache.cassandra.db.rows.BufferCell;
 import org.apache.cassandra.db.rows.Cell;
-import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.Row.Deletion;
 import org.apache.cassandra.db.rows.RowIterator;
@@ -156,9 +148,7 @@ import org.apache.cassandra.service.accord.serializers.CommandsForKeySerializer;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
 import org.apache.cassandra.service.accord.serializers.ListenerSerializers;
 import org.apache.cassandra.service.accord.serializers.TopologySerializers;
-import org.apache.cassandra.service.accord.serializers.WaitingOnSerializer;
 import org.apache.cassandra.utils.Clock.Global;
-import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.btree.BTreeSet;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
@@ -247,11 +237,6 @@ public class AccordKeyspace
               + "route blob,"
               + "durability int,"
               + format("execute_at %s,", TIMESTAMP_TUPLE)
-              + format("promised_ballot %s,", TIMESTAMP_TUPLE)
-              + format("accepted_ballot %s,", TIMESTAMP_TUPLE)
-              + format("execute_atleast %s,", TIMESTAMP_TUPLE)
-              + "waiting_on blob,"
-              + "listeners set<blob>, "
               + "PRIMARY KEY((store_id, domain, txn_id))"
               + ')')
         .partitioner(new LocalPartitioner(CompositeType.getInstance(Int32Type.instance, Int32Type.instance, TIMESTAMP_TYPE)))
@@ -296,11 +281,6 @@ public class AccordKeyspace
         public static final ColumnMetadata route = getColumn(Commands, "route");
         public static final ColumnMetadata durability = getColumn(Commands, "durability");
         public static final ColumnMetadata execute_at = getColumn(Commands, "execute_at");
-        static final ColumnMetadata promised_ballot = getColumn(Commands, "promised_ballot");
-        static final ColumnMetadata accepted_ballot = getColumn(Commands, "accepted_ballot");
-        static final ColumnMetadata execute_atleast = getColumn(Commands, "execute_atleast");
-        static final ColumnMetadata waiting_on = getColumn(Commands, "waiting_on");
-        static final ColumnMetadata listeners = getColumn(Commands, "listeners");
 
         public static final ColumnMetadata[] TRUNCATE_FIELDS = new ColumnMetadata[] { durability, execute_at, route, status };
 
@@ -778,65 +758,6 @@ public class AccordKeyspace
         addCellIfModified(column, get, v -> accessor.valueOf(v.ordinal()), builder, timestampMicros, nowInSeconds, original, command);
     }
 
-    private static <C, V> void addSetChanges(ColumnMetadata column, Function<C, Set<V>> get, SerializeFunction<V> serialize, Row.Builder builder, long timestampMicros, int nowInSec, C original, C command) throws IOException
-    {
-        Set<V> prev = original != null ? get.apply(original) : Collections.emptySet();
-        if (prev == null) prev = Collections.emptySet();
-        Set<V> value = get.apply(command);
-        if (value == null) value = Collections.emptySet();
-
-        if (value.isEmpty() && !prev.isEmpty())
-        {
-            builder.addComplexDeletion(column, DeletionTime.build(timestampMicros, nowInSec));
-            return;
-        }
-
-        for (V item : Sets.difference(value, prev))
-            builder.addCell(live(column, timestampMicros, EMPTY_BYTE_BUFFER, CellPath.create(serialize.apply(item))));
-
-        for (V item : Sets.difference(prev, value))
-            builder.addCell(tombstone(column, timestampMicros, nowInSec, CellPath.create(serialize.apply(item))));
-    }
-
-    private static <C, K, V> void addMapChanges(ColumnMetadata column, Function<C, Map<K, V>> get, SerializeFunction<K> serializeKey, SerializeFunction<V> serializeVal, Row.Builder builder, long timestampMicros, int nowInSec, C original, C command) throws IOException
-    {
-        Map<K, V> prev = original != null ? get.apply(original) : Collections.emptyMap();
-        if (prev == null) prev = Collections.emptyMap();
-        Map<K, V> value = get.apply(command);
-        if (value == null) value = Collections.emptyMap();
-
-        if (value.isEmpty() && !prev.isEmpty())
-        {
-            builder.addComplexDeletion(column, DeletionTime.build(timestampMicros, nowInSec));
-            return;
-        }
-
-        for (Map.Entry<K, V> entry : value.entrySet())
-        {
-            K key = entry.getKey();
-            V pVal = prev.get(key);
-            if (pVal != null && pVal.equals(entry.getValue()))
-                continue;
-            builder.addCell(live(column, timestampMicros, serializeVal.apply(entry.getValue()), CellPath.create(serializeKey.apply(key))));
-        }
-        for (K key : Sets.difference(prev.keySet(), value.keySet()))
-            builder.addCell(tombstone(column, timestampMicros, nowInSec, CellPath.create(serializeKey.apply(key))));
-    }
-
-    private static <K, V> int estimateMapChanges(Map<K, V> prev, Map<K, V> value)
-    {
-        return Math.abs(prev.size() - value.size());
-    }
-
-    private static <C, K, V> int estimateMapChanges(Function<C, Map<K, V>> get, C original, C command)
-    {
-        Map<K, V> prev = original != null ? get.apply(original) : Collections.emptyMap();
-        if (prev == null) prev = Collections.emptyMap();
-        Map<K, V> value = get.apply(command);
-        if (value == null) value = Collections.emptyMap();
-        return estimateMapChanges(prev, value);
-    }
-
     public static Mutation getCommandMutation(AccordCommandStore commandStore, AccordSafeCommand liveCommand, long timestampMicros)
     {
         return getCommandMutation(commandStore.id(), liveCommand.original(), liveCommand.current(), timestampMicros);
@@ -855,21 +776,8 @@ public class AccordKeyspace
 
             addEnumCellIfModified(CommandsColumns.durability, Command::durability, builder, timestampMicros, nowInSeconds, original, command);
             addCellIfModified(CommandsColumns.route, Command::route, LocalVersionedSerializers.route, builder, timestampMicros, nowInSeconds, original, command);
-            addSetChanges(CommandsColumns.listeners, Command::durableListeners, v -> serialize(v, LocalVersionedSerializers.listeners), builder, timestampMicros, nowInSeconds, original, command);
             addEnumCellIfModified(CommandsColumns.status, Command::saveStatus, builder, timestampMicros, nowInSeconds, original, command);
             addCellIfModified(CommandsColumns.execute_at, Command::executeAt, AccordKeyspace::serializeTimestamp, builder, timestampMicros, nowInSeconds, original, command);
-            addCellIfModified(CommandsColumns.promised_ballot, Command::promised, AccordKeyspace::serializeTimestamp, builder, timestampMicros, nowInSeconds, original, command);
-            addCellIfModified(CommandsColumns.accepted_ballot, Command::acceptedOrCommitted, AccordKeyspace::serializeTimestamp, builder, timestampMicros, nowInSeconds, original, command);
-            if (command.txnId().kind().awaitsOnlyDeps())
-                addCellIfModified(CommandsColumns.execute_atleast, Command::executesAtLeast, AccordKeyspace::serializeTimestamp, builder, timestampMicros, nowInSeconds, original, command);
-
-            if (command.isStable() && !command.isTruncated())
-            {
-                Command.Committed committed = command.asCommitted();
-                Command.Committed originalCommitted = original != null && original.isCommitted() ? original.asCommitted() : null;
-                if (originalCommitted == null || committed.waitingOn != originalCommitted.waitingOn)
-                    builder.addCell(live(CommandsColumns.waiting_on, timestampMicros, WaitingOnSerializer.serialize(committed.txnId(), committed.waitingOn)));
-            }
 
             Row row = builder.build();
             if (row.columnCount() == 0)
@@ -965,23 +873,6 @@ public class AccordKeyspace
         return deserializeTimestampOrDefault(row.getBlob(name), ByteBufferAccessor.instance, factory, defaultVal);
     }
 
-    private static ByteBuffer bytesOrNull(Row row, ColumnMetadata column)
-    {
-        Cell<?> cell = row.getCell(column);
-        return cell != null && !cell.isTombstone() ? cell.buffer() : null;
-    }
-
-    private static <T extends Timestamp> T deserializeTimestampOrDefault(Row row, ColumnMetadata column, TimestampFactory<T> factory, T valIfNull)
-    {
-        ByteBuffer bytes = bytesOrNull(row, column);
-        if (bytes == null)
-            return valIfNull;
-        T result = deserializeTimestampOrNull(bytes, factory);
-        if (result == null)
-            return valIfNull;
-        return result;
-    }
-
     public static Durability deserializeDurabilityOrNull(Cell cell)
     {
         return cell == null ? null : CommandSerializers.durability.forOrdinal(cell.accessor().getInt(cell.value(), 0));
@@ -992,6 +883,7 @@ public class AccordKeyspace
         return cell == null ? null : CommandSerializers.saveStatus.forOrdinal(cell.accessor().getInt(cell.value(), 0));
     }
 
+    @VisibleForTesting
     public static UntypedResultSet loadCommandRow(CommandStore commandStore, TxnId txnId)
     {
         String cql = "SELECT * FROM " + ACCORD_KEYSPACE_NAME + '.' + COMMANDS + ' ' +
@@ -1003,12 +895,6 @@ public class AccordKeyspace
                                commandStore.id(),
                                txnId.domain().ordinal(),
                                txnId.msb, txnId.lsb, txnId.node.id);
-    }
-
-    public static void findAllCommandsByDomain(int commandStore, Routable.Domain domain, Set<String> columns, Observable<UntypedResultSet.Row> callback)
-    {
-        WalkCommandsForDomain work = new WalkCommandsForDomain(commandStore, domain, columns, Stage.READ.executor(), callback);
-        work.schedule();
     }
 
     private static abstract class TableWalk implements Runnable, DebuggableTask
@@ -1208,47 +1094,6 @@ public class AccordKeyspace
         }
     }
 
-    public static Command loadCommand(AccordCommandStore commandStore, TxnId txnId)
-    {
-        commandStore.checkNotInStoreThread();
-        return unsafeLoadCommand(commandStore, txnId);
-    }
-
-    static Command unsafeLoadCommand(AccordCommandStore commandStore, TxnId txnId)
-    {
-        UntypedResultSet rows = loadCommandRow(commandStore, txnId);
-        if (rows.isEmpty())
-            return null;
-        UntypedResultSet.Row row = rows.one();
-
-        try
-        {
-            checkState(deserializeTxnId(row).equals(txnId));
-
-            CommonAttributes.Mutable attrs =
-                new CommonAttributes.Mutable(txnId)
-                                    .durability(deserializeDurability(row))
-                                    .route(deserializeRouteOrNull(row))
-                                    .setListeners(deserializeListeners(row));
-            SaveStatus status = deserializeStatus(row);
-
-            Timestamp executeAt = deserializeExecuteAtOrNull(row);
-            Ballot promised = deserializePromisedOrNull(row);
-            Ballot accepted = deserializeAcceptedOrNull(row);
-            Timestamp executeAtLeast = status.is(Status.Truncated) && txnId.kind().awaitsOnlyDeps() ? deserializeExecuteAtLeastOrNull(row) : null;
-
-            WaitingOnProvider waitingOn = deserializeWaitingOn(txnId, row);
-            MessageProvider messages = commandStore.makeMessageProvider(txnId);
-
-            return SerializerSupport.reconstruct(commandStore.agent(), commandStore.unsafeRangesForEpoch(), attrs, status, executeAt, executeAtLeast, promised, accepted, waitingOn, messages);
-        }
-        catch (Throwable t)
-        {
-            logger.error("Exception loading AccordCommand " + txnId, t);
-            throw Throwables.unchecked(t);
-        }
-    }
-
     public static TxnId deserializeTxnId(UntypedResultSet.Row row)
     {
         return deserializeTimestampOrNull(row, "txn_id", TxnId::fromBits);
@@ -1300,55 +1145,6 @@ public class AccordKeyspace
         for (ByteBuffer bytes : serialized)
             result.add(deserialize(bytes, LocalVersionedSerializers.listeners));
         return new Listeners.Immutable(result);
-    }
-
-    public static SaveStatus deserializeStatus(UntypedResultSet.Row row)
-    {
-        // TODO (performance, expected): something less brittle than ordinal, more efficient than values()
-        return SaveStatus.values()[row.getInt("status")];
-    }
-
-    public static Timestamp deserializeExecuteAtOrNull(UntypedResultSet.Row row)
-    {
-        return deserializeTimestampOrNull(row, "execute_at", Timestamp::fromBits);
-    }
-
-    public static Timestamp deserializeExecuteAtLeastOrNull(UntypedResultSet.Row row)
-    {
-        return deserializeTimestampOrNull(row, "execute_atleast", Timestamp::fromBits);
-    }
-
-    public static Ballot deserializePromisedOrNull(UntypedResultSet.Row row)
-    {
-        return deserializeTimestampOrNull(row.getBlob("promised_ballot"), Ballot::fromBits);
-    }
-
-    public static Ballot deserializeAcceptedOrNull(UntypedResultSet.Row row)
-    {
-        return deserializeTimestampOrNull(row.getBlob("accepted_ballot"), Ballot::fromBits);
-    }
-
-    private static WaitingOnProvider deserializeWaitingOn(TxnId txnId, UntypedResultSet.Row row)
-    {
-        ByteBuffer bytes = row.getBlob("waiting_on");
-
-        return (deps) ->
-        {
-            if (bytes == null)
-                return null;
-
-            if (!bytes.hasRemaining())
-                return WaitingOn.none(deps);
-
-            try
-            {
-                return WaitingOnSerializer.deserialize(txnId, deps.keyDeps.keys(), deps.rangeDeps.txnIds(), bytes);
-            }
-            catch (IOException e)
-            {
-                throw Throwables.unchecked(e);
-            }
-        };
     }
 
     public static PartitionKey deserializeKey(ByteBuffer buffer)

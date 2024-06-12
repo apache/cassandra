@@ -37,13 +37,11 @@ import accord.local.CommonAttributes;
 import accord.local.Node;
 import accord.local.SaveStatus;
 import accord.local.Status;
-import accord.messages.Commit;
 import accord.primitives.Ballot;
 import accord.primitives.Deps;
 import accord.primitives.FullRoute;
 import accord.primitives.KeyDeps;
 import accord.primitives.Keys;
-import accord.primitives.PartialDeps;
 import accord.primitives.PartialTxn;
 import accord.primitives.RangeDeps;
 import accord.primitives.Ranges;
@@ -111,8 +109,7 @@ public class AccordKeyspaceTest extends CQLTester.InMemory
         RoutingKey routingKey = partialTxn.keys().get(0).asKey().toUnseekable();
         FullRoute<?> route = partialTxn.keys().toRoute(routingKey);
         Deps deps = new Deps(KeyDeps.none((Keys) txn.keys()), RangeDeps.NONE);
-        PartialDeps partialDeps = deps.slice(scope);
-
+        deps.slice(scope);
 
         CommonAttributes.Mutable common = new CommonAttributes.Mutable(id);
         common.partialTxn(partialTxn);
@@ -125,13 +122,12 @@ public class AccordKeyspaceTest extends CQLTester.InMemory
         AccordSafeCommand safeCommand = new AccordSafeCommand(AccordTestUtils.loaded(id, null));
         safeCommand.set(committed);
 
-        Commit commit = Commit.SerializerSupport.create(id, route.slice(scope), 1, Commit.Kind.CommitSlowPath, Ballot.ZERO, id, partialTxn.keys(), partialTxn, partialDeps, route, null);
-        store.appendToJournal(commit);
+        AccordTestUtils.appendCommandsBlocking(store, null, committed);
 
         Mutation mutation = AccordKeyspace.getCommandMutation(store, safeCommand, 42);
         mutation.apply();
 
-        Command loaded = AccordKeyspace.loadCommand(store, id);
+        Command loaded = store.loadCommand(id);
         Assertions.assertThat(loaded).isEqualTo(committed);
     }
 

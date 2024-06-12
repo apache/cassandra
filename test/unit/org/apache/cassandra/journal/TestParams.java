@@ -21,7 +21,7 @@ import org.apache.cassandra.net.MessagingService;
 
 public class TestParams implements Params
 {
-    static final TestParams INSTANCE = new TestParams();
+    public static final TestParams INSTANCE = new TestParams();
 
     @Override
     public int segmentSize()
