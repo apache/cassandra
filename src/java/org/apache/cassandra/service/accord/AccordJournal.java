@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.zip.Checksum;
@@ -40,12 +41,6 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Multimap;
 import com.google.common.primitives.Ints;
-
-import accord.messages.ApplyThenWaitUntilApplied;
-import org.agrona.collections.Long2ObjectHashMap;
-import org.agrona.collections.LongArrayList;
-import org.agrona.collections.ObjectHashSet;
-import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -55,6 +50,7 @@ import accord.local.SerializerSupport;
 import accord.messages.AbstractEpochRequest;
 import accord.messages.Accept;
 import accord.messages.Apply;
+import accord.messages.ApplyThenWaitUntilApplied;
 import accord.messages.BeginRecovery;
 import accord.messages.Commit;
 import accord.messages.LocalRequest;
@@ -69,17 +65,17 @@ import accord.primitives.Ballot;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
-import accord.utils.MapReduceConsume;
-import org.apache.cassandra.concurrent.Interruptible;
+import org.agrona.collections.Long2ObjectHashMap;
+import org.agrona.collections.LongArrayList;
+import org.agrona.collections.ObjectHashSet;
 import org.apache.cassandra.concurrent.ManyToOneConcurrentLinkedQueue;
-import org.apache.cassandra.concurrent.SequentialExecutorPlus;
 import org.apache.cassandra.concurrent.Shutdownable;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.journal.AsyncCallbacks;
 import org.apache.cassandra.journal.Journal;
 import org.apache.cassandra.journal.KeySupport;
 import org.apache.cassandra.journal.Params;
@@ -104,9 +100,7 @@ import org.apache.cassandra.service.accord.serializers.RecoverySerializers;
 import org.apache.cassandra.service.accord.serializers.SetDurableSerializers;
 import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.ExecutorUtils;
-import org.apache.cassandra.utils.concurrent.Semaphore;
-import org.apache.cassandra.utils.vint.VIntCoding;
-import org.jctools.queues.SpscLinkedQueue;
+import org.apache.cassandra.utils.concurrent.Condition;
 
 import static accord.messages.MessageType.ACCEPT_INVALIDATE_REQ;
 import static accord.messages.MessageType.ACCEPT_REQ;
@@ -130,11 +124,6 @@ import static accord.messages.MessageType.SET_SHARD_DURABLE_REQ;
 import static accord.messages.MessageType.STABLE_FAST_PATH_REQ;
 import static accord.messages.MessageType.STABLE_MAXIMAL_REQ;
 import static accord.messages.MessageType.STABLE_SLOW_PATH_REQ;
-import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
-import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.Daemon.NON_DAEMON;
-import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.Interrupts.SYNCHRONIZED;
-import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.SimulatorSafe.SAFE;
-import static org.apache.cassandra.concurrent.Interruptible.State.NORMAL;
 import static org.apache.cassandra.db.TypeSizes.BYTE_SIZE;
 import static org.apache.cassandra.db.TypeSizes.INT_SIZE;
 import static org.apache.cassandra.db.TypeSizes.LONG_SIZE;
@@ -143,11 +132,6 @@ import static org.apache.cassandra.service.accord.AccordMessageSink.AccordMessag
 import static org.apache.cassandra.service.accord.AccordMessageSink.AccordMessageType.INTEROP_COMMIT_MAXIMAL_REQ;
 import static org.apache.cassandra.service.accord.AccordMessageSink.AccordMessageType.INTEROP_COMMIT_MINIMAL_REQ;
 import static org.apache.cassandra.service.accord.serializers.ReadDataSerializers.applyThenWaitUntilApplied;
-import static org.apache.cassandra.utils.CollectionSerializers.deserializeList;
-import static org.apache.cassandra.utils.CollectionSerializers.serializeList;
-import static org.apache.cassandra.utils.CollectionSerializers.serializedListSize;
-import static org.apache.cassandra.utils.concurrent.Semaphore.newSemaphore;
-import static org.apache.cassandra.utils.vint.VIntCoding.computeUnsignedVIntSize;
 
 public class AccordJournal implements IJournal, Shutdownable
 {
@@ -157,31 +141,23 @@ public class AccordJournal implements IJournal, Shutdownable
 
     private static final Set<Integer> SENTINEL_HOSTS = Collections.singleton(0);
 
-    private static final ThreadLocal<byte[]> keyCRCBytes = ThreadLocal.withInitial(() -> new byte[21]);
+    private static final ThreadLocal<byte[]> keyCRCBytes = ThreadLocal.withInitial(() -> new byte[22]);
 
-    private final File directory;
-    private final Journal<Key, Object> journal;
+    public final Journal<Key, Object> journal;
     private final AccordEndpointMapper endpointMapper;
 
-    /**
-     * A cache of deserialized journal records we keep to avoid fetching them from log when free memory allows it.
-     * TODO (expected, performance): cap memory used for cached records
-     */
-    private final NonBlockingHashMap<RecordPointer, Object> cachedRecords = new NonBlockingHashMap<>();
+    private final DelayedRequestProcessor delayedRequestProcessor = new DelayedRequestProcessor();
 
     Node node;
 
     enum Status { INITIALIZED, STARTING, STARTED, TERMINATING, TERMINATED }
     private volatile Status status = Status.INITIALIZED;
 
-    private final FrameAggregator frameAggregator = new FrameAggregator();
-    private final FrameApplicator frameApplicator = new FrameApplicator();
-
     @VisibleForTesting
     public AccordJournal(AccordEndpointMapper endpointMapper, Params params)
     {
-        this.directory = new File(DatabaseDescriptor.getAccordJournalDirectory());
-        this.journal = new Journal<>("AccordJournal", directory, params, new JournalCallbacks(), Key.SUPPORT, RECORD_SERIALIZER);
+        File directory = new File(DatabaseDescriptor.getAccordJournalDirectory());
+        this.journal = new Journal<>("AccordJournal", directory, params, Key.SUPPORT, RECORD_SERIALIZER);
         this.endpointMapper = endpointMapper;
     }
 
@@ -190,9 +166,8 @@ public class AccordJournal implements IJournal, Shutdownable
         Invariants.checkState(status == Status.INITIALIZED);
         this.node = node;
         status = Status.STARTING;
-        frameApplicator.start();
-        frameAggregator.start();
         journal.start();
+        this.delayedRequestProcessor.start();
         status = Status.STARTED;
         return this;
     }
@@ -207,10 +182,9 @@ public class AccordJournal implements IJournal, Shutdownable
     public void shutdown()
     {
         Invariants.checkState(status == Status.STARTED);
+        this.delayedRequestProcessor.interrupt();
         status = Status.TERMINATING;
         journal.shutdown();
-        frameAggregator.shutdown();
-        frameApplicator.shutdown();
         status = Status.TERMINATED;
     }
 
@@ -226,7 +200,7 @@ public class AccordJournal implements IJournal, Shutdownable
     {
         try
         {
-            ExecutorUtils.awaitTermination(timeout, units, Arrays.asList(journal, frameAggregator, frameApplicator));
+            ExecutorUtils.awaitTermination(timeout, units, Arrays.asList(journal));
             return true;
         }
         catch (TimeoutException e)
@@ -236,32 +210,34 @@ public class AccordJournal implements IJournal, Shutdownable
     }
 
     /**
-     * Auxiliary records are journal entries that aren't Accord protocol requests - such as {@link FrameRecord}.
-     */
-    void appendAuxiliaryRecord(AuxiliaryRecord record, Object context)
-    {
-        Key key = new Key(record.timestamp, record.type());
-        journal.asyncWrite(key, record, SENTINEL_HOSTS, context);
-    }
-
-    /**
      * Accord protocol messages originating from remote nodes.
      */
-    public void appendRemoteRequest(Request request, ResponseContext context)
+    public void processRemoteRequest(Request request, ResponseContext context)
     {
         Type type = Type.fromMessageType(request.type());
         Key key = new Key(type.txnId(request), type);
-        journal.asyncWrite(key, request, SENTINEL_HOSTS, context);
+        journal.asyncWrite(key, request, SENTINEL_HOSTS);
+        RemoteRequestContext requestContext = RemoteRequestContext.forLive(request, context);
+        if (node.topology().hasEpoch(request.waitForEpoch()))
+            requestContext.process(node, endpointMapper);
+        else
+            delayedRequestProcessor.delay(requestContext);
     }
 
     /**
      * Accord protocol messages originating from local node, e.g. Propagate.
      */
-    public <R> void appendLocalRequest(LocalRequest<R> request, BiConsumer<? super R, Throwable> callback)
+    @SuppressWarnings("rawtypes, unchecked")
+    public <R> void processLocalRequest(LocalRequest request, BiConsumer<? super R, Throwable> callback)
     {
         Type type = Type.fromMessageType(request.type());
         Key key = new Key(type.txnId(request), type);
-        journal.asyncWrite(key, request, SENTINEL_HOSTS, callback);
+        journal.asyncWrite(key, request, SENTINEL_HOSTS);
+        LocalRequestContext requestContext = LocalRequestContext.create(request, callback);
+        if (node.topology().hasEpoch(request.waitForEpoch()))
+            request.process(node, requestContext.callback);
+        else
+            delayedRequestProcessor.delay(requestContext);
     }
 
     @VisibleForTesting
@@ -270,7 +246,26 @@ public class AccordJournal implements IJournal, Shutdownable
     {
         Type type = Type.fromMessageType(message.type());
         Key key = new Key(type.txnId(message), type);
-        journal.write(key, message, SENTINEL_HOSTS);
+        journal.blockingWrite(key, message, SENTINEL_HOSTS);
+    }
+
+    @Override
+    public boolean appendCommand(int commandStoreId, TxnId txnId, SavedCommand.SavedDiff outcome, Runnable runnable)
+    {
+        Key key = new Key(txnId, Type.SAVED_COMMAND, commandStoreId);
+        // This is not super optimal, but for a sanity check we mostly care about the fact that the latest written
+        // state represents actuality.
+        if (CassandraRelevantProperties.DTEST_ACCORD_JOURNAL_SANITY_CHECK_ENABLED.getBoolean())
+        {
+            journal.blockingWrite(key, outcome, SENTINEL_HOSTS);
+            return false;
+        }
+        else
+        {
+            RecordPointer pointer = journal.asyncWrite(key, outcome, SENTINEL_HOSTS);
+            journal.awaitFlush(pointer, runnable);
+            return true;
+        }
     }
 
     @VisibleForTesting
@@ -284,179 +279,117 @@ public class AccordJournal implements IJournal, Shutdownable
         return null;
     }
 
-    private <M extends Message> M readMessage(TxnId txnId, MessageType messageType, Class<M> clazz, Predicate<Object> condition)
+    <M extends Message> M readMessage(TxnId txnId, MessageType messageType, Class<M> clazz, Predicate<Object> condition)
     {
         for (Type type : Type.synonymousTypesFromMessageType(messageType))
         {
             M message = clazz.cast(journal.readFirstMatching(new Key(txnId, type), condition));
             if (null != message) return message;
         }
+
         return null;
-    }
-
-    // TODO (alexp): tests for objects that go through AccordJournal
-    private class JournalCallbacks implements AsyncCallbacks<Key, Object>
-    {
-        private JournalCallbacks()
-        {
-        }
-
-        /**
-         * Queue up the record for either frame aggregation (if a protocol message) or frame application (if a frame).
-         */
-        @Override
-        public void onWrite(long segment, int position, int size, Key key, Object value, Object writeContext)
-        {
-            RecordPointer pointer = new RecordPointer(segment, position);
-            cachedRecords.put(pointer, value);
-
-            /*
-             * if remote request, extract response context
-             * if local request, extract callback
-             * if frame, register for application on flush
-             */
-            if (key.type.isRemoteRequest())
-                frameAggregator.onWrite(RemoteRequestContext.create(((Request) value).waitForEpoch(), (ResponseContext) writeContext, pointer));
-            else if (key.type.isLocalRequest())
-                frameAggregator.onWrite(LocalRequestContext.create((LocalRequest<?>) value, (BiConsumer<?, Throwable>) writeContext, pointer));
-            else
-                frameApplicator.onWrite(pointer, size, (FrameContext) writeContext);
-        }
-
-        @Override
-        public void onWriteFailed(Key key, Object value, Object writeContext, Throwable cause)
-        {
-            if (key.type.isRemoteRequest())
-                onRemoteRequestWriteFailed((Request) value, (RemoteRequestContext) writeContext, cause);
-            else if (key.type.isLocalRequest())
-                onLocalRequestWriteFailed((LocalRequestContext) writeContext, cause);
-            else
-                onFrameWriteFailed((FrameRecord) value, (FrameContext) writeContext, cause);
-        }
-
-        private void onRemoteRequestWriteFailed(Request request, RemoteRequestContext context, Throwable cause)
-        {
-            request.preProcess(node, endpointMapper.mappedId(context.from()), context);
-
-            /*
-             * Except for Commit.Invalidate, which doesn't return a reply on success or failure,
-             * all requests here implement MapReduceLocal, with accept() handling both the success and the failure
-             * response returns.
-             */
-            if (request instanceof MapReduceConsume)
-                ((MapReduceConsume<?,?>) request).accept(null, cause);
-            else
-                node.agent().onUncaughtException(cause);
-        }
-
-        private void onLocalRequestWriteFailed(LocalRequestContext context, Throwable cause)
-        {
-            context.callback.accept(null, cause);
-        }
-
-        private void onFrameWriteFailed(FrameRecord frame, FrameContext context, Throwable cause)
-        {
-            // TODO (required): panic
-        }
-
-        @Override
-        public void onFlush(long segment, int position)
-        {
-            frameApplicator.onFlush(segment, position); // will apply flushed frames in correct order in an executor
-        }
-
-        @Override
-        public void onFlushFailed(Throwable cause)
-        {
-            // TODO (required): panic
-        }
     }
 
     /*
      * Context necessary to process log records
      */
-
-    static class RequestContext implements ReplyContext
+    static abstract class RequestContext implements ReplyContext
     {
         final long waitForEpoch;
-        final RecordPointer pointer;
-        private long preAcceptTimeout;
 
-        RequestContext(long waitForEpoch, RecordPointer pointer)
+        RequestContext(long waitForEpoch)
         {
             this.waitForEpoch = waitForEpoch;
-            this.pointer = pointer;
         }
 
-        void preAcceptTimeout(long preAcceptTimeout)
-        {
-            this.preAcceptTimeout = preAcceptTimeout;
-        }
-
-        public long preAcceptTimeout()
-        {
-            return preAcceptTimeout;
-        }
+        public abstract void process(Node node, AccordEndpointMapper endpointMapper);
     }
 
-    private static class LocalRequestContext extends RequestContext
+    private static class LocalRequestContext<T> extends RequestContext
     {
-        private final BiConsumer<?, Throwable> callback;
+        private final BiConsumer<T, Throwable> callback;
+        private final LocalRequest<T> request;
 
-        LocalRequestContext(long waitForEpoch, BiConsumer<?, Throwable> callback, RecordPointer pointer)
+        LocalRequestContext(long waitForEpoch, LocalRequest<T> request, BiConsumer<T, Throwable> callback)
         {
-            super(waitForEpoch, pointer);
+            super(waitForEpoch);
             this.callback = callback;
+            this.request = request;
         }
 
-        static LocalRequestContext create(LocalRequest<?> request, BiConsumer<?, Throwable> callback, RecordPointer pointer)
+        public void process(Node node, AccordEndpointMapper endpointMapper)
         {
-            return new LocalRequestContext(request.waitForEpoch(), callback, pointer);
+            request.process(node, callback);
+        }
+
+        static <R> LocalRequestContext<R> create(LocalRequest<R> request, BiConsumer<R, Throwable> callback)
+        {
+            return new LocalRequestContext<>(request.waitForEpoch(), request, callback);
         }
     }
 
     /**
      * Barebones response context not holding a reference to the entire message
      */
-    private static class RemoteRequestContext extends RequestContext implements ResponseContext
+    private abstract static class RemoteRequestContext extends RequestContext implements ResponseContext
+    {
+        private final Request request;
+
+        RemoteRequestContext(long waitForEpoch, Request request)
+        {
+            super(waitForEpoch);
+            this.request = request;
+        }
+
+        static LiveRemoteRequestContext forLive(Request request, ResponseContext context)
+        {
+            return new LiveRemoteRequestContext(request, context.id(), context.from(), context.verb(), context.expiresAtNanos());
+        }
+
+        @Override
+        public void process(Node node, AccordEndpointMapper endpointMapper)
+        {
+            this.request.process(node, endpointMapper.mappedId(from()), this);
+        }
+
+        @Override public abstract long id();
+        @Override public abstract InetAddressAndPort from();
+        @Override public abstract Verb verb();
+        @Override public abstract long expiresAtNanos();
+    }
+
+    private static class LiveRemoteRequestContext extends RemoteRequestContext
     {
         private final long id;
         private final InetAddressAndPort from;
         private final Verb verb;
         private final long expiresAtNanos;
 
-        RemoteRequestContext(long waitForEpoch, long id, InetAddressAndPort from, Verb verb, long expiresAtNanos, RecordPointer pointer)
+        LiveRemoteRequestContext(Request request, long id, InetAddressAndPort from, Verb verb, long expiresAtNanos)
         {
-            super(waitForEpoch, pointer);
+            super(request.waitForEpoch(), request);
             this.id = id;
             this.from = from;
             this.verb = verb;
             this.expiresAtNanos = expiresAtNanos;
         }
 
-        static RemoteRequestContext create(long waitForEpoch, ResponseContext context, RecordPointer pointer)
-        {
-            return new RemoteRequestContext(waitForEpoch, context.id(), context.from(), context.verb(), context.expiresAtNanos(), pointer);
-        }
 
         @Override
         public long id()
         {
             return id;
         }
-
         @Override
         public InetAddressAndPort from()
         {
             return from;
         }
-
         @Override
         public Verb verb()
         {
             return verb;
         }
-
         @Override
         public long expiresAtNanos()
         {
@@ -472,12 +405,19 @@ public class AccordJournal implements IJournal, Shutdownable
     {
         final Timestamp timestamp;
         final Type type;
+        final int commandStoreId;
 
         Key(Timestamp timestamp, Type type)
+        {
+            this(timestamp, type, -1);
+        }
+
+        Key(Timestamp timestamp, Type type, int commandStoreId)
         {
             if (timestamp == null) throw new NullPointerException("Null timestamp for type " + type);
             this.timestamp = timestamp;
             this.type = type;
+            this.commandStoreId = commandStoreId;
         }
 
         /**
@@ -494,6 +434,7 @@ public class AccordJournal implements IJournal, Shutdownable
             private static final int EPOCH_AND_FLAGS_OFFSET = HLC_OFFSET             + LONG_SIZE;
             private static final int NODE_OFFSET            = EPOCH_AND_FLAGS_OFFSET + LONG_SIZE;
             private static final int TYPE_OFFSET            = NODE_OFFSET            + INT_SIZE;
+            private static final int CS_ID_OFFSET           = TYPE_OFFSET            + BYTE_SIZE;
 
             @Override
             public int serializedSize(int userVersion)
@@ -502,7 +443,8 @@ public class AccordJournal implements IJournal, Shutdownable
                      + 6          // timestamp.epoch()
                      + 2          // timestamp.flags()
                      + INT_SIZE   // timestamp.node
-                     + BYTE_SIZE; // type
+                     + BYTE_SIZE  // type
+                     + BYTE_SIZE; // commandStoreId
             }
 
             @Override
@@ -510,26 +452,14 @@ public class AccordJournal implements IJournal, Shutdownable
             {
                 serializeTimestamp(key.timestamp, out);
                 out.writeByte(key.type.id);
-            }
-
-            private void serializeTimestamp(Timestamp timestamp, DataOutputPlus out) throws IOException
-            {
-                out.writeLong(timestamp.hlc());
-                out.writeLong(epochAndFlags(timestamp));
-                out.writeInt(timestamp.node.id);
+                out.writeByte(key.commandStoreId);
             }
 
             private void serialize(Key key, byte[] out)
             {
                 serializeTimestamp(key.timestamp, out);
                 out[20] = (byte) (key.type.id & 0xFF);
-            }
-
-            private void serializeTimestamp(Timestamp timestamp, byte[] out)
-            {
-                ByteArrayUtil.putLong(out, 0, timestamp.hlc());
-                ByteArrayUtil.putLong(out, 8, epochAndFlags(timestamp));
-                ByteArrayUtil.putInt(out, 16, timestamp.node.id);
+                out[21] = (byte) (key.commandStoreId & 0xFF);
             }
 
             @Override
@@ -537,7 +467,24 @@ public class AccordJournal implements IJournal, Shutdownable
             {
                 Timestamp timestamp = deserializeTimestamp(in);
                 int type = in.readByte();
-                return new Key(timestamp, Type.fromId(type));
+                int commandStoreId = in.readByte();
+                return new Key(timestamp, Type.fromId(type), commandStoreId);
+            }
+
+            @Override
+            public Key deserialize(ByteBuffer buffer, int position, int userVersion)
+            {
+                Timestamp timestamp = deserializeTimestamp(buffer, position);
+                int type = buffer.get(position + TYPE_OFFSET);
+                int commandStoreId = buffer.get(position + CS_ID_OFFSET);
+                return new Key(timestamp, Type.fromId(type), commandStoreId);
+            }
+
+            private void serializeTimestamp(Timestamp timestamp, DataOutputPlus out) throws IOException
+            {
+                out.writeLong(timestamp.hlc());
+                out.writeLong(epochAndFlags(timestamp));
+                out.writeInt(timestamp.node.id);
             }
 
             private Timestamp deserializeTimestamp(DataInputPlus in) throws IOException
@@ -548,12 +495,12 @@ public class AccordJournal implements IJournal, Shutdownable
                 return Timestamp.fromValues(epoch(epochAndFlags), hlc, flags(epochAndFlags), new Id(nodeId));
             }
 
-            @Override
-            public Key deserialize(ByteBuffer buffer, int position, int userVersion)
+
+            private void serializeTimestamp(Timestamp timestamp, byte[] out)
             {
-                Timestamp timestamp = deserializeTimestamp(buffer, position);
-                int type = buffer.get(position + TYPE_OFFSET);
-                return new Key(timestamp, Type.fromId(type));
+                ByteArrayUtil.putLong(out, 0, timestamp.hlc());
+                ByteArrayUtil.putLong(out, 8, epochAndFlags(timestamp));
+                ByteArrayUtil.putInt(out, 16, timestamp.node.id);
             }
 
             private Timestamp deserializeTimestamp(ByteBuffer buffer, int position)
@@ -580,6 +527,9 @@ public class AccordJournal implements IJournal, Shutdownable
 
                 byte type = buffer.get(position + TYPE_OFFSET);
                 cmp = Byte.compare((byte) k.type.id, type);
+                if (cmp != 0) return cmp;
+                byte commandStoreId = buffer.get(position + CS_ID_OFFSET);
+                cmp = Byte.compare((byte) k.commandStoreId, commandStoreId);
                 return cmp;
             }
 
@@ -603,6 +553,7 @@ public class AccordJournal implements IJournal, Shutdownable
             {
                 int cmp = compare(k1.timestamp, k2.timestamp);
                 if (cmp == 0) cmp = Byte.compare((byte) k1.type.id, (byte) k2.type.id);
+                if (cmp == 0) cmp = Byte.compare((byte) k1.commandStoreId, (byte) k2.commandStoreId);
                 return cmp;
             }
 
@@ -733,7 +684,7 @@ public class AccordJournal implements IJournal, Shutdownable
     public enum Type implements ValueSerializer<Key, Object>
     {
         /* Auxiliary journal records */
-        FRAME                         (0, FrameRecord.SERIALIZER),
+        SAVED_COMMAND                 (1, SavedCommand.serializer),
 
         /* Accord protocol requests */
         PRE_ACCEPT                    (64, PRE_ACCEPT_REQ,                    PreacceptSerializers.request, TXN  ),
@@ -788,10 +739,11 @@ public class AccordJournal implements IJournal, Shutdownable
         final TxnIdProvider txnIdProvider;
         final ValueSerializer<Key, Object> serializer;
 
-        Type(int id, ValueSerializer<Key, ? extends AuxiliaryRecord> serializer)
+        Type(int id,  ValueSerializer<Key, Object> serializer)
         {
             this(id, null, null, serializer, null);
         }
+
 
         Type(int id, MessageType incomingType, MessageType outgoingType, IVersionedSerializer<?> serializer, TxnIdProvider txnIdProvider)
         {
@@ -906,31 +858,6 @@ public class AccordJournal implements IJournal, Shutdownable
             return type;
         }
 
-        boolean isAuxiliary()
-        {
-            return outgoingType == null;
-        }
-
-        boolean isFrame()
-        {
-            return this == FRAME;
-        }
-
-        boolean isRequest()
-        {
-            return outgoingType != null;
-        }
-
-        boolean isRemoteRequest()
-        {
-            return isRequest() && outgoingType.isRemote();
-        }
-
-        boolean isLocalRequest()
-        {
-            return isRequest() && outgoingType.isLocal();
-        }
-
         @Override
         public int serializedSize(Key key, Object record, int userVersion)
         {
@@ -971,353 +898,6 @@ public class AccordJournal implements IJournal, Shutdownable
     }
 
     /*
-     * Record framing logic
-     */
-
-    /**
-     * In order to enable the reorder buffer and delayed execution of requests of yet unknown epoch, we explicitly
-     * group requests for execution in {@link FrameRecord} records. Journal's onWrite() callback submits written
-     * protocol messages to {@link FrameAggregator}, which creates and writes the frame record to the journal.
-     * Once written, the frame record is submitted to {@link FrameApplicator}, which will process all the framed
-     * requests once the frame has been flushed to disk.
-     */
-    private final class FrameAggregator implements Interruptible.Task, Shutdownable
-    {
-        /* external MPSC pending request queue */
-        private final ManyToOneConcurrentLinkedQueue<RequestContext> unframedRequests = new ManyToOneConcurrentLinkedQueue<>();
-
-        private final LongArrayList waitForEpochs = new LongArrayList();
-        private final Long2ObjectHashMap<ArrayList<RequestContext>> delayedRequests = new Long2ObjectHashMap<>();
-
-        private volatile Interruptible executor;
-
-        // a signal and flag that callers outside the aggregator thread can use
-        // to signal they want the aggregator to run again
-        private final Semaphore haveWork = newSemaphore(1);
-
-        void onWrite(RequestContext context)
-        {
-            unframedRequests.add(context);
-            haveWork.release(1);
-        }
-
-        void notifyOfEpoch()
-        {
-            haveWork.release(1);
-        }
-
-        void start()
-        {
-            executor = executorFactory().infiniteLoop("AccordJournal#FrameAggregator", this, SAFE, NON_DAEMON, SYNCHRONIZED);
-        }
-
-        @Override
-        public boolean isTerminated() {
-            return executor == null || executor.isTerminated();
-        }
-
-        @Override
-        public void shutdown()
-        {
-            if (executor != null)
-                executor.shutdown();
-        }
-
-        @Override
-        public Object shutdownNow() {
-            return executor == null ? null : executor.shutdownNow();
-        }
-
-        @Override
-        public boolean awaitTermination(long timeout, TimeUnit units) throws InterruptedException {
-            return executor == null || executor.awaitTermination(timeout, units);
-        }
-
-        @Override
-        public void run(Interruptible.State state) throws InterruptedException
-        {
-            if (!unframedRequests.isEmpty() || !delayedRequests.isEmpty())
-                doRun();
-
-            if (state == NORMAL)
-                haveWork.acquire(1);
-        }
-
-        private void doRun()
-        {
-            ArrayList<RequestContext> requests = null;
-
-            /*
-             * Deal with delayed requests
-             */
-
-            waitForEpochs.sort(null);
-
-            for (int i = 0; i < waitForEpochs.size(); i++)
-            {
-                long waitForEpoch = waitForEpochs.getLong(i);
-                if (!node.topology().hasEpoch(waitForEpoch))
-                    break;
-                List<RequestContext> delayed = delayedRequests.remove(waitForEpoch);
-                if (null == requests) requests = new ArrayList<>(delayed.size());
-                requests.addAll(delayed);
-            }
-
-            waitForEpochs.removeIfLong(epoch -> !delayedRequests.containsKey(epoch));
-
-            /*
-             * Deal with regular pending requests
-             */
-
-            RequestContext request;
-            while (null != (request = unframedRequests.poll()))
-            {
-                long waitForEpoch = request.waitForEpoch;
-                if (waitForEpoch != 0 && !node.topology().hasEpoch(waitForEpoch))
-                {
-                    delayedRequests.computeIfAbsent(waitForEpoch, ignore -> new ArrayList<>()).add(request);
-                    if (!waitForEpochs.containsLong(waitForEpoch))
-                    {
-                        waitForEpochs.addLong(waitForEpoch);
-                        node.withEpoch(waitForEpoch, this::notifyOfEpoch);
-                    }
-                }
-                else
-                {
-                    if (null == requests) requests = new ArrayList<>();
-                    requests.add(request);
-                }
-            }
-
-            if (requests != null)
-            {
-                ArrayList<RecordPointer> pointers = new ArrayList<>(requests.size());
-                for (RequestContext req : requests) pointers.add(req.pointer);
-                FrameRecord frame = new FrameRecord(node.uniqueNow(), pointers, node.agent().preAcceptTimeout());
-                FrameContext context = new FrameContext(requests);
-                appendAuxiliaryRecord(frame, context);
-            }
-        }
-    }
-
-    /**
-     * Processes the requests that have been grouped by {@link FrameAggregator}.
-     * Gets the aggregated frames containing previously written requests/messages,
-     * and sorts and "applies" them once part of the journal that fully contains them is flushed.
-     */
-    private final class FrameApplicator implements Runnable, Shutdownable
-    {
-        /** external SPSC written frame queue */
-        private final SpscLinkedQueue<PendingFrame> newFrames = new SpscLinkedQueue<>();
-
-        /* single-thread accessed internal frame buffer */
-        private final ArrayList<PendingFrame> pendingFrames = new ArrayList<>();
-
-        /* furthest flushed journal segment + position */
-        private volatile RecordPointer flushedUntil = null;
-
-        private volatile SequentialExecutorPlus executor;
-
-        /* invoked from FrameGenerator thread via appendAuxiliaryRecord() call */
-        void onWrite(RecordPointer start, int size, FrameContext context)
-        {
-            newFrames.add(new PendingFrame(start, new RecordPointer(start.segment, start.position + size), context));
-        }
-
-        /* invoked only from Journal Flusher thread (single) */
-        void onFlush(long segment, int position)
-        {
-            flushedUntil = new RecordPointer(segment, position);
-            executor.submit(this);
-        }
-
-        void start()
-        {
-            executor = executorFactory().sequential("AccordJournal#FrameApplicator");
-        }
-
-        @Override
-        public boolean isTerminated() {
-            return executor == null || executor.isTerminated();
-        }
-
-        @Override
-        public void shutdown()
-        {
-            if (executor != null)
-                executor.shutdown();
-        }
-
-        @Override
-        public Object shutdownNow() {
-            return executor == null ? null : executor.shutdownNow();
-        }
-
-        @Override
-        public boolean awaitTermination(long timeout, TimeUnit units) throws InterruptedException {
-            return executor == null || executor.awaitTermination(timeout, units);
-        }
-
-        @Override
-        public void run()
-        {
-            if (newFrames.drain(pendingFrames::add) > 0)
-            {
-                /* order by position in the journal, DESC */
-                pendingFrames.sort((f1, f2) -> f2.start.compareTo(f1.start));
-            }
-
-            RecordPointer flushedUntil = this.flushedUntil;
-            for (int i = pendingFrames.size() - 1; i >= 0; i--)
-            {
-                PendingFrame frame = pendingFrames.get(i);
-                if (frame.end.compareTo(flushedUntil) > 0)
-                    break;
-                applyFrame((FrameRecord) cachedRecords.remove(frame.start), frame.context);
-                pendingFrames.remove(i);
-            }
-        }
-
-        private void applyFrame(FrameRecord frame, FrameContext context)
-        {
-            Invariants.checkState(frame.pointers.size() == context.requestContexts.size());
-            for (int i = 0; i < frame.pointers.size(); i++)
-                applyRequest(frame.pointers.get(i), context.requestContexts.get(i), frame.preAcceptTimeoutMicros);
-        }
-
-        private void applyRequest(RecordPointer pointer, RequestContext context, long preAcceptTimeout)
-        {
-            Message message = (Message) cachedRecords.remove(pointer);
-            Type type = Type.fromMessageType(message.type());
-            if (type == Type.PRE_ACCEPT || type == Type.BEGIN_RECOVER)
-                context.preAcceptTimeout(preAcceptTimeout);
-
-            if (type.isRemoteRequest())
-            {
-                Request request = (Request) message;
-                RemoteRequestContext ctx = (RemoteRequestContext) context;
-                Id from = endpointMapper.mappedId(ctx.from());
-                request.process(node, from, ctx);
-            }
-            else
-            {
-                Invariants.checkState(type.isLocalRequest());
-                LocalRequestContext ctx = (LocalRequestContext) context;
-                // TODO (expected): Make Propagate PreAccept receive preAcceptTimeout and timestamps
-                //noinspection unchecked,rawtypes
-                ((LocalRequest) message).process(node, ctx.callback);
-            }
-        }
-
-        /**
-         * Frame that has been written to the journal (implying all the requests referenced by it also have been written),
-         * but have not been process by the frame applicaticator yet.
-         * Will be processed by the frame applicator once the journal has flushed the frame record.
-         */
-        private final class PendingFrame
-        {
-            final RecordPointer start;
-            final RecordPointer end;
-            final FrameContext context;
-
-            PendingFrame(RecordPointer start, RecordPointer end, FrameContext context)
-            {
-                this.start = start;
-                this.end = end;
-                this.context = context;
-            }
-        }
-    }
-
-    private static final class FrameContext
-    {
-        final List<RequestContext> requestContexts;
-
-        FrameContext(List<RequestContext> requestContexts)
-        {
-            this.requestContexts = requestContexts;
-        }
-    }
-
-    private static abstract class AuxiliaryRecord
-    {
-        final Timestamp timestamp;
-
-        AuxiliaryRecord(Timestamp timestamp)
-        {
-            this.timestamp = timestamp;
-        }
-
-        abstract Type type();
-    }
-
-    public static final IVersionedSerializer<RecordPointer> RECORD_POINTER_SERIALIZER = new IVersionedSerializer<>()
-    {
-        @Override
-        public void serialize(RecordPointer p, DataOutputPlus out, int version) throws IOException
-        {
-            out.writeUnsignedVInt(p.segment);
-            out.writeUnsignedVInt32(p.position);
-        }
-
-        @Override
-        public RecordPointer deserialize(DataInputPlus in, int version) throws IOException
-        {
-            long segment = in.readUnsignedVInt();
-            int position = in.readUnsignedVInt32();
-            return new RecordPointer(segment, position);
-        }
-
-        @Override
-        public long serializedSize(RecordPointer p, int version)
-        {
-            return computeUnsignedVIntSize(p.segment) + computeUnsignedVIntSize(p.position);
-        }
-    };
-
-    private static final class FrameRecord extends AuxiliaryRecord
-    {
-        final List<RecordPointer> pointers;
-        final long preAcceptTimeoutMicros;
-
-        FrameRecord(Timestamp timestamp, List<RecordPointer> pointers, long preAcceptTimeoutMicros)
-        {
-            super(timestamp);
-            this.pointers = pointers;
-            this.preAcceptTimeoutMicros = preAcceptTimeoutMicros;
-        }
-
-        @Override
-        Type type()
-        {
-            return Type.FRAME;
-        }
-
-        static final ValueSerializer<Key, FrameRecord> SERIALIZER = new ValueSerializer<>()
-        {
-            @Override
-            public int serializedSize(Key key, FrameRecord frame, int userVersion)
-            {
-                return Ints.checkedCast(serializedListSize(frame.pointers, userVersion, RECORD_POINTER_SERIALIZER)) +
-                       computeUnsignedVIntSize(frame.preAcceptTimeoutMicros);
-            }
-
-            @Override
-            public void serialize(Key key, FrameRecord frame, DataOutputPlus out, int userVersion) throws IOException
-            {
-                serializeList(frame.pointers, out, userVersion, RECORD_POINTER_SERIALIZER);
-                VIntCoding.writeUnsignedVInt(frame.preAcceptTimeoutMicros, out);
-            }
-
-            @Override
-            public FrameRecord deserialize(Key key, DataInputPlus in, int userVersion) throws IOException
-            {
-                return new FrameRecord(key.timestamp, deserializeList(in, userVersion, RECORD_POINTER_SERIALIZER), VIntCoding.readUnsignedVInt(in));
-            }
-        };
-    }
-
-    /*
      * Message provider implementation
      */
     @Override
@@ -1326,7 +906,7 @@ public class AccordJournal implements IJournal, Shutdownable
         return LOG_MESSAGE_PROVIDER ? new LoggingMessageProvider(txnId, new MessageProvider(txnId)) : new MessageProvider(txnId);
     }
 
-    private final class MessageProvider implements SerializerSupport.MessageProvider
+    private  final class MessageProvider implements SerializerSupport.MessageProvider
     {
         final TxnId txnId;
 
@@ -1347,7 +927,7 @@ public class AccordJournal implements IJournal, Shutdownable
             Set<Key> keys = new ObjectHashSet<>(messages.size() + 1, 0.9f);
             for (MessageType message : messages)
                 for (Type synonymousType : Type.synonymousTypesFromMessageType(message))
-                    keys.add(new Key(txnId, synonymousType));
+                    keys.add(new Key(txnId, synonymousType, -1));
             Set<Key> presentKeys = journal.test(keys);
             Set<MessageType> presentMessages = new ObjectHashSet<>(presentKeys.size() + 1, 0.9f);
             for (Key key : presentKeys)
@@ -1361,7 +941,7 @@ public class AccordJournal implements IJournal, Shutdownable
             Set<Type> types = EnumSet.allOf(Type.class);
             Set<Key> keys = new ObjectHashSet<>(types.size() + 1, 0.9f);
             for (Type type : types)
-                keys.add(new Key(txnId, type));
+                keys.add(new Key(txnId, type, -1));
             Set<Key> presentKeys = journal.test(keys);
             Set<MessageType> presentMessages = new ObjectHashSet<>(presentKeys.size() + 1, 0.9f);
             for (Key key : presentKeys)
@@ -1628,6 +1208,98 @@ public class AccordJournal implements IJournal, Shutdownable
             ApplyThenWaitUntilApplied apply = provider.applyThenWaitUntilApplied();
             logger.debug("Fetched {} message for {}: {}", APPLY_THEN_WAIT_UNTIL_APPLIED_REQ, txnId, apply);
             return apply;
+        }
+    }
+
+    /*
+     * Methods that exist purely for testing
+     */
+
+    @Override
+    public List<SavedCommand.LoadedDiff> loadAll(int storeId, TxnId txnId)
+    {
+        return (List<SavedCommand.LoadedDiff>)(List<?>) journal.readAll(new Key(txnId, Type.SAVED_COMMAND, storeId));
+    }
+
+    /*
+     * Handling topology changes / epoch shift
+     */
+
+    private final class DelayedRequestProcessor extends Thread
+    {
+        private final ManyToOneConcurrentLinkedQueue<RequestContext> delayedRequests = new ManyToOneConcurrentLinkedQueue<>();
+        private final LongArrayList waitForEpochs = new LongArrayList();
+        private final Long2ObjectHashMap<List<RequestContext>> byEpoch = new Long2ObjectHashMap<>();
+        private final AtomicReference<Condition> signal = new AtomicReference<>(Condition.newOneTimeCondition());
+
+        private void delay(RequestContext requestContext)
+        {
+            delayedRequests.add(requestContext);
+            runOnce();
+        }
+
+        private void runOnce()
+        {
+            signal.get().signal();
+        }
+
+        public void run()
+        {
+            while (true)
+            {
+                try
+                {
+                    Condition signal = Condition.newOneTimeCondition();
+                    this.signal.set(signal);
+                    // First, poll delayed requests, put them into by epoch
+                    while (!delayedRequests.isEmpty())
+                    {
+                        RequestContext context = delayedRequests.poll();
+                        long waitForEpoch = context.waitForEpoch;
+
+                        List<RequestContext> l = byEpoch.computeIfAbsent(waitForEpoch, (ignore) -> new ArrayList<>());
+                        if (l.isEmpty())
+                            waitForEpochs.pushLong(waitForEpoch);
+                        l.add(context);
+                        node.withEpoch(waitForEpoch, this::runOnce);
+                    }
+
+                    // Next, process all delayed epochs
+                    for (int i = 0; i < waitForEpochs.size(); i++)
+                    {
+                        long epoch = waitForEpochs.getLong(i);
+                        if (node.topology().hasEpoch(epoch))
+                        {
+                            List<RequestContext> requests = byEpoch.remove(epoch);
+                            assert requests != null : String.format("%s %s (%d)", byEpoch, waitForEpochs, epoch);
+                            for (RequestContext request : requests)
+                            {
+                                try
+                                {
+                                    request.process(node, endpointMapper);
+                                }
+                                catch (Throwable t)
+                                {
+                                    logger.error(String.format("Caught an exception while processing a delayed request %s", request), t);
+                                }
+                            }
+                        }
+                    }
+
+                    waitForEpochs.removeIfLong(epoch -> !byEpoch.containsKey(epoch));
+
+                    signal.await();
+                }
+                catch (InterruptedException e)
+                {
+                    logger.info("Delayed request processor thread interrupted. Shutting down.");
+                    return;
+                }
+                catch (Throwable t)
+                {
+                    logger.error("Caught an exception in delayed processor", t);
+                }
+            }
         }
     }
 }

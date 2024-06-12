@@ -19,6 +19,7 @@
 package org.apache.cassandra.service.accord;
 
 import java.util.IdentityHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Objects;
@@ -214,7 +215,7 @@ public class AccordCommandStore extends CommandStore implements CacheSize
                                 AccordSafeCommand.class,
                                 AccordSafeCommand::new,
                                 this::loadCommand,
-                                this::saveCommand,
+                                this::appendCommand,
                                 this::validateCommand,
                                 AccordObjectSizes::command);
         registerJfrListener(id, commandCache, "Command");
@@ -333,13 +334,15 @@ public class AccordCommandStore extends CommandStore implements CacheSize
     {
         return commandsForKeyCache;
     }
+
+    // TODO (required): commands should be loaded from the log
     Command loadCommand(TxnId txnId)
     {
         return AccordKeyspace.loadCommand(this, txnId);
     }
 
     @Nullable
-    Runnable saveCommand(Command before, Command after)
+    Runnable appendCommand(Command before, Command after)
     {
         Mutation mutation = AccordKeyspace.getCommandMutation(id, before, after, nextSystemTimestampMicros());
         // TODO (required): make sure we test recovering when this has failed to be persisted
@@ -566,5 +569,23 @@ public class AccordCommandStore extends CommandStore implements CacheSize
     public void appendToJournal(Message message)
     {
         journal.appendMessageBlocking(message);
+    }
+
+    public boolean appendCommand(int commandStoreId, TxnId txnId, SavedCommand.SavedDiff command, Runnable runnable)
+    {
+        return journal.appendCommand(commandStoreId, txnId, command, runnable);
+    }
+
+    public void sanityCheck(int commandStoreId, TxnId txnId, Command orig)
+    {
+        if (!CassandraRelevantProperties.DTEST_ACCORD_JOURNAL_SANITY_CHECK_ENABLED.getBoolean())
+            return;
+
+        List<SavedCommand.LoadedDiff> diffs = journal.loadAll(commandStoreId, txnId);
+        Command reconstructed = SavedCommand.reconstructFromDiff(diffs, orig.saveStatus());
+        Invariants.checkState(orig.equals(reconstructed),
+                              "\n" +
+                              "Original:      %s\n" +
+                              "Reconstructed: %s", orig, reconstructed);
     }
 }

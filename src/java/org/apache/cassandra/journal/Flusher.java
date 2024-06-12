@@ -59,7 +59,6 @@ final class Flusher<K, V>
 
     private final Journal<K, V> journal;
     private final Params params;
-    private final AsyncCallbacks<K, V> callbacks;
 
     private volatile Interruptible flushExecutor;
     private volatile Interruptible fsyncExecutor;
@@ -83,14 +82,15 @@ final class Flusher<K, V>
 
     private final FlushMethod<K, V> syncFlushMethod;
     private final FlushMethod<K, V> asyncFlushMethod;
+    private final Callbacks callbacks;
 
-    Flusher(Journal<K, V> journal)
+    Flusher(Journal<K, V> journal, Callbacks callbacks)
     {
         this.journal = journal;
         this.params = journal.params;
-        this.callbacks = journal.callbacks;
         this.syncFlushMethod = syncFlushMethod(params);
         this.asyncFlushMethod = asyncFlushMethod(params);
+        this.callbacks = callbacks;
     }
 
     void start()
@@ -507,5 +507,18 @@ final class Flusher<K, V>
     long writtenEntries()
     {
         return written.get();
+    }
+
+    public interface Callbacks
+    {
+        /**
+         * Invoked after {@link Flusher} successfully flushes a segment or multiple segments to disk.
+         * Invocation of this callback implies that any segments older than {@code segment} have been
+         * completed and also flushed.
+         * callbacks for all entries earlier than (segment, position) have finished execution.
+         */
+        void onFlush(long segment, int position);
+
+        void onFlushFailed(Throwable cause);
     }
 }

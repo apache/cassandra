@@ -183,6 +183,12 @@ final class StaticSegment<K, V> extends Segment<K, V>
     }
 
     @Override
+    boolean isFlushed(long position)
+    {
+        return true;
+    }
+
+    @Override
     ActiveSegment<K, V> asActive()
     {
         throw new UnsupportedOperationException();
@@ -221,7 +227,7 @@ final class StaticSegment<K, V> extends Segment<K, V>
         {
             while (reader.advance())
             {
-                consumer.accept(reader.id(), reader.record(), reader.hosts(), descriptor.userVersion);
+                consumer.accept(descriptor.timestamp, reader.offset(), reader.id(), reader.record(), reader.hosts(), descriptor.userVersion);
             }
         }
     }

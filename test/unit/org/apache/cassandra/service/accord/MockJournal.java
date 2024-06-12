@@ -18,8 +18,10 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -59,7 +61,10 @@ import static accord.messages.MessageType.STABLE_SLOW_PATH_REQ;
 
 public class MockJournal implements IJournal
 {
+    private static final Runnable NO_OP = () -> {};
+
     private final Map<Key, Message> writes = new HashMap<>();
+    private final Map<Key, List<SavedCommand.LoadedDiff>> commands = new HashMap<>();
     @Override
     public SerializerSupport.MessageProvider makeMessageProvider(TxnId txnId)
     {
@@ -207,10 +212,42 @@ public class MockJournal implements IJournal
     }
 
     @Override
+    public List<SavedCommand.LoadedDiff> loadAll(int commandStoreId, TxnId txnId)
+    {
+        Type type = Type.SAVED_COMMAND;
+        Key key = new Key(txnId, type, commandStoreId);
+        List<SavedCommand.LoadedDiff> saved = commands.get(key);
+        if (saved == null)
+            return null;
+        return new ArrayList<>(saved);
+    }
+
+    @Override
     public void appendMessageBlocking(Message message)
     {
         Type type = Type.fromMessageType(message.type());
         Key key = new Key(type.txnId(message), type);
         writes.put(key, message);
+    }
+
+    @Override
+    public boolean appendCommand(int commandStoreId, TxnId txnId, SavedCommand.SavedDiff command, Runnable runnable)
+    {
+        Type type = Type.SAVED_COMMAND;
+        Key key = new Key(txnId, type, commandStoreId);
+        commands.computeIfAbsent(key, (ignore_) -> new ArrayList<>())
+                .add(new SavedCommand.LoadedDiff(command.txnId,
+                                                 command.executeAt,
+                                                 command.saveStatus,
+                                                 command.durability,
+                                                 command.acceptedOrCommitted,
+                                                 command.promised,
+                                                 command.route,
+                                                 command.partialTxn,
+                                                 command.partialDeps,
+                                                 (i1, i2) -> command.waitingOn,
+                                                 command.writes));
+        runnable.run();
+        return false;
     }
 }

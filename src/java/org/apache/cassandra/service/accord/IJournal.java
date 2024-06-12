@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.util.List;
+
 import accord.local.SerializerSupport;
 import accord.messages.Message;
 import accord.primitives.TxnId;
@@ -25,5 +27,12 @@ import accord.primitives.TxnId;
 public interface IJournal
 {
     SerializerSupport.MessageProvider makeMessageProvider(TxnId txnId);
+    List<SavedCommand.LoadedDiff> loadAll(int commandStoreId, TxnId txnId);
     void appendMessageBlocking(Message message);
+
+    /**
+     * Append outcomes to the log. Returns a runnable; when this runnable returns,
+     * all commands are guaranteed to be flushed.
+     */
+    boolean appendCommand(int commandStoreId, TxnId txnId, SavedCommand.SavedDiff command, Runnable callback);
 }

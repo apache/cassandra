@@ -260,6 +260,11 @@ final class ActiveSegment<K, V> extends Segment<K, V>
         return lastFlushedOffset < allocatePosition;
     }
 
+    public boolean isFlushed(long position)
+    {
+        return lastFlushedOffset >= position;
+    }
+
     /**
      * Possibly force a disk flush for this segment file.
      * TODO FIXME: calls from outside Flusher + callbacks
@@ -427,23 +432,22 @@ final class ActiveSegment<K, V> extends Segment<K, V>
         private final OpOrder.Group appendOp;
         private final ByteBuffer buffer;
         private final int position;
-        private final int size;
 
         Allocation(OpOrder.Group appendOp, ByteBuffer buffer)
         {
             this.appendOp = appendOp;
             this.buffer = buffer;
             this.position = buffer.position();
-            this.size = buffer.remaining();
         }
 
-        void write(K id, ByteBuffer record, Set<Integer> hosts)
+        RecordPointer write(K id, ByteBuffer record, Set<Integer> hosts)
         {
             try (BufferedDataOutputStreamPlus out = new DataOutputBufferFixed(buffer))
             {
                 EntrySerializer.write(id, record, hosts, keySupport, out, descriptor.userVersion);
                 index.update(id, position);
                 metadata.update(hosts);
+                return new RecordPointer(descriptor.timestamp, position);
             }
             catch (IOException e)
             {
@@ -455,14 +459,18 @@ final class ActiveSegment<K, V> extends Segment<K, V>
             }
         }
 
-        void asyncWrite(K id, V record, ByteBuffer bytes, Set<Integer> hosts, Object writeContext, AsyncCallbacks<K, V> callbacks) throws IOException
+        // Variant of write that does not allocate/return a record pointer
+        void writeInternal(K id, ByteBuffer record, Set<Integer> hosts)
         {
             try (BufferedDataOutputStreamPlus out = new DataOutputBufferFixed(buffer))
             {
-                EntrySerializer.write(id, bytes, hosts, keySupport, out, descriptor.userVersion);
+                EntrySerializer.write(id, record, hosts, keySupport, out, descriptor.userVersion);
                 index.update(id, position);
                 metadata.update(hosts);
-                callbacks.onWrite(descriptor.timestamp, position, size, id, record, writeContext);
+            }
+            catch (IOException e)
+            {
+                throw new JournalWriteError(descriptor, file, e);
             }
             finally
             {

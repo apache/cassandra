@@ -241,6 +241,36 @@ final class OnDiskIndex<K> extends Index<K>
         return keyIndex < 0 ? -1 : offsetAtIndex(keyIndex);
     }
 
+    @Override
+    public int[] lookUpAll(K id)
+    {
+        if (!mayContainId(id))
+            return new int[0];
+
+        int start = binarySearch(id);
+        int firstKeyIndex = binarySearch(id);
+
+        for (int i = firstKeyIndex - 1; i >= 0 && id.equals(keyAtIndex(i)); i--)
+            firstKeyIndex = i;
+
+        if (firstKeyIndex < 0)
+            return new int[0];
+
+        int lastKeyIndex = start;
+
+        for (int i = lastKeyIndex + 1; i >= 0 && id.equals(keyAtIndex(i)); i++)
+            lastKeyIndex = i;
+
+        int[] all = new int[lastKeyIndex - firstKeyIndex + 1];
+        int idx = firstKeyIndex;
+        for (int i = 0; i < all.length; i++)
+        {
+            all[i] = offsetAtIndex(idx);
+            idx++;
+        }
+        return all;
+    }
+
     private K keyAtIndex(int index)
     {
         return keySupport.deserialize(buffer, FILE_PREFIX_SIZE + index * ENTRY_SIZE, descriptor.userVersion);
