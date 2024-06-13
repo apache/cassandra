@@ -217,6 +217,18 @@ public class PrepareCMSReconfiguration
         return new Diff(additions, removals);
     }
 
+    public static boolean needsReconfiguration(ClusterMetadata metadata)
+    {
+        CMSPlacementStrategy placementStrategy = CMSPlacementStrategy.fromReplicationParams(ReplicationParams.meta(metadata), nodeId -> true);
+        Set<NodeId> currentCms = metadata.fullCMSMembers()
+                                         .stream()
+                                         .map(metadata.directory::peerId)
+                                         .collect(Collectors.toSet());
+
+        Set<NodeId> newCms = placementStrategy.reconfigure(currentCms, metadata);
+        return !currentCms.equals(newCms);
+    }
+
     public static class Diff
     {
         public static final Serializer serializer = new Serializer();

@@ -373,6 +373,20 @@ public class ClusterMetadataService
         InProgressSequences.finishInProgressSequences(ReconfigureCMS.SequenceKey.instance);
     }
 
+    public void maybeReconfigureCMS(ClusterMetadata metadata)
+    {
+        try
+        {
+            if (PrepareCMSReconfiguration.needsReconfiguration(metadata))
+                reconfigureCMS(ReplicationParams.meta(metadata));
+        }
+        catch (Throwable t)
+        {
+            JVMStabilityInspector.inspectThrowable(t);
+            logger.error("Could not reconfigure CMS, operator should run `nodetool cms reconfigure` to make sure CMS placement is correct", t);
+        }
+    }
+
     public boolean applyFromGossip(ClusterMetadata expected, ClusterMetadata updated)
     {
         logger.debug("Applying from gossip, current={} new={}", expected, updated);
