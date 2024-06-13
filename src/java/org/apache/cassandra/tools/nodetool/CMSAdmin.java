@@ -29,6 +29,16 @@ import io.airlift.airline.Option;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool;
 
+import static org.apache.cassandra.tcm.CMSOperations.COMMITS_PAUSED;
+import static org.apache.cassandra.tcm.CMSOperations.EPOCH;
+import static org.apache.cassandra.tcm.CMSOperations.IS_MEMBER;
+import static org.apache.cassandra.tcm.CMSOperations.IS_MIGRATING;
+import static org.apache.cassandra.tcm.CMSOperations.LOCAL_PENDING;
+import static org.apache.cassandra.tcm.CMSOperations.MEMBERS;
+import static org.apache.cassandra.tcm.CMSOperations.NEEDS_RECONFIGURATION;
+import static org.apache.cassandra.tcm.CMSOperations.REPLICATION_FACTOR;
+import static org.apache.cassandra.tcm.CMSOperations.SERVICE_STATE;
+
 public abstract class CMSAdmin extends NodeTool.NodeToolCmd
 {
     @Command(name = "describe", description = "Describe the current Cluster Metadata Service")
@@ -39,14 +49,15 @@ public abstract class CMSAdmin extends NodeTool.NodeToolCmd
         {
             Map<String, String> info = probe.getCMSOperationsProxy().describeCMS();
             output.out.printf("Cluster Metadata Service:%n");
-            output.out.printf("Members: %s%n", info.get("MEMBERS"));
-            output.out.printf("Is Member: %s%n", info.get("IS_MEMBER"));
-            output.out.printf("Service State: %s%n", info.get("SERVICE_STATE"));
-            output.out.printf("Is Migrating: %s%n", info.get("IS_MIGRATING"));
-            output.out.printf("Epoch: %s%n", info.get("EPOCH"));
-            output.out.printf("Local Pending Count: %s%n", info.get("LOCAL_PENDING"));
-            output.out.printf("Commits Paused: %s%n", info.get("COMMITS_PAUSED"));
-            output.out.printf("Replication factor: %s%n", info.get("REPLICATION_FACTOR"));
+            output.out.printf("Members: %s%n", info.get(MEMBERS));
+            output.out.printf("Needs reconfiguration: %s%n", info.get(NEEDS_RECONFIGURATION));
+            output.out.printf("Is Member: %s%n", info.get(IS_MEMBER));
+            output.out.printf("Service State: %s%n", info.get(SERVICE_STATE));
+            output.out.printf("Is Migrating: %s%n", info.get(IS_MIGRATING));
+            output.out.printf("Epoch: %s%n", info.get(EPOCH));
+            output.out.printf("Local Pending Count: %s%n", info.get(LOCAL_PENDING));
+            output.out.printf("Commits Paused: %s%n", info.get(COMMITS_PAUSED));
+            output.out.printf("Replication factor: %s%n", info.get(REPLICATION_FACTOR));
         }
     }
 

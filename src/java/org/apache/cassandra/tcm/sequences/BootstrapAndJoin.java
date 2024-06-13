@@ -261,10 +261,11 @@ public class BootstrapAndJoin extends MultiStepOperation<Epoch>
 
                 break;
             case FINISH_JOIN:
+                ClusterMetadata metadata;
                 try
                 {
                     SystemKeyspace.setBootstrapState(SystemKeyspace.BootstrapState.COMPLETED);
-                    ClusterMetadataService.instance().commit(finishJoin);
+                    metadata = ClusterMetadataService.instance().commit(finishJoin);
                     StorageService.instance.clearTransientMode();
                 }
                 catch (Throwable e)
@@ -273,6 +274,7 @@ public class BootstrapAndJoin extends MultiStepOperation<Epoch>
                     logger.warn("Exception committing finishJoin", e);
                     return continuable();
                 }
+                ClusterMetadataService.instance().ensureCMSPlacement(metadata);
                 break;
             default:
                 return error(new IllegalStateException("Can't proceed with join from " + next));
