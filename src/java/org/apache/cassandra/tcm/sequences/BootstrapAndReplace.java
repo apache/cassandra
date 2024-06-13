@@ -259,10 +259,11 @@ public class BootstrapAndReplace extends MultiStepOperation<Epoch>
                 }
                 break;
             case FINISH_REPLACE:
+                ClusterMetadata metadata;
                 try
                 {
                     SystemKeyspace.setBootstrapState(SystemKeyspace.BootstrapState.COMPLETED);
-                    ClusterMetadataService.instance().commit(finishReplace);
+                    metadata = ClusterMetadataService.instance().commit(finishReplace);
                 }
                 catch (Throwable e)
                 {
@@ -270,6 +271,8 @@ public class BootstrapAndReplace extends MultiStepOperation<Epoch>
                     logger.warn("Got exception committing finishReplace", e);
                     return halted();
                 }
+                ClusterMetadataService.instance().ensureCMSPlacement(metadata);
+
                 break;
             default:
                 return error(new IllegalStateException("Can't proceed with replacement from " + next));

@@ -26,6 +26,9 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -49,6 +52,8 @@ import static org.apache.cassandra.locator.MetaStrategy.entireRange;
 
 public class PrepareCMSReconfiguration
 {
+    private static final Logger logger = LoggerFactory.getLogger(PrepareCMSReconfiguration.class);
+
     private static Transformation.Result executeInternal(ClusterMetadata prev, Function<ClusterMetadata.Transformer, ClusterMetadata.Transformer> transform, Diff diff)
     {
         LockedRanges.Key lockKey = LockedRanges.keyFor(prev.nextEpoch());
@@ -99,6 +104,11 @@ public class PrepareCMSReconfiguration
             Set<NodeId> withoutReplaced = new HashSet<>(currentCms);
             withoutReplaced.remove(toReplace);
             Set<NodeId> newCms = placementStrategy.reconfigure(withoutReplaced, prev);
+            if (newCms.equals(currentCms))
+            {
+                logger.info("Proposed CMS reconfiguration resulted in no required modifications at epoch {}", prev.epoch.getEpoch());
+                return Transformation.success(prev.transformer(), LockedRanges.AffectedRanges.EMPTY);
+            }
             Diff diff = diff(currentCms, newCms);
             return executeInternal(prev, t -> t, diff);
         }
@@ -162,6 +172,11 @@ public class PrepareCMSReconfiguration
                                          .collect(Collectors.toSet());
 
             Set<NodeId> newCms = placementStrategy.reconfigure(currentCms, prev);
+            if (newCms.equals(currentCms))
+            {
+                logger.info("Proposed CMS reconfiguration resulted in no required modifications at epoch {}", prev.epoch.getEpoch());
+                return Transformation.success(prev.transformer(), LockedRanges.AffectedRanges.EMPTY);
+            }
             Diff diff = diff(currentCms, newCms);
 
             return executeInternal(prev,
@@ -215,6 +230,18 @@ public class PrepareCMSReconfiguration
         }
 
         return new Diff(additions, removals);
+    }
+
+    public static boolean needsReconfiguration(ClusterMetadata metadata)
+    {
+        CMSPlacementStrategy placementStrategy = CMSPlacementStrategy.fromReplicationParams(ReplicationParams.meta(metadata), nodeId -> true);
+        Set<NodeId> currentCms = metadata.fullCMSMembers()
+                                         .stream()
+                                         .map(metadata.directory::peerId)
+                                         .collect(Collectors.toSet());
+
+        Set<NodeId> newCms = placementStrategy.reconfigure(currentCms, metadata);
+        return !currentCms.equals(newCms);
     }
 
     public static class Diff

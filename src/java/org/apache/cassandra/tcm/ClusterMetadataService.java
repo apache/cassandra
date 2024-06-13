@@ -362,7 +362,6 @@ public class ClusterMetadataService
         }
     }
 
-    // This method is to be used _only_ for interactive purposes (i.e. nodetool), since it assumes no retries are going to be attempted on reject.
     public void reconfigureCMS(ReplicationParams replicationParams)
     {
         Transformation transformation = new PrepareCMSReconfiguration.Complex(replicationParams);
@@ -371,6 +370,19 @@ public class ClusterMetadataService
                               .commit(transformation);
 
         InProgressSequences.finishInProgressSequences(ReconfigureCMS.SequenceKey.instance);
+    }
+
+    public void ensureCMSPlacement(ClusterMetadata metadata)
+    {
+        try
+        {
+            reconfigureCMS(ReplicationParams.meta(metadata));
+        }
+        catch (Throwable t)
+        {
+            JVMStabilityInspector.inspectThrowable(t);
+            logger.warn("Could not reconfigure CMS, operator should run `nodetool cms reconfigure` to make sure CMS placement is correct", t);
+        }
     }
 
     public boolean applyFromGossip(ClusterMetadata expected, ClusterMetadata updated)

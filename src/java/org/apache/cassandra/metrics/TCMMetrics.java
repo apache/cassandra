@@ -30,6 +30,7 @@ import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
+import static org.apache.cassandra.tcm.transformations.cms.PrepareCMSReconfiguration.needsReconfiguration;
 
 public class TCMMetrics
 {
@@ -42,6 +43,7 @@ public class TCMMetrics
     public final Gauge<Long> currentCMSSize;
     public final Gauge<Long> unreachableCMSMembers;
     public final Gauge<Integer> isCMSMember;
+    public final Gauge<Integer> needsCMSReconfiguration;
     public final Histogram fetchedPeerLogEntries;
     public final Histogram fetchedCMSLogEntries;
     public final Timer fetchPeerLogLatency;
@@ -89,6 +91,11 @@ public class TCMMetrics
         isCMSMember = Metrics.register(factory.createMetricName("IsCMSMember"), () -> {
             ClusterMetadata metadata =  ClusterMetadata.currentNullable();
             return metadata != null && metadata.isCMSMember(FBUtilities.getBroadcastAddressAndPort()) ? 1 : 0;
+        });
+
+        needsCMSReconfiguration = Metrics.register(factory.createMetricName("NeedsCMSReconfiguration"), () -> {
+            ClusterMetadata metadata =  ClusterMetadata.currentNullable();
+            return metadata != null && needsReconfiguration(metadata) ? 1 : 0;
         });
 
         fetchedPeerLogEntries = Metrics.histogram(factory.createMetricName("FetchedPeerLogEntries"), false);

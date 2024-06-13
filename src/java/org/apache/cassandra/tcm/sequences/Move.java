@@ -265,17 +265,18 @@ public class Move extends MultiStepOperation<Epoch>
                 }
                 break;
             case FINISH_MOVE:
+                ClusterMetadata metadata;
                 try
                 {
                     SystemKeyspace.updateLocalTokens(tokens);
-                    ClusterMetadataService.instance().commit(finishMove);
+                    metadata = ClusterMetadataService.instance().commit(finishMove);
                 }
                 catch (Throwable t)
                 {
                     JVMStabilityInspector.inspectThrowable(t);
                     return continuable();
                 }
-
+                ClusterMetadataService.instance().ensureCMSPlacement(metadata);
                 break;
             default:
                 return error(new IllegalStateException("Can't proceed with join from " + next));
