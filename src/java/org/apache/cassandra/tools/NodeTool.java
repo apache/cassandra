@@ -264,7 +264,8 @@ public class NodeTool
                 ViewBuildStatus.class,
                 GetRateLimiterConfig.class,
                 SetRateLimiterConfig.class,
-                ForceCompact.class
+                ForceCompact.class,
+                SSTableRepairedSet.class
         );
 
         Cli.CliBuilder<NodeToolCmdRunnable> builder = Cli.builder("nodetool");
