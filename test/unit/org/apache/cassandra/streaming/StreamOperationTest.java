@@ -20,6 +20,7 @@ package org.apache.cassandra.streaming;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 
 public class StreamOperationTest
 {
@@ -43,5 +44,13 @@ public class StreamOperationTest
         assertEquals("Repair", StreamOperation.REPAIR.getDescription());
         assertEquals("Restore replica count", StreamOperation.RESTORE_REPLICA_COUNT.getDescription());
 
+    }
+
+    @Test
+    public void testRepairDoesNotRequireViewBuild()
+    {
+        StreamOperation op = StreamOperation.REPAIR;
+
+        assertFalse(op.requiresViewBuild());
     }
 }

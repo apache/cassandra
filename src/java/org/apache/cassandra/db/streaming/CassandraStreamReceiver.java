@@ -23,6 +23,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 
@@ -59,8 +60,14 @@ public class CassandraStreamReceiver implements StreamReceiver
     private static final Logger logger = LoggerFactory.getLogger(CassandraStreamReceiver.class);
 
     private static final int MAX_ROWS_PER_BATCH = Integer.getInteger("cassandra.repair.mutation_repair_rows_per_batch", 100);
+    @VisibleForTesting
+    protected static final String REQUIRES_VIEW_BUILD = "cassandra.streaming.requires_view_build";
     // This is a parameter we use to disable materialized view build
-    private boolean uberRequiresViewBuild = Boolean.parseBoolean(System.getProperty("cassandra.streaming.requires_view_build", "true"));
+    private final boolean uberRequiresViewBuild = Boolean.parseBoolean(System.getProperty(REQUIRES_VIEW_BUILD, "true"));
+    @VisibleForTesting
+    protected static final String REQUIRES_CDC_REPLAY = "cassandra.streaming.requires_cdc_replay";
+    // This is a parameter we use to disable replaying CDC events when streaming
+    private final boolean uberRequiresCDCReplay = Boolean.parseBoolean(System.getProperty(REQUIRES_CDC_REPLAY, "true"));
 
     private final ColumnFamilyStore cfs;
     private final StreamSession session;
@@ -183,9 +190,12 @@ public class CassandraStreamReceiver implements StreamReceiver
      * For CDC-enabled tables, we want to ensure that the mutations are run through the CommitLog so they
      * can be archived by the CDC process on discard.
      */
-    private boolean requiresWritePath(ColumnFamilyStore cfs)
+    @VisibleForTesting
+    protected boolean requiresWritePath(ColumnFamilyStore cfs)
     {
-        return hasCDC(cfs) || cfs.streamToMemtable() || (session.streamOperation().requiresViewBuild() && hasViews(cfs) && uberRequiresViewBuild);
+        return cfs.streamToMemtable()
+                || (session.streamOperation().requiresViewBuild() && hasViews(cfs) && uberRequiresViewBuild)
+                || (hasCDC(cfs) && uberRequiresCDCReplay && !hasViews(cfs));
     }
 
     private void sendThroughWritePath(ColumnFamilyStore cfs, Collection<SSTableReader> readers)
@@ -216,7 +226,7 @@ public class CassandraStreamReceiver implements StreamReceiver
         }
     }
 
-    public synchronized  void finishTransaction()
+    public synchronized void finishTransaction()
     {
         txn.finish();
     }

@@ -26,8 +26,7 @@ public enum StreamOperation
     BOOTSTRAP("Bootstrap", false),
     REBUILD("Rebuild", false),
     BULK_LOAD("Bulk Load"),
-    REPAIR("Repair");
-
+    REPAIR("Repair", Boolean.parseBoolean(System.getProperty("cassandra.streaming.requires_view_build_during_repair", "false")));
     private final String description;
     private final boolean requiresViewBuild;
 
@@ -60,7 +59,7 @@ public enum StreamOperation
     }
 
     /**
-     * Wether this operation requires views to be updated
+     * Wether this operation requires views to be updated or CDC events to be replayed
      */
     public boolean requiresViewBuild()
     {
