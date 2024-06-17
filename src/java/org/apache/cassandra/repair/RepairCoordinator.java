@@ -499,7 +499,7 @@ public class RepairCoordinator implements Runnable, ProgressEventNotifier, Repai
         {
             task = new PreviewRepairTask(this, state.id, neighborsAndRanges.filterCommonRanges(state.keyspace, cfnames), neighborsAndRanges.shouldExcludeDeadParticipants, cfnames);
         }
-        else if (state.options.isIncremental())
+        else if (state.options.isIncremental() && !state.options.isConsensusOnly())
         {
             task = new IncrementalRepairTask(this, state.id, neighborsAndRanges, cfnames);
         }
