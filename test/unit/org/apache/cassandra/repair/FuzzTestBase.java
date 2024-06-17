@@ -528,7 +528,7 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
     }
 
     private enum RepairType
-    {FULL, IR}
+    {FULL, IR, PAXOS_ONLY, ACCORD_ONLY}
 
     private enum PreviewType
     {NONE, REPAIRED, UNREPAIRED}
@@ -564,6 +564,12 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
                 break;
             case FULL:
                 args.add("--full");
+                break;
+            case PAXOS_ONLY:
+                args.add("--paxos-only");
+                break;
+            case ACCORD_ONLY:
+                args.add("--accord-only");
                 break;
             default:
                 throw new AssertionError("Unsupported repair type: " + type);
