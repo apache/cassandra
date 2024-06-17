@@ -451,6 +451,11 @@ public class RepairOption
         return accordOnly;
     }
 
+    public boolean isConsensusOnly()
+    {
+        return paxosOnly() || accordOnly();
+    }
+
     public boolean isConsensusMigration()
     {
         return isConsensusMigration;
