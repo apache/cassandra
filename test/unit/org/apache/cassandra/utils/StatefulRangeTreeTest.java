@@ -21,7 +21,7 @@ package org.apache.cassandra.utils;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeSet;
@@ -99,7 +99,7 @@ public class StatefulRangeTreeTest
             @Override
             public Gen<Command<State, Sut, ?>> commands(State state)
             {
-                Map<Gen<Command<State, Sut, ?>>, Integer> possible = new HashMap<>();
+                Map<Gen<Command<State, Sut, ?>>, Integer> possible = new LinkedHashMap<>();
                 possible.put(rs -> new Create(state.newRange(rs), SMALL_INT_GEN.nextInt(rs)), state.createWeight);
                 possible.put(rs -> new Read(state.newRange(rs)), state.readWeight);
                 possible.put(rs -> new KeyRead(IntKey.routing(state.tokenGen.nextInt(rs))), state.readWeight);
@@ -108,15 +108,15 @@ public class StatefulRangeTreeTest
                 possible.put(ignore -> Clear.instance, state.clearWeight);
                 if (!state.uniqRanges.isEmpty())
                 {
-                    possible.put(rs -> new Read(rs.pick(state.uniqRanges)), state.readWeight);
+                    possible.put(rs -> new Read(rs.pickOrderedSet(state.uniqRanges)), state.readWeight);
                     possible.put(rs -> {
-                        Range range = rs.pick(state.uniqRanges);
+                        Range range = rs.pickOrderedSet(state.uniqRanges);
                         int token = rs.nextInt(((IntKey.Routing) range.start()).key, ((IntKey.Routing) range.end()).key) + 1;
                         return new KeyRead(IntKey.routing(token));
                     }, state.readWeight);
-                    possible.put(rs -> new RangeRead(rs.pick(state.uniqRanges)), state.readWeight);
-                    possible.put(rs -> new Update(rs.pick(state.uniqRanges), SMALL_INT_GEN.nextInt(rs)), state.updateWeight);
-                    possible.put(rs -> new Delete(rs.pick(state.uniqRanges)), state.deleteWeight);
+                    possible.put(rs -> new RangeRead(rs.pickOrderedSet(state.uniqRanges)), state.readWeight);
+                    possible.put(rs -> new Update(rs.pickOrderedSet(state.uniqRanges), SMALL_INT_GEN.nextInt(rs)), state.updateWeight);
+                    possible.put(rs -> new Delete(rs.pickOrderedSet(state.uniqRanges)), state.deleteWeight);
                 }
                 return Gens.oneOf(possible);
             }
