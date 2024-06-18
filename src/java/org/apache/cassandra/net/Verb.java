@@ -81,6 +81,7 @@ import org.apache.cassandra.service.SnapshotVerbHandler;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.AccordSyncPropagator;
 import org.apache.cassandra.service.accord.AccordSyncPropagator.Notification;
+import org.apache.cassandra.service.accord.FetchMinEpoch;
 import org.apache.cassandra.service.accord.interop.AccordInteropApply;
 import org.apache.cassandra.service.accord.interop.AccordInteropCommit;
 import org.apache.cassandra.service.accord.interop.AccordInteropRead;
@@ -354,6 +355,8 @@ public enum Verb
     ACCORD_INTEROP_READ_REPAIR_RSP  (157, P2, writeTimeout, IMMEDIATE,          () -> AccordInteropReadRepair.replySerializer,  RESPONSE_HANDLER),
     ACCORD_INTEROP_READ_REPAIR_REQ  (158, P2, writeTimeout, IMMEDIATE,          () -> AccordInteropReadRepair.requestSerializer, AccordService::verbHandlerOrNoop, ACCORD_INTEROP_READ_REPAIR_RSP),
     ACCORD_INTEROP_APPLY_REQ        (160, P2, writeTimeout, IMMEDIATE,          () -> AccordInteropApply.serializer,             AccordService::verbHandlerOrNoop,             ACCORD_APPLY_RSP),
+    ACCORD_FETCH_MIN_EPOCH_RSP      (166, P2, writeTimeout, IMMEDIATE,          () -> FetchMinEpoch.Response.serializer, RESPONSE_HANDLER),
+    ACCORD_FETCH_MIN_EPOCH_REQ      (165, P2, writeTimeout, IMMEDIATE,          () -> FetchMinEpoch.serializer, () -> FetchMinEpoch.handler, ACCORD_FETCH_MIN_EPOCH_RSP),
 
     // generic failure response
     FAILURE_RSP            (99,  P0, noTimeout,       REQUEST_RESPONSE,  () -> RequestFailure.serializer,            RESPONSE_HANDLER                             ),

@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -49,6 +50,7 @@ import org.junit.Assert;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.primitives.TxnId;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
@@ -58,6 +60,7 @@ import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IMessageFilters;
 import org.apache.cassandra.distributed.api.NodeToolResult;
+import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.impl.AbstractCluster;
 import org.apache.cassandra.distributed.impl.InstanceConfig;
 import org.apache.cassandra.distributed.impl.TestChangeListener;
@@ -77,7 +80,6 @@ import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Commit;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.Transformation;
-import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.ownership.ReplicaGroups;
 import org.apache.cassandra.utils.Isolated;
@@ -90,6 +92,7 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.BROADCAST_
 import static org.apache.cassandra.config.CassandraRelevantProperties.REPLACE_ADDRESS_FIRST_BOOT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.RING_DELAY;
 import static org.apache.cassandra.distributed.impl.DistributedTestSnitch.toCassandraInetAddressAndPort;
+import static org.apache.cassandra.schema.SchemaConstants.VIRTUAL_VIEWS;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -1457,6 +1460,45 @@ public class ClusterUtils
     public static void preventSystemExit()
     {
         System.setSecurityManager(new PreventSystemExit());
+    }
+
+    public static <T extends IInstance> LinkedHashMap<String, SimpleQueryResult> queryTxnState(AbstractCluster<T> cluster, TxnId txnId, int... nodes)
+    {
+        String cql = String.format("SELECT * FROM %s.txn_blocked_by WHERE txn_id=?", VIRTUAL_VIEWS);
+        LinkedHashMap<String, SimpleQueryResult> map = new LinkedHashMap<>();
+        Iterable<T> it = nodes.length == 0 ? cluster::iterator : cluster.get(nodes);
+        for (T i : it)
+        {
+            if (i.isShutdown())
+                continue;
+            SimpleQueryResult result = i.executeInternalWithResult(cql, txnId.toString());
+            map.put(i.toString(), result);
+        }
+        return map;
+    }
+
+    public static <T extends IInstance> String queryTxnStateAsString(AbstractCluster<T> cluster, TxnId txnId, int... nodes)
+    {
+        StringBuilder sb = new StringBuilder();
+        queryTxnStateAsString(sb, cluster, txnId, nodes);
+        return sb.toString();
+    }
+
+    public static <T extends IInstance> void queryTxnStateAsString(StringBuilder sb, AbstractCluster<T> cluster, TxnId txnId, int... nodes)
+    {
+        LinkedHashMap<String, SimpleQueryResult> map = queryTxnState(cluster, txnId, nodes);
+        for (var e : map.entrySet())
+        {
+            sb.append(e.getKey()).append(":\n");
+            SimpleQueryResult result = e.getValue();
+            if (!result.names().isEmpty())
+                sb.append(result.names()).append('\n');
+            while (result.hasNext())
+            {
+                var row = result.next();
+                sb.append(Arrays.asList(row.toObjectArray())).append('\n');
+            }
+        }
     }
 }
 

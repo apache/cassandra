@@ -25,6 +25,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.ListType;
+import org.apache.cassandra.db.marshal.MapType;
+import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.harry.ddl.ColumnSpec;
 import org.apache.cassandra.harry.gen.rng.RngUtils;
 
@@ -44,6 +48,13 @@ public class Collections
                 return gen;
             }
 
+            @Override
+            public AbstractType<?> asServerType()
+            {
+                //TODO (correctness): no way to know if this is frozen or not... so can't actually define isMultiCell correctly...
+                return MapType.getInstance(k.asServerType(), v.asServerType(), false);
+            }
+
             public int maxSize()
             {
                 return Long.BYTES;
@@ -54,13 +65,20 @@ public class Collections
     public static <V> ColumnSpec.DataType<List<V>> listColumn(ColumnSpec.DataType<V> v,
                                                               int maxSize)
     {
-        return new ColumnSpec.DataType<List<V>>(String.format("set<%s>", v.toString()))
+        return new ColumnSpec.DataType<List<V>>(String.format("list<%s>", v.toString()))
         {
             private final Bijections.Bijection<List<V>> gen = listGen(v.generator(), maxSize);
 
             public Bijections.Bijection<List<V>> generator()
             {
                 return gen;
+            }
+
+            @Override
+            public AbstractType<?> asServerType()
+            {
+                //TODO (correctness): no way to know if this is frozen or not... so can't actually define isMultiCell correctly...
+                return ListType.getInstance(v.asServerType(), false);
             }
 
             public int maxSize()
@@ -81,6 +99,13 @@ public class Collections
             public Bijections.Bijection<Set<V>> generator()
             {
                 return gen;
+            }
+
+            @Override
+            public AbstractType<?> asServerType()
+            {
+                //TODO (correctness): no way to know if this is frozen or not... so can't actually define isMultiCell correctly...
+                return SetType.getInstance(v.asServerType(), false);
             }
 
             public int maxSize()

@@ -69,9 +69,16 @@ public class AccordAgent implements Agent
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordAgent.class);
 
+    protected Node.Id self;
+
     // TODO (required): this should be configurable and have exponential back-off, escaping to operator input past a certain number of retries
     private long retryBootstrapDelayMicros = SECONDS.toMicros(1L);
     private final RandomSource random = new DefaultRandom();
+
+    public void setNodeId(Node.Id id)
+    {
+        self = id;
+    }
 
     public void setRetryBootstrapDelay(long delay, TimeUnit units)
     {
@@ -91,6 +98,11 @@ public class AccordAgent implements Agent
         AssertionError error = new AssertionError("Inconsistent execution timestamp detected for txnId " + command.txnId() + ": " + prev + " != " + next);
         onUncaughtException(error);
         throw error;
+    }
+
+    public void onFailedBarrier(TxnId id, Seekables<?, ?> keysOrRanges, Throwable cause)
+    {
+
     }
 
     @Override

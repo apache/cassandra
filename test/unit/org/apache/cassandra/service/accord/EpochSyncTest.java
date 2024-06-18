@@ -20,7 +20,6 @@ package org.apache.cassandra.service.accord;
 
 import java.net.UnknownHostException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -28,6 +27,7 @@ import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableSet;
@@ -38,7 +38,7 @@ import java.util.TreeSet;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
@@ -60,7 +60,7 @@ import accord.topology.Topology;
 import accord.topology.TopologyManager;
 import accord.utils.Gen;
 import accord.utils.Invariants;
-import accord.utils.Property.UnitCommand;
+import accord.utils.Property.SimpleCommand;
 import accord.utils.RandomSource;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
@@ -74,7 +74,6 @@ import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
 import org.apache.cassandra.gms.IFailureDetectionEventListener;
 import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.SimulatedMessageDelivery;
@@ -94,13 +93,18 @@ import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.MultiStepOperation;
 import org.apache.cassandra.tcm.StubClusterMetadataService;
+import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeId;
-import org.apache.cassandra.tcm.ownership.DataPlacement;
-import org.apache.cassandra.tcm.ownership.DataPlacements;
+import org.apache.cassandra.tcm.membership.NodeState;
+import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
+import org.apache.cassandra.tcm.sequences.LeaveStreams;
+import org.apache.cassandra.tcm.transformations.PrepareJoin;
+import org.apache.cassandra.tcm.transformations.PrepareLeave;
 import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.Pair;
 import org.assertj.core.api.Assertions;
@@ -123,20 +127,43 @@ public class EpochSyncTest
     @Test
     public void test()
     {
-        stateful().withExamples(50).check(commands(() -> Cluster::new)
-                                          .destroyState(cluster -> {
-                                              cluster.processAll();
-                                              cluster.validate(true);
-                                          })
-                                          .addIf(cluster -> cluster.alive().size() <= cluster.maxNodes, EpochSyncTest::addNode)
-                                          .addIf(cluster -> cluster.alive().size() > cluster.minNodes, EpochSyncTest::removeNode)
-                                          .addIf(cluster -> cluster.hasWork(), EpochSyncTest::processSome)
-                                          .add(rs -> new SimpleCommand("Validate", c -> c.validate(false)))
-                                          .add((rs, cluster) -> new SimpleCommand("Bump Epoch " + (cluster.current.epoch.getEpoch() + 1), Cluster::bumpEpoch))
-                                          .build());
+        stateful().withExamples(50).withSteps(500).check(commands(() -> Cluster::new)
+                .destroyState(cluster -> {
+                    finishPendingWork(cluster);
+                    cluster.processAll();
+                    cluster.validate(true);
+                })
+                .addAllIf(Cluster::hasPendingWork, b ->
+                        b.addIf(c -> !c.status(s -> s == Cluster.Status.Registered).isEmpty(), (rs, state) -> {
+                                    long epoch = state.current.epoch.getEpoch() + 1;
+                                    Node.Id pick = rs.pick(state.status(s -> s == Cluster.Status.Registered));
+                                    return new SimpleCommand<>(pick + " Start Joining; epoch=" + epoch,
+                                            c -> c.increment(pick));
+                                })
+                                .addIf(c -> !c.current.inProgressSequences.isEmpty(),
+                                        (rs, state) -> new SimpleCommand<>("Next Epoch Step; epoch=" + (state.current.epoch.getEpoch() + 1),
+                                                Cluster::incrementInProgressSequences))
+                )
+                .addAllIf(Cluster::hasNoPendingWork, b ->
+                        b.addIf(cluster -> cluster.joined().size() <= cluster.maxNodes, EpochSyncTest::addNode)
+                                .addIf(cluster -> cluster.joined().size() > cluster.minNodes, EpochSyncTest::removeNode)
+                )
+                .addIf(Cluster::hasWork, EpochSyncTest::processSome)
+                .add(rs -> new SimpleCommand<>("Validate", c -> c.validate(false)))
+                .add((rs, cluster) -> new SimpleCommand<>("Bump Epoch " + (cluster.current.epoch.getEpoch() + 1), Cluster::bumpEpoch))
+                .build());
     }
 
-    private static SimpleCommand addNode(RandomSource rs, Cluster cluster)
+    private static void finishPendingWork(Cluster cluster)
+    {
+        List<Node.Id> registered = cluster.status(s -> s == Cluster.Status.Registered);
+        if (!registered.isEmpty())
+            registered.forEach(cluster::increment);
+        while (!cluster.current.inProgressSequences.isEmpty())
+            cluster.incrementInProgressSequences();
+    }
+
+    private static SimpleCommand<Cluster> addNode(RandomSource rs, Cluster cluster)
     {
         Node.Id id = new Node.Id(++cluster.nodeCounter);
         long token = cluster.tokenGen.nextLong(rs);
@@ -144,64 +171,31 @@ public class EpochSyncTest
             token = cluster.tokenGen.nextLong(rs);
         long epoch = cluster.current.epoch.getEpoch() + 1;
         long finalToken = token;
-        return new SimpleCommand("Add Node " + id + "; token=" + token + ", epoch=" + epoch,
-                                 c -> c.addNode(id, finalToken));
+        return new SimpleCommand<>("Start Node " + id + "; token=" + token + ", epoch=" + epoch,
+                                 c -> c.registerNode(id, finalToken));
     }
 
-    private static SimpleCommand removeNode(RandomSource rs, Cluster cluster)
+    private static SimpleCommand<Cluster> removeNode(RandomSource rs, Cluster cluster)
     {
-        List<Node.Id> alive = cluster.alive();
+        List<Node.Id> alive = cluster.joined();
         Node.Id pick = rs.pick(alive);
         long token = cluster.instances.get(pick).token;
         long epoch = cluster.current.epoch.getEpoch() + 1;
-        return new SimpleCommand("Remove Node " + pick + "; token=" + token + "; epoch=" + epoch, c -> c.removeNode(pick));
+        return new SimpleCommand<>("Remove Node " + pick + "; token=" + token + "; epoch=" + epoch, c -> c.removeNode(pick));
     }
 
-    private static SimpleCommand processSome(RandomSource rs)
-    {
-        return new SimpleCommand("Process Some",
-                                 c -> {//noinspection StatementWithEmptyBody
-                                     for (int i = 0, attempts = rs.nextInt(1, 100); i < attempts && c.processOne(); i++)
-                                     {
-                                     }
-                                 });
-    }
-
-    private static class SimpleCommand implements UnitCommand<Cluster, Void>
-    {
-        private final String name;
-        private final Consumer<Cluster> fn;
-
-        private SimpleCommand(String name, Consumer<Cluster> fn)
-        {
-            this.name = name;
-            this.fn = fn;
-        }
-
-        @Override
-        public String detailed(Cluster Cluster)
-        {
-            return name;
-        }
-
-        @Override
-        public void applyUnit(Cluster Cluster)
-        {
-            fn.accept(Cluster);
-        }
-
-        @Override
-        public void runUnit(Void Void)
-        {
-            
-        }
+    private static SimpleCommand<Cluster> processSome(RandomSource rs) {
+        return new SimpleCommand<>("Process Some",
+                c -> {//noinspection StatementWithEmptyBody
+                    for (int i = 0, attempts = rs.nextInt(1, 100); i < attempts && c.processOne(); i++) {
+                    }
+                });
     }
 
     private static class Cluster
     {
         private static final int rf = 2;
         private static final ReplicationParams replication_params = ReplicationParams.simple(rf);
-        private static final ReplicationParams meta = ReplicationParams.simpleMeta(1, Collections.singleton("dc1"));
 
         private final RandomSource rs;
         private final int minNodes, maxNodes;
@@ -222,7 +216,7 @@ public class EpochSyncTest
             @Override
             public boolean isAlive(InetAddressAndPort ep)
             {
-                return !removed.contains(nodeId(ep));
+                return instances.get(nodeId(ep)).status != Status.Removed;
             }
 
             @Override
@@ -262,39 +256,6 @@ public class EpochSyncTest
             }
         };
 
-        private static InetAddressAndPort address(Node.Id id)
-        {
-            try
-            {
-                return InetAddressAndPort.getByAddress(ByteArrayUtil.bytes(id.id));
-            }
-            catch (UnknownHostException e)
-            {
-                throw new AssertionError("Unable to create address for id " + id, e);
-            }
-        }
-
-        public enum EpochTracker { topologyManager, accordSyncPropagator, configurationService}
-
-        Set<EpochTracker> globalSynced(long epoch)
-        {
-            return alive().stream()
-                   .filter(n -> instances.get(n).epoch.getEpoch() <= epoch)
-                   .map(n -> instances.get(n).synced(epoch))
-                   .reduce(EnumSet.allOf(EpochTracker.class), Sets::intersection);
-        }
-
-        boolean allSynced(long epoch)
-        {
-            Set<EpochTracker> done = globalSynced(epoch);
-            return done.contains(EpochTracker.topologyManager);
-        }
-
-        private static Node.Id nodeId(InetAddressAndPort address)
-        {
-            return new Node.Id(ByteArrayUtil.getInt(address.addressBytes));
-        }
-
         public Cluster(RandomSource rs)
         {
             this.rs = rs;
@@ -321,7 +282,7 @@ public class EpochSyncTest
                 else
                 {
                     // add partition
-                    List<Node.Id> alive = alive();
+                    List<Node.Id> alive = notRemoved();
                     InetAddressAndPort a = address(rs.pick(alive));
                     InetAddressAndPort b = address(rs.pick(alive));
                     while (a.equals(b))
@@ -331,9 +292,89 @@ public class EpochSyncTest
             }, 1, 1, TimeUnit.MINUTES);
         }
 
+        private static InetAddressAndPort address(Node.Id id)
+        {
+            try
+            {
+                return InetAddressAndPort.getByAddress(ByteArrayUtil.bytes(id.id));
+            }
+            catch (UnknownHostException e)
+            {
+                throw new AssertionError("Unable to create address for id " + id, e);
+            }
+        }
+
+        private boolean hasPendingWork()
+        {
+            return !status(s -> s == Cluster.Status.Registered).isEmpty()
+                    || !current.inProgressSequences.isEmpty();
+        }
+
+        private boolean hasNoPendingWork()
+        {
+            return !hasPendingWork();
+        }
+
+        private Transformation.Success process(Transformation transformation)
+        {
+            Transformation.Result result = transformation.execute(current);
+            if (result.isRejected())
+                throw new IllegalStateException("Unable to make TCM transition: " + result.rejected());
+            return result.success();
+        }
+
+        private Transformation.Success process(MultiStepOperation<?> transformation)
+        {
+            Transformation.Result result = transformation.applyTo(current);
+            if (result.isRejected())
+                throw new IllegalStateException("Unable to make TCM transition");
+            return result.success();
+        }
+
+        public void incrementInProgressSequences()
+        {
+            if (current.inProgressSequences.isEmpty())
+                throw new IllegalStateException("Attempted to bump epoch when nothing was pending");
+            Iterator<MultiStepOperation<?>> it = current.inProgressSequences.iterator();
+            Invariants.checkState(it.hasNext());
+            notify(current = process(it.next()).metadata);
+        }
+
+        private static boolean left(ClusterMetadata metadata, Node.Id id)
+        {
+            return metadata.directory.peerState(new NodeId(id.id)) == NodeState.LEFT;
+        }
+
+        private static boolean joined(ClusterMetadata metadata, Node.Id id)
+        {
+            NodeAddresses address = metadata.directory.getNodeAddresses(new NodeId(id.id));
+            return metadata.placements.get(replication_params).reads.byEndpoint().keySet().contains(address.broadcastAddress);
+        }
+
+        public enum EpochTracker { topologyManager, accordSyncPropagator, configurationService}
+
+        Set<EpochTracker> globalSynced(long epoch)
+        {
+            return notRemoved().stream()
+                               .filter(n -> instances.get(n).epoch.getEpoch() <= epoch)
+                               .map(n -> instances.get(n).synced(epoch))
+                               .reduce(EnumSet.allOf(EpochTracker.class), Sets::intersection);
+        }
+
+        boolean allSynced(long epoch)
+        {
+            Set<EpochTracker> done = globalSynced(epoch);
+            return done.contains(EpochTracker.topologyManager);
+        }
+
+        private static Node.Id nodeId(InetAddressAndPort address)
+        {
+            return new Node.Id(ByteArrayUtil.getInt(address.addressBytes));
+        }
+
         void validate(boolean isDone)
         {
-            for (Node.Id id : alive())
+            for (Node.Id id : notRemoved())
             {
                 Instance inst = instances.get(id);
                 if (removed.contains(id)) continue; // ignore removed nodes
@@ -352,7 +393,9 @@ public class EpochSyncTest
                         Assertions.assertThat(tm.hasEpoch(epoch)).describedAs("node%s does not have epoch %d", id, epoch).isTrue();
                         Ranges ranges = tm.globalForEpoch(epoch).ranges().mergeTouching();
                         Ranges actual = tm.syncComplete(epoch).mergeTouching();
-                        Assertions.assertThat(actual).describedAs("node%s does not have all expected sync ranges for epoch %d; missing %s", id, epoch, ranges.without(actual)).isEqualTo(ranges);
+                        Assertions.assertThat(actual)
+                                  .describedAs("node%s does not have all expected sync ranges for epoch %d; missing %s", id, epoch, ranges.without(actual))
+                                  .isEqualTo(ranges);
                     }
                     else
                     {
@@ -379,13 +422,32 @@ public class EpochSyncTest
 
         String displayTopology()
         {
-            List<Node.Id> alive = alive();
-            List<Pair<Node.Id, Long>> withToken = new ArrayList<>(alive.size());
-            for (Node.Id n : alive)
-                withToken.add(Pair.create(n, instances.get(n).token));
-            withToken.sort(Comparator.comparing(a -> a.right));
+            class Hold {
+                final Cluster.Status status;
+                final long token;
+
+                Hold(Status status, long token)
+                {
+                    this.status = status;
+                    this.token = token;
+                }
+
+                @Override
+                public String toString()
+                {
+                    return status + "\t" + (status == Status.Registered ? "?" : Long.toString(token));
+                }
+            }
+            List<Node.Id> notRemoved = notRemoved();
+            List<Pair<Node.Id, Hold>> list = new ArrayList<>(notRemoved.size());
+            for (Node.Id n : notRemoved)
+            {
+                Instance instance = instances.get(n);
+                list.add(Pair.create(n, new Hold(instance.status, instance.token)));
+            }
+            list.sort(Comparator.comparing(a -> a.right.token));
             StringBuilder sb = new StringBuilder();
-            for (var p : withToken)
+            for (var p : list)
                 sb.append(p.left).append('\t').append(p.right).append('\n');
             return sb.toString();
         }
@@ -427,7 +489,24 @@ public class EpochSyncTest
             throw error;
         }
 
-        List<Node.Id> alive()
+        List<Node.Id> joined()
+        {
+            return status(s -> s == Status.Joined);
+        }
+
+        List<Node.Id> status(Predicate<Status> fn)
+        {
+            List<Node.Id> ids = new ArrayList<>(instances.size());
+            for (Instance i : instances.values())
+            {
+                if (fn.test(i.status))
+                    ids.add(i.id);
+            }
+            ids.sort(Comparator.naturalOrder());
+            return ids;
+        }
+
+        List<Node.Id> notRemoved()
         {
             ArrayList<Node.Id> ids = new ArrayList<>(Sets.difference(instances.keySet(), removed));
             ids.sort(Comparator.naturalOrder());
@@ -461,14 +540,16 @@ public class EpochSyncTest
                                                 },
                                                 SimulatedMessageDelivery.randomDelay(rs.fork()),
                                                 (to, msg) -> instances.get(nodeId(to)).reciver.recieve(msg),
-                                                (action, to, msg) -> logger.warn("{} message {}", action, msg),
+                                                (action, to, msg) -> logger.trace("{} message {}", action, msg),
                                                 scheduler::schedule,
                                                 failures::add);
         }
 
-        void addNode(Node.Id id, long token)
+        void registerNode(Node.Id id, long token)
         {
             Invariants.checkState(!tokens.contains(token), "Attempted to add token %d for node %s but token is already taken", token, id);
+            Invariants.checkState(!instances.containsKey(id), "Attempted to add node %s; but already exists", id);
+
             Epoch epoch = Epoch.create(current.epoch.getEpoch() + 1);
 
             Instance instance = new Instance(id, token, epoch, createMessaging(id), fd);
@@ -476,38 +557,38 @@ public class EpochSyncTest
             tokens.add(token);
 
             current = current.forceEpoch(epoch)
-                             .withPlacements(DataPlacements.builder(2)
-                                                           .with(meta, DataPlacement.empty())
-                                                           .with(replication_params, rebuildPlacements(epoch))
-                                                           .build())
                              .withDirectory(current.directory.with(new NodeAddresses(address(id)), new Location("dc1", "r1")));
             notify(current);
+        }
+
+        void increment(Node.Id pick)
+        {
+            Instance inst = Objects.requireNonNull(instances.get(pick), "Unknown id " + pick);
+
+            switch (inst.status)
+            {
+                case Init:
+                case Joined:
+                case Removed:
+                    throw new IllegalStateException("Unexpected status: " + inst.status);
+                case Registered:
+                    inst.status = Status.Joining;
+                    PrepareJoin task = new PrepareJoin(new NodeId(pick.id), Collections.singleton(new LongToken(inst.token)), new UniformRangePlacement(), true, false);
+                    notify(current = process(task).metadata);
+                    break;
+                default:
+                    throw new UnsupportedOperationException("Unknown status: " + inst.status);
+            }
         }
 
         void removeNode(Node.Id pick)
         {
             Instance inst = Objects.requireNonNull(instances.get(pick), "Unknown id " + pick);
             Invariants.checkState(!removed.contains(pick), "Can not remove node twice; node " + pick);
-            tokens.remove(inst.token);
             removed.add(pick);
-            inst.stop();
-            current = current.forceEpoch(Epoch.create(current.epoch.getEpoch() + 1))
-                             .withDirectory(current.directory.without(new NodeId(pick.id)));
-
-            current = current.withPlacements(DataPlacements.builder(2)
-                                                           .with(meta, DataPlacement.empty())
-                                                           .with(replication_params, rebuildPlacements(current.epoch))
-                                                           .build());
-            notify(current);
-        }
-
-        private DataPlacement rebuildPlacements(Epoch epoch)
-        {
-            DataPlacement.Builder builder = DataPlacement.builder();
-            for (Node.Id inst : alive())
-                for (Replica replica : instances.get(inst).replica())
-                    builder.withReadReplica(epoch, replica).withWriteReplica(epoch, replica);
-            return builder.build();
+            inst.status = Status.Leaving;
+            PrepareLeave prepareLeave = new PrepareLeave(new NodeId(pick.id), false, new UniformRangePlacement(), LeaveStreams.Kind.REMOVENODE);
+            notify(current = process(prepareLeave).metadata);
         }
 
         void bumpEpoch()
@@ -518,14 +599,15 @@ public class EpochSyncTest
 
         private void notify(ClusterMetadata current)
         {
-            Ranges ranges = AccordTopology.createAccordTopology(current).ranges().mergeTouching();
-            if (!current.directory.isEmpty())
+            Topology t = AccordTopology.createAccordTopology(current);
+            Ranges ranges = t.ranges().mergeTouching();
+            if (!current.placements.get(replication_params).reads.isEmpty())
                 Assertions.assertThat(ranges).hasSize(1);
             ((StubClusterMetadataService) ClusterMetadataService.instance()).setMetadata(current);
-            for (Node.Id id : alive())
+            for (Node.Id id : status(s -> s != Status.Removed))
             {
                 Instance inst = instances.get(id);
-                inst.maybeStart();
+                inst.maybeTransition(current, t);
                 inst.config.maybeReportMetadata(current);
             }
         }
@@ -555,7 +637,7 @@ public class EpochSyncTest
             };
         }
 
-        private enum Status { Init, Started}
+        private enum Status { Init, Registered, Joining, Joined, Leaving, Removed}
         private class Instance
         {
             private final Node.Id id;
@@ -634,12 +716,47 @@ public class EpochSyncTest
                 this.reciver = messagingService.receiver(new SimulatedMessageDelivery.SimpleVerbHandler(handlers));
             }
 
-            void maybeStart()
+            @Override
+            public String toString()
             {
-                if (status == Status.Init)
+                return "Instance{" +
+                       "id=" + id +
+                       ", token=" + token +
+                       ", epoch=" + epoch +
+                       ", status=" + status +
+                       '}';
+            }
+
+            void maybeTransition(ClusterMetadata current, Topology t)
+            {
+                switch (status)
                 {
-                    start();
-                    status = Status.Started;
+                    case Init:
+                        Invariants.checkState(!t.nodes().contains(id), "Node was in Init state but present in the Topology!");
+                        Invariants.checkState(current.directory.peerId(address(id)) != null, "Node exists but not in TCM");
+                        start();
+                        status = Status.Registered;
+                        break;
+                    case Registered:
+                        Invariants.checkState(!t.nodes().contains(id), "Node was in Init state but present in the Topology!");
+                        Invariants.checkState(current.directory.peerId(address(id)) != null, "Node exists but not in TCM");
+                        if (current.placements.get(replication_params).writes.byEndpoint().keySet().contains(address(id)))
+                            status = Status.Joining;
+                        break;
+                    case Joining:
+                        Invariants.checkState(current.directory.peerId(address(id)) != null, "Node exists but not in TCM");
+                        if (joined(current, id))
+                            status = Status.Joined;
+                    case Removed:
+                    case Joined:
+                        // nothing to do
+                        break;
+                    case Leaving:
+                        if (left(current, id))
+                            stop();
+                        break;
+                    default:
+                        throw new UnsupportedOperationException("Unknown status: " + status);
                 }
             }
 
@@ -651,20 +768,6 @@ public class EpochSyncTest
             TopologyManager topology()
             {
                 return topology;
-            }
-
-            Collection<Replica> replica()
-            {
-                InetAddressAndPort address = Cluster.address(id);
-                SortedSet<Long> lessThan = tokens.headSet(token);
-                if (lessThan.isEmpty())
-                {
-                    // wrap around
-                    return Arrays.asList(new Replica(address, new LongToken(Long.MIN_VALUE), new LongToken(token), true),
-                                         new Replica(address, new LongToken(tokens.last()), new LongToken(Long.MIN_VALUE), true));
-                }
-
-                return Collections.singletonList(new Replica(address, new LongToken(lessThan.last()), new LongToken(token), true));
             }
 
             Set<EpochTracker> synced(long epoch)
@@ -683,6 +786,8 @@ public class EpochSyncTest
 
             void stop()
             {
+                status = Status.Removed;
+                tokens.remove(token);
                 messaging.stop();
             }
         }

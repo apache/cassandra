@@ -745,7 +745,7 @@ public class IndexTermType
                         return CompositeType.getInstance(collection.nameComparator(), collection.valueComparator());
                 }
             default:
-                throw new IllegalArgumentException("Unsupported collection type: " + collection.kind);
+                throw new IllegalArgumentException("Unsupported collection type: " + collection.kind + "; index type: " + indexType.name());
         }
     }
 

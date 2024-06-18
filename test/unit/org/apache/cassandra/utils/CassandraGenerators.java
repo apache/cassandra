@@ -21,14 +21,23 @@ import java.lang.reflect.Modifier;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Deque;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.NavigableMap;
+import java.util.Objects;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.UUID;
+import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -38,6 +47,7 @@ import javax.annotation.Nullable;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 import org.apache.commons.lang3.builder.MultilineRecursiveToStringStyle;
 import org.apache.commons.lang3.builder.ReflectionToStringBuilder;
 
@@ -53,6 +63,7 @@ import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.CompositeType;
+import org.apache.cassandra.db.marshal.CounterColumnType;
 import org.apache.cassandra.db.marshal.EmptyType;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.marshal.UserType;
@@ -66,21 +77,39 @@ import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.ReversedLongLocalPartitioner;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.HeartBeatState;
 import org.apache.cassandra.gms.VersionedValue;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
+import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.LocalStrategy;
+import org.apache.cassandra.locator.MetaStrategy;
+import org.apache.cassandra.locator.NetworkTopologyStrategy;
+import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.net.ConnectionType;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.net.PingRequest;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.MemtableParams;
+import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableParams;
+import org.apache.cassandra.schema.Tables;
+import org.apache.cassandra.schema.Types;
+import org.apache.cassandra.schema.UserFunctions;
+import org.apache.cassandra.schema.Views;
+import org.apache.cassandra.service.accord.fastpath.FastPathStrategy;
+import org.apache.cassandra.service.consensus.TransactionalMode;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.utils.AbstractTypeGenerators.TypeGenBuilder;
 import org.apache.cassandra.utils.AbstractTypeGenerators.ValueDomain;
 import org.quicktheories.core.Gen;
 import org.quicktheories.core.RandomnessSource;
@@ -90,6 +119,7 @@ import org.quicktheories.impl.Constraint;
 
 import static org.apache.cassandra.utils.AbstractTypeGenerators.allowReversed;
 import static org.apache.cassandra.utils.AbstractTypeGenerators.getTypeSupport;
+import static org.apache.cassandra.utils.AbstractTypeGenerators.withoutUnsafeEquality;
 import static org.apache.cassandra.utils.Generators.IDENTIFIER_GEN;
 import static org.apache.cassandra.utils.Generators.SMALL_TIME_SPAN_NANOS;
 import static org.apache.cassandra.utils.Generators.TIMESTAMP_NANOS;
@@ -185,15 +215,219 @@ public final class CassandraGenerators
         return SourceDSL.arbitrary().pick("big", "bti");
     }
 
+    public static Gen<SSTableFormat<?, ?>> sstableFormat()
+    {
+        // make sure ordering is determanstic, else repeatability breaks
+        NavigableMap<String, SSTableFormat<?, ?>> formats = new TreeMap<>(DatabaseDescriptor.getSSTableFormats());
+        return SourceDSL.arbitrary().pick(new ArrayList<>(formats.values()));
+    }
+
+    public static class AbstractReplicationStrategyBuilder
+    {
+        public enum Strategy
+        {
+            Simple(true),
+            NetworkTopology(true),
+            Local(false),
+            Meta(false);
+
+            public final boolean userAllowed;
+
+            Strategy(boolean userAllowed)
+            {
+                this.userAllowed = userAllowed;
+            }
+        }
+
+        private Gen<Strategy> strategyGen = SourceDSL.arbitrary().enumValues(Strategy.class);
+        private Gen<String> keyspaceNameGen = KEYSPACE_NAME_GEN;
+        private Gen<Integer> rfGen = SourceDSL.integers().between(1, 3);
+        private Gen<List<String>> networkTopologyDCGen = rs -> {
+            Gen<Integer> numDcsGen = SourceDSL.integers().between(1, 3);
+            Gen<String> nameGen = IDENTIFIER_GEN;
+            Set<String> dcs = new HashSet<>();
+            int targetSize = numDcsGen.generate(rs);
+            while (dcs.size() != targetSize)
+                dcs.add(nameGen.generate(rs));
+            List<String> ordered = new ArrayList<>(dcs);
+            ordered.sort(Comparator.naturalOrder());
+            return ordered;
+        };
+
+        public AbstractReplicationStrategyBuilder withKeyspace(Gen<String> keyspaceNameGen)
+        {
+            this.keyspaceNameGen = keyspaceNameGen;
+            return this;
+        }
+
+        public AbstractReplicationStrategyBuilder withKeyspace(String keyspace)
+        {
+            this.keyspaceNameGen = i -> keyspace;
+            return this;
+        }
+
+        public AbstractReplicationStrategyBuilder withUserAllowed()
+        {
+            List<Strategy> allowed = Stream.of(Strategy.values()).filter(s -> s.userAllowed).collect(Collectors.toList());
+            strategyGen = SourceDSL.arbitrary().pick(allowed);
+            return this;
+        }
+
+        public AbstractReplicationStrategyBuilder withRf(Gen<Integer> rfGen)
+        {
+            this.rfGen = rfGen;
+            return this;
+        }
+
+        public AbstractReplicationStrategyBuilder withRf(int rf)
+        {
+            this.rfGen = i -> rf;
+            return this;
+        }
+
+        public AbstractReplicationStrategyBuilder withDatacenters(Gen<List<String>> networkTopologyDCGen)
+        {
+            this.networkTopologyDCGen = networkTopologyDCGen;
+            return this;
+        }
+
+        public AbstractReplicationStrategyBuilder withDatacenters(String first, String... rest)
+        {
+            if (rest.length == 0)
+            {
+                this.networkTopologyDCGen = i -> Collections.singletonList(first);
+            }
+            else
+            {
+                List<String> all = new ArrayList<>(rest.length + 1);
+                all.add(first);
+                all.addAll(Arrays.asList(rest));
+                this.networkTopologyDCGen = i -> all;
+            }
+            return this;
+        }
+
+        public Gen<AbstractReplicationStrategy> build()
+        {
+            return rs -> {
+                Strategy strategy = strategyGen.generate(rs);
+                switch (strategy)
+                {
+                    case Simple:
+                        return new SimpleStrategy(keyspaceNameGen.generate(rs),
+                                                  ImmutableMap.of(SimpleStrategy.REPLICATION_FACTOR, rfGen.generate(rs).toString()));
+                    case NetworkTopology:
+                        ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
+                        List<String> names = networkTopologyDCGen.generate(rs);
+                        for (String name : names)
+                            builder.put(name, rfGen.generate(rs).toString());
+                        ImmutableMap<String, String> map = builder.build();
+                        return new TestableNetworkTopologyStrategy(keyspaceNameGen.generate(rs), map);
+                    case Meta:
+                        return new MetaStrategy(keyspaceNameGen.generate(rs), ImmutableMap.of());
+                    case Local:
+                        return new LocalStrategy(keyspaceNameGen.generate(rs), ImmutableMap.of());
+                    default:
+                        throw new UnsupportedOperationException(strategy.name());
+                }
+            };
+        }
+    }
+
+    public static class TestableNetworkTopologyStrategy extends NetworkTopologyStrategy
+    {
+        public TestableNetworkTopologyStrategy(String keyspaceName, Map<String, String> configOptions) throws ConfigurationException
+        {
+            super(keyspaceName, configOptions);
+        }
+
+        @Override
+        public Collection<String> recognizedOptions(ClusterMetadata metadata)
+        {
+            return configOptions.keySet();
+        }
+    }
+
+    public static KeyspaceMetadataBuilder regularKeyspace()
+    {
+        return new KeyspaceMetadataBuilder().withKind(KeyspaceMetadata.Kind.REGULAR);
+    }
+
+    public static class KeyspaceMetadataBuilder
+    {
+        private Gen<String> nameGen = KEYSPACE_NAME_GEN;
+        private Gen<KeyspaceMetadata.Kind> kindGen = SourceDSL.arbitrary().enumValues(KeyspaceMetadata.Kind.class);
+        private Gen<AbstractReplicationStrategyBuilder> replicationGen = i -> new AbstractReplicationStrategyBuilder();
+        private Gen<Boolean> durableWritesGen = SourceDSL.booleans().all();
+
+        public KeyspaceMetadataBuilder withReplication(Gen<AbstractReplicationStrategyBuilder> replicationGen)
+        {
+            this.replicationGen = replicationGen;
+            return this;
+        }
+
+        public KeyspaceMetadataBuilder withReplication(AbstractReplicationStrategyBuilder replication)
+        {
+            this.replicationGen = i -> replication;
+            return this;
+        }
+
+        public KeyspaceMetadataBuilder withName(Gen<String> nameGen)
+        {
+            this.nameGen = nameGen;
+            return this;
+        }
+
+        public KeyspaceMetadataBuilder withName(String name)
+        {
+            this.nameGen = i -> name;
+            return this;
+        }
+
+        public KeyspaceMetadataBuilder withKind(Gen<KeyspaceMetadata.Kind> kindGen)
+        {
+            this.kindGen = kindGen;
+            return this;
+        }
+
+        public KeyspaceMetadataBuilder withKind(KeyspaceMetadata.Kind kind)
+        {
+            this.kindGen = i -> kind;
+            return this;
+        }
+
+        public Gen<KeyspaceMetadata> build()
+        {
+            return rs -> {
+                String name = nameGen.generate(rs);
+                KeyspaceMetadata.Kind kind = kindGen.generate(rs);
+                AbstractReplicationStrategy replication = replicationGen.generate(rs).withKeyspace(nameGen).build().generate(rs);
+                ReplicationParams replicationParams = ReplicationParams.copy(replication);
+                boolean durableWrites = durableWritesGen.generate(rs);
+                KeyspaceParams params = new KeyspaceParams(durableWrites, replicationParams, FastPathStrategy.simple());
+                Tables tables = Tables.none();
+                Views views = Views.none();
+                Types types = Types.none();
+                UserFunctions userFunctions = UserFunctions.none();
+                return KeyspaceMetadata.createUnsafe(name, kind, params, tables, views, types, userFunctions);
+            };
+        }
+    }
+
+    public static TableMetadataBuilder regularTable()
+    {
+        return new TableMetadataBuilder()
+               .withTableKinds(TableMetadata.Kind.REGULAR)
+               .withKnownMemtables();
+    }
+
     public static class TableMetadataBuilder
     {
         private Gen<String> ksNameGen = CassandraGenerators.KEYSPACE_NAME_GEN;
         private Gen<String> tableNameGen = IDENTIFIER_GEN;
-        private Gen<AbstractType<?>> defaultTypeGen = AbstractTypeGenerators.builder()
-                                                                            .withDefaultSetKey(AbstractTypeGenerators.withoutUnsafeEquality())
-                                                                            .withMaxDepth(1)
-                                                                            .build();
-        private Gen<AbstractType<?>> partitionColTypeGen, clusteringColTypeGen, staticColTypeGen, regularColTypeGen;
+        private TypeGenBuilder defaultTypeGen = defaultTypeGen();
+        private Gen<Boolean> useCounter = ignore -> false;
+        private TypeGenBuilder partitionColTypeGen, clusteringColTypeGen, staticColTypeGen, regularColTypeGen;
         private Gen<TableId> tableIdGen = TABLE_ID_GEN;
         private Gen<TableMetadata.Kind> tableKindGen = SourceDSL.arbitrary().constant(TableMetadata.Kind.REGULAR);
         private Gen<Integer> numPartitionColumnsGen = SourceDSL.integers().between(1, 2);
@@ -201,6 +435,51 @@ public final class CassandraGenerators
         private Gen<Integer> numRegularColumnsGen = SourceDSL.integers().between(1, 5);
         private Gen<Integer> numStaticColumnsGen = SourceDSL.integers().between(0, 2);
         private Gen<String> memtableKeyGen = null;
+        @Nullable
+        private Gen<TransactionalMode> transactionalMode = null;
+        @Nullable
+        private ColumnNameGen columnNameGen = null;
+
+        public static TypeGenBuilder defaultTypeGen()
+        {
+            return AbstractTypeGenerators.builder()
+                                         .withoutEmpty()
+                                         .withDefaultSetKey(withoutUnsafeEquality())
+                                         .withMaxDepth(1)
+                                         .withoutTypeKinds(AbstractTypeGenerators.TypeKind.COUNTER);
+        }
+
+        public TableMetadataBuilder withSimpleColumnNames()
+        {
+            columnNameGen = (i, kind, offset) -> {
+                switch (kind)
+                {
+                    case PARTITION_KEY: return "pk" + offset;
+                    case CLUSTERING: return  "ck" + offset;
+                    case STATIC: return "s" + offset;
+                    case REGULAR: return "v" + offset;
+                    default: throw new UnsupportedOperationException("Unknown kind: " + kind);
+                }
+            };
+            return this;
+        }
+
+        public TableMetadataBuilder withUseCounter(Gen<Boolean> useCounter)
+        {
+            this.useCounter = Objects.requireNonNull(useCounter);
+            return this;
+        }
+
+        public TableMetadataBuilder withTransactionalMode(Gen<TransactionalMode> transactionalMode)
+        {
+            this.transactionalMode = transactionalMode;
+            return this;
+        }
+
+        public TableMetadataBuilder withTransactionalMode(TransactionalMode transactionalMode)
+        {
+            return withTransactionalMode(SourceDSL.arbitrary().constant(transactionalMode));
+        }
 
         public TableMetadataBuilder withKnownMemtables()
         {
@@ -295,38 +574,44 @@ public final class CassandraGenerators
             return this;
         }
 
-        public TableMetadataBuilder withDefaultTypeGen(Gen<AbstractType<?>> typeGen)
+        public TableMetadataBuilder withDefaultTypeGen(TypeGenBuilder typeGen)
         {
             this.defaultTypeGen = typeGen;
             return this;
         }
 
-        public TableMetadataBuilder withPrimaryColumnTypeGen(Gen<AbstractType<?>> typeGen)
+        public TableMetadataBuilder withoutEmpty()
+        {
+            defaultTypeGen.withoutEmpty();
+            return this;
+        }
+
+        public TableMetadataBuilder withPrimaryColumnTypeGen(TypeGenBuilder typeGen)
         {
             withPartitionColumnTypeGen(typeGen);
             withClusteringColumnTypeGen(typeGen);
             return this;
         }
 
-        public TableMetadataBuilder withPartitionColumnTypeGen(Gen<AbstractType<?>> typeGen)
+        public TableMetadataBuilder withPartitionColumnTypeGen(TypeGenBuilder typeGen)
         {
             this.partitionColTypeGen = typeGen;
             return this;
         }
 
-        public TableMetadataBuilder withClusteringColumnTypeGen(Gen<AbstractType<?>> typeGen)
+        public TableMetadataBuilder withClusteringColumnTypeGen(TypeGenBuilder typeGen)
         {
             this.clusteringColTypeGen = typeGen;
             return this;
         }
 
-        public TableMetadataBuilder withStaticColumnTypeGen(Gen<AbstractType<?>> typeGen)
+        public TableMetadataBuilder withStaticColumnTypeGen(TypeGenBuilder typeGen)
         {
             this.staticColTypeGen = typeGen;
             return this;
         }
 
-        public TableMetadataBuilder withRegularColumnTypeGen(Gen<AbstractType<?>> typeGen)
+        public TableMetadataBuilder withRegularColumnTypeGen(TypeGenBuilder typeGen)
         {
             this.regularColTypeGen = typeGen;
             return this;
@@ -345,36 +630,72 @@ public final class CassandraGenerators
 
         public TableMetadata build(RandomnessSource rnd)
         {
-            if (partitionColTypeGen == null && clusteringColTypeGen == null)
-                withPrimaryColumnTypeGen(Generators.filter(defaultTypeGen, t -> !AbstractTypeGenerators.UNSAFE_EQUALITY.contains(t.getClass())));
+            Gen<AbstractType<?>> partitionColTypeGen = withoutUnsafeEquality(new TypeGenBuilder(this.partitionColTypeGen != null ? this.partitionColTypeGen : defaultTypeGen)).build();
+            Gen<AbstractType<?>> clusteringColTypeGen = withoutUnsafeEquality(new TypeGenBuilder(this.clusteringColTypeGen != null ? this.clusteringColTypeGen : defaultTypeGen)).build();
+            Gen<AbstractType<?>> staticColTypeGen = (this.staticColTypeGen != null ? this.staticColTypeGen : defaultTypeGen).build();
+            Gen<AbstractType<?>> regularColTypeGen = (this.regularColTypeGen != null ? this.regularColTypeGen : defaultTypeGen).build();
 
             String ks = ksNameGen.generate(rnd);
-            String tableName = tableNameGen.generate(rnd);
-            TableParams.Builder params = TableParams.builder();
-            if (memtableKeyGen != null)
-                params.memtable(MemtableParams.get(memtableKeyGen.generate(rnd)));
-            TableMetadata.Builder builder = TableMetadata.builder(ks, tableName, tableIdGen.generate(rnd))
-                                                         .partitioner(partitioners().generate(rnd))
-                                                         .kind(tableKindGen.generate(rnd))
-                                                         .isCounter(BOOLEAN_GEN.generate(rnd))
-                                                         .params(params.build());
+            AbstractTypeGenerators.overrideUDTKeyspace(ks);
+            try
+            {
+                String tableName = tableNameGen.generate(rnd);
+                TableParams.Builder params = TableParams.builder();
+                if (memtableKeyGen != null)
+                    params.memtable(MemtableParams.get(memtableKeyGen.generate(rnd)));
+                if (transactionalMode != null)
+                    params.transactionalMode(transactionalMode.generate(rnd));
+                boolean isCounter = useCounter.generate(rnd);
+                TableMetadata.Builder builder = TableMetadata.builder(ks, tableName, tableIdGen.generate(rnd))
+                        .partitioner(partitioners().generate(rnd))
+                        .kind(tableKindGen.generate(rnd))
+                        .isCounter(isCounter)
+                        .params(params.build());
 
-            int numPartitionColumns = numPartitionColumnsGen.generate(rnd);
-            int numClusteringColumns = numClusteringColumnsGen.generate(rnd);
-            int numRegularColumns = numRegularColumnsGen.generate(rnd);
-            int numStaticColumns = numStaticColumnsGen.generate(rnd);
+                int numPartitionColumns = numPartitionColumnsGen.generate(rnd);
+                int numClusteringColumns = numClusteringColumnsGen.generate(rnd);
+                int numRegularColumns = numRegularColumnsGen.generate(rnd);
+                int numStaticColumns = numStaticColumnsGen.generate(rnd);
 
-            Set<String> createdColumnNames = new HashSet<>();
-            for (int i = 0; i < numPartitionColumns; i++)
-                builder.addColumn(createColumnDefinition(ks, tableName, ColumnMetadata.Kind.PARTITION_KEY, createdColumnNames, partitionColTypeGen == null ? defaultTypeGen : partitionColTypeGen, rnd));
-            for (int i = 0; i < numClusteringColumns; i++)
-                builder.addColumn(createColumnDefinition(ks, tableName, ColumnMetadata.Kind.CLUSTERING, createdColumnNames, clusteringColTypeGen == null ? defaultTypeGen : clusteringColTypeGen, rnd));
-            for (int i = 0; i < numStaticColumns; i++)
-                builder.addColumn(createColumnDefinition(ks, tableName, ColumnMetadata.Kind.STATIC, createdColumnNames, staticColTypeGen == null ? defaultTypeGen : staticColTypeGen, rnd));
-            for (int i = 0; i < numRegularColumns; i++)
-                builder.addColumn(createColumnDefinition(ks, tableName, ColumnMetadata.Kind.REGULAR, createdColumnNames, regularColTypeGen == null ? defaultTypeGen : regularColTypeGen, rnd));
+                ColumnNameGen nameGen;
+                if (columnNameGen != null)
+                {
+                    nameGen = columnNameGen;
+                }
+                else
+                {
+                    Set<String> createdColumnNames = new HashSet<>();
+                    // filter for unique names
+                    nameGen = (r, i1, i2) -> {
+                        String str;
+                        while (!createdColumnNames.add(str = IDENTIFIER_GEN.generate(r)))
+                        {
+                        }
+                        return str;
+                    };
+                }
+                for (int i = 0; i < numPartitionColumns; i++)
+                    builder.addColumn(createColumnDefinition(ks, tableName, ColumnMetadata.Kind.PARTITION_KEY, i, nameGen, partitionColTypeGen, rnd));
+                for (int i = 0; i < numClusteringColumns; i++)
+                    builder.addColumn(createColumnDefinition(ks, tableName, ColumnMetadata.Kind.CLUSTERING, i, nameGen, clusteringColTypeGen, rnd));
 
-            return builder.build();
+                if (isCounter)
+                {
+                    builder.addColumn(createColumnDefinition(ks, tableName, ColumnMetadata.Kind.REGULAR, 0, nameGen, ignore -> CounterColumnType.instance, rnd));
+                }
+                else
+                {
+                    for (int i = 0; i < numStaticColumns; i++)
+                        builder.addColumn(createColumnDefinition(ks, tableName, ColumnMetadata.Kind.STATIC, i, nameGen, staticColTypeGen, rnd));
+                    for (int i = 0; i < numRegularColumns; i++)
+                        builder.addColumn(createColumnDefinition(ks, tableName, ColumnMetadata.Kind.REGULAR, i, nameGen, regularColTypeGen, rnd));
+                }
+                return builder.build();
+            }
+            finally
+            {
+                AbstractTypeGenerators.clearUDTKeyspace();
+            }
         }
     }
 
@@ -386,13 +707,19 @@ public final class CassandraGenerators
             String ks = ksNameGen.generate(rs);
             String table = tableNameGen.generate(rs);
             ColumnMetadata.Kind kind = kindGen.generate(rs);
-            return createColumnDefinition(ks, table, kind, new HashSet<>(), typeGen, rs);
+            return createColumnDefinition(ks, table, kind, 0, (r, i1, i2) -> IDENTIFIER_GEN.generate(r), typeGen, rs);
         };
+    }
+
+    public interface ColumnNameGen
+    {
+        String next(RandomnessSource rs, ColumnMetadata.Kind kind, int kindOffset);
     }
 
     private static ColumnMetadata createColumnDefinition(String ks, String table,
                                                          ColumnMetadata.Kind kind,
-                                                         Set<String> createdColumnNames, /* This is mutated to check for collisions, so has a side effect outside of normal random generation */
+                                                         int kindOffset,
+                                                         ColumnNameGen nameGen,
                                                          Gen<AbstractType<?>> typeGen,
                                                          RandomnessSource rnd)
     {
@@ -410,14 +737,12 @@ public final class CassandraGenerators
             // when working on a clustering column, add in reversed types periodically
             typeGen = allowReversed(typeGen);
         }
-        // filter for unique names
-        String str;
-        while (!createdColumnNames.add(str = IDENTIFIER_GEN.generate(rnd)))
-        {
-        }
+        String str = nameGen.next(rnd, kind, kindOffset);
+
         ColumnIdentifier name = new ColumnIdentifier(str, true);
-        int position = !kind.isPrimaryKeyKind() ? -1 : (int) rnd.next(Constraint.between(0, 30));
-        return new ColumnMetadata(ks, table, name, typeGen.generate(rnd), position, kind, null);
+        int position = !kind.isPrimaryKeyKind() ? -1 : kindOffset;
+        AbstractType<?> type = typeGen.generate(rnd);
+        return new ColumnMetadata(ks, table, name, type, position, kind, null);
     }
 
     public static Gen<ByteBuffer> partitionKeyDataGen(TableMetadata metadata)
@@ -439,27 +764,7 @@ public final class CassandraGenerators
 
     public static Gen<ByteBuffer[]> data(TableMetadata metadata, @Nullable Gen<ValueDomain> valueDomainGen)
     {
-        AbstractTypeGenerators.TypeSupport<?>[] types = new AbstractTypeGenerators.TypeSupport[metadata.columns().size()];
-        Iterator<ColumnMetadata> it = metadata.allColumnsInSelectOrder();
-        int partitionColumns = metadata.partitionKeyColumns().size();
-        int clusteringColumns = metadata.clusteringColumns().size();
-        int primaryKeyColumns = partitionColumns + clusteringColumns;
-        for (int i = 0; it.hasNext(); i++)
-        {
-            ColumnMetadata col = it.next();
-            types[i] = AbstractTypeGenerators.getTypeSupportWithNulls(col.type, i < partitionColumns ? null : valueDomainGen);
-            if (i < partitionColumns)
-                types[i] = types[i].withoutEmptyData();
-            if (i >= partitionColumns && i < primaryKeyColumns)
-                // clustering doesn't allow null...
-                types[i] = types[i].mapBytes(b -> b == null ? ByteBufferUtil.EMPTY_BYTE_BUFFER : b);
-        }
-        return rnd -> {
-            ByteBuffer[] row = new ByteBuffer[types.length];
-            for (int i = 0; i < row.length; i++)
-                row[i] = types[i].bytesGen().generate(rnd);
-            return row;
-        };
+        return new DataGeneratorBuilder(metadata).withValueDomain(valueDomainGen).build();
     }
 
     /**
@@ -905,5 +1210,127 @@ public final class CassandraGenerators
             }
             return partitioner.decorateKey(valueGen.generate(rs));
         };
+    }
+
+    public static void visitUDTs(TableMetadata metadata, Consumer<UserType> fn)
+    {
+        Set<UserType> udts = CassandraGenerators.extractUDTs(metadata);
+        if (!udts.isEmpty())
+        {
+            Deque<UserType> pending = new ArrayDeque<>(udts);
+            Set<ByteBuffer> visited = new HashSet<>();
+            while (!pending.isEmpty())
+            {
+                UserType next = pending.poll();
+                Set<UserType> subTypes = AbstractTypeGenerators.extractUDTs(next);
+                subTypes.remove(next); // it includes self
+                if (subTypes.isEmpty() || subTypes.stream().allMatch(t -> visited.contains(t.name)))
+                {
+                    fn.accept(next);
+                    visited.add(next.name);
+                }
+                else
+                {
+                    pending.add(next);
+                }
+            }
+        }
+    }
+
+    public static class DataGeneratorBuilder
+    {
+        private final TableMetadata metadata;
+        @Nullable
+        private Gen<ValueDomain> valueDomainGen = null;
+
+        public DataGeneratorBuilder(TableMetadata metadata)
+        {
+            this.metadata = metadata;
+        }
+
+        public DataGeneratorBuilder withValueDomain(@Nullable Gen<ValueDomain> valueDomainGen)
+        {
+            this.valueDomainGen = valueDomainGen;
+            return this;
+        }
+
+        public Gen<Gen<ByteBuffer[]>> build(Gen<Integer> numUniqPartitionsGen)
+        {
+            AbstractTypeGenerators.TypeSupport<?>[] types = typeSupport();
+            return rnd -> {
+                int numPartitions = numUniqPartitionsGen.generate(rnd);
+                Set<List<ByteBuffer>> partitions = Sets.newHashSetWithExpectedSize(numPartitions);
+                int partitionColumns = metadata.partitionKeyColumns().size();
+                for (int i = 0; i < numPartitions; i++)
+                {
+                    List<ByteBuffer> pk = new ArrayList<>(partitionColumns);
+                    int attempts = 0;
+                    do
+                    {
+                        attempts++;
+                        pk.clear();
+                        for (int c = 0; c < partitionColumns; c++)
+                            pk.add(types[c].bytesGen().generate(rnd));
+                    }
+                    while (!partitions.add(pk) && attempts < 42);
+                }
+                List<List<ByteBuffer>> deterministicOrder = new ArrayList<>(partitions);
+                deterministicOrder.sort((a, b) -> {
+                    int rc = 0;
+                    for (int i = 0; i < a.size(); i++)
+                    {
+                        rc = a.get(i).compareTo(b.get(i));
+                        if (rc != 0) return rc;
+                    }
+                    return rc;
+                });
+
+                Gen<List<ByteBuffer>> pkGen = SourceDSL.arbitrary().pick(deterministicOrder);
+
+                return next -> {
+                    // select partition
+                    List<ByteBuffer> pk = pkGen.generate(next);
+                    // generate rest
+                    ByteBuffer[] row = new ByteBuffer[types.length];
+                    for (int i = 0; i < pk.size(); i++)
+                        row[i] = pk.get(i);
+
+                    for (int i = partitionColumns; i < row.length; i++)
+                        row[i] = types[i].bytesGen().generate(rnd);
+                    return row;
+                };
+            };
+        }
+
+        public Gen<ByteBuffer[]> build()
+        {
+            AbstractTypeGenerators.TypeSupport<?>[] types = typeSupport();
+            return rnd -> {
+                ByteBuffer[] row = new ByteBuffer[types.length];
+                for (int i = 0; i < row.length; i++)
+                    row[i] = types[i].bytesGen().generate(rnd);
+                return row;
+            };
+        }
+
+        private AbstractTypeGenerators.TypeSupport<?>[] typeSupport()
+        {
+            AbstractTypeGenerators.TypeSupport<?>[] types = new AbstractTypeGenerators.TypeSupport[metadata.columns().size()];
+            Iterator<ColumnMetadata> it = metadata.allColumnsInSelectOrder();
+            int partitionColumns = metadata.partitionKeyColumns().size();
+            int clusteringColumns = metadata.clusteringColumns().size();
+            int primaryKeyColumns = partitionColumns + clusteringColumns;
+            for (int i = 0; it.hasNext(); i++)
+            {
+                ColumnMetadata col = it.next();
+                types[i] = AbstractTypeGenerators.getTypeSupportWithNulls(col.type, i < partitionColumns ? null : valueDomainGen);
+                if (i < partitionColumns)
+                    types[i] = types[i].withoutEmptyData();
+                if (i >= partitionColumns && i < primaryKeyColumns)
+                    // clustering doesn't allow null...
+                    types[i] = types[i].mapBytes(b -> b == null ? ByteBufferUtil.EMPTY_BYTE_BUFFER : b);
+            }
+            return types;
+        }
     }
 }

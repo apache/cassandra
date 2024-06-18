@@ -79,6 +79,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.auth.IRoleManager",
     "org.apache.cassandra.config.AccordSpec",
     "org.apache.cassandra.config.AccordSpec$JournalSpec",
+    "org.apache.cassandra.config.AccordSpec$MinEpochRetrySpec",
     "org.apache.cassandra.config.AccordSpec$TransactionalRangeMigration",
     "org.apache.cassandra.config.CassandraRelevantProperties",
     "org.apache.cassandra.config.CassandraRelevantProperties$PropertyConverter",

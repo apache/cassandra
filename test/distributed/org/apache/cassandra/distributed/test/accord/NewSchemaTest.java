@@ -20,6 +20,7 @@ package org.apache.cassandra.distributed.test.accord;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.List;
 
 import org.junit.BeforeClass;
@@ -27,8 +28,11 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.cql3.ast.Select;
+import org.apache.cassandra.cql3.ast.Txn;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.service.accord.AccordService;
+import org.assertj.core.api.Assertions;
 
 import static java.util.function.UnaryOperator.identity;
 
@@ -54,25 +58,29 @@ public class NewSchemaTest extends AccordTestBase
         for (int i = 0; i < 20; i++)
         {
             String ks = "ks" + i;
-            String table = ks + ".tbl" + i;
+            String tableName = "tbl" + i;
+            String table = ks + "." + tableName;
             SHARED_CLUSTER.schemaChange("CREATE KEYSPACE " + ks + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 1}");
             SHARED_CLUSTER.schemaChange(String.format("CREATE TABLE %s (pk blob primary key) WITH transactional_mode='full'", table));
             SHARED_CLUSTER.forEach(node -> node.runOnInstance(() -> AccordService.instance().setCacheSize(0)));
 
             List<ByteBuffer> keys = tokensToKeys(tokens());
 
-            read(table, keys).exec();
+            read(ks, tableName, keys).exec();
         }
     }
 
-    private static Query read(String table, List<ByteBuffer> keys)
+    private static Query read(String ks, String table, List<ByteBuffer> keys)
     {
         assert !keys.isEmpty();
-        StringBuilder sb = new StringBuilder();
+        Txn.Builder builder = new Txn.Builder();
         for (int i = 0; i < keys.size(); i++)
-            sb.append("let row").append(i).append(" = (select * from ").append(table).append(" where pk = ?);\n");
-        sb.append("SELECT row0.pk;");
-        return new Query(sb.toString(), keys.toArray());
+            builder.addLet("row" + i, new Select.Builder().withWildcard().withTable(ks, table).withColumnEquals("pk", keys.get(i)));
+        builder.addReturnReferences("row0.pk");
+        Txn txn = builder.build();
+        ByteBuffer[] binds = txn.bindsEncoded();
+        Assertions.assertThat(Arrays.asList(binds)).isEqualTo(keys);
+        return new Query(txn.toCQL(), binds);
     }
 
     private static class Query

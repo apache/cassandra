@@ -20,6 +20,12 @@ package org.apache.cassandra.harry.model;
 
 import java.util.*;
 
+import org.apache.cassandra.cql3.ast.Bind;
+import org.apache.cassandra.cql3.ast.FunctionCall;
+import org.apache.cassandra.cql3.ast.Reference;
+import org.apache.cassandra.cql3.ast.Select;
+import org.apache.cassandra.cql3.ast.Symbol;
+import org.apache.cassandra.cql3.ast.Where;
 import org.apache.cassandra.harry.data.ResultSetRow;
 import org.apache.cassandra.harry.ddl.ColumnSpec;
 import org.apache.cassandra.harry.ddl.SchemaSpec;
@@ -61,20 +67,13 @@ public class SelectHelper
 
     public static CompiledStatement select(SchemaSpec schema, Long pd, Set<ColumnSpec<?>> columns, List<Relation> relations, boolean reverse, boolean includeWriteTime)
     {
-        boolean isWildcardQuery = columns == null;
-        if (isWildcardQuery)
+        Select.Builder builder = new Select.Builder();
+        if (columns == null)
         {
+            // these are not touched in this case, but still better to be safe than sorry
             columns = schema.allColumnsSet;
             includeWriteTime = false;
-        }
-
-        StringBuilder b = new StringBuilder();
-        b.append("SELECT ");
-
-        boolean isFirst = true;
-        if (isWildcardQuery)
-        {
-            b.append("*");
+            builder.withWildcard();
         }
         else
         {
@@ -84,61 +83,36 @@ public class SelectHelper
                 if (columns != null && !columns.contains(spec))
                     continue;
 
-                if (isFirst)
-                    isFirst = false;
-                else
-                    b.append(", ");
-                b.append(spec.name);
+                builder.withColumnSelection(spec.name, spec.type.asServerType());
+            }
+
+            if (includeWriteTime)
+            {
+                for (ColumnSpec<?> spec : schema.staticColumns)
+                {
+                    if (columns != null && !columns.contains(spec))
+                        continue;
+                    builder.withSelection(FunctionCall.writetime(spec.name, spec.type.asServerType()));
+                }
+
+                for (ColumnSpec<?> spec : schema.regularColumns)
+                {
+                    if (columns != null && !columns.contains(spec))
+                        continue;
+                    builder.withSelection(FunctionCall.writetime(spec.name, spec.type.asServerType()));
+                }
+            }
+
+            if (schema.trackLts)
+            {
+                ColumnSpec<?> spec = schema.ltsColumn();
+                builder.withColumnSelection(spec.name, spec.type.asServerType());
             }
         }
 
-        if (includeWriteTime)
-        {
-            for (ColumnSpec<?> spec : schema.staticColumns)
-            {
-                if (columns != null && !columns.contains(spec))
-                    continue;
-                b.append(", ")
-                 .append("writetime(")
-                 .append(spec.name)
-                 .append(")");
-            }
+        builder.withTable(schema.keyspace, schema.table);
 
-            for (ColumnSpec<?> spec : schema.regularColumns)
-            {
-                if (columns != null && !columns.contains(spec))
-                    continue;
-                b.append(", ")
-                 .append("writetime(")
-                 .append(spec.name)
-                 .append(")");
-            }
-        }
-
-        if (schema.trackLts)
-            b.append(", visited_lts");
-
-        b.append(" FROM ")
-         .append(schema.keyspace)
-         .append(".")
-         .append(schema.table)
-         .append(" WHERE ");
-
-        List<Object> bindings = new ArrayList<>();
-
-        SchemaSpec.AddRelationCallback consumer =  new SchemaSpec.AddRelationCallback()
-        {
-            boolean isFirst = true;
-            public void accept(ColumnSpec<?> spec, Relation.RelationKind kind, Object value)
-            {
-                if (isFirst)
-                    isFirst = false;
-                else
-                    b.append(" AND ");
-                b.append(kind.getClause(spec));
-                bindings.add(value);
-            }
-        };
+        SchemaSpec.AddRelationCallback consumer = appendToBuilderCallback(builder);
         if (pd != null)
         {
             Object[] pk = schema.inflatePartitionKey(pd);
@@ -148,68 +122,71 @@ public class SelectHelper
         }
         schema.inflateRelations(relations, consumer);
 
-        addOrderBy(schema, b, reverse);
-        b.append(";");
-        Object[] bindingsArr = bindings.toArray(new Object[bindings.size()]);
-        return new CompiledStatement(b.toString(), bindingsArr);
+        addOrderBy(schema, builder, reverse);
+
+        return toCompiled(builder.build());
     }
 
     public static CompiledStatement count(SchemaSpec schema, long pd)
     {
-        StringBuilder b = new StringBuilder();
-        b.append("SELECT count(*) ");
+        Select.Builder builder = new Select.Builder();
+        builder.withSelection(FunctionCall.countStar());
+        builder.withTable(schema.keyspace, schema.table);
+        schema.inflateRelations(pd, Collections.emptyList(), appendToBuilderCallback(builder));
 
-        b.append(" FROM ")
-         .append(schema.keyspace)
-         .append(".")
-         .append(schema.table)
-         .append(" WHERE ");
-
-        List<Object> bindings = new ArrayList<>(schema.partitionKeys.size());
-
-        schema.inflateRelations(pd,
-                                Collections.emptyList(),
-                                new SchemaSpec.AddRelationCallback()
-                                {
-                                    boolean isFirst = true;
-                                    public void accept(ColumnSpec<?> spec, Relation.RelationKind kind, Object value)
-                                    {
-                                        if (isFirst)
-                                            isFirst = false;
-                                        else
-                                            b.append(" AND ");
-                                        b.append(kind.getClause(spec));
-                                        bindings.add(value);
-                                    }
-                                });
-
-        Object[] bindingsArr = bindings.toArray(new Object[bindings.size()]);
-        return new CompiledStatement(b.toString(), bindingsArr);
+        return toCompiled(builder.build());
     }
 
-    private static void addOrderBy(SchemaSpec schema, StringBuilder b, boolean reverse)
+    private static SchemaSpec.AddRelationCallback appendToBuilderCallback(Select.Builder builder)
+    {
+        return (spec, kind, value) ->
+               builder.withWhere(toInequalities(kind), Reference.of(new Symbol(spec.name, spec.type.asServerType())), new Bind(value, spec.type.asServerType()));
+    }
+
+    private static Where.Inequalities toInequalities(Relation.RelationKind kind)
+    {
+        Where.Inequalities inequalities;
+        switch (kind)
+        {
+            case LT:
+                inequalities = Where.Inequalities.LESS_THAN;
+                break;
+            case LTE:
+                inequalities = Where.Inequalities.LESS_THAN_EQ;
+                break;
+            case GT:
+                inequalities = Where.Inequalities.GREATER_THAN;
+                break;
+            case GTE:
+                inequalities = Where.Inequalities.GREATER_THAN_EQ;
+                break;
+            case EQ:
+                inequalities = Where.Inequalities.EQUAL;
+                break;
+            default:
+                throw new UnsupportedOperationException("Unknown kind: " + kind);
+        }
+        return inequalities;
+    }
+
+    private static CompiledStatement toCompiled(Select select)
+    {
+        // Select does not add ';' by default, but CompiledStatement expects this
+        String cql = select.toCQL() + ";";
+        Object[] bindingsArr = select.binds();
+        return new CompiledStatement(cql, bindingsArr);
+    }
+
+    private static void addOrderBy(SchemaSpec schema, Select.Builder builder, boolean reverse)
     {
         if (reverse && schema.clusteringKeys.size() > 0)
         {
-            b.append(" ORDER BY ");
             for (int i = 0; i < schema.clusteringKeys.size(); i++)
             {
                 ColumnSpec<?> c = schema.clusteringKeys.get(i);
-                if (i > 0)
-                    b.append(", ");
-                b.append(c.isReversed() ? asc(c.name) : desc(c.name));
+                builder.withOrderByColumn(c.name, c.type.asServerType(), c.isReversed() ? Select.OrderBy.Ordering.ASC : Select.OrderBy.Ordering.DESC);
             }
         }
-    }
-
-    public static String asc(String name)
-    {
-        return name + " ASC";
-    }
-
-    public static String desc(String name)
-    {
-        return name + " DESC";
     }
 
 

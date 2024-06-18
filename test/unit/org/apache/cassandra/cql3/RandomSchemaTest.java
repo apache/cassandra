@@ -20,27 +20,18 @@ package org.apache.cassandra.cql3;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Deque;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.NavigableMap;
-import java.util.Set;
-import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
 import org.junit.Assert;
 import org.junit.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
@@ -65,8 +56,6 @@ import static org.junit.Assert.assertTrue;
 
 public class RandomSchemaTest extends CQLTester.InMemory
 {
-    private static final Logger logger = LoggerFactory.getLogger(RandomSchemaTest.class);
-
     static
     {
         // make sure blob is always the same
@@ -80,20 +69,17 @@ public class RandomSchemaTest extends CQLTester.InMemory
     {
         // in accord branch there is a much cleaner api for this pattern...
         Gen<AbstractTypeGenerators.ValueDomain> domainGen = SourceDSL.integers().between(1, 100).map(i -> i < 2 ? AbstractTypeGenerators.ValueDomain.NULL : i < 4 ? AbstractTypeGenerators.ValueDomain.EMPTY_BYTES : AbstractTypeGenerators.ValueDomain.NORMAL);
-        // make sure ordering is determanstic, else repeatability breaks
-        NavigableMap<String, SSTableFormat<?, ?>> formats = new TreeMap<>(DatabaseDescriptor.getSSTableFormats());
-        Gen<SSTableFormat<?, ?>> ssTableFormatGen = SourceDSL.arbitrary().pick(new ArrayList<>(formats.values()));
+
+        Gen<SSTableFormat<?, ?>> sstableFormatGen = CassandraGenerators.sstableFormat();
         qt().checkAssert(random -> {
             resetSchema();
 
             // TODO : when table level override of sstable format is allowed, migrate to that
-            SSTableFormat<?, ?> sstableFormat = ssTableFormatGen.generate(random);
-            DatabaseDescriptor.setSelectedSSTableFormat(sstableFormat);
+            DatabaseDescriptor.setSelectedSSTableFormat(sstableFormatGen.generate(random));
 
             Gen<String> udtName = Generators.unique(IDENTIFIER_GEN);
 
             TypeGenBuilder withoutUnsafeEquality = AbstractTypeGenerators.withoutUnsafeEquality()
-                                                                         .withUserTypeKeyspace(KEYSPACE)
                                                                          .withUDTNames(udtName);
             TableMetadata metadata = new TableMetadataBuilder()
                                      .withKeyspaceName(KEYSPACE)
@@ -101,17 +87,14 @@ public class RandomSchemaTest extends CQLTester.InMemory
                                      .withKnownMemtables()
                                      .withDefaultTypeGen(AbstractTypeGenerators.builder()
                                                                                .withoutEmpty()
-                                                                               .withUserTypeKeyspace(KEYSPACE)
                                                                                .withMaxDepth(2)
                                                                                .withDefaultSetKey(withoutUnsafeEquality)
                                                                                .withoutTypeKinds(AbstractTypeGenerators.TypeKind.COUNTER)
-                                                                               .withUDTNames(udtName)
-                                                                               .build())
+                                                                               .withUDTNames(udtName))
                                      .withPartitionColumnsCount(1)
                                      .withPrimaryColumnTypeGen(new TypeGenBuilder(withoutUnsafeEquality)
                                                                // map of vector of map crossed the size cut-off for one of the tests, so changed max depth from 2 to 1, so we can't have the second map
-                                                               .withMaxDepth(1)
-                                                               .build())
+                                                               .withMaxDepth(1))
                                      .withClusteringColumnsBetween(1, 2)
                                      .withRegularColumnsBetween(1, 5)
                                      .withStaticColumnsBetween(0, 2)
@@ -186,36 +169,6 @@ public class RandomSchemaTest extends CQLTester.InMemory
                 Assert.fail("Metadata mismatch");
             }
 
-        }
-    }
-
-    private void maybeCreateUDTs(TableMetadata metadata)
-    {
-        Set<UserType> udts = CassandraGenerators.extractUDTs(metadata);
-        if (!udts.isEmpty())
-        {
-            Deque<UserType> pending = new ArrayDeque<>(udts);
-            Set<ByteBuffer> created = new HashSet<>();
-            while (!pending.isEmpty())
-            {
-                UserType next = pending.poll();
-                Set<UserType> subTypes = AbstractTypeGenerators.extractUDTs(next);
-                subTypes.remove(next); // it includes self
-                if (subTypes.isEmpty() || subTypes.stream().allMatch(t -> created.contains(t.name)))
-                {
-                    String cql = next.toCqlString(true, false, false);
-                    logger.warn("Creating UDT {}", cql);
-                    schemaChange(cql);
-                    created.add(next.name);
-                }
-                else
-                {
-                    logger.warn("Unable to create UDT {}; following sub-types still not created: {}",
-                                next.getCqlTypeName(),
-                                subTypes.stream().filter(t -> !created.contains(t.name)).collect(Collectors.toSet()));
-                    pending.add(next);
-                }
-            }
         }
     }
 

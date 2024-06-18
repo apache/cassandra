@@ -287,4 +287,27 @@ public class TestBaseImpl extends DistributedTestBase
         asyncThread.start();
         return task;
     }
+
+    /**
+     * @see org.apache.cassandra.cql3.CQLTester#wrapInTxn(String...)
+     */
+    protected static String wrapInTxn(String... stmts)
+    {
+        return wrapInTxn(Arrays.asList(stmts));
+    }
+
+    protected static String wrapInTxn(List<String> stmts)
+    {
+        StringBuilder sb = new StringBuilder();
+        sb.append("BEGIN TRANSACTION\n");
+        for (String stmt : stmts)
+        {
+            sb.append('\t').append(stmt);
+            if (!stmt.endsWith(";"))
+                sb.append(';');
+            sb.append('\n');
+        }
+        sb.append("COMMIT TRANSACTION");
+        return sb.toString();
+    }
 }

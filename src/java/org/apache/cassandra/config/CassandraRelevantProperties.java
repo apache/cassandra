@@ -25,6 +25,7 @@ import javax.annotation.Nullable;
 
 import com.google.common.primitives.Ints;
 
+import accord.utils.Invariants;
 import org.apache.cassandra.db.virtual.LogMessagesTable;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.utils.FBUtilities;
@@ -36,6 +37,9 @@ import org.apache.cassandra.utils.StorageCompatibilityMode;
 public enum CassandraRelevantProperties
 {
     ACCORD_AGENT_CLASS("cassandra.test.accord.agent"),
+    ACCORD_KEY_PARANOIA_COSTFACTOR(Invariants.KEY_PARANOIA_COSTFACTOR),
+    ACCORD_KEY_PARANOIA_CPU(Invariants.KEY_PARANOIA_CPU),
+    ACCORD_KEY_PARANOIA_MEMORY(Invariants.KEY_PARANOIA_MEMORY),
     ACCORD_REPAIR_RANGE_STEP_UPDATE_INTERVAL("cassandra.accord.repair.range_step_update_interval", "100"),
     ACQUIRE_RETRY_SECONDS("cassandra.acquire_retry_seconds", "60"),
     ACQUIRE_SLEEP_MS("cassandra.acquire_sleep_ms", "1000"),

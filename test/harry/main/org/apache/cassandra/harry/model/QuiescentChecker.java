@@ -21,6 +21,8 @@ package org.apache.cassandra.harry.model;
 import java.util.*;
 import java.util.function.Supplier;
 
+import javax.annotation.Nullable;
+
 import org.apache.cassandra.harry.core.Run;
 import org.apache.cassandra.harry.data.ResultSetRow;
 import org.apache.cassandra.harry.ddl.ColumnSpec;
@@ -82,8 +84,7 @@ public class QuiescentChecker implements Model
 
     public static void validate(SchemaSpec schema, DataTracker tracker, PartitionState partitionState, List<ResultSetRow> actualRows, Query query)
     {
-        Set<ColumnSpec<?>> columns = new HashSet<>();
-        columns.addAll(schema.allColumns);
+        Set<ColumnSpec<?>> columns = schema.isWriteTimeFromAccord() ? null : new HashSet<>(schema.allColumns);
         validate(schema, tracker, columns, partitionState, actualRows, query);
     }
 
@@ -106,7 +107,7 @@ public class QuiescentChecker implements Model
         return newRowState;
     }
 
-    public static void validate(SchemaSpec schema, DataTracker tracker, Set<ColumnSpec<?>> selection, PartitionState partitionState, List<ResultSetRow> actualRows, Query query)
+    public static void validate(SchemaSpec schema, DataTracker tracker, @Nullable Set<ColumnSpec<?>> selection, PartitionState partitionState, List<ResultSetRow> actualRows, Query query)
     {
         boolean isWildcardQuery = selection == null;
         String trackerBefore = tracker.toString();

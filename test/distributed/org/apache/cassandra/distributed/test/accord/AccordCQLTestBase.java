@@ -389,6 +389,7 @@ public abstract class AccordCQLTestBase extends AccordTestBase
 
     private void assertResultsFromAccordMatches(Cluster cluster, String accordRead, String simpleRead, int key)
     {
+        accordRead = wrapInTxn(accordRead);
         Object[][] simpleReadResult;
         if (transactionalMode.ignoresSuppliedConsistencyLevel)
             // With accord non-SERIAL write strategy the commit CL is effectively ANY so we need to read at SERIAL

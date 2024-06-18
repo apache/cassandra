@@ -31,6 +31,7 @@ import com.google.common.collect.ImmutableSet;
 import accord.api.BarrierType;
 import accord.local.CommandStores;
 import accord.local.DurableBefore;
+import accord.local.Node;
 import accord.local.Node.Id;
 import accord.local.RedundantBefore;
 import accord.messages.Request;
@@ -38,6 +39,7 @@ import accord.primitives.Ranges;
 import accord.primitives.Seekables;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
+import accord.topology.Topology;
 import accord.topology.TopologyManager;
 import org.agrona.collections.Int2ObjectHashMap;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -53,6 +55,8 @@ import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
+
+import java.util.Collection;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
@@ -150,4 +154,8 @@ public interface IAccordService
     default Id nodeId() { throw new UnsupportedOperationException(); }
 
     List<CommandStoreTxnBlockedGraph> debugTxnBlockedGraph(TxnId txnId);
+    @Nullable
+    Long minEpoch(Collection<TokenRange> ranges);
+
+    void tryMarkRemoved(Topology topology, Node.Id node);
 }

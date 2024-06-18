@@ -68,8 +68,19 @@ import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 
+import accord.utils.RandomSource;
+import org.apache.cassandra.cql3.ast.Conditional;
+import org.apache.cassandra.cql3.ast.Expression;
+import org.apache.cassandra.cql3.ast.Mutation;
+import org.apache.cassandra.cql3.ast.Select;
+import org.apache.cassandra.cql3.ast.Symbol;
+import org.apache.cassandra.cql3.ast.TableReference;
+import org.apache.cassandra.cql3.ast.Where;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.virtual.SystemViewsKeyspace;
+import org.apache.cassandra.utils.ASTGenerators;
+import org.apache.cassandra.utils.CassandraGenerators;
+import org.apache.cassandra.utils.Generators;
 import org.assertj.core.api.Assertions;
 import org.awaitility.Awaitility;
 import org.apache.commons.lang3.ArrayUtils;
@@ -89,7 +100,6 @@ import org.slf4j.LoggerFactory;
 import accord.utils.DefaultRandom;
 import accord.utils.Gen;
 import accord.utils.Property;
-import accord.utils.RandomSource;
 import com.codahale.metrics.Gauge;
 import com.datastax.driver.core.CloseFuture;
 import com.datastax.driver.core.Cluster;
@@ -195,6 +205,8 @@ import org.apache.cassandra.utils.LazyToString;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.TimeUUID;
 
+import static org.apache.cassandra.utils.CassandraGenerators.regularKeyspace;
+import static org.apache.cassandra.utils.CassandraGenerators.regularTable;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
@@ -299,6 +311,7 @@ public abstract class CQLTester
 
     private List<String> keyspaces = new ArrayList<>();
     private List<String> tables = new ArrayList<>();
+    private List<String> indexes = new ArrayList<>();
     private List<String> views = new ArrayList<>();
     private List<String> types = new ArrayList<>();
     private List<String> functions = new ArrayList<>();
@@ -382,6 +395,7 @@ public abstract class CQLTester
     public static void prepareServer()
     {
         ServerTestUtils.prepareServer();
+        AccordStateCache.validateLoadOnEvict(true);
     }
 
     public static void cleanup()
@@ -439,7 +453,6 @@ public abstract class CQLTester
 
         // Once per-JVM is enough
         prepareServer();
-        AccordStateCache.validateLoadOnEvict(true);
     }
 
     protected static void prePrepareServer()
@@ -504,6 +517,7 @@ public abstract class CQLTester
 
         keyspaces = null;
         tables = null;
+        indexes = null;
         views = null;
         types = null;
         functions = null;
@@ -519,6 +533,27 @@ public abstract class CQLTester
     protected static void addVirtualKeyspace()
     {
         VirtualKeyspaceRegistry.instance.register(SystemViewsKeyspace.instance);
+    }
+
+    protected void clearSchema()
+    {
+        ServerTestUtils.resetCMS();
+        keyspaces.clear();
+        tables.clear();
+        indexes.clear();;
+        views.clear();
+        types.clear();
+        functions.clear();
+        aggregates.clear();
+    }
+
+    protected void clearState()
+    {
+        clearSchema();
+        usePrepared = USE_PREPARED_VALUES;
+        reusePrepared = REUSE_PREPARED;
+
+        seqNumber.set(0);
     }
 
     protected void resetSchema() throws Throwable
@@ -2121,7 +2156,10 @@ public abstract class CQLTester
                 if (!((cellValidator == null && actualValue == null) || (cellValidator != null && cellValidator.equals(actualValue))))
                 {
                     Object actualValueDecoded = actualValue == null ? null : column.type.getSerializer().deserialize(actualValue);
-                    if (!Objects.equal(expected != null ? expected[j] : null, actualValueDecoded))
+                    Object expectedValueDecoded = expected != null ? expected[j] : null;
+                    if (expectedValueDecoded instanceof ByteBuffer && !(actualValueDecoded instanceof ByteBuffer))
+                        expectedValueDecoded = column.type.getSerializer().deserialize(((ByteBuffer) expectedValueDecoded).duplicate());
+                    if (!Objects.equal(expectedValueDecoded, actualValueDecoded))
                     {
                         if (isEmptyContainerNull(column.type, cellValidator != null ? cellValidator.expected() : null, actualValue))
                             continue;
@@ -2551,6 +2589,116 @@ public abstract class CQLTester
                                   values);
     }
 
+    protected CassandraGenerators.KeyspaceMetadataBuilder createKeyspaceMetadataBuilder()
+    {
+        return regularKeyspace()
+               .withName(createKeyspaceName())
+               .withReplication(new CassandraGenerators.AbstractReplicationStrategyBuilder()
+                                .withUserAllowed()
+                                .withDatacenters("datacenter1")
+                                .withRf(1));
+    }
+
+    protected KeyspaceMetadata createKeyspace(RandomSource rs)
+    {
+        KeyspaceMetadata metadata = Generators.toGen(createKeyspaceMetadataBuilder().build()).next(rs);
+        String fullQuery = metadata.toCqlString(false, false, false);
+        logger.info(fullQuery);
+        schemaChange(fullQuery);
+        return metadata;
+    }
+
+    protected CassandraGenerators.TableMetadataBuilder createTableMetadataBuilder()
+    {
+        String ks = currentKeyspace();
+        if (ks == null)
+            ks = KEYSPACE;
+        return createTableMetadataBuilder(ks);
+    }
+
+    protected CassandraGenerators.TableMetadataBuilder createTableMetadataBuilder(String ks)
+    {
+        return regularTable()
+               .withKeyspaceName(ks)
+               .withSimpleColumnNames();
+    }
+
+    protected TableMetadata createTable(RandomSource rs)
+    {
+        TableMetadata metadata = Generators.toGen(createTableMetadataBuilder().build()).next(rs);
+        maybeCreateUDTs(metadata);
+        String fullQuery = metadata.toCqlString(false, false, false);
+        logger.info(fullQuery);
+        schemaChange(fullQuery);
+        return metadata;
+    }
+
+    protected TableMetadata createTable(RandomSource rs, String keyspace)
+    {
+        TableMetadata metadata = Generators.toGen(createTableMetadataBuilder(keyspace).build()).next(rs);
+        maybeCreateUDTs(metadata);
+        String fullQuery = metadata.toCqlString(false, false, false);
+        logger.info(fullQuery);
+        schemaChange(fullQuery);
+        return Schema.instance.getTableMetadata(keyspace, metadata.name);
+    }
+
+    protected void maybeCreateUDTs(TableMetadata metadata)
+    {
+        CassandraGenerators.visitUDTs(metadata, next -> {
+            String cql = next.toCqlString(false, false, true);
+            logger.warn("Creating UDT {}", cql);
+            schemaChange(cql);
+        });
+    }
+
+    protected String createIndexName()
+    {
+        String name = createSchemaElementName(SchemaElement.SchemaElementType.INDEX, null);
+        indexes.add(name);
+        return name;
+    }
+
+    protected UntypedResultSet execute(org.apache.cassandra.cql3.ast.Statement stmt)
+    {
+        return executeFormattedQuery(stmt.toCQL(), stmt.bindsEncoded());
+    }
+
+    protected ResultSet executeNet(ProtocolVersion protocolVersion, org.apache.cassandra.cql3.ast.Statement stmt)
+    {
+        return sessionNet(protocolVersion).execute(stmt.toCQL(), stmt.bindsEncoded());
+    }
+
+    protected Mutation nonTransactionMutation(RandomSource rs, TableMetadata metadata)
+    {
+        return Generators.toGen(new ASTGenerators.MutationGenBuilder(metadata).withoutTransaction().build()).next(rs);
+    }
+
+    protected Select select(Mutation mutation)
+    {
+        // select * from table where <primaryKeys>
+        return new Select(Collections.emptyList(),
+                          Optional.of(new TableReference(Optional.of(mutation.table.keyspace), mutation.table.name)),
+                          where(mutation.primaryKeys()),
+                          Optional.empty(),
+                          Optional.empty());
+    }
+
+    private Optional<Conditional> where(Map<Symbol, Expression> keys)
+    {
+        if (keys.isEmpty())
+            throw new IllegalArgumentException("Unable to create a where clause from empty keys");
+        Conditional.Builder builder = new Conditional.Builder();
+        for (Map.Entry<Symbol, Expression> e : keys.entrySet())
+            builder.where(Where.Inequalities.EQUAL, e.getKey(), e.getValue());
+        return Optional.of(builder.build());
+    }
+
+    protected Object[][] rows(Mutation mutation)
+    {
+        return mutation.kind == Mutation.Kind.DELETE ? new Object[0][] : new Object[][]{row(mutation.toRowEncoded())};
+    }
+
     @FunctionalInterface
     public interface CheckedFunction
     {
@@ -2830,8 +2978,15 @@ public abstract class CQLTester
             // CollectionType override getString() to use hexToBytes. We can't change that
             // without breaking SSTable2json, but the serializer for collection have the
             // right getString so using it directly instead.
-            TypeSerializer ser = type.getSerializer();
-            return ser.toString(ser.deserialize(bb));
+            try
+            {
+                TypeSerializer ser = type.getSerializer();
+                return ser.toString(ser.deserialize(bb));
+            }
+            catch (Throwable t)
+            {
+                return "TypeSerializer.toString failed for type " + type.asCQL3Type() + ": " + t.getMessage();
+            }
         }
 
         try

@@ -251,6 +251,11 @@ public abstract class Query
         }
     }
 
+    public CompiledStatement toWildcardSelectStatement()
+    {
+        return SelectHelper.select(schemaSpec, pd, relations, reverse, false);
+    }
+
     public CompiledStatement toSelectStatement()
     {
         return SelectHelper.select(schemaSpec, pd, selection.columns(), relations, reverse, selection.includeTimestamp());

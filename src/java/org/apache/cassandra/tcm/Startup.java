@@ -72,6 +72,8 @@ import static org.apache.cassandra.tcm.ClusterMetadataService.State.LOCAL;
 import static org.apache.cassandra.tcm.compatibility.GossipHelper.emptyWithSchemaFromSystemTables;
 import static org.apache.cassandra.tcm.compatibility.GossipHelper.fromEndpointStates;
 import static org.apache.cassandra.tcm.membership.NodeState.JOINED;
+import static org.apache.cassandra.tcm.membership.NodeState.LEFT;
+import static org.apache.cassandra.tcm.membership.NodeState.REGISTERED;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 
  /**
@@ -365,13 +367,21 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
     {
         ClusterMetadata metadata = ClusterMetadata.current();
         NodeId self = metadata.myNodeId();
-        AccordService.startup(self);
 
         // finish in-progress sequences first
         InProgressSequences.finishInProgressSequences(self);
         metadata = ClusterMetadata.current();
 
-        switch (metadata.directory.peerState(self))
+        NodeState startingstate = metadata.directory.peerState(self);
+        switch (startingstate)
+        {
+            case REGISTERED:
+            case LEFT:
+                break;
+            default:
+                AccordService.startup(self);
+        }
+        switch (startingstate)
         {
             case REGISTERED:
             case LEFT:
@@ -379,7 +389,10 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
                     ReconfigureCMS.maybeReconfigureCMS(metadata, DatabaseDescriptor.getReplaceAddress());
 
                 ClusterMetadataService.instance().commit(initialTransformation.get());
-
+                // When Accord starts up it needs to check for any historic epochs that it needs to know about (in order
+                // to handle pending transactions), in order to know what nodes to check with it needs to know what the
+                // settled placement is (so it knows what peers to reach out to).
+                AccordService.startup(self);
                 InProgressSequences.finishInProgressSequences(self);
                 metadata = ClusterMetadata.current();
 

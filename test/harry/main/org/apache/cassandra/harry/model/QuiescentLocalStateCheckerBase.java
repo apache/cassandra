@@ -91,7 +91,8 @@ public abstract class QuiescentLocalStateCheckerBase extends QuiescentChecker
 
     protected void validate(Query query, TokenPlacementModel.ReplicatedRanges ring)
     {
-        CompiledStatement compiled = query.toSelectStatement();
+        boolean isAccord = query.schemaSpec.isWriteTimeFromAccord();
+        CompiledStatement compiled = isAccord ? query.toWildcardSelectStatement() : query.toSelectStatement();
         List<Replica> replicas = ring.replicasFor(token(query.pd));
 
         logger.trace("Predicted {} as replicas for {}. Ring: {}", replicas, query.pd, ring);
@@ -104,7 +105,7 @@ public abstract class QuiescentLocalStateCheckerBase extends QuiescentChecker
 
                     List<ResultSetRow> result = new ArrayList<>();
                     for (Object[] obj : objects)
-                        result.add(resultSetToRow(query.schemaSpec, clock, obj));
+                        result.add(resultSetToRow(query.schemaSpec, clock, isAccord ? SelectHelper.broadenResult(query.schemaSpec, null, obj) : obj));
 
                     return result;
                 }, query);
