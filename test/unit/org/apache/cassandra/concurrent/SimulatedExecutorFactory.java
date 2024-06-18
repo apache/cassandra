@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.concurrent;
 
+import java.sql.Timestamp;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
@@ -41,6 +42,7 @@ import javax.annotation.Nullable;
 import accord.utils.Gens;
 import accord.utils.RandomSource;
 import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.utils.Generators;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
@@ -50,6 +52,7 @@ import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.InternalState
 import static org.apache.cassandra.concurrent.Interruptible.State.INTERRUPTED;
 import static org.apache.cassandra.concurrent.Interruptible.State.NORMAL;
 import static org.apache.cassandra.concurrent.Interruptible.State.SHUTTING_DOWN;
+import static org.apache.cassandra.utils.AccordGenerators.fromQT;
 
 public class SimulatedExecutorFactory implements ExecutorFactory, Clock
 {
@@ -96,6 +99,16 @@ public class SimulatedExecutorFactory implements ExecutorFactory, Clock
     private long nowNanos;
     private int repeatedTasks = 0;
 
+    public SimulatedExecutorFactory(RandomSource rs, Consumer<Throwable> onError)
+    {
+        this(rs, fromQT(Generators.TIMESTAMP_GEN.map(Timestamp::getTime)).mapToLong(TimeUnit.MILLISECONDS::toNanos).next(rs), onError);
+    }
+
+    public SimulatedExecutorFactory(RandomSource rs)
+    {
+        this(rs, null);
+    }
+
     public SimulatedExecutorFactory(RandomSource rs, long startTimeNanos)
     {
         this(rs, startTimeNanos, null);
@@ -115,6 +128,11 @@ public class SimulatedExecutorFactory implements ExecutorFactory, Clock
             if (f != null)
                 onError.accept(f);
         });
+    }
+
+    public boolean hasWork()
+    {
+        return queue.size() > repeatedTasks;
     }
 
     public boolean processOne()

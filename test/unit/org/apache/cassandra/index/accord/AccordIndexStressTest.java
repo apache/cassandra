@@ -257,11 +257,11 @@ public class AccordIndexStressTest extends CQLTester
                 {
                     case Key:
                     {
-                        store = rs.pick(storeToTableToRoutingKeysToTxns.keySet());
+                        store = rs.pickUnorderedSet(storeToTableToRoutingKeysToTxns.keySet());
                         var actual = this.storeToTableToRoutingKeysToTxns.get(store);
                         var tableToTokens = store2Table2Tokens.get(store);
 
-                        table = rs.pick(actual.keySet());
+                        table = rs.pickUnorderedSet(actual.keySet());
                         var tokens = tableToTokens.get(table);
 
                         var offset = rs.nextInt(0, tokens.length);
@@ -274,11 +274,11 @@ public class AccordIndexStressTest extends CQLTester
                     break;
                     case Range:
                     {
-                        store = rs.pick(storeToTableToRangesToTxns.keySet());
+                        store = rs.pickUnorderedSet(storeToTableToRangesToTxns.keySet());
                         var tableToRangesToTxns = storeToTableToRangesToTxns.get(store);
                         var tableToRanges = store2Table2Ranges.get(store);
 
-                        table = rs.pick(tableToRangesToTxns.keySet());
+                        table = rs.pickUnorderedSet(tableToRangesToTxns.keySet());
                         var wrapper = tableToRanges.get(table);
                         var ranges = wrapper.ranges;
                         var tree = wrapper.tree;
