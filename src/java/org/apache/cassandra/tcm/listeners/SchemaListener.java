@@ -26,6 +26,7 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaDiagnostics;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.Epoch;
 
 public class SchemaListener implements ChangeListener
 {
@@ -44,7 +45,7 @@ public class SchemaListener implements ChangeListener
 
     protected void notifyInternal(ClusterMetadata prev, ClusterMetadata next, boolean fromSnapshot, boolean loadSSTables)
     {
-        if (!fromSnapshot && next.schema.lastModified().equals(prev.schema.lastModified()))
+        if (next.epoch.isAfter(Epoch.FIRST) && !fromSnapshot && next.schema.lastModified().equals(prev.schema.lastModified()))
             return;
         next.schema.initializeKeyspaceInstances(prev.schema, loadSSTables);
     }

@@ -36,10 +36,11 @@ import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.FailureDetectorMBean;
 import org.apache.cassandra.hints.HintsService;
 import org.apache.cassandra.hints.PendingHintsInfo;
-import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.Locator;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.membership.Location;
 
 public final class PendingHintsTable extends AbstractVirtualTable
 {
@@ -81,7 +82,7 @@ public final class PendingHintsTable extends AbstractVirtualTable
     public DataSet data()
     {
         List<PendingHintsInfo> pendingHints = HintsService.instance.getPendingHintsInfo();
-        IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
+        Locator locator = DatabaseDescriptor.getLocator();
 
         SimpleDataSet result = new SimpleDataSet(metadata());
 
@@ -91,6 +92,7 @@ public final class PendingHintsTable extends AbstractVirtualTable
         else
             simpleStates = Collections.emptyMap();
 
+        Location location = Location.UNKNOWN;
         for (PendingHintsInfo info : pendingHints)
         {
             InetAddressAndPort addressAndPort = StorageService.instance.getEndpointForHostId(info.hostId);
@@ -101,10 +103,11 @@ public final class PendingHintsTable extends AbstractVirtualTable
             String status = "Unknown";
             if (addressAndPort != null)
             {
+                location = locator.location(addressAndPort);
                 address = addressAndPort.getAddress();
                 port = addressAndPort.getPort();
-                rack = snitch.getRack(addressAndPort);
-                dc = snitch.getDatacenter(addressAndPort);
+                rack = location.rack;
+                dc = location.datacenter;
                 status = simpleStates.getOrDefault(addressAndPort.toString(), status);
             }
             result.row(info.hostId)

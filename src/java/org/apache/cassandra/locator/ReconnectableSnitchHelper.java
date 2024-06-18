@@ -40,14 +40,12 @@ import static org.apache.cassandra.auth.IInternodeAuthenticator.InternodeConnect
 public class ReconnectableSnitchHelper implements IEndpointStateChangeSubscriber
 {
     private static final Logger logger = LoggerFactory.getLogger(ReconnectableSnitchHelper.class);
-    private final IEndpointSnitch snitch;
-    private final String localDc;
+    private final Locator locator;
     private final boolean preferLocal;
 
-    public ReconnectableSnitchHelper(IEndpointSnitch snitch, String localDc, boolean preferLocal)
+    public ReconnectableSnitchHelper(Locator locator, boolean preferLocal)
     {
-        this.snitch = snitch;
-        this.localDc = localDc;
+        this.locator = locator;
         this.preferLocal = preferLocal;
     }
 
@@ -55,7 +53,7 @@ public class ReconnectableSnitchHelper implements IEndpointStateChangeSubscriber
     {
         try
         {
-            reconnect(publicAddress, InetAddressAndPort.getByName(localAddressValue.value), snitch, localDc);
+            reconnect(publicAddress, InetAddressAndPort.getByName(localAddressValue.value), locator);
         }
         catch (UnknownHostException e)
         {
@@ -64,7 +62,7 @@ public class ReconnectableSnitchHelper implements IEndpointStateChangeSubscriber
     }
 
     @VisibleForTesting
-    static void reconnect(InetAddressAndPort publicAddress, InetAddressAndPort localAddress, IEndpointSnitch snitch, String localDc)
+    static void reconnect(InetAddressAndPort publicAddress, InetAddressAndPort localAddress, Locator locator)
     {
         final OutboundConnectionSettings settings = new OutboundConnectionSettings(publicAddress, localAddress).withDefaults(ConnectionCategory.MESSAGING);
         if (!settings.authenticator().authenticate(settings.to.getAddress(), settings.to.getPort(), null, OUTBOUND_PRECONNECT))
@@ -73,16 +71,11 @@ public class ReconnectableSnitchHelper implements IEndpointStateChangeSubscriber
             return;
         }
 
-        if (snitch.getDatacenter(publicAddress).equals(localDc))
+        if (locator.local().sameDatacenter(locator.location(publicAddress)))
         {
             MessagingService.instance().maybeReconnectWithNewIp(publicAddress, localAddress);
             logger.debug("Initiated reconnect to an Internal IP {} for the {}", localAddress, publicAddress);
         }
-    }
-
-    public void beforeChange(InetAddressAndPort endpoint, EndpointState currentState, ApplicationState newStateKey, VersionedValue newValue)
-    {
-        // no-op
     }
 
     public void onJoin(InetAddressAndPort endpoint, EndpointState epState)
@@ -126,20 +119,5 @@ public class ReconnectableSnitchHelper implements IEndpointStateChangeSubscriber
         VersionedValue internalIPAndPorts = state.getApplicationState(ApplicationState.INTERNAL_ADDRESS_AND_PORT);
         if (preferLocal && internalIP != null)
             reconnect(endpoint, internalIPAndPorts != null ? internalIPAndPorts : internalIP);
-    }
-
-    public void onDead(InetAddressAndPort endpoint, EndpointState state)
-    {
-        // do nothing.
-    }
-
-    public void onRemove(InetAddressAndPort endpoint)
-    {
-        // do nothing.
-    }
-
-    public void onRestart(InetAddressAndPort endpoint, EndpointState state)
-    {
-        // do nothing.
     }
 }

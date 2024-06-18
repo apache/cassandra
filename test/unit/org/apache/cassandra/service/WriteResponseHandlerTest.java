@@ -36,13 +36,15 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.locator.EndpointsForToken;
-import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.NodeProximity;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaCollection;
 import org.apache.cassandra.locator.ReplicaPlans;
 import org.apache.cassandra.locator.ReplicaUtils;
+import org.apache.cassandra.locator.BaseProximity;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.KeyspaceParams;
@@ -81,26 +83,8 @@ public class WriteResponseHandlerTest
         SchemaLoader.loadSchema();
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
         // Register peers with expected DC for NetworkTopologyStrategy.
-//        metadata.clearUnsafe();
-//        metadata.updateHostId(UUID.randomUUID(), InetAddressAndPort.getByName("127.1.0.255"));
-//        metadata.updateHostId(UUID.randomUUID(), InetAddressAndPort.getByName("127.2.0.255"));
-
-        DatabaseDescriptor.setEndpointSnitch(new IEndpointSnitch()
+        NodeProximity sorter = new BaseProximity()
         {
-            public String getRack(InetAddressAndPort endpoint)
-            {
-                return null;
-            }
-
-            public String getDatacenter(InetAddressAndPort endpoint)
-            {
-                byte[] address = endpoint.getAddress().getAddress();
-                if (address[1] == 1)
-                    return "datacenter1";
-                else
-                    return "datacenter2";
-            }
-
             public <C extends ReplicaCollection<? extends C>> C sortedByProximity(InetAddressAndPort address, C replicas)
             {
                 return replicas;
@@ -111,24 +95,22 @@ public class WriteResponseHandlerTest
                 return 0;
             }
 
-            public void gossiperStarting()
-            {
-
-            }
-
             public boolean isWorthMergingForRangeQuery(ReplicaCollection<?> merged, ReplicaCollection<?> l1, ReplicaCollection<?> l2)
             {
                 return false;
             }
-        });
+        };
+        DatabaseDescriptor.setNodeProximity(sorter);
         DatabaseDescriptor.setBroadcastAddress(InetAddress.getByName("127.1.0.1"));
-        SchemaLoader.createKeyspace("Foo", KeyspaceParams.nts("datacenter1", 3, "datacenter2", 3), SchemaLoader.standardCFMD("Foo", "Bar"));
-        ks = Keyspace.open("Foo");
-        cfs = ks.getColumnFamilyStore("Bar");
         targets = EndpointsForToken.of(DatabaseDescriptor.getPartitioner().getToken(ByteBufferUtil.bytes(0)),
                                        full("127.1.0.255"), full("127.1.0.254"), full("127.1.0.253"),
                                        full("127.2.0.255"), full("127.2.0.254"), full("127.2.0.253"));
+        for (InetAddressAndPort ep : targets.endpoints())
+            ClusterMetadataTestHelper.register(ep, ep.addressBytes[1] == 1 ? "datacenter1" : "datacenter2", "rack1");
         pending = EndpointsForToken.empty(DatabaseDescriptor.getPartitioner().getToken(ByteBufferUtil.bytes(0)));
+        SchemaLoader.createKeyspace("Foo", KeyspaceParams.nts("datacenter1", 3, "datacenter2", 3), SchemaLoader.standardCFMD("Foo", "Bar"));
+        ks = Keyspace.open("Foo");
+        cfs = ks.getColumnFamilyStore("Bar");
     }
 
     @Before

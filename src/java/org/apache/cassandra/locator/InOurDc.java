@@ -20,8 +20,8 @@ package org.apache.cassandra.locator;
 
 import java.util.function.Predicate;
 
-import static org.apache.cassandra.config.DatabaseDescriptor.getEndpointSnitch;
 import static org.apache.cassandra.config.DatabaseDescriptor.getLocalDataCenter;
+import static org.apache.cassandra.config.DatabaseDescriptor.getLocator;
 
 public class InOurDc
 {
@@ -29,49 +29,44 @@ public class InOurDc
     private static EndpointTester endpoints;
 
     final String dc;
-    final IEndpointSnitch snitch;
+    final Locator locator;
 
-    private InOurDc(String dc, IEndpointSnitch snitch)
+    private InOurDc(String dc, Locator locator)
     {
         this.dc = dc;
-        this.snitch = snitch;
+        this.locator = locator;
     }
 
     boolean stale()
     {
-        return dc != getLocalDataCenter()
-                || snitch != getEndpointSnitch()
-                // this final clause checks if somehow the snitch/localDc have got out of whack;
-                // presently, this is possible but very unlikely, but this check will also help
-                // resolve races on these global fields as well
-                || !dc.equals(snitch.getLocalDatacenter());
+        return !dc.equals(getLocalDataCenter());
     }
 
     private static final class ReplicaTester extends InOurDc implements Predicate<Replica>
     {
-        private ReplicaTester(String dc, IEndpointSnitch snitch)
+        private ReplicaTester(String dc, Locator locator)
         {
-            super(dc, snitch);
+            super(dc, locator);
         }
 
         @Override
         public boolean test(Replica replica)
         {
-            return dc.equals(snitch.getDatacenter(replica.endpoint()));
+            return dc.equals(locator.location(replica.endpoint()).datacenter);
         }
     }
 
     private static final class EndpointTester extends InOurDc implements Predicate<InetAddressAndPort>
     {
-        private EndpointTester(String dc, IEndpointSnitch snitch)
+        private EndpointTester(String dc, Locator locator)
         {
-            super(dc, snitch);
+            super(dc, locator);
         }
 
         @Override
         public boolean test(InetAddressAndPort endpoint)
         {
-            return dc.equals(snitch.getDatacenter(endpoint));
+            return dc.equals(locator.location(endpoint).datacenter);
         }
     }
 
@@ -79,7 +74,7 @@ public class InOurDc
     {
         ReplicaTester cur = replicas;
         if (cur == null || cur.stale())
-            replicas = cur = new ReplicaTester(getLocalDataCenter(), getEndpointSnitch());
+            replicas = cur = new ReplicaTester(getLocalDataCenter(), getLocator());
         return cur;
     }
 
@@ -87,7 +82,7 @@ public class InOurDc
     {
         EndpointTester cur = endpoints;
         if (cur == null || cur.stale())
-            endpoints = cur = new EndpointTester(getLocalDataCenter(), getEndpointSnitch());
+            endpoints = cur = new EndpointTester(getLocalDataCenter(), getLocator());
         return cur;
     }
 

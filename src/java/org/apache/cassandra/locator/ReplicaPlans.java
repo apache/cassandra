@@ -68,6 +68,8 @@ import org.apache.cassandra.service.reads.AlwaysSpeculativeRetryPolicy;
 import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 
 import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.membership.Directory;
+import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -98,7 +100,7 @@ public class ReplicaPlans
             logger.warn("System property {} was set to {} but must be 1 or 2. Running with {}", CassandraRelevantProperties.REQUIRED_BATCHLOG_REPLICA_COUNT.getKey(), batchlogReplicaCount, REQUIRED_BATCHLOG_REPLICA_COUNT);
     }
 
-    public static boolean isSufficientLiveReplicasForRead(AbstractReplicationStrategy replicationStrategy, ConsistencyLevel consistencyLevel, Endpoints<?> liveReplicas)
+    public static boolean isSufficientLiveReplicasForRead(Locator locator, AbstractReplicationStrategy replicationStrategy, ConsistencyLevel consistencyLevel, Endpoints<?> liveReplicas)
     {
         switch (consistencyLevel)
         {
@@ -114,7 +116,7 @@ public class ReplicaPlans
                 {
                     int fullCount = 0;
                     Collection<String> dcs = ((NetworkTopologyStrategy) replicationStrategy).getDatacenters();
-                    for (ObjectObjectCursor<String, Replicas.ReplicaCount> entry : countPerDc(dcs, liveReplicas))
+                    for (ObjectObjectCursor<String, Replicas.ReplicaCount> entry : countPerDc(locator, dcs, liveReplicas))
                     {
                         Replicas.ReplicaCount count = entry.value;
                         if (!count.hasAtleast(localQuorumFor(replicationStrategy, entry.key), 0))
@@ -130,17 +132,17 @@ public class ReplicaPlans
         }
     }
 
-    static void assureSufficientLiveReplicasForRead(AbstractReplicationStrategy replicationStrategy, ConsistencyLevel consistencyLevel, Endpoints<?> liveReplicas) throws UnavailableException
+    static void assureSufficientLiveReplicasForRead(Locator locator, AbstractReplicationStrategy replicationStrategy, ConsistencyLevel consistencyLevel, Endpoints<?> liveReplicas) throws UnavailableException
     {
-        assureSufficientLiveReplicas(replicationStrategy, consistencyLevel, liveReplicas, consistencyLevel.blockFor(replicationStrategy), 1);
+        assureSufficientLiveReplicas(locator, replicationStrategy, consistencyLevel, liveReplicas, consistencyLevel.blockFor(replicationStrategy), 1);
     }
 
-    static void assureSufficientLiveReplicasForWrite(AbstractReplicationStrategy replicationStrategy, ConsistencyLevel consistencyLevel, Endpoints<?> allLive, Endpoints<?> pendingWithDown) throws UnavailableException
+    static void assureSufficientLiveReplicasForWrite(Locator locator, AbstractReplicationStrategy replicationStrategy, ConsistencyLevel consistencyLevel, Endpoints<?> allLive, Endpoints<?> pendingWithDown) throws UnavailableException
     {
-        assureSufficientLiveReplicas(replicationStrategy, consistencyLevel, allLive, consistencyLevel.blockForWrite(replicationStrategy, pendingWithDown), 0);
+        assureSufficientLiveReplicas(locator, replicationStrategy, consistencyLevel, allLive, consistencyLevel.blockForWrite(replicationStrategy, pendingWithDown), 0);
     }
 
-    static void assureSufficientLiveReplicas(AbstractReplicationStrategy replicationStrategy, ConsistencyLevel consistencyLevel, Endpoints<?> allLive, int blockFor, int blockForFullReplicas) throws UnavailableException
+    static void assureSufficientLiveReplicas(Locator locator, AbstractReplicationStrategy replicationStrategy, ConsistencyLevel consistencyLevel, Endpoints<?> allLive, int blockFor, int blockForFullReplicas) throws UnavailableException
     {
         switch (consistencyLevel)
         {
@@ -172,7 +174,7 @@ public class ReplicaPlans
                     int total = 0;
                     int totalFull = 0;
                     Collection<String> dcs = ((NetworkTopologyStrategy) replicationStrategy).getDatacenters();
-                    for (ObjectObjectCursor<String, Replicas.ReplicaCount> entry : countPerDc(dcs, allLive))
+                    for (ObjectObjectCursor<String, Replicas.ReplicaCount> entry : countPerDc(locator, dcs, allLive))
                     {
                         int dcBlockFor = localQuorumFor(replicationStrategy, entry.key);
                         Replicas.ReplicaCount dcCount = entry.value;
@@ -226,7 +228,7 @@ public class ReplicaPlans
     public static Replica findCounterLeaderReplica(ClusterMetadata metadata, String keyspaceName, DecoratedKey key, String localDataCenter, ConsistencyLevel cl) throws UnavailableException
     {
         Keyspace keyspace = Keyspace.open(keyspaceName);
-        IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
+        NodeProximity proximity = DatabaseDescriptor.getNodeProximity();
         AbstractReplicationStrategy replicationStrategy = keyspace.getReplicationStrategy();
 
         EndpointsForToken replicas = metadata.placements.get(keyspace.getMetadata().params.replication).reads.forToken(key.getToken()).get();
@@ -243,7 +245,7 @@ public class ReplicaPlans
         List<Replica> localReplicas = new ArrayList<>(replicas.size());
 
         for (Replica replica : replicas)
-            if (snitch.getDatacenter(replica).equals(localDataCenter))
+            if (metadata.locator.location(replica.endpoint()).datacenter.equals(localDataCenter))
                 localReplicas.add(replica);
 
         if (localReplicas.isEmpty())
@@ -252,8 +254,8 @@ public class ReplicaPlans
             if (cl.isDatacenterLocal())
                 throw UnavailableException.create(cl, cl.blockFor(replicationStrategy), 0);
 
-            // No endpoint in local DC, pick the closest endpoint according to the snitch
-            replicas = snitch.sortedByProximity(FBUtilities.getBroadcastAddressAndPort(), replicas);
+            // No endpoint in local DC, pick the closest endpoint according to the configured proximity measures
+            replicas = proximity.sortedByProximity(FBUtilities.getBroadcastAddressAndPort(), replicas);
             return replicas.get(0);
         }
 
@@ -296,16 +298,17 @@ public class ReplicaPlans
 
     private static ReplicaLayout.ForTokenWrite liveAndDownForBatchlogWrite(Token token, ClusterMetadata metadata, boolean isAny)
     {
-        IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
-        Multimap<String, InetAddressAndPort> localEndpoints = HashMultimap.create(metadata.directory.allDatacenterRacks()
-                                                                                          .get(snitch.getLocalDatacenter()));
+        Directory directory = metadata.directory;
+        Location local = metadata.locator.local();
+        Multimap<String, InetAddressAndPort> localEndpoints = HashMultimap.create(directory.allDatacenterRacks()
+                                                                                           .get(local.datacenter));
         // Replicas are picked manually:
         //  - replicas should be alive according to the failure detector
         //  - replicas should be in the local datacenter
         //  - choose min(2, number of qualifying candiates above)
         //  - allow the local node to be the only replica only if it's a single-node DC
         Collection<InetAddressAndPort> chosenEndpoints = filterBatchlogEndpoints(false,
-                                                                                 snitch.getLocalRack(),
+                                                                                 local.rack,
                                                                                  localEndpoints,
                                                                                  Collections::shuffle,
                                                                                  (r) -> FailureDetector.isEndpointAlive.test(r) && metadata.directory.peerState(r) == NodeState.JOINED,
@@ -343,7 +346,7 @@ public class ReplicaPlans
 
         AbstractReplicationStrategy replicationStrategy = liveAndDown.replicationStrategy();
         EndpointsForToken contacts = writeAll.select(consistencyLevel, liveAndDown, liveAndDown);
-        assureSufficientLiveReplicasForWrite(replicationStrategy, consistencyLevel, liveAndDown.all(), liveAndDown.pending());
+        assureSufficientLiveReplicasForWrite(metadata.locator, replicationStrategy, consistencyLevel, liveAndDown.all(), liveAndDown.pending());
         return new ReplicaPlan.ForWrite(systemKeyspace,
                                         replicationStrategy,
                                         consistencyLevel,
@@ -506,7 +509,7 @@ public class ReplicaPlans
                 if (racks.isEmpty())
                     racks.addAll(validated.keySet());
 
-                String rack = DatabaseDescriptor.getEndpointSnitch().getRack(endpoint);
+                String rack = DatabaseDescriptor.getLocator().location(endpoint).rack;
                 if (!racks.remove(rack))
                     continue;
                 if (result.contains(endpoint))
@@ -523,7 +526,7 @@ public class ReplicaPlans
     public static List<InetAddressAndPort> sortByProximity(Collection<InetAddressAndPort> endpoints)
     {
         EndpointsForRange endpointsForRange = SystemReplicas.getSystemReplicas(endpoints);
-        return DatabaseDescriptor.getEndpointSnitch()
+        return DatabaseDescriptor.getNodeProximity()
                 .sortedByProximity(FBUtilities.getBroadcastAddressAndPort(), endpointsForRange)
                 .endpointList();
     }
@@ -538,7 +541,7 @@ public class ReplicaPlans
         ReplicaLayout.ForTokenWrite live = liveAndDown.filter(isAlive);
 
         EndpointsForToken contacts = selector.select(consistencyLevel, liveAndDown, live);
-        assureSufficientLiveReplicasForWrite(replicationStrategy, consistencyLevel, live.all(), liveAndDown.pending());
+        assureSufficientLiveReplicasForWrite(metadata.locator, replicationStrategy, consistencyLevel, live.all(), liveAndDown.pending());
         return new ReplicaPlan.ForWrite(keyspace,
                                         replicationStrategy,
                                         consistencyLevel,
@@ -588,7 +591,7 @@ public class ReplicaPlans
 
         AbstractReplicationStrategy replicationStrategy = liveAndDown.replicationStrategy();
         EndpointsForToken contacts = selector.select(consistencyLevel, liveAndDown, live);
-        assureSufficientLiveReplicasForWrite(replicationStrategy, consistencyLevel, live.all(), liveAndDown.pending());
+        assureSufficientLiveReplicasForWrite(metadata.locator, replicationStrategy, consistencyLevel, live.all(), liveAndDown.pending());
 
         return new ReplicaPlan.ForWrite(keyspace,
                                         replicationStrategy,
@@ -655,14 +658,15 @@ public class ReplicaPlans
              * soft-ensure that we reach QUORUM in all DCs we are able to, by writing to every node;
              * even if we don't wait for ACK, we have in both cases sent sufficient messages.
               */
-            ObjectIntHashMap<String> requiredPerDc = eachQuorumForWrite(liveAndDown.replicationStrategy(), liveAndDown.pending());
-            addToCountPerDc(requiredPerDc, live.natural().filter(Replica::isFull), -1);
-            addToCountPerDc(requiredPerDc, live.pending(), -1);
+            Locator locator = ClusterMetadata.current().locator;
+            ObjectIntHashMap<String> requiredPerDc = eachQuorumForWrite(locator, liveAndDown.replicationStrategy(), liveAndDown.pending());
+            addToCountPerDc(locator, requiredPerDc, live.natural().filter(Replica::isFull), -1);
+            addToCountPerDc(locator, requiredPerDc, live.pending(), -1);
 
-            IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
             for (Replica replica : filter(live.natural(), Replica::isTransient))
             {
-                String dc = snitch.getDatacenter(replica);
+
+                String dc = locator.location(replica.endpoint()).datacenter;
                 if (requiredPerDc.addTo(dc, -1) >= 0)
                     contacts.add(replica);
             }
@@ -713,12 +717,12 @@ public class ReplicaPlans
                 }
                 else
                 {
-                    ObjectIntHashMap<String> requiredPerDc = eachQuorumForWrite(liveAndDown.replicationStrategy(), liveAndDown.pending());
-                    addToCountPerDc(requiredPerDc, contacts.snapshot(), -1);
-                    IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
+                    Locator locator = ClusterMetadata.current().locator;
+                    ObjectIntHashMap<String> requiredPerDc = eachQuorumForWrite(locator, liveAndDown.replicationStrategy(), liveAndDown.pending());
+                    addToCountPerDc(locator, requiredPerDc, contacts.snapshot(), -1);
                     for (Replica replica : filter(live.all(), r -> !contacts.contains(r)))
                     {
-                        String dc = snitch.getDatacenter(replica);
+                        String dc = locator.location(replica.endpoint()).datacenter;
                         if (requiredPerDc.addTo(dc, -1) >= 0)
                             contacts.add(replica);
                     }
@@ -796,18 +800,16 @@ public class ReplicaPlans
         return indexQueryPlan != null ? IndexStatusManager.instance.filterForQuery(replicas, keyspace, indexQueryPlan, consistencyLevel) : replicas;
     }
 
-    private static <E extends Endpoints<E>> E contactForEachQuorumRead(NetworkTopologyStrategy replicationStrategy, E candidates)
+    private static <E extends Endpoints<E>> E contactForEachQuorumRead(Locator locator, NetworkTopologyStrategy replicationStrategy, E candidates)
     {
         ObjectIntHashMap<String> perDc = eachQuorumForRead(replicationStrategy);
-
-        final IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
         return candidates.filter(replica -> {
-            String dc = snitch.getDatacenter(replica);
+            String dc = locator.location(replica.endpoint()).datacenter;
             return perDc.addTo(dc, -1) >= 0;
         });
     }
 
-    private static <E extends Endpoints<E>> E contactForRead(AbstractReplicationStrategy replicationStrategy, ConsistencyLevel consistencyLevel, boolean alwaysSpeculate, E candidates)
+    private static <E extends Endpoints<E>> E contactForRead(Locator locator, AbstractReplicationStrategy replicationStrategy, ConsistencyLevel consistencyLevel, boolean alwaysSpeculate, E candidates)
     {
         /*
          * If we are doing an each quorum query, we have to make sure that the endpoints we select
@@ -819,7 +821,7 @@ public class ReplicaPlans
          * TODO: this is still very inconistently managed between {LOCAL,EACH}_QUORUM and other consistency levels - should address this in a follow-up
          */
         if (consistencyLevel == EACH_QUORUM && replicationStrategy instanceof NetworkTopologyStrategy)
-            return contactForEachQuorumRead((NetworkTopologyStrategy) replicationStrategy, candidates);
+            return contactForEachQuorumRead(locator, (NetworkTopologyStrategy) replicationStrategy, candidates);
 
         int count = consistencyLevel.blockFor(replicationStrategy) + (alwaysSpeculate ? 1 : 0);
         return candidates.subList(0, Math.min(count, candidates.size()));
@@ -903,10 +905,10 @@ public class ReplicaPlans
         AbstractReplicationStrategy replicationStrategy = keyspace.getReplicationStrategy();
         ReplicaLayout.ForTokenRead forTokenRead = ReplicaLayout.forTokenReadLiveSorted(metadata, keyspace, replicationStrategy, token);
         EndpointsForToken candidates = candidatesForRead(keyspace, indexQueryPlan, consistencyLevel, forTokenRead.natural());
-        EndpointsForToken contacts = contactForRead(replicationStrategy, consistencyLevel, retry.equals(AlwaysSpeculativeRetryPolicy.INSTANCE), candidates);
+        EndpointsForToken contacts = contactForRead(metadata.locator, replicationStrategy, consistencyLevel, retry.equals(AlwaysSpeculativeRetryPolicy.INSTANCE), candidates);
 
         if (throwOnInsufficientLiveReplicas)
-            assureSufficientLiveReplicasForRead(replicationStrategy, consistencyLevel, contacts);
+            assureSufficientLiveReplicasForRead(metadata.locator, replicationStrategy, consistencyLevel, contacts);
 
         return new ReplicaPlan.ForTokenRead(keyspace, replicationStrategy, consistencyLevel, candidates, contacts,
                                             (newClusterMetadata) -> forRead(newClusterMetadata, keyspace, token, indexQueryPlan, consistencyLevel, retry, false),
@@ -941,10 +943,10 @@ public class ReplicaPlans
         AbstractReplicationStrategy replicationStrategy = keyspace.getReplicationStrategy();
         ReplicaLayout.ForRangeRead forRangeRead = ReplicaLayout.forRangeReadLiveSorted(metadata, keyspace, replicationStrategy, range);
         EndpointsForRange candidates = candidatesForRead(keyspace, indexQueryPlan, consistencyLevel, forRangeRead.natural());
-        EndpointsForRange contacts = contactForRead(replicationStrategy, consistencyLevel, false, candidates);
+        EndpointsForRange contacts = contactForRead(metadata.locator, replicationStrategy, consistencyLevel, false, candidates);
 
         if (throwOnInsufficientLiveReplicas)
-            assureSufficientLiveReplicasForRead(replicationStrategy, consistencyLevel, contacts);
+            assureSufficientLiveReplicasForRead(metadata.locator, replicationStrategy, consistencyLevel, contacts);
 
         return new ReplicaPlan.ForRangeRead(keyspace,
                                             replicationStrategy,
@@ -986,7 +988,8 @@ public class ReplicaPlans
     /**
      * Take two range read plans for adjacent ranges, and check if it is OK (and worthwhile) to combine them into a single plan
      */
-    public static ReplicaPlan.ForRangeRead maybeMerge(Keyspace keyspace,
+    public static ReplicaPlan.ForRangeRead maybeMerge(ClusterMetadata metadata,
+                                                      Keyspace keyspace,
                                                       ConsistencyLevel consistencyLevel,
                                                       ReplicaPlan.ForRangeRead left,
                                                       ReplicaPlan.ForRangeRead right)
@@ -998,16 +1001,16 @@ public class ReplicaPlans
 
         EndpointsForRange mergedCandidates = left.readCandidates().keep(right.readCandidates().endpoints());
         AbstractReplicationStrategy replicationStrategy = keyspace.getReplicationStrategy();
-        EndpointsForRange contacts = contactForRead(replicationStrategy, consistencyLevel, false, mergedCandidates);
+        EndpointsForRange contacts = contactForRead(metadata.locator, replicationStrategy, consistencyLevel, false, mergedCandidates);
 
         // Estimate whether merging will be a win or not
-        if (!DatabaseDescriptor.getEndpointSnitch().isWorthMergingForRangeQuery(contacts, left.contacts(), right.contacts()))
+        if (!DatabaseDescriptor.getNodeProximity().isWorthMergingForRangeQuery(contacts, left.contacts(), right.contacts()))
             return null;
 
         AbstractBounds<PartitionPosition> newRange = left.range().withNewRight(right.range().right);
 
         // Check if there are enough shared endpoints for the merge to be possible.
-        if (!isSufficientLiveReplicasForRead(replicationStrategy, consistencyLevel, mergedCandidates))
+        if (!isSufficientLiveReplicasForRead(metadata.locator, replicationStrategy, consistencyLevel, mergedCandidates))
             return null;
 
         int newVnodeCount = left.vnodeCount() + right.vnodeCount();

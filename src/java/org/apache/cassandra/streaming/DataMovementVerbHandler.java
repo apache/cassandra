@@ -57,7 +57,9 @@ public class DataMovementVerbHandler implements IVerbHandler<DataMovement>
                 assert local.isSelf();
                 boolean transientAdded = false;
                 boolean fullAdded = false;
-                for (Replica remote : DatabaseDescriptor.getEndpointSnitch().sortedByProximity(local.endpoint(), endpoints).filter(ep -> FailureDetector.instance.isAlive(ep.endpoint())))
+                for (Replica remote : DatabaseDescriptor.getNodeProximity()
+                                                        .sortedByProximity(local.endpoint(), endpoints)
+                                                        .filter(ep -> FailureDetector.instance.isAlive(ep.endpoint())))
                 {
                     assert !remote.isSelf();
                     if (remote.isFull() && !fullAdded)

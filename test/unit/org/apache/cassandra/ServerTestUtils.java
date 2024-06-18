@@ -44,9 +44,9 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.big.BigTableReader;
 import org.apache.cassandra.io.sstable.indexsummary.IndexSummarySupport;
 import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.locator.AbstractEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.locator.BaseProximity;
 import org.apache.cassandra.security.ThreadAwareSecurityManager;
 import org.apache.cassandra.service.EmbeddedCassandraService;
 import org.apache.cassandra.tcm.AtomicLongBackedProcessor;
@@ -56,9 +56,11 @@ import org.apache.cassandra.tcm.Commit;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MetadataSnapshots;
 import org.apache.cassandra.tcm.Processor;
+import org.apache.cassandra.tcm.RegistrationStatus;
 import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.log.LogStorage;
 import org.apache.cassandra.tcm.log.SystemKeyspaceStorage;
+import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.ownership.PlacementProvider;
 import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
@@ -98,23 +100,8 @@ public final class ServerTestUtils
     public static void initSnitch()
     {
         // Register an EndpointSnitch which returns fixed values for test.
-        DatabaseDescriptor.setEndpointSnitch(new AbstractEndpointSnitch()
+        DatabaseDescriptor.setNodeProximity(new BaseProximity()
         {
-            @Override
-            public String getRack(InetAddressAndPort endpoint)
-            {
-                return RACK1;
-            }
-
-            @Override
-            public String getDatacenter(InetAddressAndPort endpoint)
-            {
-                if (remoteAddrs.contains(endpoint))
-                    return DATA_CENTER_REMOTE;
-
-                return DATA_CENTER;
-            }
-
             @Override
             public int compareEndpoints(InetAddressAndPort target, Replica a1, Replica a2)
             {
@@ -135,6 +122,7 @@ public final class ServerTestUtils
                                                                 tokens,
                                                                 ClusterMetadataService.instance().placementProvider()));
         SystemKeyspace.setLocalHostId(nodeId.toUUID());
+        RegistrationStatus.instance.onRegistration();
         return nodeId;
     }
 
@@ -274,6 +262,7 @@ public final class ServerTestUtils
 
         Function<LocalLog, Processor> processorFactory = AtomicLongBackedProcessor::new;
         IPartitioner partitioner = DatabaseDescriptor.getPartitioner();
+        Location location = DatabaseDescriptor.getLocator().local();
         boolean addListeners = true;
         ClusterMetadata initial = new ClusterMetadata(partitioner);
         if (!Keyspace.isInitialized())
@@ -293,7 +282,7 @@ public final class ServerTestUtils
 
         ClusterMetadataService.setInstance(service);
         log.readyUnchecked();
-        log.bootstrap(FBUtilities.getBroadcastAddressAndPort());
+        log.bootstrap(FBUtilities.getBroadcastAddressAndPort(), location.datacenter);
         service.commit(new Initialize(ClusterMetadata.current()));
         QueryProcessor.registerStatementInvalidatingListener();
         service.mark();
@@ -328,7 +317,7 @@ public final class ServerTestUtils
         ClusterMetadataService.setInstance(cms);
         ((SystemKeyspaceStorage)LogStorage.SystemKeyspace).truncate();
         log.readyUnchecked();
-        log.bootstrap(FBUtilities.getBroadcastAddressAndPort());
+        log.unsafeBootstrapForTesting(FBUtilities.getBroadcastAddressAndPort());
         cms.mark();
     }
 

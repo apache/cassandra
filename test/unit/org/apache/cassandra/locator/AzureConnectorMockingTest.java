@@ -34,9 +34,9 @@ import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMoc
 import static java.lang.String.format;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.apache.cassandra.locator.AbstractCloudMetadataServiceConnector.METADATA_URL_PROPERTY;
-import static org.apache.cassandra.locator.AzureSnitch.API_VERSION_PROPERTY_KEY;
-import static org.apache.cassandra.locator.AzureSnitch.METADATA_HEADER;
-import static org.apache.cassandra.locator.AzureSnitch.METADATA_QUERY_TEMPLATE;
+import static org.apache.cassandra.locator.AzureCloudLocationProvider.API_VERSION_PROPERTY_KEY;
+import static org.apache.cassandra.locator.AzureCloudLocationProvider.METADATA_HEADER;
+import static org.apache.cassandra.locator.AzureCloudLocationProvider.METADATA_QUERY_TEMPLATE;
 import static org.junit.Assert.assertEquals;
 
 public class AzureConnectorMockingTest
@@ -60,8 +60,12 @@ public class AzureConnectorMockingTest
         p.setProperty(METADATA_URL_PROPERTY, "http://127.0.0.1:8080");
 
         SnitchProperties snitchProperties = new SnitchProperties(p);
-        AzureSnitch azureSnitch = new AzureSnitch(new DefaultCloudMetadataServiceConnector(snitchProperties));
+        DefaultCloudMetadataServiceConnector connector = new DefaultCloudMetadataServiceConnector(snitchProperties);
+        AzureCloudLocationProvider locationProvider = new AzureCloudLocationProvider(connector);
+        assertEquals("rack-1", locationProvider.initialLocation().rack);
+        assertEquals("PolandCentral", locationProvider.initialLocation().datacenter);
 
+        AzureSnitch azureSnitch = new AzureSnitch(connector);
         assertEquals("rack-1", azureSnitch.getLocalRack());
         assertEquals("PolandCentral", azureSnitch.getLocalDatacenter());
     }
@@ -83,8 +87,12 @@ public class AzureConnectorMockingTest
         p.setProperty(API_VERSION_PROPERTY_KEY, "2021-12-14");
 
         SnitchProperties snitchProperties = new SnitchProperties(p);
-        AzureSnitch azureSnitch = new AzureSnitch(new DefaultCloudMetadataServiceConnector(snitchProperties));
+        DefaultCloudMetadataServiceConnector connector = new DefaultCloudMetadataServiceConnector(snitchProperties);
+        AzureCloudLocationProvider locationProvider = new AzureCloudLocationProvider(connector);
+        assertEquals("rack-5", locationProvider.initialLocation().rack);
+        assertEquals("PolandCentral", locationProvider.initialLocation().datacenter);
 
+        AzureSnitch azureSnitch = new AzureSnitch(connector);
         assertEquals("rack-5", azureSnitch.getLocalRack());
         assertEquals("PolandCentral", azureSnitch.getLocalDatacenter());
     }

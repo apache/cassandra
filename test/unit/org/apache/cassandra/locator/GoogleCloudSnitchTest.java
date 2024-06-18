@@ -21,20 +21,19 @@ package org.apache.cassandra.locator;
 
 import java.io.IOException;
 
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.AbstractCloudMetadataServiceConnector.DefaultCloudMetadataServiceConnector;
-import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.StubClusterMetadataService;
 import org.apache.cassandra.utils.Pair;
 
-import static org.apache.cassandra.config.CassandraRelevantProperties.GOSSIP_DISABLE_THREAD_VALIDATION;
 import static org.apache.cassandra.locator.AbstractCloudMetadataServiceConnector.METADATA_URL_PROPERTY;
-import static org.apache.cassandra.locator.AlibabaCloudSnitch.DEFAULT_METADATA_SERVICE_URL;
+import static org.apache.cassandra.locator.AlibabaCloudLocationProvider.DEFAULT_METADATA_SERVICE_URL;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
@@ -46,9 +45,14 @@ public class GoogleCloudSnitchTest
     @BeforeClass
     public static void setup() throws Exception
     {
-        GOSSIP_DISABLE_THREAD_VALIDATION.setBoolean(true);
         DatabaseDescriptor.daemonInitialization();
-        ClusterMetadataTestHelper.setInstanceForTest();
+    }
+
+    @Before
+    public void resetCMS()
+    {
+        ClusterMetadataService.unsetInstance();
+        ClusterMetadataService.setInstance(StubClusterMetadataService.forTesting());
     }
 
     @Test
@@ -61,18 +65,14 @@ public class GoogleCloudSnitchTest
 
         doReturn(az).when(spiedConnector).apiCall(any(), anyMap());
 
+        // for registering a new node, location is obtained from the cloud metadata service
+        GoogleCloudLocationProvider locationProvider = new GoogleCloudLocationProvider(spiedConnector);
+        assertEquals("us-central1", locationProvider.initialLocation().datacenter);
+        assertEquals("a", locationProvider.initialLocation().rack);
+
         GoogleCloudSnitch snitch = new GoogleCloudSnitch(spiedConnector);
-        InetAddressAndPort local = InetAddressAndPort.getByName("127.0.0.1");
-        InetAddressAndPort nonlocal = InetAddressAndPort.getByName("127.0.0.7");
-
-        Token t1 = ClusterMetadata.current().partitioner.getRandomToken();
-        ClusterMetadataTestHelper.addEndpoint(nonlocal, t1, "europe-west1", "a");
-
-        assertEquals("europe-west1", snitch.getDatacenter(nonlocal));
-        assertEquals("a", snitch.getRack(nonlocal));
-
-        assertEquals("us-central1", snitch.getDatacenter(local));
-        assertEquals("a", snitch.getRack(local));
+        assertEquals("us-central1", snitch.getLocalDatacenter());
+        assertEquals("a", snitch.getLocalRack());
     }
 
     @Test
@@ -85,9 +85,13 @@ public class GoogleCloudSnitchTest
 
         doReturn(az).when(spiedConnector).apiCall(any(), anyMap());
 
+        // local endpoint is not yet registered, so location is obtained from the cloud metadata service connector
+        GoogleCloudLocationProvider locationProvider = new GoogleCloudLocationProvider(spiedConnector);
+        assertEquals("asia-east1", locationProvider.initialLocation().datacenter);
+        assertEquals("a", locationProvider.initialLocation().rack);
+
         GoogleCloudSnitch snitch = new GoogleCloudSnitch(spiedConnector);
-        InetAddressAndPort local = InetAddressAndPort.getByName("127.0.0.1");
-        assertEquals("asia-east1", snitch.getDatacenter(local));
-        assertEquals("a", snitch.getRack(local));
+        assertEquals("asia-east1", snitch.getLocalDatacenter());
+        assertEquals("a", snitch.getLocalRack());
     }
 }

@@ -46,6 +46,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.Locator;
 import org.apache.cassandra.locator.MetaStrategy;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.net.CMSIdentifierMismatchException;
@@ -95,6 +96,9 @@ public class ClusterMetadata
     public final LockedRanges lockedRanges;
     public final InProgressSequences inProgressSequences;
     public final ImmutableMap<ExtensionKey<?,?>, ExtensionValue<?>> extensions;
+
+    // This isn't serialized as part of ClusterMetadata it's really just a view over the Directory.
+    public final Locator locator;
 
     // These fields are lazy but only for the test purposes, since their computation requires initialization of the log ks
     private EndpointsForRange fullCMSReplicas;
@@ -174,6 +178,7 @@ public class ClusterMetadata
         this.lockedRanges = lockedRanges;
         this.inProgressSequences = inProgressSequences;
         this.extensions = ImmutableMap.copyOf(extensions);
+        this.locator = Locator.usingDirectory(directory);
     }
 
     public Set<InetAddressAndPort> fullCMSMembers()

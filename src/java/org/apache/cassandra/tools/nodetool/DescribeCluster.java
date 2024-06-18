@@ -28,6 +28,7 @@ import com.google.common.collect.ArrayListMultimap;
 import io.airlift.airline.Command;
 import org.apache.cassandra.locator.DynamicEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.LocationInfoMBean;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
@@ -46,15 +47,19 @@ public class DescribeCluster extends NodeToolCmd
         // display cluster name, snitch and partitioner
         out.println("Cluster Information:");
         out.println("\tName: " + probe.getClusterName());
-        String snitch = probe.getEndpointSnitchInfoProxy().getSnitchName();
+        LocationInfoMBean locationInfoProxy = probe.getLocationInfoProxy();
+        String nodeProximityName = locationInfoProxy.getNodeProximityName();
         boolean dynamicSnitchEnabled = false;
-        if (snitch.equals(DynamicEndpointSnitch.class.getName()))
+        boolean legacySnitchAdapter = locationInfoProxy.hasLegacySnitchAdapter();
+        if (nodeProximityName.equals(DynamicEndpointSnitch.class.getName()))
         {
-            snitch = probe.getDynamicEndpointSnitchInfoProxy().getSubsnitchClassName();
+            nodeProximityName = probe.getDynamicEndpointSnitchInfoProxy().getSubsnitchClassName();
             dynamicSnitchEnabled = true;
         }
-        out.println("\tSnitch: " + snitch);
+        out.println("\tSnitch: " + nodeProximityName);
         out.println("\tDynamicEndPointSnitch: " + (dynamicSnitchEnabled ? "enabled" : "disabled"));
+        out.println("\tNodeProximity: " + nodeProximityName);
+        out.println("\tLegacySnitchAdapter: " + (legacySnitchAdapter ? "enabled" : "disabled"));
         out.println("\tPartitioner: " + probe.getPartitioner());
 
         // display schema version for each node

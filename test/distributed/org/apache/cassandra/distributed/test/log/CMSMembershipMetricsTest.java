@@ -26,7 +26,7 @@ import org.junit.Test;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
-import org.apache.cassandra.distributed.impl.DistributedTestSnitch;
+import org.apache.cassandra.distributed.impl.TestEndpointCache;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.metrics.TCMMetrics;
@@ -106,14 +106,14 @@ public class CMSMembershipMetricsTest extends TestBaseImpl
     private void markDown(IInvokableInstance down, IInvokableInstance inst)
     {
         InetSocketAddress node3Address = down.config().broadcastAddress();
-        inst.runOnInstance(() -> FailureDetector.instance.forceConviction(DistributedTestSnitch.toCassandraInetAddressAndPort(node3Address)));
+        inst.runOnInstance(() -> FailureDetector.instance.forceConviction(TestEndpointCache.toCassandraInetAddressAndPort(node3Address)));
     }
 
     private void markUp(IInvokableInstance down, IInvokableInstance inst)
     {
         InetSocketAddress downAddress = down.config().broadcastAddress();
-        inst.runOnInstance(() -> FailureDetector.instance.report(DistributedTestSnitch.toCassandraInetAddressAndPort(downAddress)));
+        inst.runOnInstance(() -> FailureDetector.instance.report(TestEndpointCache.toCassandraInetAddressAndPort(downAddress)));
         Awaitility.waitAtMost(10, TimeUnit.SECONDS)
-                  .until(() -> inst.callOnInstance(() -> FailureDetector.instance.isAlive(DistributedTestSnitch.toCassandraInetAddressAndPort(downAddress))));
+                  .until(() -> inst.callOnInstance(() -> FailureDetector.instance.isAlive(TestEndpointCache.toCassandraInetAddressAndPort(downAddress))));
     }
 }

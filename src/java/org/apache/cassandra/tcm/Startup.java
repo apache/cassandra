@@ -135,7 +135,8 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
     public static void initializeAsFirstCMSNode()
     {
         InetAddressAndPort addr = FBUtilities.getBroadcastAddressAndPort();
-        ClusterMetadataService.instance().log().bootstrap(addr);
+        String datacenter = DatabaseDescriptor.getLocator().local().datacenter;
+        ClusterMetadataService.instance().log().bootstrap(addr, datacenter);
         ClusterMetadata metadata =  ClusterMetadata.current();
         assert ClusterMetadataService.state() == LOCAL : String.format("Can't initialize as node hasn't transitioned to CMS state. State: %s.\n%s", ClusterMetadataService.state(),  metadata);
 

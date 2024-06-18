@@ -60,6 +60,7 @@ import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Commit;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MetadataSnapshots;
+import org.apache.cassandra.tcm.RegistrationStatus;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.membership.Directory;
@@ -135,7 +136,7 @@ public class ClusterMetadataTestHelper
                                                                                         Commit.Replicator.NO_OP,
                                                                                         true);
         log.readyUnchecked();
-        log.bootstrap(FBUtilities.getBroadcastAddressAndPort());
+        log.unsafeBootstrapForTesting(FBUtilities.getBroadcastAddressAndPort());
         QueryProcessor.registerStatementInvalidatingListener();
         service.mark();
         return service;
@@ -281,11 +282,19 @@ public class ClusterMetadataTestHelper
         return register(addr(nodeIdx), dc, rack);
     }
 
+    public static NodeId register(InetAddressAndPort endpoint, Location location)
+    {
+        return register(endpoint, location.datacenter, location.rack);
+    }
+
     public static NodeId register(InetAddressAndPort endpoint, String dc, String rack)
     {
         try
         {
-            return commit(new Register(addr(endpoint), new Location(dc, rack), NodeVersion.CURRENT)).directory.peerId(endpoint);
+            NodeId id = commit(new Register(addr(endpoint), new Location(dc, rack), NodeVersion.CURRENT)).directory.peerId(endpoint);
+            if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
+                RegistrationStatus.instance.onRegistration();
+            return id;
         }
         catch (Throwable e)
         {
@@ -788,6 +797,11 @@ public class ClusterMetadataTestHelper
         addEndpoint(endpoint, tokens, "dc1", "rack1");
     }
 
+    public static void addEndpoint(InetAddressAndPort endpoint, Collection<Token> tokens, Location location)
+    {
+        addEndpoint(endpoint, tokens, location.datacenter, location.rack);
+    }
+
     public static void addEndpoint(InetAddressAndPort endpoint, Token t, Location location)
     {
         addEndpoint(endpoint, Collections.singleton(t), location.datacenter, location.rack);
@@ -804,6 +818,8 @@ public class ClusterMetadataTestHelper
         {
             Location l = new Location(dc, rack);
             commit(new Register(addr(endpoint), l, NodeVersion.CURRENT));
+            if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
+                RegistrationStatus.instance.onRegistration();
             lazyJoin(endpoint, new HashSet<>(t)).prepareJoin()
                                                 .startJoin()
                                                 .midJoin()

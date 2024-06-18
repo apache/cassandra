@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.service;
 
-import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -36,10 +35,10 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.EndpointsForToken;
-import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaCollection;
@@ -93,49 +92,13 @@ public class WriteResponseHandlerTransientTest
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
 
         // Register peers with expected DC for NetworkTopologyStrategy.
-
-//        metadata.clearUnsafe();
-//        metadata.updateHostId(UUID.randomUUID(), InetAddressAndPort.getByName("127.1.0.1"));
-//        metadata.updateHostId(UUID.randomUUID(), InetAddressAndPort.getByName("127.2.0.1"));
-
-        DatabaseDescriptor.setEndpointSnitch(new IEndpointSnitch()
-        {
-            public String getRack(InetAddressAndPort endpoint)
-            {
-                return null;
-            }
-
-            public String getDatacenter(InetAddressAndPort endpoint)
-            {
-                byte[] address = endpoint.getAddress().getAddress();
-                if (address[1] == 1)
-                    return DC1;
-                else
-                    return DC2;
-            }
-
-            public <C extends ReplicaCollection<? extends C>> C sortedByProximity(InetAddressAndPort address, C unsortedAddress)
-            {
-                return unsortedAddress;
-            }
-
-            public int compareEndpoints(InetAddressAndPort target, Replica a1, Replica a2)
-            {
-                return 0;
-            }
-
-            public void gossiperStarting()
-            {
-
-            }
-
-            public boolean isWorthMergingForRangeQuery(ReplicaCollection<?> merged, ReplicaCollection<?> l1, ReplicaCollection<?> l2)
-            {
-                return false;
-            }
-        });
-
-        DatabaseDescriptor.setBroadcastAddress(InetAddress.getByName("127.1.0.1"));
+        DatabaseDescriptor.setBroadcastAddress(EP1.getAddress());
+        ClusterMetadataTestHelper.register(EP1, DC1, "r1");
+        ClusterMetadataTestHelper.register(EP2, DC1, "r1");
+        ClusterMetadataTestHelper.register(EP3, DC1, "r1");
+        ClusterMetadataTestHelper.register(EP4, DC2, "r1");
+        ClusterMetadataTestHelper.register(EP5, DC2, "r1");
+        ClusterMetadataTestHelper.register(EP6, DC2, "r1");
         SchemaLoader.createKeyspace("ks", KeyspaceParams.nts(DC1, "3/1", DC2, "3/1"), SchemaLoader.standardCFMD("ks", "tbl"));
         ks = Keyspace.open("ks");
         cfs = ks.getColumnFamilyStore("tbl");

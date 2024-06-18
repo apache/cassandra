@@ -30,6 +30,7 @@ import org.apache.cassandra.tcm.serialization.Version;
 public class Location
 {
     public static final Serializer serializer = new Serializer();
+    public static final Location UNKNOWN = new Location("UNKNOWN_DC", "UNKNOWN_RACK");
 
     public final String datacenter;
     public final String rack;
@@ -38,6 +39,11 @@ public class Location
     {
         this.datacenter = datacenter;
         this.rack = rack;
+    }
+
+    public boolean sameDatacenter(Location other)
+    {
+        return datacenter.equals(other.datacenter);
     }
 
     @Override

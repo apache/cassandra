@@ -121,7 +121,7 @@ public class BootStrapper extends ProgressEventNotifierSupport
         RangeStreamer streamer = new RangeStreamer(metadata,
                                                    StreamOperation.BOOTSTRAP,
                                                    useStrictConsistency,
-                                                   DatabaseDescriptor.getEndpointSnitch(),
+                                                   DatabaseDescriptor.getNodeProximity(),
                                                    stateStore,
                                                    true,
                                                    DatabaseDescriptor.getStreamingConnectionsPerHost(),

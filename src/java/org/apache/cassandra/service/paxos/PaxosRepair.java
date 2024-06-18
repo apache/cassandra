@@ -550,12 +550,13 @@ public class PaxosRepair extends AbstractPaxosRepair
         ReplicationParams replication = keyspace.getMetadata().params.replication;
         // Special case meta keyspace as it uses a custom partitioner/tokens, but the paxos table and repairs
         // are based on the system partitioner
+        ClusterMetadata metadata = ClusterMetadata.current();
         Collection<InetAddressAndPort> allEndpoints = replication.isMeta()
-                                                      ? ClusterMetadata.current().fullCMSMembers()
-                                                      : ClusterMetadata.current().placements.get(replication).reads.forRange(range).endpoints();
+                                                      ? metadata.fullCMSMembers()
+                                                      : metadata.placements.get(replication).reads.forRange(range).endpoints();
         return hasSufficientLiveNodesForTopologyChange(allEndpoints,
                                                        liveEndpoints,
-                                                       DatabaseDescriptor.getEndpointSnitch()::getDatacenter,
+                                                       ep -> metadata.locator.location(ep).datacenter,
                                                        DatabaseDescriptor.paxoTopologyRepairNoDcChecks(),
                                                        DatabaseDescriptor.paxoTopologyRepairStrictEachQuorum());
     }

@@ -41,6 +41,7 @@ public class WithPartitioner implements AutoCloseable
     {
         ClusterMetadataService.unsetInstance();
         ClusterMetadataService.setInstance(toRestore);
+        DatabaseDescriptor.setPartitionerUnsafe(toRestore.metadata().partitioner);
     }
 }
 

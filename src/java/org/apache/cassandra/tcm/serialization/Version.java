@@ -48,6 +48,7 @@ public enum Version
     V4(4),
     /**
      * - AlterSchema includes execution timestamp
+     * - PreInitialize includes datacenter (affects local serialization on first CMS node only)
      */
     V5(5),
 

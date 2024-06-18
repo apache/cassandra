@@ -877,7 +877,7 @@ public class StorageProxy implements StorageProxyMBean
     throws UnavailableException, OverloadedException, WriteTimeoutException, WriteFailureException
     {
         Tracing.trace("Determining replicas for mutation");
-        final String localDataCenter = DatabaseDescriptor.getEndpointSnitch().getLocalDatacenter();
+        final String localDataCenter = DatabaseDescriptor.getLocator().local().datacenter;
 
         List<AbstractWriteResponseHandler<IMutation>> responseHandlers = new ArrayList<>(mutations.size());
         WriteType plainWriteType = mutations.size() <= 1 ? WriteType.SIMPLE : WriteType.UNLOGGED_BATCH;
@@ -1011,7 +1011,7 @@ public class StorageProxy implements StorageProxyMBean
     throws UnavailableException, OverloadedException, WriteTimeoutException
     {
         Tracing.trace("Determining replicas for mutation");
-        final String localDataCenter = DatabaseDescriptor.getEndpointSnitch().getLocalDatacenter();
+        final String localDataCenter = DatabaseDescriptor.getLocator().local().datacenter;
 
         long startTime = nanoTime();
 
@@ -1350,7 +1350,7 @@ public class StorageProxy implements StorageProxyMBean
     private static void syncWriteBatchedMutations(List<WriteResponseHandlerWrapper> wrappers, Stage stage, Dispatcher.RequestTime requestTime)
     throws WriteTimeoutException, OverloadedException
     {
-        String localDataCenter = DatabaseDescriptor.getEndpointSnitch().getLocalDatacenter();
+        String localDataCenter = DatabaseDescriptor.getLocator().local().datacenter;
 
         for (WriteResponseHandlerWrapper wrapper : wrappers)
         {
@@ -1528,7 +1528,7 @@ public class StorageProxy implements StorageProxyMBean
                                                        Collections.singletonList(MessageFlag.CALL_BACK_ON_FAILURE));
                     }
 
-                    String dc = DatabaseDescriptor.getEndpointSnitch().getDatacenter(destination);
+                    String dc = DatabaseDescriptor.getLocator().location(destination.endpoint()).datacenter;
 
                     // direct writes to local DC or old Cassandra versions
                     // (1.1 knows how to forward old-style String message IDs; updated to int in 2.0)
@@ -2403,7 +2403,7 @@ public class StorageProxy implements StorageProxyMBean
         Set<String> disabledDCs = DatabaseDescriptor.hintedHandoffDisabledDCs();
         if (!disabledDCs.isEmpty())
         {
-            final String dc = DatabaseDescriptor.getEndpointSnitch().getDatacenter(replica);
+            final String dc = DatabaseDescriptor.getLocator().location(replica.endpoint()).datacenter;
             if (disabledDCs.contains(dc))
             {
                 Tracing.trace("Not hinting {} since its data center {} has been disabled {}", replica, dc, disabledDCs);

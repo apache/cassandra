@@ -49,6 +49,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
@@ -144,7 +145,6 @@ import org.apache.cassandra.locator.DynamicEndpointSnitch;
 import org.apache.cassandra.locator.EndpointsByRange;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.EndpointsForToken;
-import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.LocalStrategy;
 import org.apache.cassandra.locator.MetaStrategy;
@@ -152,6 +152,8 @@ import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.RangesByEndpoint;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.Replicas;
+import org.apache.cassandra.locator.NodeProximity;
+import org.apache.cassandra.locator.SnitchAdapter;
 import org.apache.cassandra.locator.SystemReplicas;
 import org.apache.cassandra.metrics.Sampler;
 import org.apache.cassandra.metrics.SamplingManager;
@@ -186,6 +188,7 @@ import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.MultiStepOperation;
+import org.apache.cassandra.tcm.RegistrationStatus;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.compatibility.GossipHelper;
 import org.apache.cassandra.tcm.compatibility.TokenRingUtils;
@@ -833,6 +836,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             self = Register.maybeRegister();
         }
 
+        RegistrationStatus.instance.onRegistration();
         Startup.maybeExecuteStartupTransformation(self);
 
         try
@@ -3659,8 +3663,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
         else
         {
-            // stream to the closest peer as chosen by the snitch
-            candidates = DatabaseDescriptor.getEndpointSnitch().sortedByProximity(getBroadcastAddressAndPort(), candidates);
+            // stream to the closest peer as chosen by the configured proximity measures
+            candidates = DatabaseDescriptor.getNodeProximity().sortedByProximity(getBroadcastAddressAndPort(), candidates);
             InetAddressAndPort hintsDestinationHost = candidates.get(0).endpoint();
             return ClusterMetadata.current().directory.peerId(hintsDestinationHost).toUUID();
         }
@@ -4374,12 +4378,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void setDynamicUpdateInterval(int dynamicUpdateInterval)
     {
-        if (DatabaseDescriptor.getEndpointSnitch() instanceof DynamicEndpointSnitch)
+        if (DatabaseDescriptor.getNodeProximity() instanceof DynamicEndpointSnitch)
         {
 
             try
             {
-                updateSnitch(null, true, dynamicUpdateInterval, null, null);
+                updateProximityInternal(null, true, dynamicUpdateInterval, null, null);
             }
             catch (ClassNotFoundException e)
             {
@@ -4395,6 +4399,18 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void updateSnitch(String epSnitchClassName, Boolean dynamic, Integer dynamicUpdateInterval, Integer dynamicResetInterval, Double dynamicBadnessThreshold) throws ClassNotFoundException
     {
+        Supplier<NodeProximity> factory = () -> new SnitchAdapter(DatabaseDescriptor.createEndpointSnitch(epSnitchClassName));
+        updateProximityInternal(factory, dynamic, dynamicUpdateInterval, dynamicResetInterval, dynamicBadnessThreshold);
+    }
+
+    public void updateNodeProximity(String npsClassName, Boolean dynamic, Integer dynamicUpdateInterval, Integer dynamicResetInterval, Double dynamicBadnessThreshold) throws ClassNotFoundException
+    {
+        Supplier<NodeProximity> factory = () -> DatabaseDescriptor.createProximityImpl(npsClassName);
+        updateProximityInternal(factory, dynamic, dynamicUpdateInterval, dynamicResetInterval, dynamicBadnessThreshold);
+    }
+
+    private void updateProximityInternal(Supplier<NodeProximity> implSupplier, Boolean dynamic, Integer dynamicUpdateInterval, Integer dynamicResetInterval, Double dynamicBadnessThreshold) throws ClassNotFoundException
+    {
         // apply dynamic snitch configuration
         if (dynamicUpdateInterval != null)
             DatabaseDescriptor.setDynamicUpdateInterval(dynamicUpdateInterval);
@@ -4403,51 +4419,53 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (dynamicBadnessThreshold != null)
             DatabaseDescriptor.setDynamicBadnessThreshold(dynamicBadnessThreshold);
 
-        IEndpointSnitch oldSnitch = DatabaseDescriptor.getEndpointSnitch();
+        NodeProximity oldProximity = DatabaseDescriptor.getNodeProximity();
 
         // new snitch registers mbean during construction
-        if(epSnitchClassName != null)
+        if(implSupplier != null)
         {
 
             // need to unregister the mbean _before_ the new dynamic snitch is instantiated (and implicitly initialized
             // and its mbean registered)
-            if (oldSnitch instanceof DynamicEndpointSnitch)
-                ((DynamicEndpointSnitch)oldSnitch).close();
+            if (oldProximity instanceof DynamicEndpointSnitch)
+                ((DynamicEndpointSnitch)oldProximity).close();
 
-            IEndpointSnitch newSnitch;
+            NodeProximity newProximity;
             try
             {
-                newSnitch = DatabaseDescriptor.createEndpointSnitch(dynamic != null && dynamic, epSnitchClassName);
+                newProximity = implSupplier.get();
+                if (dynamic != null && dynamic)
+                    newProximity = new DynamicEndpointSnitch(newProximity);
             }
             catch (ConfigurationException e)
             {
                 throw new ClassNotFoundException(e.getMessage());
             }
 
-            if (newSnitch instanceof DynamicEndpointSnitch)
+            if (newProximity instanceof DynamicEndpointSnitch)
             {
                 logger.info("Created new dynamic snitch {} with update-interval={}, reset-interval={}, badness-threshold={}",
-                            ((DynamicEndpointSnitch)newSnitch).subsnitch.getClass().getName(), DatabaseDescriptor.getDynamicUpdateInterval(),
+                            ((DynamicEndpointSnitch)newProximity).delegate.getClass().getName(), DatabaseDescriptor.getDynamicUpdateInterval(),
                             DatabaseDescriptor.getDynamicResetInterval(), DatabaseDescriptor.getDynamicBadnessThreshold());
             }
             else
             {
-                logger.info("Created new non-dynamic snitch {}", newSnitch.getClass().getName());
+                logger.info("Created new non-dynamic snitch {}", newProximity.getClass().getName());
             }
 
-            // point snitch references to the new instance
-            DatabaseDescriptor.setEndpointSnitch(newSnitch);
+            // point reference to the new instance
+            DatabaseDescriptor.setNodeProximity(newProximity);
         }
         else
         {
-            if (oldSnitch instanceof DynamicEndpointSnitch)
+            if (oldProximity instanceof DynamicEndpointSnitch)
             {
                 logger.info("Applying config change to dynamic snitch {} with update-interval={}, reset-interval={}, badness-threshold={}",
-                            ((DynamicEndpointSnitch)oldSnitch).subsnitch.getClass().getName(), DatabaseDescriptor.getDynamicUpdateInterval(),
+                            ((DynamicEndpointSnitch)oldProximity).delegate.getClass().getName(), DatabaseDescriptor.getDynamicUpdateInterval(),
                             DatabaseDescriptor.getDynamicResetInterval(), DatabaseDescriptor.getDynamicBadnessThreshold());
 
-                DynamicEndpointSnitch snitch = (DynamicEndpointSnitch)oldSnitch;
-                snitch.applyConfigChanges();
+                DynamicEndpointSnitch proximity = (DynamicEndpointSnitch)oldProximity;
+                proximity.applyConfigChanges();
             }
         }
     }

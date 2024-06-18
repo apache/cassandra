@@ -50,7 +50,7 @@ public class ReconnectableSnitchHelperTest
         DatabaseDescriptor.setInternodeAuthenticator(MessagingServiceTest.ALLOW_NOTHING_AUTHENTICATOR);
         InetAddressAndPort address = InetAddressAndPort.getByName("127.0.0.250");
         //Should tolerate null returns by MS for the connection
-        ReconnectableSnitchHelper.reconnect(address, address, null, null);
+        ReconnectableSnitchHelper.reconnect(address, address, null);
     }
 
     @After

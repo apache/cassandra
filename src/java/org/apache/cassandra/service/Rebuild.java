@@ -104,17 +104,17 @@ public class Rebuild
             RangeStreamer streamer = new RangeStreamer(metadata,
                                                        StreamOperation.REBUILD,
                                                        false, // no strict consistency when rebuilding
-                                                       DatabaseDescriptor.getEndpointSnitch(),
+                                                       DatabaseDescriptor.getNodeProximity(),
                                                        StorageService.instance.streamStateStore,
                                                        false,
                                                        DatabaseDescriptor.getStreamingConnectionsPerHost(),
                                                        rebuildMovements,
                                                        null);
             if (sourceDc != null)
-                streamer.addSourceFilter(new RangeStreamer.SingleDatacenterFilter(DatabaseDescriptor.getEndpointSnitch(), sourceDc));
+                streamer.addSourceFilter(new RangeStreamer.SingleDatacenterFilter(metadata.locator, sourceDc));
 
             if (excludeLocalDatacenterNodes)
-                streamer.addSourceFilter(new RangeStreamer.ExcludeLocalDatacenterFilter(DatabaseDescriptor.getEndpointSnitch()));
+                streamer.addSourceFilter(new RangeStreamer.ExcludeLocalDatacenterFilter(metadata.locator));
 
             if (keyspace == null)
             {

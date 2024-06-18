@@ -25,8 +25,8 @@ import java.util.function.Predicate;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.ObjectObjectHashMap;
+
 import com.google.common.collect.Iterables;
-import org.apache.cassandra.config.DatabaseDescriptor;
 
 import static com.google.common.collect.Iterables.all;
 
@@ -88,16 +88,15 @@ public class Replicas
     /**
      * count the number of full and transient replicas, separately, for each DC
      */
-    public static ObjectObjectHashMap<String, ReplicaCount> countPerDc(Collection<String> dataCenters, Iterable<Replica> replicas)
+    public static ObjectObjectHashMap<String, ReplicaCount> countPerDc(Locator locator, Collection<String> dataCenters, Iterable<Replica> replicas)
     {
         ObjectObjectHashMap<String, ReplicaCount> perDc = new ObjectObjectHashMap<>(dataCenters.size());
         for (String dc: dataCenters)
             perDc.put(dc, new ReplicaCount());
 
-        IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
         for (Replica replica : replicas)
         {
-            String dc = snitch.getDatacenter(replica);
+            String dc = locator.location(replica.endpoint()).datacenter;
             perDc.get(dc).increment(replica);
         }
         return perDc;
@@ -106,12 +105,11 @@ public class Replicas
     /**
      * increment each of the map's DC entries for each matching replica provided
      */
-    public static void addToCountPerDc(ObjectIntHashMap<String> perDc, Iterable<Replica> replicas, int add)
+    public static void addToCountPerDc(Locator locator, ObjectIntHashMap<String> perDc, Iterable<Replica> replicas, int add)
     {
-        IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
         for (Replica replica : replicas)
         {
-            String dc = snitch.getDatacenter(replica);
+            String dc = locator.location(replica.endpoint()).datacenter;
             perDc.addTo(dc, add);
         }
     }

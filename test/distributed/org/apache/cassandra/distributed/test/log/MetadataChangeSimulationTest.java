@@ -83,63 +83,10 @@ import static org.apache.cassandra.harry.sut.TokenPlacementModel.nodeFactoryHuma
 public class MetadataChangeSimulationTest extends CMSTestBase
 {
     private static final Logger logger = LoggerFactory.getLogger(MetadataChangeSimulationTest.class);
-    private static final long seed;
-    private static final Random rng;
     static
     {
-        seed = System.nanoTime();
-        logger.info("SEED: {}", seed);
-        rng = new Random(seed);
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
         DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
-    }
-
-
-    @Test
-    public void simulateNTS() throws Throwable
-    {
-        // TODO: right now, we pick a candidate only if there is enough rf to execute operation
-        // but the problem is that if we start multiple operations that would take us under rf, we will screw up the placements
-        // this was not happening before, and test is crafted now to disallow such states, but this is a bug.
-        // we should either forbid this, or allow it, but make it work.
-        for (int concurrency : new int[]{ 1, 3, 5 })
-        {
-            for (int rf : new int[]{ 2, 3, 5 })
-            {
-                for (int trans = 0; trans < rf; trans++)
-                {
-                    simulate(50, 0, new NtsReplicationFactor(3, rf, trans), concurrency);
-                }
-            }
-        }
-    }
-
-    @Test
-    public void simulateSimple() throws Throwable
-    {
-        for (int concurrency : new int[]{ 1, 3, 5 })
-        {
-            for (int rf : new int[]{ 2, 3, 5 })
-            {
-                for (int trans = 0; trans < rf; trans++)
-                {
-                    simulate(50, 0, new SimpleReplicationFactor(rf, trans), concurrency);
-                }
-            }
-        }
-    }
-
-    @Test
-    public void simulateSimpleOneTransient() throws Throwable
-    {
-        DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
-        simulate(50, 0, new SimpleReplicationFactor(5, 2), 1);
-    }
-
-    @Test
-    public void simulateSimpleOneNonTransient() throws Throwable
-    {
-        simulate(50, 0, new SimpleReplicationFactor(3), 1);
     }
 
     @Test
@@ -395,7 +342,7 @@ public class MetadataChangeSimulationTest extends CMSTestBase
         }
     }
 
-    public void simulate(int toBootstrap, int minSteps, ReplicationFactor rf, int concurrency) throws Throwable
+    public static void simulate(long seed, Random rng, int toBootstrap, int minSteps, ReplicationFactor rf, int concurrency) throws Throwable
     {
         logger.info("RUNNING SIMULATION WITH SEED {}. TO BOOTSTRAP: {}, RF: {}, CONCURRENCY: {}", seed, toBootstrap, rf, concurrency);
         long startTime = System.currentTimeMillis();
@@ -533,7 +480,7 @@ public class MetadataChangeSimulationTest extends CMSTestBase
         }
     }
 
-    public void simulateBounces(ReplicationFactor rf, CMSPlacementStrategy CMSConfigurationStrategy, Random random) throws Throwable
+    public static void simulateBounces(ReplicationFactor rf, CMSPlacementStrategy CMSConfigurationStrategy, Random random) throws Throwable
     {
         try(CMSSut sut = new CMSSut(AtomicLongBackedProcessor::new, false, rf))
         {
@@ -631,7 +578,7 @@ public class MetadataChangeSimulationTest extends CMSTestBase
         return pair(newState, node);
     }
 
-    private ModelChecker.Pair<ModelState, Node> registerNewNode(ModelState state, CMSSut sut, int tokenIdx, int dcIdx, int rackIdx)
+    private static ModelChecker.Pair<ModelState, Node> registerNewNode(ModelState state, CMSSut sut, int tokenIdx, int dcIdx, int rackIdx)
     {
         ModelState newState = state.transformer().incrementUniqueNodes().transform();
         Node node = state.nodeFactory.make(newState.uniqueNodes, dcIdx, rackIdx).withToken(tokenIdx);
@@ -639,7 +586,7 @@ public class MetadataChangeSimulationTest extends CMSTestBase
         return pair(newState, node);
     }
 
-    private ModelChecker.Pair<ModelState, Node> registerNewNodeWithToken(ModelState state, CMSSut sut, long token, int dcIdx, int rackIdx)
+    private static ModelChecker.Pair<ModelState, Node> registerNewNodeWithToken(ModelState state, CMSSut sut, long token, int dcIdx, int rackIdx)
     {
         ModelState newState = state.transformer().incrementUniqueNodes().transform();
         Node node = state.nodeFactory.make(newState.uniqueNodes, dcIdx, rackIdx).overrideToken(token);
@@ -647,17 +594,17 @@ public class MetadataChangeSimulationTest extends CMSTestBase
         return pair(newState, node);
     }
 
-    private Node getRemovalCandidate(ModelState state, EntropySource entropySource)
+    private static Node getRemovalCandidate(ModelState state, EntropySource entropySource)
     {
         return getCandidate(state, entropySource);
     }
 
-    private Node getMoveCandidate(ModelState state, EntropySource entropySource)
+    private static Node getMoveCandidate(ModelState state, EntropySource entropySource)
     {
         return getCandidate(state, entropySource);
     }
 
-    private Node getCandidate(ModelState modelState, EntropySource entropySource)
+    private static Node getCandidate(ModelState modelState, EntropySource entropySource)
     {
         List<String> dcs = new ArrayList<>(modelState.simulatedPlacements.rf.asMap().keySet());
         while (!dcs.isEmpty())

@@ -31,7 +31,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Transformation;
@@ -97,29 +96,36 @@ public class Register implements Transformation
     }
 
     @VisibleForTesting
+    public static NodeId register(NodeAddresses nodeAddresses, Location location)
+    {
+        return register(nodeAddresses, location, NodeVersion.CURRENT);
+    }
+
+    @VisibleForTesting
     public static NodeId register(NodeAddresses nodeAddresses, NodeVersion nodeVersion)
     {
-        IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
-        Location location = new Location(snitch.getLocalDatacenter(), snitch.getLocalRack());
+        return register(nodeAddresses, DatabaseDescriptor.getLocator().local(), nodeVersion);
+    }
 
+    private static NodeId register(NodeAddresses nodeAddresses, Location location, NodeVersion nodeVersion)
+    {
         ClusterMetadata metadata = ClusterMetadata.current();
+        DatabaseDescriptor.getInitialLocationProvider().validate(metadata);
         NodeId nodeId = metadata.directory.peerId(nodeAddresses.broadcastAddress);
         if (nodeId == null || metadata.directory.peerState(nodeId) == NodeState.LEFT)
         {
             if (nodeId != null)
-                ClusterMetadataService.instance()
-                                      .commit(new Unregister(nodeId, EnumSet.of(NodeState.LEFT)));
-            nodeId = ClusterMetadataService.instance()
-                                           .commit(new Register(nodeAddresses, location, nodeVersion))
-                     .directory
-                     .peerId(nodeAddresses.broadcastAddress);
+                ClusterMetadataService.instance().commit(new Unregister(nodeId, EnumSet.of(NodeState.LEFT)));
+
+            Register registration = new Register(nodeAddresses, location, nodeVersion);
+            nodeId = ClusterMetadataService.instance().commit(registration).directory.peerId(nodeAddresses.broadcastAddress);
         }
         else
         {
             throw new IllegalStateException(String.format("A node with address %s already exists, cancelling join. Use cassandra.replace_address if you want to replace this node.", nodeAddresses.broadcastAddress));
         }
 
-        logger.info("Registering with endpoint {}", nodeAddresses.broadcastAddress);
+        logger.info("Registered with endpoint {}, node id: {}", nodeAddresses.broadcastAddress, nodeId);
         return nodeId;
     }
 

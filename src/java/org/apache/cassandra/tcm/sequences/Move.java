@@ -367,8 +367,9 @@ public class Move extends MultiStepOperation<Epoch>
                 // if we are not running with strict consistency, try to find other sources for streaming
                 if (needsRelaxedSources.get())
                 {
-                    for (Replica source : DatabaseDescriptor.getEndpointSnitch().sortedByProximity(FBUtilities.getBroadcastAddressAndPort(),
-                                                                                                   oldOwners.forRange(destination.range()).get()))
+                    for (Replica source : DatabaseDescriptor.getNodeProximity()
+                                                            .sortedByProximity(FBUtilities.getBroadcastAddressAndPort(),
+                                                                               oldOwners.forRange(destination.range()).get()))
                     {
                         if (fd.isAlive(source.endpoint()) && !source.endpoint().equals(destination.endpoint()))
                         {

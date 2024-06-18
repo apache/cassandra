@@ -258,7 +258,7 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
     private void assertWaitingFor(InetAddressAndPort from)
     {
         assert !replicaPlan().consistencyLevel().isDatacenterLocal()
-               || DatabaseDescriptor.getLocalDataCenter().equals(DatabaseDescriptor.getEndpointSnitch().getDatacenter(from))
+               || DatabaseDescriptor.getLocator().local().sameDatacenter(DatabaseDescriptor.getLocator().location(from))
                : "Received read response from unexpected replica: " + from;
     }
 }
