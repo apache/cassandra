@@ -186,7 +186,7 @@ public class AccordKeyspaceTest extends CQLTester.InMemory
                 // else this will loop forever...
                 for (int attempt = 0; attempt < 10; attempt++)
                 {
-                    TableId tableId = rs.pick(tables.keySet());
+                    TableId tableId = rs.pickOrderedSet(tables.navigableKeySet());
                     IPartitioner partitioner = tables.get(tableId);
                     ByteBuffer data = !(partitioner instanceof LocalPartitioner) ? Int32Type.instance.decompose(rs.nextInt())
                                                                                  : fromQT(getTypeSupport(partitioner.getTokenValidator()).bytesGen()).next(rs);
@@ -258,7 +258,7 @@ public class AccordKeyspaceTest extends CQLTester.InMemory
 
                 for (int i = 0, queries = rs.nextInt(1, 5); i < queries; i++)
                 {
-                    int store = rs.pick(storesToKeys.keySet());
+                    int store = rs.pickOrderedSet(storesToKeys.navigableKeySet());
                     var keysForStore = new ArrayList<>(storesToKeys.get(store));
 
                     int offset;

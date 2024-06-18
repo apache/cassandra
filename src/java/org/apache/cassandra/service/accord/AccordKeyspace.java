@@ -1586,7 +1586,8 @@ public class AccordKeyspace
             return minEpoch == maxEpoch && maxEpoch == 0;
         }
 
-        private EpochDiskState withNewMaxEpoch(long epoch)
+        @VisibleForTesting
+        EpochDiskState withNewMaxEpoch(long epoch)
         {
             Invariants.checkArgument(epoch > maxEpoch, "Epoch %d <= %d (max)", epoch, maxEpoch);
             return EpochDiskState.create(Math.max(1, minEpoch), epoch);
