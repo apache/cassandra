@@ -664,7 +664,7 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
                                                                         true);
             ClusterMetadataService.setInstance(service);
             log.readyUnchecked();
-            log.bootstrap(cms.addr());
+            log.unsafeBootstrapForTesting(cms.addr());
             service.commit(new Initialize(log.metadata()));
             service.commit(new Register(new NodeAddresses(cms.addr()), new Location(cms.dc(), cms.rack()), NodeVersion.CURRENT));
 

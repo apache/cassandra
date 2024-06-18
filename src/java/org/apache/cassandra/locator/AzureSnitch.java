@@ -20,15 +20,10 @@ package org.apache.cassandra.locator;
 
 import java.io.IOException;
 
-import com.google.common.collect.ImmutableMap;
-
-import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.cassandra.locator.AbstractCloudMetadataServiceConnector.DefaultCloudMetadataServiceConnector;
-import org.apache.cassandra.utils.JsonUtils;
-import org.apache.cassandra.utils.Pair;
 
-import static java.lang.String.format;
 import static org.apache.cassandra.locator.AbstractCloudMetadataServiceConnector.METADATA_URL_PROPERTY;
+import static org.apache.cassandra.locator.AzureCloudLocationProvider.DEFAULT_METADATA_SERVICE_URL;
 
 /**
  * AzureSnitch will resolve datacenter and rack by calling {@code /metadata/instance/compute} endpoint returning
@@ -38,15 +33,11 @@ import static org.apache.cassandra.locator.AbstractCloudMetadataServiceConnector
  * A datacenter is resolved from {@code location} field and a rack is resolved by looking into {@code zone} field first.
  * When zone is not set, or it is empty string, it will look into {@code platformFaultDomain} field. Such resolved
  * value is prepended by {@code rack-} string.
+ * @deprecated See CASSANDRA-19488
  */
+@Deprecated(since = "CEP-21")
 public class AzureSnitch extends AbstractCloudMetadataServiceSnitch
 {
-    static final String DEFAULT_METADATA_SERVICE_URL = "http://169.254.169.254";
-    static final String METADATA_QUERY_TEMPLATE = "/metadata/instance/compute?api-version=%s&format=json";
-    static final String METADATA_HEADER = "Metadata";
-    static final String API_VERSION_PROPERTY_KEY = "azure_api_version";
-    static final String DEFAULT_API_VERSION = "2021-12-13";
-
     public AzureSnitch() throws IOException
     {
         this(new SnitchProperties());
@@ -60,43 +51,6 @@ public class AzureSnitch extends AbstractCloudMetadataServiceSnitch
 
     public AzureSnitch(AbstractCloudMetadataServiceConnector connector) throws IOException
     {
-        super(connector, resolveDcAndRack(connector));
-    }
-
-    private static Pair<String, String> resolveDcAndRack(AbstractCloudMetadataServiceConnector connector) throws IOException
-    {
-        String apiVersion = connector.getProperties().get(API_VERSION_PROPERTY_KEY, DEFAULT_API_VERSION);
-        String response = connector.apiCall(format(METADATA_QUERY_TEMPLATE, apiVersion), ImmutableMap.of(METADATA_HEADER, "true"));
-        JsonNode jsonNode = JsonUtils.JSON_OBJECT_MAPPER.readTree(response);
-
-        JsonNode location = jsonNode.get("location");
-        JsonNode zone = jsonNode.get("zone");
-        JsonNode platformFaultDomain = jsonNode.get("platformFaultDomain");
-
-        String datacenter;
-        String rack;
-
-        if (location == null || location.isNull() || location.asText().isEmpty())
-            datacenter = DEFAULT_DC;
-        else
-            datacenter = location.asText();
-
-        if (zone == null || zone.isNull() || zone.asText().isEmpty())
-        {
-            if (platformFaultDomain == null || platformFaultDomain.isNull() || platformFaultDomain.asText().isEmpty())
-            {
-                rack = DEFAULT_RACK;
-            }
-            else
-            {
-                rack = platformFaultDomain.asText();
-            }
-        }
-        else
-        {
-            rack = zone.asText();
-        }
-
-        return Pair.create(datacenter + connector.getProperties().getDcSuffix(), "rack-" + rack);
+        super(new AzureCloudLocationProvider(connector));
     }
 }

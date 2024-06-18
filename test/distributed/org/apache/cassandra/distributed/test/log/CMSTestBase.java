@@ -25,11 +25,7 @@ import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.harry.sut.TokenPlacementModel;
-import org.apache.cassandra.locator.IEndpointSnitch;
-import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.MetaStrategy;
-import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.locator.ReplicaCollection;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Keyspaces;
@@ -50,23 +46,6 @@ public class CMSTestBase
     static
     {
         DatabaseDescriptor.daemonInitialization();
-        DatabaseDescriptor.setEndpointSnitch(new IEndpointSnitch()
-        {
-            public String getRack(InetAddressAndPort endpoint)
-            {
-                ClusterMetadata metadata = ClusterMetadata.current();
-                return metadata.directory.location(metadata.directory.peerId(endpoint)).rack;
-            }
-            public String getDatacenter(InetAddressAndPort endpoint)
-            {
-                ClusterMetadata metadata = ClusterMetadata.current();
-                return metadata.directory.location(metadata.directory.peerId(endpoint)).datacenter;
-            }
-            public <C extends ReplicaCollection<? extends C>> C sortedByProximity(InetAddressAndPort address, C addresses) {return null;}
-            public int compareEndpoints(InetAddressAndPort target, Replica r1, Replica r2) {return 0;}
-            public void gossiperStarting() {}
-            public boolean isWorthMergingForRangeQuery(ReplicaCollection<?> merged, ReplicaCollection<?> l1, ReplicaCollection<?> l2) {return false;}
-        });
         DatabaseDescriptor.setDefaultKeyspaceRF(1);
         Guardrails.instance.setMinimumReplicationFactorThreshold(1, 1);
 
@@ -107,7 +86,7 @@ public class CMSTestBase
 
             ClusterMetadataService.setInstance(service);
             log.readyUnchecked();
-            log.bootstrap(FBUtilities.getBroadcastAddressAndPort());
+            log.unsafeBootstrapForTesting(FBUtilities.getBroadcastAddressAndPort());
             service.commit(new Initialize(ClusterMetadata.current()) {
                 public Result execute(ClusterMetadata prev)
                 {

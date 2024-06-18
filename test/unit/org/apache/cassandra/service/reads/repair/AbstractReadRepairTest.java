@@ -60,7 +60,6 @@ import org.apache.cassandra.dht.ByteOrderedPartitioner.BytesToken;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.locator.AbstractNetworkTopologySnitch;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -226,23 +225,6 @@ public abstract  class AbstractReadRepairTest
     static void configureClass(ReadRepairStrategy repairStrategy) throws Throwable
     {
         ServerTestUtils.prepareServerNoRegister();
-
-        DatabaseDescriptor.setEndpointSnitch(new AbstractNetworkTopologySnitch()
-        {
-            public String getRack(InetAddressAndPort endpoint)
-            {
-                return "rack1";
-            }
-
-            public String getDatacenter(InetAddressAndPort endpoint)
-            {
-                byte[] address = endpoint.addressBytes;
-                if (address[1] == 2) {
-                    return "datacenter2";
-                }
-                return "datacenter1";
-            }
-        });
 
         target1 = InetAddressAndPort.getByName("127.1.0.255");
         target2 = InetAddressAndPort.getByName("127.1.0.254");

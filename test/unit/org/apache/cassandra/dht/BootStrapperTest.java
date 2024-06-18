@@ -129,7 +129,7 @@ public class BootStrapperTest
         RangeStreamer s = new RangeStreamer(metadata,
                                             StreamOperation.BOOTSTRAP,
                                             true,
-                                            DatabaseDescriptor.getEndpointSnitch(),
+                                            DatabaseDescriptor.getNodeProximity(),
                                             new StreamStateStore(),
                                             mockFailureDetector,
                                             false,

@@ -20,6 +20,7 @@ package org.apache.cassandra.locator;
 
 import org.junit.Test;
 
+import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.utils.Pair;
 
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
@@ -33,13 +34,23 @@ public class SnitchUtilsTest
         Pair<String, String> result = SnitchUtils.parseDcAndRack("my-dc-rack1", "");
         assertEquals("my-dc", result.left);
         assertEquals("rack1", result.right);
+        Location location = SnitchUtils.parseLocation("my-dc-rack1", "");
+        assertEquals("my-dc", location.datacenter);
+        assertEquals("rack1", location.rack);
 
         result = SnitchUtils.parseDcAndRack("my-rack", "");
         assertEquals("my", result.left);
         assertEquals("rack", result.right);
+        location = SnitchUtils.parseLocation("my-rack", "");
+        assertEquals("my", location.datacenter);
+        assertEquals("rack", location.rack);
 
         assertThatExceptionOfType(IllegalStateException.class)
         .isThrownBy(() -> SnitchUtils.parseDcAndRack("myresponse", ""))
+        .withMessage("myresponse does not contain at least one '-' to differentiate between datacenter and rack");
+
+        assertThatExceptionOfType(IllegalStateException.class)
+        .isThrownBy(() -> SnitchUtils.parseLocation("myresponse", ""))
         .withMessage("myresponse does not contain at least one '-' to differentiate between datacenter and rack");
     }
 }

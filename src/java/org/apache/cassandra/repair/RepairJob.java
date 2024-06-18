@@ -488,7 +488,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
 
     private String getDC(InetAddressAndPort address)
     {
-        return ctx.snitch().getDatacenter(address);
+        return ctx.locator().location(address).datacenter;
     }
 
     /**
@@ -573,7 +573,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
         Map<String, Queue<InetAddressAndPort>> requestsByDatacenter = new HashMap<>();
         for (InetAddressAndPort endpoint : endpoints)
         {
-            String dc = DatabaseDescriptor.getEndpointSnitch().getDatacenter(endpoint);
+            String dc = DatabaseDescriptor.getLocator().location(endpoint).datacenter;
             Queue<InetAddressAndPort> queue = requestsByDatacenter.computeIfAbsent(dc, k -> new LinkedList<>());
             queue.add(endpoint);
         }

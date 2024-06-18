@@ -26,8 +26,9 @@ import org.apache.cassandra.utils.FBUtilities;
  * This interface helps determine location of node in the datacenter relative to another node.
  * Give a node A and another node B it can tell if A and B are on the same rack or in the same
  * datacenter.
+ * @deprecated Replaced by Locator and NodeProximity; see CASSANDRA-19488
  */
-
+@Deprecated(since="CEP-21")
 public interface IEndpointSnitch
 {
     /**
@@ -94,4 +95,11 @@ public interface IEndpointSnitch
     {
         return true;
     }
+
+    default void configureAddresses() {}
+    default boolean preferLocalConnections()
+    {
+        return false;
+    }
 }
+

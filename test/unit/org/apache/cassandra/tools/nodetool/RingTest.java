@@ -25,7 +25,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
-import org.apache.cassandra.locator.SimpleSnitch;
+import org.apache.cassandra.locator.SimpleLocationProvider;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tools.ToolRunner;
 import org.apache.cassandra.utils.FBUtilities;
@@ -76,11 +76,11 @@ public class RingTest extends CQLTester
 
          */
         String[] lines = tool.getStdout().split("\\R");
-        assertThat(lines[1].trim()).endsWith(SimpleSnitch.DATA_CENTER_NAME);
+        assertThat(lines[1].trim()).endsWith(SimpleLocationProvider.LOCATION.datacenter);
         assertThat(lines[3]).containsPattern("Address *Rack *Status *State *Load *Owns *Token *");
         String hostRing = lines[lines.length-4].trim(); // this command has a couple extra newlines and an empty error message at the end. Not messing with it.
         assertThat(hostRing).startsWith(hostForm);
-        assertThat(hostRing).contains(SimpleSnitch.RACK_NAME);
+        assertThat(hostRing).contains(SimpleLocationProvider.LOCATION.rack);
         assertThat(hostRing).contains("Up");
         assertThat(hostRing).contains("Normal");
         assertThat(hostRing).containsPattern("\\d+\\.?\\d+ KiB");

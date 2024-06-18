@@ -30,11 +30,9 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ImmutableMultimap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Multimap;
-import com.google.common.collect.Multimaps;
 
 import org.junit.After;
 import org.junit.Assert;
@@ -44,14 +42,16 @@ import org.junit.Test;
 
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.locator.DynamicEndpointSnitch;
-import org.apache.cassandra.locator.GossipingPropertyFileSnitch;
-import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.NoOpProximity;
+import org.apache.cassandra.locator.NodeProximity;
 import org.apache.cassandra.locator.ReplicaPlans;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.StubClusterMetadataService;
+import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
@@ -275,7 +275,8 @@ public class BatchlogEndpointFilterTest
                 filterBatchlogEndpointsRandomForTests(false, endpoints);
     }
 
-    private Collection<InetAddressAndPort> filterBatchlogEndpointsDynamicForTests(Multimap<String, InetAddressAndPort> endpoints) {
+    private Collection<InetAddressAndPort> filterBatchlogEndpointsDynamicForTests(Multimap<String, InetAddressAndPort> endpoints)
+    {
         return ReplicaPlans.filterBatchlogEndpointsDynamic(false, LOCAL, endpoints, x -> true);
     }
 
@@ -972,57 +973,42 @@ public class BatchlogEndpointFilterTest
         assert !racks.isEmpty();
         assert racks.size() <= 10;
         assert racks.size() == nodesPerRack.length;
-
+        ClusterMetadataService.unsetInstance();
+        ClusterMetadataService.setInstance(ClusterMetadataTestHelper.instanceForTest());
         ImmutableMultimap.Builder<String, InetAddressAndPort> builder = ImmutableMultimap.builder();
         for (int r = 0; r < racks.size(); r++)
         {
             String rack = racks.get(r);
             for (int n = 0; n < nodesPerRack[r]; n++)
+            {
                 builder.put(rack, endpointAddress(r, n));
+                ClusterMetadataTestHelper.register(endpointAddress(r, n), new Location("dc1", rack));
+            }
         }
 
         ImmutableMultimap<String, InetAddressAndPort> endpoints = builder.build();
 
-        reconfigure(batchlogEndpointStrategy, dynamicSnitch, endpoints);
+        reconfigure(batchlogEndpointStrategy, dynamicSnitch);
 
         return endpoints;
     }
 
     private void reconfigure(Config.BatchlogEndpointStrategy batchlogEndpointStrategy,
-                             boolean dynamicSnitch,
-                             Multimap<String, InetAddressAndPort> endpoints)
+                             boolean dynamicSnitch)
     {
         DatabaseDescriptor.setBatchlogEndpointStrategy(batchlogEndpointStrategy);
 
-        if (DatabaseDescriptor.getEndpointSnitch() instanceof DynamicEndpointSnitch)
-            ((DynamicEndpointSnitch) DatabaseDescriptor.getEndpointSnitch()).close();
+        if (DatabaseDescriptor.getNodeProximity() instanceof DynamicEndpointSnitch)
+            ((DynamicEndpointSnitch) DatabaseDescriptor.getNodeProximity()).close();
 
-        Multimap<InetAddressAndPort, String> endpointRacks = Multimaps.invertFrom(endpoints, ArrayListMultimap.create());
-        GossipingPropertyFileSnitch gpfs = new GossipingPropertyFileSnitch()
-        {
-            @Override
-            public String getDatacenter(InetAddressAndPort endpoint)
-            {
-                return "dc1";
-            }
-
-            @Override
-            public String getRack(InetAddressAndPort endpoint)
-            {
-                return endpointRacks.get(endpoint).iterator().next();
-            }
-        };
-        IEndpointSnitch snitch;
+        NodeProximity nodeProximity = new NoOpProximity();
         if (dynamicSnitch)
-            snitch = dsnitch = new DynamicEndpointSnitch(gpfs, String.valueOf(gpfs.hashCode()));
+            nodeProximity = dsnitch = new DynamicEndpointSnitch(nodeProximity, String.valueOf(nodeProximity.hashCode()));
         else
-        {
             dsnitch = null;
-            snitch = gpfs;
-        }
 
         DatabaseDescriptor.setDynamicBadnessThreshold(0);
-        DatabaseDescriptor.setEndpointSnitch(snitch);
+        DatabaseDescriptor.setNodeProximity(nodeProximity);
 
         DatabaseDescriptor.setBatchlogEndpointStrategy(batchlogEndpointStrategy);
     }
@@ -1046,7 +1032,7 @@ public class BatchlogEndpointFilterTest
     private String configToString(Multimap<String, InetAddressAndPort> endpoints)
     {
         return "strategy:" + DatabaseDescriptor.getBatchlogEndpointStrategy()
-                + " snitch:" + DatabaseDescriptor.getEndpointSnitch().getClass().getSimpleName()
+                + " proximity:" + DatabaseDescriptor.getNodeProximity().getClass().getSimpleName()
                 + " nodes-per-rack: " + endpoints.asMap().entrySet().stream()
                 .map(e -> e.getKey() + '=' + e.getValue().size())
                 .collect(Collectors.joining());

@@ -41,6 +41,7 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.net.MessagingService.current_version;
 import static org.apache.cassandra.net.OutboundConnections.LARGE_MESSAGE_THRESHOLD;
@@ -78,6 +79,11 @@ public class OutboundConnectionsTest
     {
         DatabaseDescriptor.daemonInitialization();
         ClusterMetadataTestHelper.setInstanceForTest();
+        // register the local broadcast address and REMOTE_ADDRESS addresses so the snitch is able to retrieve them
+        // from cluster metadata. This is necessary for the default of OutboundConnectionSettings::tcpNoDelay.
+        // There's no need to register RECONNECT_ADDRESS and it would be incorrect to do so
+        ClusterMetadataTestHelper.register(FBUtilities.getBroadcastAddressAndPort());
+        ClusterMetadataTestHelper.register(REMOTE_ADDR);
         CommitLog.instance.start();
     }
 

@@ -117,6 +117,7 @@ public class MessagingServiceTest
         ClusterMetadataTestHelper.setInstanceForTest();
         CommitLog.instance.start();
         DatabaseDescriptor.setBroadcastAddress(InetAddress.getByName("127.0.0.1"));
+        ClusterMetadataTestHelper.register(FBUtilities.getBroadcastAddressAndPort(), "datacenter1", "rack1");
         originalAuthenticator = DatabaseDescriptor.getInternodeAuthenticator();
         originalServerEncryptionOptions = DatabaseDescriptor.getInternodeMessagingEncyptionOptions();
         originalListenAddress = InetAddressAndPort.getByAddressOverrideDefaults(DatabaseDescriptor.getListenAddress(), DatabaseDescriptor.getStoragePort());

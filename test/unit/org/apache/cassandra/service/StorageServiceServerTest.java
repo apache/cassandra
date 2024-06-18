@@ -45,8 +45,6 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.locator.AbstractNetworkTopologySnitch;
-import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.WithPartitioner;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -58,7 +56,6 @@ import org.apache.cassandra.schema.SchemaTestUtil;
 import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
-import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeVersion;
@@ -87,32 +84,7 @@ public class StorageServiceServerTest
         GOSSIP_DISABLE_THREAD_VALIDATION.setBoolean(true);
         ServerTestUtils.daemonInitialization();
         DatabaseDescriptor.setPartitionerUnsafe(OrderPreservingPartitioner.instance);
-        IEndpointSnitch snitch = new AbstractNetworkTopologySnitch()
-        {
-             @Override
-             public String getRack(InetAddressAndPort endpoint)
-             {
-                 return location(endpoint).rack;
-             }
-
-             @Override
-             public String getDatacenter(InetAddressAndPort endpoint)
-             {
-                 return location(endpoint).datacenter;
-             }
-
-             private Location location(InetAddressAndPort endpoint)
-             {
-                 ClusterMetadata metadata = ClusterMetadata.current();
-                 NodeId id = metadata.directory.peerId(endpoint);
-                 if (id == null)
-                     throw new IllegalArgumentException("Unknown endpoint " + endpoint);
-                 return metadata.directory.location(id);
-             }
-        };
         ServerTestUtils.prepareServerNoRegister();
-        DatabaseDescriptor.setEndpointSnitch(snitch);
-
         id1 = InetAddressAndPort.getByName("127.0.0.1");
         id2 = InetAddressAndPort.getByName("127.0.0.2");
         id3 = InetAddressAndPort.getByName("127.0.0.3");

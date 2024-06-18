@@ -652,14 +652,34 @@ public interface StorageServiceMBean extends NotificationEmitter
      *
      * The parameters {@code dynamicUpdateInterval}, {@code dynamicResetInterval} and {@code dynamicBadnessThreshold}
      * can be specified individually to update the parameters of the dynamic snitch during runtime.
-     *
      * @param epSnitchClassName        the canonical path name for a class implementing IEndpointSnitch
      * @param dynamic                  boolean that decides whether dynamicsnitch is used or not - only valid, if {@code epSnitchClassName} is specified
      * @param dynamicUpdateInterval    integer, in ms (defaults to the value configured in cassandra.yaml, which defaults to 100)
      * @param dynamicResetInterval     integer, in ms (defaults to the value configured in cassandra.yaml, which defaults to 600,000)
      * @param dynamicBadnessThreshold  double, (defaults to the value configured in cassandra.yaml, which defaults to 0.0)
+     * @deprecated See CASSANDRA-19488
      */
+    @Deprecated(since = "5.1")
     public void updateSnitch(String epSnitchClassName, Boolean dynamic, Integer dynamicUpdateInterval, Integer dynamicResetInterval, Double dynamicBadnessThreshold) throws ClassNotFoundException;
+
+    /**
+     * Change NodeProximity class and dynamic-ness (and dynamic attributes) at runtime.
+     * This method supercedes the deprecated updateSnitch method.
+     *
+     * This method is used to change the proximity implementation and/or dynamic proximity parameters.
+     * If {@code proximityClassName} is specified, it will configure a new instance and make it a
+     * 'dynamic snitch' if {@code dynamic} is specified and {@code true}.
+     *
+     * The parameters {@code dynamicUpdateInterval}, {@code dynamicResetInterval} and {@code dynamicBadnessThreshold}
+     * can be specified individually to update the parameters of the dynamic snitch during runtime.
+     *
+     * @param proximityClassName       the canonical path name for a class implementing NodeProximity
+     * @param dynamic                  boolean that decides whether dynamicsnitch is used or not - only valid, if {@code epSnitchClassName} is specified
+     * @param dynamicUpdateInterval    integer, in ms (defaults to the value configured in cassandra.yaml, which defaults to 100)
+     * @param dynamicResetInterval     integer, in ms (defaults to the value configured in cassandra.yaml, which defaults to 600,000)
+     * @param dynamicBadnessThreshold  double, (defaults to the value configured in cassandra.yaml, which defaults to 0.0)
+     */
+    public void updateNodeProximity(String proximityClassName, Boolean dynamic, Integer dynamicUpdateInterval, Integer dynamicResetInterval, Double dynamicBadnessThreshold) throws ClassNotFoundException;
 
     /*
       Update dynamic_snitch_update_interval in ms

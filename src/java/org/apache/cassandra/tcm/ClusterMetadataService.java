@@ -98,6 +98,9 @@ public class ClusterMetadataService
             throw new IllegalStateException(String.format("Cluster metadata is already initialized to %s.", instance),
                                             trace);
         instance = newInstance;
+        RegistrationStatus.instance.onInitialized();
+        if (newInstance.metadata().myNodeId() != null)
+            RegistrationStatus.instance.onRegistration();
         trace = new RuntimeException("Previously initialized trace");
     }
 
@@ -105,6 +108,7 @@ public class ClusterMetadataService
     public static ClusterMetadataService unsetInstance()
     {
         ClusterMetadataService tmp = instance();
+        RegistrationStatus.instance.resetState();
         instance = null;
         return tmp;
     }
@@ -245,7 +249,8 @@ public class ClusterMetadataService
     {
         if (instance != null)
             return;
-        ClusterMetadata emptyFromSystemTables = emptyWithSchemaFromSystemTables(Collections.singleton("DC1"))
+        String localDC = DatabaseDescriptor.getLocalDataCenter();
+        ClusterMetadata emptyFromSystemTables = emptyWithSchemaFromSystemTables(Collections.singleton(localDC))
                                                 .forceEpoch(Epoch.EMPTY);
 
         LocalLog.LogSpec logSpec = LocalLog.logSpec()
@@ -274,7 +279,7 @@ public class ClusterMetadataService
                                                                 new PeerLogFetcher(log));
 
         log.readyUnchecked();
-        log.bootstrap(FBUtilities.getBroadcastAddressAndPort());
+        log.bootstrap(FBUtilities.getBroadcastAddressAndPort(), localDC);
         ClusterMetadataService.setInstance(cms);
     }
 
@@ -291,6 +296,7 @@ public class ClusterMetadataService
     {
         if (instance != null)
             return;
+
 
         ClusterMetadataService.setInstance(StubClusterMetadataService.forClientTools(initialSchema));
     }

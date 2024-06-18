@@ -1445,90 +1445,94 @@ slow_query_log_timeout: 500ms
 # most users should never need to adjust this.
 # phi_convict_threshold: 8
 
-# endpoint_snitch -- Set this to a class that implements
-# IEndpointSnitch.  The snitch has two functions:
+# The settings in the following section are intended to supercede the use of endpoint_snitch:
+# initial_location_provider
+# node_proximity
+# addresses_config (optional)
+# prefer_local_connections (optional, defaults to false)
+
+# The initial location provider supplies the datacenter and rack for a new node joining the
+# cluster for the first time. This DC/rack is used to register the node with the cluster and
+# is then persisted in and propagated by cluster metadata. The initial location provider is
+# not used after this initial phase of the node lifecycle is complete. Cassandra provides the
+# following implementations:
 #
-# - it teaches Cassandra enough about your network topology to route
-#   requests efficiently
-# - it allows Cassandra to spread replicas around your cluster to avoid
-#   correlated failures. It does this by grouping machines into
-#   "datacenters" and "racks."  Cassandra will do its best not to have
-#   more than one replica on the same "rack" (which may not actually
-#   be a physical location)
+# SimpleLocationProvider:
+#    Hardcoded to supply a static location of `datacenter1/rack1`. Replicates the behaviour of
+#    SimpleSnitch.
 #
-# CASSANDRA WILL NOT ALLOW YOU TO SWITCH TO AN INCOMPATIBLE SNITCH
-# ONCE DATA IS INSERTED INTO THE CLUSTER.  This would cause data loss.
-# This means that if you start with the default SimpleSnitch, which
-# locates every node on "rack1" in "datacenter1", your only options
-# if you need to add another datacenter are GossipingPropertyFileSnitch
-# (and the older PFS).  From there, if you want to migrate to an
-# incompatible snitch like Ec2Snitch you can do it by adding new nodes
-# under Ec2Snitch (which will locate them in a new "datacenter") and
-# decommissioning the old ones.
+# RackDCFileLocationProvider:
+#    The rack and datacenter for the local node are defined in cassandra-rackdc.properties,
+#    and is backwards compatible with the configuration of GossipingPropertyFileSnitch.
 #
-# Out of the box, Cassandra provides:
+# TopologyFileLocationProvider:
+#    The rack and datacenter for the local node are defined in cassandra-topology.properties,
+#    and is backwards compatible with the configuration of PropertyFileSnitch. Only the location
+#    info for the local node is relevant now, rack/dc specifications for other endpoints are
+#    ignored.
 #
-# SimpleSnitch:
-#    Treats Strategy order as proximity. This can improve cache
-#    locality when disabling read repair.  Only appropriate for
-#    single-datacenter deployments.
+# AlibabaCloudLocationProvider:
+#    Obtains datacenter and rack of the node from the metadata service of Alibaba cloud. This
+#    maps the ECS region to datacenter and the ECS availability zone to the rack. Intended to
+#    replace use of AlibabaCloudSnitch.
 #
-# GossipingPropertyFileSnitch
-#    This should be your go-to snitch for production use.  The rack
-#    and datacenter for the local node are defined in
-#    cassandra-rackdc.properties and propagated to other nodes via
-#    gossip.  If cassandra-topology.properties exists, it is used as a
-#    fallback, allowing migration from the PropertyFileSnitch.
+# AzureCloudLocationProvider:
+#    Maps datacenter to `location` and rack to `zone` fields of the `compute` object obtained
+#    from the Azure metadata service. If the availablity zone is not enabled, it will use the
+#    failure domain and get its respective value. Intended to replace use of AzureSnitch.
 #
-# PropertyFileSnitch:
-#    Proximity is determined by rack and data center, which are
-#    explicitly configured in cassandra-topology.properties.
+# CloudstackLocationProvider:
+#    Assumes a Cloudstack Zone follows the typical convention country-location-az, using a
+#    country/location tuple as a datacenter and the availability zone as a rack. Intended to
+#    replace use of CloudstackSnitch.
+#    WARNING: This legacy snitch has been deprecated and is scheduled to be removed in a future
+#    version of Cassandra.
 #
-# AlibabaCloudSnitch:
-#    Snitch for getting dc and rack of a node from metadata service of Alibaba cloud.
-#    This snitch that assumes an ECS region is a DC and an ECS availability_zone is a rack.
+# Ec2LocationProvider:
+#    Loads Region and Availability Zone information from the EC2 API. The Region is treated as the
+#    datacenter and the AvailablilityZone as the rack. Intended to replace use of Ec2Snitch and
+#    Ec2MultiRegionSnitch.
 #
-# AzureSnitch:
-#    Gets datacenter from 'location' and rack from 'zone' fields of 'compute' object
-#    from instance metadata service. If the availability zone is not enabled, it will use the fault
-#    domain and get its respective value.
+# GoogleCloudLocationProvider:
+#    Fetches source data from the metadata service of Google Cloud. This provider maps the GCE
+#    region to datacenter and the availibility zone to the rack. Intended to replace use of
+#    GoogleCloudSnitch.
+initial_location_provider: SimpleLocationProvider
+
+# Node proximity controls sorting and ranking of replica lists in order to route requests efficiently.
+# Dynamic snitch (not configured here) provides an additional level of sorting on top of whatever is
+# specified here of sorting based on recorded latencies between peers.
 #
-# CloudstackSnitch:
-#    A snitch that assumes a Cloudstack Zone follows the typical convention 
-#    country-location-az and uses a country/location tuple as a datacenter
-#    and the availability zone as a rack.
-#    WARNING: This snitch is deprecated and it is scheduled to be removed 
-#    in the next major version of Cassandra.
+# Out of the box Cassandra provides:
 #
-# Ec2Snitch:
-#    Appropriate for EC2 deployments in a single Region. Loads Region
-#    and Availability Zone information from the EC2 API. The Region is
-#    treated as the datacenter, and the Availability Zone as the rack.
-#    Only private IPs are used, so this will not work across multiple
-#    Regions.
+# NoOpProximity:
+#    Performs no reordering of replica lists and assigns every endpoint equal proximity, regardless of
+#    actual topology. This replicates the behaviour of SimpleSnitch.
 #
-# Ec2MultiRegionSnitch:
-#    Uses public IPs as broadcast_address to allow cross-region
-#    connectivity.  (Thus, you should set seed addresses to the public
-#    IP as well.) You will need to open the storage_port or
-#    ssl_storage_port on the public IP firewall.  (For intra-Region
-#    traffic, Cassandra will switch to the private IP after
-#    establishing a connection.)
-#
-# GoogleCloudSnitch:
-#    Snitch for getting dc and rack of a node from metadata service of Google cloud.
-#    This snitch that assumes an GCE region is a DC and an GCE availability_zone is a rack.
-#
-# RackInferringSnitch:
-#    Proximity is determined by rack and data center, which are
-#    assumed to correspond to the 3rd and 2nd octet of each node's IP
-#    address, respectively.  Unless this happens to match your
-#    deployment conventions, this is best used as an example of
-#    writing a custom Snitch class and is provided in that spirit.
-#
-# You can use a custom Snitch by setting this to the full class name
-# of the snitch, which will be assumed to be on your classpath.
-endpoint_snitch: SimpleSnitch
+# NetworkTopologyProximity:
+#    Ranks proximity of nodes based on datacenter and rack. Nodes in the same rack are considered
+#    closest, followed by those in the same datacenter. Nodes in different datacenters are
+#    considered furthest apart. Replicates the behaviour of topology aware snitches such as
+#    GossipingPropertyFileSnitch, PropertyFileSnitch and the multiple cloud platform snitches.
+node_proximity: NetworkTopologyProximity
+
+# Address configuration (public and private endpoint addresses) is almost always derived directly
+# from this configuration file using broadcast_address. In certain deployments, both the public and
+# private addresses may be configured from an external source. For instance, in EC2 a node will have
+# discover both of its own addresses at startup by querying the appropriate cloud metadata service.
+# In multi-region EC2 deployments, this should be set to Ec2MultiRegionAddressConfig, to replicate the
+# behaviour of Ec2MultiRegionSnitch.
+#addresses_config: Ec2MultiRegionAddressConfig
+
+# Controls whether or not to ensure that connections to peers in the same datacenter are established
+# using private addresses. Typically, this is for situations like EC2 where a node will have a public
+# address and a private address. We may initially connect on the public, then discover the private, and
+# reconnect on the private.
+# In Ec2MultiRegionSnitch (now deprecated), this behaviour was hard coded so if migrating from that
+# snitch to modern config, set this to true.
+# In GossipingPropertyFileSnitch (now deprecated), this behaviour was configured by the `prefer_local`
+# property so if migrating from that snitch to modern config, set this accordingly.
+#prefer_local_connections: false
 
 # controls how often to perform the more expensive part of host score
 # calculation

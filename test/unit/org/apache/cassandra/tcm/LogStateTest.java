@@ -70,7 +70,7 @@ public class LogStateTest
         ClusterMetadataService.unsetInstance();
         ClusterMetadataService.setInstance(cms);
         log.readyUnchecked();
-        log.bootstrap(FBUtilities.getBroadcastAddressAndPort());
+        log.unsafeBootstrapForTesting(FBUtilities.getBroadcastAddressAndPort());
     }
 
     @Test

@@ -157,7 +157,7 @@ public class TokenRingUtils
     public static Collection<Range<Token>> getPrimaryRangeForEndpointWithinDC(String keyspace, InetAddressAndPort referenceEndpoint)
     {
         ClusterMetadata metadata = ClusterMetadata.current();
-        String localDC = DatabaseDescriptor.getEndpointSnitch().getDatacenter(referenceEndpoint);
+        String localDC = DatabaseDescriptor.getLocator().location(referenceEndpoint).datacenter;
         Collection<InetAddressAndPort> localDcNodes = metadata.directory.datacenterEndpoints(localDC);
         AbstractReplicationStrategy strategy = Keyspace.open(keyspace).getReplicationStrategy();
 

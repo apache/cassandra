@@ -451,12 +451,12 @@ public class DescribeStatementTest extends CQLTester
             assertRowsNet(executeDescribeNet(describeKeyword + " CLUSTER"),
                           row("Test Cluster",
                               trimIfPresent(DatabaseDescriptor.getPartitionerName(), "org.apache.cassandra.dht."),
-                              DatabaseDescriptor.getEndpointSnitch().getClass().getName()));
+                              DatabaseDescriptor.getNodeProximity().getClass().getName()));
 
             assertRowsNet(executeDescribeNet("system_virtual_schema", describeKeyword + " CLUSTER"),
                           row("Test Cluster",
                               trimIfPresent(DatabaseDescriptor.getPartitionerName(), "org.apache.cassandra.dht."),
-                              DatabaseDescriptor.getEndpointSnitch().getClass().getName()));
+                              DatabaseDescriptor.getNodeProximity().getClass().getName()));
         }
         ClusterMetadata metadata = ClusterMetadata.current();
         Token token = metadata.tokenMap.tokens().get(0);
@@ -465,7 +465,7 @@ public class DescribeStatementTest extends CQLTester
         assertRowsNet(executeDescribeNet(KEYSPACE_PER_TEST, "DESCRIBE CLUSTER"),
                       row("Test Cluster",
                           trimIfPresent(DatabaseDescriptor.getPartitionerName(), "org.apache.cassandra.dht."),
-                          DatabaseDescriptor.getEndpointSnitch().getClass().getName(),
+                          DatabaseDescriptor.getNodeProximity().getClass().getName(),
                           ImmutableMap.of(token.toString(), ImmutableList.of(addressAndPort.toString()))));
     }
 

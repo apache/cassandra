@@ -41,6 +41,8 @@ import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.locator.NodeProximity;
+import org.apache.cassandra.locator.SnitchAdapter;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
@@ -674,8 +676,11 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
                 List<Object> list = new ArrayList<Object>();
                 list.add(DatabaseDescriptor.getClusterName());
                 list.add(trimIfPresent(DatabaseDescriptor.getPartitionerName(), "org.apache.cassandra.dht."));
-                list.add(trimIfPresent(DatabaseDescriptor.getEndpointSnitch().getClass().getName(),
-                                            "org.apache.cassandra.locator."));
+                NodeProximity proximity = DatabaseDescriptor.getNodeProximity();
+                String nodeProximityClassName = proximity instanceof SnitchAdapter ? ((SnitchAdapter) proximity).snitch.getClass().getName()
+                                                                             : proximity.getClass().getName();
+                list.add(trimIfPresent(nodeProximityClassName,
+                                       "org.apache.cassandra.locator."));
 
                 String useKs = state.getRawKeyspace();
                 if (mustReturnsRangeOwnerships(useKs))

@@ -32,6 +32,8 @@ import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.shared.AssertUtils;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.locator.NoOpProximity;
+import org.apache.cassandra.locator.SimpleLocationProvider;
 import org.apache.cassandra.tcm.membership.NodeId;
 
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
@@ -44,8 +46,9 @@ public class BounceResetHostIdTest extends TestBaseImpl
     {
         try (Cluster cluster = builder().withNodes(3)
                                         .withConfig(c -> c.with(Feature.GOSSIP, Feature.NATIVE_PROTOCOL)
-                                                               // disable DistributedTestSnitch as it tries to query before we setup
-                                                               .set("endpoint_snitch", "org.apache.cassandra.locator.SimpleSnitch"))
+                                                          // disable DistributedTestInitialLocationProvider as it tries to query before we setup
+                                                          .set("node_proximity", NoOpProximity.class.getName())
+                                                          .set("initial_location_provider", SimpleLocationProvider.class.getName()))
                                         .createWithoutStarting())
         {
             // This test relies on node IDs being in the same order as IP addresses
@@ -97,8 +100,9 @@ public class BounceResetHostIdTest extends TestBaseImpl
     {
         try (Cluster cluster = builder().withNodes(3)
                                         .withConfig(c -> c.with(Feature.GOSSIP, Feature.NATIVE_PROTOCOL)
-                                                          // disable DistributedTestSnitch as it tries to query before we setup
-                                                          .set("endpoint_snitch", "org.apache.cassandra.locator.SimpleSnitch"))
+                                                          // disable DistributedTestInitialLocationProvider as it tries to query before we setup
+                                                          .set("node_proximity", NoOpProximity.class.getName())
+                                                          .set("initial_location_provider", SimpleLocationProvider.class.getName()))
                                         .createWithoutStarting())
         {
             // This test relies on node IDs being in the same order as IP addresses

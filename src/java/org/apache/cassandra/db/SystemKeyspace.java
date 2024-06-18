@@ -82,7 +82,6 @@ import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.RebufferingInputStream;
-import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.MetaStrategy;
 import org.apache.cassandra.metrics.RestorableMeter;
@@ -115,6 +114,7 @@ import org.apache.cassandra.service.snapshot.SnapshotType;
 import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -653,15 +653,23 @@ public final class SystemKeyspace
                      "listen_address," +
                      "listen_port" +
                      ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-        IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
+
+        // If this node has not yet been registered in cluster metadata, record the initialization location provided
+        // by the configured Locator, this will also be used when registering an new node in cluster metadata during its
+        // intial startup.
+        // If the node is present in cluster metadata (i.e. has been registered already and we have replayed the
+        // metadata log), then get the location from there (via the Locator).
+        // We do this in case either the Locator config or location in metadata has been modified in any way, as cluster
+        // metadata is the ultimate source of truth.
+        Location location = DatabaseDescriptor.getLocator().local();
         executeOnceInternal(format(req, LOCAL),
                             LOCAL,
                             DatabaseDescriptor.getClusterName(),
                             FBUtilities.getReleaseVersionString(),
                             QueryProcessor.CQL_VERSION.toString(),
                             String.valueOf(ProtocolVersion.CURRENT.asInt()),
-                            snitch.getLocalDatacenter(),
-                            snitch.getLocalRack(),
+                            location.datacenter,
+                            location.rack,
                             DatabaseDescriptor.getPartitioner().getClass().getName(),
                             FBUtilities.getJustBroadcastNativeAddress(),
                             DatabaseDescriptor.getNativeTransportPort(),
@@ -948,6 +956,12 @@ public final class SystemKeyspace
     {
         String req = "INSERT INTO system.%s (key, schema_version) VALUES ('%s', ?)";
         executeInternal(format(req, LOCAL, LOCAL), version);
+    }
+
+    public static synchronized void updateRack(String rack)
+    {
+        String req = "INSERT INTO system.%s (key, rack) VALUES ('%s', ?)";
+        executeInternal(format(req, LOCAL, LOCAL), rack);
     }
 
     public static Set<String> tokensAsSet(Collection<Token> tokens)

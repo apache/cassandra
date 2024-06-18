@@ -224,6 +224,13 @@ public class FBUtilities
         return localInetAddressAndPort;
     }
 
+    public static void setLocalAddress(InetAddress localAddress)
+    {
+        localInetAddress = localAddress;
+        // null out localInetAddressAndPort, it will be re-initalized next time it's accessed
+        localInetAddressAndPort = null;
+    }
+
     /**
      * Retrieve just the broadcast address but not the port. This is almost always the wrong thing to be using because
      * it's ambiguous since you need the address and port to identify a node. You want getBroadcastAddressAndPort

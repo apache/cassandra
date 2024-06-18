@@ -279,14 +279,24 @@ public abstract class LocalLog implements Closeable
         entryFilters = Lists.newCopyOnWriteArrayList();
     }
 
-    public void bootstrap(InetAddressAndPort addr)
+    @VisibleForTesting
+    public void unsafeBootstrapForTesting(InetAddressAndPort addr)
+    {
+        bootstrap(addr, "");
+    }
+
+    /**
+     *
+     * @param addr
+     * @param datacenter
+     */
+    public void bootstrap(InetAddressAndPort addr, String datacenter)
     {
         ClusterMetadata metadata = metadata();
         assert metadata.epoch.isBefore(FIRST) : String.format("Metadata epoch %s should be before first", metadata.epoch);
-        Transformation transform = PreInitialize.withFirstCMS(addr);
+        Transformation transform = PreInitialize.withFirstCMS(addr, datacenter);
         append(new Entry(Entry.Id.NONE, FIRST, transform));
-        waitForHighestConsecutive();
-        metadata = metadata();
+        metadata = waitForHighestConsecutive();
         assert metadata.epoch.is(Epoch.FIRST) : String.format("Epoch: %s. CMS: %s", metadata.epoch, metadata.fullCMSMembers());
     }
 

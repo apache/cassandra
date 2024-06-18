@@ -32,7 +32,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -90,6 +89,7 @@ import org.apache.cassandra.db.commitlog.CommitLogSegmentManagerStandard;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
+import org.apache.cassandra.gms.IEndpointStateChangeSubscriber;
 import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.io.FSWriteError;
@@ -105,8 +105,14 @@ import org.apache.cassandra.locator.DynamicEndpointSnitch;
 import org.apache.cassandra.locator.EndpointSnitchInfo;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.locator.Locator;
+import org.apache.cassandra.locator.LocationInfo;
+import org.apache.cassandra.locator.InitialLocationProvider;
+import org.apache.cassandra.locator.NodeAddressConfig;
+import org.apache.cassandra.locator.ReconnectableSnitchHelper;
 import org.apache.cassandra.locator.SeedProvider;
+import org.apache.cassandra.locator.NodeProximity;
+import org.apache.cassandra.locator.SnitchAdapter;
 import org.apache.cassandra.security.AbstractCryptoProvider;
 import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.security.JREProvider;
@@ -114,6 +120,7 @@ import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.CacheService.CacheType;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.paxos.Paxos;
+import org.apache.cassandra.tcm.RegistrationStatus;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.Pair;
@@ -185,7 +192,10 @@ public class DatabaseDescriptor
     static final DurationSpec.LongMillisecondsBound LOWEST_ACCEPTED_TIMEOUT = new DurationSpec.LongMillisecondsBound(10L);
 
     private static Supplier<IFailureDetector> newFailureDetector;
-    private static IEndpointSnitch snitch;
+    private static NodeProximity nodeProximity;
+    private static Locator initializationLocator;
+    private static InitialLocationProvider initialLocationProvider;
+    private static IEndpointStateChangeSubscriber localAddressReconnector;
     private static InetAddress listenAddress; // leave null so we can fall through to getLocalHost
     private static InetAddress broadcastAddress;
     private static InetAddress rpcAddress;
@@ -218,8 +228,6 @@ public class DatabaseDescriptor
     private static long counterCacheSizeInMiB;
     private static long indexSummaryCapacityInMiB;
 
-    private static String localDC;
-    private static Comparator<Replica> localComparator;
     private static EncryptionContext encryptionContext;
     private static boolean hasLoggedConfig;
 
@@ -292,6 +300,7 @@ public class DatabaseDescriptor
         sstableFormats = null;
         clearMBean("org.apache.cassandra.db:type=DynamicEndpointSnitch");
         clearMBean("org.apache.cassandra.db:type=EndpointSnitchInfo");
+        clearMBean("org.apache.cassandra.db:type=LocationInfo");
     }
 
     private static void clearMBean(String name)
@@ -351,6 +360,8 @@ public class DatabaseDescriptor
         applyPartitioner();
 
         applySnitch();
+
+        applyFailureDetector();
 
         applyEncryptionContext();
     }
@@ -517,6 +528,8 @@ public class DatabaseDescriptor
         applyAddressConfig();
 
         applySnitch();
+
+        applyFailureDetector();
 
         applyTokensConfig();
 
@@ -1484,24 +1497,50 @@ public class DatabaseDescriptor
     // definitely not safe for tools + clients - implicitly instantiates StorageService
     public static void applySnitch()
     {
-        /* end point snitch */
-        if (conf.endpoint_snitch == null)
-        {
-            throw new ConfigurationException("Missing endpoint_snitch directive", false);
-        }
-        snitch = createEndpointSnitch(conf.dynamic_snitch, conf.endpoint_snitch);
-        EndpointSnitchInfo.create();
+        boolean hasLegacyConfig = conf.endpoint_snitch != null;
+        boolean hasModernConfig = conf.initial_location_provider != null && conf.node_proximity != null;
 
-        localDC = snitch.getLocalDatacenter();
-        localComparator = (replica1, replica2) -> {
-            boolean local1 = localDC.equals(snitch.getDatacenter(replica1));
-            boolean local2 = localDC.equals(snitch.getDatacenter(replica2));
-            if (local1 && !local2)
-                return -1;
-            if (local2 && !local1)
-                return 1;
-            return 0;
-        };
+        if (hasLegacyConfig == hasModernConfig)
+            throw new ConfigurationException("Configuration must specify either node_proximity and " +
+                                             "initial_location_provider or endpoint_snitch but not both. ");
+
+        NodeProximity proximity;
+        NodeAddressConfig addressConfig;
+        if (hasLegacyConfig)
+        {
+            logger.info("Use of endpoint_snitch in configuration is deprecated and should be replaced by " +
+                        "initial_location_provider and node_proximity");
+            SnitchAdapter adapter = new SnitchAdapter(createEndpointSnitch(conf.endpoint_snitch));
+            proximity = adapter;
+            initialLocationProvider = adapter;
+            addressConfig = adapter;
+        }
+        else
+        {
+            proximity = createProximityImpl(conf.node_proximity);
+            initialLocationProvider = createInitialLocationProvider(conf.initial_location_provider);
+            addressConfig = conf.addresses_config != null
+                            ? createAddressConfig(conf.addresses_config)
+                            : NodeAddressConfig.DEFAULT;
+        }
+        // this is done here and not in applyAddressConfig as historically, Ec2MultiRegionSnitch is
+        // responsible for querying the cloud metadata service to get the public IP used for
+        // broadcast_address and we only want to instantiate the snitch here.
+        addressConfig.configureAddresses();
+        initializationLocator = new Locator(RegistrationStatus.instance,
+                                            FBUtilities.getBroadcastAddressAndPort(),
+                                            initialLocationProvider);
+        nodeProximity = conf.dynamic_snitch ? new DynamicEndpointSnitch(proximity) : proximity;
+        localAddressReconnector = addressConfig.preferLocalConnections()
+                                  ? new ReconnectableSnitchHelper(initializationLocator, true)
+                                  : new IEndpointStateChangeSubscriber() { /* NO-OP */ };
+
+        EndpointSnitchInfo.create();
+        LocationInfo.create();
+    }
+
+    public static void applyFailureDetector()
+    {
         newFailureDetector = () -> createFailureDetector(conf.failure_detector);
     }
 
@@ -1717,12 +1756,36 @@ public class DatabaseDescriptor
         });
     }
 
-    public static IEndpointSnitch createEndpointSnitch(boolean dynamic, String snitchClassName) throws ConfigurationException
+    public static IEndpointSnitch createEndpointSnitch(String snitchClassName) throws ConfigurationException
     {
         if (!snitchClassName.contains("."))
             snitchClassName = "org.apache.cassandra.locator." + snitchClassName;
         IEndpointSnitch snitch = FBUtilities.construct(snitchClassName, "snitch");
-        return dynamic ? new DynamicEndpointSnitch(snitch) : snitch;
+        return snitch;
+    }
+
+    public static NodeProximity createProximityImpl(String className) throws ConfigurationException
+    {
+        if (!className.contains("."))
+            className = "org.apache.cassandra.locator." + className;
+        NodeProximity sorter = FBUtilities.construct(className, "node proximity measurement");
+        return sorter;
+    }
+
+    public static InitialLocationProvider createInitialLocationProvider(String className) throws ConfigurationException
+    {
+        if (!className.contains("."))
+            className = "org.apache.cassandra.locator." + className;
+        InitialLocationProvider provider = FBUtilities.construct(className, "initial location provider");
+        return provider;
+    }
+
+    public static NodeAddressConfig createAddressConfig(String className) throws ConfigurationException
+    {
+        if (!className.contains("."))
+            className = "org.apache.cassandra.locator." + className;
+        NodeAddressConfig config = FBUtilities.construct(className, "node address config");
+        return config;
     }
 
     private static IFailureDetector createFailureDetector(String detectorClassName) throws ConfigurationException
@@ -2083,14 +2146,49 @@ public class DatabaseDescriptor
         return old;
     }
 
-    public static IEndpointSnitch getEndpointSnitch()
+    public static IEndpointStateChangeSubscriber getLocalAddressReconnectionHelper()
     {
-        return snitch;
+        return localAddressReconnector;
     }
 
-    public static void setEndpointSnitch(IEndpointSnitch eps)
+    public static boolean preferLocalConnections()
     {
-        snitch = eps;
+        return conf.prefer_local_connections;
+    }
+
+    /**
+     * Return a Locator that can be used from the moment a node begins its initial startup.
+     * It is not initialized with a ClusterMetadata instance (as there may not be one yet), so
+     * instead it always performs lookups using the current metadata. This means it is possible
+     * for the value of a lookup for the same endpoint to change between calls e.g. if a peer
+     * were to register or change broadcast address between the two calls being made.
+     * @return Locator
+     */
+    public static Locator getLocator()
+    {
+        if (initializationLocator == null && isClientInitialized())
+            return Locator.forClients();
+        return initializationLocator;
+    }
+
+    /**
+     * Used to provide the location (dc/rack) of the local node during its initial startup
+     * for the purpose of registering it with ClusterMetadata.
+     * See: org.apache.cassandra.locator.Locator
+     */
+    public static InitialLocationProvider getInitialLocationProvider()
+    {
+        return initialLocationProvider;
+    }
+
+    public static NodeProximity getNodeProximity()
+    {
+        return nodeProximity;
+    }
+
+    public static void setNodeProximity(NodeProximity proximity)
+    {
+        nodeProximity = proximity;
     }
 
     public static IFailureDetector newFailureDetector()
@@ -3708,7 +3806,7 @@ public class DatabaseDescriptor
     public static boolean isDynamicEndpointSnitch()
     {
         // not using config.dynamic_snitch because snitch can be changed via JMX
-        return snitch instanceof DynamicEndpointSnitch;
+        return nodeProximity instanceof DynamicEndpointSnitch;
     }
 
     public static Config.BatchlogEndpointStrategy getBatchlogEndpointStrategy()
@@ -4038,18 +4136,7 @@ public class DatabaseDescriptor
 
     public static String getLocalDataCenter()
     {
-        return localDC;
-    }
-
-    @VisibleForTesting
-    public static void setLocalDataCenter(String value)
-    {
-        localDC = value;
-    }
-
-    public static Comparator<Replica> getLocalComparator()
-    {
-        return localComparator;
+        return initializationLocator == null ? null : initializationLocator.local().datacenter;
     }
 
     public static Config.InternodeCompression internodeCompression()

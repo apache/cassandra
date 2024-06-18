@@ -144,8 +144,6 @@ public class StartupChecks
                                                                       checkDataDirs,
                                                                       checkSSTablesFormat,
                                                                       checkSystemKeyspaceState,
-                                                                      checkDatacenter,
-                                                                      checkRack,
                                                                       checkLegacyAuthTables,
                                                                       new DataResurrectionCheck());
 
@@ -734,46 +732,6 @@ public class StartupChecks
             catch (ConfigurationException e)
             {
                 throw new StartupException(StartupException.ERR_WRONG_CONFIG, "Fatal exception during initialization", e);
-            }
-        }
-    };
-
-    public static final StartupCheck checkDatacenter = new StartupCheck()
-    {
-        @Override
-        public void execute(StartupChecksOptions options) throws StartupException
-        {
-            String storedDc = SystemKeyspace.getDatacenter();
-            if (storedDc != null)
-            {
-                String currentDc = DatabaseDescriptor.getEndpointSnitch().getLocalDatacenter();
-                if (!storedDc.equals(currentDc))
-                {
-                    String formatMessage = "Cannot start node if snitch's data center (%s) differs from previous data center (%s). " +
-                                           "Please fix the snitch configuration, decommission and rebootstrap this node";
-
-                    throw new StartupException(StartupException.ERR_WRONG_CONFIG, String.format(formatMessage, currentDc, storedDc));
-                }
-            }
-        }
-    };
-
-    public static final StartupCheck checkRack = new StartupCheck()
-    {
-        @Override
-        public void execute(StartupChecksOptions options) throws StartupException
-        {
-            String storedRack = SystemKeyspace.getRack();
-            if (storedRack != null)
-            {
-                String currentRack = DatabaseDescriptor.getEndpointSnitch().getLocalRack();
-                if (!storedRack.equals(currentRack))
-                {
-                    String formatMessage = "Cannot start node if snitch's rack (%s) differs from previous rack (%s). " +
-                                           "Please fix the snitch configuration, decommission and rebootstrap this node";
-
-                    throw new StartupException(StartupException.ERR_WRONG_CONFIG, String.format(formatMessage, currentRack, storedRack));
-                }
             }
         }
     };

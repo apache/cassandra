@@ -92,6 +92,7 @@ import org.apache.cassandra.hints.HintsService;
 import org.apache.cassandra.hints.HintsServiceMBean;
 import org.apache.cassandra.locator.DynamicEndpointSnitchMBean;
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
+import org.apache.cassandra.locator.LocationInfoMBean;
 import org.apache.cassandra.metrics.CIDRAuthorizerMetrics;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.metrics.StorageMetrics;
@@ -1212,6 +1213,18 @@ public class NodeProbe implements AutoCloseable
         try
         {
             return JMX.newMBeanProxy(mbeanServerConn, new ObjectName("org.apache.cassandra.db:type=DynamicEndpointSnitch"), DynamicEndpointSnitchMBean.class);
+        }
+        catch (MalformedObjectNameException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public LocationInfoMBean getLocationInfoProxy()
+    {
+        try
+        {
+            return JMX.newMBeanProxy(mbeanServerConn, new ObjectName("org.apache.cassandra.db:type=LocationInfo"), LocationInfoMBean.class);
         }
         catch (MalformedObjectNameException e)
         {

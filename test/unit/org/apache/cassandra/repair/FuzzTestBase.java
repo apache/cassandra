@@ -95,9 +95,9 @@ import org.apache.cassandra.gms.IGossiper;
 import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.LocalStrategy;
+import org.apache.cassandra.locator.Locator;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.net.ConnectionType;
 import org.apache.cassandra.net.IVerbHandler;
@@ -137,6 +137,7 @@ import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.streaming.StreamingChannel;
 import org.apache.cassandra.streaming.StreamingDataInputPlus;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tools.nodetool.Repair;
 import org.apache.cassandra.utils.AbstractTypeGenerators;
 import org.apache.cassandra.utils.CassandraGenerators;
@@ -195,7 +196,6 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
             DatabaseDescriptor.setCommitLogWriteDiskAccessMode(Config.DiskAccessMode.mmap);
 
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance); // TOOD (coverage): random select
-        DatabaseDescriptor.setLocalDataCenter("test");
         StreamingChannel.Factory.Global.unsafeSet(new StreamingChannel.Factory()
         {
             private final AtomicInteger counter = new AtomicInteger();
@@ -674,7 +674,7 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
 
         final Map<InetAddressAndPort, Node> nodes;
         private final IFailureDetector failureDetector = Mockito.mock(IFailureDetector.class);
-        private final IEndpointSnitch snitch = Mockito.mock(IEndpointSnitch.class);
+        private final Locator locator = Mockito.mock(Locator.class);
         private final SimulatedExecutorFactory globalExecutor;
         final ScheduledExecutorPlus unorderedScheduled;
         final ExecutorPlus orderedExecutor;
@@ -732,8 +732,8 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
 
                 String dc = rs.pick(dcs);
                 String rack = "rack";
-                Mockito.when(snitch.getDatacenter(Mockito.eq(addressAndPort))).thenReturn(dc);
-                Mockito.when(snitch.getRack(Mockito.eq(addressAndPort))).thenReturn(rack);
+                Location location = new Location(dc, rack);
+                Mockito.when(locator.location(Mockito.eq(addressAndPort))).thenReturn(location);
 
                 VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(DatabaseDescriptor.getPartitioner());
                 EndpointState state = new EndpointState(new HeartBeatState(42, 42));
@@ -1221,9 +1221,9 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
             }
 
             @Override
-            public IEndpointSnitch snitch()
+            public Locator locator()
             {
-                return snitch;
+                return locator;
             }
 
             @Override

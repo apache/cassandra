@@ -77,7 +77,6 @@ import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Commit;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.Transformation;
-import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.ownership.ReplicaGroups;
 import org.apache.cassandra.utils.Isolated;
@@ -89,7 +88,7 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.BOOTSTRAP_
 import static org.apache.cassandra.config.CassandraRelevantProperties.BROADCAST_INTERVAL_MS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.REPLACE_ADDRESS_FIRST_BOOT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.RING_DELAY;
-import static org.apache.cassandra.distributed.impl.DistributedTestSnitch.toCassandraInetAddressAndPort;
+import static org.apache.cassandra.distributed.impl.TestEndpointCache.toCassandraInetAddressAndPort;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**

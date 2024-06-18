@@ -33,9 +33,11 @@ import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.FailureDetectorMBean;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.hints.HintsService;
+import org.apache.cassandra.locator.DynamicEndpointSnitch;
 import org.apache.cassandra.locator.DynamicEndpointSnitchMBean;
 import org.apache.cassandra.locator.EndpointSnitchInfo;
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
+import org.apache.cassandra.locator.SnitchAdapter;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.ActiveRepairService;
@@ -104,7 +106,8 @@ public class InternalNodeProbe extends NodeProbe
 	@Override
     public DynamicEndpointSnitchMBean getDynamicEndpointSnitchInfoProxy()
     {
-        return (DynamicEndpointSnitchMBean) DatabaseDescriptor.createEndpointSnitch(true, DatabaseDescriptor.getRawConfig().endpoint_snitch);
+        // TODO At some point we should change this to use modern config e.g. Locator and InitialLocationProvider
+        return new DynamicEndpointSnitch(new SnitchAdapter(DatabaseDescriptor.createEndpointSnitch(DatabaseDescriptor.getRawConfig().endpoint_snitch)));
     }
 
     public CacheServiceMBean getCacheServiceMBean()

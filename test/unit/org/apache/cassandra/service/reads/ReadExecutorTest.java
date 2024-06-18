@@ -22,8 +22,10 @@ import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.lang3.exception.ExceptionUtils;
 
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -76,6 +78,8 @@ public class ReadExecutorTest
                 full(InetAddressAndPort.getByName("127.0.0.254")),
                 full(InetAddressAndPort.getByName("127.0.0.253"))
         );
+        for (InetAddressAndPort ep : targets.endpoints())
+            ClusterMetadataTestHelper.register(ep, ServerTestUtils.DATA_CENTER, ServerTestUtils.RACK1);
         cfs.sampleReadLatencyMicros = 0;
     }
 

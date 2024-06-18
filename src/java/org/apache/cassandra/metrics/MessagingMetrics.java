@@ -114,7 +114,7 @@ public class MessagingMetrics implements InboundMessageHandlers.GlobalMetricCall
 
     public DCLatencyRecorder internodeLatencyRecorder(InetAddressAndPort from)
     {
-        String dcName = DatabaseDescriptor.getEndpointSnitch().getDatacenter(from);
+        String dcName = DatabaseDescriptor.getLocator().location(from).datacenter;
         DCLatencyRecorder dcUpdater = dcLatency.get(dcName);
         if (dcUpdater == null)
             dcUpdater = dcLatency.computeIfAbsent(dcName, k -> new DCLatencyRecorder(Metrics.timer(factory.createMetricName(dcName + "-Latency")), allLatency));

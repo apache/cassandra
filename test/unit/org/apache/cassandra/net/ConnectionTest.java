@@ -122,6 +122,7 @@ public class ConnectionTest
     {
         DatabaseDescriptor.daemonInitialization();
         ClusterMetadataTestHelper.setInstanceForTest();
+        ClusterMetadataTestHelper.register(FBUtilities.getBroadcastAddressAndPort());
         CommitLog.instance.start();
     }
 

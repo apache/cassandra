@@ -147,8 +147,8 @@ public class SystemKeyspaceTest
         assertEquals(FBUtilities.getReleaseVersionString(), row.getString("release_version"));
         assertEquals(QueryProcessor.CQL_VERSION.toString(), row.getString("cql_version"));
         assertEquals(String.valueOf(ProtocolVersion.CURRENT.asInt()), row.getString("native_protocol_version"));
-        assertEquals(DatabaseDescriptor.getEndpointSnitch().getLocalDatacenter(), row.getString("data_center"));
-        assertEquals(DatabaseDescriptor.getEndpointSnitch().getLocalRack(), row.getString("rack"));
+        assertEquals(DatabaseDescriptor.getLocator().local().datacenter, row.getString("data_center"));
+        assertEquals(DatabaseDescriptor.getLocator().local().rack, row.getString("rack"));
         assertEquals(DatabaseDescriptor.getPartitioner().getClass().getName(), row.getString("partitioner"));
         assertEquals(FBUtilities.getJustBroadcastNativeAddress(), row.getInetAddress("rpc_address"));
         assertEquals(DatabaseDescriptor.getNativeTransportPort(), row.getInt("rpc_port"));
