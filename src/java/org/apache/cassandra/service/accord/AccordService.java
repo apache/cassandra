@@ -35,10 +35,14 @@ import javax.annotation.concurrent.GuardedBy;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.base.Throwables;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.primitives.Ints;
 
 import accord.coordinate.Barrier;
 import accord.coordinate.CoordinateSyncPoint;
+import accord.coordinate.Exhausted;
+import accord.coordinate.FailureAccumulator;
 import accord.coordinate.TopologyMismatch;
 import accord.impl.CoordinateDurabilityScheduling;
 import accord.primitives.SyncPoint;
@@ -47,6 +51,7 @@ import org.apache.cassandra.cql3.statements.RequestValidations;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.service.accord.exceptions.ReadExhaustedException;
 import org.apache.cassandra.service.accord.interop.AccordInteropAdapter.AccordInteropFactory;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.service.accord.repair.RepairSyncPointAdapter;
@@ -392,6 +397,13 @@ public class AccordService implements IAccordService, Shutdownable
                 // Protocol also doesn't have a way to denote "unknown" outcome, so using a timeout as the closest match
                 throw newBarrierPreempted(txnId, barrierType.global);
             }
+            if (cause instanceof Exhausted)
+            {
+                // this case happens when a non-timeout exception is seen, and we are unable to move forward
+                metrics.failures.mark();
+                throw newBarrierExhausted(txnId, barrierType.global);
+            }
+            // unknown error
             metrics.failures.mark();
             throw new RuntimeException(cause);
         }
@@ -430,35 +442,40 @@ public class AccordService implements IAccordService, Shutdownable
         return barrier(keysOrRanges, epoch, queryStartNanos, timeoutNanos, barrierType, isForWrite, repairSyncPoint(allNodes));
     }
 
-    private static ReadTimeoutException newBarrierTimeout(TxnId txnId, boolean global)
+    @VisibleForTesting
+    static ReadTimeoutException newBarrierTimeout(TxnId txnId, boolean global)
     {
         return new ReadTimeoutException(global ? ConsistencyLevel.ANY : ConsistencyLevel.QUORUM, 0, 0, false, txnId.toString());
     }
 
-    private static ReadTimeoutException newBarrierPreempted(TxnId txnId, boolean global)
+    @VisibleForTesting
+    static ReadTimeoutException newBarrierPreempted(TxnId txnId, boolean global)
     {
         return new ReadPreemptedException(global ? ConsistencyLevel.ANY : ConsistencyLevel.QUORUM, 0, 0, false, txnId.toString());
     }
 
-    private long doWithRetries(LongSupplier action, int retryAttempts, long initialBackoffMillis, long maxBackoffMillis) throws InterruptedException
+    @VisibleForTesting
+    static ReadExhaustedException newBarrierExhausted(TxnId txnId, boolean global)
+    {
+        //TODO (usability): not being able to show the txn is a bad UX, this becomes harder to trace back in logs
+        return new ReadExhaustedException(global ? ConsistencyLevel.ANY : ConsistencyLevel.QUORUM, 0, 0, false, ImmutableMap.of());
+    }
+
+    @VisibleForTesting
+    static boolean isTimeout(Throwable t)
+    {
+        return t instanceof Timeout || t instanceof ReadTimeoutException || t instanceof Preempted || t instanceof ReadPreemptedException;
+    }
+
+    @VisibleForTesting
+    static long doWithRetries(Blocking blocking, LongSupplier action, int retryAttempts, long initialBackoffMillis, long maxBackoffMillis) throws InterruptedException
     {
         // Since we could end up having the barrier transaction or the transaction it listens to invalidated
-        RuntimeException existingFailures = null;
+        Throwable existingFailures = null;
         Long success = null;
-        long backoffMillis = 0;
+        long backoffMillis = initialBackoffMillis;
         for (int attempt = 0; attempt < retryAttempts; attempt++)
         {
-            try
-            {
-                Thread.sleep(backoffMillis);
-            }
-            catch (InterruptedException e)
-            {
-                if (existingFailures != null)
-                    e.addSuppressed(existingFailures);
-                throw e;
-            }
-            backoffMillis = backoffMillis == 0 ? initialBackoffMillis : Math.min(backoffMillis * 2, maxBackoffMillis);
             try
             {
                 success = action.getAsLong();
@@ -466,13 +483,34 @@ public class AccordService implements IAccordService, Shutdownable
             }
             catch (RequestExecutionException | CoordinationFailed newFailures)
             {
-                existingFailures = Throwables.merge(existingFailures, newFailures);
+                existingFailures = FailureAccumulator.append(existingFailures, newFailures, AccordService::isTimeout);
+
+                try
+                {
+                    blocking.sleep(backoffMillis);
+                }
+                catch (InterruptedException e)
+                {
+                    if (existingFailures != null)
+                        e.addSuppressed(existingFailures);
+                    throw e;
+                }
+                backoffMillis = Math.min(backoffMillis * 2, maxBackoffMillis);
+            }
+            catch (Throwable t)
+            {
+                // if an unknown/unexpected error happens retry stops right away
+                if (existingFailures != null)
+                    t.addSuppressed(existingFailures);
+                existingFailures = t;
+                break;
             }
         }
         if (success == null)
         {
             checkState(existingFailures != null, "Didn't have success, but also didn't have failures");
-            throw existingFailures;
+            Throwables.throwIfUnchecked(existingFailures);
+            throw new RuntimeException(existingFailures);
         }
         return success;
     }
@@ -480,7 +518,7 @@ public class AccordService implements IAccordService, Shutdownable
     @Override
     public long barrierWithRetries(Seekables keysOrRanges, long minEpoch, BarrierType barrierType, boolean isForWrite) throws InterruptedException
     {
-        return doWithRetries(() -> AccordService.instance().barrier(keysOrRanges, minEpoch, Clock.Global.nanoTime(), DatabaseDescriptor.getAccordRangeBarrierTimeoutNanos(), barrierType, isForWrite),
+        return doWithRetries(Blocking.Default.instance, () -> AccordService.instance().barrier(keysOrRanges, minEpoch, Clock.Global.nanoTime(), DatabaseDescriptor.getAccordRangeBarrierTimeoutNanos(), barrierType, isForWrite),
                       DatabaseDescriptor.getAccordBarrierRetryAttempts(),
                       DatabaseDescriptor.getAccordBarrierRetryInitialBackoffMillis(),
                       DatabaseDescriptor.getAccordBarrierRetryMaxBackoffMillis());
@@ -489,7 +527,7 @@ public class AccordService implements IAccordService, Shutdownable
     @Override
     public long repairWithRetries(Seekables keysOrRanges, long minEpoch, BarrierType barrierType, boolean isForWrite, List<InetAddressAndPort> allEndpoints) throws InterruptedException
     {
-        return doWithRetries(() -> AccordService.instance().repair(keysOrRanges, minEpoch, Clock.Global.nanoTime(), DatabaseDescriptor.getAccordRangeBarrierTimeoutNanos(), barrierType, isForWrite, allEndpoints),
+        return doWithRetries(Blocking.Default.instance, () -> AccordService.instance().repair(keysOrRanges, minEpoch, Clock.Global.nanoTime(), DatabaseDescriptor.getAccordRangeBarrierTimeoutNanos(), barrierType, isForWrite, allEndpoints),
                              DatabaseDescriptor.getAccordBarrierRetryAttempts(),
                              DatabaseDescriptor.getAccordBarrierRetryInitialBackoffMillis(),
                              DatabaseDescriptor.getAccordBarrierRetryMaxBackoffMillis());
