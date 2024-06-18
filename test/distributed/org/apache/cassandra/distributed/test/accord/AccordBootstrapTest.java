@@ -267,7 +267,7 @@ public class AccordBootstrapTest extends TestBaseImpl
                     StreamListener.listener.forSession(session -> {
                         Assert.assertEquals(node3Addr, session.peer.getAddress());
                         Assert.assertEquals(0, session.getNumRequests());
-                        Assert.assertTrue(session.getNumTransfers() > 0);
+                        Assert.assertTrue(session.getNumKeyspaceTransfers() > 0);
                     });
 
                     awaitUninterruptiblyAndRethrow(service().node().commandStores().forEach(safeStore -> {
