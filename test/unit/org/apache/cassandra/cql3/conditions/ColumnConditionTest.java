@@ -20,9 +20,9 @@ package org.apache.cassandra.cql3.conditions;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import accord.utilsfork.Gen;
-import accord.utilsfork.Gens;
-import accord.utilsfork.RandomSource;
+import accord.utils.Gen;
+import accord.utils.Gens;
+import accord.utils.RandomSource;
 import org.apache.cassandra.cql3.terms.*;
 import org.junit.Assert;
 import org.junit.Test;
@@ -58,7 +58,7 @@ import org.assertj.core.api.Assertions;
 import org.mockito.Mockito;
 import org.quicktheories.generators.SourceDSL;
 
-import static accord.utilsfork.Property.qt;
+import static accord.utils.Property.qt;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;

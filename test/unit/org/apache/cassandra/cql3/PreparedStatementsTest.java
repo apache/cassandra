@@ -218,6 +218,7 @@ public class PreparedStatementsTest extends CQLTester
         session.execute(preparedBatch.bind(2, 2, "value2"));
         session.execute(preparedTxn.bind(3, 3, "value3"));
 
+        sessionSchemaUpdate(session, dropTableStatement); // since this is an accord table, need to drop the table before the keyspace
         sessionSchemaUpdate(session, dropKsStatement);
         sessionSchemaUpdate(session, createKsStatement);
         sessionSchemaUpdate(session, createTableStatement);
@@ -229,6 +230,7 @@ public class PreparedStatementsTest extends CQLTester
         session.execute(prepared.bind(1, 1, "value"));
         session.execute(preparedBatch.bind(2, 2, "value2"));
         session.execute(preparedTxn.bind(3, 3, "value3"));
+        sessionSchemaUpdate(session, dropTableStatement); // since this is an accord table, need to drop the table before the keyspace
         sessionSchemaUpdate(session, dropKsStatement);
     }
 
@@ -249,6 +251,7 @@ public class PreparedStatementsTest extends CQLTester
         Session session = sessionNet(version);
         String createTableStatement = "CREATE TABLE IF NOT EXISTS " + KEYSPACE + ".qp_cleanup (a int PRIMARY KEY, b int, c int) WITH transactional_mode='unsafe';";
         String alterTableStatement = "ALTER TABLE " + KEYSPACE + ".qp_cleanup ADD d int;";
+        String dropTableStatement = "DROP TABLE IF EXISTS " + KEYSPACE + ".qp_cleanup;";
 
         sessionSchemaUpdate(session, dropKsStatement);
         sessionSchemaUpdate(session, createKsStatement);
@@ -315,6 +318,7 @@ public class PreparedStatementsTest extends CQLTester
             }
         }
 
+        sessionSchemaUpdate(session, dropTableStatement);
         sessionSchemaUpdate(session, dropKsStatement);
     }
 
@@ -335,6 +339,7 @@ public class PreparedStatementsTest extends CQLTester
         Session session = sessionNet(version);
         String createTableStatement = "CREATE TABLE IF NOT EXISTS " + KEYSPACE + ".qp_cleanup (a int PRIMARY KEY, b int, c int) WITH transactional_mode='unsafe';";
         String alterTableStatement = "ALTER TABLE " + KEYSPACE + ".qp_cleanup ADD d int;";
+        String dropTableStatement = "DROP TABLE IF EXISTS " + KEYSPACE + ".qp_cleanup;";
 
         sessionSchemaUpdate(session, dropKsStatement);
         sessionSchemaUpdate(session, createKsStatement);
@@ -382,6 +387,7 @@ public class PreparedStatementsTest extends CQLTester
             Assertions.assertThat(columnNames(rs)).containsExactlyInAnyOrder("a", "b", "c");
         }
 
+        sessionSchemaUpdate(session, dropTableStatement);
         sessionSchemaUpdate(session, dropKsStatement);
     }
 

@@ -29,7 +29,7 @@ import java.util.function.BiConsumer;
 
 import com.google.common.collect.Iterators;
 
-import accord.utilsfork.Invariants;
+import accord.utils.Invariants;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;

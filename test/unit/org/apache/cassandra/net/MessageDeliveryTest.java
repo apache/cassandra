@@ -30,7 +30,7 @@ import com.google.common.collect.Iterators;
 import org.junit.Assert;
 import org.junit.Test;
 
-import accord.utilsfork.RandomSource;
+import accord.utils.RandomSource;
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.concurrent.SimulatedExecutorFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -46,7 +46,7 @@ import org.apache.cassandra.tcm.StubClusterMetadataService;
 import org.apache.cassandra.utils.Backoff;
 import org.mockito.Mockito;
 
-import static accord.utilsfork.Property.qt;
+import static accord.utils.Property.qt;
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class MessageDeliveryTest

@@ -28,7 +28,7 @@ import accord.utils.SortedArrays.SortedArrayList;
 
 public class InheritKeyspaceFastPathStrategy implements FastPathStrategy
 {
-    static final FastPathStrategy instance = new InheritKeyspaceFastPathStrategy();
+    public static final FastPathStrategy instance = new InheritKeyspaceFastPathStrategy();
 
     private static final Map<String, String> SCHEMA_PARAMS = ImmutableMap.of(Kind.KEY, Kind.INHERIT_KEYSPACE.name());
 

@@ -28,14 +28,14 @@ import java.util.stream.LongStream;
 
 import org.junit.Test;
 
-import accord.utilsfork.Gen;
-import accord.utilsfork.Gens;
+import accord.utils.Gen;
+import accord.utils.Gens;
 import org.agrona.collections.LongArrayList;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.RetrySpec;
 import org.apache.cassandra.utils.Closeable;
 
-import static accord.utilsfork.Property.qt;
+import static accord.utils.Property.qt;
 
 public class HappyPathFuzzTest extends FuzzTestBase
 {

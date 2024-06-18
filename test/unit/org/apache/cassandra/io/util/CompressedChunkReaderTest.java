@@ -18,8 +18,8 @@
 
 package org.apache.cassandra.io.util;
 
-import accord.utilsfork.Gen;
-import accord.utilsfork.Gens;
+import accord.utils.Gen;
+import accord.utils.Gens;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.io.compress.CompressedSequentialWriter;
@@ -36,7 +36,7 @@ import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static accord.utilsfork.Property.qt;
+import static accord.utils.Property.qt;
 
 public class CompressedChunkReaderTest
 {

@@ -18,7 +18,7 @@
 
 package org.apache.cassandra.distributed.test.cql3;
 
-import accord.utilsfork.Property;
+import accord.utils.Property;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.distributed.Cluster;
 

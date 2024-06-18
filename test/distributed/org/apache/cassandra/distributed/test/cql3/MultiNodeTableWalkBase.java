@@ -20,7 +20,7 @@ package org.apache.cassandra.distributed.test.cql3;
 
 import java.io.IOException;
 
-import accord.utilsfork.RandomSource;
+import accord.utils.RandomSource;
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;

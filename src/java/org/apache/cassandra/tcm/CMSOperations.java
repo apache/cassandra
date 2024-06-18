@@ -34,6 +34,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.virtual.ClusterMetadataDirectoryTable;
 import org.apache.cassandra.db.virtual.ClusterMetadataLogTable;
 import org.apache.cassandra.schema.ReplicationParams;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.membership.NodeVersion;
@@ -42,6 +43,7 @@ import org.apache.cassandra.tcm.sequences.CancelCMSReconfiguration;
 import org.apache.cassandra.tcm.sequences.InProgressSequences;
 import org.apache.cassandra.tcm.sequences.ReconfigureCMS;
 import org.apache.cassandra.tcm.serialization.Version;
+import org.apache.cassandra.tcm.sequences.DropAccordTable;
 import org.apache.cassandra.tcm.transformations.Unregister;
 import org.apache.cassandra.tcm.transformations.cms.AdvanceCMSReconfiguration;
 import org.apache.cassandra.utils.FBUtilities;
@@ -287,5 +289,20 @@ public class CMSOperations implements CMSOperationsMBean
             res.put(outerEntry.getKey(), rowRes);
         }
         return res;
+    }
+
+    @Override
+    public void resumeDropAccordTable(String tableId)
+    {
+        TableId id = TableId.fromString(tableId);
+        for (MultiStepOperation.SequenceKey key : ClusterMetadata.current().inProgressSequences.keys())
+        {
+            if (key instanceof DropAccordTable.TableReference && ((DropAccordTable.TableReference) key).id.equals(id))
+            {
+                InProgressSequences.finishInProgressSequences(key);
+                return;
+            }
+        }
+        throw new IllegalArgumentException("No drop table operation is in progress for table with id " + tableId);
     }
 }

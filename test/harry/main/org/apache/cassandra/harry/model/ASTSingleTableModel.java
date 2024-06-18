@@ -45,12 +45,13 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
-import accord.utilsfork.Invariants;
+
+import accord.utils.Invariants;
 import org.apache.cassandra.cql3.KnownIssue;
 import org.apache.cassandra.cql3.ast.AssignmentOperator;
 import org.apache.cassandra.cql3.ast.CasCondition;
-import org.apache.cassandra.cql3.ast.Conditional;
 import org.apache.cassandra.cql3.ast.Conditional.Where.Inequality;
+import org.apache.cassandra.cql3.ast.Conditional;
 import org.apache.cassandra.cql3.ast.Element;
 import org.apache.cassandra.cql3.ast.Expression;
 import org.apache.cassandra.cql3.ast.ExpressionEvaluator;

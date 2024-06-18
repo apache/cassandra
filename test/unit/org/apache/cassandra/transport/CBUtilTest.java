@@ -22,13 +22,13 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
 
-import accord.utilsfork.Gens;
+import accord.utils.Gens;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.PooledByteBufAllocator;
 import org.assertj.core.api.Assertions;
 
-import static accord.utilsfork.Property.qt;
+import static accord.utils.Property.qt;
 
 public class CBUtilTest
 {

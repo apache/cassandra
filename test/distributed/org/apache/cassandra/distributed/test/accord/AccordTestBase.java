@@ -35,6 +35,12 @@ import java.util.stream.StreamSupport;
 import com.google.common.base.Splitter;
 import com.google.common.collect.ImmutableList;
 import com.google.common.primitives.Ints;
+
+import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.distributed.shared.ClusterUtils;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableMetadata;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -84,11 +90,9 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.Verb;
-import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.accord.AccordService;
-import org.apache.cassandra.service.accord.AccordTestUtils;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.accord.exceptions.ReadPreemptedException;
 import org.apache.cassandra.service.accord.exceptions.WritePreemptedException;
 import org.apache.cassandra.service.consensus.TransactionalMode;
@@ -104,7 +108,6 @@ import static org.apache.cassandra.db.SystemKeyspace.CONSENSUS_MIGRATION_STATE;
 import static org.apache.cassandra.db.SystemKeyspace.PAXOS;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ALL;
 import static org.apache.cassandra.schema.SchemaConstants.SYSTEM_KEYSPACE_NAME;
-import static org.apache.cassandra.schema.SchemaConstants.VIRTUAL_VIEWS;
 import static org.junit.Assert.assertArrayEquals;
 
 public abstract class AccordTestBase extends TestBaseImpl
@@ -406,43 +409,27 @@ public abstract class AccordTestBase extends TestBaseImpl
 
     }
 
-    private static SimpleQueryResult executeWithRetry0(int count, Cluster cluster, String check, Object... boundValues)
+    private static SimpleQueryResult executeWithRetry0(int count, Cluster cluster, IInvokableInstance inst, String check, Object... boundValues)
     {
         try
         {
-            return execute(cluster, check, boundValues);
+            logger.info("Executing statement:\n{}", check);
+            return inst.coordinator().executeWithResult(check, ConsistencyLevel.ANY, boundValues);
         }
         catch (RuntimeException ex)
         {
             if (count <= MAX_RETRIES && (hasRootCause(ex, ReadPreemptedException.class) || hasRootCause(ex, WritePreemptedException.class) || hasRootCause(ex, Invalidated.class)))
             {
                 logger.warn("[Retry attempt={}] Preempted failure for\n{}", count, check);
-                return executeWithRetry0(count + 1, cluster, check, boundValues);
+                return executeWithRetry0(count + 1, cluster, inst, check, boundValues);
             }
             TxnId txnId = maybeExtractId(ex);
             if (txnId != null)
             {
                 // query the cluster to find its status...
-                String cql = String.format("SELECT * FROM %s.txn_blocked_by WHERE txn_id=?", VIRTUAL_VIEWS);
                 StringBuilder sb = new StringBuilder();
                 sb.append("Txn ").append(txnId).append(" timed out...\n");
-                for (IInvokableInstance inst : cluster)
-                {
-                    if (inst.isShutdown())
-                    {
-                        sb.append(inst).append(": is down\n");
-                        continue;
-                    }
-                    sb.append(inst).append(":\n");
-                    SimpleQueryResult result = inst.executeInternalWithResult(cql, txnId.toString());
-                    if (!result.names().isEmpty())
-                        sb.append(result.names()).append('\n');
-                    while (result.hasNext())
-                    {
-                        var row = result.next();
-                        sb.append(Arrays.asList(row.toObjectArray())).append('\n');
-                    }
-                }
+                ClusterUtils.queryTxnStateAsString(sb, cluster, txnId);
                 throw new AssertionError(sb.toString(), ex.getCause());
             }
             throw ex;
@@ -470,21 +457,37 @@ public abstract class AccordTestBase extends TestBaseImpl
 
     public static SimpleQueryResult executeWithRetry(Cluster cluster, String check, Object... boundValues)
     {
-        check = wrapInTxn(check);
-
-        // is this method safe?
-
-        if (!isIdempotent(cluster, check))
-            throw new AssertionError("Unable to retry txn that is not idempotent: cql=\n" + check);
-
-        return executeWithRetry0(0, cluster, check, boundValues);
+        return executeWithRetry(cluster, cluster.get(1), check, boundValues);
     }
 
-    private static boolean isIdempotent(Cluster cluster, String cql)
+    public static SimpleQueryResult executeWithRetry(Cluster cluster, IInvokableInstance inst, String check, Object... boundValues)
     {
-        return cluster.get(1).callOnInstance(() -> {
-            TransactionStatement stmt = AccordTestUtils.parse(cql);
-            return isIdempotent(stmt);
+        // is this method safe?
+
+        if (!isIdempotent(inst, check))
+            throw new AssertionError("Unable to retry txn that is not idempotent: cql=\n" + check);
+
+        return executeWithRetry0(0, cluster, inst, check, boundValues);
+    }
+
+    public static Boolean isIdempotent(IInvokableInstance inst, String cql)
+    {
+        return inst.callOnInstance(() -> {
+            CQLStatement.Raw parsed = QueryProcessor.parseStatement(cql);
+            if (parsed instanceof TransactionStatement.Parsed)
+            {
+                TransactionStatement stmt = (TransactionStatement) parsed.prepare(ClientState.forInternalCalls());
+                return isIdempotent(stmt);
+            }
+            else if (parsed instanceof ModificationStatement.Parsed)
+            {
+                ModificationStatement stmt = (ModificationStatement) parsed.prepare(ClientState.forInternalCalls());
+                return isIdempotent(stmt);
+            }
+            else
+            {
+                throw new IllegalArgumentException("Unexpected type: " + parsed.getClass());
+            }
         });
     }
 

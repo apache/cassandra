@@ -31,7 +31,8 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.function.Supplier;
 
-import accord.utilsfork.Invariants;
+import accord.utils.Gen;
+import accord.utils.Invariants;
 import org.apache.cassandra.harry.util.BitSet;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.TimeUUID;
@@ -459,5 +460,15 @@ public class Generators
     public static <T> Generator<T> constant(Supplier<T> constant)
     {
         return (random) -> constant.get();
+    }
+
+    public static <T> Gen<T> toAccord(Generator<T> gen)
+    {
+        return rng -> gen.generate(new RandomSourceEntropySource(rng));
+    }
+
+    public static <T> Generator<T> toHarry(Gen<T> gen)
+    {
+        return rng -> gen.next(new EntropyRandomSource(rng));
     }
 }

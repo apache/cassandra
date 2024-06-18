@@ -82,7 +82,7 @@ import org.apache.cassandra.utils.Pair;
 import static com.google.common.collect.ImmutableSet.toImmutableSet;
 import static org.apache.cassandra.config.CassandraRelevantProperties.LINE_SEPARATOR;
 import static org.apache.cassandra.db.TypeSizes.sizeof;
-import static org.apache.cassandra.tcm.serialization.Version.V2;
+import static org.apache.cassandra.tcm.serialization.Version.MIN_ACCORD_VERSION;
 
 public class ClusterMetadata
 {
@@ -203,16 +203,6 @@ public class ClusterMetadata
         this.extensions = ImmutableMap.copyOf(extensions);
         this.locator = Locator.usingDirectory(directory);
         this.accordStaleReplicas = accordStaleReplicas;
-    }
-
-    public ClusterMetadata withDirectory(Directory directory)
-    {
-        return new ClusterMetadata(epoch, partitioner, schema, directory, tokenMap, placements, accordFastPath, lockedRanges, inProgressSequences, consensusMigrationState, extensions, accordStaleReplicas);
-    }
-
-    public ClusterMetadata withPlacements(DataPlacements placements)
-    {
-        return new ClusterMetadata(epoch, partitioner, schema, directory, tokenMap, placements, accordFastPath, lockedRanges, inProgressSequences, consensusMigrationState, extensions, accordStaleReplicas);
     }
 
     public Set<InetAddressAndPort> fullCMSMembers()
@@ -632,7 +622,7 @@ public class ClusterMetadata
 
         public Transformer with(ExtensionKey<?, ?> key, ExtensionValue<?> obj)
         {
-            if (MetadataKeys.CORE_METADATA.contains(key))
+            if (MetadataKeys.CORE_METADATA.containsKey(key))
                 throw new IllegalArgumentException("Core cluster metadata objects should be addressed directly, " +
                                                    "not using the associated MetadataKey");
 
@@ -655,7 +645,7 @@ public class ClusterMetadata
 
         public Transformer without(ExtensionKey<?, ?> key)
         {
-            if (MetadataKeys.CORE_METADATA.contains(key))
+            if (MetadataKeys.CORE_METADATA.containsKey(key))
                 throw new IllegalArgumentException("Core cluster metadata objects should be addressed directly, " +
                                                    "not using the associated MetadataKey");
             if (extensions.remove(key) != null)
@@ -754,7 +744,7 @@ public class ClusterMetadata
                                                        inProgressSequences,
                                                        consensusMigrationState,
                                                        extensions,
-                    accordStaleReplicas),
+                                                       accordStaleReplicas),
                                    ImmutableSet.copyOf(modifiedKeys));
         }
 
@@ -1030,7 +1020,7 @@ public class ClusterMetadata
             Directory.serializer.serialize(metadata.directory, out, version);
             TokenMap.serializer.serialize(metadata.tokenMap, out, version);
             DataPlacements.serializer.serialize(metadata.placements, out, version);
-            if (version.isAtLeast(V2))
+            if (version.isAtLeast(MIN_ACCORD_VERSION))
             {
                 AccordFastPath.serializer.serialize(metadata.accordFastPath, out, version);
                 ConsensusMigrationState.serializer.serialize(metadata.consensusMigrationState, out, version);
@@ -1078,7 +1068,7 @@ public class ClusterMetadata
             ConsensusMigrationState consensusMigrationState;
             AccordStaleReplicas staleReplicas;
 
-            if (version.isAtLeast(V2))
+            if (version.isAtLeast(MIN_ACCORD_VERSION))
             {
                 accordFastPath = AccordFastPath.serializer.deserialize(in, version);
                 consensusMigrationState = ConsensusMigrationState.serializer.deserialize(in, version);
@@ -1135,7 +1125,7 @@ public class ClusterMetadata
                     TokenMap.serializer.serializedSize(metadata.tokenMap, version) +
                     DataPlacements.serializer.serializedSize(metadata.placements, version);
 
-            if (version.isAtLeast(V2))
+            if (version.isAtLeast(MIN_ACCORD_VERSION))
             {
                 size += AccordFastPath.serializer.serializedSize(metadata.accordFastPath, version) +
                         ConsensusMigrationState.serializer.serializedSize(metadata.consensusMigrationState, version) +

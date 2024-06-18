@@ -29,7 +29,7 @@ import org.junit.runners.Parameterized;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.utils.Generators;
 
-import static accord.utilsfork.Property.qt;
+import static accord.utils.Property.qt;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.quicktheories.generators.SourceDSL.integers;

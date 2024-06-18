@@ -41,8 +41,8 @@ import com.google.common.collect.Maps;
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.Test;
 
-import accord.utilsfork.Property.StateOnlyCommand;
-import accord.utilsfork.RandomSource;
+import accord.utils.Property.StateOnlyCommand;
+import accord.utils.RandomSource;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
@@ -65,8 +65,8 @@ import org.quicktheories.core.RandomnessSource;
 import org.quicktheories.generators.SourceDSL;
 import org.quicktheories.impl.JavaRandom;
 
-import static accord.utilsfork.Property.commands;
-import static accord.utilsfork.Property.stateful;
+import static accord.utils.Property.commands;
+import static accord.utils.Property.stateful;
 import static com.google.common.collect.Sets.difference;
 import static java.lang.String.format;
 import static java.util.UUID.randomUUID;

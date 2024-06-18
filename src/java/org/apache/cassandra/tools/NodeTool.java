@@ -269,7 +269,8 @@ public class NodeTool
                .withCommand(CMSAdmin.Unregister.class)
                .withCommand(CMSAdmin.AbortInitialization.class)
                .withCommand(CMSAdmin.DumpDirectory.class)
-               .withCommand(CMSAdmin.DumpLog.class);
+               .withCommand(CMSAdmin.DumpLog.class)
+               .withCommand(CMSAdmin.ResumeDropAccordTable.class);
 
         builder.withGroup("consensus_admin")
             .withDescription("List and mark ranges as migrating between consensus protocols")

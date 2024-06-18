@@ -31,7 +31,7 @@ import accord.utils.SortedArrays.SortedArrayList;
 
 public class SimpleFastPathStrategy implements FastPathStrategy
 {
-    static final SimpleFastPathStrategy instance = new SimpleFastPathStrategy();
+    public static final SimpleFastPathStrategy instance = new SimpleFastPathStrategy();
 
     private static final Map<String, String> SCHEMA_PARAMS = ImmutableMap.of(Kind.KEY, Kind.SIMPLE.name());
 

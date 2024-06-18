@@ -20,7 +20,7 @@ package org.apache.cassandra.gms;
 
 import org.junit.Test;
 
-import accord.utilsfork.Gen;
+import accord.utils.Gen;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializers;
 import org.apache.cassandra.io.util.DataOutputBuffer;
@@ -28,7 +28,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.CassandraGenerators;
 import org.apache.cassandra.utils.Generators;
 
-import static accord.utilsfork.Property.qt;
+import static accord.utils.Property.qt;
 
 public class VersionedValueTest
 {

@@ -18,10 +18,15 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -38,79 +43,102 @@ import javax.annotation.concurrent.GuardedBy;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Stopwatch;
 import com.google.common.base.Throwables;
+import com.google.common.collect.Sets;
 import com.google.common.primitives.Ints;
+
+import accord.coordinate.Barrier;
+import accord.coordinate.CoordinateSyncPoint;
+import accord.coordinate.Exhausted;
+import accord.coordinate.FailureAccumulator;
+import accord.coordinate.Invalidated;
+import accord.coordinate.TopologyMismatch;
+import accord.impl.CoordinateDurabilityScheduling;
+import accord.local.Command;
+import accord.local.PreLoadContext;
+import accord.primitives.Ranges;
+import accord.primitives.SyncPoint;
+import accord.topology.Topology;
+import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.cql3.statements.RequestValidations;
+import org.apache.cassandra.exceptions.RequestExecutionException;
+import org.apache.cassandra.repair.SharedContext;
+import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.service.accord.exceptions.ReadExhaustedException;
+import org.apache.cassandra.service.accord.interop.AccordInteropAdapter.AccordInteropFactory;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.service.accord.repair.RepairSyncPointAdapter;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.api.BarrierType;
 import accord.api.LocalConfig;
 import accord.api.Result;
-import accord.coordinate.Barrier;
-import accord.coordinate.CoordinateSyncPoint;
 import accord.coordinate.CoordinationFailed;
-import accord.coordinate.Exhausted;
-import accord.coordinate.FailureAccumulator;
 import accord.coordinate.Preempted;
 import accord.coordinate.Timeout;
-import accord.coordinate.TopologyMismatch;
+import accord.api.RoutingKey;
+import accord.coordinate.ExecuteSyncPoint;
+import accord.coordinate.tracking.AllTracker;
+import accord.coordinate.tracking.RequestStatus;
 import accord.impl.AbstractConfigurationService;
-import accord.impl.CoordinateDurabilityScheduling;
 import accord.impl.DefaultLocalListeners;
 import accord.impl.DefaultRemoteListeners;
 import accord.impl.DefaultRequestTimeouts;
 import accord.impl.SizeOfIntersectionSorter;
-import accord.local.Command;
-import accord.local.CommandStore;
 import accord.impl.progresslog.DefaultProgressLogs;
+import accord.local.CommandStore;
 import accord.local.CommandStores;
 import accord.local.DurableBefore;
 import accord.local.KeyHistory;
 import accord.local.Node;
 import accord.local.Node.Id;
 import accord.local.NodeTimeService;
-import accord.local.PreLoadContext;
 import accord.local.RedundantBefore;
 import accord.local.SaveStatus;
 import accord.local.ShardDistributor.EvenSplit;
 import accord.local.Status;
 import accord.local.cfk.CommandsForKey;
+import accord.messages.Callback;
+import accord.messages.ReadData;
 import accord.messages.Request;
+import accord.messages.WaitUntilApplied;
 import accord.primitives.Keys;
-import accord.primitives.Ranges;
 import accord.primitives.Seekable;
 import accord.primitives.Seekables;
-import accord.primitives.SyncPoint;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.Txn.Kind;
 import accord.primitives.TxnId;
+import accord.topology.Topologies;
 import accord.topology.TopologyManager;
 import accord.utils.DefaultRandom;
 import accord.utils.Invariants;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
 import accord.utils.async.AsyncResult;
+import accord.utils.async.AsyncResults;
 import org.agrona.collections.Int2ObjectHashMap;
 import org.apache.cassandra.concurrent.Shutdownable;
-import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.cql3.statements.RequestValidations;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.WriteType;
+import org.apache.cassandra.dht.AccordSplitter;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
-import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestTimeoutException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
-import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.AccordClientRequestMetrics;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.AccordSyncPropagator.Notification;
 import org.apache.cassandra.service.accord.api.AccordAgent;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.KeyspaceSplitter;
@@ -118,20 +146,15 @@ import org.apache.cassandra.service.accord.api.AccordScheduler;
 import org.apache.cassandra.service.accord.api.AccordTopologySorter;
 import org.apache.cassandra.service.accord.api.CompositeTopologySorter;
 import org.apache.cassandra.service.accord.api.PartitionKey;
-import org.apache.cassandra.service.accord.exceptions.ReadExhaustedException;
 import org.apache.cassandra.service.accord.exceptions.ReadPreemptedException;
 import org.apache.cassandra.service.accord.exceptions.WritePreemptedException;
-import org.apache.cassandra.service.accord.interop.AccordInteropAdapter.AccordInteropFactory;
-import org.apache.cassandra.service.accord.repair.RepairSyncPointAdapter;
 import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.service.consensus.migration.TableMigrationState;
-import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.membership.NodeId;
-import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.Blocking;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.ExecutorUtils;
@@ -276,6 +299,19 @@ public class AccordService implements IAccordService, Shutdownable
         {
             return Collections.emptyList();
         }
+
+        @Nullable
+        @Override
+        public Long minEpoch(Collection<TokenRange> ranges)
+        {
+            return null;
+        }
+
+        @Override
+        public void tryMarkRemoved(Topology topology, Id node)
+        {
+
+        }
     };
 
     private static volatile IAccordService instance = null;
@@ -350,6 +386,7 @@ public class AccordService implements IAccordService, Shutdownable
         Invariants.checkState(localId != null, "static localId must be set before instantiating AccordService");
         logger.info("Starting accord with nodeId {}", localId);
         AccordAgent agent = FBUtilities.construct(CassandraRelevantProperties.ACCORD_AGENT_CLASS.getString(AccordAgent.class.getName()), "AccordAgent");
+        agent.setNodeId(localId);
         this.configService = new AccordConfigurationService(localId);
         this.fastPathCoordinator = AccordFastPathCoordinator.create(localId, configService);
         this.messageSink = new AccordMessageSink(agent, configService);
@@ -387,16 +424,125 @@ public class AccordService implements IAccordService, Shutdownable
         if (state != State.INIT)
             return;
         journal.start(node);
-        configService.start();
+        ClusterMetadataService cms = ClusterMetadataService.instance();
+        class Ref { List<ClusterMetadata> historic = Collections.emptyList();}
+        Ref ref = new Ref();
+        configService.start((optMaxEpoch -> {
+            // when max epoch isn't know, this means the node started for the first time; check cluster's min epoch
+            // when max epoch is known, then there is no reason to discover min epoch (we already did it)
+            if (optMaxEpoch.isPresent()) return;
+            List<ClusterMetadata> historic = ref.historic = discoverHistoric(node, cms);
+            for (ClusterMetadata m : historic)
+                configService.reportMetadataInternal(m);
+        }));
+        ClusterMetadata current = cms.metadata();
+        if (!ref.historic.isEmpty())
+        {
+            List<ClusterMetadata> historic = ref.historic;
+            long lastHistoric = ref.historic.get(historic.size() - 1).epoch.getEpoch();
+            if (lastHistoric + 1 < current.epoch.getEpoch())
+            {
+                // new epochs added while loading... load the deltas
+                for (ClusterMetadata metadata : tcmLoadRange(lastHistoric + 1, current.epoch.getEpoch()))
+                {
+                    historic.add(metadata);
+                    configService.reportMetadataInternal(metadata);
+                }
+            }
+
+            // sync doesn't happen when this node isn't in the epoch
+            //TODO (now, correctness): sync points use "closed" and not "syncComplete", so need to call TM.epochRedundant or TM.onEpochClosed
+            // epochRedundant implies all txn that have been proposed for this epoch have been executed "globally" - we don't have this knowlege
+            // epochClosed implies no "new" txn can be proposed
+            for (ClusterMetadata m : historic)
+            {
+                Topology t = AccordTopology.createAccordTopology(m);
+                long epoch = t.epoch();
+                for (Id id : t.nodes())
+                    node.onRemoteSyncComplete(id, epoch);
+                //TODO (correctness): is this true?
+                node.onEpochClosed(t.ranges(), t.epoch());
+                node.onEpochRedundant(t.ranges(), t.epoch());
+            }
+        }
+        configService.reportMetadataInternal(current);
 
         fastPathCoordinator.start();
-        ClusterMetadataService.instance().log().addListener(fastPathCoordinator);
+        cms.log().addListener(fastPathCoordinator);
         durabilityScheduling.setGlobalCycleTime(Ints.checkedCast(DatabaseDescriptor.getAccordGlobalDurabilityCycle(SECONDS)), SECONDS);
         durabilityScheduling.setShardCycleTime(Ints.checkedCast(DatabaseDescriptor.getAccordShardDurabilityCycle(SECONDS)), SECONDS);
         durabilityScheduling.setTxnIdLag(Ints.checkedCast(DatabaseDescriptor.getAccordScheduleDurabilityTxnIdLag(SECONDS)), TimeUnit.SECONDS);
         durabilityScheduling.setFrequency(Ints.checkedCast(DatabaseDescriptor.getAccordScheduleDurabilityFrequency(SECONDS)), SECONDS);
 //        durabilityScheduling.start();
         state = State.STARTED;
+    }
+
+    private List<ClusterMetadata> discoverHistoric(Node node, ClusterMetadataService cms)
+    {
+        ClusterMetadata current = cms.metadata();
+        Topology topology = AccordTopology.createAccordTopology(current);
+        Ranges localRanges = topology.rangesForNode(node.id());
+        if (!localRanges.isEmpty()) // already joined, nothing to see here
+            return Collections.emptyList();
+
+        Map<InetAddressAndPort, Set<TokenRange>> peers = new HashMap<>();
+        for (KeyspaceMetadata keyspace : current.schema.getKeyspaces())
+        {
+            List<TableMetadata> tables = keyspace.tables.stream().filter(TableMetadata::requiresAccordSupport).collect(Collectors.toList());
+            if (tables.isEmpty())
+                continue;
+            DataPlacement placement = current.placements.get(keyspace.params.replication);
+            DataPlacement whenSettled = current.writePlacementAllSettled(keyspace);
+            Sets.SetView<InetAddressAndPort> alive = Sets.intersection(whenSettled.writes.byEndpoint().keySet(), placement.writes.byEndpoint().keySet());
+            InetAddressAndPort self = FBUtilities.getBroadcastAddressAndPort();
+            whenSettled.writes.forEach((range, group) -> {
+                if (group.endpoints().contains(self))
+                {
+                    for (InetAddressAndPort peer : group.endpoints())
+                    {
+                        if (!alive.contains(peer)) continue;
+                        for (TableMetadata table : tables)
+                            peers.computeIfAbsent(peer, i -> new HashSet<>()).add(AccordTopology.fullRange(table.id));
+                    }
+                }
+            });
+        }
+        if (peers.isEmpty())
+            return Collections.emptyList();
+
+        Long minEpoch = findMinEpoch(SharedContext.Global.instance, peers);
+        if (minEpoch == null)
+            return Collections.emptyList();
+        return tcmLoadRange(minEpoch, current.epoch.getEpoch());
+    }
+
+    private static List<ClusterMetadata> tcmLoadRange(long min, long max)
+    {
+        List<ClusterMetadata> afterLoad = ClusterMetadataService.instance().processor().reconstructFull(Epoch.create(min - 1), Epoch.create(max));
+        while (!afterLoad.isEmpty() && afterLoad.get(0).epoch.getEpoch() < min)
+            afterLoad.remove(0);
+        assert !afterLoad.isEmpty() : String.format("TCM was unable to return the needed epochs: %d -> %d", min, max);
+        assert afterLoad.get(0).epoch.getEpoch() == min : String.format("Unexpected epoch: expected %d but given %d", min, afterLoad.get(0).epoch.getEpoch());
+        assert afterLoad.get(afterLoad.size() - 1).epoch.getEpoch() == max : String.format("Unexpected epoch: expected %d but given %d", max, afterLoad.get(afterLoad.size() - 1).epoch.getEpoch());
+        return afterLoad;
+    }
+
+    @VisibleForTesting
+    static Long findMinEpoch(SharedContext context, Map<InetAddressAndPort, Set<TokenRange>> peers)
+    {
+        try
+        {
+            return FetchMinEpoch.fetch(context, peers).get();
+        }
+        catch (InterruptedException e)
+        {
+            Thread.currentThread().interrupt();
+            throw new UncheckedInterruptedException(e);
+        }
+        catch (ExecutionException e)
+        {
+            throw new RuntimeException(e.getCause());
+        }
     }
 
     @Override
@@ -437,12 +583,14 @@ public class AccordService implements IAccordService, Shutdownable
             if (cause instanceof Timeout)
             {
                 TxnId txnId = ((Timeout) cause).txnId();
+                ((AccordAgent) node.agent()).onFailedBarrier(txnId, keysOrRanges, cause);
                 metrics.timeouts.mark();
                 throw newBarrierTimeout(txnId, barrierType, isForWrite, keysOrRanges);
             }
             if (cause instanceof Preempted)
             {
                 TxnId txnId = ((Preempted) cause).txnId();
+                ((AccordAgent) node.agent()).onFailedBarrier(txnId, keysOrRanges, cause);
                 //TODO need to improve
                 // Coordinator "could" query the accord state to see whats going on but that doesn't exist yet.
                 // Protocol also doesn't have a way to denote "unknown" outcome, so using a timeout as the closest match
@@ -451,6 +599,7 @@ public class AccordService implements IAccordService, Shutdownable
             if (cause instanceof Exhausted)
             {
                 TxnId txnId = ((Exhausted) cause).txnId();
+                ((AccordAgent) node.agent()).onFailedBarrier(txnId, keysOrRanges, cause);
                 // this case happens when a non-timeout exception is seen, and we are unable to move forward
                 metrics.failures.mark();
                 throw newBarrierExhausted(txnId, barrierType, isForWrite, keysOrRanges);
@@ -973,6 +1122,30 @@ public class AccordService implements IAccordService, Shutdownable
         return cmdTxnState.build();
     }
 
+    @Nullable
+    @Override
+    public Long minEpoch(Collection<TokenRange> ranges)
+    {
+        return node.topology().minEpoch();
+    }
+
+    @Override
+    public void tryMarkRemoved(Topology topology, Id target)
+    {
+        if (node.commandStores().count() == 0) return; // when starting up stores can be empty, so ignore
+        Ranges ranges = topology.rangesForNode(target);
+        if (ranges.isEmpty()) return;
+        tryMarkRemoved(ranges, 0).begin(node().agent());
+    }
+
+    private AsyncChain<SyncPoint<Ranges>> tryMarkRemoved(Ranges ranges, int attempt)
+    {
+        return CoordinateSyncPoint.exclusive(node, ranges)
+                                  .recover(t ->
+                                           //TODO (operability): make this configurable / monitorable?
+                                           attempt <= 3 && t instanceof Invalidated || t instanceof Preempted || t instanceof Timeout ? tryMarkRemoved(ranges, attempt + 1) : null);
+    }
+
     public Node node()
     {
         return node;
@@ -1072,5 +1245,228 @@ public class AccordService implements IAccordService, Shutdownable
             durableBefore.set(DurableBefore.merge(durableBefore.get(), safeStore.commandStore().durableBefore()));
         }));
         return new CompactionInfo(redundantBefores, ranges, durableBefore.get());
+    }
+
+    @Override
+    public void awaitTableDrop(TableId id)
+    {
+        // Need to make sure no existing txn are still being processed for this table... this is only used by DROP TABLE so NEW txn are expected to be blocked, so just need to "wait" for existing ones to complete
+        Topology topology = node.topology().current();
+        List<TokenRange> ranges = topology.reduce(new ArrayList<>(),
+                                                  s -> ((TokenRange) s.range).table().equals(id),
+                                                  (accum, s) -> {
+                                                      accum.add((TokenRange) s.range);
+                                                      return accum;
+                                                  });
+        if (ranges.isEmpty()) return; // nothing to see here
+
+        ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(id);
+        Invariants.checkState(cfs != null, "Unable to find table %s", id);
+        BigInteger targetSplitSize = BigInteger.valueOf(Math.max(1, cfs.estimateKeys() / 1_000_000));
+
+        List<AsyncChain<?>> syncs = new ArrayList<>(ranges.size());
+        for (TokenRange range : ranges)
+            syncs.add(awaitTableDrop(cfs, range, targetSplitSize));
+        AsyncChain<Object[]> all = AsyncChains.allOf(syncs);
+        try
+        {
+            AsyncChains.getBlocking(all);
+        }
+        catch (InterruptedException e)
+        {
+            Thread.currentThread().interrupt();
+            throw new UncheckedInterruptedException(e);
+        }
+        catch (ExecutionException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private AsyncChain<?> awaitTableDrop(ColumnFamilyStore cfs, TokenRange range, BigInteger targetSplitSize)
+    {
+        List<TokenRange> splits = split(cfs, range, targetSplitSize);
+        List<AsyncChain<?>> syncs = new ArrayList<>(splits.size());
+        for (TokenRange tr : splits)
+            syncs.add(awaitTableDropSubRange(tr));
+        return AsyncChains.allOf(syncs);
+    }
+
+    private List<TokenRange> split(ColumnFamilyStore cfs, TokenRange range, BigInteger targetSplitSize)
+    {
+        if (targetSplitSize.equals(BigInteger.ONE)) return Collections.singletonList(range);
+
+        AccordSplitter splitter = cfs.getPartitioner().accordSplitter().apply(Ranges.single(range));
+        RoutingKey remainingStart = range.start();
+
+        BigInteger rangeSize = splitter.sizeOf(range);
+        BigInteger divide = splitter.divide(rangeSize, targetSplitSize);
+        BigInteger rangeStep = divide.equals(BigInteger.ZERO) ? rangeSize : BigInteger.ONE.max(divide);
+        BigInteger offset = BigInteger.ZERO;
+        List<TokenRange> result = new ArrayList<>();
+
+        while (splitter.compare(offset, rangeSize) < 0)
+        {
+            BigInteger remaining = rangeSize.subtract(offset);
+            BigInteger length = remaining.min(rangeStep);
+
+            TokenRange next = splitter.subRange(range, offset, splitter.add(offset, length));
+            result.add(next);
+            remainingStart = next.end();
+            offset = offset.add(length);
+        }
+
+        if (!remainingStart.equals(range.end()))
+            result.add(range.newRange(remainingStart, range.end()));
+        assert result.get(0).start().equals(range.start()) : String.format("Starting range %s does not have the same start as %s", result.get(0), range);
+        assert result.get(result.size() - 1).end().equals(range.end()) : String.format("Ending range %s does not have the same end as %s", result.get(result.size() - 1), range);
+        return result;
+    }
+
+    private AsyncChain<?> awaitTableDropSubRange(TokenRange range)
+    {
+        return awaitTableDropSubRange(Ranges.single(range), 0);
+    }
+
+    private AsyncChain<Void> awaitTableDropSubRange(Ranges ranges, int attempt)
+    {
+        return exclusiveSyncPoint(ranges, attempt)
+               .flatMap(s -> s == null ? AsyncChains.success(null) : Await.coordinate(node, s));
+    }
+
+    private AsyncChain<SyncPoint<Ranges>> exclusiveSyncPoint(Ranges ranges, int attempt)
+    {
+        //TODO (on merge): CASSANDRA-19769 has the same logic... should this be refactored?  Would make it nice so we could split the range on retries?
+        return CoordinateSyncPoint.exclusive(node, ranges)
+                                  .recover(t -> {
+                                      //TODO (operability): make this configurable / monitorable?
+                                      if (attempt > 3) return null;
+                                      switch (shouldRetry(t))
+                                      {
+                                          case SUCCESS:
+                                              return AsyncChains.success(null);
+                                          case RETRY:
+                                              return exclusiveSyncPoint(ranges, attempt + 1);
+                                          case FAIL:
+                                              return null;
+                                          default:
+                                              throw new UnsupportedOperationException();
+                                      }
+                                  });
+    }
+
+    private enum RetryDecission { SUCCESS, RETRY, FAIL }
+    private static RetryDecission shouldRetry(Throwable t)
+    {
+        if (t.getClass() == ExecuteSyncPoint.SyncPointErased.class)
+            return RetryDecission.SUCCESS;
+        if (t instanceof Invalidated || t instanceof Preempted || t instanceof Timeout)
+            return RetryDecission.RETRY;
+        return RetryDecission.FAIL;
+    }
+
+    // TODO (duplication): this is 95% of accord.coordinate.CoordinateShardDurable
+    //   we already report all this information to EpochState; would be better to use that
+    //   Taken from ListStore...
+    private static class Await extends AsyncResults.SettableResult<SyncPoint<Ranges>> implements Callback<ReadData.ReadReply>
+    {
+        private final Node node;
+        private final AllTracker tracker;
+        private final SyncPoint<Ranges> exclusiveSyncPoint;
+
+        private Await(Node node, SyncPoint<Ranges> exclusiveSyncPoint)
+        {
+            Topologies topologies = node.topology().forEpoch(exclusiveSyncPoint.keysOrRanges, exclusiveSyncPoint.sourceEpoch());
+            this.node = node;
+            this.tracker = new AllTracker(topologies);
+            this.exclusiveSyncPoint = exclusiveSyncPoint;
+        }
+
+        public static AsyncChain<Void> coordinate(Node node, SyncPoint<Ranges> sp)
+        {
+            return node.withEpoch(sp.sourceEpoch(), () -> {
+                Await coordinate = new Await(node, sp);
+                coordinate.start();
+                AsyncChain<Void> chain = coordinate.map(i -> null);
+                return chain.recover(t -> {
+                    switch (shouldRetry(t))
+                    {
+                        case SUCCESS: return AsyncChains.success(null);
+                        case RETRY: return coordinate(node, sp);
+                        case FAIL: return null;
+                        default: throw new UnsupportedOperationException();
+                    }
+                });
+            });
+        }
+
+        private void start()
+        {
+            node.send(tracker.nodes(), to -> new WaitUntilApplied(to, tracker.topologies(), exclusiveSyncPoint.syncId, exclusiveSyncPoint.keysOrRanges, exclusiveSyncPoint.syncId.epoch()), this);
+        }
+        @Override
+        public void onSuccess(Node.Id from, ReadData.ReadReply reply)
+        {
+            if (!reply.isOk())
+            {
+                ReadData.CommitOrReadNack nack = (ReadData.CommitOrReadNack) reply;
+                switch (nack)
+                {
+                    default: throw new AssertionError("Unhandled: " + reply);
+
+                    case Insufficient:
+                        CoordinateSyncPoint.sendApply(node, from, exclusiveSyncPoint);
+                        return;
+                    case Rejected:
+                        tryFailure(new RuntimeException(nack.name()));
+                    case Redundant:
+                        tryFailure(new ExecuteSyncPoint.SyncPointErased());
+                        return;
+                    case Invalid:
+                        tryFailure(new Invalidated(exclusiveSyncPoint.syncId, exclusiveSyncPoint.homeKey));
+                        return;
+                }
+            }
+            else
+            {
+                if (tracker.recordSuccess(from) == RequestStatus.Success)
+                {
+                    node.configService().reportEpochRedundant(exclusiveSyncPoint.keysOrRanges, exclusiveSyncPoint.syncId.epoch());
+                    trySuccess(exclusiveSyncPoint);
+                }
+            }
+        }
+
+        private Throwable cause;
+
+        @Override
+        public void onFailure(Node.Id from, Throwable failure)
+        {
+            synchronized (this)
+            {
+                if (cause == null) cause = failure;
+                else
+                {
+                    try
+                    {
+                        cause.addSuppressed(failure);
+                    }
+                    catch (Throwable t)
+                    {
+                        // can not always add suppress
+                        node.agent().onUncaughtException(failure);
+                    }
+                }
+                failure = cause;
+            }
+            if (tracker.recordFailure(from) == RequestStatus.Failed)
+                tryFailure(failure);
+        }
+
+        @Override
+        public void onCallbackFailure(Node.Id from, Throwable failure)
+        {
+            tryFailure(failure);
+        }
     }
 }

@@ -34,6 +34,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -204,6 +205,8 @@ public class ConsensusMigrationState implements MetadataValue<ConsensusMigration
 
     public ConsensusMigrationState withMigrationsRemovedFor(Set<TableId> removed)
     {
+        if (tableStates.isEmpty() || Sets.intersection(tableStates.keySet(), removed).isEmpty())
+            return this;
         ImmutableMap.Builder<TableId, TableMigrationState> updated = ImmutableMap.builder();
         putUnchanged(tableStates, updated, removed);
         return new ConsensusMigrationState(lastModified, updated.build());

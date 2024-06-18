@@ -70,6 +70,11 @@ public final class ReplicationParams
         return new ReplicationParams(strategy.getClass(), strategy.configOptions);
     }
 
+    public static ReplicationParams copy(AbstractReplicationStrategy strategy)
+    {
+        return new ReplicationParams(strategy.getClass(), strategy.configOptions);
+    }
+
     public static ReplicationParams local()
     {
         return new ReplicationParams(LocalStrategy.class, ImmutableMap.of());

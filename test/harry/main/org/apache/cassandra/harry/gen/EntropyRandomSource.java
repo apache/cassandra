@@ -16,82 +16,74 @@
  * limitations under the License.
  */
 
-package accord.utilsfork;
+package org.apache.cassandra.harry.gen;
 
-import java.util.Random;
+import accord.utils.RandomSource;
 
-class WrappedRandomSource implements accord.utilsfork.RandomSource
+public class EntropyRandomSource implements RandomSource
 {
-    private final Random random;
+    private final EntropySource delegate;
 
-    WrappedRandomSource(Random random)
+    public EntropyRandomSource(EntropySource delegate)
     {
-        this.random = random;
-    }
-
-    @Override
-    public Random asJdkRandom()
-    {
-        return random;
+        this.delegate = delegate;
     }
 
     @Override
     public void nextBytes(byte[] bytes)
     {
-        random.nextBytes(bytes);
+        for (int i = 0, len = bytes.length; i < len; )
+            for (int rnd = nextInt(),
+                 n = Math.min(len - i, Integer.SIZE/Byte.SIZE);
+                 n-- > 0; rnd >>= Byte.SIZE)
+                bytes[i++] = (byte)rnd;
     }
 
     @Override
     public boolean nextBoolean()
     {
-        return random.nextBoolean();
+        return delegate.nextBoolean();
     }
 
     @Override
     public int nextInt()
     {
-        return random.nextInt();
-    }
-
-    @Override
-    public int nextInt(int maxExclusive)
-    {
-        return random.nextInt(maxExclusive);
+        return delegate.nextInt();
     }
 
     @Override
     public long nextLong()
     {
-        return random.nextLong();
+        return ((long) nextInt() << 32) + nextInt();
     }
 
     @Override
     public float nextFloat()
     {
-        return random.nextFloat();
+        return delegate.nextFloat();
     }
 
     @Override
     public double nextDouble()
     {
-        return random.nextDouble();
+        throw new UnsupportedOperationException("TODO: Implement");
     }
 
     @Override
     public double nextGaussian()
     {
-        return random.nextGaussian();
+        throw new UnsupportedOperationException("TODO: Implement");
     }
 
     @Override
     public void setSeed(long seed)
     {
-        random.setSeed(seed);
+        delegate.seed(seed);
     }
 
     @Override
     public RandomSource fork()
     {
-        return new WrappedRandomSource(new Random(nextLong()));
+        return new EntropyRandomSource(delegate.derive());
     }
 }

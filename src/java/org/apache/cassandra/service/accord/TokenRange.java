@@ -48,13 +48,30 @@ public class TokenRange extends Range.EndInclusive
 
     public TableId table()
     {
-        return ((AccordRoutingKey) start()).table();
+        return start().table();
+    }
+
+    @Override
+    public AccordRoutingKey start()
+    {
+        return (AccordRoutingKey) super.start();
+    }
+
+    @Override
+    public AccordRoutingKey end()
+    {
+        return  (AccordRoutingKey) super.end();
+    }
+
+    public boolean isFullRange()
+    {
+        return start().kindOfRoutingKey() == AccordRoutingKey.RoutingKeyKind.SENTINEL && end().kindOfRoutingKey() == AccordRoutingKey.RoutingKeyKind.SENTINEL;
     }
 
     @VisibleForTesting
     public Range withTable(TableId table)
     {
-        return new TokenRange(((AccordRoutingKey) start()).withTable(table), ((AccordRoutingKey) end()).withTable(table));
+        return new TokenRange(start().withTable(table), end().withTable(table));
     }
 
     public static TokenRange fullRange(TableId table)
@@ -80,20 +97,20 @@ public class TokenRange extends Range.EndInclusive
     public org.apache.cassandra.dht.Range<Token> toKeyspaceRange ()
     {
         IPartitioner partitioner = DatabaseDescriptor.getPartitioner();
-        AccordRoutingKey start = (AccordRoutingKey) start();
-        AccordRoutingKey end = (AccordRoutingKey) end();
+        AccordRoutingKey start = start();
+        AccordRoutingKey end = end();
         Token left = start instanceof SentinelKey ? partitioner.getMinimumToken() : start.token();
         Token right = end instanceof SentinelKey ? partitioner.getMinimumToken() : end.token();
         return new org.apache.cassandra.dht.Range<>(left, right);
     }
 
-    public static final IVersionedSerializer<TokenRange> serializer = new IVersionedSerializer<TokenRange>()
+    public static final IVersionedSerializer<TokenRange> serializer = new IVersionedSerializer<>()
     {
         @Override
         public void serialize(TokenRange range, DataOutputPlus out, int version) throws IOException
         {
-            AccordRoutingKey.serializer.serialize((AccordRoutingKey) range.start(), out, version);
-            AccordRoutingKey.serializer.serialize((AccordRoutingKey) range.end(), out, version);
+            AccordRoutingKey.serializer.serialize(range.start(), out, version);
+            AccordRoutingKey.serializer.serialize(range.end(), out, version);
         }
 
         @Override
@@ -106,8 +123,8 @@ public class TokenRange extends Range.EndInclusive
         @Override
         public long serializedSize(TokenRange range, int version)
         {
-            return AccordRoutingKey.serializer.serializedSize((AccordRoutingKey) range.start(), version)
-                 + AccordRoutingKey.serializer.serializedSize((AccordRoutingKey) range.end(), version);
+            return AccordRoutingKey.serializer.serializedSize(range.start(), version)
+                 + AccordRoutingKey.serializer.serializedSize(range.end(), version);
         }
     };
 }

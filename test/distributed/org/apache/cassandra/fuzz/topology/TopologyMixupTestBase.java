@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.fuzz.topology;
 
-import javax.annotation.Nullable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.InetSocketAddress;
@@ -26,6 +25,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -33,76 +33,64 @@ import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
+import javax.annotation.Nullable;
 
-import com.google.common.base.Throwables;
-import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
-import org.agrona.collections.Int2ObjectHashMap;
-import org.agrona.collections.IntArrayList;
-import org.agrona.collections.IntHashSet;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import accord.utilsfork.Gen;
-import accord.utilsfork.Gens;
-import accord.utilsfork.Invariants;
-import accord.utilsfork.Property;
-import accord.utilsfork.Property.Command;
-import accord.utilsfork.Property.SimpleCommand;
-import accord.utilsfork.RandomSource;
+import accord.utils.Gen;
+import accord.utils.Gens;
+import accord.utils.Invariants;
+import accord.utils.Property;
+import accord.utils.Property.Command;
+import accord.utils.Property.SimpleCommand;
+import accord.utils.RandomSource;
+import org.agrona.collections.Int2ObjectHashMap;
+import org.agrona.collections.IntArrayList;
+import org.agrona.collections.IntHashSet;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.YamlConfigurationLoader;
 import org.apache.cassandra.distributed.Cluster;
-import org.apache.cassandra.distributed.Constants;
 import org.apache.cassandra.distributed.api.Feature;
-import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.NodeToolResult;
-import org.apache.cassandra.distributed.api.Row;
-import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.impl.INodeProvisionStrategy;
 import org.apache.cassandra.distributed.impl.InstanceConfig;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
-import org.apache.cassandra.harry.model.TokenPlacementModelHelper;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
-import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
-import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.tcm.Retry;
+import org.apache.cassandra.tcm.log.Entry;
+import org.apache.cassandra.tcm.log.LogState;
 import org.apache.cassandra.utils.ConfigGenBuilder;
-import org.apache.cassandra.utils.Retry;
 
-import static accord.utilsfork.Property.commands;
-import static accord.utilsfork.Property.ignoreCommand;
-import static accord.utilsfork.Property.multistep;
-import static accord.utilsfork.Property.stateful;
-import static org.apache.cassandra.harry.model.TokenPlacementModel.Range;
-import static org.apache.cassandra.harry.model.TokenPlacementModel.Replica;
-import static org.apache.cassandra.harry.model.TokenPlacementModel.ReplicatedRanges;
-import static org.apache.cassandra.harry.model.TokenPlacementModel.ReplicationFactor;
-import static org.apache.cassandra.harry.model.TokenPlacementModel.SimpleReplicationFactor;
+import static accord.utils.Property.commands;
+import static accord.utils.Property.ignoreCommand;
+import static accord.utils.Property.multistep;
+import static accord.utils.Property.stateful;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 /**
  * These tests can create many instances, so mac users may need to run the following to avoid address bind failures
  * <p>
  * {@code for id in $(seq 0 15); do sudo ifconfig lo0 alias "127.0.0.$id"; done;}
  */
-public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Schema> extends TestBaseImpl
+public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.SchemaSpec> extends TestBaseImpl
 {
     private static final Logger logger = LoggerFactory.getLogger(TopologyMixupTestBase.class);
 
@@ -116,9 +104,9 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
         AddNode,
         RemoveNode,
         HostReplace,
-        StopNode,
-        StartNode,
         //TODO (coverage): add the following states once supported
+//        StopNode,
+//        StartNode,
 //        MoveToken
         //TODO (coverage): node migrate to another rack or dc (unsupported on trunk as of this writing, but planned work for TCM)
 //        MoveNodeToNewRack,
@@ -139,95 +127,14 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
     // common commands
     private Command<State<S>, Void, ?> repairCommand(int toCoordinate)
     {
-        return new SimpleCommand<>(state -> "nodetool repair " + state.schema.keyspace() + ' ' + state.schema.table() + " from node" + toCoordinate + state.commandNamePostfix(),
-                state -> state.cluster.get(toCoordinate).nodetoolResult("repair", state.schema.keyspace(), state.schema.table(), "--force").asserts().success());
-    }
-
-    private static <S extends Schema> Command<State<S>, Void, ?> repairCommand(int toCoordinate, String ks, String... tables) {
-        return new SimpleCommand<>(state -> "nodetool repair " + ks + (tables.length == 0 ? "" : " " + Arrays.asList(tables)) + " from node" + toCoordinate + state.commandNamePostfix(),
-                state -> {
-                    if (tables.length == 0) {
-                        state.cluster.get(toCoordinate).nodetoolResult("repair", ks, "--force").asserts().success();
-                        return;
-                    }
-                    List<String> args = new ArrayList<>(3 + tables.length);
-                    args.add("repair");
-                    args.add(ks);
-                    args.addAll(Arrays.asList(tables));
-                    args.add("--force");
-                    state.cluster.get(toCoordinate).nodetoolResult(args.toArray(String[]::new)).asserts().success();
-                });
+        return new SimpleCommand<>(state -> "nodetool repair " + state.schemaSpec.keyspaceName() + ' ' + state.schemaSpec.name() + " from node" + toCoordinate + state.commandNamePostfix(),
+                state -> state.cluster.get(toCoordinate).nodetoolResult("repair", state.schemaSpec.keyspaceName(), state.schemaSpec.name()).asserts().success());
     }
 
     private Command<State<S>, Void, ?> waitForCMSToQuiesce()
     {
-        return new Property.StateOnlyCommand<>()
-        {
-            private Epoch maxEpoch = null;
-            @Override
-            public String detailed(State<S> state)
-            {
-                if (maxEpoch == null)
-                    maxEpoch = ClusterUtils.maxEpoch(state.cluster, state.topologyHistory.up());
-                return "Waiting for CMS to Quiesce on epoch " + maxEpoch.getEpoch() + state.commandNamePostfix();
-            }
-
-            @Override
-            public void applyUnit(State<S> state)
-            {
-                Invariants.nonNull(maxEpoch, "detailed was not called before calling apply");
-                ClusterUtils.waitForCMSToQuiesce(state.cluster, maxEpoch, true);
-            }
-        };
-    }
-
-    private Command<State<S>, Void, ?> waitForGossipToSettle()
-    {
-        return new SimpleCommand<>(state -> "Waiting for Ring to Settle" + state.commandNamePostfix(),
-                state -> {
-                    int[] up = state.topologyHistory.up();
-                    for (int node : up)
-                    {
-                        IInvokableInstance instance = state.cluster.get(node);
-                        ClusterUtils.awaitRingJoin(state.cluster, up, instance);
-                    }
-                });
-    }
-
-    private Command<State<S>, Void, ?> waitAllNodesInPeers()
-    {
-        return new SimpleCommand<>(state -> "Waiting for all alive nodes to be in peers" + state.commandNamePostfix(),
-                state -> {
-                    int[] up = state.topologyHistory.up();
-                    for (int node : up)
-                    {
-                        IInvokableInstance instance = state.cluster.get(node);
-                        ClusterUtils.awaitInPeers(state.cluster, up, instance);
-                    }
-                });
-    }
-
-    private Command<State<S>, Void, ?> stopInstance(RandomSource rs, State<S> state)
-    {
-        int toStop = rs.pickInt(state.upAndSafe());
-        return stopInstance(toStop, "Normal Stop");
-    }
-
-    private Command<State<S>, Void, ?> startInstance(RandomSource rs, State<S> state)
-    {
-        int toStop = rs.pickInt(state.topologyHistory.down());
-        return startInstance(toStop);
-    }
-
-    private Command<State<S>, Void, ?> startInstance(int toStart)
-    {
-        return new SimpleCommand<>(state -> "Start Node" + toStart + state.commandNamePostfix(),
-                state -> {
-                    IInvokableInstance inst = state.cluster.get(toStart);
-                    TopologyHistory.Node node = state.topologyHistory.node(toStart);
-                    inst.startup();
-                    node.up();
-                });
+        return new SimpleCommand<>(state -> "Waiting for CMS to Quiesce" + state.commandNamePostfix(),
+                state -> ClusterUtils.waitForCMSToQuiesce(state.cluster, state.cmsGroup));
     }
 
     private Command<State<S>, Void, ?> stopInstance(int toRemove, String why)
@@ -248,14 +155,13 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
                     TopologyHistory.Node n = state.topologyHistory.addNode();
                     IInvokableInstance newInstance = ClusterUtils.addInstance(state.cluster, n.dc, n.rack, c -> c.set("auto_bootstrap", true));
                     newInstance.startup(state.cluster);
-                    ClusterUtils.assertModeJoined(newInstance);
                     n.up();
                 });
     }
 
     private Command<State<S>, Void, ?> removeNodeDecommission(RandomSource rs, State<S> state)
     {
-        int toRemove = rs.pickInt(state.upAndSafe());
+        int toRemove = rs.pickInt(state.topologyHistory.up());
         return new SimpleCommand<>("nodetool decommission node" + toRemove + state.commandNamePostfix(), s2 -> {
             IInvokableInstance inst = s2.cluster.get(toRemove);
             TopologyHistory.Node node = s2.topologyHistory.node(toRemove);
@@ -269,7 +175,7 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
     private Command<State<S>, Void, ?> removeNode(RandomSource rs, State<S> state)
     {
         int[] up = state.topologyHistory.up();
-        int toRemove = rs.pickInt(state.upAndSafe());
+        int toRemove = rs.pickInt(up);
         int toCoordinate;
         {
             int picked;
@@ -294,7 +200,14 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
 
     private Command<State<S>, Void, ?> removeNodeAssassinate(RandomSource rs, State<S> state)
     {
-        int toRemove = rs.pickInt(state.upAndSafe());
+        //TODO (correctness): assassinate CMS member isn't allowed
+        IntHashSet up = asSet(state.topologyHistory.up());
+        IntHashSet cmsGroup = asSet(state.cmsGroup);
+        Sets.SetView<Integer> upAndNotInCMS = Sets.difference(up, cmsGroup);
+        if (upAndNotInCMS.isEmpty()) throw new AssertionError("Every node is a CMS member");
+        List<Integer> allowed = new ArrayList<>(upAndNotInCMS);
+        allowed.sort(Comparator.naturalOrder());
+        int toRemove = rs.pick(allowed);
         int toCoordinate;
         {
             int[] upInt = state.topologyHistory.up();
@@ -338,17 +251,19 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
 
     private Command<State<S>, Void, ?> hostReplace(RandomSource rs, State<S> state)
     {
-        int nodeToReplace = rs.pickInt(state.upAndSafe());
+        int nodeToReplace = rs.pickInt(state.topologyHistory.up());
         IInvokableInstance toReplace = state.cluster.get(nodeToReplace);
         TopologyHistory.Node adding = state.topologyHistory.replace(nodeToReplace);
         TopologyHistory.Node removing = state.topologyHistory.nodes.get(nodeToReplace);
 
-        return multistep(stopInstance(nodeToReplace, "HostReplace; Node" + adding.id),
+        return multistep(new SimpleCommand<>("Stop Node" + nodeToReplace + " for HostReplace; Node" + adding.id + state.commandNamePostfix(), s2 -> {
+                    ClusterUtils.stopUnchecked(toReplace);
+                    removing.down();
+                }),
                 new SimpleCommand<>("Host Replace Node" + nodeToReplace + "; Node" + adding.id + state.commandNamePostfix(), s2 -> {
                     logger.info("node{} starting host replacement; epoch={}", adding.id, HackSerialization.tcmEpochAndSync(s2.cluster.getFirstRunningInstance()));
                     removing.status = TopologyHistory.Node.Status.BeingReplaced;
                     IInvokableInstance inst = ClusterUtils.replaceHostAndStart(s2.cluster, toReplace);
-                    ClusterUtils.assertModeJoined(inst);
                     s2.topologyHistory.replaced(removing, adding);
                     long epoch = HackSerialization.tcmEpoch(inst);
                     s2.currentEpoch.set(epoch);
@@ -374,7 +289,7 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
     @Test
     public void test()
     {
-        Property.StatefulBuilder statefulBuilder = stateful().withSteps(20).withStepTimeout(Duration.ofMinutes(3)).withExamples(1);
+        Property.StatefulBuilder statefulBuilder = stateful().withSteps(20).withStepTimeout(Duration.ofMinutes(2)).withExamples(1);
         preCheck(statefulBuilder);
         statefulBuilder.check(commands(this::stateGen)
                 .preCommands(state -> state.preActions.forEach(Runnable::run))
@@ -391,12 +306,6 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
                         TopologyMixupTestBase.this.destroyState(state, cause);
                     }
                 })
-                .commandsTransformer((state, gen) -> {
-                    for (BiFunction<State<S>, Gen<Command<State<S>, Void, ?>>, Gen<Command<State<S>, Void, ?>>> fn : state.commandsTransformers)
-                        gen = fn.apply(state, gen);
-                    return gen;
-                })
-                .onSuccess((state, sut, history) -> logger.info("Successful for the following:\nState {}\nHistory:\n{}", state, Property.formatList("\t\t", history)))
                 .build());
     }
 
@@ -405,30 +314,16 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
         EnumSet<TopologyChange> possibleTopologyChanges = EnumSet.noneOf(TopologyChange.class);
         // up or down is logically more correct, but since this runs sequentially and after the topology changes are complete, we don't have downed nodes at this point
         // so up is enough to know the topology size
-        int up = state.topologyHistory.up().length;
-        int down = state.topologyHistory.down().length;
-        int[] upAndSafe = state.upAndSafe();
-        int total = up + down;
-        if (total < state.topologyHistory.maxNodes)
+        int size = state.topologyHistory.up().length;
+        if (size < state.topologyHistory.maxNodes)
             possibleTopologyChanges.add(TopologyChange.AddNode);
-        if (upAndSafe.length > 0)
+        if (size > state.topologyHistory.quorum())
         {
-            // can't remove the node if all nodes are CMS nodes
-            if (!Sets.difference(asSet(upAndSafe), asSet(state.cmsGroup)).isEmpty())
+            if (size > TARGET_RF)
                 possibleTopologyChanges.add(TopologyChange.RemoveNode);
             possibleTopologyChanges.add(TopologyChange.HostReplace);
-            possibleTopologyChanges.add(TopologyChange.StopNode);
         }
-        if (down > 0)
-            possibleTopologyChanges.add(TopologyChange.StartNode);
         return possibleTopologyChanges;
-    }
-
-    private Command<State<S>, Void, ?> awaitClusterStable()
-    {
-        return multistep(waitForCMSToQuiesce(),
-                waitForGossipToSettle(),
-                waitAllNodesInPeers());
     }
 
     private Gen<Command<State<S>, Void, ?>> topologyCommand(State<S> state, EnumSet<TopologyChange> possibleTopologyChanges)
@@ -439,19 +334,13 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
             switch (task)
             {
                 case AddNode:
-                    possible.put(ignore -> multistep(addNode(), awaitClusterStable()), 1);
+                    possible.put(ignore -> multistep(addNode(), waitForCMSToQuiesce()), 1);
                     break;
                 case RemoveNode:
-                    possible.put(rs -> multistep(removeNodeRandomizedDispatch(rs, state), awaitClusterStable()), 1);
+                    possible.put(rs -> multistep(removeNodeRandomizedDispatch(rs, state), waitForCMSToQuiesce()), 1);
                     break;
                 case HostReplace:
-                    possible.put(rs -> multistep(hostReplace(rs, state), awaitClusterStable()), 1);
-                    break;
-                case StartNode:
-                    possible.put(rs -> startInstance(rs, state), 1);
-                    break;
-                case StopNode:
-                    possible.put(rs -> stopInstance(rs, state), 1);
+                    possible.put(rs -> multistep(hostReplace(rs, state), waitForCMSToQuiesce()), 1);
                     break;
                 default:
                     throw new UnsupportedOperationException(task.name());
@@ -468,66 +357,28 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
         return set;
     }
 
-    public interface Schema
+    public interface SchemaSpec
     {
-        String table();
-        String keyspace();
-        String createSchema();
+        String name();
+
+        String keyspaceName();
     }
 
-    protected interface CommandGen<S extends Schema>
-    {
-        Command<State<S>, Void, ?> apply(RandomSource rs, State<S> state);
-    }
-
-    private static class LoggingCommand<State, SystemUnderTest, Result> extends Property.ForwardingCommand<State, SystemUnderTest, Result>
-    {
-        private static final Logger logger = LoggerFactory.getLogger(LoggingCommand.class);
-
-        private LoggingCommand(Command<State, SystemUnderTest, Result> delegate)
-        {
-            super(delegate);
-        }
-
-        @Override
-        public Result apply(State s) throws Throwable
-        {
-            String name = detailed(s);
-            long startNanos = Clock.Global.nanoTime();
-            try
-            {
-                logger.info("Starting command: {}", name);
-                Result o = super.apply(s);
-                logger.info("Command {} was success after {}", name, Duration.ofNanos(Clock.Global.nanoTime() - startNanos));
-                return o;
-            }
-            catch (Throwable t)
-            {
-                logger.warn("Command {} failed after {}: {}", name, Duration.ofNanos(Clock.Global.nanoTime() - startNanos), t.toString()); // don't want stack trace, just type/msg
-                throw t;
-            }
-        }
-    }
-
-    protected static class State<S extends Schema> implements AutoCloseable
+    protected static class State<S extends SchemaSpec> implements AutoCloseable
     {
         final TopologyHistory topologyHistory;
         final Cluster cluster;
-        final S schema;
-        final List<BiFunction<State<S>, Gen<Command<State<S>, Void, ?>>, Gen<Command<State<S>, Void, ?>>>> commandsTransformers = new ArrayList<>();
+        final S schemaSpec;
         final List<Runnable> preActions = new CopyOnWriteArrayList<>();
         final AtomicLong currentEpoch = new AtomicLong();
-        final CommandGen<S> statementGen;
+        final BiFunction<RandomSource, State<S>, Command<State<S>, Void, ?>> statementGen;
         final Gen<RemoveType> removeTypeGen;
         private final Map<String, Object> yamlConfigOverrides;
         int[] cmsGroup = new int[0];
-        private ReplicationFactor rf;
-        private final RingModel ring = new RingModel();
 
-        public State(RandomSource rs, BiFunction<RandomSource, Cluster, S> schemaSpecGen, Function<S, CommandGen<S>> cqlOperationsGen)
+        public State(RandomSource rs, BiFunction<RandomSource, Cluster, S> schemaSpecGen, Function<S, BiFunction<RandomSource, State<S>, Command<State<S>, Void, ?>>> cqlOperationsGen)
         {
             this.topologyHistory = new TopologyHistory(rs.fork(), 2, 4);
-            rf = new SimpleReplicationFactor(2);
             try
             {
 
@@ -536,18 +387,7 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
                         .withTokenSupplier(topologyHistory)
                         .withConfig(c -> {
                             c.with(Feature.values())
-                                    .set("write_request_timeout", "10s")
-                                    .set("read_request_timeout", "10s")
-                                    .set("range_request_timeout", "20s")
-                                    .set("request_timeout", "20s")
-                                    .set("native_transport_timeout", "30s")
-                                    // bound startup to some value larger than the task timeout, this is to allow the
-                                    // tests to stop blocking when a startup issue is detected.  The main reason for
-                                    // this is that startup blocks forever, waiting for accord and streaming to
-                                    // complete... but if there are bugs at these layers then the startup will never
-                                    // exit, blocking the JVM from giving the needed information (logs/seed) to debug.
-                                    .set(Constants.KEY_DTEST_STARTUP_TIMEOUT, "4m")
-                                    .set(Constants.KEY_DTEST_API_STARTUP_FAILURE_AS_SHUTDOWN, false);
+                                    .set("write_request_timeout", "10s");
                             //TODO (maintenance): where to put this?  Anything touching ConfigGenBuilder with jvm-dtest needs this...
                             ((InstanceConfig) c).remove("commitlog_sync_period_in_ms");
                             for (Map.Entry<String, Object> e : yamlConfigOverrides.entrySet())
@@ -585,25 +425,6 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
             {
                 throw new UncheckedIOException(e);
             }
-            cluster.setUncaughtExceptionsFilter((node, t) -> {
-                // api is "ignore" so false means include,
-                var rootCause = Throwables.getRootCause(t);
-                if (rootCause.getMessage() != null)
-                {
-                    if (rootCause.getMessage().startsWith("Queried for epoch") && rootCause.getMessage().contains("but could not catch up. Current epoch:"))
-                        return true;
-                    if (rootCause.getMessage().startsWith("Operation timed out"))
-                    {
-                        // is this due to TCM fetching epochs? PaxosBackedProcessor.getLogState is costly and more likely to timeout... so ignore those
-                        Optional<StackTraceElement> match = Stream.of(rootCause.getStackTrace())
-                                .filter(s -> s.getClassName().equals("org.apache.cassandra.tcm.PaxosBackedProcessor") && s.getMethodName().equals("getLogState"))
-                                .findFirst();
-                        if (match.isPresent())
-                            return true;
-                    }
-                }
-                return false;
-            });
             fixDistributedSchemas(cluster);
             init(cluster, TARGET_RF);
             // fix TCM
@@ -612,57 +433,20 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
                 result.asserts().success();
                 logger.info("CMS reconfigure: {}", result.getStdout());
             }
-            commandsTransformers.add(new BiFunction<State<S>, Gen<Command<State<S>, Void, ?>>, Gen<Command<State<S>, Void, ?>>>() {
+            preActions.add(new Runnable()
+            {
                 // in order to remove this action, an anonymous class is needed so "this" works, lambda "this" is the parent class
                 @Override
-                public Gen<Command<State<S>, Void, ?>> apply(State<S> state, Gen<Command<State<S>, Void, ?>> commandGen) {
-                    if (topologyHistory.up().length < TARGET_RF)
-                        return commandGen;
-                    SimpleCommand<State<S>> reconfig = new SimpleCommand<>("nodetool cms reconfigure " + TARGET_RF, ignore -> {
+                public void run()
+                {
+                    if (topologyHistory.up().length == TARGET_RF)
+                    {
                         NodeToolResult result = cluster.get(1).nodetoolResult("cms", "reconfigure", Integer.toString(TARGET_RF));
                         result.asserts().success();
                         logger.info("CMS reconfigure: {}", result.getStdout());
-                    });
-                    SimpleCommand<State<S>> fixDistributedSchemas = new SimpleCommand<>("Set system distributed keyspaces to RF=" + TARGET_RF, ignore ->
-                            fixDistributedSchemas(cluster));
-                    SimpleCommand<State<S>> fixTestKeyspace = new SimpleCommand<>("Set " + KEYSPACE + " keyspace to RF=" + TARGET_RF, s -> {
-                        cluster.schemaChange("ALTER KEYSPACE " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': " + TARGET_RF + "}");
-                        rf = new SimpleReplicationFactor(TARGET_RF);
-                    });
-                    var self = this;
-                    return rs -> {
-                        Command<State<S>, Void, ?> next = commandGen.next(rs);
-                        if (next.checkPreconditions(state) == Property.PreCheckResult.Ignore)
-                            return next;
-                        commandsTransformers.remove(self);
-                        int[] up = state.topologyHistory.up();
-                        List<Command<State<S>, Void, ?>> commands = new ArrayList<>();
-                        commands.add(fixDistributedSchemas);
-                        for (String ks : Arrays.asList("system_auth", "system_traces"))
-                        {
-                            int coordinator = rs.pickInt(up);
-                            commands.add(repairCommand(coordinator, ks));
-                        }
-                        commands.add(fixTestKeyspace);
-                        {
-                            int coordinator = rs.pickInt(up);
-                            commands.add(repairCommand(coordinator, KEYSPACE));
-                        }
-                        commands.add(reconfig);
-                        commands.add(next);
-                        return multistep(commands);
-                    };
+                        preActions.remove(this);
+                    }
                 }
-            });
-            commandsTransformers.add((state, commandGen) -> rs2 -> {
-                Command<State<S>, Void, ?> c = commandGen.next(rs2);
-                if (!(c instanceof Property.MultistepCommand))
-                    return new LoggingCommand<>(c);
-                Property.MultistepCommand<State<S>, Void> multistep = (Property.MultistepCommand<State<S>, Void>) c;
-                List<Command<State<S>, Void, ?>> subcommands = new ArrayList<>();
-                for (var sub : multistep)
-                    subcommands.add(new LoggingCommand<>(sub));
-                return multistep(subcommands);
             });
             preActions.add(() -> {
                 int[] up = topologyHistory.up();
@@ -670,13 +454,10 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
                 IInvokableInstance node = cluster.get(up[up.length - 1]);
                 cmsGroup = HackSerialization.cmsGroup(node);
                 currentEpoch.set(HackSerialization.tcmEpoch(node));
-
-                ring.rebuild(cluster.coordinator(up[0]), rf, up);
-                // ring must know about the up nodes
             });
             preActions.add(() -> cluster.checkAndResetUncaughtExceptions());
-            this.schema = schemaSpecGen.apply(rs, cluster);
-            statementGen = cqlOperationsGen.apply(schema);
+            this.schemaSpec = schemaSpecGen.apply(rs, cluster);
+            statementGen = cqlOperationsGen.apply(schemaSpec);
 
             removeTypeGen = REMOVE_TYPE_DISTRIBUTION.next(rs);
 
@@ -697,38 +478,7 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
 
         protected String commandNamePostfix()
         {
-            return "; epoch=" + currentEpoch.get() + ", cms=" + Arrays.toString(cmsGroup) + ", up=" + Arrays.toString(topologyHistory.up()) + ", down=" + Arrays.toString(topologyHistory.down());
-        }
-
-        public int[] upAndSafe()
-        {
-            IntHashSet up = asSet(topologyHistory.up());
-            int quorum = topologyHistory.quorum();
-            // find what ranges are able to handle 1 node loss
-            Set<Range> safeRanges = new HashSet<>();
-            ring.rangesToReplicas((range, replicas) -> {
-                IntHashSet alive = new IntHashSet();
-                for (int peer : replicas)
-                {
-                    if (up.contains(peer))
-                        alive.add(peer);
-                }
-                if (quorum < alive.size())
-                    safeRanges.add(range);
-            });
-
-            // filter nodes where 100% of their ranges are "safe"
-            IntArrayList safeNodes = new IntArrayList();
-            for (int id : up)
-            {
-                List<Range> ranges = ring.ranges(id);
-                if (ranges.stream().allMatch(safeRanges::contains))
-                    safeNodes.add(id);
-            }
-
-            int[] upAndSafe = safeNodes.toIntArray();
-            Arrays.sort(upAndSafe);
-            return upAndSafe;
+            return "; epoch=" + currentEpoch.get() + ", cms=" + Arrays.toString(cmsGroup);
         }
 
         @Override
@@ -736,8 +486,6 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
         {
             StringBuilder sb = new StringBuilder();
             sb.append("Yaml Config:\n").append(YamlConfigurationLoader.toYaml(this.yamlConfigOverrides));
-            String cql = schema.createSchema();
-            sb.append("\n-- Setup Schema\n").append(cql);
             sb.append("\nTopology:\n").append(topologyHistory);
             sb.append("\nCMS Voting Group: ").append(Arrays.toString(cmsGroup));
             if (epochHistory != null)
@@ -750,28 +498,14 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
         @Override
         public void close() throws Exception
         {
-            var cmsNodesUp = Sets.intersection(asSet(cmsGroup), asSet(topologyHistory.up()));
-            int cmsNode = Iterables.getFirst(cmsNodesUp, null);
-            try
-            {
-                SimpleQueryResult qr = Retry.retryWithBackoffBlocking(5, () -> cluster.get(cmsNode).executeInternalWithResult("SELECT epoch, kind, transformation FROM system_views.cluster_metadata_log"));
-                TableBuilder builder = new TableBuilder(" | ");
-                builder.add(qr.names());
-                while (qr.hasNext())
-                {
-                    Row next = qr.next();
-                    builder.add(Stream.of(next.toObjectArray())
-                            .map(Objects::toString)
-                            .map(s -> s.length() > 100 ? s.substring(0, 100) + "..." : s)
-                            .collect(Collectors.toList()));
-                }
-                epochHistory = "Epochs:\n" + builder;
-            }
-            catch (Throwable t)
-            {
-                logger.warn("Unable to fetch epoch history on node{}", cmsNode, t);
-            }
-            logger.info("Shutting down clusters");
+            epochHistory = cluster.get(cmsGroup[0]).callOnInstance(() -> {
+                LogState all = ClusterMetadataService.instance().processor().reconstruct(Epoch.EMPTY, Epoch.create(Long.MAX_VALUE), Retry.Deadline.retryIndefinitely(DatabaseDescriptor.getCmsAwaitTimeout().to(NANOSECONDS),
+                        TCMMetrics.instance.commitRetries));
+                StringBuilder sb = new StringBuilder("Epochs:");
+                for (Entry e : all.entries)
+                    sb.append("\n").append(e.epoch.getEpoch()).append(": ").append(e.transform);
+                return sb.toString();
+            });
             cluster.close();
         }
     }
@@ -835,20 +569,10 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
 
         public int[] up()
         {
-            return nodes(Node.Status.Up);
-        }
-
-        public int[] down()
-        {
-            return nodes(Node.Status.Down);
-        }
-
-        private int[] nodes(Node.Status target)
-        {
             IntArrayList up = new IntArrayList(nodes.size(), -1);
             for (Map.Entry<Integer, Node> n : nodes.entrySet())
             {
-                if (n.getValue().status == target)
+                if (n.getValue().status == Node.Status.Up)
                     up.add(n.getKey());
             }
             int[] ints = up.toIntArray();
@@ -986,65 +710,6 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
             String[] parts = address.split("\\.");
             Invariants.checkState(parts.length == 4, "Unable to parse address %s", address);
             return Integer.parseInt(parts[3]);
-        }
-    }
-
-    private static class RingModel
-    {
-        ReplicatedRanges ring = null;
-        Int2ObjectHashMap<Replica> idToReplica = null;
-
-        private void rebuild(ICoordinator coordinator, ReplicationFactor rf, int[] up)
-        {
-            ring = TokenPlacementModelHelper.getRing(coordinator, rf);
-
-            Int2ObjectHashMap<Replica> idToReplica = new Int2ObjectHashMap<>();
-            for (Map.Entry<Range, List<Replica>> e : ring.asMap().entrySet())
-            {
-                for (var replica : e.getValue())
-                    idToReplica.put(toNodeId(replica), replica);
-            }
-            this.idToReplica = idToReplica;
-
-            IntHashSet upSet = asSet(up);
-            if (!idToReplica.keySet().containsAll(upSet))
-            {
-                int coordinatorNode = coordinator.instance().config().num();
-                Sets.SetView<Integer> diff = Sets.difference(upSet, idToReplica.keySet());
-                throw new AssertionError("Unable to find nodes " + diff + " in the ring on node" + coordinatorNode);
-            }
-        }
-
-        private static int toNodeId(Replica replica)
-        {
-            //TODO (fix test api): NodeId is in the API but is always null.  Cheapest way to get the id is to assume the address has it
-            // same issue with address...
-            // /127.0.0.2
-            String harryId = replica.node().id();
-            int index = harryId.lastIndexOf('.');
-            int peer = Integer.parseInt(harryId.substring(index + 1));
-            return peer;
-        }
-
-        List<Range> ranges(int node)
-        {
-            Replica replica = idToReplica.get(node);
-            if (replica == null)
-                throw new AssertionError("Unknown node" + node);
-            List<Range> ranges = ring.ranges(replica);
-            if (ranges == null)
-                throw new AssertionError("node" + node + " some how does not have ranges...");
-            return ranges;
-        }
-
-        private void rangesToReplicas(BiConsumer<Range, int[]> fn)
-        {
-            for (Map.Entry<Range, List<Replica>> e : ring.asMap().entrySet())
-            {
-                int[] replicas = e.getValue().stream().mapToInt(RingModel::toNodeId).toArray();
-                Arrays.sort(replicas);
-                fn.accept(e.getKey(), replicas);
-            }
         }
     }
 }

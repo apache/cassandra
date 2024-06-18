@@ -47,7 +47,7 @@ public class AccordStaleReplicasTest
             qt().check(rs -> {
                 Epoch epoch = epochGen.next(rs);
                 Set<Node.Id> nodes = nodesGen.next(rs);
-                AsymmetricMetadataSerializers.testSerde(buffer, AccordStaleReplicas.serializer, new AccordStaleReplicas(nodes, epoch), Version.V2);
+                AsymmetricMetadataSerializers.testSerde(buffer, AccordStaleReplicas.serializer, new AccordStaleReplicas(nodes, epoch), Version.MIN_ACCORD_VERSION);
             });
         }
     }

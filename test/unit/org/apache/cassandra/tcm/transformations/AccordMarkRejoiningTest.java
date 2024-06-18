@@ -35,7 +35,7 @@ public class AccordMarkRejoiningTest
     public void shouldSerializeEmpty() throws IOException
     {
         DataOutputBuffer buffer = new DataOutputBuffer();
-        AsymmetricMetadataSerializers.testSerde(buffer, AccordMarkRejoining.serializer, new AccordMarkRejoining(Collections.emptySet()), Version.V2);
+        AsymmetricMetadataSerializers.testSerde(buffer, AccordMarkRejoining.serializer, new AccordMarkRejoining(Collections.emptySet()), Version.MIN_ACCORD_VERSION);
     }
 
     @Test
@@ -43,7 +43,7 @@ public class AccordMarkRejoiningTest
     {
         DataOutputBuffer buffer = new DataOutputBuffer();
         AccordMarkRejoining markStale = new AccordMarkRejoining(Collections.singleton(NodeId.fromString("1")));
-        AsymmetricMetadataSerializers.testSerde(buffer, AccordMarkRejoining.serializer, markStale, Version.V2);
+        AsymmetricMetadataSerializers.testSerde(buffer, AccordMarkRejoining.serializer, markStale, Version.MIN_ACCORD_VERSION);
     }
 
     @Test
@@ -51,6 +51,6 @@ public class AccordMarkRejoiningTest
     {
         DataOutputBuffer buffer = new DataOutputBuffer();
         AccordMarkRejoining markStale = new AccordMarkRejoining(ImmutableSet.of(NodeId.fromString("1"), NodeId.fromString("2")));
-        AsymmetricMetadataSerializers.testSerde(buffer, AccordMarkRejoining.serializer, markStale, Version.V2);
+        AsymmetricMetadataSerializers.testSerde(buffer, AccordMarkRejoining.serializer, markStale, Version.MIN_ACCORD_VERSION);
     }
 }

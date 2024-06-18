@@ -58,7 +58,6 @@ import accord.utils.RandomSource;
 import org.apache.cassandra.concurrent.AdaptingScheduledExecutorPlus;
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.Gossiper;
@@ -70,8 +69,8 @@ import org.apache.cassandra.net.ConnectionType;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.RequestCallback;
-import org.apache.cassandra.tcm.ClusterMetadataService;
-import org.apache.cassandra.tcm.StubClusterMetadataService;
+import org.apache.cassandra.tcm.ValidatingClusterMetadataService;
+import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.AccordGenerators;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.concurrent.Future;
@@ -86,9 +85,7 @@ public class AccordSyncPropagatorTest
     public static void setup() throws NoSuchFieldException, IllegalAccessException
     {
         DatabaseDescriptor.daemonInitialization();
-        DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
-        ClusterMetadataService.unsetInstance();
-        ClusterMetadataService.setInstance(StubClusterMetadataService.forTesting());
+        ValidatingClusterMetadataService.createAndRegister(Version.MIN_ACCORD_VERSION);
     }
 
     @Test

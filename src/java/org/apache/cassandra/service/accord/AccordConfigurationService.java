@@ -19,8 +19,10 @@
 package org.apache.cassandra.service.accord;
 
 import java.util.Objects;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
@@ -30,6 +32,7 @@ import com.google.common.collect.Sets;
 import accord.impl.AbstractConfigurationService;
 import accord.local.Node;
 import accord.primitives.Ranges;
+import accord.topology.Shard;
 import accord.topology.Topology;
 import accord.utils.Invariants;
 import accord.utils.async.AsyncResult;
@@ -207,12 +210,18 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
         return new EpochHistory();
     }
 
+    @VisibleForTesting
     public synchronized void start()
+    {
+        start(ignore -> {});
+    }
+
+    public synchronized void start(Consumer<OptionalLong> callback)
     {
         Invariants.checkState(state == State.INITIALIZED, "Expected state to be INITIALIZED but was %s", state);
         state = State.LOADING;
-        updateMapping(ClusterMetadata.current());
         EndpointMapping snapshot = mapping;
+        //TODO (restart): if there are topologies loaded then there is likely failures if reporting is needed, as mapping is not setup yet
         diskState = diskStateManager.loadTopologies(((epoch, topology, syncStatus, pendingSyncNotify, remoteSyncComplete, closed, redundant) -> {
             if (topology != null)
                 reportTopology(topology, syncStatus == SyncStatus.NOT_STARTED);
@@ -230,6 +239,7 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
             receiveRedundant(redundant, epoch);
         }));
         state = State.STARTED;
+        callback.accept(diskState.isEmpty() ? OptionalLong.empty() : OptionalLong.of(diskState.maxEpoch));
         ClusterMetadataService.instance().log().addListener(this);
     }
 
@@ -293,27 +303,54 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
 
     private void reportMetadata(ClusterMetadata metadata)
     {
-        Stage.MISC.submit(() -> {
-            synchronized (AccordConfigurationService.this)
-            {
-                updateMapping(metadata);
-                Topology topology = AccordTopology.createAccordTopology(metadata);
-                Topology current = isEmpty() ? Topology.EMPTY : currentTopology();
-                reportTopology(topology);
-                Sets.SetView<Node.Id> removedNodes = Sets.difference(current.nodes(), topology.nodes());
-                if (!removedNodes.isEmpty())
-                    onNodesRemoved(topology.epoch(), removedNodes);
-            }
-        });
+        Stage.MISC.submit(() -> reportMetadataInternal(metadata));
     }
 
-    private synchronized void onNodesRemoved(long epoch, Set<Node.Id> removed)
+    synchronized void reportMetadataInternal(ClusterMetadata metadata)
     {
+        updateMapping(metadata);
+        Topology topology = AccordTopology.createAccordTopology(metadata);
+        if (Invariants.isParanoid())
+        {
+            for (Node.Id node : topology.nodes())
+            {
+                if (mapping.mappedEndpointOrNull(node) == null)
+                    throw new IllegalStateException("Epoch " + topology.epoch() + " has node " + node + " but mapping does not!");
+            }
+        }
+        Topology current = isEmpty() ? Topology.EMPTY : currentTopology();
+        reportTopology(topology);
+        // for all nodes removed, or pending removal, mark them as removed so we don't wait on their replies
+        Sets.SetView<Node.Id> removedNodes = Sets.difference(current.nodes(), topology.nodes());
+        if (!removedNodes.isEmpty())
+        {
+            onNodesRemoved(topology.epoch(), removedNodes);
+            for (Node.Id node : removedNodes)
+            {
+                if (shareShard(current, node, localId))
+                    AccordService.instance().tryMarkRemoved(current, node);
+            }
+        }
+    }
+
+    private static boolean shareShard(Topology current, Node.Id target, Node.Id self)
+    {
+        for (Shard shard : current.shards())
+        {
+            if (!shard.contains(target)) continue;
+            if (shard.contains(self)) return true;
+        }
+        return false;
+    }
+
+    public synchronized void onNodesRemoved(long epoch, Set<Node.Id> removed)
+    {
+        if (removed.isEmpty()) return;
         syncPropagator.onNodesRemoved(removed);
         for (long oldEpoch : nonCompletedEpochsBefore(epoch))
         {
             for (Node.Id node : removed)
-                receiveRemoteSyncComplete(node, oldEpoch);
+                receiveRemoteSyncCompletePreListenerNotify(node, oldEpoch);
         }
         listeners.forEach(l -> l.onRemoveNodes(epoch, removed));
     }
@@ -350,7 +387,6 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
     @Override
     public void notifyPostCommit(ClusterMetadata prev, ClusterMetadata next, boolean fromSnapshot)
     {
-        maybeReportMetadata(prev);
         maybeReportMetadata(next);
     }
 

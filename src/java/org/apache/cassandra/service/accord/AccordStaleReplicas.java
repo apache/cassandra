@@ -44,7 +44,7 @@ public class AccordStaleReplicas implements MetadataValue<AccordStaleReplicas>
     private final Set<Node.Id> staleIds;
     private final Epoch lastModified;
 
-    AccordStaleReplicas(Set<Node.Id> staleIds, Epoch lastModified)
+    public AccordStaleReplicas(Set<Node.Id> staleIds, Epoch lastModified)
     {
         this.staleIds = staleIds;
         this.lastModified = lastModified;

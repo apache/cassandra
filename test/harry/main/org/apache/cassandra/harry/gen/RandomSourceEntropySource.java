@@ -16,33 +16,35 @@
  * limitations under the License.
  */
 
-package accord.utilsfork;
+package org.apache.cassandra.harry.gen;
 
-import java.util.Random;
+import accord.utils.RandomSource;
 
-public class DefaultRandom implements RandomSource
+public class RandomSourceEntropySource implements EntropySource
 {
-    private final Random delegate;
-    public DefaultRandom()
-    {
-        this.delegate = new Random();
-    }
+    private final RandomSource delegate;
 
-    public DefaultRandom(long seed)
+    public RandomSourceEntropySource(RandomSource delegate)
     {
-        this.delegate = new Random(seed);
+        this.delegate = delegate;
     }
 
     @Override
-    public void nextBytes(byte[] bytes)
+    public long next()
     {
-        delegate.nextBytes(bytes);
+        return delegate.nextLong();
     }
 
     @Override
-    public boolean nextBoolean()
+    public void seed(long seed)
     {
-        return delegate.nextBoolean();
+        delegate.setSeed(seed);
+    }
+
+    @Override
+    public EntropySource derive()
+    {
+        return new RandomSourceEntropySource(delegate.fork());
     }
 
     @Override
@@ -52,9 +54,15 @@ public class DefaultRandom implements RandomSource
     }
 
     @Override
-    public long nextLong()
+    public int nextInt(int max)
     {
-        return delegate.nextLong();
+        return delegate.nextInt(max);
+    }
+
+    @Override
+    public int nextInt(int min, int max)
+    {
+        return delegate.nextInt(min, max);
     }
 
     @Override
@@ -70,25 +78,8 @@ public class DefaultRandom implements RandomSource
     }
 
     @Override
-    public double nextGaussian()
+    public boolean nextBoolean()
     {
-        return delegate.nextGaussian();
-    }
-
-    @Override
-    public void setSeed(long seed)
-    {
-        delegate.setSeed(seed);
-    }
-
-    @Override
-    public DefaultRandom fork() {
-        return new DefaultRandom(nextLong());
-    }
-
-    @Override
-    public Random asJdkRandom()
-    {
-        return delegate;
+        return delegate.nextBoolean();
     }
 }

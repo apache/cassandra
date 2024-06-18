@@ -46,8 +46,10 @@ import org.apache.cassandra.tcm.transformations.Assassinate;
 import org.apache.cassandra.tcm.transformations.BeginConsensusMigrationForTableAndRange;
 import org.apache.cassandra.tcm.transformations.CancelInProgressSequence;
 import org.apache.cassandra.tcm.transformations.CustomTransformation;
+import org.apache.cassandra.tcm.transformations.FinishDropAccordTable;
 import org.apache.cassandra.tcm.transformations.ForceSnapshot;
 import org.apache.cassandra.tcm.transformations.MaybeFinishConsensusMigrationForTableAndRange;
+import org.apache.cassandra.tcm.transformations.PrepareDropAccordTable;
 import org.apache.cassandra.tcm.transformations.PrepareJoin;
 import org.apache.cassandra.tcm.transformations.PrepareLeave;
 import org.apache.cassandra.tcm.transformations.PrepareMove;
@@ -246,6 +248,8 @@ public interface Transformation
         MAYBE_FINISH_CONSENSUS_MIGRATION_FOR_TABLE_AND_RANGE(38, () -> MaybeFinishConsensusMigrationForTableAndRange.serializer),
         ACCORD_MARK_STALE(39, () -> AccordMarkStale.serializer),
         ACCORD_MARK_REJOINING(40, () -> AccordMarkRejoining.serializer),
+        PREPARE_DROP_ACCORD_TABLE(41, () -> PrepareDropAccordTable.serializer),
+        FINISH_DROP_ACCORD_TABLE(42, () -> FinishDropAccordTable.serializer),
         ;
 
         private final Supplier<AsymmetricMetadataSerializer<Transformation, ? extends Transformation>> serializer;
