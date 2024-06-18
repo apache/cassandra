@@ -182,7 +182,7 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
         this.paxosOnly = paxosOnly;
         this.isConsensusMigration = isConsensusMigration;
         assert cfnames.length > 0 : "Repairing no column families seems pointless, doesn't it";
-        this.state = new SessionState(ctx.clock(), parentRepairSession, keyspace, cfnames, commonRange);
+        this.state = new SessionState(ctx, parentRepairSession, keyspace, cfnames, commonRange);
         this.parallelismDegree = parallelismDegree;
         this.isIncremental = isIncremental;
         this.previewKind = previewKind;

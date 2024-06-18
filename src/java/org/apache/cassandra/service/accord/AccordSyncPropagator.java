@@ -19,6 +19,7 @@
 package org.apache.cassandra.service.accord;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -29,6 +30,9 @@ import java.util.concurrent.TimeUnit;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import accord.local.Node;
 import accord.messages.SimpleReply;
 import accord.primitives.Ranges;
@@ -38,6 +42,7 @@ import org.agrona.collections.Long2ObjectHashMap;
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.exceptions.RequestFailure;
+import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -50,6 +55,7 @@ import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
 import org.apache.cassandra.service.accord.serializers.TopologySerializers;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.CollectionSerializers;
 
 import static org.apache.cassandra.utils.CollectionSerializers.newListSerializer;
@@ -59,6 +65,8 @@ import static org.apache.cassandra.utils.CollectionSerializers.newListSerializer
  */
 public class AccordSyncPropagator
 {
+    private static final Logger logger = LoggerFactory.getLogger(AccordSyncPropagator.class);
+
     public static final IVerbHandler<List<Notification>> verbHandler = message -> {
         if (!AccordService.isSetup())
             return;
@@ -118,6 +126,11 @@ public class AccordSyncPropagator
             addRedundant = addRedundant.subtract(redundant);
             redundant = redundant.with(addRedundant);
             return new Notification(epoch, Collections.emptySet(), Ranges.EMPTY, addRedundant);
+        }
+
+        boolean isEmpty()
+        {
+            return syncComplete.isEmpty() && closed.isEmpty() && redundant.isEmpty();
         }
 
         boolean ack(Notification notification)
@@ -201,6 +214,15 @@ public class AccordSyncPropagator
         return !pending.isEmpty();
     }
 
+    synchronized boolean hasPending(long epoch)
+    {
+        if (pending.isEmpty()) return false;
+        return pending.values().stream().allMatch(n -> {
+            PendingEpoch p = n.get(epoch);
+            return p != null && !p.isEmpty();
+        });
+    }
+
     @Override
     public String toString()
     {
@@ -208,6 +230,28 @@ public class AccordSyncPropagator
                "localId=" + localId +
                ", pending=" + pending +
                '}';
+    }
+
+    public synchronized void onNodesRemoved(Set<Node.Id> removed)
+    {
+        for (Node.Id node : removed)
+        {
+            PendingEpochs pendingEpochs = pending.get(node.id);
+            if (pendingEpochs == null) continue;
+            long[] toComplete = new long[pendingEpochs.size()];
+            Long2ObjectHashMap<PendingEpoch>.KeyIterator it = pendingEpochs.keySet().iterator();
+            for (int i = 0; it.hasNext(); i++)
+                toComplete[i] = it.nextLong();
+            Arrays.sort(toComplete);
+            for (long epoch : toComplete)
+                listener.onEndpointAck(node, epoch);
+            pending.remove(node.id);
+            for (long epoch : toComplete)
+            {
+                if (hasSyncCompletedFor(epoch))
+                    listener.onComplete(epoch);
+            }
+        }
     }
 
     public void reportSyncComplete(long epoch, Collection<Node.Id> notify, Node.Id syncCompleteId)
@@ -258,17 +302,13 @@ public class AccordSyncPropagator
     private boolean notify(Node.Id to, List<Notification> notifications)
     {
         InetAddressAndPort toEp = endpointMapper.mappedEndpoint(to);
-        if (!failureDetector.isAlive(toEp))
-        {
-            scheduler.schedule(() -> notify(to, notifications), 1, TimeUnit.MINUTES);
-            return false;
-        }
         Message<List<Notification>> msg = Message.out(Verb.ACCORD_SYNC_NOTIFY_REQ, notifications);
-        messagingService.sendWithCallback(msg, toEp, new RequestCallback<SimpleReply>(){
+        RequestCallback<SimpleReply> cb = new RequestCallback<>()
+        {
             @Override
             public void onResponse(Message<SimpleReply> msg)
             {
-                Invariants.checkState(msg.payload == SimpleReply.Ok, "Unexpected message: %s",  msg);
+                Invariants.checkState(msg.payload == SimpleReply.Ok, "Unexpected message: %s", msg);
                 Set<Long> completedEpochs = new HashSet<>();
                 // TODO review is it a good idea to call the listener while not holding the `AccordSyncPropagator` lock?
                 synchronized (AccordSyncPropagator.this)
@@ -304,7 +344,22 @@ public class AccordSyncPropagator
             {
                 return true;
             }
-        });
+        };
+        if (!failureDetector.isAlive(toEp))
+        {
+            // was the endpoint removed from membership?
+            ClusterMetadata metadata = ClusterMetadata.current();
+            if (Gossiper.instance.getEndpointStateForEndpoint(toEp) == null && !metadata.directory.allJoinedEndpoints().contains(toEp) && !metadata.fullCMSMembers().contains(toEp))
+            {
+                // endpoint no longer exists...
+                cb.onResponse(msg.responseWith(SimpleReply.Ok));
+                return true;
+            }
+            logger.warn("Node{} is not alive, unable to notify of {}", to, notifications);
+            scheduler.schedule(() -> notify(to, notifications), 1, TimeUnit.MINUTES);
+            return false;
+        }
+        messagingService.sendWithCallback(msg, toEp, cb);
         return true;
     }
 
@@ -351,6 +406,17 @@ public class AccordSyncPropagator
             this.syncComplete = syncComplete;
             this.closed = closed;
             this.redundant = redundant;
+        }
+
+        @Override
+        public String toString()
+        {
+            return "Notification{" +
+                   "epoch=" + epoch +
+                   ", syncComplete=" + syncComplete +
+                   ", closed=" + closed +
+                   ", redundant=" + redundant +
+                   '}';
         }
     }
 }

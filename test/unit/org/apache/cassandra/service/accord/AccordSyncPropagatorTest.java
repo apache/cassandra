@@ -60,6 +60,9 @@ import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.exceptions.RequestFailure;
+import org.apache.cassandra.gms.EndpointState;
+import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.gms.HeartBeatState;
 import org.apache.cassandra.gms.IFailureDetectionEventListener;
 import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -94,6 +97,10 @@ public class AccordSyncPropagatorTest
         Gen<Ranges> rangesGen = AccordGenerators.ranges().filter(r -> !r.isEmpty());
         Gen<List<Node.Id>> nodesGen = Gens.lists(AccordGens.nodes()).unique().ofSizeBetween(1, 40);
         qt().withExamples(100).check(rs -> {
+            // when gossip and cluster metadata don't know an endpoint, retries are avoided (node removed)
+            // so when instances are created here they are added to gossip to trick the membership check...
+            Gossiper.instance.clearUnsafe();
+
             List<Node.Id> nodes = nodesGen.next(rs);
             Set<Node.Id> nodesAsSet = ImmutableSet.copyOf(nodes);
 
@@ -214,6 +221,7 @@ public class AccordSyncPropagatorTest
                 Sink sink = new Sink(id);
                 IFailureDetector fd = new FailureDetector(address);
                 instances.put(id, new Instace(id, address, cs, sink, fd, cs, new AccordSyncPropagator(id, Cluster.this, sink, fd, scheduler, cs)));
+                Gossiper.instance.endpointStateMap.put(address, new EndpointState(HeartBeatState.empty()));
             }
             this.nodeToAddress = nodeToAddress.build();
             this.instances = instances.build();

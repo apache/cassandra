@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -125,7 +126,7 @@ public class RouteIndexTest extends CQLTester.InMemory
             @Override
             public Gen<Command<State, ColumnFamilyStore, ?>> commands(State state)
             {
-                Map<Gen<Command<State, ColumnFamilyStore, ?>>, Integer> possible = new HashMap<>();
+                Map<Gen<Command<State, ColumnFamilyStore, ?>>, Integer> possible = new LinkedHashMap<>();
                 possible.put(ignore -> FLUSH, 1);
                 possible.put(ignore -> COMPACT, 1);
                 possible.put(rs -> {
@@ -139,9 +140,9 @@ public class RouteIndexTest extends CQLTester.InMemory
                 if (!state.storeToTableToRangesToTxns.isEmpty())
                 {
                     possible.put(rs -> {
-                        int storeId = rs.pick(state.storeToTableToRangesToTxns.keySet());
+                        int storeId = rs.pickUnorderedSet(state.storeToTableToRangesToTxns.keySet());
                         var tables = state.storeToTableToRangesToTxns.get(storeId);
-                        TableId tableId = rs.pick(tables.keySet());
+                        TableId tableId = rs.pickUnorderedSet(tables.keySet());
                         var ranges = tables.get(tableId);
                         TreeSet<TokenRange> distinctRanges = ranges.stream().map(Map.Entry::getKey).collect(Collectors.toCollection(() -> new TreeSet<>(TokenRange::compareTo)));
                         TokenRange range;
@@ -154,14 +155,14 @@ public class RouteIndexTest extends CQLTester.InMemory
                             switch (rs.nextInt(0, 2))
                             {
                                 case 0: // perfect match
-                                    range = rs.pick(distinctRanges);
+                                    range = rs.pickOrderedSet(distinctRanges);
                                     break;
                                 case 1: // mutli-match
                                 {
-                                    TokenRange a = rs.pick(distinctRanges);
-                                    TokenRange b = rs.pick(distinctRanges);
+                                    TokenRange a = rs.pickOrderedSet(distinctRanges);
+                                    TokenRange b = rs.pickOrderedSet(distinctRanges);
                                     while (a.equals(b))
-                                        b = rs.pick(distinctRanges);
+                                        b = rs.pickOrderedSet(distinctRanges);
                                     if (b.compareTo(a) < 0)
                                     {
                                         TokenRange tmp = a;

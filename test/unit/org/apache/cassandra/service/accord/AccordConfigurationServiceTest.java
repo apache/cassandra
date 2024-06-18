@@ -40,6 +40,7 @@ import accord.topology.Shard;
 import accord.topology.Topology;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.ServerTestUtils;
+import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Murmur3Partitioner;
@@ -176,7 +177,7 @@ public class AccordConfigurationServiceTest
     @Test
     public void initialEpochTest() throws Throwable
     {
-        AccordConfigurationService service = new AccordConfigurationService(ID1, new Messaging(), new MockFailureDetector());
+        AccordConfigurationService service = new AccordConfigurationService(ID1, new Messaging(), new MockFailureDetector(), AccordConfigurationService.SystemTableDiskStateManager.instance, ScheduledExecutors.scheduledTasks);
         Assert.assertEquals(null, AccordKeyspace.loadEpochDiskState());
         service.start();
         Assert.assertEquals(null, AccordKeyspace.loadEpochDiskState());
@@ -201,7 +202,7 @@ public class AccordConfigurationServiceTest
     @Test
     public void loadTest() throws Throwable
     {
-        AccordConfigurationService service = new AccordConfigurationService(ID1, new Messaging(), new MockFailureDetector());
+        AccordConfigurationService service = new AccordConfigurationService(ID1, new Messaging(), new MockFailureDetector(), AccordConfigurationService.SystemTableDiskStateManager.instance, ScheduledExecutors.scheduledTasks);
         service.start();
 
         Topology topology1 = new Topology(1, new Shard(AccordTopology.fullRange(TBL1), ID_LIST, ID_SET));
@@ -221,7 +222,7 @@ public class AccordConfigurationServiceTest
         service.reportTopology(topology3);
         service.acknowledgeEpoch(EpochReady.done(3), true);
 
-        AccordConfigurationService loaded = new AccordConfigurationService(ID1, new Messaging(), new MockFailureDetector());
+        AccordConfigurationService loaded = new AccordConfigurationService(ID1, new Messaging(), new MockFailureDetector(), AccordConfigurationService.SystemTableDiskStateManager.instance, ScheduledExecutors.scheduledTasks);
         loaded.updateMapping(mappingForEpoch(ClusterMetadata.current().epoch.getEpoch() + 1));
         AbstractConfigurationServiceTest.TestListener listener = new AbstractConfigurationServiceTest.TestListener(loaded, true);
         loaded.registerListener(listener);
@@ -240,7 +241,7 @@ public class AccordConfigurationServiceTest
     @Test
     public void truncateTest()
     {
-        AccordConfigurationService service = new AccordConfigurationService(ID1, new Messaging(), new MockFailureDetector());
+        AccordConfigurationService service = new AccordConfigurationService(ID1, new Messaging(), new MockFailureDetector(), AccordConfigurationService.SystemTableDiskStateManager.instance, ScheduledExecutors.scheduledTasks);
         TestListener serviceListener = new TestListener(service, true);
         service.registerListener(serviceListener);
         service.start();
@@ -258,7 +259,7 @@ public class AccordConfigurationServiceTest
         Assert.assertEquals(EpochDiskState.create(3), service.diskState());
         serviceListener.assertTruncates(3L);
 
-        AccordConfigurationService loaded = new AccordConfigurationService(ID1, new Messaging(), new MockFailureDetector());
+        AccordConfigurationService loaded = new AccordConfigurationService(ID1, new Messaging(), new MockFailureDetector(), AccordConfigurationService.SystemTableDiskStateManager.instance, ScheduledExecutors.scheduledTasks);
         loaded.updateMapping(mappingForEpoch(ClusterMetadata.current().epoch.getEpoch() + 1));
         TestListener loadListener = new TestListener(loaded, true);
         loaded.registerListener(loadListener);

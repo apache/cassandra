@@ -34,6 +34,8 @@ import accord.topology.Topology;
 import accord.utils.Invariants;
 import accord.utils.async.AsyncResult;
 import accord.utils.async.AsyncResults;
+import org.agrona.collections.LongArrayList;
+import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.Shutdownable;
 import org.apache.cassandra.concurrent.Stage;
@@ -57,6 +59,7 @@ import static org.apache.cassandra.utils.Simulate.With.MONITORS;
 public class AccordConfigurationService extends AbstractConfigurationService<AccordConfigurationService.EpochState, AccordConfigurationService.EpochHistory> implements ChangeListener, AccordEndpointMapper, AccordSyncPropagator.Listener, Shutdownable
 {
     private final AccordSyncPropagator syncPropagator;
+    private final DiskStateManager diskStateManager;
 
     private EpochDiskState diskState = EpochDiskState.EMPTY;
 
@@ -114,15 +117,88 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
         }
     }
 
-    public AccordConfigurationService(Node.Id node, MessageDelivery messagingService, IFailureDetector failureDetector)
+    @VisibleForTesting
+    interface DiskStateManager
+    {
+        EpochDiskState loadTopologies(AccordKeyspace.TopologyLoadConsumer consumer);
+        EpochDiskState setNotifyingLocalSync(long epoch, Set<Node.Id> pending, EpochDiskState diskState);
+
+        EpochDiskState setCompletedLocalSync(long epoch, EpochDiskState diskState);
+
+        EpochDiskState markLocalSyncAck(Node.Id id, long epoch, EpochDiskState diskState);
+
+        EpochDiskState saveTopology(Topology topology, EpochDiskState diskState);
+
+        EpochDiskState markRemoteTopologySync(Node.Id node, long epoch, EpochDiskState diskState);
+
+        EpochDiskState markClosed(Ranges ranges, long epoch, EpochDiskState diskState);
+
+        EpochDiskState truncateTopologyUntil(long epoch, EpochDiskState diskState);
+    }
+
+    enum SystemTableDiskStateManager implements DiskStateManager
+    {
+        instance;
+
+        @Override
+        public EpochDiskState loadTopologies(AccordKeyspace.TopologyLoadConsumer consumer)
+        {
+            return AccordKeyspace.loadTopologies(consumer);
+        }
+
+        @Override
+        public EpochDiskState setNotifyingLocalSync(long epoch, Set<Node.Id> notify, EpochDiskState diskState)
+        {
+            return AccordKeyspace.setNotifyingLocalSync(epoch, notify, diskState);
+        }
+
+        @Override
+        public EpochDiskState setCompletedLocalSync(long epoch, EpochDiskState diskState)
+        {
+            return AccordKeyspace.setCompletedLocalSync(epoch, diskState);
+        }
+
+        @Override
+        public EpochDiskState markLocalSyncAck(Node.Id id, long epoch, EpochDiskState diskState)
+        {
+            return AccordKeyspace.markLocalSyncAck(id, epoch, diskState);
+        }
+
+        @Override
+        public EpochDiskState saveTopology(Topology topology, EpochDiskState diskState)
+        {
+            return AccordKeyspace.saveTopology(topology, diskState);
+        }
+
+        @Override
+        public EpochDiskState markRemoteTopologySync(Node.Id node, long epoch, EpochDiskState diskState)
+        {
+            return AccordKeyspace.markRemoteTopologySync(node, epoch, diskState);
+        }
+
+        @Override
+        public EpochDiskState markClosed(Ranges ranges, long epoch, EpochDiskState diskState)
+        {
+            return AccordKeyspace.markClosed(ranges, epoch, diskState);
+        }
+
+        @Override
+        public EpochDiskState truncateTopologyUntil(long epoch, EpochDiskState diskState)
+        {
+            return AccordKeyspace.truncateTopologyUntil(epoch, diskState);
+        }
+    }
+
+    public AccordConfigurationService(Node.Id node, MessageDelivery messagingService, IFailureDetector failureDetector, DiskStateManager diskStateManager, ScheduledExecutorPlus scheduledTasks)
     {
         super(node);
-        this.syncPropagator = new AccordSyncPropagator(localId, this, messagingService, failureDetector, ScheduledExecutors.scheduledTasks, this);
+        this.syncPropagator = new AccordSyncPropagator(localId, this, messagingService, failureDetector, scheduledTasks, this);
+        this.diskStateManager = diskStateManager;
     }
 
     public AccordConfigurationService(Node.Id node)
     {
-        this(node, MessagingService.instance(), FailureDetector.instance);
+        this(node, MessagingService.instance(), FailureDetector.instance, SystemTableDiskStateManager.instance, ScheduledExecutors.scheduledTasks);
     }
 
     @Override
@@ -137,7 +213,7 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
         state = State.LOADING;
         updateMapping(ClusterMetadata.current());
         EndpointMapping snapshot = mapping;
-        diskState = AccordKeyspace.loadTopologies(((epoch, topology, syncStatus, pendingSyncNotify, remoteSyncComplete, closed, redundant) -> {
+        diskState = diskStateManager.loadTopologies(((epoch, topology, syncStatus, pendingSyncNotify, remoteSyncComplete, closed, redundant) -> {
             if (topology != null)
                 reportTopology(topology, syncStatus == SyncStatus.NOT_STARTED);
 
@@ -221,12 +297,41 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
             synchronized (AccordConfigurationService.this)
             {
                 updateMapping(metadata);
-                reportTopology(AccordTopology.createAccordTopology(metadata));
+                Topology topology = AccordTopology.createAccordTopology(metadata);
+                Topology current = isEmpty() ? Topology.EMPTY : currentTopology();
+                reportTopology(topology);
+                Sets.SetView<Node.Id> removedNodes = Sets.difference(current.nodes(), topology.nodes());
+                if (!removedNodes.isEmpty())
+                    onNodesRemoved(topology.epoch(), removedNodes);
             }
         });
     }
 
-    private void maybeReportMetadata(ClusterMetadata metadata)
+    private synchronized void onNodesRemoved(long epoch, Set<Node.Id> removed)
+    {
+        syncPropagator.onNodesRemoved(removed);
+        for (long oldEpoch : nonCompletedEpochsBefore(epoch))
+        {
+            for (Node.Id node : removed)
+                receiveRemoteSyncComplete(node, oldEpoch);
+        }
+        listeners.forEach(l -> l.onRemoveNodes(epoch, removed));
+    }
+
+    private long[] nonCompletedEpochsBefore(long max)
+    {
+        LongArrayList notComplete = new LongArrayList();
+        for (long epoch = epochs.minEpoch(); epoch <= max && epoch <= epochs.maxEpoch(); epoch++)
+        {
+            EpochSnapshot snapshot = getEpochSnapshot(epoch);
+            if (snapshot.syncStatus != SyncStatus.COMPLETED)
+                notComplete.add(epoch);
+        }
+        return notComplete.toLongArray();
+    }
+
+    @VisibleForTesting
+    void maybeReportMetadata(ClusterMetadata metadata)
     {
         // don't report metadata until the previous one has been acknowledged
         synchronized (this)
@@ -265,7 +370,7 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
             return;
 
         Set<Node.Id> notify = topology.nodes().stream().filter(i -> !localId.equals(i)).collect(Collectors.toSet());
-        diskState = AccordKeyspace.setNotifyingLocalSync(epoch, notify, diskState);
+        diskState = diskStateManager.setNotifyingLocalSync(epoch, notify, diskState);
         epochState.setSyncStatus(SyncStatus.NOTIFYING);
         syncPropagator.reportSyncComplete(epoch, notify, localId);
     }
@@ -276,7 +381,7 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
         EpochState epochState = getOrCreateEpochState(epoch);
         if (epochState.syncStatus != SyncStatus.NOTIFYING)
             return;
-        diskState = AccordKeyspace.markLocalSyncAck(id, epoch, diskState);
+        diskState = diskStateManager.markLocalSyncAck(id, epoch, diskState);
     }
 
     @Override
@@ -284,21 +389,21 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
     {
         EpochState epochState = getOrCreateEpochState(epoch);
         epochState.setSyncStatus(SyncStatus.COMPLETED);
-        diskState = AccordKeyspace.setCompletedLocalSync(epoch, diskState);
+        diskState = diskStateManager.setCompletedLocalSync(epoch, diskState);
     }
 
     @Override
     protected synchronized void topologyUpdatePreListenerNotify(Topology topology)
     {
         if (state == State.STARTED)
-            diskState = AccordKeyspace.saveTopology(topology, diskState);
+            diskState = diskStateManager.saveTopology(topology, diskState);
     }
 
     @Override
     protected synchronized void receiveRemoteSyncCompletePreListenerNotify(Node.Id node, long epoch)
     {
         if (state == State.STARTED)
-            diskState = AccordKeyspace.markRemoteTopologySync(node, epoch, diskState);
+            diskState = diskStateManager.markRemoteTopologySync(node, epoch, diskState);
     }
 
     @Override
@@ -307,6 +412,11 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
         checkStarted();
         Topology topology = getTopologyForEpoch(epoch);
         syncPropagator.reportClosed(epoch, topology.nodes(), ranges);
+    }
+
+    public AccordSyncPropagator syncPropagator()
+    {
+        return syncPropagator;
     }
 
     @Override
@@ -321,14 +431,14 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
     @Override
     public synchronized void receiveClosed(Ranges ranges, long epoch)
     {
-        diskState = AccordKeyspace.markClosed(ranges, epoch, diskState);
+        diskState = diskStateManager.markClosed(ranges, epoch, diskState);
         super.receiveClosed(ranges, epoch);
     }
 
     @Override
     public synchronized void receiveRedundant(Ranges ranges, long epoch)
     {
-        diskState = AccordKeyspace.markClosed(ranges, epoch, diskState);
+        diskState = diskStateManager.markClosed(ranges, epoch, diskState);
         super.receiveRedundant(ranges, epoch);
     }
 
@@ -342,7 +452,7 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
     protected synchronized void truncateTopologiesPostListenerNotify(long epoch)
     {
         if (state == State.STARTED)
-            diskState = AccordKeyspace.truncateTopologyUntil(epoch, diskState);
+            diskState = diskStateManager.truncateTopologyUntil(epoch, diskState);
     }
 
     private void checkStarted()
