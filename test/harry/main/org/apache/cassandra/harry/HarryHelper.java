@@ -68,11 +68,9 @@ public class HarryHelper
         return configuration;
     }
 
-    private static AtomicInteger counter = new AtomicInteger();
-
-    public static Surjections.Surjection<SchemaSpec> schemaSpecGen(String keyspace, String prefix)
+    public static SchemaGenerators.Builder schemaSpecBuilder(String keyspace, String name)
     {
-        return new SchemaGenerators.Builder(keyspace, () -> prefix + counter.getAndIncrement())
+        return new SchemaGenerators.Builder(keyspace, () -> name)
                .partitionKeySpec(1, 2,
                                  ColumnSpec.int8Type,
                                  ColumnSpec.int16Type,
@@ -108,7 +106,14 @@ public class HarryHelper
                                  ColumnSpec.int64Type,
                                  ColumnSpec.floatType,
                                  ColumnSpec.doubleType,
-                                 ColumnSpec.asciiType(4, 128))
+                                 ColumnSpec.asciiType(4, 128));
+    }
+
+    private static AtomicInteger counter = new AtomicInteger();
+
+    public static Surjections.Surjection<SchemaSpec> schemaSpecGen(String keyspace, String prefix)
+    {
+        return schemaSpecBuilder(keyspace, prefix + counter.getAndIncrement())
                .surjection();
     }
 

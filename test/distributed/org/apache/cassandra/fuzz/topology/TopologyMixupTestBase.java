@@ -131,9 +131,9 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
                                    state -> ClusterUtils.waitForCMSToQuiesce(state.cluster, state.cmsGroup));
     }
 
-    private Command<State<S>, Void, ?> stopInstance(int toRemove)
+    private Command<State<S>, Void, ?> stopInstance(int toRemove, String why)
     {
-        return new SimpleCommand<>(state -> "Stop Node" + toRemove + " for Assassinate" + state.commandNamePostfix(),
+        return new SimpleCommand<>(state -> "Stop Node" + toRemove + " for " + why + state.commandNamePostfix(),
                                    state -> {
                                        IInvokableInstance inst = state.cluster.get(toRemove);
                                        TopologyHistory.Node node = state.topologyHistory.node(toRemove);
@@ -180,7 +180,7 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
             while (picked == toRemove);
             toCoordinate = picked;
         }
-        return multistep(stopInstance(toRemove),
+        return multistep(stopInstance(toRemove, "nodetool removenode"),
                          new SimpleCommand<>("nodetool removenode node" + toRemove + " from node" + toCoordinate + state.commandNamePostfix(), s2 -> {
                              TopologyHistory.Node node = s2.topologyHistory.node(toRemove);
                              node.status = TopologyHistory.Node.Status.BeingRemoved;
@@ -213,7 +213,7 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
             while (picked == toRemove);
             toCoordinate = picked;
         }
-        return multistep(stopInstance(toRemove),
+        return multistep(stopInstance(toRemove, "nodetool assassinate"),
                          new SimpleCommand<>("nodetool assassinate node" + toRemove + " from node" + toCoordinate + state.commandNamePostfix(), s2 -> {
                              TopologyHistory.Node node = s2.topologyHistory.node(toRemove);
                              node.status = TopologyHistory.Node.Status.BeingAssassinated;

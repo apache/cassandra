@@ -18,9 +18,20 @@
 
 package org.apache.cassandra.utils;
 
+import java.util.Arrays;
+import java.util.List;
+
 import org.junit.Test;
 
 import accord.utils.Gens;
+import accord.utils.LazyToString;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.CounterColumnType;
+import org.apache.cassandra.db.marshal.DecimalType;
+import org.apache.cassandra.db.marshal.DurationType;
+import org.apache.cassandra.db.marshal.EmptyType;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.utils.CassandraGenerators.TableMetadataBuilder;
 import org.assertj.core.api.Assertions;
 
 import static accord.utils.Property.qt;
@@ -28,6 +39,11 @@ import static org.apache.cassandra.utils.Generators.toGen;
 
 public class CassandraGeneratorsTest
 {
+    private static final List<AbstractType<?>> NOT_ALLOWED_IN_PRIMARY_KEY = Arrays.asList(EmptyType.instance,
+                                                                                          DurationType.instance,
+                                                                                          DecimalType.instance,
+                                                                                          CounterColumnType.instance);
+
     @Test
     public void partitionerToToken()
     {
@@ -40,5 +56,21 @@ public class CassandraGeneratorsTest
     {
         qt().forAll(Gens.random(), toGen(CassandraGenerators.partitioners()))
             .check((rs, p) -> Assertions.assertThat(toGen(CassandraGenerators.decoratedKeys(i -> p)).next(rs)).isNotNull());
+    }
+
+    @Test
+    public void primaryKeysNoUnsafeTypes()
+    {
+        qt().forAll(toGen(new TableMetadataBuilder().build())).check(table -> {
+            for (ColumnMetadata pk : table.primaryKeyColumns())
+            {
+                for (AbstractType<?> t : NOT_ALLOWED_IN_PRIMARY_KEY)
+                {
+                    Assertions.assertThat(AbstractTypeGenerators.contains(pk.type, t))
+                              .describedAs("Expected type %s not to be found in %s", t.asCQL3Type(), new LazyToString(() -> AbstractTypeGenerators.typeTree(pk.type)))
+                              .isFalse();
+                }
+            }
+        });
     }
 }

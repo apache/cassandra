@@ -18,12 +18,16 @@
 
 package org.apache.cassandra.tcm;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LogState;
+
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 public interface Processor
 {
@@ -74,4 +78,20 @@ public interface Processor
     ClusterMetadata fetchLogAndWait(Epoch waitFor, Retry.Deadline retryPolicy);
 
     LogState reconstruct(Epoch lowEpoch, Epoch highEpoch, Retry.Deadline retryPolicy);
+
+    default List<ClusterMetadata> reconstructFull(Epoch lowEpoch, Epoch highEpoch)
+    {
+        LogState logState = reconstruct(lowEpoch, highEpoch, Retry.Deadline.retryIndefinitely(DatabaseDescriptor.getCmsAwaitTimeout().to(NANOSECONDS),
+                                                                                              TCMMetrics.instance.commitRetries));
+        List<ClusterMetadata> cms = new ArrayList<>(logState.entries.size());
+        ClusterMetadata accum = logState.baseState;
+        for (Entry entry : logState.entries)
+        {
+            Transformation.Result res = entry.transform.execute(accum);
+            assert res.isSuccess() : res.toString();
+            accum = res.success().metadata;
+            cms.add(accum);
+        }
+        return cms;
+    }
 }

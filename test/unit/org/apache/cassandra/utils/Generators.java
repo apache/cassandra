@@ -39,6 +39,7 @@ import org.apache.commons.lang3.ArrayUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.cql3.ReservedKeywords;
 import org.quicktheories.core.Gen;
 import org.quicktheories.core.RandomnessSource;
 import org.quicktheories.generators.SourceDSL;
@@ -80,6 +81,7 @@ public final class Generators
         // see CASSANDRA-17919
         return !("P".equals(value) || "PT".equals(value));
     }
+    public static final Gen<String> SYMBOL_NOT_RESERVED_KEYWORD_GEN = Generators.filter(SYMBOL_GEN, s -> !ReservedKeywords.isReserved(s));
 
     public static Gen<String> symbolGen(Gen<Integer> size)
     {

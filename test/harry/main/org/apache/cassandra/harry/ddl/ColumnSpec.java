@@ -27,6 +27,19 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.AsciiType;
+import org.apache.cassandra.db.marshal.BooleanType;
+import org.apache.cassandra.db.marshal.ByteType;
+import org.apache.cassandra.db.marshal.DoubleType;
+import org.apache.cassandra.db.marshal.FloatType;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.db.marshal.ShortType;
+import org.apache.cassandra.db.marshal.TimeUUIDType;
+import org.apache.cassandra.db.marshal.TimestampType;
+import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.harry.gen.Bijections;
 import org.apache.cassandra.harry.gen.StringBijection;
 
@@ -67,6 +80,12 @@ public class ColumnSpec<T>
                                     public Bijections.Bijection<T> generator()
                                     {
                                         return override;
+                                    }
+
+                                    @Override
+                                    public AbstractType<?> asServerType()
+                                    {
+                                        return type.asServerType();
                                     }
                                 },
                                 kind);
@@ -201,6 +220,8 @@ public class ColumnSpec<T>
 
         public abstract Bijections.Bijection<T> generator();
 
+        public abstract AbstractType<?> asServerType();
+
         public int maxSize()
         {
             return generator().byteSize();
@@ -236,6 +257,12 @@ public class ColumnSpec<T>
         {
             return Bijections.INT8_GENERATOR;
         }
+
+        @Override
+        public AbstractType<?> asServerType()
+        {
+            return ByteType.instance;
+        }
     };
 
     public static final DataType<Short> int16Type = new DataType<Short>("smallint")
@@ -243,6 +270,12 @@ public class ColumnSpec<T>
         public Bijections.Bijection<Short> generator()
         {
             return Bijections.INT16_GENERATOR;
+        }
+
+        @Override
+        public AbstractType<?> asServerType()
+        {
+            return ShortType.instance;
         }
     };
 
@@ -252,6 +285,12 @@ public class ColumnSpec<T>
         {
             return Bijections.INT32_GENERATOR;
         }
+
+        @Override
+        public AbstractType<?> asServerType()
+        {
+            return Int32Type.instance;
+        }
     };
 
     public static final DataType<Long> int64Type = new DataType<Long>("bigint")
@@ -260,6 +299,12 @@ public class ColumnSpec<T>
         {
             return Bijections.INT64_GENERATOR;
         }
+
+        @Override
+        public AbstractType<?> asServerType()
+        {
+            return LongType.instance;
+        }
     };
 
     public static final DataType<Boolean> booleanType = new DataType<Boolean>("boolean")
@@ -267,6 +312,12 @@ public class ColumnSpec<T>
         public Bijections.Bijection<Boolean> generator()
         {
             return Bijections.BOOLEAN_GENERATOR;
+        }
+
+        @Override
+        public AbstractType<?> asServerType()
+        {
+            return BooleanType.instance;
         }
 
         public int compareLexicographically(long l, long r)
@@ -281,6 +332,12 @@ public class ColumnSpec<T>
         {
             return Bijections.FLOAT_GENERATOR;
         }
+
+        @Override
+        public AbstractType<?> asServerType()
+        {
+            return FloatType.instance;
+        }
     };
 
     public static final DataType<Double> doubleType = new DataType<Double>("double")
@@ -288,6 +345,12 @@ public class ColumnSpec<T>
         public Bijections.Bijection<Double> generator()
         {
             return Bijections.DOUBLE_GENERATOR;
+        }
+
+        @Override
+        public AbstractType<?> asServerType()
+        {
+            return DoubleType.instance;
         }
     };
 
@@ -298,6 +361,12 @@ public class ColumnSpec<T>
         public Bijections.Bijection<String> generator()
         {
             return gen;
+        }
+
+        @Override
+        public AbstractType<?> asServerType()
+        {
+            return AsciiType.instance;
         }
 
         public int compareLexicographically(long l, long r)
@@ -315,6 +384,12 @@ public class ColumnSpec<T>
             return gen;
         }
 
+        @Override
+        public AbstractType<?> asServerType()
+        {
+            return UTF8Type.instance;
+        }
+
         public int compareLexicographically(long l, long r)
         {
             return Long.compare(l, r);
@@ -330,6 +405,12 @@ public class ColumnSpec<T>
             public Bijections.Bijection<String> generator()
             {
                 return gen;
+            }
+
+            @Override
+            public AbstractType<?> asServerType()
+            {
+                return AsciiType.instance;
             }
 
             public int compareLexicographically(long l, long r)
@@ -354,6 +435,12 @@ public class ColumnSpec<T>
             return Bijections.UUID_GENERATOR;
         }
 
+        @Override
+        public AbstractType<?> asServerType()
+        {
+            return UUIDType.instance;
+        }
+
         public int compareLexicographically(long l, long r)
         {
             throw new RuntimeException("UUID does not support custom comparators");
@@ -367,6 +454,12 @@ public class ColumnSpec<T>
             return Bijections.TIME_UUID_GENERATOR;
         }
 
+        @Override
+        public AbstractType<?> asServerType()
+        {
+            return TimeUUIDType.instance;
+        }
+
         public int compareLexicographically(long l, long r)
         {
             throw new RuntimeException("UUID does not support custom comparators");
@@ -378,6 +471,12 @@ public class ColumnSpec<T>
         public Bijections.Bijection<Date> generator()
         {
             return Bijections.TIMESTAMP_GENERATOR;
+        }
+
+        @Override
+        public AbstractType<?> asServerType()
+        {
+            return TimestampType.instance;
         }
 
         public int compareLexicographically(long l, long r)
@@ -441,6 +540,12 @@ public class ColumnSpec<T>
         public Bijections.Bijection<T> generator()
         {
             return generator;
+        }
+
+        @Override
+        public AbstractType<?> asServerType()
+        {
+            return org.apache.cassandra.db.marshal.ReversedType.getInstance(baseType.asServerType());
         }
 
         public int maxSize()

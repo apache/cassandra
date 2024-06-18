@@ -21,11 +21,17 @@ package org.apache.cassandra.harry.ddl;
 import java.util.*;
 import java.util.function.Consumer;
 
+import javax.annotation.Nullable;
+
 import org.apache.cassandra.harry.gen.DataGenerators;
 import org.apache.cassandra.harry.sut.SystemUnderTest;
 import org.apache.cassandra.harry.operations.CompiledStatement;
 import org.apache.cassandra.harry.operations.Relation;
 import org.apache.cassandra.harry.util.BitSet;
+import org.apache.cassandra.service.consensus.TransactionalMode;
+
+import static org.apache.cassandra.harry.ddl.ColumnSpec.int64Type;
+import static org.apache.cassandra.harry.gen.Collections.listColumn;
 
 public class SchemaSpec
 {
@@ -52,6 +58,7 @@ public class SchemaSpec
     public final List<ColumnSpec<?>> staticColumns;
     public final List<ColumnSpec<?>> allColumns;
     public final Set<ColumnSpec<?>> allColumnsSet;
+    public final Optional<TransactionalMode> transactionalMode;
 
     public final BitSet ALL_COLUMNS_BITSET;
     public final int regularColumnsOffset;
@@ -67,38 +74,7 @@ public class SchemaSpec
                       List<ColumnSpec<?>> regularColumns,
                       List<ColumnSpec<?>> staticColumns)
     {
-        this(keyspace, table, partitionKeys, clusteringKeys, regularColumns, staticColumns, DataGenerators.createKeyGenerator(clusteringKeys), false, false, null, false);
-    }
-
-    public SchemaSpec cloneWithName(String ks,
-                                    String table)
-    {
-        return new SchemaSpec(ks, table, partitionKeys, clusteringKeys, regularColumns, staticColumns, ckGenerator, isCompactStorage, disableReadRepair, compactionStrategy, trackLts);
-    }
-
-    public SchemaSpec trackLts()
-    {
-        return new SchemaSpec(keyspace, table, partitionKeys, clusteringKeys, regularColumns, staticColumns, ckGenerator, isCompactStorage, disableReadRepair, compactionStrategy, true);
-    }
-
-    public SchemaSpec withCompactStorage()
-    {
-        return new SchemaSpec(keyspace, table, partitionKeys, clusteringKeys, regularColumns, staticColumns, ckGenerator, true, disableReadRepair, compactionStrategy, trackLts);
-    }
-
-    public SchemaSpec withCompactionStrategy(String compactionStrategy)
-    {
-        return new SchemaSpec(keyspace, table, partitionKeys, clusteringKeys, regularColumns, staticColumns, ckGenerator, false, disableReadRepair, compactionStrategy, trackLts);
-    }
-
-    public SchemaSpec withCkGenerator(DataGenerators.KeyGenerator ckGeneratorOverride, List<ColumnSpec<?>> clusteringKeys)
-    {
-        return new SchemaSpec(keyspace, table, partitionKeys, clusteringKeys, regularColumns, staticColumns, ckGeneratorOverride, isCompactStorage, disableReadRepair, compactionStrategy, trackLts);
-    }
-
-    public SchemaSpec withColumns(List<ColumnSpec<?>> regularColumns, List<ColumnSpec<?>> staticColumns)
-    {
-        return new SchemaSpec(keyspace, table, partitionKeys, clusteringKeys, regularColumns, staticColumns, ckGenerator, isCompactStorage, disableReadRepair, compactionStrategy, trackLts);
+        this(keyspace, table, partitionKeys, clusteringKeys, regularColumns, staticColumns, Optional.empty());
     }
 
     public SchemaSpec(String keyspace,
@@ -107,11 +83,64 @@ public class SchemaSpec
                       List<ColumnSpec<?>> clusteringKeys,
                       List<ColumnSpec<?>> regularColumns,
                       List<ColumnSpec<?>> staticColumns,
-                      DataGenerators.KeyGenerator ckGenerator,
-                      boolean isCompactStorage,
-                      boolean disableReadRepair,
-                      String compactionStrategy,
-                      boolean trackLts)
+                      Optional<TransactionalMode> transactionalMode)
+    {
+        this(keyspace, table, partitionKeys, clusteringKeys, regularColumns, staticColumns, DataGenerators.createKeyGenerator(clusteringKeys), false, false, null, false, transactionalMode);
+    }
+
+    public SchemaSpec cloneWithName(String ks,
+                                    String table)
+    {
+        return new SchemaSpec(ks, table, partitionKeys, clusteringKeys, regularColumns, staticColumns, ckGenerator, isCompactStorage, disableReadRepair, compactionStrategy, trackLts, transactionalMode);
+    }
+
+    public SchemaSpec trackLts()
+    {
+        return new SchemaSpec(keyspace, table, partitionKeys, clusteringKeys, regularColumns, staticColumns, ckGenerator, isCompactStorage, disableReadRepair, compactionStrategy, true, transactionalMode);
+    }
+
+    public SchemaSpec withCompactStorage()
+    {
+        return new SchemaSpec(keyspace, table, partitionKeys, clusteringKeys, regularColumns, staticColumns, ckGenerator, true, disableReadRepair, compactionStrategy, trackLts, transactionalMode);
+    }
+
+    public SchemaSpec withCompactionStrategy(String compactionStrategy)
+    {
+        return new SchemaSpec(keyspace, table, partitionKeys, clusteringKeys, regularColumns, staticColumns, ckGenerator, false, disableReadRepair, compactionStrategy, trackLts, transactionalMode);
+    }
+
+    public SchemaSpec withCkGenerator(DataGenerators.KeyGenerator ckGeneratorOverride, List<ColumnSpec<?>> clusteringKeys)
+    {
+        return new SchemaSpec(keyspace, table, partitionKeys, clusteringKeys, regularColumns, staticColumns, ckGeneratorOverride, isCompactStorage, disableReadRepair, compactionStrategy, trackLts, transactionalMode);
+    }
+
+    public SchemaSpec withColumns(List<ColumnSpec<?>> regularColumns, List<ColumnSpec<?>> staticColumns)
+    {
+        return new SchemaSpec(keyspace, table, partitionKeys, clusteringKeys, regularColumns, staticColumns, ckGenerator, isCompactStorage, disableReadRepair, compactionStrategy, trackLts, transactionalMode);
+    }
+
+    public SchemaSpec withTransactionMode(TransactionalMode transactionalMode)
+    {
+        return withTransactionMode(Optional.ofNullable(transactionalMode));
+    }
+
+    public SchemaSpec withTransactionMode(Optional<TransactionalMode> transactionalMode)
+    {
+        return new SchemaSpec(keyspace, table, partitionKeys, clusteringKeys, regularColumns, staticColumns, ckGenerator, isCompactStorage, disableReadRepair, compactionStrategy, trackLts, transactionalMode);
+    }
+
+    private SchemaSpec(String keyspace,
+                       String table,
+                       List<ColumnSpec<?>> partitionKeys,
+                       List<ColumnSpec<?>> clusteringKeys,
+                       List<ColumnSpec<?>> regularColumns,
+                       List<ColumnSpec<?>> staticColumns,
+                       DataGenerators.KeyGenerator ckGenerator,
+                       boolean isCompactStorage,
+                       boolean disableReadRepair,
+                       String compactionStrategy,
+                       boolean trackLts,
+                       Optional<TransactionalMode> transactionalMode)
     {
         assert !isCompactStorage || clusteringKeys.isEmpty() || regularColumns.size() <= 1 :
         String.format("Compact storage %s. Clustering keys: %d. Regular columns: %d", isCompactStorage, clusteringKeys.size(), regularColumns.size());
@@ -121,6 +150,7 @@ public class SchemaSpec
         this.isCompactStorage = isCompactStorage;
         this.disableReadRepair = disableReadRepair;
         this.compactionStrategy = compactionStrategy;
+        this.transactionalMode = transactionalMode;
 
         this.partitionKeys = Collections.unmodifiableList(new ArrayList<>(partitionKeys));
         for (int i = 0; i < partitionKeys.size(); i++)
@@ -162,7 +192,12 @@ public class SchemaSpec
         this.trackLts = trackLts;
     }
 
-
+    @Nullable
+    public ColumnSpec<List<Long>> ltsColumn()
+    {
+        if (!trackLts) return null;
+        return new ColumnSpec<>("visited_lts", listColumn(int64Type, Integer.MAX_VALUE), ColumnSpec.Kind.STATIC);
+    }
 
     public static BitSet allColumnsMask(SchemaSpec schema)
     {
@@ -286,6 +321,12 @@ public class SchemaSpec
         return DataGenerators.deflateData(regularColumns, regulars);
     }
 
+    public boolean isWriteTimeFromAccord()
+    {
+
+        return transactionalMode.isPresent() && transactionalMode.get().writesThroughAccord;
+    }
+
     public CompiledStatement compile()
     {
         StringBuilder sb = new StringBuilder();
@@ -341,6 +382,12 @@ public class SchemaSpec
         {
             appendWith.run();
             sb.append(" compaction = {'class': '").append(compactionStrategy).append("'} AND");
+        }
+
+        if (transactionalMode.isPresent())
+        {
+            appendWith.run();
+            sb.append(' ').append(transactionalMode.get().asCqlParam()).append(" AND");
         }
 
         if (clusteringKeys.size() > 0)

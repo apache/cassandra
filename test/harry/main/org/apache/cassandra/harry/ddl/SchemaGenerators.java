@@ -25,6 +25,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -32,6 +34,7 @@ import java.util.function.Supplier;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.harry.gen.Generator;
 import org.apache.cassandra.harry.gen.Surjections;
+import org.apache.cassandra.service.consensus.TransactionalMode;
 
 public class SchemaGenerators
 {
@@ -177,6 +180,7 @@ public class SchemaGenerators
         private Generator<ColumnSpec<?>> ckGenerator = clusteringColumnSpecGenerator("ck");
         private Generator<ColumnSpec<?>> regularGenerator = columnSpecGenerator("regular", ColumnSpec.Kind.REGULAR);
         private Generator<ColumnSpec<?>> staticGenerator = columnSpecGenerator("static", ColumnSpec.Kind.STATIC);
+        private Generator<Optional<TransactionalMode>> transactionalModeGenerator = ignore -> Optional.empty();
 
         private int minPks = 1;
         private int maxPks = 1;
@@ -298,6 +302,17 @@ public class SchemaGenerators
             return this;
         }
 
+        public Builder transactionalMode(Generator<Optional<TransactionalMode>> transactionalModeGenerator)
+        {
+            this.transactionalModeGenerator = Objects.requireNonNull(transactionalModeGenerator);
+            return this;
+        }
+
+        public Builder transactionalMode(TransactionalMode mode)
+        {
+            return transactionalMode(ignore -> Optional.of(mode));
+        }
+
         private static class ColumnCounts
         {
             private final int pks;
@@ -339,7 +354,8 @@ public class SchemaGenerators
                                           pk,
                                           ck,
                                           regularGenerator.generate(rand, counts.regulars),
-                                          staticGenerator.generate(rand, counts.statics));
+                                          staticGenerator.generate(rand, counts.statics),
+                                          transactionalModeGenerator.generate(rand));
                 };
             });
         }

@@ -80,4 +80,9 @@ public enum TransactionalMigrationFromMode
     {
         return this != none;
     }
+
+    public String asCqlParam()
+    {
+        return String.format("transactional_migration_from = '%s'", this.name().toLowerCase());
+    }
 }

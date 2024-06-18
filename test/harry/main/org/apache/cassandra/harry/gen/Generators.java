@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
 
+import accord.utils.Gen;
 import org.apache.cassandra.locator.InetAddressAndPort;
 
 public class Generators
@@ -118,5 +119,15 @@ public class Generators
     public static <T> Generator<T> constant(Supplier<T> constant)
     {
         return (random) -> constant.get();
+    }
+
+    public static <T> Gen<T> toAccord(Generator<T> gen)
+    {
+        return rng -> gen.generate(new RandomSourceEntropySource(rng));
+    }
+
+    public static <T> Generator<T> toHarry(Gen<T> gen)
+    {
+        return rng -> gen.next(new EntropyRandomSource(rng));
     }
 }
