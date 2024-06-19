@@ -58,6 +58,8 @@ import org.apache.cassandra.service.*;
 import org.apache.cassandra.transport.messages.EventMessage;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+
 public class Server implements CassandraDaemon.Server
 {
     static
@@ -191,8 +193,16 @@ public class Server implements CassandraDaemon.Server
     {
         if (!force)
         {
+            long deadline = nanoTime() + DatabaseDescriptor.getNativeTransportTimeout(TimeUnit.NANOSECONDS);
             while (!dispatcher.isDone())
+            {
+                if (nanoTime() > deadline)
+                {
+                    logger.warn("Some connections took longer than the native transport timeout to complete");
+                    break;
+                }
                 LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(100));
+            }
         }
 
         // Close opened connections
