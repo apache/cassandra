@@ -33,7 +33,6 @@ import org.apache.cassandra.locator.ReplicaCollection;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Keyspaces;
-import org.apache.cassandra.schema.SchemaProvider;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Commit;
@@ -45,7 +44,6 @@ import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
 import org.apache.cassandra.tcm.transformations.AlterSchema;
 import org.apache.cassandra.tcm.transformations.cms.Initialize;
 import org.apache.cassandra.utils.FBUtilities;
-import org.mockito.Mockito;
 
 public class CMSTestBase
 {
@@ -87,14 +85,12 @@ public class CMSTestBase
         public final Murmur3Partitioner partitioner;
         public final LocalLog log;
         public final ClusterMetadataService service;
-        public final SchemaProvider schemaProvider;
         public final TokenPlacementModel.ReplicationFactor rf;
 
         public CMSSut(IIsolatedExecutor.SerializableFunction<LocalLog, Processor> processorFactory, boolean addListeners, TokenPlacementModel.ReplicationFactor rf)
         {
             partitioner = Murmur3Partitioner.instance;
             this.rf = rf;
-            schemaProvider = Mockito.mock(SchemaProvider.class);
             ClusterMetadata initial = new ClusterMetadata(partitioner);
             log = LocalLog.logSpec()
                           .sync()
@@ -124,7 +120,7 @@ public class CMSTestBase
             });
             service.commit(new AlterSchema((cm) -> {
                 return cm.schema.getKeyspaces().with(Keyspaces.of(KeyspaceMetadata.create("test", rf.asKeyspaceParams())));
-            }, schemaProvider));
+            }));
         }
 
         public void close() throws Exception
