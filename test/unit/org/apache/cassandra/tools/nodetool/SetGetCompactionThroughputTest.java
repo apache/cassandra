@@ -87,9 +87,9 @@ public class SetGetCompactionThroughputTest extends CQLTester
         ToolResult tool = invokeNodetool("getcompactionthroughput");
         tool.assertOnCleanExit();
 
-        assertThat(tool.getStdout()).containsPattern("Current compaction throughput \\(1 minute\\): \\d+\\.\\d+ MB/s");
-        assertThat(tool.getStdout()).containsPattern("Current compaction throughput \\(5 minute\\): \\d+\\.\\d+ MB/s");
-        assertThat(tool.getStdout()).containsPattern("Current compaction throughput \\(15 minute\\): \\d+\\.\\d+ MB/s");
+        assertThat(tool.getStdout()).containsPattern("Current compaction throughput \\(1 minute\\): \\d+\\.\\d+ MiB/s");
+        assertThat(tool.getStdout()).containsPattern("Current compaction throughput \\(5 minute\\): \\d+\\.\\d+ MiB/s");
+        assertThat(tool.getStdout()).containsPattern("Current compaction throughput \\(15 minute\\): \\d+\\.\\d+ MiB/s");
     }
 
     private static void assertSetGetValidThroughput(int throughput)
@@ -140,9 +140,9 @@ public class SetGetCompactionThroughputTest extends CQLTester
         tool.assertOnCleanExit();
 
         if (expected > 0)
-            assertThat(tool.getStdout()).contains("Current compaction throughput limit: " + expected + " MB/s");
+            assertThat(tool.getStdout()).contains("Current compaction throughput limit: " + expected + " MiB/s");
         else
-            assertThat(tool.getStdout()).contains("Current compaction throughput limit: 0 MB/s");
+            assertThat(tool.getStdout()).contains("Current compaction throughput limit: 0 MiB/s");
     }
 
     private static void assertGetThroughputDouble(double expected)

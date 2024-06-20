@@ -1514,7 +1514,7 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
 
     protected void compactionRateLimiterAcquire(RateLimiter limiter, long bytesScanned, long lastBytesScanned, double compressionRatio)
     {
-        long lengthRead = getLengthRead(bytesScanned, lastBytesScanned, compressionRatio);
+        long lengthRead = (long) ((bytesScanned - lastBytesScanned) * compressionRatio) + 1;
         markBytesCompactedThroughput(lengthRead);
         while (lengthRead >= Integer.MAX_VALUE)
         {
@@ -1525,11 +1525,6 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
         {
             limiter.acquire((int) lengthRead);
         }
-    }
-
-    private long getLengthRead(long bytesScanned, long lastBytesScanned, double compressionRatio)
-    {
-        return (long) ((bytesScanned - lastBytesScanned) * compressionRatio) + 1;
     }
 
     private void markBytesCompactedThroughput(long lengthRead)

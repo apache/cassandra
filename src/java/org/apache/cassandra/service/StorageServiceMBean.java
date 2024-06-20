@@ -807,7 +807,7 @@ public interface StorageServiceMBean extends NotificationEmitter
     @Deprecated(since = "4.1")
     public int getCompactionThroughputMbPerSec();
     public void setCompactionThroughputMbPerSec(int value);
-    Map<String, String> getCurrentCompactionThroughput();
+    Map<String, String> getCurrentCompactionThroughputMbPerSec();
 
     public int getBatchlogReplayThrottleInKB();
     public void setBatchlogReplayThrottleInKB(int value);
