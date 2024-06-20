@@ -15,33 +15,33 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.db;
+package org.apache.cassandra.service.snapshot;
 
+import java.util.Set;
 import javax.management.openmbean.*;
 
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.service.snapshot.TableSnapshot;
 
 public class SnapshotDetailsTabularData
 {
 
     private static final String[] ITEM_NAMES = new String[]{"Snapshot name",
-            "Keyspace name",
-            "Column family name",
-            "True size",
-            "Size on disk",
-            "Creation time",
-            "Expiration time",
-            "Ephemeral"};
+                                                            "Keyspace name",
+                                                            "Column family name",
+                                                            "True size",
+                                                            "Size on disk",
+                                                            "Creation time",
+                                                            "Expiration time",
+                                                            "Ephemeral"};
 
     private static final String[] ITEM_DESCS = new String[]{"snapshot_name",
-            "keyspace_name",
-            "columnfamily_name",
-            "TrueDiskSpaceUsed",
-            "TotalDiskSpaceUsed",
-            "created_at",
-            "expires_at",
-            "ephemeral"};
+                                                            "keyspace_name",
+                                                            "columnfamily_name",
+                                                            "TrueDiskSpaceUsed",
+                                                            "TotalDiskSpaceUsed",
+                                                            "created_at",
+                                                            "expires_at",
+                                                            "ephemeral"};
 
     private static final String TYPE_NAME = "SnapshotDetails";
 
@@ -70,17 +70,18 @@ public class SnapshotDetailsTabularData
     }
 
 
-    public static void from(TableSnapshot details, TabularDataSupport result)
+    public static void from(TableSnapshot details, TabularDataSupport result, Set<String> files)
     {
         try
         {
             final String totalSize = FileUtils.stringifyFileSize(details.computeSizeOnDiskBytes());
+            long trueSizeBytes = details.computeTrueSizeBytes(files);
             final String liveSize =  FileUtils.stringifyFileSize(details.computeTrueSizeBytes());
             String createdAt = safeToString(details.getCreatedAt());
             String expiresAt = safeToString(details.getExpiresAt());
             String ephemeral = Boolean.toString(details.isEphemeral());
             result.put(new CompositeDataSupport(COMPOSITE_TYPE, ITEM_NAMES,
-                    new Object[]{ details.getTag(), details.getKeyspaceName(), details.getTableName(), liveSize, totalSize, createdAt, expiresAt, ephemeral }));
+                                                new Object[]{ details.getTag(), details.getKeyspaceName(), details.getTableName(), liveSize, totalSize, createdAt, expiresAt, ephemeral }));
         }
         catch (OpenDataException e)
         {

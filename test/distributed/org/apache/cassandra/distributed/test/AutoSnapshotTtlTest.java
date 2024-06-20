@@ -25,16 +25,14 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
-import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.shared.WithProperties;
+import org.apache.cassandra.service.snapshot.SnapshotType;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
-import static org.apache.cassandra.db.ColumnFamilyStore.SNAPSHOT_DROP_PREFIX;
-import static org.apache.cassandra.db.ColumnFamilyStore.SNAPSHOT_TRUNCATE_PREFIX;
 import static org.apache.cassandra.distributed.Cluster.build;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.stopUnchecked;
 import static org.awaitility.Awaitility.await;
@@ -81,12 +79,12 @@ public class AutoSnapshotTtlTest extends TestBaseImpl
             cluster.schemaChange(withKeyspace("TRUNCATE %s.tbl;"));
 
             // Check snapshot is listed after table is truncated
-            instance.nodetoolResult("listsnapshots").asserts().success().stdoutContains(SNAPSHOT_TRUNCATE_PREFIX);
+            instance.nodetoolResult("listsnapshots").asserts().success().stdoutContains(SnapshotType.TRUNCATE.label);
 
             // Check snapshot is removed after 10s
             await().timeout(10, SECONDS)
                    .pollInterval(1, SECONDS)
-                   .until(() -> !instance.nodetoolResult("listsnapshots").getStdout().contains(SNAPSHOT_DROP_PREFIX));
+                   .until(() -> !instance.nodetoolResult("listsnapshots").getStdout().contains(SnapshotType.DROP.label));
         }
     }
 
@@ -111,12 +109,12 @@ public class AutoSnapshotTtlTest extends TestBaseImpl
             cluster.schemaChange(withKeyspace("DROP TABLE %s.tbl;"));
 
             // Check snapshot is listed after table is dropped
-            instance.nodetoolResult("listsnapshots").asserts().success().stdoutContains(SNAPSHOT_DROP_PREFIX);
+            instance.nodetoolResult("listsnapshots").asserts().success().stdoutContains(SnapshotType.DROP.label);
 
             // Check snapshot is removed after 10s
             await().timeout(10, SECONDS)
                    .pollInterval(1, SECONDS)
-                   .until(() -> !instance.nodetoolResult("listsnapshots").getStdout().contains(SNAPSHOT_DROP_PREFIX));
+                   .until(() -> !instance.nodetoolResult("listsnapshots").getStdout().contains(SnapshotType.DROP.label));
         }
     }
 
@@ -146,12 +144,12 @@ public class AutoSnapshotTtlTest extends TestBaseImpl
             instance.startup();
 
             // Check snapshot is listed after restart
-            instance.nodetoolResult("listsnapshots").asserts().success().stdoutContains(SNAPSHOT_DROP_PREFIX);
+            instance.nodetoolResult("listsnapshots").asserts().success().stdoutContains(SnapshotType.DROP.label);
 
             // Check snapshot is removed after at most auto_snapshot_ttl + 1s
             await().timeout(ONE_MINUTE + 1, SECONDS)
                    .pollInterval(1, SECONDS)
-                   .until(() -> !instance.nodetoolResult("listsnapshots").getStdout().contains(SNAPSHOT_DROP_PREFIX));
+                   .until(() -> !instance.nodetoolResult("listsnapshots").getStdout().contains(SnapshotType.DROP.label));
         }
     }
 
@@ -178,13 +176,13 @@ public class AutoSnapshotTtlTest extends TestBaseImpl
             cluster.schemaChange(withKeyspace("DROP TABLE %s.tbl;"));
 
             // Check snapshots are created after table is truncated and dropped
-            instance.nodetoolResult("listsnapshots").asserts().success().stdoutContains(SNAPSHOT_TRUNCATE_PREFIX);
-            instance.nodetoolResult("listsnapshots").asserts().success().stdoutContains(SNAPSHOT_DROP_PREFIX);
+            instance.nodetoolResult("listsnapshots").asserts().success().stdoutContains(SnapshotType.TRUNCATE.label);
+            instance.nodetoolResult("listsnapshots").asserts().success().stdoutContains(SnapshotType.DROP.label);
 
             // Check snapshot are *NOT* expired after 10s
             Thread.sleep(2 * FIVE_SECONDS * 1000L);
-            instance.nodetoolResult("listsnapshots").asserts().success().stdoutContains(ColumnFamilyStore.SNAPSHOT_TRUNCATE_PREFIX);
-            instance.nodetoolResult("listsnapshots").asserts().success().stdoutContains(ColumnFamilyStore.SNAPSHOT_DROP_PREFIX);
+            instance.nodetoolResult("listsnapshots").asserts().success().stdoutContains(SnapshotType.TRUNCATE.label);
+            instance.nodetoolResult("listsnapshots").asserts().success().stdoutContains(SnapshotType.DROP.label);
         }
     }
 

@@ -1,4 +1,5 @@
 5.1
+ * Consolidate all snapshot management to SnapshotManager and introduce SnapshotManagerMBean (CASSANDRA-18111)
  * Fix RequestFailureReason constants codes (CASSANDRA-20126)
  * Introduce SSTableSimpleScanner for compaction (CASSANDRA-20092)
  * Include column drop timestamp in alter table transformation (CASSANDRA-18961)

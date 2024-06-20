@@ -126,6 +126,7 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.TypeSerializer;
+import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.service.snapshot.SnapshotManifest;
 import org.apache.cassandra.service.snapshot.TableSnapshot;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -199,7 +200,7 @@ public class SASIIndexTest
 
         try
         {
-            store.snapshot(snapshotName);
+            SnapshotManager.instance.takeSnapshot(snapshotName, store.getKeyspaceTableName());
 
             // Compact to make true snapshot size != 0
             store.forceMajorCompaction();
@@ -208,6 +209,7 @@ public class SASIIndexTest
             SnapshotManifest manifest = SnapshotManifest.deserializeFromJsonFile(store.getDirectories().getSnapshotManifestFile(snapshotName));
 
             Assert.assertFalse(ssTableReaders.isEmpty());
+            Assert.assertNotNull(manifest.files);
             Assert.assertFalse(manifest.files.isEmpty());
             Assert.assertEquals(ssTableReaders.size(), manifest.files.size());
 
@@ -243,7 +245,7 @@ public class SASIIndexTest
                 }
             }
             
-            TableSnapshot details = store.listSnapshots().get(snapshotName);
+            TableSnapshot details = Util.listSnapshots(store).get(snapshotName);
 
             // check that SASI components are included in the computation of snapshot size
             long snapshotSize = tableSize + indexSize + getSnapshotManifestAndSchemaFileSizes(details);
@@ -251,7 +253,7 @@ public class SASIIndexTest
         }
         finally
         {
-            store.clearSnapshot(snapshotName);
+            SnapshotManager.instance.clearSnapshot(store.getKeyspaceName(), store.getTableName(), snapshotName);
         }
     }
 

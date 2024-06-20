@@ -273,7 +273,9 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void takeTableSnapshot(String keyspaceName, String tableName, String tag) throws IOException;
 
     /**
-     * @deprecated use {@link #takeSnapshot(String tag, Map options, String... entities)} instead. See CASSANDRA-10907
+     * Use {@link #takeSnapshot(String tag, Map options, String... entities)} instead.
+     *
+     * @deprecated See CASSANDRA-10907
      */
     @Deprecated(since = "3.4")
     public void takeMultipleTableSnapshot(String tag, String... tableList) throws IOException;
@@ -281,13 +283,12 @@ public interface StorageServiceMBean extends NotificationEmitter
     /**
      * Takes the snapshot of a multiple column family from different keyspaces. A snapshot name must be specified.
      *
-     * @param tag
-     *            the tag given to the snapshot; may not be null or empty
-     * @param options
-     *            Map of options (skipFlush is the only supported option for now)
-     * @param entities
-     *            list of keyspaces / tables in the form of empty | ks1 ks2 ... | ks1.cf1,ks2.cf2,...
+     * @param tag the tag given to the snapshot; may not be null or empty
+     * @param options Map of options (skipFlush is the only supported option for now)
+     * @param entities list of keyspaces / tables in the form of empty | ks1 ks2 ... | ks1.cf1,ks2.cf2,...
+     * @deprecated See CASSANDRA-18111
      */
+    @Deprecated(since = "5.1")
     public void takeSnapshot(String tag, Map<String, String> options, String... entities) throws IOException;
 
     /**
@@ -308,7 +309,9 @@ public interface StorageServiceMBean extends NotificationEmitter
      * @param options map of options for cleanup operation, consult nodetool's ClearSnapshot
      * @param tag name of snapshot to clear, if null or empty string, all snapshots of given keyspace will be cleared
      * @param keyspaceNames name of keyspaces to clear snapshots for
+     * @deprecated See CASSANDRA-18111
      */
+    @Deprecated(since = "5.1")
     public void clearSnapshot(Map<String, Object> options, String tag, String... keyspaceNames) throws IOException;
 
     /**
@@ -324,13 +327,17 @@ public interface StorageServiceMBean extends NotificationEmitter
      *
      * @param options map of options used for filtering of snapshots
      * @return A map of snapshotName to all its details in Tabular form.
+     * @deprecated See CASSANDRA-18111
      */
+    @Deprecated(since = "5.1")
     public Map<String, TabularData> getSnapshotDetails(Map<String, String> options);
 
     /**
      * Get the true size taken by all snapshots across all keyspaces.
      * @return True size taken by all the snapshots.
+     * @deprecated See CASSANDRA-18111
      */
+    @Deprecated(since = "5.1")
     public long trueSnapshotsSize();
 
     /**
@@ -338,7 +345,9 @@ public interface StorageServiceMBean extends NotificationEmitter
      * A setting of zero indicates no throttling
      *
      * @param throttle
+     * @deprecated See CASSANDRA-18111
      */
+    @Deprecated(since = "5.1")
     public void setSnapshotLinksPerSecond(long throttle);
 
     /**
@@ -346,7 +355,9 @@ public interface StorageServiceMBean extends NotificationEmitter
      * A setting of zero indicates no throttling.
      *
      * @return snapshot links-per-second throttle
+     * @deprecated See CASSANDRA-18111
      */
+    @Deprecated(since = "5.1")
     public long getSnapshotLinksPerSecond();
 
     /**
