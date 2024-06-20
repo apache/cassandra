@@ -40,8 +40,6 @@ import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.ReplicationParams;
-import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.schema.SchemaProvider;
 import org.apache.cassandra.schema.SchemaTransformation;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Tables;
@@ -70,12 +68,10 @@ public class AlterSchema implements Transformation
     public static final Serializer serializer = new Serializer();
 
     private final SchemaTransformation schemaTransformation;
-    protected final SchemaProvider schemaProvider;
 
-    public AlterSchema(SchemaTransformation schemaTransformation, SchemaProvider schemaProvider)
+    public AlterSchema(SchemaTransformation schemaTransformation)
     {
         this.schemaTransformation = schemaTransformation;
-        this.schemaProvider = schemaProvider;
     }
 
     @Override
@@ -266,7 +262,7 @@ public class AlterSchema implements Transformation
             long timestamp = in.readVInt();
             if (transformation instanceof AlterSchemaStatement)
                 ((AlterSchemaStatement)transformation).setExecutionTimestamp(timestamp);
-            return new AlterSchema(transformation, Schema.instance);
+            return new AlterSchema(transformation);
         }
 
         @Override
