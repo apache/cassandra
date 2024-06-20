@@ -19,33 +19,49 @@
 package org.apache.cassandra.db;
 
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.Collection;
+import java.util.Set;
 
-import org.assertj.core.api.Assertions;
+import org.junit.Before;
 import org.junit.Test;
 
 import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.db.filter.ClusteringIndexSliceFilter;
+import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.filter.DataLimits;
+import org.apache.cassandra.db.filter.RowFilter;
+import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.io.sstable.AbstractRowIndexEntry;
-import org.apache.cassandra.db.compaction.CompactionManager;
-import org.apache.cassandra.db.filter.*;
-import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.big.BigTableReader;
 import org.apache.cassandra.metrics.ClearableHistogram;
+import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
+import org.assertj.core.api.Assertions;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class KeyspaceTest extends CQLTester
 {
     // Test needs synchronous table drop to avoid flushes causing flaky failures of testLimitSSTables
+
+    @Before
+    public void cleanupSnapshots()
+    {
+        SnapshotManager.instance.clearSnapshots("", Set.of(), Clock.Global.currentTimeMillis());
+    }
 
     @Override
     protected String createTable(String query)
@@ -428,7 +444,7 @@ public class KeyspaceTest extends CQLTester
         ks.snapshot("test", table);
 
         assertTrue(ks.snapshotExists("test"));
-        assertEquals(1, ks.getAllSnapshots().count());
+        assertEquals(1, SnapshotManager.instance.getSnapshots(ks.getName()).size());
     }
 
     @Test

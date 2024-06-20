@@ -83,16 +83,16 @@ public class Snapshot extends NodeToolCmd
             {
                 ktList = ktList.replace(" ", "");
                 if (keyspaces.isEmpty() && null == table)
-                    sb.append("[").append(ktList).append("]");
+                    sb.append('[').append(ktList).append(']');
                 else
                 {
                     throw new IOException(
                             "When specifying the Keyspace table list (using -kt,--kt-list,-kc,--kc.list), you must not also specify keyspaces to snapshot");
                 }
                 if (!snapshotName.isEmpty())
-                    sb.append(" with snapshot name [").append(snapshotName).append("]");
-                sb.append(" and options ").append(options.toString());
-                out.println(sb.toString());
+                    sb.append(" with snapshot name [").append(snapshotName).append(']');
+                sb.append(" and options ").append(options);
+                out.println(sb);
                 probe.takeMultipleTableSnapshot(snapshotName, options, ktList.split(","));
                 out.println("Snapshot directory: " + snapshotName);
             }
@@ -101,12 +101,12 @@ public class Snapshot extends NodeToolCmd
                 if (keyspaces.isEmpty())
                     sb.append("[all keyspaces]");
                 else
-                    sb.append("[").append(join(keyspaces, ", ")).append("]");
+                    sb.append('[').append(join(keyspaces, ", ")).append(']');
 
                 if (!snapshotName.isEmpty())
-                    sb.append(" with snapshot name [").append(snapshotName).append("]");
-                sb.append(" and options ").append(options.toString());
-                out.println(sb.toString());
+                    sb.append(" with snapshot name [").append(snapshotName).append(']');
+                sb.append(" and options ").append(options);
+                out.println(sb);
 
                 probe.takeSnapshot(snapshotName, table, options, toArray(keyspaces, String.class));
                 out.println("Snapshot directory: " + snapshotName);

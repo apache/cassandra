@@ -57,6 +57,7 @@ import org.apache.cassandra.repair.ValidationPartitionIterator;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.repair.NoSuchRepairSessionException;
+import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Refs;
 
@@ -269,7 +270,7 @@ public class CassandraValidationIterator extends ValidationPartitionIterator
         {
             // we can only clear the snapshot if we are not doing a global snapshot validation (we then clear it once anticompaction
             // is done).
-            cfs.clearSnapshot(snapshotName);
+            SnapshotManager.instance.clearSnapshot(cfs.keyspace.getName(), cfs.name, snapshotName);
         }
 
         if (sstables != null)

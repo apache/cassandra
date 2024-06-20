@@ -71,6 +71,7 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.security.ThreadAwareSecurityManager;
 import org.apache.cassandra.service.paxos.PaxosState;
+import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.streaming.StreamManager;
 import org.apache.cassandra.tcm.CMSOperations;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -266,8 +267,16 @@ public class CassandraDaemon
         DatabaseDescriptor.createAllDirectories();
         Keyspace.setInitialized();
         CommitLog.instance.start();
-        runStartupChecks();
 
+        SnapshotManager.instance.registerMBean();
+        SnapshotManager.instance.start();
+        SnapshotManager.instance.clearExpiredSnapshots();
+        SnapshotManager.instance.clearEphemeralSnapshots();
+        SnapshotManager.instance.resumeSnapshotCleanup();
+
+        // clearing of snapshots above here will in fact clear all ephemeral snapshots
+        // which were cleared as part of startup checks before CASSANDRA-18111
+        runStartupChecks();
 
         try
         {

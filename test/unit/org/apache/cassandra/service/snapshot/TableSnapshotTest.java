@@ -19,7 +19,7 @@
 package org.apache.cassandra.service.snapshot;
 
 import java.io.IOException;
-import java.nio.file.Paths;
+import java.nio.file.Files;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -38,10 +38,14 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.Pair;
+import org.mockito.MockedStatic;
 
 import static org.apache.cassandra.utils.FBUtilities.now;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.times;
 
 public class TableSnapshotTest
 {
@@ -62,10 +66,15 @@ public class TableSnapshotTest
         {
             File subfolder = new File(folder, folderName);
             subfolder.tryCreateDirectories();
-            assertThat(subfolder.exists());
+            File manifest = new File(subfolder.toPath().resolve("manifest.json"));
+            File schema = new File(subfolder.toPath().resolve("schema.cql"));
+            manifest.createFileIfNotExists();
+            schema.createFileIfNotExists();
+            Files.write(manifest.toPath(), "{}".getBytes());
+            Files.write(schema.toPath(), "cql schema".getBytes());
             folders.add(subfolder);
         }
-        ;
+
         return folders;
     }
 
@@ -186,8 +195,18 @@ public class TableSnapshotTest
             res += FileUtils.folderSize(dir);
         }
 
-        assertThat(tableDetails.computeSizeOnDiskBytes()).isGreaterThan(0L);
-        assertThat(tableDetails.computeSizeOnDiskBytes()).isEqualTo(res);
+        try (MockedStatic<FileUtils> fileUtilsMock = mockStatic(FileUtils.class))
+        {
+            fileUtilsMock.when(() -> FileUtils.folderSize(any())).thenCallRealMethod();
+
+            assertThat(tableDetails.computeSizeOnDiskBytes()).isGreaterThan(0L);
+            assertThat(tableDetails.computeSizeOnDiskBytes()).isEqualTo(res);
+
+            // when we invoke computeSizeOnDiskBytes for the second time, it will use cached value
+            // 3 invocations for folderSize are from the first invocation of computeSizeOnDiskBytes because
+            // we have 3 data dirs, if we have not cached it, the number of invocations would be 6.
+            fileUtilsMock.verify(() -> FileUtils.folderSize(any()), times(3));
+        }
     }
 
     @Test
@@ -208,15 +227,27 @@ public class TableSnapshotTest
 
         Long res = 0L;
 
+        Set<String> files = new HashSet<>();
         for (File dir : folders)
         {
             File file = new File(dir, "tmp");
+            files.add(file.toAbsolute().toString());
             writeBatchToFile(file);
             res += file.length();
+            res += new File(dir, "manifest.json").length();
+            res += new File(dir, "schema.cql").length();
         }
 
-        assertThat(tableDetails.computeTrueSizeBytes()).isGreaterThan(0L);
-        assertThat(tableDetails.computeTrueSizeBytes()).isEqualTo(res);
+        try (MockedStatic<TableSnapshot> tableSnapshotMock = mockStatic(TableSnapshot.class))
+        {
+            tableSnapshotMock.when(() -> TableSnapshot.getLiveFileFromSnapshotFile(any())).thenCallRealMethod();
+
+            assertThat(tableDetails.computeTrueSizeBytes(files)).isGreaterThan(0L);
+            assertThat(tableDetails.computeTrueSizeBytes(files)).isEqualTo(res);
+
+            // 6 because we avoided to call it for manifest and schema because they are cached
+            tableSnapshotMock.verify(() -> TableSnapshot.getLiveFileFromSnapshotFile(any()), times(6));
+        }
     }
 
     @Test
@@ -298,7 +329,7 @@ public class TableSnapshotTest
                 // 1. snapshot to clear is not ephemeral
                 // 2. tag to clear is null, empty, or it is equal to snapshot tag
                 // 3. byTimestamp is true
-                if (TableSnapshot.shouldClearSnapshot(testingTag, olderThanTimestamp).test(snapshot))
+                if (SnapshotManager.shouldClearSnapshot(testingTag, Set.of(keyspace), olderThanTimestamp, false).test(snapshot))
                 {
                     // shouldClearTag = true
                     boolean shouldClearTag = (testingTag == null || testingTag.isEmpty()) || snapshot.getTag().equals(testingTag);
@@ -320,24 +351,5 @@ public class TableSnapshotTest
                 }
             }
         }
-    }
-
-    @Test
-    public void testGetLiveFileFromSnapshotFile()
-    {
-        testGetLiveFileFromSnapshotFile("~/.ccm/test/node1/data0/test_ks/tbl-e03faca0813211eca100c705ea09b5ef/snapshots/1643481737850/me-1-big-Data.db",
-                                        "~/.ccm/test/node1/data0/test_ks/tbl-e03faca0813211eca100c705ea09b5ef/me-1-big-Data.db");
-    }
-
-    @Test
-    public void testGetLiveFileFromSnapshotIndexFile()
-    {
-        testGetLiveFileFromSnapshotFile("~/.ccm/test/node1/data0/test_ks/tbl-e03faca0813211eca100c705ea09b5ef/snapshots/1643481737850/.tbl_val_idx/me-1-big-Summary.db",
-                                        "~/.ccm/test/node1/data0/test_ks/tbl-e03faca0813211eca100c705ea09b5ef/.tbl_val_idx/me-1-big-Summary.db");
-    }
-
-    public void testGetLiveFileFromSnapshotFile(String snapshotFile, String expectedLiveFile)
-    {
-        assertThat(TableSnapshot.getLiveFileFromSnapshotFile(Paths.get(snapshotFile)).toString()).isEqualTo(expectedLiveFile);
     }
 }

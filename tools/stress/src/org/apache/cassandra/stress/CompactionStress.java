@@ -340,7 +340,7 @@ public abstract class CompactionStress implements Runnable
             }
 
             double currentSizeGiB;
-            while ((currentSizeGiB = directories.getRawDiretoriesSize() / BYTES_IN_GIB) < totalSizeGiB)
+            while ((currentSizeGiB = directories.getRawDirectoriesSize() / BYTES_IN_GIB) < totalSizeGiB)
             {
                 if (finished.getCount() == 0)
                     break;
@@ -353,7 +353,7 @@ public abstract class CompactionStress implements Runnable
             workManager.stop();
             Uninterruptibles.awaitUninterruptibly(finished);
 
-            currentSizeGiB = directories.getRawDiretoriesSize() / BYTES_IN_GIB;
+            currentSizeGiB = directories.getRawDirectoriesSize() / BYTES_IN_GIB;
             System.out.println(String.format("Finished writing %.2fGB", currentSizeGiB));
         }
     }
