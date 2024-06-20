@@ -22,8 +22,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
-
-import com.google.common.base.Predicate;
+import java.util.function.Predicate;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.compaction.CompactionManager;
@@ -36,6 +35,9 @@ import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.repair.TableRepairManager;
 import org.apache.cassandra.repair.ValidationPartitionIterator;
 import org.apache.cassandra.repair.NoSuchRepairSessionException;
+import org.apache.cassandra.service.snapshot.SnapshotOptions;
+import org.apache.cassandra.service.snapshot.SnapshotManager;
+import org.apache.cassandra.service.snapshot.SnapshotType;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.service.ActiveRepairService;
 
@@ -79,17 +81,14 @@ public class CassandraTableRepairManager implements TableRepairManager
         try
         {
             ActiveRepairService.instance().snapshotExecutor.submit(() -> {
-                if (force || !cfs.snapshotExists(name))
+                if (force || !SnapshotManager.instance.exists(cfs.getKeyspaceName(), cfs.getTableName(), name))
                 {
-                    cfs.snapshot(name, new Predicate<SSTableReader>()
-                    {
-                        public boolean apply(SSTableReader sstable)
-                        {
-                            return sstable != null &&
-                                   !sstable.metadata().isIndex() && // exclude SSTables from 2i
-                                   new Bounds<>(sstable.getFirst().getToken(), sstable.getLast().getToken()).intersects(ranges);
-                        }
-                    }, true, false); //ephemeral snapshot, if repair fails, it will be cleaned next startup
+                    Predicate<SSTableReader> predicate = sstable -> sstable != null &&
+                                                                    !sstable.metadata().isIndex() && // exclude SSTables from 2i
+                                                                    new Bounds<>(sstable.getFirst().getToken(), sstable.getLast().getToken()).intersects(ranges);
+
+                    SnapshotOptions options = SnapshotOptions.systemSnapshot(name, SnapshotType.REPAIR, predicate, cfs.getKeyspaceTableName()).ephemeral().build();
+                    SnapshotManager.instance.takeSnapshot(options);
                 }
             }).get();
         }

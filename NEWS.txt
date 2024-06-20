@@ -89,6 +89,9 @@ New features
       when 'GENERATED PASSWORD' clause is used. Character sets supported are: English, Cyrillic, modern Cyrillic,
       German, Polish and Czech.
     - JMX SSL configuration can be now done in cassandra.yaml via jmx_encryption_options section instead of cassandra-env.sh
+    - There is newly introduced JMX MBean org.apache.cassandra.service.snapshot:type=SnapshotManager (CASSANDRA-18111).
+      Snapshot-related MBean methods in StorageService were marked as deprecated and all user-facing snapshotting
+      operations are recommended to be done via SnapshotManager MBean.
 
 
 Upgrading
