@@ -47,7 +47,8 @@ abstract public class AlterSchemaStatement implements CQLStatement.SingleKeyspac
     // TODO: not sure if this is going to stay the same, or will be replaced by more efficient serialization/sanitation means
     // or just `toString` for every statement
     private String cql;
-    private long executionTimestamp = -1;
+    public static final long NO_EXECUTION_TIMESTAMP = -1;
+    private long executionTimestamp = NO_EXECUTION_TIMESTAMP;
 
     protected AlterSchemaStatement(String keyspaceName)
     {
@@ -113,7 +114,7 @@ abstract public class AlterSchemaStatement implements CQLStatement.SingleKeyspac
     @Override
     public Optional<Long> fixedTimestampMicros()
     {
-        return executionTimestamp == Long.MIN_VALUE ? Optional.empty() : Optional.of(executionTimestamp);
+        return executionTimestamp == NO_EXECUTION_TIMESTAMP ? Optional.empty() : Optional.of(executionTimestamp);
     }
 
     public ResultMessage executeLocally(QueryState state, QueryOptions options)
@@ -160,6 +161,7 @@ abstract public class AlterSchemaStatement implements CQLStatement.SingleKeyspac
             throw ire("Virtual keyspace '%s' is not user-modifiable", keyspaceName);
 
         validateKeyspaceName();
+        setExecutionTimestamp(state.getTimestamp());
         // Perform a 'dry-run' attempt to apply the transformation locally before submitting to the CMS. This can save a
         // round trip to the CMS for things syntax errors, but also fail fast for things like configuration errors.
         // Such failures may be dependent on the specific node's config (for things like guardrails/memtable
@@ -171,7 +173,6 @@ abstract public class AlterSchemaStatement implements CQLStatement.SingleKeyspac
         // cluster, as config can be heterogenous falling back to safe defaults may occur on some nodes.
         ClusterMetadata metadata = ClusterMetadata.current();
         apply(metadata);
-
         ClusterMetadata result = Schema.instance.submit(this);
 
         KeyspacesDiff diff = Keyspaces.diff(metadata.schema.getKeyspaces(), result.schema.getKeyspaces());
@@ -238,6 +239,7 @@ abstract public class AlterSchemaStatement implements CQLStatement.SingleKeyspac
         return "AlterSchemaStatement{" +
                "keyspaceName='" + keyspaceName + '\'' +
                ", cql='" + cql() + '\'' +
+               ", executionTimestamp="+executionTimestamp +
                '}';
     }
 }
