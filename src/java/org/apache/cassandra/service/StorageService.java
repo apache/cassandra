@@ -695,6 +695,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public synchronized void initServer() throws ConfigurationException
     {
         logger.info("Cassandra version: {}", FBUtilities.getReleaseVersionString());
+        logger.info("Build Date: {}", FBUtilities.getBuildDate());
         logger.info("Git SHA: {}", FBUtilities.getGitSHA());
         logger.info("CQL version: {}", QueryProcessor.CQL_VERSION);
         logger.info("Native protocol supported versions: {} (default: {})",
@@ -2383,6 +2384,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public String getGitSHA()
     {
         return FBUtilities.getGitSHA();
+    }
+
+    @Override
+    public String getBuildDate()
+    {
+        return FBUtilities.getBuildDate();
     }
 
     public String getSchemaVersion()
