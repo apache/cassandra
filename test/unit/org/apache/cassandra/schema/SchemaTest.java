@@ -209,7 +209,9 @@ public class SchemaTest
 
     private static AlterSchemaStatement cql(String keyspace, String cql)
     {
-        return (AlterSchemaStatement) QueryProcessor.parseStatement(String.format(cql, keyspace))
-                                                    .prepare(ClientState.forInternalCalls());
+        AlterSchemaStatement statement = (AlterSchemaStatement) QueryProcessor.parseStatement(String.format(cql, keyspace))
+                                                                              .prepare(ClientState.forInternalCalls());
+        statement.setExecutionTimestamp(System.currentTimeMillis() * 1000);
+        return statement;
     }
 }
