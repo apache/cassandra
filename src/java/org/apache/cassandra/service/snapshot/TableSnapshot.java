@@ -21,21 +21,22 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.utils.DirectorySizeCalculator;
 
 public class TableSnapshot
 {
@@ -43,6 +44,7 @@ public class TableSnapshot
 
     private final String keyspaceName;
     private final String tableName;
+    private final String keyspaceTable;
     private final UUID tableId;
     private final String tag;
     private final boolean ephemeral;
@@ -52,25 +54,34 @@ public class TableSnapshot
 
     private final Set<File> snapshotDirs;
 
+    private volatile long sizeOnDisk = 0;
+
+    private final long manifestsSize;
+    private final long schemasSize;
+
     public TableSnapshot(String keyspaceName, String tableName, UUID tableId,
                          String tag, Instant createdAt, Instant expiresAt,
                          Set<File> snapshotDirs, boolean ephemeral)
     {
         this.keyspaceName = keyspaceName;
         this.tableName = tableName;
+        this.keyspaceTable = keyspaceName + '.' + tableName;
         this.tableId = tableId;
         this.tag = tag;
         this.createdAt = createdAt;
         this.expiresAt = expiresAt;
         this.snapshotDirs = snapshotDirs;
         this.ephemeral = ephemeral;
+
+        manifestsSize = getManifestsSize();
+        schemasSize = getSchemasSize();
     }
 
     /**
      * Unique identifier of a snapshot. Used
      * only to deduplicate snapshots internally,
      * not exposed externally.
-     *
+     * <p>
      * Format: "$ks:$table_name:$table_id:$tag"
      */
     public String getId()
@@ -88,6 +99,11 @@ public class TableSnapshot
         return tableName;
     }
 
+    public String getKeyspaceTable()
+    {
+        return keyspaceTable;
+    }
+
     public String getTag()
     {
         return tag;
@@ -95,13 +111,22 @@ public class TableSnapshot
 
     public Instant getCreatedAt()
     {
+
         if (createdAt == null)
         {
-            long minCreation = snapshotDirs.stream().mapToLong(File::lastModified).min().orElse(0);
-            if (minCreation != 0)
+            long minCreation = 0;
+            for (File snapshotDir : snapshotDirs)
             {
-                return Instant.ofEpochMilli(minCreation);
+                long lastModified = snapshotDir.lastModified();
+                if (lastModified == 0)
+                    continue;
+
+                if (minCreation == 0 || minCreation > lastModified)
+                    minCreation = lastModified;
             }
+
+            if (minCreation != 0)
+                return Instant.ofEpochMilli(minCreation);
         }
         return createdAt;
     }
@@ -123,7 +148,11 @@ public class TableSnapshot
 
     public boolean exists()
     {
-        return snapshotDirs.stream().anyMatch(File::exists);
+        for (File snapshotDir : snapshotDirs)
+            if (snapshotDir.exists())
+                return true;
+
+        return false;
     }
 
     public boolean isEphemeral()
@@ -138,26 +167,106 @@ public class TableSnapshot
 
     public long computeSizeOnDiskBytes()
     {
-        return snapshotDirs.stream().mapToLong(FileUtils::folderSize).sum();
+        long sum = sizeOnDisk;
+        if (sum == 0)
+        {
+            for (File snapshotDir : snapshotDirs)
+                sum += FileUtils.folderSize(snapshotDir);
+
+            sizeOnDisk = sum;
+        }
+
+        return sum;
     }
 
     public long computeTrueSizeBytes()
     {
-        DirectorySizeCalculator visitor = new SnapshotTrueSizeCalculator();
+        ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(keyspaceName, tableName);
+        if (cfs == null)
+            return 0;
 
-        for (File snapshotDir : snapshotDirs)
+        return computeTrueSizeBytes(cfs.getFilesOfCfs());
+    }
+
+    public long computeTrueSizeBytes(Set<String> files)
+    {
+        long size = manifestsSize + schemasSize;
+
+        for (File dataPath : getDirectories())
         {
-            try
+            List<Path> snapshotFiles = listDir(dataPath.toPath());
+            for (Path snapshotFile : snapshotFiles)
             {
-                Files.walkFileTree(snapshotDir.toPath(), visitor);
-            }
-            catch (IOException e)
-            {
-                logger.error("Could not calculate the size of {}.", snapshotDir, e);
+                if (!snapshotFile.endsWith("manifest.json") && !snapshotFile.endsWith("schema.cql"))
+                {
+                    // files == null means that the underlying table was most probably dropped
+                    // so in that case we indeed go to count snapshots file in for true size
+                    if (files == null || (!files.contains(getLiveFileFromSnapshotFile(snapshotFile))))
+                        size += getFileSize(snapshotFile);
+                }
             }
         }
 
-        return visitor.getAllocatedSize();
+        return size;
+    }
+
+    private List<Path> listDir(Path dir)
+    {
+        List<Path> paths = new ArrayList<>();
+        try (Stream<Path> stream = Files.list(dir))
+        {
+            stream.forEach(p -> {
+                if (p.getFileName().toString().startsWith("."))
+                {
+                    paths.addAll(listDir(p));
+                }
+                else
+                {
+                    paths.add(p);
+                }
+            });
+        }
+        catch (IOException t)
+        {
+            logger.error("Could not list directory content {}", dir);
+        }
+
+        return paths;
+    }
+
+    private long getFileSize(Path file)
+    {
+        try
+        {
+            return Files.size(file);
+        }
+        catch (Throwable t)
+        {
+            return 0;
+        }
+    }
+
+    /**
+     * Returns the corresponding live file for a given snapshot file.
+     * <p>
+     * Example:
+     * - Base table:
+     * - Snapshot file: ~/.ccm/test/node1/data0/test_ks/tbl-e03faca0813211eca100c705ea09b5ef/snapshots/1643481737850/me-1-big-Data.db
+     * - Live file: ~/.ccm/test/node1/data0/test_ks/tbl-e03faca0813211eca100c705ea09b5ef/me-1-big-Data.db
+     * - Secondary index:
+     * - Snapshot file: ~/.ccm/test/node1/data0/test_ks/tbl-e03faca0813211eca100c705ea09b5ef/snapshots/1643481737850/.tbl_val_idx/me-1-big-Summary.db
+     * - Live file: ~/.ccm/test/node1/data0/test_ks/tbl-e03faca0813211eca100c705ea09b5ef/.tbl_val_idx/me-1-big-Summary.db
+     */
+    static String getLiveFileFromSnapshotFile(Path snapshotFilePath)
+    {
+        // Snapshot directory structure format is {data_dir}/snapshots/{snapshot_name}/{snapshot_file}
+        Path liveDir = snapshotFilePath.getParent().getParent().getParent();
+        if (Directories.isSecondaryIndexFolder(snapshotFilePath.getParent()))
+        {
+            // Snapshot file structure format is {data_dir}/snapshots/{snapshot_name}/.{index}/{sstable-component}.db
+            liveDir = File.getPath(liveDir.getParent().toString(), snapshotFilePath.getParent().getFileName().toString());
+        }
+        return liveDir.resolve(snapshotFilePath.getFileName().toString()).toAbsolutePath().toString();
     }
 
     public Collection<File> getDirectories()
@@ -165,31 +274,71 @@ public class TableSnapshot
         return snapshotDirs;
     }
 
-    public Optional<File> getManifestFile()
+    /**
+     * Returns all manifest files of a snapshot.
+     * <p>
+     * In practice, there might be multiple manifest files, as many as we have snapshot dirs.
+     * Each snapshot dir will hold its view of a snapshot, containing only sstables located in such snapshot dir.
+     *
+     * @return all manifest files
+     */
+    public Set<File> getManifestFiles()
     {
+        Set<File> manifestFiles = new HashSet<>();
         for (File snapshotDir : snapshotDirs)
         {
             File manifestFile = Directories.getSnapshotManifestFile(snapshotDir);
             if (manifestFile.exists())
-            {
-                return Optional.of(manifestFile);
-            }
+                manifestFiles.add(manifestFile);
         }
-        return Optional.empty();
+        return manifestFiles;
     }
 
-    public Optional<File> getSchemaFile()
+    public boolean hasManifest()
     {
+        for (File snapshotDir : snapshotDirs)
+        {
+            if (Directories.getSnapshotManifestFile(snapshotDir).exists())
+                return true;
+        }
+        return false;
+    }
+
+    /**
+     * Returns all schemas files of a snapshot.
+     *
+     * @return all schema files
+     */
+    public Set<File> getSchemaFiles()
+    {
+        Set<File> schemaFiles = new HashSet<>();
         for (File snapshotDir : snapshotDirs)
         {
             File schemaFile = Directories.getSnapshotSchemaFile(snapshotDir);
             if (schemaFile.exists())
-            {
-                return Optional.of(schemaFile);
-            }
+                schemaFiles.add(schemaFile);
         }
-        return Optional.empty();
+        return schemaFiles;
     }
+
+    private long getManifestsSize()
+    {
+        long size = 0;
+        for (File manifestFile : getManifestFiles())
+            size += manifestFile.length();
+
+        return size;
+    }
+
+    private long getSchemasSize()
+    {
+        long size = 0;
+        for (File schemaFile : getSchemaFiles())
+            size += schemaFile.length();
+
+        return size;
+    }
+
 
     @Override
     public boolean equals(Object o)
@@ -197,10 +346,14 @@ public class TableSnapshot
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         TableSnapshot snapshot = (TableSnapshot) o;
-        return Objects.equals(keyspaceName, snapshot.keyspaceName) && Objects.equals(tableName, snapshot.tableName) &&
-               Objects.equals(tableId, snapshot.tableId) && Objects.equals(tag, snapshot.tag) &&
-               Objects.equals(createdAt, snapshot.createdAt) && Objects.equals(expiresAt, snapshot.expiresAt) &&
-               Objects.equals(snapshotDirs, snapshot.snapshotDirs) && Objects.equals(ephemeral, snapshot.ephemeral);
+        return Objects.equals(keyspaceName, snapshot.keyspaceName) &&
+               Objects.equals(tableName, snapshot.tableName) &&
+               Objects.equals(tableId, snapshot.tableId) &&
+               Objects.equals(tag, snapshot.tag) &&
+               Objects.equals(createdAt, snapshot.createdAt) &&
+               Objects.equals(expiresAt, snapshot.expiresAt) &&
+               Objects.equals(snapshotDirs, snapshot.snapshotDirs) &&
+               Objects.equals(ephemeral, snapshot.ephemeral);
     }
 
     @Override
@@ -224,7 +377,8 @@ public class TableSnapshot
                '}';
     }
 
-    static class Builder {
+    static class Builder
+    {
         private final String keyspaceName;
         private final String tableName;
         private final UUID tableId;
@@ -286,67 +440,4 @@ public class TableSnapshot
     {
         return String.format("%s:%s:%s:%s", keyspaceName, tableName, tableId, tag);
     }
-
-    public static class SnapshotTrueSizeCalculator extends DirectorySizeCalculator
-    {
-        /**
-         * Snapshots are composed of hard-linked sstables. The true snapshot size should only include
-         * snapshot files which do not contain a corresponding "live" sstable file.
-         */
-        @Override
-        public boolean isAcceptable(Path snapshotFilePath)
-        {
-            return !getLiveFileFromSnapshotFile(snapshotFilePath).exists();
-        }
-    }
-
-    /**
-     * Returns the corresponding live file for a given snapshot file.
-     *
-     * Example:
-     *  - Base table:
-     *    - Snapshot file: ~/.ccm/test/node1/data0/test_ks/tbl-e03faca0813211eca100c705ea09b5ef/snapshots/1643481737850/me-1-big-Data.db
-     *    - Live file: ~/.ccm/test/node1/data0/test_ks/tbl-e03faca0813211eca100c705ea09b5ef/me-1-big-Data.db
-     *  - Secondary index:
-     *    - Snapshot file: ~/.ccm/test/node1/data0/test_ks/tbl-e03faca0813211eca100c705ea09b5ef/snapshots/1643481737850/.tbl_val_idx/me-1-big-Summary.db
-     *    - Live file: ~/.ccm/test/node1/data0/test_ks/tbl-e03faca0813211eca100c705ea09b5ef/.tbl_val_idx/me-1-big-Summary.db
-     *
-     */
-    static File getLiveFileFromSnapshotFile(Path snapshotFilePath)
-    {
-        // Snapshot directory structure format is {data_dir}/snapshots/{snapshot_name}/{snapshot_file}
-        Path liveDir = snapshotFilePath.getParent().getParent().getParent();
-        if (Directories.isSecondaryIndexFolder(snapshotFilePath.getParent()))
-        {
-            // Snapshot file structure format is {data_dir}/snapshots/{snapshot_name}/.{index}/{sstable-component}.db
-            liveDir = File.getPath(liveDir.getParent().toString(), snapshotFilePath.getParent().getFileName().toString());
-        }
-        return new File(liveDir.toString(), snapshotFilePath.getFileName().toString());
-    }
-
-    public static Predicate<TableSnapshot> shouldClearSnapshot(String tag, long olderThanTimestamp)
-    {
-        return ts ->
-        {
-            // When no tag is supplied, all snapshots must be cleared
-            boolean clearAll = tag == null || tag.isEmpty();
-            if (!clearAll && ts.isEphemeral())
-                logger.info("Skipping deletion of ephemeral snapshot '{}' in keyspace {}. " +
-                            "Ephemeral snapshots are not removable by a user.",
-                            tag, ts.keyspaceName);
-            boolean notEphemeral = !ts.isEphemeral();
-            boolean shouldClearTag = clearAll || ts.tag.equals(tag);
-            boolean byTimestamp = true;
-
-            if (olderThanTimestamp > 0L)
-            {
-                Instant createdAt = ts.getCreatedAt();
-                if (createdAt != null)
-                    byTimestamp = createdAt.isBefore(Instant.ofEpochMilli(olderThanTimestamp));
-            }
-
-            return notEphemeral && shouldClearTag && byTimestamp;
-        };
-    }
-
 }

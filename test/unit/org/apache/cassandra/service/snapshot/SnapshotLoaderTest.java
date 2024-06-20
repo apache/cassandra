@@ -28,10 +28,12 @@ import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
 import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.io.util.File;
@@ -66,6 +68,12 @@ public class SnapshotLoaderTest
 
     @ClassRule
     public static TemporaryFolder tmpDir = new TemporaryFolder();
+
+    @BeforeClass
+    public static void setup()
+    {
+        DatabaseDescriptor.daemonInitialization();
+    }
 
     @Test
     public void testMatcher()

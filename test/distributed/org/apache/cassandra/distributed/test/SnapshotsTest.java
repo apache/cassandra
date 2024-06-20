@@ -19,6 +19,8 @@
 package org.apache.cassandra.distributed.test;
 
 import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Pattern;
@@ -29,9 +31,11 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableCallable;
 import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.utils.Clock;
@@ -42,6 +46,7 @@ import static java.util.stream.Collectors.toList;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.stopUnchecked;
 import static org.awaitility.Awaitility.await;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class SnapshotsTest extends TestBaseImpl
 {
@@ -51,9 +56,9 @@ public class SnapshotsTest extends TestBaseImpl
     private static final WithProperties properties = new WithProperties();
     private static Cluster cluster;
 
-    private final String[] exoticSnapshotNames = new String[] { "snapshot", "snapshots", "backup", "backups",
-                                                                "Snapshot", "Snapshots", "Backups", "Backup",
-                                                                "snapshot.with.dots-and-dashes"};
+    private final String[] exoticSnapshotNames = new String[]{ "snapshot", "snapshots", "backup", "backups",
+                                                               "Snapshot", "Snapshots", "Backups", "Backup",
+                                                               "snapshot.with.dots-and-dashes" };
 
     @BeforeClass
     public static void before() throws IOException
@@ -61,7 +66,9 @@ public class SnapshotsTest extends TestBaseImpl
         properties.set(CassandraRelevantProperties.SNAPSHOT_CLEANUP_INITIAL_DELAY_SECONDS, 0);
         properties.set(CassandraRelevantProperties.SNAPSHOT_CLEANUP_PERIOD_SECONDS, SNAPSHOT_CLEANUP_PERIOD_SECONDS);
         properties.set(CassandraRelevantProperties.SNAPSHOT_MIN_ALLOWED_TTL_SECONDS, FIVE_SECONDS);
-        cluster = init(Cluster.build(1).start());
+        cluster = init(Cluster.build(1)
+                              .withDataDirCount(3)
+                              .start());
     }
 
     @After
@@ -69,7 +76,7 @@ public class SnapshotsTest extends TestBaseImpl
     {
         cluster.schemaChange(withKeyspace("DROP TABLE IF EXISTS %s.tbl;"));
         cluster.get(1).nodetoolResult("clearsnapshot", "--all").asserts().success();
-        for (String tag : new String[] {"basic", "first", "second", "tag1"})
+        for (String tag : new String[]{ "basic", "first", "second", "tag1" })
             waitForSnapshotCleared(tag);
         for (String tag : exoticSnapshotNames)
             waitForSnapshot(tag, false, true);
@@ -81,6 +88,34 @@ public class SnapshotsTest extends TestBaseImpl
         properties.close();
         if (cluster != null)
             cluster.close();
+    }
+
+    @Test
+    public void testEverySnapshotDirHasManifestAndSchema()
+    {
+        cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (key int, value text, PRIMARY KEY (key))"));
+        String[] dataDirs = (String[]) cluster.get(1).config().get("data_file_directories");
+        String tableId = cluster.get(1).callOnInstance((SerializableCallable<String>) () -> {
+            return ColumnFamilyStore.getIfExists("distributed_test_keyspace", "tbl").metadata().id.toHexString();
+        });
+
+        cluster.get(1)
+               .nodetoolResult("snapshot", "-t", "mysnapshot", "-kt", format("%s.tbl", KEYSPACE))
+               .asserts()
+               .success();
+
+        for (String dataDir : dataDirs)
+        {
+            Path snapshotDir = Paths.get(dataDir)
+                                    .resolve(KEYSPACE)
+                                    .resolve("tbl-" + tableId)
+                                    .resolve("snapshots")
+                                    .resolve("mysnapshot");
+
+            assertTrue(snapshotDir.toFile().exists());
+            assertTrue(snapshotDir.resolve("manifest.json").toFile().exists());
+            assertTrue(snapshotDir.resolve("schema.cql").toFile().exists());
+        }
     }
 
     @Test
@@ -161,7 +196,8 @@ public class SnapshotsTest extends TestBaseImpl
     }
 
     @Test
-    public void testManualSnapshotCleanup() {
+    public void testManualSnapshotCleanup()
+    {
         // take snapshots with ttl
         cluster.get(1).nodetoolResult("snapshot", "--ttl",
                                       format("%ds", TEN_SECONDS),
@@ -210,8 +246,8 @@ public class SnapshotsTest extends TestBaseImpl
         populate(cluster);
 
         instance.nodetoolResult("snapshot",
-                                      "-t", "tag1",
-                                      "-kt", withKeyspace("%s.tbl")).asserts().success();
+                                "-t", "tag1",
+                                "-kt", withKeyspace("%s.tbl")).asserts().success();
 
         // Check snapshot is listed when table is not dropped
         waitForSnapshotPresent("tag1");
@@ -314,10 +350,10 @@ public class SnapshotsTest extends TestBaseImpl
 
         Pattern COMPILE = Pattern.compile(" +");
         long distinctTimestamps = Arrays.stream(result.getStdout().split("\n"))
-                                   .filter(line -> line.startsWith("sametimestamp"))
-                                   .map(line -> COMPILE.matcher(line).replaceAll(" ").split(" ")[7])
-                                   .distinct()
-                                   .count();
+                                        .filter(line -> line.startsWith("sametimestamp"))
+                                        .map(line -> COMPILE.matcher(line).replaceAll(" ").split(" ")[7])
+                                        .distinct()
+                                        .count();
 
         // assert all dates are same so there is just one value accross all individual tables
         assertEquals(1, distinctTimestamps);
@@ -347,7 +383,8 @@ public class SnapshotsTest extends TestBaseImpl
                .until(() -> waitForSnapshotInternal(snapshotName, expectPresent, noTTL));
     }
 
-    private boolean waitForSnapshotInternal(String snapshotName, boolean expectPresent, boolean noTTL) {
+    private boolean waitForSnapshotInternal(String snapshotName, boolean expectPresent, boolean noTTL)
+    {
         NodeToolResult listsnapshots;
         if (noTTL)
             listsnapshots = cluster.get(1).nodetoolResult("listsnapshots", "-nt");

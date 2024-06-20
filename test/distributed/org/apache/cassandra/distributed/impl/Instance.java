@@ -632,7 +632,6 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 {
                     partialStartup(cluster);
                 }
-                StorageService.instance.startSnapshotManager();
             }
             catch (Throwable t)
             {
@@ -718,6 +717,12 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         CassandraDaemon.getInstanceForTesting().migrateSystemDataIfNeeded();
 
         CommitLog.instance.start();
+
+        SnapshotManager.instance.start();
+        SnapshotManager.instance.clearExpiredSnapshots();
+        SnapshotManager.instance.clearEphemeralSnapshots();
+        SnapshotManager.instance.resumeSnapshotCleanup();
+
         CassandraDaemon.getInstanceForTesting().runStartupChecks();
 
         Keyspace.setInitialized(); // TODO: this seems to be superfluous by now
@@ -889,6 +894,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     {
         Future<?> future = async((ExecutorService executor) -> {
             Throwable error = null;
+
+            error = parallelRun(error, executor, SnapshotManager.instance::close);
 
             CompactionManager.instance.forceShutdown();
 

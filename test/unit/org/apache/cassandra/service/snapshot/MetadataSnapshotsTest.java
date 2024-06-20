@@ -21,10 +21,12 @@ package org.apache.cassandra.service.snapshot;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.google.common.util.concurrent.Uninterruptibles;
+import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Test;
@@ -33,6 +35,7 @@ import org.junit.rules.TemporaryFolder;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.DefaultFSErrorHandler;
+import org.apache.cassandra.utils.Clock;
 
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -57,6 +60,18 @@ public class MetadataSnapshotsTest
     @ClassRule
     public static TemporaryFolder temporaryFolder = new TemporaryFolder();
 
+    private SnapshotManager manager;
+
+    @After
+    public void cleanup() throws Exception
+    {
+        if (manager != null)
+        {
+            manager.clearSnapshots("", Set.of(), Clock.Global.currentTimeMillis());
+            manager.close();
+        }
+    }
+
     private TableSnapshot generateSnapshotDetails(String tag, Instant expiration, boolean ephemeral)
     {
         try
@@ -77,14 +92,16 @@ public class MetadataSnapshotsTest
     }
 
     @Test
-    public void testLoadSnapshots() throws Exception {
+    public void testExpiringSnapshots()
+    {
         TableSnapshot expired = generateSnapshotDetails("expired", Instant.EPOCH, false);
         TableSnapshot nonExpired = generateSnapshotDetails("non-expired", now().plusSeconds(ONE_DAY_SECS), false);
         TableSnapshot nonExpiring = generateSnapshotDetails("non-expiring", null, false);
         List<TableSnapshot> snapshots = Arrays.asList(expired, nonExpired, nonExpiring);
 
         // Create SnapshotManager with 3 snapshots: expired, non-expired and non-expiring
-        SnapshotManager manager = new SnapshotManager(3, 3);
+        manager = new SnapshotManager(3, 3);
+        manager.start();
         manager.addSnapshots(snapshots);
 
         // Only expiring snapshots should be loaded
@@ -94,8 +111,9 @@ public class MetadataSnapshotsTest
     }
 
     @Test
-    public void testClearExpiredSnapshots() throws Exception {
-        SnapshotManager manager = new SnapshotManager(3, 3);
+    public void testClearExpiredSnapshots()
+    {
+        manager = new SnapshotManager(3, 3);
 
         // Add 3 snapshots: expired, non-expired and non-expiring
         TableSnapshot expired = generateSnapshotDetails("expired", Instant.EPOCH, false);
@@ -123,47 +141,42 @@ public class MetadataSnapshotsTest
     }
 
     @Test
-    public void testScheduledCleanup() throws Exception {
-        SnapshotManager manager = new SnapshotManager(0, 1);
-        try
-        {
-            // Start snapshot manager which should start expired snapshot cleanup thread
-            manager.start();
+    public void testScheduledCleanup() throws Exception
+    {
+        manager = new SnapshotManager(0, 1);
+        manager.start();
+        manager.resumeSnapshotCleanup();
 
-            // Add 2 expiring snapshots: one to expire in 2 seconds, another in 1 day
-            int TTL_SECS = 2;
-            TableSnapshot toExpire = generateSnapshotDetails("to-expire", now().plusSeconds(TTL_SECS), false);
-            TableSnapshot nonExpired = generateSnapshotDetails("non-expired", now().plusMillis(ONE_DAY_SECS), false);
-            manager.addSnapshot(toExpire);
-            manager.addSnapshot(nonExpired);
+        // Add 2 expiring snapshots: one to expire in 2 seconds, another in 1 day
+        int TTL_SECS = 2;
+        TableSnapshot toExpire = generateSnapshotDetails("to-expire", now().plusSeconds(TTL_SECS), false);
+        TableSnapshot nonExpired = generateSnapshotDetails("non-expired", now().plusMillis(ONE_DAY_SECS), false);
+        manager.addSnapshot(toExpire);
+        manager.addSnapshot(nonExpired);
 
-            // Check both snapshots still exist
-            assertThat(toExpire.exists()).isTrue();
-            assertThat(nonExpired.exists()).isTrue();
-            assertThat(manager.getExpiringSnapshots()).hasSize(2);
-            assertThat(manager.getExpiringSnapshots()).contains(toExpire);
-            assertThat(manager.getExpiringSnapshots()).contains(nonExpired);
+        // Check both snapshots still exist
+        assertThat(toExpire.exists()).isTrue();
+        assertThat(nonExpired.exists()).isTrue();
+        assertThat(manager.getExpiringSnapshots()).hasSize(2);
+        assertThat(manager.getExpiringSnapshots()).contains(toExpire);
+        assertThat(manager.getExpiringSnapshots()).contains(nonExpired);
 
-            // Sleep 4 seconds
-            Thread.sleep((TTL_SECS + 2) * 1000L);
+        // Sleep 4 seconds
+        Thread.sleep((TTL_SECS + 2) * 1000L);
 
-            // Snapshot with ttl=2s should be gone, while other should remain
-            assertThat(manager.getExpiringSnapshots()).hasSize(1);
-            assertThat(manager.getExpiringSnapshots()).contains(nonExpired);
-            assertThat(toExpire.exists()).isFalse();
-            assertThat(nonExpired.exists()).isTrue();
-        }
-        finally
-        {
-            manager.stop();
-        }
+        // Snapshot with ttl=2s should be gone, while other should remain
+        assertThat(manager.getExpiringSnapshots()).hasSize(1);
+        assertThat(manager.getExpiringSnapshots()).contains(nonExpired);
+        assertThat(toExpire.exists()).isFalse();
+        assertThat(nonExpired.exists()).isTrue();
     }
 
     @Test
     public void testClearSnapshot() throws Exception
     {
         // Given
-        SnapshotManager manager = new SnapshotManager(1, 3);
+        manager = new SnapshotManager(1, 3);
+        manager.start();
         TableSnapshot expiringSnapshot = generateSnapshotDetails("snapshot", now().plusMillis(50000), false);
         manager.addSnapshot(expiringSnapshot);
         assertThat(manager.getExpiringSnapshots()).contains(expiringSnapshot);
@@ -180,11 +193,10 @@ public class MetadataSnapshotsTest
     @Test // see CASSANDRA-18211
     public void testConcurrentClearingOfSnapshots() throws Exception
     {
-
         AtomicReference<Long> firstInvocationTime = new AtomicReference<>(0L);
         AtomicReference<Long> secondInvocationTime = new AtomicReference<>(0L);
 
-        SnapshotManager manager = new SnapshotManager(0, 5)
+        manager = new SnapshotManager(0, 5)
         {
             @Override
             public synchronized void clearSnapshot(TableSnapshot snapshot)
@@ -201,6 +213,7 @@ public class MetadataSnapshotsTest
                 super.clearSnapshot(snapshot);
             }
         };
+        manager.start();
 
         TableSnapshot expiringSnapshot = generateSnapshotDetails("mysnapshot", Instant.now().plusSeconds(15), false);
         manager.addSnapshot(expiringSnapshot);
