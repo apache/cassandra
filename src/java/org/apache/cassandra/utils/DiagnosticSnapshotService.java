@@ -27,6 +27,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Predicate;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
@@ -39,12 +40,16 @@ import org.apache.cassandra.db.SnapshotCommand;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.snapshot.SnapshotManager;
+import org.apache.cassandra.service.snapshot.SnapshotOptions;
+import org.apache.cassandra.service.snapshot.SnapshotType;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.config.CassandraRelevantProperties.DIAGNOSTIC_SNAPSHOT_INTERVAL_NANOS;
@@ -194,7 +199,8 @@ public class DiagnosticSnapshotService
                 }
 
                 ColumnFamilyStore cfs = ks.getColumnFamilyStore(command.column_family);
-                if (cfs.snapshotExists(command.snapshot_name))
+
+                if (SnapshotManager.instance.exists(command.keyspace, command.column_family, command.snapshot_name))
                 {
                     logger.info("Received diagnostic snapshot request from {} for {}.{}, " +
                                 "but snapshot with tag {} already exists",
@@ -210,16 +216,14 @@ public class DiagnosticSnapshotService
                             command.column_family,
                             command.snapshot_name);
 
-                if (ranges.isEmpty())
-                    cfs.snapshot(command.snapshot_name);
-                else
-                {
-                    cfs.snapshot(command.snapshot_name,
-                                 (sstable) -> checkIntersection(ranges,
-                                                                sstable.getFirst().getToken(),
-                                                                sstable.getLast().getToken()),
-                                 false, false);
-                }
+                Predicate<SSTableReader> predicate = null;
+                if (!ranges.isEmpty())
+                    predicate = (sstable) -> checkIntersection(ranges,
+                                                               sstable.getFirst().getToken(),
+                                                               sstable.getLast().getToken());
+
+                SnapshotOptions options = SnapshotOptions.systemSnapshot(command.snapshot_name, SnapshotType.DIAGNOSTICS, predicate, cfs.getKeyspaceTableName()).build();
+                SnapshotManager.instance.takeSnapshot(options);
             }
             catch (IllegalArgumentException e)
             {

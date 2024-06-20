@@ -35,6 +35,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
@@ -56,6 +57,8 @@ import org.apache.cassandra.notifications.SSTableDeletingNotification;
 import org.apache.cassandra.notifications.SSTableListChangedNotification;
 import org.apache.cassandra.notifications.SSTableMetadataChanged;
 import org.apache.cassandra.notifications.SSTableRepairStatusChanged;
+import org.apache.cassandra.notifications.TableDroppedNotification;
+import org.apache.cassandra.notifications.TablePreScrubNotification;
 import org.apache.cassandra.notifications.TruncationNotification;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.Throwables;
@@ -510,31 +513,34 @@ public class Tracker
     {
         if (repairStatusesChanged.isEmpty())
             return;
-        INotification notification = new SSTableRepairStatusChanged(repairStatusesChanged);
-        for (INotificationConsumer subscriber : subscribers)
-            subscriber.handleNotification(notification, this);
+        notify(new SSTableRepairStatusChanged(repairStatusesChanged));
     }
 
     public void notifySSTableMetadataChanged(SSTableReader levelChanged, StatsMetadata oldMetadata)
     {
-        INotification notification = new SSTableMetadataChanged(levelChanged, oldMetadata);
-        for (INotificationConsumer subscriber : subscribers)
-            subscriber.handleNotification(notification, this);
-
+        notify(new SSTableMetadataChanged(levelChanged, oldMetadata));
     }
 
     public void notifyDeleting(SSTableReader deleting)
     {
-        INotification notification = new SSTableDeletingNotification(deleting);
-        for (INotificationConsumer subscriber : subscribers)
-            subscriber.handleNotification(notification, this);
+        notify(new SSTableDeletingNotification(deleting));
     }
 
-    public void notifyTruncated(long truncatedAt)
+    public void notifyTruncated(boolean disableSnapshot,
+                                long truncatedAt,
+                                DurationSpec.IntSecondsBound ttl)
     {
-        INotification notification = new TruncationNotification(truncatedAt);
-        for (INotificationConsumer subscriber : subscribers)
-            subscriber.handleNotification(notification, this);
+        notify(new TruncationNotification(cfstore, disableSnapshot, truncatedAt, ttl));
+    }
+
+    public void notifyDropped(DurationSpec.IntSecondsBound ttl)
+    {
+        notify(new TableDroppedNotification(cfstore, ttl));
+    }
+
+    public void notifyPreScrubbed()
+    {
+        notify(new TablePreScrubNotification(cfstore));
     }
 
     public void notifyRenewed(Memtable renewed)

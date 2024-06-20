@@ -25,6 +25,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -34,7 +35,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SchemaKeyspace;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CassandraVersion;
@@ -100,14 +101,14 @@ public class SystemKeyspaceTest
         // First, check that in the absence of any previous installed version, we don't create snapshots
         for (ColumnFamilyStore cfs : Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStores())
             cfs.clearUnsafe();
-        StorageService.instance.clearSnapshot(Collections.emptyMap(), null, SchemaConstants.SYSTEM_KEYSPACE_NAME);
+        SnapshotManager.instance.clearSnapshot(null, Collections.emptyMap(), SchemaConstants.SYSTEM_KEYSPACE_NAME);
 
         SystemKeyspace.snapshotOnVersionChange();
         assertDeleted();
 
         // now setup system.local as if we're upgrading from a previous version
         setupReleaseVersion(getOlderVersionString());
-        StorageService.instance.clearSnapshot(Collections.emptyMap(), null, SchemaConstants.SYSTEM_KEYSPACE_NAME);
+        SnapshotManager.instance.clearSnapshot(null, Collections.emptyMap(), SchemaConstants.SYSTEM_KEYSPACE_NAME);
         assertDeleted();
 
         // Compare versions again & verify that snapshots were created for all tables in the system ks
@@ -120,7 +121,7 @@ public class SystemKeyspaceTest
 
         // clear out the snapshots & set the previous recorded version equal to the latest, we shouldn't
         // see any new snapshots created this time.
-        StorageService.instance.clearSnapshot(Collections.emptyMap(), null, SchemaConstants.SYSTEM_KEYSPACE_NAME);
+        SnapshotManager.instance.clearSnapshot(null, Collections.emptyMap(), SchemaConstants.SYSTEM_KEYSPACE_NAME);
         setupReleaseVersion(FBUtilities.getReleaseVersionString());
 
         SystemKeyspace.snapshotOnVersionChange();
@@ -129,7 +130,7 @@ public class SystemKeyspaceTest
         // 10 files expected.
         assertDeleted();
 
-        StorageService.instance.clearSnapshot(Collections.emptyMap(), null, SchemaConstants.SYSTEM_KEYSPACE_NAME);
+        SnapshotManager.instance.clearSnapshot(null, Collections.emptyMap(), SchemaConstants.SYSTEM_KEYSPACE_NAME);
     }
 
     @Test
@@ -170,7 +171,7 @@ public class SystemKeyspaceTest
         Set<String> snapshottedTableNames = new HashSet<>();
         for (ColumnFamilyStore cfs : Keyspace.open(keyspace).getColumnFamilyStores())
         {
-            if (!cfs.listSnapshots().isEmpty())
+            if (!Util.listSnapshots(cfs).isEmpty())
                 snapshottedTableNames.add(cfs.getTableName());
         }
         return snapshottedTableNames;

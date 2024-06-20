@@ -57,6 +57,8 @@ import org.apache.cassandra.repair.ValidationPartitionIterator;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.repair.NoSuchRepairSessionException;
+import org.apache.cassandra.service.snapshot.SnapshotManager;
+import org.apache.cassandra.service.snapshot.TableSnapshot;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Refs;
 
@@ -179,19 +181,19 @@ public class CassandraValidationIterator extends ValidationPartitionIterator
         this.cfs = cfs;
         this.ctx = ctx;
 
-        isGlobalSnapshotValidation = cfs.snapshotExists(parentId.toString());
+        isGlobalSnapshotValidation = SnapshotManager.instance.exists(cfs.getKeyspaceName(), cfs.getTableName(), parentId.toString());
         if (isGlobalSnapshotValidation)
             snapshotName = parentId.toString();
         else
             snapshotName = sessionID.toString();
-        isSnapshotValidation = cfs.snapshotExists(snapshotName);
+        isSnapshotValidation = SnapshotManager.instance.exists(cfs.getKeyspaceName(), cfs.getTableName(), snapshotName);
 
         if (isSnapshotValidation)
         {
             // If there is a snapshot created for the session then read from there.
             // note that we populate the parent repair session when creating the snapshot, meaning the sstables in the snapshot are the ones we
             // are supposed to validate.
-            sstables = cfs.getSnapshotSSTableReaders(snapshotName);
+            sstables = TableSnapshot.getSnapshotSSTableReaders(cfs, snapshotName);
         }
         else
         {
@@ -270,7 +272,7 @@ public class CassandraValidationIterator extends ValidationPartitionIterator
         {
             // we can only clear the snapshot if we are not doing a global snapshot validation (we then clear it once anticompaction
             // is done).
-            cfs.clearSnapshot(snapshotName);
+            SnapshotManager.instance.clearSnapshot(cfs.getKeyspaceName(), cfs.getTableName(), snapshotName);
         }
 
         if (sstables != null)

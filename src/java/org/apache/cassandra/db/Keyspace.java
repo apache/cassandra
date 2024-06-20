@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.db;
 
-import java.io.IOException;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -35,18 +33,17 @@ import java.util.stream.Stream;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
-import com.google.common.util.concurrent.RateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.repair.CassandraKeyspaceRepairManager;
 import org.apache.cassandra.db.view.ViewManager;
+import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.SecondaryIndexManager;
@@ -61,7 +58,6 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SchemaProvider;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.snapshot.TableSnapshot;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.JVMStabilityInspector;
@@ -74,7 +70,6 @@ import org.apache.cassandra.utils.concurrent.Promise;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
-import static org.apache.cassandra.utils.FBUtilities.now;
 import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 
 /**
@@ -226,80 +221,19 @@ public class Keyspace
         return columnFamilyStores.containsKey(id);
     }
 
-    /**
-     * Take a snapshot of the specific column family, or the entire set of column families
-     * if columnFamily is null with a given timestamp
-     *
-     * @param snapshotName     the tag associated with the name of the snapshot.  This value may not be null
-     * @param columnFamilyName the column family to snapshot or all on null
-     * @param skipFlush Skip blocking flush of memtable
-     * @param rateLimiter Rate limiter for hardlinks-per-second
-     * @throws IOException if the column family doesn't exist
-     */
-    public void snapshot(String snapshotName, String columnFamilyName, boolean skipFlush, DurationSpec.IntSecondsBound ttl, RateLimiter rateLimiter, Instant creationTime) throws IOException
+    public static void verifyKeyspaceIsValid(String keyspaceName)
     {
-        assert snapshotName != null;
-        boolean tookSnapShot = false;
-        for (ColumnFamilyStore cfStore : columnFamilyStores.values())
-        {
-            if (columnFamilyName == null || cfStore.name.equals(columnFamilyName))
-            {
-                tookSnapShot = true;
-                cfStore.snapshot(snapshotName, skipFlush, ttl, rateLimiter, creationTime);
-            }
-        }
+        if (null != VirtualKeyspaceRegistry.instance.getKeyspaceNullable(keyspaceName))
+            throw new IllegalArgumentException("Cannot perform any operations against virtual keyspace " + keyspaceName);
 
-        if ((columnFamilyName != null) && !tookSnapShot)
-            throw new IOException("Failed taking snapshot. Table " + columnFamilyName + " does not exist.");
+        if (!Schema.instance.getKeyspaces().contains(keyspaceName))
+            throw new IllegalArgumentException("Keyspace " + keyspaceName + " does not exist");
     }
 
-    /**
-     * Take a snapshot of the specific column family, or the entire set of column families
-     * if columnFamily is null with a given timestamp
-     *
-     * @param snapshotName     the tag associated with the name of the snapshot.  This value may not be null
-     * @param columnFamilyName the column family to snapshot or all on null
-     * @throws IOException if the column family doesn't exist
-     */
-    public void snapshot(String snapshotName, String columnFamilyName) throws IOException
+    public static Keyspace getValidKeyspace(String keyspaceName)
     {
-        snapshot(snapshotName, columnFamilyName, false, null, null, now());
-    }
-
-    /**
-     * @param clientSuppliedName may be null.
-     * @return the name of the snapshot
-     */
-    public static String getTimestampedSnapshotName(String clientSuppliedName)
-    {
-        String snapshotName = Long.toString(currentTimeMillis());
-        if (clientSuppliedName != null && !clientSuppliedName.equals(""))
-        {
-            snapshotName = snapshotName + "-" + clientSuppliedName;
-        }
-        return snapshotName;
-    }
-
-    public static String getTimestampedSnapshotNameWithPrefix(String clientSuppliedName, String prefix)
-    {
-        return prefix + "-" + getTimestampedSnapshotName(clientSuppliedName);
-    }
-
-    /**
-     * Check whether snapshots already exists for a given name.
-     *
-     * @param snapshotName the user supplied snapshot name
-     * @return true if the snapshot exists
-     */
-    public boolean snapshotExists(String snapshotName)
-    {
-        assert snapshotName != null;
-        for (ColumnFamilyStore cfStore : columnFamilyStores.values())
-        {
-            if (cfStore.snapshotExists(snapshotName))
-                return true;
-        }
-        return false;
+        verifyKeyspaceIsValid(keyspaceName);
+        return Keyspace.open(keyspaceName);
     }
 
     /**
@@ -311,11 +245,6 @@ public class Keyspace
         for (ColumnFamilyStore cfStore : columnFamilyStores.values())
             Iterables.addAll(list, cfStore.getSSTables(sstableSet));
         return list;
-    }
-
-    public Stream<TableSnapshot> getAllSnapshots()
-    {
-        return getColumnFamilyStores().stream().flatMap(cfs -> cfs.listSnapshots().values().stream());
     }
 
     public static Keyspace forSchema(String keyspaceName, SchemaProvider schema)
