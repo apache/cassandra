@@ -41,6 +41,7 @@ import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.db.monitoring.BadQuery;
 import org.apache.cassandra.metrics.ClientRequestMetrics;
 import org.apache.cassandra.metrics.ClientRequestsMetricsHolder;
 import org.apache.cassandra.net.Message;
@@ -121,10 +122,7 @@ public class QueryProcessor implements QueryHandler
 
         ScheduledExecutors.scheduledTasks.scheduleAtFixedRate(() -> {
             long count = lastMinuteEvictionsCount.getAndSet(0);
-            if (count > 0)
-                logger.warn("{} prepared statements discarded in the last minute because cache limit reached ({} MiB)",
-                            count,
-                            DatabaseDescriptor.getPreparedStatementsCacheSizeMiB());
+            BadQuery.checkForPreparedCacheOverflow(count);
         }, 1, 1, TimeUnit.MINUTES);
 
         logger.info("Initialized prepared statement caches with {} MiB",

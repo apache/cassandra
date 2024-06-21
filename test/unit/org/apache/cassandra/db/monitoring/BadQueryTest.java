@@ -44,6 +44,7 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MonitoringService;
 import org.apache.cassandra.transport.ProtocolVersion;
 
@@ -267,5 +268,16 @@ public class BadQueryTest extends CQLTester
         DatabaseDescriptor.setBadQueryTracingStatus(true);
         executeCQLMV();
         Assert.assertTrue(bq.getBadQueryCategoryQueues().get(BadQuery.BadQueryCategory.MV_IN_USE).size() > 0);
+    }
+
+    @Test
+    public void testPreparedCacheOverflow() throws Throwable
+    {
+        DatabaseDescriptor.setBadQueryTracingStatus(true);
+        Assert.assertTrue(bq.getBadQueryCategoryQueues().get(BadQuery.BadQueryCategory.PREPARED_CACHE_OVERFLOW).size() == 0);
+        BadQuery.checkForPreparedCacheOverflow(0);
+        Assert.assertTrue(bq.getBadQueryCategoryQueues().get(BadQuery.BadQueryCategory.PREPARED_CACHE_OVERFLOW).size() == 0);
+        BadQuery.checkForPreparedCacheOverflow(1000);
+        Assert.assertTrue(bq.getBadQueryCategoryQueues().get(BadQuery.BadQueryCategory.PREPARED_CACHE_OVERFLOW).size() > 0);
     }
 }

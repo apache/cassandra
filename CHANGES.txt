@@ -188,6 +188,7 @@ Unreleased
  * Add nodetool forcecompact to remove tombstoned or ttl'd data ignoring GC grace for given table and partition keys (CASSANDRA-17711)
  * [SO-30252] Override local compaction strategy at startup when needed
  * [SO-30220] Config for local compaction strategy override
+ * [SO-26591] Create a new anti-pattern query PREPARED_CACHE_OVERFLOW
 4.1.3.6
  * [SO-30249] Fix NPEs in AutoRepairConfig setters
  * [SO-30227] Make v2 auto-repair scheduler wait for repair session to finish before scheuduling new repair

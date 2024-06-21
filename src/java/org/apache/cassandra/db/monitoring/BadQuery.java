@@ -47,7 +47,8 @@ public class BadQuery
         INCORRECT_COMPACTION_STRATEBY("incorrect compaction strategy"),
         INCORRECT_CONSISTENCY_LEVEL("incorrect consistency level"),
         TOO_MANY_TOMBSTONES("too many tombstones"),
-        MV_IN_USE("mv is in use");
+        MV_IN_USE("mv is in use"),
+        PREPARED_CACHE_OVERFLOW("too many prepared statements");
 
         private final String text;
 
@@ -282,5 +283,15 @@ public class BadQuery
         {
             MvInUse.checkForMV(cfm);
         }
+    }
+
+    /**
+     * Check if there are any prepared statement cache evictions.
+     *
+     * @param count the number of evicted prepared statements from cache in the last minute.
+     */
+    public static void checkForPreparedCacheOverflow(long count)
+    {
+        PreparedCacheOverflow.checkForPreparedCacheOverflow(count);
     }
 }
