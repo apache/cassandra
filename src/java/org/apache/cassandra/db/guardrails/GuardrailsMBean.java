@@ -600,52 +600,28 @@ public interface GuardrailsMBean
     void setColumnBlobValueSizeThreshold(@Nullable String warnSize, @Nullable String failSize);
 
     /**
-     * @return The threshold to warn when encountering text column values larger than threshold, as a string  formatted as
+     * @return The threshold to warn when encountering text and varchar column values larger than threshold, as a string  formatted as
      * in, for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}. A {@code null} value means disabled.
      */
     @Nullable
-    String getColumnTextValueSizeWarnThreshold();
+    String getColumnTextAndVarcharValueSizeWarnThreshold();
 
     /**
-     * @return The threshold to prevent text column values larger than threshold, as a string formatted as in, for example,
+     * @return The threshold to prevent text and varchar column values larger than threshold, as a string formatted as in, for example,
      * {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}. A {@code null} value means disabled.
      */
     @Nullable
-    String getColumnTextValueSizeFailThreshold();
+    String getColumnTextAndVarcharValueSizeFailThreshold();
 
     /**
-     * @param warnSize The threshold to warn when encountering text column values larger than threshold, as a string
+     * @param warnSize The threshold to warn when encountering text or varchar column values larger than threshold, as a string
      *                 formatted as in, for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}.
      *                 A {@code null} value means disabled.
      * @param failSize The threshold to prevent text column values larger than threshold, as a string formatted as in, for
      *                 example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}.
      *                 A {@code null} value means disabled.
      */
-    void setColumnTextValueSizeThreshold(@Nullable String warnSize, @Nullable String failSize);
-
-    /**
-     * @return The threshold to warn when encountering varchar column values larger than threshold, as a string  formatted as
-     * in, for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}. A {@code null} value means disabled.
-     */
-    @Nullable
-    String getColumnVarcharValueSizeWarnThreshold();
-
-    /**
-     * @return The threshold to prevent varchar column values larger than threshold, as a string formatted as in, for example,
-     * {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}. A {@code null} value means disabled.
-     */
-    @Nullable
-    String getColumnVarcharValueSizeFailThreshold();
-
-    /**
-     * @param warnSize The threshold to warn when encountering varchar column values larger than threshold, as a string
-     *                 formatted as in, for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}.
-     *                 A {@code null} value means disabled.
-     * @param failSize The threshold to prevent varchar column values larger than threshold, as a string formatted as in, for
-     *                 example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}.
-     *                 A {@code null} value means disabled.
-     */
-    void setColumnVarcharValueSizeThreshold(@Nullable String warnSize, @Nullable String failSize);
+    void setColumnTextAndVarcharValueSizeThreshold(@Nullable String warnSize, @Nullable String failSize);
 
     /**
      * @return The threshold to warn when encountering larger size of collection data than threshold, as a string

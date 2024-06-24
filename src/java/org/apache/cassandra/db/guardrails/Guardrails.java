@@ -398,26 +398,13 @@ public final class Guardrails implements GuardrailsMBean
 
 
     /**
-     * Guardrail on the size of a text type column.
+     * Guardrail on the size of a text and varchar type column.
      */
-    public static final MaxThreshold columnTextValueSize =
+    public static final MaxThreshold columnTextAndVarcharValueSize =
     new MaxThreshold("column_text_value_size",
                      null,
-                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getColumnTextValueSizeWarnThreshold()),
-                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getColumnTextValueSizeFailThreshold()),
-                     (isWarning, what, value, threshold) ->
-                     format("Value of column '%s' has size %s, this exceeds the %s threshold of %s.",
-                            what, value, isWarning ? "warning" : "failure", threshold));
-
-
-    /**
-     * Guardrail on the size of a varchar type column.
-     */
-    public static final MaxThreshold columnVarcharValueSize =
-    new MaxThreshold("column_varchar_value_size",
-                     null,
-                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getColumnVarcharValueSizeWarnThreshold()),
-                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getColumnVarcharValueSizeFailThreshold()),
+                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getColumnTextAndVarcharValueSizeWarnThreshold()),
+                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getColumnTextAndVarcharValueSizeFailThreshold()),
                      (isWarning, what, value, threshold) ->
                      format("Value of column '%s' has size %s, this exceeds the %s threshold of %s.",
                             what, value, isWarning ? "warning" : "failure", threshold));
@@ -1102,42 +1089,22 @@ public final class Guardrails implements GuardrailsMBean
 
     @Override
     @Nullable
-    public String getColumnTextValueSizeWarnThreshold()
+    public String getColumnTextAndVarcharValueSizeWarnThreshold()
     {
-        return sizeToString(DEFAULT_CONFIG.getColumnTextValueSizeWarnThreshold());
+        return sizeToString(DEFAULT_CONFIG.getColumnTextAndVarcharValueSizeWarnThreshold());
     }
 
     @Override
     @Nullable
-    public String getColumnTextValueSizeFailThreshold()
+    public String getColumnTextAndVarcharValueSizeFailThreshold()
     {
-        return sizeToString(DEFAULT_CONFIG.getColumnTextValueSizeFailThreshold());
+        return sizeToString(DEFAULT_CONFIG.getColumnTextAndVarcharValueSizeFailThreshold());
     }
 
     @Override
-    public void setColumnTextValueSizeThreshold(@Nullable String warnSize, @Nullable String failSize)
+    public void setColumnTextAndVarcharValueSizeThreshold(@Nullable String warnSize, @Nullable String failSize)
     {
-        DEFAULT_CONFIG.setColumnTextValueSizeThreshold(sizeFromString(warnSize), sizeFromString(failSize));
-    }
-
-    @Override
-    @Nullable
-    public String getColumnVarcharValueSizeWarnThreshold()
-    {
-        return sizeToString(DEFAULT_CONFIG.getColumnVarcharValueSizeWarnThreshold());
-    }
-
-    @Override
-    @Nullable
-    public String getColumnVarcharValueSizeFailThreshold()
-    {
-        return sizeToString(DEFAULT_CONFIG.getColumnVarcharValueSizeFailThreshold());
-    }
-
-    @Override
-    public void setColumnVarcharValueSizeThreshold(@Nullable String warnSize, @Nullable String failSize)
-    {
-        DEFAULT_CONFIG.setColumnVarcharValueSizeThreshold(sizeFromString(warnSize), sizeFromString(failSize));
+        DEFAULT_CONFIG.setColumnTextAndVarcharValueSizeThreshold(sizeFromString(warnSize), sizeFromString(failSize));
     }
 
     @Override

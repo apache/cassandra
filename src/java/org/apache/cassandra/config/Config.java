@@ -896,8 +896,8 @@ public class Config
     public volatile DataStorageSpec.LongBytesBound column_ascii_value_size_fail_threshold = null;
     public volatile DataStorageSpec.LongBytesBound column_blob_value_size_warn_threshold = null;
     public volatile DataStorageSpec.LongBytesBound column_blob_value_size_fail_threshold = null;
-    public volatile DataStorageSpec.LongBytesBound column_text_value_size_warn_threshold = null;
-    public volatile DataStorageSpec.LongBytesBound column_text_value_size_fail_threshold = null;
+    public volatile DataStorageSpec.LongBytesBound column_text_and_varchar_value_size_warn_threshold = null;
+    public volatile DataStorageSpec.LongBytesBound column_text_and_varchar_value_size_fail_threshold = null;
     public volatile DataStorageSpec.LongBytesBound column_varchar_value_size_warn_threshold = null;
     public volatile DataStorageSpec.LongBytesBound column_varchar_value_size_fail_threshold = null;
     public volatile DataStorageSpec.LongBytesBound collection_size_warn_threshold = null;

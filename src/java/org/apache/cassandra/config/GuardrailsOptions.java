@@ -85,7 +85,7 @@ public class GuardrailsOptions implements GuardrailsConfig
         validateSizeThreshold(config.collection_list_size_warn_threshold, config.collection_list_size_fail_threshold, false, "collection_list_size");
         validateSizeThreshold(config.column_ascii_value_size_warn_threshold, config.column_ascii_value_size_fail_threshold, false, "column_acii_value_size");
         validateSizeThreshold(config.column_blob_value_size_warn_threshold, config.column_blob_value_size_fail_threshold, false, "column_blob_value_size");
-        validateSizeThreshold(config.column_text_value_size_warn_threshold, config.column_text_value_size_fail_threshold, false, "column_text_value_size");
+        validateSizeThreshold(config.column_text_and_varchar_value_size_warn_threshold, config.column_text_and_varchar_value_size_fail_threshold, false, "column_text_value_size");
         validateSizeThreshold(config.column_varchar_value_size_warn_threshold, config.column_varchar_value_size_fail_threshold, false, "column_varchar_value_size");
         validateMaxIntThreshold(config.items_per_collection_warn_threshold, config.items_per_collection_fail_threshold, "items_per_collection");
         validateMaxIntThreshold(config.fields_per_udt_warn_threshold, config.fields_per_udt_fail_threshold, "fields_per_udt");
@@ -663,30 +663,16 @@ public class GuardrailsOptions implements GuardrailsConfig
 
     @Override
     @Nullable
-    public DataStorageSpec.LongBytesBound getColumnTextValueSizeWarnThreshold()
+    public DataStorageSpec.LongBytesBound getColumnTextAndVarcharValueSizeWarnThreshold()
     {
-        return config.column_text_value_size_warn_threshold;
+        return config.column_text_and_varchar_value_size_warn_threshold;
     }
 
     @Override
     @Nullable
-    public DataStorageSpec.LongBytesBound getColumnTextValueSizeFailThreshold()
+    public DataStorageSpec.LongBytesBound getColumnTextAndVarcharValueSizeFailThreshold()
     {
-        return config.column_text_value_size_fail_threshold;
-    }
-
-    @Override
-    @Nullable
-    public DataStorageSpec.LongBytesBound getColumnVarcharValueSizeWarnThreshold()
-    {
-        return config.column_varchar_value_size_warn_threshold;
-    }
-
-    @Override
-    @Nullable
-    public DataStorageSpec.LongBytesBound getColumnVarcharValueSizeFailThreshold()
-    {
-        return config.column_varchar_value_size_fail_threshold;
+        return config.column_text_and_varchar_value_size_fail_threshold;
     }
 
     public void setColumnValueSizeThreshold(@Nullable DataStorageSpec.LongBytesBound warn, @Nullable DataStorageSpec.LongBytesBound fail)
@@ -728,30 +714,17 @@ public class GuardrailsOptions implements GuardrailsConfig
                                   x -> config.column_blob_value_size_fail_threshold = x);
     }
 
-    public void setColumnTextValueSizeThreshold(@Nullable DataStorageSpec.LongBytesBound warn, @Nullable DataStorageSpec.LongBytesBound fail)
+    public void setColumnTextAndVarcharValueSizeThreshold(@Nullable DataStorageSpec.LongBytesBound warn, @Nullable DataStorageSpec.LongBytesBound fail)
     {
         validateSizeThreshold(warn, fail, false, "column_text_value_size");
-        updatePropertyWithLogging("column_text_value_size_warn_threshold",
+        updatePropertyWithLogging("column_text_and_varchar_value_size_warn_threshold",
                                   warn,
-                                  () -> config.column_text_value_size_warn_threshold,
-                                  x -> config.column_text_value_size_warn_threshold = x);
-        updatePropertyWithLogging("column_text_value_size_fail_threshold",
+                                  () -> config.column_text_and_varchar_value_size_warn_threshold,
+                                  x -> config.column_text_and_varchar_value_size_warn_threshold = x);
+        updatePropertyWithLogging("column_text_and_varchar_value_size_fail_threshold",
                                   fail,
-                                  () -> config.column_text_value_size_fail_threshold,
-                                  x -> config.column_text_value_size_fail_threshold = x);
-    }
-
-    public void setColumnVarcharValueSizeThreshold(@Nullable DataStorageSpec.LongBytesBound warn, @Nullable DataStorageSpec.LongBytesBound fail)
-    {
-        validateSizeThreshold(warn, fail, false, "column_varchar_value_size");
-        updatePropertyWithLogging("column_varchar_value_size_warn_threshold",
-                                  warn,
-                                  () -> config.column_varchar_value_size_warn_threshold,
-                                  x -> config.column_varchar_value_size_warn_threshold = x);
-        updatePropertyWithLogging("column_varchar_value_size_fail_threshold",
-                                  fail,
-                                  () -> config.column_varchar_value_size_fail_threshold,
-                                  x -> config.column_varchar_value_size_fail_threshold = x);
+                                  () -> config.column_text_and_varchar_value_size_fail_threshold,
+                                  x -> config.column_text_and_varchar_value_size_fail_threshold = x);
     }
 
     @Override

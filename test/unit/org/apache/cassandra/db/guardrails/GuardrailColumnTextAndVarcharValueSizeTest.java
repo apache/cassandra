@@ -23,21 +23,21 @@ import org.apache.cassandra.config.DataStorageSpec;
 import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.BYTES;
 
 /**
- * Tests the guardrail for the size of varchar column values, {@link Guardrails#columnVarcharValueSize}.
+ * Tests the guardrail for the size of text and varchar column values, {@link Guardrails#columnTextAndVarcharValueSize}.
  */
-public class GuardrailColumnVarcharValueSizeTest extends ColumnTypeSpecificValueThresholdTester
+public class GuardrailColumnTextAndVarcharValueSizeTest extends ColumnTypeSpecificValueThresholdTester
 {
     private static final int WARN_THRESHOLD = 1024; // bytes
     private static final int FAIL_THRESHOLD = WARN_THRESHOLD * 4; // bytes
 
-    public GuardrailColumnVarcharValueSizeTest()
+    public GuardrailColumnTextAndVarcharValueSizeTest()
     {
         super(WARN_THRESHOLD + "B",
               FAIL_THRESHOLD + "B",
-              Guardrails.columnVarcharValueSize,
-              Guardrails::setColumnVarcharValueSizeThreshold,
-              Guardrails::getColumnVarcharValueSizeWarnThreshold,
-              Guardrails::getColumnVarcharValueSizeFailThreshold,
+              Guardrails.columnTextAndVarcharValueSize,
+              Guardrails::setColumnTextAndVarcharValueSizeThreshold,
+              Guardrails::getColumnTextAndVarcharValueSizeWarnThreshold,
+              Guardrails::getColumnTextAndVarcharValueSizeFailThreshold,
               bytes -> new DataStorageSpec.LongBytesBound(bytes, BYTES).toString(),
               size -> new DataStorageSpec.LongBytesBound(size).toBytes());
     }
@@ -54,10 +54,9 @@ public class GuardrailColumnVarcharValueSizeTest extends ColumnTypeSpecificValue
         return FAIL_THRESHOLD;
     }
 
-
     @Override
     protected String columnType()
     {
-        return "varchar";
+        return "text";
     }
 }
