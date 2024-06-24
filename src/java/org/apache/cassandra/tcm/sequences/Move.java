@@ -276,7 +276,7 @@ public class Move extends MultiStepOperation<Epoch>
                     JVMStabilityInspector.inspectThrowable(t);
                     return continuable();
                 }
-                ClusterMetadataService.instance().maybeReconfigureCMS(metadata);
+                ClusterMetadataService.instance().ensureCMSPlacement(metadata);
                 break;
             default:
                 return error(new IllegalStateException("Can't proceed with join from " + next));

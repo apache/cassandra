@@ -271,7 +271,7 @@ public class BootstrapAndReplace extends MultiStepOperation<Epoch>
                     logger.warn("Got exception committing finishReplace", e);
                     return halted();
                 }
-                ClusterMetadataService.instance().maybeReconfigureCMS(metadata);
+                ClusterMetadataService.instance().ensureCMSPlacement(metadata);
 
                 break;
             default:
