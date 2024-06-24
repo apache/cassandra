@@ -309,27 +309,14 @@ public interface GuardrailsConfig
      * @return The threshold to warn when writing text column values larger than threshold.
      */
     @Nullable
-    DataStorageSpec.LongBytesBound getColumnTextValueSizeWarnThreshold();
+    DataStorageSpec.LongBytesBound getColumnTextAndVarcharValueSizeWarnThreshold();
 
 
     /**
      * @return The threshold to prevent writing text column values larger than threshold.
      */
     @Nullable
-    DataStorageSpec.LongBytesBound getColumnTextValueSizeFailThreshold();
-
-    /**
-     * @return The threshold to warn when writing varchar column values larger than threshold.
-     */
-    @Nullable
-    DataStorageSpec.LongBytesBound getColumnVarcharValueSizeWarnThreshold();
-
-
-    /**
-     * @return The threshold to prevent writing varchar column values larger than threshold.
-     */
-    @Nullable
-    DataStorageSpec.LongBytesBound getColumnVarcharValueSizeFailThreshold();
+    DataStorageSpec.LongBytesBound getColumnTextAndVarcharValueSizeFailThreshold();
 
     /**
      * @return The threshold to warn when encountering a collection with larger data size than threshold.

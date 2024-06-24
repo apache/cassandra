@@ -21,9 +21,6 @@ import java.nio.ByteBuffer;
 import java.util.Map;
 
 import org.apache.cassandra.db.guardrails.Guardrails;
-import org.apache.cassandra.db.marshal.AsciiType;
-import org.apache.cassandra.db.marshal.BytesType;
-import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.*;
@@ -169,16 +166,23 @@ public class UpdateParameters
         // General column value size
         Guardrails.columnValueSize.guard(value.remaining(), column.name.toString(), false, clientState);
 
-        if (column.type instanceof AsciiType) // Ascii size specific guardrail
+        if (column.type.asCQL3Type() == CQL3Type.Native.ASCII) // Ascii size specific guardrail
         {
             Guardrails.columnAsciiValueSize.guard(value.remaining(), column.name.toString(), false, clientState);
-        } else if (column.type instanceof BytesType) // Blob size specific guardrail
+        }
+        else
         {
-            Guardrails.columnBlobValueSize.guard(value.remaining(), column.name.toString(), false, clientState);
-        } else if (column.type instanceof UTF8Type) // text and varchar size specific guardrails
-        {
-            Guardrails.columnTextValueSize.guard(value.remaining(), column.name.toString(), false, clientState);
-            Guardrails.columnVarcharValueSize.guard(value.remaining(), column.name.toString(), false, clientState);
+            if (column.type.asCQL3Type() == CQL3Type.Native.BLOB) // Blob size specific guardrail
+            {
+                Guardrails.columnBlobValueSize.guard(value.remaining(), column.name.toString(), false, clientState);
+            }
+            else
+            {
+                if (column.type.asCQL3Type() == CQL3Type.Native.TEXT) // text and varchar size specific guardrails
+                {
+                    Guardrails.columnTextAndVarcharValueSize.guard(value.remaining(), column.name.toString(), false, clientState);
+                }
+            }
         }
 
         if (path != null && column.type.isMultiCell())
