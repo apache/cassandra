@@ -113,12 +113,30 @@ public class QueryProcessor implements QueryHandler
 
     static
     {
-        preparedStatements = Caffeine.newBuilder()
-                             .executor(ImmediateExecutor.INSTANCE)
-                             .maximumWeight(PREPARED_STATEMENT_CACHE_SIZE_BYTES)
-                             .weigher(QueryProcessor::getSizeOfPreparedStatementForCache)
-                             .removalListener((key, prepared, cause) -> evictPreparedStatement(key, cause))
-                             .build();
+        // for client and tool we keep the default weight-based cache
+        if (!DatabaseDescriptor.isDaemonInitialized() || DatabaseDescriptor.getUseWeightBasedPreparedStatementsCache())
+        {
+            logger.info("Use weight based prepared statements cache. Max cache size is {} bytes",
+                        capacityToBytes(DatabaseDescriptor.getPreparedStatementsCacheSizeMiB()));
+            preparedStatements = Caffeine.newBuilder()
+                                         .executor(ImmediateExecutor.INSTANCE)
+                                         .maximumWeight(PREPARED_STATEMENT_CACHE_SIZE_BYTES)
+                                         .weigher(QueryProcessor::getSizeOfPreparedStatementForCache)
+                                         .removalListener((key, prepared, cause) -> evictPreparedStatement(key, cause))
+                                         .build();
+        }
+        else
+        {
+            int maxCapacity = DatabaseDescriptor.getPreparedStatementsCacheMaxCapacity();
+            logger.info("Use limited number of entries for prepared statements cache. Max capacity is: {}",
+                        maxCapacity);
+            preparedStatements = Caffeine.newBuilder()
+                                         .executor(ImmediateExecutor.INSTANCE)
+                                         .initialCapacity(maxCapacity)
+                                         .maximumSize(maxCapacity)
+                                         .removalListener((key, prepared, cause) -> evictPreparedStatement((MD5Digest) key, cause))
+                                         .build();
+        }
 
         ScheduledExecutors.scheduledTasks.scheduleAtFixedRate(() -> {
             long count = lastMinuteEvictionsCount.getAndSet(0);
@@ -222,7 +240,7 @@ public class QueryProcessor implements QueryHandler
         return new QueryState(InternalStateInstance.INSTANCE.clientState);
     }
 
-    private QueryProcessor()
+    public QueryProcessor()
     {
         Schema.instance.registerListener(new StatementInvalidatingListener());
     }
@@ -827,13 +845,15 @@ public class QueryProcessor implements QueryHandler
         // Concatenate the current keyspace so we don't mix prepared statements between keyspace (#5352).
         // (if the keyspace is null, queryString has to have a fully-qualified keyspace so it's fine.
         MD5Digest statementId = computeId(queryString, keyspace);
-        // don't execute the statement if it's bigger than the allowed threshold
-        if (getSizeOfPreparedStatementForCache(statementId, prepared) > capacityToBytes(DatabaseDescriptor.getPreparedStatementsCacheSizeMiB()))
-            throw new InvalidRequestException(String.format("Prepared statement of size %d bytes is larger than allowed maximum of %d MB: %s...",
-                                                            prepared.pstmntSize,
-                                                            DatabaseDescriptor.getPreparedStatementsCacheSizeMiB(),
-                                                            queryString.substring(0, 200)));
-
+        if (DatabaseDescriptor.getUseWeightBasedPreparedStatementsCache())
+        {
+            // don't execute the statement if it's bigger than the allowed threshold
+            if (getSizeOfPreparedStatementForCache(statementId, prepared) > capacityToBytes(DatabaseDescriptor.getPreparedStatementsCacheSizeMiB()))
+                throw new InvalidRequestException(String.format("Prepared statement of size %d bytes is larger than allowed maximum of %d MB: %s...",
+                                                                prepared.pstmntSize,
+                                                                DatabaseDescriptor.getPreparedStatementsCacheSizeMiB(),
+                                                                queryString.substring(0, 200)));
+        }
         Prepared previous = preparedStatements.get(statementId, (ignored_) -> prepared);
         if (previous == prepared)
             SystemKeyspace.writePreparedStatement(keyspace, statementId, queryString, prepared.timestamp);

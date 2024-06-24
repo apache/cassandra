@@ -5109,4 +5109,24 @@ public class DatabaseDescriptor
     {
         conf.persist_prepared_statements_enabled = enabled;
     }
+
+    public static boolean getUseWeightBasedPreparedStatementsCache()
+    {
+        return conf.use_weight_based_prepared_statements_cache;
+    }
+
+    public static void setUseWeightBasedPreparedStatementsCache(boolean enabled)
+    {
+        conf.use_weight_based_prepared_statements_cache = enabled;
+    }
+
+    public static int getPreparedStatementsCacheMaxCapacity()
+    {
+        return conf.prepared_statements_cache_max_capacity;
+    }
+
+    public static void setPreparedStatementsCacheMaxCapacity(int capacity)
+    {
+        conf.prepared_statements_cache_max_capacity = capacity;
+    }
 }

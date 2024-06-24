@@ -746,6 +746,24 @@ public class Config
     /** Enable/Disable write into system.prepared_statements table. This is used for cache warmup*/
     public volatile boolean persist_prepared_statements_enabled = true;
 
+    /** If set to false, use cache with limited number of entries for prepared statements.
+     *  By default, it's limited by weight (size).
+     *  This will also disable the calculation for statement size in storePreparedStatement.
+     *  There is risk of inserting way too large prepared statement and running into OOM issue. Should be only used for
+     *  incident mitigation when receiving too many prepare requests.
+     *  prepared_statements_cache_size will no longer be honored if disabled.
+     */
+    public boolean use_weight_based_prepared_statements_cache = true;
+
+    /** Max capacity of the prepared statement cache. This will only be effective when the weight-based cache is
+     *  disabled by setting use_weight_based_prepared_statements_cache = false.
+     *  Note that this will also set initial cache capacity to this max capacity, and it's kind of wasting resources
+     *  if the cache is not filled up. Should be only used for incident mitigation.
+     *  By default, 5000 entries will consume around 256MB RAM (256 * 1024 * 1024 / 50 * 1000 ~= 5000)
+     */
+    public int prepared_statements_cache_max_capacity = 5_000;
+
+
     /**
      * MVs are mutated at LOCAL_ONE consistency level. By default, historically, we have not been running full repair on MV tables.
      * Due to that, on the server side, MV replicas are out of sync, which leads to inconsistencies when reading from MV itself.
