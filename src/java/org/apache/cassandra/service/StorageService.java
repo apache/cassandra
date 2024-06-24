@@ -7522,4 +7522,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
         return sstablesTouched;
     }
+
+    public boolean getPersistPreparedStatementsEnabled()
+    {
+        return DatabaseDescriptor.getPersistPreparedStatementsEnabled();
+    }
+
+    public void setPersistPreparedStatementsEnabled(boolean enabled)
+    {
+        DatabaseDescriptor.setPersistPreparedStatementsEnabled(enabled);
+    }
 }

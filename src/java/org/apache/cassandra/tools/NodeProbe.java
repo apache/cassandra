@@ -2831,6 +2831,16 @@ public class NodeProbe implements AutoCloseable
     {
         return autoRepairProxy.filterHostsInLocalGroup(repairType, hostsToFilter);
     }
+
+    public boolean getPersistPreparedStatementsEnabled()
+    {
+        return ssProxy.getPersistPreparedStatementsEnabled();
+    }
+
+    public void setPersistPreparedStatementsEnabled(boolean enabled)
+    {
+        ssProxy.setPersistPreparedStatementsEnabled(enabled);
+    }
 }
 
 class ColumnFamilyStoreMBeanIterator implements Iterator<Map.Entry<String, ColumnFamilyStoreMBean>>

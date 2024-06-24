@@ -1180,4 +1180,11 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     /** Mutates the repaired state of all SSTables for the given SSTables */
     public List<String> mutateSSTableRepairedState(boolean repaired, boolean preview, String keyspace, List<String> tables) throws InvalidRequestException;
+
+    /** Gets the value for persist_prepared_statements_enabled */
+    public boolean getPersistPreparedStatementsEnabled();
+
+    /** Sets the value for persist_prepared_statements_enabled */
+    public void setPersistPreparedStatementsEnabled(boolean enabled);
+
 }

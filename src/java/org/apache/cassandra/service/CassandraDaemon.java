@@ -424,8 +424,14 @@ public class CassandraDaemon
         ActiveRepairService.instance.start();
         StreamManager.instance.start();
 
-        // Prepared statements
-        QueryProcessor.instance.preloadPreparedStatements();
+        if (DatabaseDescriptor.getPersistPreparedStatementsEnabled())
+        {
+            QueryProcessor.instance.preloadPreparedStatements();
+        }
+        else
+        {
+            logger.info("not running preloadPreparedStatements");
+        }
 
         // Metrics
         String metricsReporterConfigFile = System.getProperty("cassandra.metricsReporterConfigFile");

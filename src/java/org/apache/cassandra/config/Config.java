@@ -743,6 +743,9 @@ public class Config
 
     public boolean block_unqualified_prepared_statement_enabled = true;
 
+    /** Enable/Disable write into system.prepared_statements table. This is used for cache warmup*/
+    public volatile boolean persist_prepared_statements_enabled = true;
+
     /**
      * MVs are mutated at LOCAL_ONE consistency level. By default, historically, we have not been running full repair on MV tables.
      * Due to that, on the server side, MV replicas are out of sync, which leads to inconsistencies when reading from MV itself.

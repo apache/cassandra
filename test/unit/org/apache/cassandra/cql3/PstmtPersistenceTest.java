@@ -36,6 +36,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.apache.cassandra.db.ReadQuery;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
@@ -75,6 +76,7 @@ public class PstmtPersistenceTest extends CQLTester
         preparedStatementRemoveTimestamps.clear();
 
         QueryProcessor.clearPreparedStatements(false);
+        DatabaseDescriptor.setPersistPreparedStatementsEnabled(true);
     }
 
     @Test
@@ -384,6 +386,30 @@ public class PstmtPersistenceTest extends CQLTester
         assertTrue(String.format("Preloaded %d statements, but only expected that we'd load at most %d",
                                  preloadedStatements, atMostPreloadedExpected),
                    preloadedStatements <= atMostPreloadedExpected);
+    }
+
+    @Test
+    public void testDisablePersistingPstmt() throws Throwable
+    {
+        DatabaseDescriptor.setPersistPreparedStatementsEnabled(false);
+        assertFalse(DatabaseDescriptor.getPersistPreparedStatementsEnabled());
+
+        // need this for pstmt execution
+        requireNetwork();
+
+        assertEquals(0, numberOfStatementsInMemory());
+        assertEquals(0, numberOfStatementsOnDisk());
+
+        ClientState clientState = ClientState.forExternalCalls(InetSocketAddress.createUnresolved("127.0.0.1", 1234));
+
+        createTable("CREATE TABLE %s (pk int PRIMARY KEY, val text)");
+
+        String statement0 = "SELECT * FROM %s WHERE pk = ?";
+        prepareStatement(statement0, clientState);
+
+        assertEquals(1, QueryProcessor.preparedStatementsCount());
+        // should be no entry if we disable persisting
+        assertEquals(0, numberOfStatementsOnDisk());
     }
 
     private long numberOfStatementsOnDisk() throws Throwable

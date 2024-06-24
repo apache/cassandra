@@ -5098,4 +5098,15 @@ public class DatabaseDescriptor
     public static void setDirectMaterializedViewModification(boolean enabled) {
         conf.direct_materialized_view_modification_enabled = enabled;
     }
+
+
+    public static boolean getPersistPreparedStatementsEnabled()
+    {
+        return conf.persist_prepared_statements_enabled;
+    }
+
+    public static void setPersistPreparedStatementsEnabled(boolean enabled)
+    {
+        conf.persist_prepared_statements_enabled = enabled;
+    }
 }

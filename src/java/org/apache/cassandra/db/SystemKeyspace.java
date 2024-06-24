@@ -1848,16 +1848,31 @@ public final class SystemKeyspace
 
     public static void writePreparedStatement(String loggedKeyspace, MD5Digest key, String cql, long timestamp)
     {
-        executeInternal(format("INSERT INTO %s (logged_keyspace, prepared_id, query_string) VALUES (?, ?, ?) USING TIMESTAMP ?",
-                               PreparedStatements.toString()),
-                        loggedKeyspace, key.byteBuffer(), cql, timestamp);
-        logger.debug("stored prepared statement for logged keyspace '{}': '{}'", loggedKeyspace, cql);
+        if (DatabaseDescriptor.getPersistPreparedStatementsEnabled())
+        {
+            executeInternal(format("INSERT INTO %s (logged_keyspace, prepared_id, query_string) VALUES (?, ?, ?) USING TIMESTAMP ?",
+                                   PreparedStatements.toString()),
+                            loggedKeyspace, key.byteBuffer(), cql, timestamp);
+            logger.debug("stored prepared statement for logged keyspace '{}': '{}'", loggedKeyspace, cql);
+        }
+        else
+        {
+            logger.debug("not storing prepared statement for logged keyspace '{}': '{}', persite_prepared_statement_enabled=false",
+                         loggedKeyspace, cql);
+        }
     }
 
     public static void removePreparedStatement(MD5Digest key)
     {
-        executeInternal(format("DELETE FROM %s WHERE prepared_id = ?", PreparedStatements.toString()),
-                        key.byteBuffer());
+        if (DatabaseDescriptor.getPersistPreparedStatementsEnabled())
+        {
+            executeInternal(format("DELETE FROM %s WHERE prepared_id = ?", PreparedStatements.toString()),
+                            key.byteBuffer());
+        }
+        else
+        {
+            logger.debug("not deleting prepared statement for {}", key);
+        }
     }
 
     public static void resetPreparedStatements()
