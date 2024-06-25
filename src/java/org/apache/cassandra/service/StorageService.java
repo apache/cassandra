@@ -297,14 +297,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         return DatabaseDescriptor.getThrowOnOverload();
     }
-    public String setBooleanValueForConfig(String configName, boolean value)
+    public String setValueForConfig(String configName, Object value)
     {
-        return DatabaseDescriptor.setBooleanValueForConfig(configName, value);
+        return DatabaseDescriptor.setValueForConfig(configName, value);
     }
 
-    public Boolean getBooleanValueForConfig(String configName)
+    public Object getValueForConfig(String configName)
     {
-        return DatabaseDescriptor.getBooleanValueForConfig(configName);
+        return DatabaseDescriptor.getValueForConfig(configName);
     }
 
     private static int getRingDelay()
@@ -7531,5 +7531,20 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void setPersistPreparedStatementsEnabled(boolean enabled)
     {
         DatabaseDescriptor.setPersistPreparedStatementsEnabled(enabled);
+    }
+
+    public boolean getUseWeightBasedPreparedStatementsCacheEnabled()
+    {
+        return DatabaseDescriptor.getUseWeightBasedPreparedStatementsCache();
+    }
+
+    public void setUseWeightBasedPreparedStatementsCacheEnabled(boolean enabled)
+    {
+        if (!enabled)
+        {
+            // refresh the cache size of the fixed size cache. Note, old cache will be discarded
+            QueryProcessor.initFixedSizePreparedStatementCache();
+        }
+        DatabaseDescriptor.setUseWeightBasedPreparedStatementsCache(enabled);
     }
 }

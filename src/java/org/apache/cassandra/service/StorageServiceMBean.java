@@ -48,9 +48,9 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     public boolean getThrowOnOverload();
 
-    public String setBooleanValueForConfig(String configName, boolean value);
+    public String setValueForConfig(String configName, Object value);
 
-    public Boolean getBooleanValueForConfig(String configName);
+    public Object getValueForConfig(String configName);
 
     public void dropPreparedStatements(boolean memoryOnly);
 
@@ -1186,5 +1186,11 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     /** Sets the value for persist_prepared_statements_enabled */
     public void setPersistPreparedStatementsEnabled(boolean enabled);
+
+    /** Gets the value for use_weight_based_prepared_statements_cache */
+    public boolean getUseWeightBasedPreparedStatementsCacheEnabled();
+
+    /** Sets the value for use_weight_based_prepared_statements_cache */
+    public void setUseWeightBasedPreparedStatementsCacheEnabled(boolean enabled);
 
 }

@@ -1286,14 +1286,14 @@ public class NodeProbe implements AutoCloseable
         return ssProxy.getThrowOnOverload();
     }
 
-    public String setBooleanValueForConfig(String configName, boolean value)
+    public String setValueForConfig(String configName, Object value)
     {
-        return ssProxy.setBooleanValueForConfig(configName, value);
+        return ssProxy.setValueForConfig(configName, value);
     }
 
-    public Boolean getBooleanValueForConfig(String configName)
+    public Object getValueForConfig(String configName)
     {
-        return ssProxy.getBooleanValueForConfig(configName);
+        return ssProxy.getValueForConfig(configName);
     }
 
     public boolean isNativeTransportRunning()
@@ -2840,6 +2840,16 @@ public class NodeProbe implements AutoCloseable
     public void setPersistPreparedStatementsEnabled(boolean enabled)
     {
         ssProxy.setPersistPreparedStatementsEnabled(enabled);
+    }
+
+    public boolean getUseWeightBasedPreparedStatementsCacheEnabled()
+    {
+        return ssProxy.getUseWeightBasedPreparedStatementsCacheEnabled();
+    }
+
+    public void setUseWeightBasedPreparedStatementsCacheEnabled(boolean enabled)
+    {
+        ssProxy.setUseWeightBasedPreparedStatementsCacheEnabled(enabled);
     }
 }
 

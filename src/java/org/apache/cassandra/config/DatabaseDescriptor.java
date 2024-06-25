@@ -4623,8 +4623,7 @@ public class DatabaseDescriptor
         }
     }
 
-    public static String setBooleanValueForConfig(String configName, boolean value)
-    {
+    public static String setValueForConfig(String configName, Object value) {
         String rst;
         try
         {
@@ -4646,12 +4645,12 @@ public class DatabaseDescriptor
         return rst;
     }
 
-    public static Boolean getBooleanValueForConfig(String configName)
+    public static Object getValueForConfig(String configName)
     {
         try
         {
             Field field = Config.class.getField(configName);
-            return (boolean) field.get(conf);
+            return field.get(conf);
         }
         catch (NoSuchFieldException | IllegalAccessException e)
         {

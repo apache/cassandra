@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * [SO-31238] Feature to switch cache type for prepared statements on the fly
  * [SO-31175] Feature to use cache with limited number of entries for prepared statements
  * [SO-26591] Create a new anti-pattern query PREPARED_CACHE_OVERFLOW
  * [SO-31073] Feature to disable persisting prepared statements into table

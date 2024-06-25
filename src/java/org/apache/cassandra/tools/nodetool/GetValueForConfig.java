@@ -18,9 +18,6 @@
 
 package org.apache.cassandra.tools.nodetool;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import io.airlift.airline.Arguments;
 import io.airlift.airline.Command;
 import org.apache.cassandra.tools.NodeProbe;
@@ -28,9 +25,9 @@ import org.apache.cassandra.tools.NodeTool;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
-@Command(name = "getbooleanvalueforconfig", description =  "Get boolean value for single boolean field for " +
+@Command(name = "getvalueforconfig", description =  "Get value for single field for " +
                                                            "org.apache.cassandra.config.Config object")
-public class GetBooleanValueForConfig extends NodeTool.NodeToolCmd
+public class GetValueForConfig extends NodeTool.NodeToolCmd
 {
     @Arguments(title = "<configname>", usage = "<configname>",
     description = "The config name to get the value from config object", required = true)
@@ -39,6 +36,6 @@ public class GetBooleanValueForConfig extends NodeTool.NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
-        System.out.println(probe.getBooleanValueForConfig(configName));
+        System.out.println(probe.getValueForConfig(configName));
     }
 }

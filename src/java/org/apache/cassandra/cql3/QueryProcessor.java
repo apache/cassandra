@@ -95,6 +95,9 @@ public class QueryProcessor implements QueryHandler
 
     private static final Cache<MD5Digest, Prepared> preparedStatements;
 
+    // This is the cache used for incident mitigation, this cache has fixed number of entires
+    private static Cache<MD5Digest, Prepared> fixedSizePreparedStatements;
+
     // A map for prepared statements used internally (which we don't want to mix with user statement, in particular we don't
     // bother with expiration on those.
     private static final ConcurrentMap<String, Prepared> internalStatements = new ConcurrentHashMap<>();
@@ -113,29 +116,17 @@ public class QueryProcessor implements QueryHandler
 
     static
     {
-        // for client and tool we keep the default weight-based cache
-        if (!DatabaseDescriptor.isDaemonInitialized() || DatabaseDescriptor.getUseWeightBasedPreparedStatementsCache())
+        // always initialize default prepared statements cache as this cache won't be too large.
+        preparedStatements = Caffeine.newBuilder()
+                                     .executor(ImmediateExecutor.INSTANCE)
+                                     .maximumWeight(PREPARED_STATEMENT_CACHE_SIZE_BYTES)
+                                     .weigher(QueryProcessor::getSizeOfPreparedStatementForCache)
+                                     .removalListener((key, prepared, cause) -> evictPreparedStatement(key, cause))
+                                     .build();
+
+        if (!shouldUseDefaultPreparedStatementsCache())
         {
-            logger.info("Use weight based prepared statements cache. Max cache size is {} bytes",
-                        capacityToBytes(DatabaseDescriptor.getPreparedStatementsCacheSizeMiB()));
-            preparedStatements = Caffeine.newBuilder()
-                                         .executor(ImmediateExecutor.INSTANCE)
-                                         .maximumWeight(PREPARED_STATEMENT_CACHE_SIZE_BYTES)
-                                         .weigher(QueryProcessor::getSizeOfPreparedStatementForCache)
-                                         .removalListener((key, prepared, cause) -> evictPreparedStatement(key, cause))
-                                         .build();
-        }
-        else
-        {
-            int maxCapacity = DatabaseDescriptor.getPreparedStatementsCacheMaxCapacity();
-            logger.info("Use limited number of entries for prepared statements cache. Max capacity is: {}",
-                        maxCapacity);
-            preparedStatements = Caffeine.newBuilder()
-                                         .executor(ImmediateExecutor.INSTANCE)
-                                         .initialCapacity(maxCapacity)
-                                         .maximumSize(maxCapacity)
-                                         .removalListener((key, prepared, cause) -> evictPreparedStatement((MD5Digest) key, cause))
-                                         .build();
+            initFixedSizePreparedStatementCache();
         }
 
         ScheduledExecutors.scheduledTasks.scheduleAtFixedRate(() -> {
@@ -145,6 +136,33 @@ public class QueryProcessor implements QueryHandler
 
         logger.info("Initialized prepared statement caches with {} MiB",
                     DatabaseDescriptor.getPreparedStatementsCacheSizeMiB());
+    }
+
+    public static void initFixedSizePreparedStatementCache()
+    {
+        int maxCapacity = DatabaseDescriptor.getPreparedStatementsCacheMaxCapacity();
+        logger.info("Use limited number of entries for prepared statements cache. Max capacity is: {}",
+                    maxCapacity);
+        fixedSizePreparedStatements = Caffeine.newBuilder()
+                                              .executor(ImmediateExecutor.INSTANCE)
+                                              .initialCapacity(maxCapacity)
+                                              .maximumSize(maxCapacity)
+                                              .removalListener((key, prepared, cause) -> evictPreparedStatement((MD5Digest) key, cause))
+                                              .build();
+    }
+
+    private static boolean shouldUseDefaultPreparedStatementsCache()
+    {
+        return !DatabaseDescriptor.isDaemonInitialized() || DatabaseDescriptor.getUseWeightBasedPreparedStatementsCache();
+    }
+
+    private static Cache<MD5Digest, Prepared> getPreparedStatementsCache()
+    {
+        if (shouldUseDefaultPreparedStatementsCache())
+        {
+            return preparedStatements;
+        }
+        return fixedSizePreparedStatements;
     }
 
     private static void evictPreparedStatement(MD5Digest key, RemovalCause cause)
@@ -164,7 +182,7 @@ public class QueryProcessor implements QueryHandler
 
     public static int preparedStatementsCount()
     {
-        return preparedStatements.asMap().size();
+        return getPreparedStatementsCache().asMap().size();
     }
 
     // Work around initialization dependency
@@ -196,11 +214,11 @@ public class QueryProcessor implements QueryHandler
                     clientState.setKeyspace(keyspace);
 
                 Prepared prepared = parseAndPrepare(query, clientState, false);
-                preparedStatements.put(id, prepared);
+                getPreparedStatementsCache().put(id, prepared);
 
                 // Preload `null` statement for non-fully qualified statements, since it can't be parsed if loaded from cache and will be dropped
                 if (!prepared.fullyQualified)
-                    preparedStatements.get(computeId(query, null), (ignored_) -> prepared);
+                    getPreparedStatementsCache().get(computeId(query, null), (ignored_) -> prepared);
                 return prepared;
             }
             catch (RequestValidationException e)
@@ -223,7 +241,7 @@ public class QueryProcessor implements QueryHandler
     @VisibleForTesting
     public static void clearPreparedStatements(boolean memoryOnly)
     {
-        preparedStatements.invalidateAll();
+        getPreparedStatementsCache().invalidateAll();
         if (!memoryOnly)
             SystemKeyspace.resetPreparedStatements();
     }
@@ -248,18 +266,18 @@ public class QueryProcessor implements QueryHandler
     @VisibleForTesting
     public void evictPrepared(MD5Digest id)
     {
-        preparedStatements.invalidate(id);
+        getPreparedStatementsCache().invalidate(id);
         SystemKeyspace.removePreparedStatement(id);
     }
 
     public HashMap<MD5Digest, Prepared> getPreparedStatements()
     {
-        return new HashMap<>(preparedStatements.asMap());
+        return new HashMap<>(getPreparedStatementsCache().asMap());
     }
 
     public Prepared getPrepared(MD5Digest id)
     {
-        return preparedStatements.getIfPresent(id);
+        return getPreparedStatementsCache().getIfPresent(id);
     }
 
     public static void validateKey(ByteBuffer key) throws InvalidRequestException
@@ -747,8 +765,8 @@ public class QueryProcessor implements QueryHandler
         boolean useNewPreparedStatementBehaviour = useNewPreparedStatementBehaviour();
         MD5Digest hashWithoutKeyspace = computeId(queryString, null);
         MD5Digest hashWithKeyspace = computeId(queryString, clientState.getRawKeyspace());
-        Prepared cachedWithoutKeyspace = preparedStatements.getIfPresent(hashWithoutKeyspace);
-        Prepared cachedWithKeyspace = preparedStatements.getIfPresent(hashWithKeyspace);
+        Prepared cachedWithoutKeyspace = getPreparedStatementsCache().getIfPresent(hashWithoutKeyspace);
+        Prepared cachedWithKeyspace = getPreparedStatementsCache().getIfPresent(hashWithKeyspace);
         // We assume it is only safe to return cached prepare if we have both instances
         boolean safeToReturnCached = cachedWithoutKeyspace != null && cachedWithKeyspace != null;
         if (!safeToReturnCached && cachedWithoutKeyspace == null && cachedWithKeyspace != null && clientState.getRawKeyspace() != null && !cachedWithKeyspace.fullyQualified)
@@ -818,7 +836,7 @@ public class QueryProcessor implements QueryHandler
     throws InvalidRequestException
     {
         MD5Digest statementId = computeId(queryString, clientKeyspace);
-        Prepared existing = preparedStatements.getIfPresent(statementId);
+        Prepared existing = getPreparedStatementsCache().getIfPresent(statementId);
         if (existing == null)
             return null;
 
@@ -854,7 +872,7 @@ public class QueryProcessor implements QueryHandler
                                                                 DatabaseDescriptor.getPreparedStatementsCacheSizeMiB(),
                                                                 queryString.substring(0, 200)));
         }
-        Prepared previous = preparedStatements.get(statementId, (ignored_) -> prepared);
+        Prepared previous = getPreparedStatementsCache().get(statementId, (ignored_) -> prepared);
         if (previous == prepared)
             SystemKeyspace.writePreparedStatement(keyspace, statementId, queryString, prepared.timestamp);
 
@@ -995,7 +1013,7 @@ public class QueryProcessor implements QueryHandler
     @VisibleForTesting
     public static void clearPreparedStatementsCache()
     {
-        preparedStatements.asMap().clear();
+        getPreparedStatementsCache().asMap().clear();
     }
 
     private static class StatementInvalidatingListener implements SchemaChangeListener
@@ -1003,14 +1021,14 @@ public class QueryProcessor implements QueryHandler
         private static void removeInvalidPreparedStatements(String ksName, String cfName)
         {
             removeInvalidPreparedStatements(internalStatements.values().iterator(), ksName, cfName);
-            removeInvalidPersistentPreparedStatements(preparedStatements.asMap().entrySet().iterator(), ksName, cfName);
+            removeInvalidPersistentPreparedStatements(getPreparedStatementsCache().asMap().entrySet().iterator(), ksName, cfName);
         }
 
         private static void removeInvalidPreparedStatementsForFunction(String ksName, String functionName)
         {
             Predicate<Function> matchesFunction = f -> ksName.equals(f.name().keyspace) && functionName.equals(f.name().name);
 
-            for (Iterator<Map.Entry<MD5Digest, Prepared>> iter = preparedStatements.asMap().entrySet().iterator();
+            for (Iterator<Map.Entry<MD5Digest, Prepared>> iter = getPreparedStatementsCache().asMap().entrySet().iterator();
                  iter.hasNext();)
             {
                 Map.Entry<MD5Digest, Prepared> pstmt = iter.next();
