@@ -51,6 +51,7 @@ Merged from 4.1:
  * Memoize Cassandra verion and add a backoff interval for failed schema pulls (CASSANDRA-18902)
  * Fix StackOverflowError on ALTER after many previous schema changes (CASSANDRA-19166)
 Merged from 4.0:
+ * Make LWT conditions behavior on frozen and non-frozen columns consistent for null column values (CASSANDRA-19637)
  * Add timeout specifically for bootstrapping nodes (CASSANDRA-15439)
  * Bring Redhat packge dirs/ownership/perms in line with Debian package (CASSANDRA-19565)
  * Make nodetool import congruent with the documentation by not relying on the folder structure of the imported SSTable files (CASSANDRA-19401)
