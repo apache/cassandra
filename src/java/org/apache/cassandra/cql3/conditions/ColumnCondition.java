@@ -459,6 +459,7 @@ public abstract class ColumnCondition
             this.values = values;
         }
 
+        @Override
         public boolean appliesTo(Row row)
         {
             CollectionType<?> type = (CollectionType<?>) column.type;
@@ -467,7 +468,7 @@ public abstract class ColumnCondition
             for (Term.Terminal value : values.asList())
             {
                 Iterator<Cell<?>> iter = getCells(row, column);
-                if (value == null)
+                if (value == null || (comparisonOperator.appliesToColumnValues() && isEmpty(value)))
                 {
                     if (comparisonOperator == Operator.EQ)
                     {
@@ -479,7 +480,10 @@ public abstract class ColumnCondition
                     if (comparisonOperator == Operator.NEQ)
                         return iter.hasNext();
 
-                    throw invalidRequest("Invalid comparison with null for operator \"%s\"", comparisonOperator);
+                    if (value == null)
+                        throw invalidRequest("Invalid comparison with null for operator \"%s\"", comparisonOperator);
+
+                    throw invalidRequest("Invalid comparison with an empty %s for operator \"%s\"", type.kind, comparisonOperator);
                 }
 
                 if (valueAppliesTo(type, iter, value, comparisonOperator))
@@ -488,10 +492,15 @@ public abstract class ColumnCondition
             return false;
         }
 
+        private boolean isEmpty(Term.Terminal value)
+        {
+            return value.getElements().isEmpty();
+        }
+
         private static boolean valueAppliesTo(CollectionType<?> type, Iterator<Cell<?>> iter, Term.Terminal value, Operator operator)
         {
-            if (value == null)
-                return !iter.hasNext();
+            if (!iter.hasNext() && operator != Operator.NEQ)
+                return false;
 
             if(operator == Operator.CONTAINS || operator == Operator.CONTAINS_KEY)
                 return containsAppliesTo(type, iter, value.get(), operator);
