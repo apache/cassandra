@@ -461,15 +461,16 @@ public abstract class ColumnCondition
             this.values = values;
         }
 
+        @Override
         public boolean appliesTo(Row row)
         {
-            CollectionType<?> type = (CollectionType<?>)column.type;
+            CollectionType<?> type = (CollectionType<?>) column.type;
 
             // copy iterator contents so that we can properly reuse them for each comparison with an IN value
             for (Term.Terminal value : values)
             {
                 Iterator<Cell<?>> iter = getCells(row, column);
-                if (value == null)
+                if (value == null || ((!comparisonOperator.isContains() && !comparisonOperator.isContainsKey()) && isEmpty(type, value)))
                 {
                     if (comparisonOperator == Operator.EQ)
                     {
@@ -481,7 +482,10 @@ public abstract class ColumnCondition
                     if (comparisonOperator == Operator.NEQ)
                         return iter.hasNext();
 
-                    throw invalidRequest("Invalid comparison with null for operator \"%s\"", comparisonOperator);
+                    if (value == null)
+                        throw invalidRequest("Invalid comparison with null for operator \"%s\"", comparisonOperator);
+
+                    throw invalidRequest("Invalid comparison with an empty %s for operator \"%s\"", type.kind, comparisonOperator);
                 }
 
                 if (valueAppliesTo(type, iter, value, comparisonOperator))
@@ -490,10 +494,24 @@ public abstract class ColumnCondition
             return false;
         }
 
+        private boolean isEmpty(CollectionType<?> type, Terminal value)
+        {
+            switch (type.kind)
+            {
+                case LIST:
+                    return ((Lists.Value) value).elements.isEmpty();
+                case SET:
+                    return ((Sets.Value) value).elements.isEmpty();
+                case MAP:
+                    return ((Maps.Value) value).map.isEmpty();
+            }
+            throw new AssertionError();
+        }
+
         private static boolean valueAppliesTo(CollectionType<?> type, Iterator<Cell<?>> iter, Term.Terminal value, Operator operator)
         {
-            if (value == null)
-                return !iter.hasNext();
+            if (!iter.hasNext() && operator != Operator.NEQ)
+                return false;
 
             if(operator.isContains() || operator.isContainsKey())
                 return containsAppliesTo(type, iter, value.get(ProtocolVersion.CURRENT), operator);

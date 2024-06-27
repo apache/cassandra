@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.io.IOException;
 import java.util.List;
 import java.util.Iterator;
+import java.util.Locale;
 
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.ColumnSpecification;
@@ -71,6 +72,12 @@ public abstract class CollectionType<T> extends AbstractType<T>
         };
 
         public abstract ColumnSpecification makeCollectionReceiver(ColumnSpecification collection, boolean isKey);
+
+        @Override
+        public String toString()
+        {
+            return super.toString().toLowerCase(Locale.US);
+        }
     }
 
     public final Kind kind;
