@@ -26,6 +26,7 @@ import java.nio.file.FileVisitResult;
 import java.nio.file.FileVisitor;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths; // checkstyle: permit this import
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
@@ -38,6 +39,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
@@ -474,13 +476,15 @@ public class StartupChecks
             String[] dataDirectories = DatabaseDescriptor.getRawConfig().data_file_directories;
             Map<String, String> blockDevices = getBlockDevices(dataDirectories);
 
+            // List all block devices
+            List<String> sysBlockDevices = blockDevices.isEmpty() ? null : listSysBlockDevices();
             for (Map.Entry<String, String> entry: blockDevices.entrySet())
             {
                 String blockDeviceDirectory = entry.getKey();
                 String dataDirectory = entry.getValue();
                 try
                 {
-                    Path readAheadKBPath = StartupChecks.getReadAheadKBPath(blockDeviceDirectory);
+                    Path readAheadKBPath = getReadAheadKBPath(blockDeviceDirectory, sysBlockDevices);
 
                     if (readAheadKBPath == null || Files.notExists(readAheadKBPath))
                     {
@@ -787,20 +791,28 @@ public class StartupChecks
     };
 
     @VisibleForTesting
-    public static Path getReadAheadKBPath(String blockDirectoryPath)
+    public static Path getReadAheadKBPath(String blockDirectoryPath, List<String> sysBlockDevices)
     {
-        Path readAheadKBPath = null;
+        if (sysBlockDevices == null || sysBlockDevices.isEmpty())
+            return null;
 
+        Path readAheadKBPath = null;
         final String READ_AHEAD_KB_SETTING_PATH = "/sys/block/%s/queue/read_ahead_kb";
         try
         {
             String[] blockDirComponents = blockDirectoryPath.split("/");
             if (blockDirComponents.length >= 2 && blockDirComponents[1].equals("dev"))
             {
-                String deviceName = blockDirComponents[2].replaceAll("[0-9]*$", "");
-                if (StringUtils.isNotEmpty(deviceName))
+                String deviceName = blockDirComponents[2];
+                if (StringUtils.isEmpty(deviceName))
+                    return null;
+                for (String blockDevice : sysBlockDevices)
                 {
-                    readAheadKBPath = File.getPath(String.format(READ_AHEAD_KB_SETTING_PATH, deviceName));
+                    if (deviceName.startsWith(blockDevice))
+                    {
+                        readAheadKBPath = File.getPath(String.format(READ_AHEAD_KB_SETTING_PATH, blockDevice));
+                        break;
+                    }
                 }
             }
         }
@@ -810,6 +822,24 @@ public class StartupChecks
         }
 
         return readAheadKBPath;
+    }
+
+    private static List<String> listSysBlockDevices()
+    {
+        List<String> blockDevices = new ArrayList<>();
+        Path sysBlockPath = Paths.get("/sys/block");
+        try (Stream<Path> stream = Files.list(sysBlockPath))
+        {
+            stream.filter(Files::isDirectory)
+                  .map(Path::getFileName)
+                  .map(Path::toString)
+                  .forEach(blockDevices::add);
+        }
+        catch (IOException e)
+        {
+            logger.warn("IO exception while listBlockDevices.", e);
+        }
+        return blockDevices;
     }
 
     @VisibleForTesting
