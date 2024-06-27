@@ -2894,6 +2894,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                     throw new RuntimeException(e);
                 }
             }
+            finally
+            {
+                logger.debug("Resuming compactions for {}", metadata.name);
+            }
         }
     }
 
