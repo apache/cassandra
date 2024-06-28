@@ -1213,8 +1213,8 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
                 return false;
 
             return shared.contains(s) ||
-                   InstanceClassLoader.getDefaultLoadSharedFilter().test(s) ||
-                   s.startsWith("org.jboss.byteman");
+                   InstanceClassLoader.getDefaultLoadSharedFilter().test(s)
+                    || s.startsWith("org.jboss.byteman.");
         };
     }
 
