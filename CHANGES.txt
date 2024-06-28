@@ -1,4 +1,6 @@
 5.1
+ * Update dtest-api to 0.0.17 to fix jvm17 crash in jvm-dtests (CASSANDRA-19239)
+ * Add resource leak test and Update Netty to 4.1.113.Final to fix leak (CASSANDRA-19783)
  * Fix incorrect nodetool suggestion when gossip mode is running (CASSANDRA-19905)
  * SAI support for BETWEEN operator (CASSANDRA-19688)
  * Fix BETWEEN filtering for reversed clustering columns (CASSANDRA-19878)
@@ -264,12 +266,12 @@ Merged from 4.0:
 Merged from 3.11:
  * Revert CASSANDRA-18543 (CASSANDRA-18854)
 Merged from 3.0:
- * Suppress CVE-2023-6378 (CASSANDRA-19142) 
+ * Suppress CVE-2023-6378 (CASSANDRA-19142)
  * Do not set RPC_READY to false on transports shutdown in order to not fail counter updates for deployments with coordinator and storage nodes with transports turned off (CASSANDRA-18935)
  * Suppress CVE-2023-44487 (CASSANDRA-18943)
  * Implement the logic in bin/stop-server (CASSANDRA-18838)
  * Fix nodetool enable/disablebinary to correctly set rpc readiness in gossip (CASSANDRA-18935)
- * Implement the logic in bin/stop-server (CASSANDRA-18838) 
+ * Implement the logic in bin/stop-server (CASSANDRA-18838)
  * Upgrade snappy-java to 1.1.10.4 (CASSANDRA-18878)
  * Add cqlshrc.sample and credentials.sample into Debian package (CASSANDRA-18818)
 
