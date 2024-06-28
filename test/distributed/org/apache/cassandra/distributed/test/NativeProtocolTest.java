@@ -18,7 +18,10 @@
 
 package org.apache.cassandra.distributed.test;
 
+import java.net.InetSocketAddress;
+
 import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
@@ -53,21 +56,27 @@ public class NativeProtocolTest extends TestBaseImpl
     @Test
     public void withClientRequests() throws Throwable
     {
-        try (ICluster ignored = init(builder().withNodes(3)
+        try (ICluster cluster = init(builder().withNodes(3)
                                               .withConfig(config -> config.with(GOSSIP, NETWORK, NATIVE_PROTOCOL))
                                               .start()))
         {
+            testNativeRequests(cluster);
+        }
+    }
 
-            try (com.datastax.driver.core.Cluster cluster = com.datastax.driver.core.Cluster.builder().addContactPoint("127.0.0.1").build();
-                 Session session = cluster.connect())
-            {
-                session.execute("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck));");
-                session.execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) values (1,1,1);");
-                Statement select = new SimpleStatement("select * from " + KEYSPACE + ".tbl;").setConsistencyLevel(ConsistencyLevel.ALL);
-                final ResultSet resultSet = session.execute(select);
-                assertRows(RowUtil.toObjects(resultSet), row(1, 1, 1));
-                Assert.assertEquals(3, cluster.getMetadata().getAllHosts().size());
-            }
+    public static void testNativeRequests(ICluster dtestCluster)
+    {
+        IInstance inst = dtestCluster.get(1);
+        final InetSocketAddress host = inst.broadcastAddress();
+        try (com.datastax.driver.core.Cluster cluster = com.datastax.driver.core.Cluster.builder().addContactPoint("127.0.0.1").build();
+             Session session = cluster.connect())
+        {
+            session.execute("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck));");
+            session.execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) values (1,1,1);");
+            Statement select = new SimpleStatement("select * from " + KEYSPACE + ".tbl;").setConsistencyLevel(ConsistencyLevel.ALL);
+            final ResultSet resultSet = session.execute(select);
+            assertRows(RowUtil.toObjects(resultSet), row(1, 1, 1));
+            Assert.assertEquals(dtestCluster.size(), cluster.getMetadata().getAllHosts().size());
         }
     }
 

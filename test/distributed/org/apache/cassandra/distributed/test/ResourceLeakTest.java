@@ -24,11 +24,14 @@ import java.nio.file.FileSystems;
 import java.nio.file.Path;
 import java.sql.Date;
 import java.text.SimpleDateFormat;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import javax.management.MBeanServer;
 import javax.management.MBeanServerConnection;
 import javax.management.remote.JMXConnector;
 
+import org.apache.cassandra.distributed.shared.Uninterruptibles;
+import org.apache.cassandra.distributed.shared.InstanceClassLoader;
 import org.junit.Assert;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -36,7 +39,6 @@ import org.junit.Test;
 import com.sun.management.HotSpotDiagnosticMXBean;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
-import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.shared.JMXUtil;
@@ -49,6 +51,7 @@ import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.distributed.test.jmx.JMXGetterCheckTest.testAllValidGetters;
 import static org.apache.cassandra.utils.FBUtilities.now;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.startsWith;
 
 /* Resource Leak Test - useful when tracking down issues with in-JVM framework cleanup.
@@ -63,14 +66,17 @@ import static org.hamcrest.Matchers.startsWith;
  * the final hprof and check that the class loaders are not reachable from a GC root),
  * but it shows that the file handles for Data/Index files are being leaked.
  */
-@Ignore
+
 public class ResourceLeakTest extends TestBaseImpl
 {
     // Parameters to adjust while hunting for leaks
-    final int numTestLoops = 1;            // Set this value high to crash on leaks, or low when tracking down an issue.
-    final boolean dumpEveryLoop = false;   // Dump heap & possibly files every loop
+    // numTestLoops should be >= 3, and numClusterNodes >= 2, when committed to source control.
+    // This ensures the instance class loader assertions will fail quickly and reliably when a
+    // new InstanceClassLoader leak is introduced.
+    final int numTestLoops = 3;
+    final int numClusterNodes = 2;
+    final boolean dumpEveryLoop = true;   // Dump heap & possibly files every loop
     final boolean dumpFileHandles = false; // Call lsof whenever dumping resources
-    final boolean forceCollection = false; // Whether to explicitly force finalization/gc for smaller heap dumps
     final long finalWaitMillis = 0L;       // Number of millis to wait before final resource dump to give gc a chance
 
     static final SimpleDateFormat format = new SimpleDateFormat("yyyyMMddHHmmss");
@@ -169,17 +175,31 @@ public class ResourceLeakTest extends TestBaseImpl
         }
     }
 
-    void doTest(int numClusterNodes, Consumer<IInstanceConfig> updater) throws Throwable
-    {
-        doTest(numClusterNodes, updater, ignored -> {});
+    void checkForInstanceClassLoaderLeaks(int maxAllowableInstances, int loop) throws IOException, InterruptedException {
+        for (int i = 0; InstanceClassLoader.getApproximateLiveLoaderCount(true) > maxAllowableInstances && i < 120; i++) {
+            Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
+        }
+        int approximateLiveLoaderCount = InstanceClassLoader.getApproximateLiveLoaderCount(true);
+        if (approximateLiveLoaderCount > maxAllowableInstances) {
+            dumpResources(String.format("InstanceClassLoader max reached at loop %d", loop));
+            Assert.assertThat("InstanceClassLoader leak detected",
+                    approximateLiveLoaderCount,
+                    lessThanOrEqualTo(maxAllowableInstances));
+        }
     }
 
-    void doTest(int numClusterNodes, Consumer<IInstanceConfig> updater, Consumer<Cluster> actionToPerform) throws Throwable
+    void doTest(Consumer<IInstanceConfig> updater) throws Throwable
+    {
+        doTest(updater, ignored -> {}, false);
+    }
+
+    void doTest(Consumer<IInstanceConfig> updater, Consumer<Cluster> actionToPerform, boolean shouldCheckForClassloaderLeaks) throws Throwable
     {
         for (int loop = 0; loop < numTestLoops; loop++)
         {
             System.out.println(String.format("========== Starting loop %03d ========", loop));
-            try (Cluster cluster = (Cluster) builder().withNodes(numClusterNodes).withConfig(updater).start())
+            Cluster.Builder builder = builder();
+            try (Cluster cluster = (Cluster) builder.withNodes(numClusterNodes).withConfig(updater).start())
             {
                 init(cluster);
                 String tableName = "tbl" + loop;
@@ -191,87 +211,88 @@ public class ResourceLeakTest extends TestBaseImpl
                 {
                     dumpResources(String.format("loop%03d", loop));
                 }
+                // We add 2 to the number of allowed classloaders to provide some wiggle room, as GC is non-deterministic
+                // and some threads don't always shut down in time
+                if (shouldCheckForClassloaderLeaks)
+                {
+                    checkForInstanceClassLoaderLeaks(numClusterNodes + 2, loop);
+                }
+            }
+            catch (AssertionError ae) {
+                throw ae;
             }
             catch (Throwable tr)
             {
-                System.out.println("Dumping resources for exception: " + tr.getMessage());
+                System.out.println("Dumping resources for exception: " + tr);
                 tr.printStackTrace();
                 dumpResources("exception");
             }
-            if (forceCollection)
-            {
-                System.runFinalization();
-                System.gc();
-            }
+            System.runFinalization();
+            System.gc();
             System.out.println(String.format("========== Completed loop %03d ========", loop));
         }
     }
 
+    @Ignore("Only run if debugging an issue")
     @Test
     public void looperTest() throws Throwable
     {
-        doTest(1, config -> {});
-        if (forceCollection)
-        {
-            System.runFinalization();
-            System.gc();
-            Thread.sleep(finalWaitMillis);
-        }
+        doTest(config -> {});
+        System.runFinalization();
+        System.gc();
+        Thread.sleep(finalWaitMillis);
         dumpResources("final");
     }
 
+    @Ignore("Only run if debugging an issue")
     @Test
     public void looperGossipNetworkTest() throws Throwable
     {
-        doTest(2, config -> config.with(GOSSIP).with(NETWORK));
-        if (forceCollection)
-        {
-            System.runFinalization();
-            System.gc();
-            Thread.sleep(finalWaitMillis);
-        }
+        doTest(config -> config.with(GOSSIP).with(NETWORK));
+        System.runFinalization();
+        System.gc();
+        Thread.sleep(finalWaitMillis);
         dumpResources("final-gossip-network");
     }
 
+    @Ignore("Only run if debugging an issue")
     @Test
     public void looperNativeTest() throws Throwable
     {
-        doTest(2, config -> config.with(NATIVE_PROTOCOL));
-        if (forceCollection)
-        {
-            System.runFinalization();
-            System.gc();
-            Thread.sleep(finalWaitMillis);
-        }
+        doTest(config -> config.with(NATIVE_PROTOCOL));
+        System.runFinalization();
+        System.gc();
+        Thread.sleep(finalWaitMillis);
         dumpResources("final-native");
     }
 
+    @Ignore("Only run if debugging an issue")
     @Test
     public void looperJmxTest() throws Throwable
     {
-        doTest(2, config -> config.with(JMX), ResourceLeakTest::testJmx);
-        if (forceCollection)
-        {
-            System.runFinalization();
-            System.gc();
-            Thread.sleep(finalWaitMillis);
-        }
+        doTest(config -> config.with(JMX), ResourceLeakTest::testJmx, false);
+        System.runFinalization();
+        System.gc();
+        Thread.sleep(finalWaitMillis);
         dumpResources("final-jmx");
     }
 
+    /**
+     * This test is enabled in an attempt to automatically catch InstanceClassloader leaks.
+     * Depending on the type of leak, we may need to actually exercise functionality like JMX or Native
+     * beyond just enabling the feature, so we use the "everything" test even though it may take longer to run.
+     */
     @Test
     public void looperEverythingTest() throws Throwable
     {
-        doTest(2, config -> config.with(Feature.values()),
+        doTest(config -> config.with(NETWORK, GOSSIP, NATIVE_PROTOCOL, JMX), // Exclude `BLANK_GOSSIP`
                cluster -> {
+                   NativeProtocolTest.testNativeRequests(cluster);
                    testJmx(cluster);
-               });
-        if (forceCollection)
-        {
-            System.runFinalization();
-            System.gc();
-            Thread.sleep(finalWaitMillis);
-        }
+               }, true);
+        System.runFinalization();
+        System.gc();
+        Thread.sleep(finalWaitMillis);
         dumpResources("final-everything");
     }
 }
