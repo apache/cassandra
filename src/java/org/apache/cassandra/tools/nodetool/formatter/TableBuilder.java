@@ -26,9 +26,12 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
+
 import javax.annotation.Nonnull;
 
 /**
@@ -53,6 +56,7 @@ public class TableBuilder
 
     private int[] maximumColumnWidth;
     private final List<String[]> rows = new ArrayList<>();
+    private final Map<Integer, OutputColor> colors = new HashMap<>();
 
     public TableBuilder()
     {
@@ -74,11 +78,23 @@ public class TableBuilder
         this(base.columnDelimiter);
         this.maximumColumnWidth = maximumColumnWidth;
         this.rows.addAll(base.rows);
+        this.colors.putAll(base.colors);
     }
 
     public void add(@Nonnull List<String> row)
     {
         add(row.toArray(new String[0]));
+    }
+
+    public void add(OutputColor color, @Nonnull List<String> row)
+    {
+        add(color, row.toArray(new String[0]));
+    }
+
+    public void add(OutputColor color, @Nonnull String... row)
+    {
+        add(row);
+        colors.put(rows.lastIndexOf(row), color);
     }
 
     public void add(@Nonnull String... row)
@@ -112,8 +128,11 @@ public class TableBuilder
         if (rows.isEmpty())
             return;
 
-        for (String[] row : rows)
+        for (int rowidx = 0; rowidx < rows.size(); rowidx++)
         {
+            String[] row = rows.get(rowidx);
+            if (colors.get(rowidx) != null)
+                out.print(colors.get(rowidx));
             for (int i = 0; i < maximumColumnWidth.length; i++)
             {
                 String col = i < row.length ? row[i] : "";
@@ -121,6 +140,8 @@ public class TableBuilder
                 if (i < maximumColumnWidth.length - 1)
                     out.print(columnDelimiter);
             }
+            if (colors.get(rowidx) != null)
+                out.print(OutputColor.RESET);
             out.println();
         }
     }

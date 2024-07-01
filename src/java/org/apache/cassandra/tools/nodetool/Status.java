@@ -38,6 +38,9 @@ import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
 
 import com.google.common.collect.ArrayListMultimap;
 
+import org.apache.cassandra.config.CassandraRelevantEnv;
+import org.apache.cassandra.tools.nodetool.formatter.OutputColor;
+
 @SuppressWarnings("UseOfSystemOutOrSystemErr")
 @Command(name = "status", description = "Print cluster information (state, load, IDs, ...)")
 public class Status extends NodeToolCmd
@@ -47,7 +50,10 @@ public class Status extends NodeToolCmd
 
     @Option(title = "resolve_ip", name = {"-r", "--resolve-ip"}, description = "Show node domain names instead of IPs")
     private boolean resolveIp = false;
-
+    
+    @Option(title = "color output", name = {"-c", "--color"}, description = "Use alert color on the output for nodes not up and warning colour for joining, leaving or moving nodes.")
+    private boolean color = CassandraRelevantEnv.NODETOOL_COLOR_OUTPUT.getBoolean();
+        
     private boolean isTokenPerNode = true;
     private Collection<String> joiningNodes, leavingNodes, movingNodes, liveNodes, unreachableNodes;
     private Map<String, String> loadMap, hostIDMap;
@@ -157,6 +163,8 @@ public class Status extends NodeToolCmd
                            TableBuilder tableBuilder)
     {
         String status, state, load, strOwns, hostID, rack, epDns;
+        OutputColor lineColor = null;
+
         if (liveNodes.contains(endpoint)) status = "U";
         else if (unreachableNodes.contains(endpoint)) status = "D";
         else status = "?";
@@ -164,7 +172,15 @@ public class Status extends NodeToolCmd
         else if (leavingNodes.contains(endpoint)) state = "L";
         else if (movingNodes.contains(endpoint)) state = "M";
         else state = "N";
-
+        
+        if (color) {
+            lineColor = OutputColor.RESET;
+            if (!"N".equals(state))
+                lineColor = OutputColor.WARNING;
+            if (!"U".equals(status))
+                lineColor = OutputColor.ALERT;
+        }
+        
         String statusAndState = status.concat(state);
         load = loadMap.getOrDefault(endpoint, "?");
         strOwns = owns != null && hasEffectiveOwns ? new DecimalFormat("##0.0%").format(owns) : "?";
@@ -182,11 +198,11 @@ public class Status extends NodeToolCmd
         epDns = hostStat.ipOrDns(printPort);
         if (isTokenPerNode)
         {
-            tableBuilder.add(statusAndState, epDns, load, strOwns, hostID, hostStat.token, rack);
+            tableBuilder.add(lineColor, statusAndState, epDns, load, strOwns, hostID, hostStat.token, rack);
         }
         else
         {
-            tableBuilder.add(statusAndState, epDns, load, String.valueOf(size), strOwns, hostID, rack);
+            tableBuilder.add(lineColor, statusAndState, epDns, load, String.valueOf(size), strOwns, hostID, rack);
         }
     }
 
