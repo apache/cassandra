@@ -64,6 +64,7 @@ import org.apache.cassandra.schema.Indexes;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.utils.CloseableIterator;
+import org.apache.cassandra.utils.concurrent.OpOrder;
 
 import static java.util.Collections.singletonList;
 import static org.apache.cassandra.schema.SchemaConstants.SYSTEM_KEYSPACE_NAME;
@@ -150,21 +151,24 @@ public class PaxosUncommittedIndex implements Index, PaxosUncommittedTracker.Upd
     {
         Preconditions.checkNotNull(tableId);
 
-        View view = baseCfs.getTracker().getView();
-        List<Memtable> memtables = view.flushingMemtables.isEmpty()
-                                   ? view.liveMemtables
-                                   : ImmutableList.<Memtable>builder().addAll(view.flushingMemtables).addAll(view.liveMemtables).build();
-
-        List<DataRange> dataRanges = ranges.stream().map(DataRange::forTokenRange).collect(Collectors.toList());
-        List<UnfilteredPartitionIterator> iters = new ArrayList<>(memtables.size() * ranges.size());
-
-        for (int j=0, jsize=dataRanges.size(); j<jsize; j++)
+        try(OpOrder.Group op = baseCfs.readOrdering.start())
         {
-            for (int i=0, isize=memtables.size(); i<isize; i++)
-                iters.add(memtables.get(i).partitionIterator(memtableColumnFilter, dataRanges.get(j), SSTableReadsListener.NOOP_LISTENER));
-        }
+            View view = baseCfs.getTracker().getView();
 
-        return getPaxosUpdates(iters, tableId, false);
+            List<Memtable> memtables = view.flushingMemtables.isEmpty()
+                                       ? view.liveMemtables
+                                       : ImmutableList.<Memtable>builder().addAll(view.flushingMemtables).addAll(view.liveMemtables).build();
+
+            List<DataRange> dataRanges = ranges.stream().map(DataRange::forTokenRange).collect(Collectors.toList());
+            List<UnfilteredPartitionIterator> iters = new ArrayList<>(memtables.size() * ranges.size());
+
+            for (int j = 0, jsize = dataRanges.size(); j < jsize; j++)
+            {
+                for (int i = 0, isize = memtables.size(); i < isize; i++)
+                    iters.add(memtables.get(i).partitionIterator(memtableColumnFilter, dataRanges.get(j), SSTableReadsListener.NOOP_LISTENER));
+            }
+            return getPaxosUpdates(iters, tableId, false);
+        }
     }
 
     public CloseableIterator<PaxosKeyState> flushIterator(Memtable flushing)
