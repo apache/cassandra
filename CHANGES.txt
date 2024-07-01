@@ -7,6 +7,8 @@ Merged from 4.0:
  * Make LWT conditions behavior on frozen and non-frozen columns consistent for null column values (CASSANDRA-19637)
  * Add timeout specifically for bootstrapping nodes (CASSANDRA-15439)
  * Bring Redhat packge dirs/ownership/perms in line with Debian package (CASSANDRA-19565)
+Merged from 3.0:
+ * Upgrade OWASP to 10.0.0 (CASSANDRA-19738)
 
 
 4.1.5
