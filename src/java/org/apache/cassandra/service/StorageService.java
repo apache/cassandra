@@ -4184,14 +4184,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (keyspace != null)
         {
             if (isLocalSystemKeyspace(keyspace))
-                throw new IllegalStateException("Ownership values for keyspaces with LocalStrategy are meaningless");
+                throw new IllegalStateException("Ownership values for keyspaces " + keyspace + " with LocalStrategy are meaningless");
 
             KeyspaceMetadata keyspaceInstance = metadata.schema.getKeyspaces().getNullable(keyspace);
             if (keyspaceInstance == null)
                 throw new IllegalArgumentException("The keyspace " + keyspace + ", does not exist");
 
             if (keyspaceInstance.replicationStrategy instanceof LocalStrategy)
-                throw new IllegalStateException("Ownership values for keyspaces with LocalStrategy are meaningless");
+                throw new IllegalStateException("Ownership values for keyspaces " + keyspace + " with LocalStrategy are meaningless");
 
             strategy = keyspaceInstance.replicationStrategy;
             replicationParams = keyspaceInstance.params.replication;
@@ -4209,7 +4209,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 for (String keyspaceName : userKeyspaces)
                 {
                     if (!Schema.instance.getKeyspaceInstance(keyspaceName).getReplicationStrategy().hasSameSettings(replicationStrategy))
-                        throw new IllegalStateException("Non-system keyspaces don't have the same replication settings, effective ownership information is meaningless");
+                        throw new IllegalStateException(String.format(
+                        "Non-system keyspaces: %s and %s don't have the same replication settings, effective ownership information is meaningless",
+                        keyspaceName, keyspace
+                        ));
                 }
             }
 
@@ -4220,7 +4223,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
             Keyspace keyspaceInstance = Schema.instance.getKeyspaceInstance(keyspace);
             if (keyspaceInstance == null)
-                throw new IllegalStateException("The node does not have " + keyspace + " yet, probably still bootstrapping. Effective ownership information is meaningless.");
+                throw new IllegalStateException("The node does not have keyspace " + keyspace + " yet, probably still bootstrapping. Effective ownership information is meaningless.");
             replicationParams = keyspaceInstance.getMetadata().params.replication;
             strategy = keyspaceInstance.getReplicationStrategy();
         }
