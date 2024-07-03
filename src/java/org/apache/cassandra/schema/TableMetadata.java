@@ -1426,7 +1426,7 @@ public class TableMetadata implements SchemaElement
                 DroppedColumn dropped = iterDropped.next();
                 dropped.column.appendCqlTo(builder);
 
-                if (!hasSingleColumnPrimaryKey || iter.hasNext())
+                if (!hasSingleColumnPrimaryKey || iterDropped.hasNext())
                     builder.append(',');
 
                 builder.newLine();
