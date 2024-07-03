@@ -52,6 +52,12 @@ abstract public class AlterSchemaStatement implements CQLStatement.SingleKeyspac
         this.keyspaceName = keyspaceName;
     }
 
+    @Override
+    public boolean isDDLStatement()
+    {
+        return true;
+    }
+
     public void setCql(String cql)
     {
         this.cql = cql;
