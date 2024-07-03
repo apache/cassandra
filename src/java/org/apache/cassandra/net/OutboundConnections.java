@@ -258,7 +258,18 @@ public class OutboundConnections
 
     void incrementExpiredCallbackCount()
     {
+        if (metrics == null)
+        {
+            logger.warn("InternodeOutboundMetrics not registered, not marking the expired callbacks");
+            return;
+        }
         metrics.expiredCallbacks.mark();
+    }
+
+    @VisibleForTesting
+    InternodeOutboundMetrics getMetrics()
+    {
+        return metrics;
     }
 
     OutboundConnectionSettings template()

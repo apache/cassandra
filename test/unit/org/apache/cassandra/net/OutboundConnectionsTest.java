@@ -168,6 +168,21 @@ public class OutboundConnectionsTest
         }
     }
 
+    @Test
+    public void testSkipMarkExpiredCallbackOnNullMetrics()
+    {
+        MessagingService messagingService = new MessagingService(true);
+        // this should be null and no error
+        Assert.assertNull(messagingService.channelManagers.get(REMOTE_ADDR));
+        messagingService.markExpiredCallback(REMOTE_ADDR);
+        // if not null but metrics not initialized yet, should simply skip the metric marking
+        messagingService.channelManagers.put(REMOTE_ADDR, connections);
+        // not null but metric not initialized
+        Assert.assertNotNull(messagingService.channelManagers.get(REMOTE_ADDR));
+        Assert.assertNull(connections.getMetrics());
+        messagingService.markExpiredCallback(REMOTE_ADDR);
+    }
+
 //    @Test
 //    public void timeoutCounter()
 //    {
