@@ -19,28 +19,46 @@
 package org.apache.cassandra.db.guardrails;
 
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.BiConsumer;
+import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import org.apache.commons.lang3.StringUtils;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DataStorageSpec;
+import org.apache.cassandra.config.DataStorageSpec.LongBytesBound;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
+import org.apache.cassandra.config.DurationSpec.LongMicrosecondsBound;
 import org.apache.cassandra.config.GuardrailsOptions;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.compaction.TimeWindowCompactionStrategy;
+import org.apache.cassandra.db.guardrails.validators.CassandraPasswordValidator.CassandraPasswordValidatorConfiguration;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.disk.usage.DiskUsageBroadcaster;
 import org.apache.cassandra.utils.MBeanWrapper;
+import org.apache.cassandra.utils.Pair;
 
 import static java.lang.String.format;
+import static org.apache.cassandra.config.GuardrailsOptions.validateConsistencyLevels;
+import static org.apache.cassandra.config.GuardrailsOptions.validateMaxIntThreshold;
+import static org.apache.cassandra.config.GuardrailsOptions.validateMaxLongThreshold;
+import static org.apache.cassandra.config.GuardrailsOptions.validateMaxRFThreshold;
+import static org.apache.cassandra.config.GuardrailsOptions.validateMinRFThreshold;
+import static org.apache.cassandra.config.GuardrailsOptions.validateSizeThreshold;
+import static org.apache.cassandra.config.GuardrailsOptions.validateTableProperties;
+import static org.apache.cassandra.config.GuardrailsOptions.validateTimestampThreshold;
 
 /**
  * Entry point for Guardrails, storing the defined guardrails and providing a few global methods over them.
@@ -52,8 +70,129 @@ public final class Guardrails implements GuardrailsMBean
     public static final GuardrailsConfigProvider CONFIG_PROVIDER = GuardrailsConfigProvider.instance;
     private static final GuardrailsOptions DEFAULT_CONFIG = DatabaseDescriptor.getGuardrailsConfig();
 
-    @VisibleForTesting
     public static final Guardrails instance = new Guardrails();
+
+    private static final Map<String, ThresholdsGuardrailsMapper> thresholds = new HashMap<>();
+    private static final Map<String, Pair<Consumer<Boolean>, BooleanSupplier>> flags = new HashMap<>();
+    private static final Map<String, ValuesGuardrailsMapper> values = new HashMap<>();
+    private static final Map<String, CustomGuardrailsMapper> custom = new HashMap<>();
+
+    public static Map<String, Pair<Consumer<Boolean>, BooleanSupplier>> getEnableFlagGuardrails()
+    {
+        return Collections.unmodifiableMap(flags);
+    }
+
+    public static Map<String, ValuesGuardrailsMapper> getValueGuardrails()
+    {
+        return Collections.unmodifiableMap(values);
+    }
+
+    public static Map<String, ThresholdsGuardrailsMapper> getThresholdGuardails()
+    {
+        return Collections.unmodifiableMap(thresholds);
+    }
+
+    public static Map<String, CustomGuardrailsMapper> getCustomGuardrails()
+    {
+        return Collections.unmodifiableMap(custom);
+    }
+
+    private static void addThresholdMapper(ThresholdsGuardrailsMapper mapper)
+    {
+        thresholds.put(mapper.name, mapper);
+    }
+
+    private static void addFlagMapper(String name, Consumer<Boolean> setter, BooleanSupplier getter)
+    {
+        flags.put(name, Pair.create(setter, getter));
+    }
+
+    private static void addValuesMapper(String name, ValuesGuardrailsMapper mapper)
+    {
+        values.put(name, mapper);
+    }
+
+    private static void addCustomMapper(String name,
+                                        Supplier<CustomGuardrailConfig> getter,
+                                        Consumer<CustomGuardrailConfig> setter,
+                                        Consumer<CustomGuardrailConfig> validator)
+    {
+        custom.put(name, new CustomGuardrailsMapper(getter, setter, validator));
+    }
+
+    public static class ThresholdsGuardrailsMapper
+    {
+        public final String name;
+        public final BiConsumer<Number, Number> setter;
+        public final Supplier<Number> warnGetter;
+        public final Supplier<Number> failGetter;
+        public final BiConsumer<Number, Number> validator;
+
+        public ThresholdsGuardrailsMapper(String name,
+                                          BiConsumer<Number, Number> setter,
+                                          Supplier<Number> warnGetter,
+                                          Supplier<Number> failGetter,
+                                          BiConsumer<Number, Number> validator)
+        {
+            this.name = name;
+            this.setter = setter;
+            this.warnGetter = warnGetter;
+            this.failGetter = failGetter;
+            this.validator = validator;
+        }
+    }
+
+    public static class ValuesGuardrailsMapper
+    {
+        public final Supplier<Set<String>> warnedValuesSupplier;
+        public final Supplier<Set<String>> disallowedValuesSupplier;
+        public final Supplier<Set<String>> ignoredValuesSupplier;
+
+        public final Consumer<Set<String>> warnedValuesConsumer;
+        public final Consumer<Set<String>> disallowedValuesConsumer;
+        public final Consumer<Set<String>> ignoredValuesConsumer;
+
+        public final Consumer<Set<String>> warnedValuesValidator;
+        public final Consumer<Set<String>> ignoredValuesValidator;
+        public final Consumer<Set<String>> disallowedValuesValidator;
+
+        public ValuesGuardrailsMapper(Supplier<Set<String>> warnedValuesSupplier,
+                                      Supplier<Set<String>> disallowedValuesSupplier,
+                                      Supplier<Set<String>> ignoredValuesSupplier,
+                                      Consumer<Set<String>> warnedValuesConsumer,
+                                      Consumer<Set<String>> disallowedValuesConsumer,
+                                      Consumer<Set<String>> ignoredValuesConsumer,
+                                      Consumer<Set<String>> warnedValuesValidator,
+                                      Consumer<Set<String>> ignoredValuesValidator,
+                                      Consumer<Set<String>> disallowedValuesValidator)
+        {
+            this.warnedValuesConsumer = warnedValuesConsumer;
+            this.disallowedValuesConsumer = disallowedValuesConsumer;
+            this.ignoredValuesConsumer = ignoredValuesConsumer;
+            this.warnedValuesSupplier = warnedValuesSupplier;
+            this.disallowedValuesSupplier = disallowedValuesSupplier;
+            this.ignoredValuesSupplier = ignoredValuesSupplier;
+            this.warnedValuesValidator = warnedValuesValidator;
+            this.ignoredValuesValidator = ignoredValuesValidator;
+            this.disallowedValuesValidator = disallowedValuesValidator;
+        }
+    }
+
+    public static class CustomGuardrailsMapper
+    {
+        public final Supplier<CustomGuardrailConfig> getter;
+        public final Consumer<CustomGuardrailConfig> setter;
+        public final Consumer<CustomGuardrailConfig> validator;
+
+        public CustomGuardrailsMapper(Supplier<CustomGuardrailConfig> getter,
+                                      Consumer<CustomGuardrailConfig> setter,
+                                      Consumer<CustomGuardrailConfig> validator)
+        {
+            this.getter = getter;
+            this.setter = setter;
+            this.validator = validator;
+        }
+    }
 
     /**
      * Guardrail on the total number of user keyspaces.
@@ -489,8 +628,8 @@ public final class Guardrails implements GuardrailsMBean
                      state -> maximumTimestampAsRelativeMicros(CONFIG_PROVIDER.getOrCreate(state).getMaximumTimestampWarnThreshold()),
                      state -> maximumTimestampAsRelativeMicros(CONFIG_PROVIDER.getOrCreate(state).getMaximumTimestampFailThreshold()),
                      (isWarning, what, value, threshold) ->
-                    format("The modification to table %s has a timestamp %s after the maximum allowable %s threshold %s",
-                           what, value, isWarning ? "warning" : "failure", threshold));
+                     format("The modification to table %s has a timestamp %s after the maximum allowable %s threshold %s",
+                            what, value, isWarning ? "warning" : "failure", threshold));
 
     public static final MinThreshold minimumAllowableTimestamp =
     new MinThreshold("minimum_timestamp",
@@ -551,6 +690,321 @@ public final class Guardrails implements GuardrailsMBean
                    "Executing a query on secondary indexes without partition key restriction might degrade performance",
                    state -> CONFIG_PROVIDER.getOrCreate(state).getNonPartitionRestrictedQueryEnabled(),
                    "Non-partition key restricted query");
+
+    /**
+     * Guardrail on passwords for CREATE / ALTER ROLE statements.
+     */
+    public static final CustomGuardrail<String> password =
+    new PasswordGuardrail(() -> CONFIG_PROVIDER.getOrCreate(null).getPasswordValidatorConfig());
+
+    static
+    {
+        addValuesMapper(readConsistencyLevels.name,
+                        new ValuesGuardrailsMapper(Guardrails.instance::getReadConsistencyLevelsWarned,
+                                                   Guardrails.instance::getReadConsistencyLevelsDisallowed,
+                                                   Collections::emptySet,
+                                                   Guardrails.instance::setReadConsistencyLevelsWarned,
+                                                   Guardrails.instance::setReadConsistencyLevelsDisallowed,
+                                                   ignored -> {},
+                                                   properties -> validateConsistencyLevels(fromJmx(properties), "read_consistency_levels_warned"),
+                                                   ignored -> {},
+                                                   properties -> validateConsistencyLevels(fromJmx(properties), "read_consistency_levels_disallowed")));
+
+        addValuesMapper(writeConsistencyLevels.name,
+                        new ValuesGuardrailsMapper(Guardrails.instance::getWriteConsistencyLevelsWarned,
+                                                   Guardrails.instance::getWriteConsistencyLevelsDisallowed,
+                                                   Collections::emptySet,
+                                                   Guardrails.instance::setWriteConsistencyLevelsWarned,
+                                                   Guardrails.instance::setWriteConsistencyLevelsDisallowed,
+                                                   ignored -> {},
+                                                   properties -> validateConsistencyLevels(fromJmx(properties), "write_consistency_levels_warned"),
+                                                   ignored -> {},
+                                                   properties -> validateConsistencyLevels(fromJmx(properties), "write_consistency_levels_disallowed")));
+
+        addValuesMapper(tableProperties.name,
+                        new ValuesGuardrailsMapper(Guardrails.instance::getTablePropertiesWarned,
+                                                   Guardrails.instance::getTablePropertiesDisallowed,
+                                                   Guardrails.instance::getTablePropertiesIgnored,
+                                                   Guardrails.instance::setTablePropertiesWarned,
+                                                   Guardrails.instance::setTablePropertiesDisallowed,
+                                                   Guardrails.instance::setTablePropertiesIgnored,
+                                                   properties -> validateTableProperties(properties, "table_properties_warned"),
+                                                   properties -> validateTableProperties(properties, "table_properties_ignored"),
+                                                   properties -> validateTableProperties(properties, "table_properties_disallowed")));
+
+        addFlagMapper(nonPartitionRestrictedIndexQueryEnabled.name,
+                      Guardrails.instance::setNonPartitionRestrictedQueryEnabled,
+                      Guardrails.instance::getNonPartitionRestrictedQueryEnabled);
+
+        addFlagMapper(simpleStrategyEnabled.name,
+                      Guardrails.instance::setSimpleStrategyEnabled,
+                      Guardrails.instance::getSimpleStrategyEnabled);
+
+        addFlagMapper(allowFilteringEnabled.name,
+                      Guardrails.instance::setAllowFilteringEnabled,
+                      Guardrails.instance::getAllowFilteringEnabled);
+
+        addFlagMapper(readBeforeWriteListOperationsEnabled.name,
+                      Guardrails.instance::setReadBeforeWriteListOperationsEnabled,
+                      Guardrails.instance::getReadBeforeWriteListOperationsEnabled);
+
+        addFlagMapper(intersectFilteringQueryEnabled.name,
+                      Guardrails.instance::setIntersectFilteringQueryEnabled,
+                      Guardrails.instance::getIntersectFilteringQueryEnabled);
+
+        addFlagMapper(zeroTTLOnTWCSEnabled.name,
+                      Guardrails.instance::setZeroTTLOnTWCSEnabled,
+                      Guardrails.instance::getZeroTTLOnTWCSEnabled);
+
+        addFlagMapper(compactTablesEnabled.name,
+                      Guardrails.instance::setCompactTablesEnabled,
+                      Guardrails.instance::getCompactTablesEnabled);
+
+        addFlagMapper(uncompressedTablesEnabled.name,
+                      Guardrails.instance::setUncompressedTablesEnabled,
+                      Guardrails.instance::getUncompressedTablesEnabled);
+
+        addFlagMapper(bulkLoadEnabled.name,
+                      Guardrails.instance::setBulkLoadEnabled,
+                      Guardrails.instance::getBulkLoadEnabled);
+
+        addFlagMapper(dropKeyspaceEnabled.name,
+                      Guardrails.instance::setDropKeyspaceEnabled,
+                      Guardrails.instance::getDropKeyspaceEnabled);
+
+        addFlagMapper(dropTruncateTableEnabled.name,
+                      Guardrails.instance::setDropTruncateTableEnabled,
+                      Guardrails.instance::getDropTruncateTableEnabled);
+
+        addFlagMapper(alterTableEnabled.name,
+                      Guardrails.instance::setAlterTableEnabled,
+                      Guardrails.instance::getAlterTableEnabled);
+
+        addFlagMapper(groupByEnabled.name,
+                      Guardrails.instance::setGroupByEnabled,
+                      Guardrails.instance::getGroupByEnabled);
+
+        addFlagMapper(userTimestampsEnabled.name,
+                      Guardrails.instance::setUserTimestampsEnabled,
+                      Guardrails.instance::getUserTimestampsEnabled);
+
+        addFlagMapper(createSecondaryIndexesEnabled.name,
+                      Guardrails.instance::setSecondaryIndexesEnabled,
+                      Guardrails.instance::getSecondaryIndexesEnabled);
+
+        addThresholdMapper(new ThresholdsGuardrailsMapper(localDataDiskUsage.name,
+                                                          (warn, fail) -> Guardrails.instance.setDataDiskUsagePercentageThreshold(warn.intValue(), fail.intValue()),
+                                                          Guardrails.instance::getDataDiskUsagePercentageWarnThreshold,
+                                                          Guardrails.instance::getDataDiskUsagePercentageFailThreshold,
+                                                          (warn, fail) -> GuardrailsOptions.validatePercentageThreshold(warn.intValue(), fail.intValue(), "data_disk_usage_percentage")));
+
+        addThresholdMapper(new ThresholdsGuardrailsMapper(keyspaces.name,
+                                                          (warn, fail) -> Guardrails.instance.setKeyspacesThreshold(warn.intValue(), fail.intValue()),
+                                                          Guardrails.instance::getKeyspacesWarnThreshold,
+                                                          Guardrails.instance::getKeyspacesFailThreshold,
+                                                          (warn, fail) -> validateMaxIntThreshold(warn.intValue(), fail.intValue(), "keyspaces")));
+
+        addThresholdMapper(new ThresholdsGuardrailsMapper(tables.name,
+                                                          (warn, fail) -> Guardrails.instance.setTablesThreshold(warn.intValue(), fail.intValue()),
+                                                          Guardrails.instance::getTablesWarnThreshold,
+                                                          Guardrails.instance::getTablesFailThreshold,
+                                                          (warn, fail) -> validateMaxIntThreshold(warn.intValue(), fail.intValue(), "tables")));
+
+        addThresholdMapper(new ThresholdsGuardrailsMapper(columnsPerTable.name,
+                                                          (warn, fail) -> Guardrails.instance.setColumnsPerTableThreshold(warn.intValue(), fail.intValue()),
+                                                          Guardrails.instance::getColumnsPerTableWarnThreshold,
+                                                          Guardrails.instance::getColumnsPerTableFailThreshold,
+                                                          (warn, fail) -> validateMaxIntThreshold(warn.intValue(), fail.intValue(), "columns_per_table")));
+
+        addThresholdMapper(new ThresholdsGuardrailsMapper(secondaryIndexesPerTable.name,
+                                                          (warn, fail) -> Guardrails.instance.setSecondaryIndexesPerTableThreshold(warn.intValue(), fail.intValue()),
+                                                          Guardrails.instance::getSecondaryIndexesPerTableWarnThreshold,
+                                                          Guardrails.instance::getSecondaryIndexesPerTableFailThreshold,
+                                                          (warn, fail) -> validateMaxIntThreshold(warn.intValue(), fail.intValue(), "secondary_indexes_per_table")));
+
+        addThresholdMapper(new ThresholdsGuardrailsMapper(materializedViewsPerTable.name,
+                                                          (warn, fail) -> Guardrails.instance.setMaterializedViewsPerTableThreshold(warn.intValue(), fail.intValue()),
+                                                          Guardrails.instance::getMaterializedViewsPerTableWarnThreshold,
+                                                          Guardrails.instance::getMaterializedViewsPerTableFailThreshold,
+                                                          (warn, fail) -> validateMaxIntThreshold(warn.intValue(), fail.intValue(), "materialized_views_per_table")));
+
+        addThresholdMapper(new ThresholdsGuardrailsMapper(pageSize.name,
+                                                          (warn, fail) -> Guardrails.instance.setPageSizeThreshold(warn.intValue(), fail.intValue()),
+                                                          Guardrails.instance::getPageSizeWarnThreshold,
+                                                          Guardrails.instance::getPageSizeFailThreshold,
+                                                          (warn, fail) -> validateMaxIntThreshold(warn.intValue(), fail.intValue(), "page_size")));
+
+        addThresholdMapper(new ThresholdsGuardrailsMapper(partitionKeysInSelect.name,
+                                                          (warn, fail) -> Guardrails.instance.setPartitionKeysInSelectThreshold(warn.intValue(), fail.intValue()),
+                                                          Guardrails.instance::getPartitionKeysInSelectWarnThreshold,
+                                                          Guardrails.instance::getPartitionKeysInSelectFailThreshold,
+                                                          (warn, fail) -> validateMaxIntThreshold(warn.intValue(), fail.intValue(), "partition_keys_in_select")));
+
+        addThresholdMapper(new ThresholdsGuardrailsMapper(inSelectCartesianProduct.name,
+                                                          (warn, fail) -> Guardrails.instance.setInSelectCartesianProductThreshold(warn.intValue(), fail.intValue()),
+                                                          Guardrails.instance::getInSelectCartesianProductWarnThreshold,
+                                                          Guardrails.instance::getInSelectCartesianProductFailThreshold,
+                                                          (warn, fail) -> validateMaxIntThreshold(warn.intValue(), fail.intValue(), "in_select_cartesian_product")));
+
+        addThresholdMapper(new ThresholdsGuardrailsMapper(partitionTombstones.name,
+                                                          (warn, fail) -> Guardrails.instance.setPartitionTombstonesThreshold(warn.longValue(), fail.longValue()),
+                                                          Guardrails.instance::getPartitionTombstonesWarnThreshold,
+                                                          Guardrails.instance::getPartitionTombstonesFailThreshold,
+                                                          (warn, fail) -> validateMaxLongThreshold(warn.longValue(), fail.longValue(), "partition_tombstones", false)));
+
+        addThresholdMapper(new ThresholdsGuardrailsMapper(itemsPerCollection.name,
+                                                          (warn, fail) -> Guardrails.instance.setItemsPerCollectionThreshold(warn.intValue(), fail.intValue()),
+                                                          Guardrails.instance::getItemsPerCollectionWarnThreshold,
+                                                          Guardrails.instance::getItemsPerCollectionFailThreshold,
+                                                          (warn, fail) -> validateMaxIntThreshold(warn.intValue(), fail.intValue(), "items_per_collection")));
+
+        addThresholdMapper(new ThresholdsGuardrailsMapper(fieldsPerUDT.name,
+                                                          (warn, fail) -> Guardrails.instance.setFieldsPerUDTThreshold(warn.intValue(), fail.intValue()),
+                                                          Guardrails.instance::getFieldsPerUDTWarnThreshold,
+                                                          Guardrails.instance::getFieldsPerUDTFailThreshold,
+                                                          (warn, fail) -> validateMaxIntThreshold(warn.intValue(), fail.intValue(), "fields_per_udt")));
+
+        addThresholdMapper(new ThresholdsGuardrailsMapper(vectorDimensions.name,
+                                                          (warn, fail) -> Guardrails.instance.setVectorDimensionsThreshold(warn.intValue(), fail.intValue()),
+                                                          Guardrails.instance::getVectorDimensionsWarnThreshold,
+                                                          Guardrails.instance::getVectorDimensionsFailThreshold,
+                                                          (warn, fail) -> validateMaxIntThreshold(warn.intValue(), fail.intValue(), "vector_dimensions")));
+
+        addThresholdMapper(new ThresholdsGuardrailsMapper(minimumReplicationFactor.name,
+                                                          (warn, fail) -> Guardrails.instance.setMinimumReplicationFactorThreshold(warn.intValue(), fail.intValue()),
+                                                          Guardrails.instance::getMinimumReplicationFactorWarnThreshold,
+                                                          Guardrails.instance::getMinimumReplicationFactorFailThreshold,
+                                                          (warn, fail) -> validateMinRFThreshold(warn.intValue(), fail.intValue())));
+
+        addThresholdMapper(new ThresholdsGuardrailsMapper(maximumReplicationFactor.name,
+                                                          (warn, fail) -> Guardrails.instance.setMaximumReplicationFactorThreshold(warn.intValue(), fail.intValue()),
+                                                          Guardrails.instance::getMaximumReplicationFactorWarnThreshold,
+                                                          Guardrails.instance::getMaximumReplicationFactorFailThreshold,
+                                                          (warn, fail) -> validateMaxRFThreshold(warn.intValue(), fail.intValue())));
+
+        addThresholdMapper(new ThresholdsGuardrailsMapper(partitionSize.name,
+                                                          (warn, fail) ->
+                                                          {
+                                                              Pair<String, String> t = resolveSizeThresholds(warn, fail);
+                                                              Guardrails.instance.setPartitionSizeThreshold(t.left, t.right);
+                                                          },
+                                                          () -> getDataSize(Guardrails.instance::getPartitionSizeWarnThreshold),
+                                                          () -> getDataSize(Guardrails.instance::getPartitionSizeFailThreshold),
+                                                          (warn, fail) ->
+                                                          {
+                                                              Pair<String, String> t = resolveSizeThresholds(warn, fail);
+                                                              validateSizeThreshold(sizeFromString(t.left), sizeFromString(t.right), false, "partition_size");
+                                                          }));
+
+        addThresholdMapper(new ThresholdsGuardrailsMapper(collectionSize.name,
+                                                          (warn, fail) ->
+                                                          {
+                                                              Pair<String, String> t = resolveSizeThresholds(warn, fail);
+                                                              Guardrails.instance.setCollectionSizeThreshold(t.left, t.right);
+                                                          },
+                                                          () -> getDataSize(Guardrails.instance::getCollectionSizeWarnThreshold),
+                                                          () -> getDataSize(Guardrails.instance::getCollectionSizeFailThreshold),
+                                                          (warn, fail) ->
+                                                          {
+                                                              Pair<String, String> t = resolveSizeThresholds(warn, fail);
+                                                              validateSizeThreshold(sizeFromString(t.left), sizeFromString(t.right), false, "collection_size");
+                                                          }));
+
+        addThresholdMapper(new ThresholdsGuardrailsMapper(columnValueSize.name,
+                                                          (warn, fail) ->
+                                                          {
+                                                              Pair<String, String> t = resolveSizeThresholds(warn, fail);
+                                                              Guardrails.instance.setColumnValueSizeThreshold(t.left, t.right);
+                                                          },
+                                                          () -> getDataSize(Guardrails.instance::getColumnValueSizeWarnThreshold),
+                                                          () -> getDataSize(Guardrails.instance::getColumnValueSizeFailThreshold),
+                                                          (warn, fail) ->
+                                                          {
+                                                              Pair<String, String> t = resolveSizeThresholds(warn, fail);
+                                                              validateSizeThreshold(sizeFromString(t.left), sizeFromString(t.right), false, "column_value_size");
+                                                          }));
+
+        addThresholdMapper(new ThresholdsGuardrailsMapper(maximumAllowableTimestamp.name,
+                                                          (warn, fail) ->
+                                                          {
+                                                              Pair<String, String> t = resolveDurationThresholds(warn, fail);
+                                                              Guardrails.instance.setMaximumTimestampThreshold(t.left, t.right);
+                                                          },
+                                                          () -> getDuration(Guardrails.instance::getMaximumTimestampWarnThreshold),
+                                                          () -> getDuration(Guardrails.instance::getMaximumTimestampFailThreshold),
+                                                          (warn, fail) ->
+                                                          {
+                                                              Pair<String, String> t = resolveDurationThresholds(warn, fail);
+                                                              validateTimestampThreshold(durationFromString(t.left), durationFromString(t.right), "maximum_timestamp");
+                                                          }));
+
+        addThresholdMapper(new ThresholdsGuardrailsMapper(minimumAllowableTimestamp.name,
+                                                          (warn, fail) ->
+                                                          {
+                                                              Pair<String, String> t = resolveDurationThresholds(warn, fail);
+                                                              Guardrails.instance.setMinimumTimestampThreshold(t.left, t.right);
+                                                              },
+                                                          () -> getDuration(Guardrails.instance::getMinimumTimestampWarnThreshold),
+                                                          () -> getDuration(Guardrails.instance::getMinimumTimestampFailThreshold),
+                                                          (warn, fail) ->
+                                                          {
+                                                              Pair<String, String> t = resolveDurationThresholds(warn, fail);
+                                                              validateTimestampThreshold(durationFromString(t.left), durationFromString(t.right), "minimum_timestamp");
+                                                          }));
+
+        addThresholdMapper(new ThresholdsGuardrailsMapper(saiSSTableIndexesPerQuery.name,
+                                                          (warn, fail) -> Guardrails.instance.setSaiSSTableIndexesPerQueryThreshold(warn.intValue(), fail.intValue()),
+                                                          Guardrails.instance::getSaiSSTableIndexesPerQueryWarnThreshold,
+                                                          Guardrails.instance::getSaiSSTableIndexesPerQueryFailThreshold,
+                                                          (warn, fail) -> validateMaxIntThreshold(warn.intValue(), fail.intValue(), "sai_sstable_indexes_per_query")));
+
+        addThresholdMapper(new ThresholdsGuardrailsMapper(saiStringTermSize.name,
+                                                          (warn, fail) ->
+                                                          {
+                                                              Pair<String, String> t = resolveSizeThresholds(warn, fail);
+                                                              Guardrails.instance.setSaiStringTermSizeThreshold(t.left, t.right);
+                                                          },
+                                                          () -> getDataSize(Guardrails.instance::getSaiStringTermSizeWarnThreshold),
+                                                          () -> getDataSize(Guardrails.instance::getSaiStringTermSizeFailThreshold),
+                                                          (warn, fail) ->
+                                                          {
+                                                              Pair<String, String> t = resolveSizeThresholds(warn, fail);
+                                                              validateSizeThreshold(sizeFromString(t.left), sizeFromString(t.right), false, "sai_string_term_size");
+                                                          }));
+
+        addThresholdMapper(new ThresholdsGuardrailsMapper(saiFrozenTermSize.name,
+                                                          (warn, fail) ->
+                                                          {
+                                                              Pair<String, String> t = resolveSizeThresholds(warn, fail);
+                                                              Guardrails.instance.setSaiFrozenTermSizeThreshold(t.left, t.right);
+                                                          },
+                                                          () -> getDataSize(Guardrails.instance::getSaiFrozenTermSizeWarnThreshold),
+                                                          () -> getDataSize(Guardrails.instance::getSaiFrozenTermSizeFailThreshold),
+                                                          (warn, fail) ->
+                                                          {
+                                                              Pair<String, String> t = resolveSizeThresholds(warn, fail);
+                                                              validateSizeThreshold(sizeFromString(t.left), sizeFromString(t.right), false, "sai_frozen_term_size");
+                                                          }));
+
+        addThresholdMapper(new ThresholdsGuardrailsMapper(saiVectorTermSize.name,
+                                                          (warn, fail) ->
+                                                          {
+                                                              Pair<String, String> t = resolveSizeThresholds(warn, fail);
+                                                              Guardrails.instance.setSaiVectorTermSizeThreshold(t.left, t.right);
+                                                          },
+                                                          () -> getDataSize(Guardrails.instance::getSaiVectorTermSizeWarnThreshold),
+                                                          () -> getDataSize(Guardrails.instance::getSaiVectorTermSizeFailThreshold),
+                                                          (warn, fail) ->
+                                                          {
+                                                              Pair<String, String> t = resolveSizeThresholds(warn, fail);
+                                                              validateSizeThreshold(sizeFromString(t.left), sizeFromString(t.right), false, "sai_vector_term_size");
+                                                          }));
+
+        addCustomMapper(password.name,
+                        () -> new CustomGuardrailConfig(Guardrails.instance.getPasswordValidatorConfig()),
+                        Guardrails.instance::reconfigurePasswordValidator,
+                        CassandraPasswordValidatorConfiguration::parse);
+    }
 
     private Guardrails()
     {
@@ -1178,6 +1632,19 @@ public final class Guardrails implements GuardrailsMBean
         DEFAULT_CONFIG.setMaximumReplicationFactorThreshold(warn, fail);
     }
 
+    @Nonnull
+    @Override
+    public Map<String, Object> getPasswordValidatorConfig()
+    {
+        return password.getConfig();
+    }
+
+    @Override
+    public void reconfigurePasswordValidator(Map<String, Object> config)
+    {
+        password.reconfigure(config);
+    }
+
     @Override
     public int getDataDiskUsagePercentageWarnThreshold()
     {
@@ -1435,7 +1902,7 @@ public final class Guardrails implements GuardrailsMBean
         return set.stream().map(ConsistencyLevel::valueOf).collect(Collectors.toSet());
     }
 
-    private static Long sizeToBytes(@Nullable DataStorageSpec.LongBytesBound size)
+    private static Long sizeToBytes(@Nullable LongBytesBound size)
     {
         return size == null ? -1 : size.toBytes();
     }
@@ -1445,9 +1912,9 @@ public final class Guardrails implements GuardrailsMBean
         return size == null ? null : size.toString();
     }
 
-    private static DataStorageSpec.LongBytesBound sizeFromString(@Nullable String size)
+    private static LongBytesBound sizeFromString(@Nullable String size)
     {
-        return StringUtils.isEmpty(size) ? null : new DataStorageSpec.LongBytesBound(size);
+        return StringUtils.isEmpty(size) ? null : new LongBytesBound(size);
     }
 
     private static String durationToString(@Nullable DurationSpec duration)
@@ -1455,22 +1922,59 @@ public final class Guardrails implements GuardrailsMBean
         return duration == null ? null : duration.toString();
     }
 
-    private static DurationSpec.LongMicrosecondsBound durationFromString(@Nullable String duration)
+    private static LongMicrosecondsBound durationFromString(@Nullable String duration)
     {
-        return StringUtils.isEmpty(duration) ? null : new DurationSpec.LongMicrosecondsBound(duration);
+        return StringUtils.isEmpty(duration) ? null : new LongMicrosecondsBound(duration);
     }
 
-    private static long maximumTimestampAsRelativeMicros(@Nullable DurationSpec.LongMicrosecondsBound duration)
+    private static long maximumTimestampAsRelativeMicros(@Nullable LongMicrosecondsBound duration)
     {
         return duration == null
                ? Long.MAX_VALUE
                : (ClientState.getLastTimestampMicros() + duration.toMicroseconds());
     }
 
-    private static long minimumTimestampAsRelativeMicros(@Nullable DurationSpec.LongMicrosecondsBound duration)
+    private static long minimumTimestampAsRelativeMicros(@Nullable LongMicrosecondsBound duration)
     {
         return duration == null
                ? Long.MIN_VALUE
                : (ClientState.getLastTimestampMicros() - duration.toMicroseconds());
+    }
+
+    private static Pair<String, String> resolveDurationThresholds(Number warn, Number fail)
+    {
+        long warnLong = warn.longValue();
+        long failLong = fail.longValue();
+
+        return Pair.create(warnLong == -1 ? null : new LongMicrosecondsBound(warnLong).toString(),
+                           failLong == -1 ? null : new LongMicrosecondsBound(failLong).toString());
+    }
+
+    private static Pair<String, String> resolveSizeThresholds(Number warn, Number fail)
+    {
+        long warnLong = warn.longValue();
+        long failLong = fail.longValue();
+
+        return Pair.create(warnLong == -1 ? null : new LongBytesBound(warnLong).toString(),
+                           failLong == -1 ? null : new LongBytesBound(failLong).toString());
+    }
+
+    private static Number getDuration(Supplier<String> valueSupplier)
+    {
+        String value = valueSupplier.get();
+        if (value == null)
+            return -1;
+
+        return new LongMicrosecondsBound(value).toMicroseconds();
+    }
+
+    private static Number getDataSize(Supplier<String> valueSupplier)
+    {
+        long value = -1;
+        String threshold = valueSupplier.get();
+        if (threshold != null)
+            value = new LongBytesBound(threshold).toBytes();
+
+        return value;
     }
 }

@@ -65,6 +65,7 @@ public final class AuthKeyspace
                                                                   RESOURCE_ROLE_INDEX, NETWORK_PERMISSIONS,
                                                                   CIDR_PERMISSIONS, CIDR_GROUPS,
                                                                   IDENTITY_TO_ROLES);
+    public static final String PREVIOUS_PASSWORDS = "previous_passwords";
 
     public static final long SUPERUSER_SETUP_DELAY = SUPERUSER_SETUP_DELAY_MS.getLong();
 
@@ -149,6 +150,15 @@ public final class AuthKeyspace
           CIDR_GROUPS_CQL
     );
 
+    private static final TableMetadata PreviousPasswords =
+        parse(PREVIOUS_PASSWORDS,
+              "previous passwords for a role for historical password validation",
+              "CREATE TABLE %s (" +
+              "role text, " +
+              "created timeuuid, " +
+              "salted_hash text, " +
+              "PRIMARY KEY (role, created)) ORDER BY created ASC");
+
     private static TableMetadata parse(String name, String description, String cql)
     {
         return CreateTableStatement.parse(format(cql, name), SchemaConstants.AUTH_KEYSPACE_NAME)
@@ -164,6 +174,6 @@ public final class AuthKeyspace
                                        KeyspaceParams.simple(Math.max(DEFAULT_RF, DatabaseDescriptor.getDefaultKeyspaceRF())),
                                        Tables.of(Roles, RoleMembers, RolePermissions,
                                                  ResourceRoleIndex, NetworkPermissions,
-                                                 CIDRPermissions, CIDRGroups, IdentityToRoles));
+                                                 CIDRPermissions, CIDRGroups, IdentityToRoles, PreviousPasswords));
     }
 }

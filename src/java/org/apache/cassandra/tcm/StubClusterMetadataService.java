@@ -175,6 +175,7 @@ public class StubClusterMetadataService extends ClusterMetadataService
                                               DataPlacements.EMPTY,
                                               LockedRanges.EMPTY,
                                               InProgressSequences.EMPTY,
+                                              GuardrailsMetadata.EMPTY,
                                               ImmutableMap.of());
             return new StubClusterMetadataService(new UniformRangePlacement(),
                                                   snapshots != null ? snapshots : MetadataSnapshots.NO_OP,

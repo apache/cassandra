@@ -30,6 +30,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cql3.statements.schema.TableAttributes;
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.guardrails.CustomGuardrailConfig;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.guardrails.GuardrailsConfig;
 import org.apache.cassandra.io.util.FileUtils;
@@ -817,6 +818,12 @@ public class GuardrailsOptions implements GuardrailsConfig
         return config.maximum_replication_factor_fail_threshold;
     }
 
+    @Override
+    public CustomGuardrailConfig getPasswordValidatorConfig()
+    {
+        return config.password_validator;
+    }
+
     public void setMaximumReplicationFactorThreshold(int warn, int fail)
     {
         validateMaxRFThreshold(warn, fail);
@@ -1112,21 +1119,21 @@ public class GuardrailsOptions implements GuardrailsConfig
         validatePositiveNumeric(value, 100, name);
     }
 
-    private static void validatePercentageThreshold(int warn, int fail, String name)
+    public static void validatePercentageThreshold(int warn, int fail, String name)
     {
         validatePercentage(warn, name + "_warn_threshold");
         validatePercentage(fail, name + "_fail_threshold");
         validateWarnLowerThanFail(warn, fail, name);
     }
 
-    private static void validateMaxIntThreshold(int warn, int fail, String name)
+    public static void validateMaxIntThreshold(int warn, int fail, String name)
     {
         validatePositiveNumeric(warn, Integer.MAX_VALUE, name + "_warn_threshold");
         validatePositiveNumeric(fail, Integer.MAX_VALUE, name + "_fail_threshold");
         validateWarnLowerThanFail(warn, fail, name);
     }
 
-    private static void validateMaxLongThreshold(long warn, long fail, String name, boolean allowZero)
+    public static void validateMaxLongThreshold(long warn, long fail, String name, boolean allowZero)
     {
         validatePositiveNumeric(warn, Long.MAX_VALUE, name + "_warn_threshold", allowZero);
         validatePositiveNumeric(fail, Long.MAX_VALUE, name + "_fail_threshold", allowZero);
@@ -1140,7 +1147,7 @@ public class GuardrailsOptions implements GuardrailsConfig
         validateWarnGreaterThanFail(warn, fail, name);
     }
 
-    private static void validateMinRFThreshold(int warn, int fail)
+    public static void validateMinRFThreshold(int warn, int fail)
     {
         validateMinIntThreshold(warn, fail, "minimum_replication_factor");
 
@@ -1150,7 +1157,7 @@ public class GuardrailsOptions implements GuardrailsConfig
                                                       fail, DatabaseDescriptor.getDefaultKeyspaceRF()));
     }
 
-    private static void validateMaxRFThreshold(int warn, int fail)
+    public static void validateMaxRFThreshold(int warn, int fail)
     {
         validateMaxIntThreshold(warn, fail, "maximum_replication_factor");
 
@@ -1203,7 +1210,7 @@ public class GuardrailsOptions implements GuardrailsConfig
                                                       name));
     }
 
-    private static void validateSizeThreshold(DataStorageSpec.LongBytesBound warn, DataStorageSpec.LongBytesBound fail, boolean allowZero, String name)
+    public static void validateSizeThreshold(DataStorageSpec.LongBytesBound warn, DataStorageSpec.LongBytesBound fail, boolean allowZero, String name)
     {
         validateSize(warn, allowZero, name + "_warn_threshold");
         validateSize(fail, allowZero, name + "_fail_threshold");
@@ -1220,7 +1227,7 @@ public class GuardrailsOptions implements GuardrailsConfig
                                                       "than the fail threshold %s", warn, name, fail));
     }
 
-    private static Set<String> validateTableProperties(Set<String> properties, String name)
+    public static Set<String> validateTableProperties(Set<String> properties, String name)
     {
         if (properties == null)
             throw new IllegalArgumentException(format("Invalid value for %s: null is not allowed", name));
@@ -1236,7 +1243,7 @@ public class GuardrailsOptions implements GuardrailsConfig
         return lowerCaseProperties;
     }
 
-    private static Set<ConsistencyLevel> validateConsistencyLevels(Set<ConsistencyLevel> consistencyLevels, String name)
+    public static Set<ConsistencyLevel> validateConsistencyLevels(Set<ConsistencyLevel> consistencyLevels, String name)
     {
         if (consistencyLevels == null)
             throw new IllegalArgumentException(format("Invalid value for %s: null is not allowed", name));

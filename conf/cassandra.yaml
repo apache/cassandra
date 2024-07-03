@@ -2148,6 +2148,60 @@ drop_compact_storage_enabled: false
 # This would also apply to system keyspaces.
 # maximum_replication_factor_warn_threshold: -1
 # maximum_replication_factor_fail_threshold: -1
+#
+# Guardrail to warn or fail when setting / altering a password.
+#password_validator:
+#  # if set to false, once this validator is instantiated, it will not be possible to reconfigure it via JMX in runtime.
+#  # if set to true, it will be possible to reconfigure the validator in runtime via JMX
+#  # Defaults to false.
+#  reconfigurable: true
+#  # Implementation class of a validator. When not in form of FQCN, the
+#  # package name org.apache.cassandra.db.guardrails.validators is prepended.
+#  class_name: CassandraPasswordValidator
+#  # Implementation class of related generator which generates values which are valid when
+#  # tested against this validator. When not in form of FQCN, the
+#  # package name org.apache.cassandra.db.guardrails.generators is prepended.
+#  generator_class_name: CassandraPasswordGenerator
+#  # If set to true, alter role statements which are changing passwords
+#  # will be checking if that password was not already used in the past.
+#  # Password validation fails if it was used already. Defaults to false.
+#  validate_against_historical_values: true
+#  # Maximum previous passwords to validate a password to be altered against
+#  # If a password to validate is found among the last 5, the validation will fail.
+#  max_historical_values: 5
+#  # There are four characteristics:
+#  # upper-case, lower-case, special character and digit.
+#  # If this value is set e.g. to 3, a password has to consist of 3 out of 4 characteristics.
+#  # For example, it has to contain at least 2 upper-case characters, 2 lower-case, and 2 digits to pass,
+#  # but it does not have to contain any special characters.
+#  # if number of characteristics found in the password is less than 4, it will emit warning
+#  # if number of characteristics found in the password is less than 3, it will emit failure
+#  min_characteristics_warn: 4
+#  min_characteristics_fail: 3
+#  # If password is shorter than this value, the validator will emit a warning.
+#  min_length_warn: 12
+#  # If a password is shorter than this value, the validator will emit a failure.
+#  min_length_fail: 8
+#  # If a password does not contain at least n upper-case characters, the validator will emit a warning.
+#  min_upper_case_chars_warn: 2
+#  # If a password does not contain at least n upper-case characters, the validator will emit a failure.
+#  min_upper_case_chars_fail: 1
+#  # If a password does not contain at least n lower-case characters, the validator will emit a warning.
+#  min_lower_case_chars_warn: 2
+#  # If a password does not contain at least n lower-case characters, the validator will emit a failure.
+#  min_lower_case_chars_fail: 1
+#  # If a password does not contain at least n digits, the validator will emit a warning.
+#  min_digits_chars_warn: 2
+#  # If a password does not contain at least n digits, the validator will emit a failure.
+#  min_digits_chars_fail: 1
+#  # If a password does not contain at least n special characters, the validator will emit a warning.
+#  min_special_chars_warn: 2
+#  # If a password does not contain at least n special characters, the validator will emit a failure.
+#  min_special_chars_fail: 1
+#  # illegal sequences that will fail when they are >= 5 characters long
+#  # illegal sequences might be either alphabetical (form 'abcde'),
+#  # numerical (form '34567'), or US qwery (form 'asdfg').
+#  illegal_sequence_length: 5
 
 # Guardrail to enable a CREATE or ALTER TABLE statement when default_time_to_live is set to 0
 # and the table is using TimeWindowCompactionStrategy compaction or a subclass of it.

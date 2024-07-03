@@ -60,6 +60,7 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Commit;
 import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.GuardrailsMetadata;
 import org.apache.cassandra.tcm.MetadataSnapshots;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.log.LocalLog;
@@ -151,6 +152,7 @@ public class ClusterMetadataTestHelper
                                    DataPlacements.empty(),
                                    LockedRanges.EMPTY,
                                    InProgressSequences.EMPTY,
+                                   GuardrailsMetadata.EMPTY,
                                    ImmutableMap.of());
     }
 
@@ -164,6 +166,7 @@ public class ClusterMetadataTestHelper
                                    DataPlacements.empty(),
                                    null,
                                    null,
+                                   null,
                                    ImmutableMap.of());
     }
 
@@ -175,6 +178,7 @@ public class ClusterMetadataTestHelper
                                    null,
                                    null,
                                    DataPlacements.empty(),
+                                   null,
                                    null,
                                    null,
                                    ImmutableMap.of());

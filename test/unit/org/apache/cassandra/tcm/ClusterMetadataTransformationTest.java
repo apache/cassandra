@@ -310,6 +310,8 @@ public class ClusterMetadataTransformationTest
             return metadata.lockedRanges;
         else if (key == IN_PROGRESS_SEQUENCES)
             return metadata.inProgressSequences;
+        else if (key == MetadataKeys.GUARDRAILS)
+            return metadata.guardrailsMetadata;
 
         throw new IllegalArgumentException("Unknown metadata key " + key);
     }

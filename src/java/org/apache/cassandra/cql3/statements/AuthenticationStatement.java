@@ -17,20 +17,44 @@
  */
 package org.apache.cassandra.cql3.statements;
 
+import java.util.List;
+
+import org.apache.commons.lang3.StringUtils;
+
 import org.apache.cassandra.auth.Permission;
+import org.apache.cassandra.auth.RoleOptions;
 import org.apache.cassandra.auth.RoleResource;
 import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.ResultSet;
+import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
+import static com.google.common.collect.ImmutableList.of;
+import static java.lang.String.format;
+import static org.apache.cassandra.auth.AuthKeyspace.ROLES;
+import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
+import static org.apache.cassandra.schema.SchemaConstants.AUTH_KEYSPACE_NAME;
+import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
+
 public abstract class AuthenticationStatement extends CQLStatement.Raw implements CQLStatement
 {
+    private static final List<ColumnSpecification> GENERATED_PASSWORD_METADATA =
+    of(new ColumnSpecification(SchemaConstants.AUTH_KEYSPACE_NAME,
+                               "generated_password",
+                               new ColumnIdentifier("generated_password", true),
+                               UTF8Type.instance));
+
     public AuthenticationStatement prepare(ClientState state)
     {
         return this;
@@ -70,6 +94,39 @@ public abstract class AuthenticationStatement extends CQLStatement.Raw implement
     public String obfuscatePassword(String query)
     {
         return query;
+    }
+
+    protected static String escape(String name)
+    {
+        return StringUtils.replace(name, "'", "''");
+    }
+
+    protected String getSaltedHash(String roleName)
+    {
+        UntypedResultSet rows = executeInternal(format("SELECT salted_hash FROM %s.%s WHERE role = ?",
+                                                       AUTH_KEYSPACE_NAME, ROLES),
+                                                roleName);
+        if (rows != null && !rows.isEmpty())
+        {
+            UntypedResultSet.Row row = rows.one();
+            if (row.has("salted_hash"))
+                return row.getString("salted_hash");
+        }
+
+        return null;
+    }
+
+    protected ResultMessage getResultMessage(RoleOptions opts)
+    {
+        if (!(opts.isGeneratedPassword() && opts.getPassword().isPresent()))
+            return null;
+
+        ResultSet.ResultMetadata resultMetadata = new ResultSet.ResultMetadata(GENERATED_PASSWORD_METADATA);
+        ResultSet result = new ResultSet(resultMetadata);
+
+        result.addColumnValue(bytes(opts.getPassword().get()));
+
+        return new ResultMessage.Rows(result);
     }
 }
 

@@ -213,8 +213,11 @@ public interface Transformation
         PREPARE_SIMPLE_CMS_RECONFIGURATION(31, () -> PrepareCMSReconfiguration.Simple.serializer),
         PREPARE_COMPLEX_CMS_RECONFIGURATION(32, () -> PrepareCMSReconfiguration.Complex.serializer),
         ADVANCE_CMS_RECONFIGURATION(33, () -> AdvanceCMSReconfiguration.serializer),
-        CANCEL_CMS_RECONFIGURATION(34, () -> CancelCMSReconfiguration.serializer)
-        ;
+        CANCEL_CMS_RECONFIGURATION(34, () -> CancelCMSReconfiguration.serializer),
+        FLAG_GUARDRAIL(35, () -> GuardrailTransformations.Flag.serializer),
+        VALUES_GUARDRAIL(36, () -> GuardrailTransformations.Values.serializer),
+        THRESHOLDS_GUARDRAIL(37, () -> GuardrailTransformations.Thresholds.serializer),
+        CUSTOM_GUARDRAIL(38, () -> GuardrailTransformations.Custom.serializer);
 
         private final Supplier<AsymmetricMetadataSerializer<Transformation, ? extends Transformation>> serializer;
         public final int id;

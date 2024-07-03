@@ -39,13 +39,19 @@ public class MetadataKeys
     public static final MetadataKey DATA_PLACEMENTS         = make(CORE_NS, "ownership", "data_placements");
     public static final MetadataKey LOCKED_RANGES           = make(CORE_NS, "sequences", "locked_ranges");
     public static final MetadataKey IN_PROGRESS_SEQUENCES   = make(CORE_NS, "sequences", "in_progress");
+    public static final MetadataKey GUARDRAILS              = make(CORE_NS, "guardrails");
 
     public static final ImmutableSet<MetadataKey> CORE_METADATA = ImmutableSet.of(SCHEMA,
                                                                                   NODE_DIRECTORY,
                                                                                   TOKEN_MAP,
                                                                                   DATA_PLACEMENTS,
                                                                                   LOCKED_RANGES,
-                                                                                  IN_PROGRESS_SEQUENCES);
+                                                                                  IN_PROGRESS_SEQUENCES,
+                                                                                  GUARDRAILS);
+
+    private MetadataKeys()
+    {
+    }
 
     public static MetadataKey make(String...parts)
     {
