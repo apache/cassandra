@@ -1483,7 +1483,7 @@ syntax_rules += r'''
              | <unreservedKeyword>
              ;
 
-<createRoleStatement> ::= "CREATE" "ROLE" <rolename>
+<createRoleStatement> ::= "CREATE" "ROLE" ( "IF" "NOT" "EXISTS" )? <rolename>
                               ( "WITH" <roleProperty> ("AND" <roleProperty>)*)?
                         ;
 
