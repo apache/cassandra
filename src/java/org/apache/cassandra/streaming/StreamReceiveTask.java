@@ -142,23 +142,25 @@ public class StreamReceiveTask extends StreamTask
 
         AuditLogEntry getSstableLoaderAuditLogEntry(ColumnFamilyStore cfs)
         {
+            String scope = cfs == null ? "TABLE NULL" : cfs.getTableName();
+            String keyspace = cfs == null ? "KEYSPACE NULL" : cfs.keyspace.getName();
            return new AuditLogEntry.Builder(QueryState.forInternalCalls())
                     .setSource(task.session.getConnecting())
                     .setType(AuditLogEntryType.SSTABLELOADER)
                     .setOperation("SSTABLELOADER")
                     .setTimestamp(System.currentTimeMillis())
-                    .setScope(cfs.getTableName())
-                    .setKeyspace(cfs.keyspace.getName())
+                    .setScope(scope)
+                    .setKeyspace(keyspace)
                     .build();
         }
 
         public void run()
         {
             AuditLogManager auditLogManager = AuditLogManager.instance;
-            ColumnFamilyStore cfs = null;
+            ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(task.tableId);
             try
             {
-                if (ColumnFamilyStore.getIfExists(task.tableId) == null)
+                if (cfs == null)
                 {
                     // schema was dropped during streaming
                     task.receiver.abort();
