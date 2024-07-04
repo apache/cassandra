@@ -1044,10 +1044,15 @@ class TestCqlshCompletion(CqlshCompletionCase):
 
     def test_complete_in_alter_role(self):
         self.trycompletions('ALTER ROLE ', choices=['<identifier>', 'IF', '<quotedName>'])
+        self.trycompletions('ALTER ROLE IF ', immediate='EXISTS ')
         self.trycompletions('ALTER ROLE foo ', immediate='WITH ')
         self.trycompletions('ALTER ROLE foo WITH ', choices=['ACCESS', 'HASHED', 'LOGIN', 'OPTIONS', 'PASSWORD', 'SUPERUSER', 'GENERATED'])
         self.trycompletions('ALTER ROLE foo WITH ACCESS TO ', choices=['ALL', 'DATACENTERS'])
         self.trycompletions('ALTER ROLE foo WITH ACCESS FROM ', choices=['ALL', 'CIDRS'])
+
+    def test_complete_in_create_user(self):
+        self.trycompletions('CREATE USER ', choices=['<username>', 'IF'])
+        self.trycompletions('CREATE USER IF ', immediate='NOT EXISTS ')
 
     def test_complete_in_drop_role(self):
         self.trycompletions('DROP ROLE ', choices=['<identifier>', 'IF', '<quotedName>'])
