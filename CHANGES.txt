@@ -1,4 +1,5 @@
 2.2.20
+ * Add termin-8-jdk as a valid jdk8 candidate in the debian package (CASSANDRA-19752)
  * Remove dh_python use from Debian packaging (CASSANDRA-18558)
  * Add python2 location to RPMs (CASSANDRA-16822)
  * CQL shell should prefer newer TLS version by default (CASSANDRA-16695)
