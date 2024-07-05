@@ -18,12 +18,14 @@
 
 package org.apache.cassandra.db.compaction;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -43,6 +45,12 @@ public class CompactionStrategyMigrationManager implements CompactionStrategyMig
     public static final String MBEAN_NAME = "org.apache.cassandra.db:type=CompactionStrategyMigrationManager";
     public static final CompactionStrategyMigrationManager instance = new CompactionStrategyMigrationManager();
     public Map<ColumnFamilyStore, CompactionParams> cfsToMigrate = new HashMap<>();
+
+    private final Map<Class<? extends AbstractCompactionStrategy>, CompactionParams> DEFAULT_PARAMS = ImmutableMap.of(
+    SizeTieredCompactionStrategy.class, CompactionParams.stcs(Collections.emptyMap()),
+    LeveledCompactionStrategy.class, CompactionParams.lcs(Collections.emptyMap()),
+    TimeWindowCompactionStrategy.class, CompactionParams.twcs(Collections.emptyMap())
+    );
 
     private CompactionStrategyMigrationManager()
     {
@@ -195,6 +203,39 @@ public class CompactionStrategyMigrationManager implements CompactionStrategyMig
             res.addAndGet(cfs.getCompactionStrategyManager().getEstimatedRemainingTasks());
         });
         return res.get();
+    }
+
+    public boolean getCompactionStrategyMigrationEnabled()
+    {
+        return DatabaseDescriptor.getCompactionStrategyMigrationOptions().enabled;
+    }
+
+    public Map<String, String> getCfsWithNonDefaultCompactionParams()
+    {
+        Map<String, String> res = new HashMap<>();
+        Set<String> userKeyspaces = Schema.instance.getUserKeyspaces().names();
+        userKeyspaces.forEach(keyspace -> {
+            for (ColumnFamilyStore cfs : Keyspace.open(keyspace).getColumnFamilyStores())
+            {
+                CompactionParams params = cfs.getCompactionStrategyManager().getCompactionParams();
+                if (!isDefaultCompactionParams(params))
+                {
+                    res.put(cfs.keyspace.getName() + '.' + cfs.name, params.toString());
+                }
+            }
+        });
+        return res;
+    }
+
+    private boolean isDefaultCompactionParams(CompactionParams params)
+    {
+        CompactionParams defaultParams = DEFAULT_PARAMS.get(params.klass());
+        if (defaultParams == null)
+        {
+            // DTCS, which is deprecated, will be reported as well
+            return false;
+        }
+        return defaultParams.equals(params);
     }
 
     @VisibleForTesting

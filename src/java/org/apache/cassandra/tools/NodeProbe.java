@@ -80,6 +80,8 @@ import org.apache.cassandra.config.Config.AuthEnforcementFlag;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.CompactionManagerMBean;
+import org.apache.cassandra.db.compaction.CompactionStrategyMigrationManager;
+import org.apache.cassandra.db.compaction.CompactionStrategyMigrationManagerMBean;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.guardrails.GuardrailsMBean;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -175,6 +177,7 @@ public class NodeProbe implements AutoCloseable
     protected PermissionsCacheMBean pcProxy;
     protected RolesCacheMBean rcProxy;
     protected GuardrailsMBean grProxy;
+    protected CompactionStrategyMigrationManagerMBean csmmProxy;
     protected Output output;
     private boolean failed;
 
@@ -308,6 +311,8 @@ public class NodeProbe implements AutoCloseable
 
             name = new ObjectName(Guardrails.MBEAN_NAME);
             grProxy = JMX.newMBeanProxy(mbeanServerConn, name, GuardrailsMBean.class);
+            name = new ObjectName(CompactionStrategyMigrationManager.MBEAN_NAME);
+            csmmProxy = JMX.newMBeanProxy(mbeanServerConn, name, CompactionStrategyMigrationManagerMBean.class);
         }
         catch (MalformedObjectNameException e)
         {
@@ -2850,6 +2855,11 @@ public class NodeProbe implements AutoCloseable
     public void setUseWeightBasedPreparedStatementsCacheEnabled(boolean enabled)
     {
         ssProxy.setUseWeightBasedPreparedStatementsCacheEnabled(enabled);
+    }
+
+    public Map<String, String> getCfsWithNonDefaultCompactionParams()
+    {
+        return csmmProxy.getCfsWithNonDefaultCompactionParams();
     }
 }
 

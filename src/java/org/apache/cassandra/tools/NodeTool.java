@@ -142,6 +142,7 @@ public class NodeTool
                 GetColumnIndexSize.class,
                 GetBadQueryThreshold.class,
                 GetAutoRepairConfig.class,
+                GetCfsWithNonDefaultCompactionParams.class,
                 GetCompactionThreshold.class,
                 GetCompactionThroughput.class,
                 GetDirectMaterializedViewModification.class,

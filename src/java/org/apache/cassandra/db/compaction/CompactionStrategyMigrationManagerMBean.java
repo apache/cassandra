@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.db.compaction;
 
+import java.util.Map;
+
 public interface CompactionStrategyMigrationManagerMBean
 {
     /**
@@ -29,4 +31,14 @@ public interface CompactionStrategyMigrationManagerMBean
      * @return total estimated pending compaction tasks for cfs to be migrated
      */
     public long getPendingTasksForMigration();
+
+    /**
+     * @return if compaction strategy migration is enabled
+     */
+    public boolean getCompactionStrategyMigrationEnabled();
+
+    /**
+     * @return user cfs with non-default compaction params
+     */
+    public Map<String, String> getCfsWithNonDefaultCompactionParams();
 }

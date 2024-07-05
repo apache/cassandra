@@ -100,6 +100,8 @@ public class CompactionStrategyMigrationManagerTest
         CompactionStrategyMigrationManager.instance.mayOverrideLocalCompactionStrategy();
         // nothing should be changed
         compactionStrategyUnchangedForAllSchemas();
+        // should report disabled
+        assertFalse(CompactionStrategyMigrationManager.instance.getCompactionStrategyMigrationEnabled());
     }
 
     @Test
@@ -128,6 +130,7 @@ public class CompactionStrategyMigrationManagerTest
                      Keyspace.open(KS_2).getColumnFamilyStore(LCS_TBL).getCompactionStrategyManager().getCompactionParams());
 
         // only 4 non-LCS schema are counted
+        assertTrue(CompactionStrategyMigrationManager.instance.getCompactionStrategyMigrationEnabled());
         assertEquals(4, CompactionStrategyMigrationManager.instance.getNumCfsToMigrate());
         assertEquals(0, CompactionStrategyMigrationManager.instance.getPendingTasksForMigration());
     }
@@ -165,6 +168,7 @@ public class CompactionStrategyMigrationManagerTest
                      Keyspace.open(KS_2).getColumnFamilyStore(LCS_TBL).getCompactionStrategyManager().getCompactionParams());
 
         // only 2 non-LCS schema are counted
+        assertTrue(CompactionStrategyMigrationManager.instance.getCompactionStrategyMigrationEnabled());
         assertEquals(2, CompactionStrategyMigrationManager.instance.getNumCfsToMigrate());
         assertEquals(0, CompactionStrategyMigrationManager.instance.getPendingTasksForMigration());
     }
@@ -210,6 +214,7 @@ public class CompactionStrategyMigrationManagerTest
         // system schemas should be unchanged
         compactionStrategyUnchangedForSystemSchemas();
 
+        assertTrue(CompactionStrategyMigrationManager.instance.getCompactionStrategyMigrationEnabled());
         assertEquals(2, CompactionStrategyMigrationManager.instance.getNumCfsToMigrate());
         assertEquals(0, CompactionStrategyMigrationManager.instance.getPendingTasksForMigration());
     }
@@ -230,8 +235,20 @@ public class CompactionStrategyMigrationManagerTest
         // nothing should be changed
         compactionStrategyUnchangedForAllSchemas();
 
+        assertTrue(CompactionStrategyMigrationManager.instance.getCompactionStrategyMigrationEnabled());
         assertEquals(0, CompactionStrategyMigrationManager.instance.getNumCfsToMigrate());
         assertEquals(0, CompactionStrategyMigrationManager.instance.getPendingTasksForMigration());
+    }
+
+    @Test
+    public void testGetCfsWithNonDefaultCompactionParams()
+    {
+        Map<String, String> res = CompactionStrategyMigrationManager.instance.getCfsWithNonDefaultCompactionParams();
+        assertTrue(res.containsKey(KS_1 + '.' + LCS_TBL));
+        assertTrue(res.containsKey(KS_2 + '.' + LCS_TBL));
+        assertEquals(2, res.size());
+        assertEquals("CompactionParams{class=org.apache.cassandra.db.compaction.LeveledCompactionStrategy, options={min_threshold=4, max_threshold=32, sstable_size_in_mb=1}}", res.get(KS_1 + '.' + LCS_TBL));
+        assertEquals("CompactionParams{class=org.apache.cassandra.db.compaction.LeveledCompactionStrategy, options={min_threshold=4, max_threshold=32, sstable_size_in_mb=1}}", res.get(KS_2 + '.' + LCS_TBL));
     }
 
     private void compactionStrategyUnchangedForAllSchemas()
