@@ -1,7 +1,8 @@
 3.11.18
 Merged from 3.0:
  * Upgrade OWASP to 10.0.0 (CASSANDRA-19738)
-
+Merged from 2.2:
+ * Add termin-8-jdk as a valid jdk8 candidate in the debian package (CASSANDRA-19752)
 
 3.11.17
  * Move ClientWarn.State#warnings to a thread-safe list (CASSANDRA-19427)
