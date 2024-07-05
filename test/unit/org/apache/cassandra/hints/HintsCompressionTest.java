@@ -25,6 +25,7 @@ import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.io.compress.DeflateCompressor;
 import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.compress.LZ4Compressor;
+import org.apache.cassandra.io.compress.QPLCompressor;
 import org.apache.cassandra.io.compress.SnappyCompressor;
 import org.apache.cassandra.io.compress.ZstdCompressor;
 
@@ -83,6 +84,13 @@ public class HintsCompressionTest extends AlteredHints
     public void zstdCompressor() throws Exception
     {
         compressorClass = ZstdCompressor.class;
+        multiFlushAndDeserializeTest();
+    }
+
+    @Test
+    public void qplCompressor() throws Exception
+    {
+        compressorClass = QPLCompressor.class;
         multiFlushAndDeserializeTest();
     }
 

@@ -120,6 +120,13 @@ public class CompressedSequentialWriterTest extends SequentialWriterTest
         runTests("Noop");
     }
 
+    @Test
+    public void testQPLWriter() throws IOException
+    {
+        compressionParameters = CompressionParams.qpl();
+        runTests("QPL");
+    }
+
     private void testWrite(File f, int bytesToTest, boolean useMemmap) throws IOException
     {
         final String filename = f.absolutePath();

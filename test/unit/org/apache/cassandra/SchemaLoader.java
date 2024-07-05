@@ -760,6 +760,8 @@ public static TableMetadata.Builder clusteringSASICFMD(String ksName, String cfN
                 return CompressionParams.zstd(chunkLength);
             case "none":
                 return CompressionParams.noCompression();
+            case "qpl":
+                return CompressionParams.qpl(chunkLength);
             default:
                 throw new IllegalArgumentException("Invalid compression algorithm has been provided in cassandra.test.compression system property: " + algo);
         }
