@@ -1763,12 +1763,6 @@ singleColumnBetweenValues returns [Terms.Raw terms]
     : t1=term { list.add(t1); } K_AND t2=term { list.add(t2); }
     ;
 
-betweenLiterals returns [Terms.Raw literals]
-    @init { List<Term.Raw> list = new ArrayList<>(); }
-    @after { $literals = Terms.Raw.of(list); }
-    : t1=tupleLiteral { list.add(t1); } K_AND t2=tupleLiteral { list.add(t2); }
-    ;
-
 relationType returns [Operator op]
     : '='  { $op = Operator.EQ; }
     | '<'  { $op = Operator.LT; }
