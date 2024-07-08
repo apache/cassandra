@@ -150,10 +150,8 @@ public class InitialConnectionHandler extends ByteToMessageDecoder
                         promise = new VoidChannelPromise(ctx.channel(), false);
                     }
 
-                    // Logging the client context data if exists
-                    String serviceName = startup.options.get(StartupMessage.SERVICE);
-                    if (StringUtils.isNoneEmpty(serviceName))
-                        logger.info("Client context data: {}", startup.options);
+                    // Logging the client context data
+                    logger.info("Client context data: {}", startup.options);
 
                     final Message.Response response = Dispatcher.processRequest(ctx.channel(), startup, Overload.NONE, Dispatcher.RequestTime.forImmediateExecution());
 

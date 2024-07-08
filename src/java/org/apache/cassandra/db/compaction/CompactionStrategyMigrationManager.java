@@ -213,7 +213,7 @@ public class CompactionStrategyMigrationManager implements CompactionStrategyMig
     public Map<String, String> getCfsWithNonDefaultCompactionParams()
     {
         Map<String, String> res = new HashMap<>();
-        Set<String> userKeyspaces = Schema.instance.getUserKeyspaces().names();
+        Set<String> userKeyspaces = Schema.instance.getUserKeyspaces();
         userKeyspaces.forEach(keyspace -> {
             for (ColumnFamilyStore cfs : Keyspace.open(keyspace).getColumnFamilyStores())
             {
