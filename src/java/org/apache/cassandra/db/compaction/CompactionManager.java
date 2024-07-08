@@ -58,6 +58,7 @@ import com.google.common.util.concurrent.Uninterruptibles;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.codahale.metrics.Meter;
 import net.openhft.chronicle.core.util.ThrowingSupplier;
 import org.apache.cassandra.cache.AutoSavingCache;
 import org.apache.cassandra.concurrent.ExecutorFactory;
@@ -222,6 +223,11 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
             throughput = Double.MAX_VALUE;
         if (compactionRateLimiter.getRate() != throughput)
             compactionRateLimiter.setRate(throughput);
+    }
+
+    public Meter getCompactionThroughput()
+    {
+        return metrics.bytesCompactedThroughput;
     }
 
     /**
@@ -1510,9 +1516,10 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
 
     }
 
-    static void compactionRateLimiterAcquire(RateLimiter limiter, long bytesScanned, long lastBytesScanned, double compressionRatio)
+    protected void compactionRateLimiterAcquire(RateLimiter limiter, long bytesScanned, long lastBytesScanned, double compressionRatio)
     {
         long lengthRead = (long) ((bytesScanned - lastBytesScanned) * compressionRatio) + 1;
+        markBytesCompactedThroughput(lengthRead);
         while (lengthRead >= Integer.MAX_VALUE)
         {
             limiter.acquire(Integer.MAX_VALUE);
@@ -1522,6 +1529,11 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
         {
             limiter.acquire((int) lengthRead);
         }
+    }
+
+    private void markBytesCompactedThroughput(long lengthRead)
+    {
+        metrics.bytesCompactedThroughput.mark(lengthRead);
     }
 
     private static abstract class CleanupStrategy
