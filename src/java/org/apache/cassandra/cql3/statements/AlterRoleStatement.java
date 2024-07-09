@@ -48,6 +48,7 @@ public class AlterRoleStatement extends AuthenticationStatement
     final DCPermissions dcPermissions;
     final CIDRPermissions cidrPermissions;
     private final boolean ifExists;
+    private Boolean roleExists;
 
     public AlterRoleStatement(RoleName name, RoleOptions opts)
     {
@@ -84,7 +85,10 @@ public class AlterRoleStatement extends AuthenticationStatement
 
         // validate login here before authorize, to avoid leaking user existence to anonymous users.
         state.ensureNotAnonymous();
-        if (!DatabaseDescriptor.getRoleManager().isExistingRole(role))
+
+        roleExists = DatabaseDescriptor.getRoleManager().isExistingRole(role);
+
+        if (!roleExists)
         {
             checkTrue(ifExists, "Role %s doesn't exist", role.getRoleName());
         }
@@ -124,6 +128,12 @@ public class AlterRoleStatement extends AuthenticationStatement
 
     public ResultMessage execute(ClientState state) throws RequestValidationException, RequestExecutionException
     {
+        if (roleExists == null)
+            roleExists = DatabaseDescriptor.getRoleManager().isExistingRole(role);
+
+        if (ifExists && !roleExists)
+            return null;
+
         if (opts.isGeneratedPassword())
         {
             String generatedPassword = Guardrails.password.generate();

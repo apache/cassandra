@@ -48,6 +48,7 @@ public class CreateRoleStatement extends AuthenticationStatement
     final DCPermissions dcPermissions;
     final CIDRPermissions cidrPermissions;
     private final boolean ifNotExists;
+    private Boolean roleExists;
 
     public CreateRoleStatement(RoleName name, RoleOptions options, DCPermissions dcPermissions,
                                CIDRPermissions cidrPermissions, boolean ifNotExists)
@@ -89,14 +90,19 @@ public class CreateRoleStatement extends AuthenticationStatement
         // validate login here before authorize to avoid leaking role existence to anonymous users.
         state.ensureNotAnonymous();
 
-        if (!ifNotExists && DatabaseDescriptor.getRoleManager().isExistingRole(role))
+        roleExists = DatabaseDescriptor.getRoleManager().isExistingRole(role);
+
+        if (!ifNotExists && roleExists)
             throw new InvalidRequestException(String.format("%s already exists", role.getRoleName()));
     }
 
     public ResultMessage execute(ClientState state) throws RequestExecutionException, RequestValidationException
     {
+        if (roleExists == null)
+            roleExists = DatabaseDescriptor.getRoleManager().isExistingRole(role);
+
         // not rejected in validate()
-        if (ifNotExists && DatabaseDescriptor.getRoleManager().isExistingRole(role))
+        if (ifNotExists && roleExists)
             return null;
 
         if (opts.isGeneratedPassword())
