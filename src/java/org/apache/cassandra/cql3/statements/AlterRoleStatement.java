@@ -124,6 +124,9 @@ public class AlterRoleStatement extends AuthenticationStatement
 
     public ResultMessage execute(ClientState state) throws RequestValidationException, RequestExecutionException
     {
+        if (ifExists && !DatabaseDescriptor.getRoleManager().isExistingRole(role))
+            return null;
+
         if (opts.isGeneratedPassword())
         {
             String generatedPassword = Guardrails.password.generate();
