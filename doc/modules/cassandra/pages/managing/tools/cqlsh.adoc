@@ -7,6 +7,8 @@ executable.
 
 == Compatibility
 
+`cqlsh` is compatible with Python 3.6 and later.
+
 In general, a given version of `cqlsh` is only guaranteed to work with the
 version of Cassandra that it was released with.
 In some cases, `cqlsh` may work with older or newer versions of Cassandra, but this is not
@@ -591,3 +593,4 @@ cqlsh> SELECT data from test.complex_data; data
 ------------------
  {1: 'I''m fine'}
 ----
+
