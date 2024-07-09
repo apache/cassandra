@@ -409,7 +409,7 @@ public interface InterceptorOfGlobalMethods extends InterceptorOfSystemMethods, 
 
         public static Semaphore newFairSemaphore(int count)
         {
-            return methods.newSemaphore(count);
+            return methods.newFairSemaphore(count);
         }
 
         public static Condition newOneTimeCondition()
