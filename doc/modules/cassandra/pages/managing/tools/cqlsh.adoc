@@ -7,7 +7,7 @@ executable.
 
 == Compatibility
 
-`cqlsh` is compatible with Python 3.6 and later.
+`cqlsh` is compatible with Python 3.
 
 In general, a given version of `cqlsh` is only guaranteed to work with the
 version of Cassandra that it was released with.
