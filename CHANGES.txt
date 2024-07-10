@@ -1,4 +1,5 @@
 4.1.6
+ * Add native transport deadline, an ultimate deadline for all tasks related to a specific request (CASSANDRA-19534)
  * Do not create a role if ALTER ROLE IF EXISTS operates on non-existing role (CASSANDRA-19749)
  * Use OpOrder in repairIterator to ensure we don't lose memtables mid-paxos repair (Cassandra-19668)
  * Refresh stale paxos commit (CASSANDRA-19617)
