@@ -94,6 +94,7 @@ Merged from 5.0:
  * Fix resource cleanup after SAI query timeouts (CASSANDRA-19177)
  * Suppress CVE-2023-6481 (CASSANDRA-19184)
 Merged from 4.1:
+ * Add native transport deadline, an ultimate deadline for all tasks related to a specific request (CASSANDRA-19534)
  * Do not create a role if ALTER ROLE IF EXISTS operates on non-existing role (CASSANDRA-19749)
  * Use OpOrder in repairIterator to ensure we don't lose memtables mid-paxos repair (Cassandra-19668)
  * Refresh stale paxos commit (CASSANDRA-19617)
