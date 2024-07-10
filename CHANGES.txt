@@ -107,6 +107,7 @@ Merged from 4.1:
  * Fix StackOverflowError on ALTER after many previous schema changes (CASSANDRA-19166)
  * Memoize Cassandra verion (CASSANDRA-18902)
 Merged from 4.0:
+ * Fix schema.cql created by a snapshot after dropping more than one column (CASSANDRA-19747)
  * UnsupportedOperationException when reducing scope for LCS compactions (CASSANDRA-19704)
  * Make LWT conditions behavior on frozen and non-frozen columns consistent for null column values (CASSANDRA-19637)
  * Bring Redhat package dirs/ownership/perms in line with Debian package (CASSANDRA-19565)
