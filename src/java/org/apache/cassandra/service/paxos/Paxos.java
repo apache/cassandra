@@ -889,6 +889,7 @@ public class Paxos
     private static PartitionIterator read(SinglePartitionReadCommand.Group group, ConsistencyLevel consistencyForConsensus, Dispatcher.RequestTime requestTime, long deadline)
             throws InvalidRequestException, UnavailableException, ReadFailureException, ReadTimeoutException
     {
+        long start = nanoTime();
         if (group.queries.size() > 1)
             throw new InvalidRequestException("SERIAL/LOCAL_SERIAL consistency may only be requested for one partition at a time");
 
@@ -955,9 +956,11 @@ public class Paxos
         }
         finally
         {
-            // We track latency based on request processing time, since the amount of time that request spends in the queue
-            // is not a representative metric of replica performance.
-            long latency = nanoTime() - requestTime.startedAtNanos();
+            // We don't base latency tracking on the startedAtNanos of the RequestTime because queries which involve
+            // internal paging may be composed of multiple distinct reads, whereas RequestTime relates to the single
+            // client request. This is a measure of how long this specific individual read took, not total time since
+            // processing of the client began.
+            long latency = nanoTime() - start;
             readMetrics.addNano(latency);
             casReadMetrics.addNano(latency);
             readMetricsMap.get(consistencyForConsensus).addNano(latency);
