@@ -2200,6 +2200,10 @@ drop_compact_storage_enabled: false
 #  # numerical (form '34567'), or US qwerty (form 'asdfg') as well as sequencies from supported character sets.
 #  # The minimum value for this property is 3, by default it is set to 5.
 #  illegal_sequence_length: 5
+#  # Dictionary to check the passwords against. Defaults to no dictionary.
+#  # Whole dictionary is cached into memory. Use with caution with relatively big dictionaries.
+#  # Entries in a dictionary, one per line, have to be sorted per String's compareTo contract.
+#  #dictionary: /path/to/dictionary/file
 #  # If set to true, a user will be informed what policies a suggested password is missing in order to be valid.
 #  # Defaults to true.
 #  detailed_messages: true

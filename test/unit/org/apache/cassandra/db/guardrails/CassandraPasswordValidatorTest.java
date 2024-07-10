@@ -27,14 +27,17 @@ import org.junit.Test;
 
 import org.apache.cassandra.db.guardrails.ValueValidator.ValidationViolation;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.util.File;
 import org.passay.IllegalSequenceRule;
 
 import static java.lang.Boolean.FALSE;
 import static java.lang.Boolean.TRUE;
 import static java.lang.String.format;
+import static org.apache.cassandra.db.guardrails.CassandraPasswordConfiguration.CHARACTERISTIC_FAIL_KEY;
+import static org.apache.cassandra.db.guardrails.CassandraPasswordConfiguration.CHARACTERISTIC_WARN_KEY;
 import static org.apache.cassandra.db.guardrails.CassandraPasswordConfiguration.DEFAULT_CHARACTERISTIC_FAIL;
-import static org.apache.cassandra.db.guardrails.CassandraPasswordConfiguration.DEFAULT_ILLEGAL_SEQUENCE_LENGTH;
 import static org.apache.cassandra.db.guardrails.CassandraPasswordConfiguration.DEFAULT_CHARACTERISTIC_WARN;
+import static org.apache.cassandra.db.guardrails.CassandraPasswordConfiguration.DEFAULT_ILLEGAL_SEQUENCE_LENGTH;
 import static org.apache.cassandra.db.guardrails.CassandraPasswordConfiguration.DEFAULT_LENGTH_FAIL;
 import static org.apache.cassandra.db.guardrails.CassandraPasswordConfiguration.DEFAULT_LENGTH_WARN;
 import static org.apache.cassandra.db.guardrails.CassandraPasswordConfiguration.DEFAULT_LOWER_CASE_FAIL;
@@ -43,17 +46,16 @@ import static org.apache.cassandra.db.guardrails.CassandraPasswordConfiguration.
 import static org.apache.cassandra.db.guardrails.CassandraPasswordConfiguration.DEFAULT_SPECIAL_WARN;
 import static org.apache.cassandra.db.guardrails.CassandraPasswordConfiguration.DEFAULT_UPPER_CASE_FAIL;
 import static org.apache.cassandra.db.guardrails.CassandraPasswordConfiguration.DEFAULT_UPPER_CASE_WARN;
-import static org.apache.cassandra.db.guardrails.CassandraPasswordConfiguration.ILLEGAL_SEQUENCE_LENGTH_KEY;
-import static org.apache.cassandra.db.guardrails.CassandraPasswordConfiguration.MAX_CHARACTERISTICS;
-import static org.apache.cassandra.db.guardrails.CassandraPasswordConfiguration.MAX_LENGTH_KEY;
-import static org.apache.cassandra.db.guardrails.CassandraPasswordConfiguration.CHARACTERISTIC_FAIL_KEY;
-import static org.apache.cassandra.db.guardrails.CassandraPasswordConfiguration.CHARACTERISTIC_WARN_KEY;
+import static org.apache.cassandra.db.guardrails.CassandraPasswordConfiguration.DICTIONARY_KEY;
 import static org.apache.cassandra.db.guardrails.CassandraPasswordConfiguration.DIGIT_FAIL_KEY;
 import static org.apache.cassandra.db.guardrails.CassandraPasswordConfiguration.DIGIT_WARN_KEY;
+import static org.apache.cassandra.db.guardrails.CassandraPasswordConfiguration.ILLEGAL_SEQUENCE_LENGTH_KEY;
 import static org.apache.cassandra.db.guardrails.CassandraPasswordConfiguration.LENGTH_FAIL_KEY;
 import static org.apache.cassandra.db.guardrails.CassandraPasswordConfiguration.LENGTH_WARN_KEY;
 import static org.apache.cassandra.db.guardrails.CassandraPasswordConfiguration.LOWER_CASE_FAIL_KEY;
 import static org.apache.cassandra.db.guardrails.CassandraPasswordConfiguration.LOWER_CASE_WARN_KEY;
+import static org.apache.cassandra.db.guardrails.CassandraPasswordConfiguration.MAX_CHARACTERISTICS;
+import static org.apache.cassandra.db.guardrails.CassandraPasswordConfiguration.MAX_LENGTH_KEY;
 import static org.apache.cassandra.db.guardrails.CassandraPasswordConfiguration.SPECIAL_FAIL_KEY;
 import static org.apache.cassandra.db.guardrails.CassandraPasswordConfiguration.SPECIAL_WARN_KEY;
 import static org.apache.cassandra.db.guardrails.CassandraPasswordConfiguration.UPPER_CASE_FAIL_KEY;
@@ -307,6 +309,40 @@ public class CassandraPasswordValidatorTest
             // so we started to satisfy 4 out of 4 characteristics which does not emit any warning
             assertFalse(validator.shouldWarn("A$Efg1#a..6r", (boolean) entry[2]).isPresent());
         }
+    }
+
+    @Test
+    public void testDictionary()
+    {
+        CustomGuardrailConfig config = new CustomGuardrailConfig()
+        {{
+            put(DICTIONARY_KEY, new File("test/resources/passwordDictionary.txt").absolutePath());
+        }};
+        CassandraPasswordValidator validator = new CassandraPasswordValidator(config);
+
+        Optional<ValidationViolation> maybeViolation = validator.shouldFail("thisIsSOmePasswOrdInADictionary",
+                                                                            false);
+        assertTrue(maybeViolation.isPresent());
+        assertEquals("[ILLEGAL_WORD]", maybeViolation.get().redactedMessage);
+
+        validator = new CassandraPasswordValidator(new CustomGuardrailConfig());
+        maybeViolation = validator.shouldFail("thisIsSOmePasswOrdInADictionary", false);
+        assertTrue(maybeViolation.isPresent());
+        assertEquals("[INSUFFICIENT_DIGIT, INSUFFICIENT_CHARACTERISTICS, INSUFFICIENT_SPECIAL]",
+                     maybeViolation.get().redactedMessage);
+    }
+
+    @Test
+    public void testMissingDictionary()
+    {
+        CustomGuardrailConfig config = new CustomGuardrailConfig()
+        {{
+            put(DICTIONARY_KEY, new File("this/file/does/not/exist").absolutePath());
+        }};
+
+        assertThatThrownBy(() -> new CassandraPasswordValidator(config))
+        .isInstanceOf(ConfigurationException.class)
+        .hasMessageContaining("does not exist");
     }
 
     private void validateWithConfig(Supplier<Map<String, Object>> configSupplier, String expectedMessage)

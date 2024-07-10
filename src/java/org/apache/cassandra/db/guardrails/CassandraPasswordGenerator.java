@@ -59,11 +59,16 @@ public class CassandraPasswordGenerator extends ValueGenerator<String>
         if (size > configuration.maxLength)
             throw new ConfigurationException("Unable to generate a password of length " + size);
 
+        boolean dictionaryAware = validator instanceof PasswordDictionaryAware;
+
         for (int i = 0; i < maxPasswordGenerationAttempts; i++)
         {
             String generatedPassword = passwordGenerator.generatePassword(size, characterRules);
             if (validator.shouldWarn(generatedPassword, false).isEmpty())
-                return generatedPassword;
+            {
+                if (!dictionaryAware || ((PasswordDictionaryAware<?>) validator).foundInDictionary(generatedPassword).isValid())
+                    return generatedPassword;
+            }
         }
 
         throw new ConfigurationException("It was not possible to generate a valid password " +
