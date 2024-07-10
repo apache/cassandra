@@ -1,4 +1,5 @@
 5.1
+ * Support dictionary lookup for CassandraPasswordValidator (CASSANDRA-19762)
  * Disallow denylisting keys in system_cluster_metadata (CASSANDRA-19713)
  * Fix gossip status after replacement (CASSANDRA-19712)
  * Ignore repair requests for system_cluster_metadata (CASSANDRA-19711)
