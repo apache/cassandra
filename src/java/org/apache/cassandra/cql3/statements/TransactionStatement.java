@@ -100,6 +100,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
     public static final String INCOMPLETE_PRIMARY_KEY_SELECT_MESSAGE = "SELECT must specify either all primary key elements or all partition key elements and LIMIT 1. In both cases partition key elements must be always specified with equality operators; %s %s";
     public static final String NO_CONDITIONS_IN_UPDATES_MESSAGE = "Updates within transactions may not specify their own conditions; %s statement %s";
     public static final String NO_TIMESTAMPS_IN_UPDATES_MESSAGE = "Updates within transactions may not specify custom timestamps; %s statement %s";
+    public static final String TRANSACTIONS_DISABLED_ON_TABLE_MESSAGE = "Accord transactions are disabled on a table (See transactional_mode in table option); %s statement %s";
     public static final String NO_COUNTERS_IN_TXNS_MESSAGE = "Counter columns cannot be accessed within a transaction; %s statement %s";
     public static final String EMPTY_TRANSACTION_MESSAGE = "Transaction contains no reads or writes";
     public static final String SELECT_REFS_NEED_COLUMN_MESSAGE = "SELECT references must specify a column.";
@@ -521,6 +522,8 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
 
                 SelectStatement prepared = select.prepare(bindVariables);
 
+                if (!prepared.table.isAccordEnabled())
+                    throw invalidRequest(TRANSACTIONS_DISABLED_ON_TABLE_MESSAGE, "SELECT", prepared.source);
                 if (prepared.table.isCounter())
                     throw invalidRequest(NO_COUNTERS_IN_TXNS_MESSAGE, "SELECT", prepared.source);
 
@@ -539,6 +542,8 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
             {
                 SelectStatement prepared = select.prepare(bindVariables);
 
+                if (!prepared.table.isAccordEnabled())
+                    throw invalidRequest(TRANSACTIONS_DISABLED_ON_TABLE_MESSAGE, "SELECT", prepared.source);
                 if (prepared.table.isCounter())
                     throw invalidRequest(NO_COUNTERS_IN_TXNS_MESSAGE, "SELECT", prepared.source);
 
@@ -564,6 +569,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
                 ModificationStatement.Parsed parsed = updates.get(i);
 
                 ModificationStatement prepared = parsed.prepare(state, bindVariables);
+                checkTrue(prepared.metadata().isAccordEnabled(), TRANSACTIONS_DISABLED_ON_TABLE_MESSAGE, prepared.type, prepared.source);
                 checkFalse(prepared.hasConditions(), NO_CONDITIONS_IN_UPDATES_MESSAGE, prepared.type, prepared.source);
                 checkFalse(prepared.isTimestampSet(), NO_TIMESTAMPS_IN_UPDATES_MESSAGE, prepared.type, prepared.source);
 
