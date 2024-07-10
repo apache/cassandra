@@ -80,6 +80,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.config.Config$RepairCommandPoolFullStrategy",
     "org.apache.cassandra.config.Config$UserFunctionTimeoutPolicy",
     "org.apache.cassandra.config.Config$CorruptedTombstoneStrategy",
+    "org.apache.cassandra.config.Config$BatchlogEndpointStrategy",
     "org.apache.cassandra.config.DatabaseDescriptor$ByteUnit",
     "org.apache.cassandra.config.ParameterizedClass",
     "org.apache.cassandra.config.EncryptionOptions",

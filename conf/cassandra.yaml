@@ -103,6 +103,32 @@ max_hints_file_size_in_mb: 128
 # reduced proportionally to the number of nodes in the cluster.
 batchlog_replay_throttle_in_kb: 1024
 
+# Strategy to choose the batchlog storage endpoints.
+#
+# Available options:
+#
+# - random_remote
+#   Default, purely random, prevents the local rack, if possible.
+#
+# - prefer_local
+#   Similar to random_remote. Random, except that one of the replications will go to the local rack,
+#   which mean it offers lower availability guarantee than random_remote or dynamic_remote.
+#
+# - dynamic_remote
+#   Using DynamicEndpointSnitch to select batchlog storage endpoints, prevents the
+#   local rack, if possible. This strategy offers the same availability guarantees
+#   as random_remote but selects the fastest endpoints according to the DynamicEndpointSnitch.
+#   (DynamicEndpointSnitch currently only tracks reads and not writes - i.e. write-only
+#   (or mostly-write) workloads might not benefit from this strategy.)
+#   Note: this strategy will fall back to random_remote, if dynamic_snitch is not enabled.
+#
+# - dynamic
+#   Mostly the same as dynamic_remote, except that local rack is not excluded, which mean it offers lower
+#   availability guarantee than random_remote or dynamic_remote.
+#   Note: this strategy will fall back to random_remote, if dynamic_snitch is not enabled.
+#
+# batchlog_endpoint_strategy: random_remote
+
 # Authentication backend, implementing IAuthenticator; used to identify users
 # Out of the box, Cassandra provides org.apache.cassandra.auth.{AllowAllAuthenticator,
 # PasswordAuthenticator}.
