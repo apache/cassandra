@@ -166,24 +166,8 @@ public class UpdateParameters
         // General column value size
         Guardrails.columnValueSize.guard(value.remaining(), column.name.toString(), false, clientState);
 
-        if (column.type.asCQL3Type() == CQL3Type.Native.ASCII) // Ascii size specific guardrail
-        {
-            Guardrails.columnAsciiValueSize.guard(value.remaining(), column.name.toString(), false, clientState);
-        }
-        else
-        {
-            if (column.type.asCQL3Type() == CQL3Type.Native.BLOB) // Blob size specific guardrail
-            {
-                Guardrails.columnBlobValueSize.guard(value.remaining(), column.name.toString(), false, clientState);
-            }
-            else
-            {
-                if (column.type.asCQL3Type() == CQL3Type.Native.TEXT) // text and varchar size specific guardrails
-                {
-                    Guardrails.columnTextAndVarcharValueSize.guard(value.remaining(), column.name.toString(), false, clientState);
-                }
-            }
-        }
+        // Check specific sizes per column type
+        validateColumnSize(column, value);
 
         if (path != null && column.type.isMultiCell())
             Guardrails.columnValueSize.guard(path.dataSize(), column.name.toString(), false, clientState);
@@ -193,6 +177,23 @@ public class UpdateParameters
                        : BufferCell.expiring(column, timestamp, ttl, nowInSec, value, path);
         builder.addCell(cell);
         return cell;
+    }
+
+    private void validateColumnSize(ColumnMetadata column, ByteBuffer value)
+    {
+        CQL3Type cql3Type = column.type.asCQL3Type();
+        if (cql3Type.equals(CQL3Type.Native.ASCII)) // Ascii size specific guardrail
+        {
+            Guardrails.columnAsciiValueSize.guard(value.remaining(), column.name.toString(), false, clientState);
+        }
+        else if (cql3Type.equals(CQL3Type.Native.BLOB)) // Blob size specific guardrail
+        {
+            Guardrails.columnBlobValueSize.guard(value.remaining(), column.name.toString(), false, clientState);
+        }
+        else if (cql3Type.equals(CQL3Type.Native.TEXT)) // text and varchar size specific guardrails
+        {
+            Guardrails.columnTextAndVarcharValueSize.guard(value.remaining(), column.name.toString(), false, clientState);
+        }
     }
 
     public void addCounter(ColumnMetadata column, long increment) throws InvalidRequestException
