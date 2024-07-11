@@ -141,6 +141,9 @@ public final class JVMStabilityInspector
         if (t instanceof InterruptedException)
             throw new UncheckedInterruptedException((InterruptedException) t);
 
+        if (t instanceof UncheckedInterruptedException)
+            throw (UncheckedInterruptedException)t;
+
         if (DatabaseDescriptor.getDiskFailurePolicy() == Config.DiskFailurePolicy.die)
             if (t instanceof FSError || t instanceof CorruptSSTableException)
                 isUnstable = true;
