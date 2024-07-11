@@ -600,9 +600,10 @@ public abstract class ModificationStatement implements CQLStatement
         SinglePartitionReadCommand readCommand = request.readCommand(FBUtilities.nowInSeconds());
         FilteredPartition current;
         try (ReadExecutionController executionController = readCommand.executionController();
-             PartitionIterator iter = readCommand.executeInternal(executionController))
+             RowIterator rowIterator = PartitionIterators.getOnlyElement(readCommand.executeInternal(executionController), readCommand))
         {
-            current = FilteredPartition.create(PartitionIterators.getOnlyElement(iter, readCommand));
+            // FilteredPartition consumes the row but does not close the iterator
+            current = FilteredPartition.create(rowIterator);
         }
 
         if (!request.appliesTo(current))
