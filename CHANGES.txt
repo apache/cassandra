@@ -1,4 +1,5 @@
 5.1
+ * Allow threads waiting for the metadata log follower to be interrupted (CASSANDRA-19761)
  * Support dictionary lookup for CassandraPasswordValidator (CASSANDRA-19762)
  * Disallow denylisting keys in system_cluster_metadata (CASSANDRA-19713)
  * Fix gossip status after replacement (CASSANDRA-19712)
