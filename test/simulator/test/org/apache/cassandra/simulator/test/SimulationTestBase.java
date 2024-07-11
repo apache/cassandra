@@ -217,9 +217,15 @@ public class SimulationTestBase
     public static void simulate(IIsolatedExecutor.SerializableRunnable[] runnables,
                                 IIsolatedExecutor.SerializableRunnable check)
     {
+        simulate(runnables, check, System.currentTimeMillis());
+    }
+
+    public static void simulate(IIsolatedExecutor.SerializableRunnable[] runnables,
+                                IIsolatedExecutor.SerializableRunnable check,
+                                long seed)
+    {
         Failures failures = new HarrySimulatorTest.HaltOnError();
         RandomSource random = new RandomSource.Default();
-        long seed = System.currentTimeMillis();
         System.out.println("Using seed: " + seed);
         random.reset(seed);
         SimulatedTime time = new SimulatedTime(1, random, 1577836800000L /*Jan 1st UTC*/, new LongRange(1, 100, MILLISECONDS, NANOSECONDS),

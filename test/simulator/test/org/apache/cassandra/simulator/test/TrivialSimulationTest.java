@@ -19,8 +19,10 @@
 package org.apache.cassandra.simulator.test;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.IdentityHashMap;
+import java.util.List;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -33,6 +35,7 @@ import org.apache.cassandra.simulator.Debug;
 import org.apache.cassandra.simulator.cluster.ClusterActionListener.NoOpListener;
 import org.apache.cassandra.simulator.cluster.ClusterActions;
 import org.apache.cassandra.simulator.cluster.ClusterActions.Options;
+import org.apache.cassandra.utils.Shared;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import org.apache.cassandra.utils.concurrent.Semaphore;
 
@@ -41,6 +44,13 @@ import static org.apache.cassandra.simulator.cluster.ClusterActions.Options.noAc
 
 public class TrivialSimulationTest extends SimulationTestBase
 {
+    @Test
+    public void identityHashMapTest()
+    {
+        simulate(arr(() -> new IdentityHashMap<>().put(1, 1)),
+                 () -> {});
+    }
+
     @Test
     public void trivialTest() throws IOException // for demonstration/experiment purposes
     {
@@ -89,6 +99,15 @@ public class TrivialSimulationTest extends SimulationTestBase
     @Test
     public void semaphoreTest()
     {
+        long seed = System.currentTimeMillis();
+        semaphoreTestInternal(seed);
+        State.record = false;
+        // Verify that subsequent interleavings will be the same
+        semaphoreTestInternal(seed);
+    }
+
+    protected void semaphoreTestInternal(long seed)
+    {
         simulate(arr(() -> {
                      ExecutorPlus executor = ExecutorFactory.Global.executorFactory().pooled("semaphore-test-", 10);
                      Semaphore semaphore = Semaphore.newSemaphore(5);
@@ -96,6 +115,7 @@ public class TrivialSimulationTest extends SimulationTestBase
 
                      for (int i = 0; i < 5; i++)
                      {
+                         int thread = i;
                          executor.submit(() -> {
                              for (int j = 0; j < 100; j++)
                              {
@@ -105,6 +125,7 @@ public class TrivialSimulationTest extends SimulationTestBase
                                  try
                                  {
                                      semaphore.acquire(1);
+                                     State.tick(thread, j);
                                      semaphore.release(1);
                                  }
                                  catch (Throwable e)
@@ -120,13 +141,53 @@ public class TrivialSimulationTest extends SimulationTestBase
                      int permits = semaphore.permits();
                      Assert.assertEquals(5, permits);
                  }),
-                 () -> {});
+                 () -> {},
+                 seed);
     }
 
-    @Test
-    public void identityHashMapTest()
+    @Shared
+    public static class State
     {
-        simulate(arr(() -> new IdentityHashMap<>().put(1, 1)),
-                 () -> {});
+        static final List<Tick> ticks = new ArrayList<>();
+        static boolean record = true;
+        static int i = 0;
+
+        public static void tick(int thread, int iteration)
+        {
+            if (record)
+            {
+                Tick tick = new Tick(thread, iteration);
+                ticks.add(tick);
+            }
+            else
+            {
+                Tick tick = ticks.get(i);
+                Assert.assertEquals(tick.thread, thread);
+                Assert.assertEquals(tick.iteration, iteration);
+                i++;
+            }
+        }
+    }
+
+    @Shared
+    public static class Tick
+    {
+        final int thread;
+        final int iteration;
+
+        public Tick(int thread, int iteration)
+        {
+            this.thread = thread;
+            this.iteration = iteration;
+        }
+
+        @Override
+        public String toString()
+        {
+            return "Tick{" +
+                   "thread=" + thread +
+                   ", iteration=" + iteration +
+                   '}';
+        }
     }
 }

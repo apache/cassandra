@@ -22,11 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.Checksum;
-import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.jimfs.Jimfs;
@@ -36,8 +32,6 @@ import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.config.AccordSpec;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.distributed.test.log.CMSTestBase;
-import org.apache.cassandra.harry.sut.TokenPlacementModel;
 import org.apache.cassandra.io.filesystem.ListenableFileSystem;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -45,7 +39,6 @@ import org.apache.cassandra.journal.AsyncCallbacks;
 import org.apache.cassandra.journal.Journal;
 import org.apache.cassandra.journal.KeySupport;
 import org.apache.cassandra.journal.ValueSerializer;
-import org.apache.cassandra.schema.*;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -58,16 +51,13 @@ import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.tcm.AtomicLongBackedProcessor;
-import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.Isolated;
-import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
 
 public class AccordJournalSimulationTest extends SimulationTestBase
 {
     @Test
-    public void simpleRWTest() throws IOException
+    public void simpleRWTest()
     {
         simulate(arr(() -> {
                     ListenableFileSystem fs = new ListenableFileSystem(Jimfs.newFileSystem());
@@ -122,7 +112,6 @@ public class AccordJournalSimulationTest extends SimulationTestBase
         finally
         {
             State.journal.shutdown();
-            State.cms.close();
 
             if (!State.thrown.isEmpty())
             {
@@ -269,124 +258,9 @@ public class AccordJournalSimulationTest extends SimulationTestBase
     public static class State
     {
         private static final Logger logger = LoggerFactory.getLogger(State.class);
-        static CMSTestBase.CMSSut cms = new CMSTestBase.CMSSut(AtomicLongBackedProcessor::new,
-                                                               false,
-                                                               new FakeSchema(),
-                                                               new TokenPlacementModel.SimpleReplicationFactor(1));
         static Journal<String, String> journal;
         static CountDownLatch latch = CountDownLatch.newCountDownLatch(100);
         static List<Throwable> thrown = new ArrayList<>();
         static ExecutorPlus executor = ExecutorFactory.Global.executorFactory().pooled("name", 10);
-    }
-
-    @Isolated
-    public static class FakeSchema implements SchemaProvider
-    {
-
-        @Override
-        public Set<String> getKeyspaces()
-        {
-            return Set.of();
-        }
-
-        @Override
-        public int getNumberOfTables()
-        {
-            return 0;
-        }
-
-        @Override
-        public ClusterMetadata submit(SchemaTransformation transformation)
-        {
-            return null;
-        }
-
-        @Override
-        public Keyspaces localKeyspaces()
-        {
-            return null;
-        }
-
-        @Override
-        public Keyspaces distributedKeyspaces()
-        {
-            return null;
-        }
-
-        @Override
-        public Keyspaces distributedAndLocalKeyspaces()
-        {
-            return null;
-        }
-
-        @Override
-        public Keyspaces getUserKeyspaces()
-        {
-            return null;
-        }
-
-        @Override
-        public void registerListener(SchemaChangeListener listener)
-        {
-
-        }
-
-        @Override
-        public void unregisterListener(SchemaChangeListener listener)
-        {
-
-        }
-
-        @Override
-        public SchemaChangeNotifier schemaChangeNotifier()
-        {
-            return null;
-        }
-
-        @Override
-        public Optional<TableMetadata> getIndexMetadata(String keyspace, String index)
-        {
-            return Optional.empty();
-        }
-
-        @Override
-        public Iterable<TableMetadata> getTablesAndViews(String keyspaceName)
-        {
-            return null;
-        }
-
-        @Nullable
-        @Override
-        public Keyspace getKeyspaceInstance(String keyspaceName)
-        {
-            return null;
-        }
-
-        @Nullable
-        @Override
-        public KeyspaceMetadata getKeyspaceMetadata(String keyspaceName)
-        {
-            return null;
-        }
-
-        @Nullable
-        @Override
-        public TableMetadata getTableMetadata(TableId id)
-        {
-            return null;
-        }
-
-        @Nullable
-        @Override
-        public TableMetadata getTableMetadata(String keyspace, String table)
-        {
-            return null;
-        }
-
-        @Override
-        public void saveSystemKeyspace()
-        {
-
-        }
     }
 }
