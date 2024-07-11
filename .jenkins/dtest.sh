@@ -142,6 +142,12 @@ export CASSANDRA_DIR
 # use java 11
 export CASSANDRA_USE_JDK11=true
 
+# generic-udj is migrated to Debian 12, which is using Java 17 by default. We want to switch to Java 11
+JAVA_HOME="$(readlink -f $HOME/java_home/jdk_11)"
+export JAVA_HOME
+export PATH="$JAVA_HOME/bin:$PATH"
+java --version
+
 JAVA_HOME=$(dirname $(dirname $(readlink -f $(which javac))))
 export JAVA_HOME
 
@@ -177,7 +183,7 @@ fi
 python3 --version
 # Set up venv with dtest dependencies
 set -e # enable immediate exit if venv setup fails
-virtualenv --python=python3 --no-site-packages ~/dtest
+virtualenv --python=python3 ~/dtest
 # shellcheck disable=SC1091
 source ~/dtest/bin/activate
 #pip install --upgrade setuptools

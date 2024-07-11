@@ -36,6 +36,12 @@ export -n ANT_TARGET TEST_NAME TEST_METHODS
 # use java 11
 export CASSANDRA_USE_JDK11=true
 
+# generic-udj is migrated to Debian 12, which is using Java 17 by default. We want to switch to Java 11
+JAVA_HOME="$(readlink -f $HOME/java_home/jdk_11)"
+export JAVA_HOME
+export PATH="$JAVA_HOME/bin:$PATH"
+java --version
+
 
 # download ant 1.10
 wget http://artifactory.uber.internal:4587/artifactory/libs-release-local/org/apache/ant/apache-ant-1.10.12-bin.tar.gz

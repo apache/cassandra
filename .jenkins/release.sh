@@ -36,6 +36,12 @@ export PATH="$ANT_HOME/bin:$JAVA_HOME/bin:$PATH"
 # use java 11
 export CASSANDRA_USE_JDK11=true
 
+# generic-udj is migrated to Debian 12, which is using Java 17 by default. We want to switch to Java 11
+JAVA_HOME="$(readlink -f $HOME/java_home/jdk_11)"
+export JAVA_HOME
+export PATH="$JAVA_HOME/bin:$PATH"
+java --version
+
 ant realclean
 ant build
 
