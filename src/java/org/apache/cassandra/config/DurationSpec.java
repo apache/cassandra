@@ -139,7 +139,7 @@ public abstract class DurationSpec
      * @param symbol the time unit symbol
      * @return the time unit associated to the specified symbol
      */
-    static TimeUnit fromSymbol(String symbol)
+    public static TimeUnit fromSymbol(String symbol)
     {
         switch (symbol.toLowerCase())
         {

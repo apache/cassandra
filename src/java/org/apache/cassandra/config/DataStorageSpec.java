@@ -627,6 +627,11 @@ public abstract class DataStorageSpec
             this.symbol = symbol;
         }
 
+        public String getSymbol()
+        {
+            return symbol;
+        }
+
         public long toBytes(long d)
         {
             throw new AbstractMethodError();
