@@ -67,10 +67,14 @@ public class InterceptingSemaphore extends Semaphore.Standard
         if (ifIntercepted() == null)
             return super.drain();
 
-        int current = permits.get();
-        boolean res = permits.compareAndSet(current, 0);
-        assert res;
-        return current;
+        for (int i = 0; i < 10; i++)
+        {
+            int current = permits.get();
+            if (permits.compareAndSet(current, 0))
+                return current;
+        }
+
+        throw new IllegalStateException("Too much contention");
     }
 
     @Override
@@ -113,7 +117,6 @@ public class InterceptingSemaphore extends Semaphore.Standard
                 return false;
             }
         }
-
         throw new IllegalStateException("Too much contention");
     }
 
@@ -140,6 +143,9 @@ public class InterceptingSemaphore extends Semaphore.Standard
                 if (permits.compareAndSet(current, current - acquire))
                     return true;
             }
+            SemaphoreSignal signal = new SemaphoreSignal(acquire);
+            interceptible.add(signal);
+            signal.awaitUntil(deadline);
         }
         while (Clock.Global.nanoTime() < deadline);
 
