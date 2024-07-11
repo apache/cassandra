@@ -1,4 +1,3 @@
-
 ccm create accord-cql-poc -n 3
 ccm start
 
@@ -10,6 +9,6 @@ BEGIN TRANSACTION
   LET row1 = (SELECT * FROM ks.tbl1 WHERE k = 1);
   SELECT row1.v;
   IF row1 IS NULL THEN
-    INSERT INTO ks.tbl1 (k, v) VALUES (1, 2);
+    INSERT INTO ks.tbl2 (k, v) VALUES (1, 2);
   END IF
 COMMIT TRANSACTION;
