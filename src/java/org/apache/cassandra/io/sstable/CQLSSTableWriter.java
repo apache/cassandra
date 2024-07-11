@@ -764,7 +764,7 @@ public class CQLSSTableWriter implements Closeable
         private void commitKeyspaceMetadata(KeyspaceMetadata keyspaceMetadata)
         {
             SchemaTransformation schemaTransformation = metadata -> metadata.schema.getKeyspaces().withAddedOrUpdated(keyspaceMetadata);
-            ClusterMetadataService.instance().commit(new AlterSchema(schemaTransformation, Schema.instance));
+            ClusterMetadataService.instance().commit(new AlterSchema(schemaTransformation));
         }
 
         /**

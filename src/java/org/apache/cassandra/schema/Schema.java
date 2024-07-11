@@ -289,7 +289,7 @@ public final class Schema implements SchemaProvider
         // result of this execution can be either a complete failure/timeout, or a success, but together with a log of
         // operations that have to be applied before we can do anything
         return ClusterMetadataService.instance()
-                                     .commit(new AlterSchema(transformation, this),
+                                     .commit(new AlterSchema(transformation),
                                              (metadata) -> metadata,
                                              (code, reason) -> {
                                                  switch (code)

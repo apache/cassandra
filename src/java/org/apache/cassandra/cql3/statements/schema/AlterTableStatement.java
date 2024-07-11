@@ -463,7 +463,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
          */
         private long getTimestamp()
         {
-            return timestamp == null ? ClientState.getTimestamp() : timestamp;
+            return timestamp == null ? fixedTimestampMicros().orElseThrow(() -> new IllegalStateException("No execution time set on AlterTableStatement")) : timestamp;
         }
     }
 

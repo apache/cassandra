@@ -28,6 +28,8 @@ import java.util.stream.Stream;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.cql3.statements.schema.AlterSchemaStatement;
 import org.apache.cassandra.exceptions.AlreadyExistsException;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -38,8 +40,6 @@ import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.ReplicationParams;
-import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.schema.SchemaProvider;
 import org.apache.cassandra.schema.SchemaTransformation;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Tables;
@@ -53,7 +53,9 @@ import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.vint.VIntCoding;
 
+import static org.apache.cassandra.cql3.statements.schema.AlterSchemaStatement.NO_EXECUTION_TIMESTAMP;
 import static org.apache.cassandra.exceptions.ExceptionCode.ALREADY_EXISTS;
 import static org.apache.cassandra.exceptions.ExceptionCode.CONFIG_ERROR;
 import static org.apache.cassandra.exceptions.ExceptionCode.INVALID;
@@ -65,14 +67,11 @@ public class AlterSchema implements Transformation
     private static final Logger logger = LoggerFactory.getLogger(AlterSchema.class);
     public static final Serializer serializer = new Serializer();
 
-    public final SchemaTransformation schemaTransformation;
-    protected final SchemaProvider schemaProvider;
+    private final SchemaTransformation schemaTransformation;
 
-    public AlterSchema(SchemaTransformation schemaTransformation,
-                       SchemaProvider schemaProvider)
+    public AlterSchema(SchemaTransformation schemaTransformation)
     {
         this.schemaTransformation = schemaTransformation;
-        this.schemaProvider = schemaProvider;
     }
 
     @Override
@@ -95,7 +94,6 @@ public class AlterSchema implements Transformation
             // log. In this case, there is a connected client and associated ClientState, so to avoid duplicate warnings
             // pause capture and resume after in applying the schema change.
             schemaTransformation.enterExecution();
-
             // Guard against an invalid SchemaTransformation supplying a TableMetadata with a future epoch
             newKeyspaces = schemaTransformation.apply(prev);
             newKeyspaces.forEach(ksm -> {
@@ -253,20 +251,25 @@ public class AlterSchema implements Transformation
         public void serialize(Transformation t, DataOutputPlus out, Version version) throws IOException
         {
             SchemaTransformation.serializer.serialize(((AlterSchema) t).schemaTransformation, out, version);
+            long fixedTimestamp = ((AlterSchema)t).schemaTransformation.fixedTimestampMicros().orElse(NO_EXECUTION_TIMESTAMP);
+            out.writeVInt(fixedTimestamp);
         }
 
         @Override
         public AlterSchema deserialize(DataInputPlus in, Version version) throws IOException
         {
-            return new AlterSchema(SchemaTransformation.serializer.deserialize(in, version),
-                                   Schema.instance);
-
+            SchemaTransformation transformation = SchemaTransformation.serializer.deserialize(in, version);
+            long timestamp = in.readVInt();
+            if (transformation instanceof AlterSchemaStatement)
+                ((AlterSchemaStatement)transformation).setExecutionTimestamp(timestamp);
+            return new AlterSchema(transformation);
         }
 
         @Override
         public long serializedSize(Transformation t, Version version)
         {
-            return SchemaTransformation.serializer.serializedSize(((AlterSchema) t).schemaTransformation, version);
+            return SchemaTransformation.serializer.serializedSize(((AlterSchema) t).schemaTransformation, version)
+                   + VIntCoding.computeVIntSize(((AlterSchema)t).schemaTransformation.fixedTimestampMicros().orElse(NO_EXECUTION_TIMESTAMP));
         }
     }
 

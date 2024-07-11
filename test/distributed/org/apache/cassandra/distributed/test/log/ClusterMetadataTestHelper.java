@@ -52,7 +52,6 @@ import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.ReplicationParams;
-import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaTransformation;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.tcm.AtomicLongBackedProcessor;
@@ -203,7 +202,7 @@ public class ClusterMetadataTestHelper
         CreateKeyspaceStatement createKeyspaceStatement = new CreateKeyspaceStatement(name, attributes, false);
         try
         {
-            commit(new AlterSchema(createKeyspaceStatement, Schema.instance));
+            commit(new AlterSchema(createKeyspaceStatement));
         }
         catch (Throwable e)
         {
@@ -216,7 +215,7 @@ public class ClusterMetadataTestHelper
         CreateKeyspaceStatement createKeyspaceStatement = (CreateKeyspaceStatement) QueryProcessor.parseStatement(statement).prepare(ClientState.forInternalCalls());
         try
         {
-            commit(new AlterSchema(createKeyspaceStatement, Schema.instance));
+            commit(new AlterSchema(createKeyspaceStatement));
         }
         catch (Throwable e)
         {
@@ -829,7 +828,7 @@ public class ClusterMetadataTestHelper
         try
         {
             SchemaTransformation transformation = (cm) -> cm.schema.getKeyspaces().withAddedOrUpdated(keyspace);
-            commit(new AlterSchema(transformation, Schema.instance));
+            commit(new AlterSchema(transformation));
         }
         catch (Exception e)
         {
