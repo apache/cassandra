@@ -23,6 +23,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.concurrent.Semaphore;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
@@ -64,7 +65,7 @@ public class InterceptingSemaphore extends Semaphore.Standard
     public int drain()
     {
         if (ifIntercepted() == null)
-            return super.permits();
+            return super.drain();
 
         int current = permits.get();
         boolean res = permits.compareAndSet(current, 0);
@@ -77,13 +78,11 @@ public class InterceptingSemaphore extends Semaphore.Standard
     {
         if (ifIntercepted() == null)
         {
-            super.release();
+            super.release(release);
             return;
         }
 
-        int current = permits.get();
-        permits.compareAndSet(current, current + release);
-        int remaining = permits.get();
+        int remaining = permits.addAndGet(release);
         while (!interceptible.isEmpty() && remaining > 0)
         {
             SemaphoreSignal signal = interceptible.peek();
@@ -101,47 +100,50 @@ public class InterceptingSemaphore extends Semaphore.Standard
         if (ifIntercepted() == null)
             return super.tryAcquire(acquire);
 
-        int current = permits.get();
-        if (current >= acquire)
+        for (int i = 0; i < 10; i++)
         {
-            return permits.compareAndSet(current, current - acquire);
+            int current = permits.get();
+            if (current >= acquire)
+            {
+                if (permits.compareAndSet(current, current - acquire))
+                    return true;
+            }
+            else
+            {
+                return false;
+            }
         }
-        else
-        {
-            return false;
-        }
+
+        throw new IllegalStateException("Too much contention");
     }
 
     @Override
     public boolean tryAcquire(int acquire, long time, TimeUnit unit) throws InterruptedException
     {
         if (ifIntercepted() == null)
-            return super.tryAcquire(acquire);
+            return super.tryAcquire(acquire, time, unit);
 
-        int current = permits.get();
-        if (current >= acquire)
-            return permits.compareAndSet(current, current - acquire);
-
-        SemaphoreSignal signal = new SemaphoreSignal(acquire);
-        interceptible.add(signal);
-        signal.await(time, unit);
-        return permits.compareAndSet(current, current - acquire);
+        return tryAcquireUntil(acquire, Clock.Global.nanoTime() + unit.toNanos(time));
     }
 
     @Override
-    public boolean tryAcquireUntil(int acquire, long nanoTimeDeadline) throws InterruptedException
+    public boolean tryAcquireUntil(int acquire, long deadline) throws InterruptedException
     {
         if (ifIntercepted() == null)
-            return super.tryAcquireUntil(acquire, nanoTimeDeadline);
+            return super.tryAcquireUntil(acquire, deadline);
 
-        int current = permits.get();
-        if (current >= acquire)
-            return permits.compareAndSet(current, current - acquire);
+        do
+        {
+            int current = permits.get();
+            if (current >= acquire)
+            {
+                if (permits.compareAndSet(current, current - acquire))
+                    return true;
+            }
+        }
+        while (Clock.Global.nanoTime() < deadline);
 
-        SemaphoreSignal signal = new SemaphoreSignal(acquire);
-        interceptible.add(signal);
-        signal.awaitUntil(nanoTimeDeadline);
-        return permits.compareAndSet(current, current - acquire);
+        return false;
     }
 
     @Override
@@ -169,12 +171,11 @@ public class InterceptingSemaphore extends Semaphore.Standard
     {
         try
         {
-            acquire();
+            acquire(acquire);
         }
         catch (InterruptedException e)
         {
             throw new UncheckedInterruptedException(e);
         }
     }
-
 }

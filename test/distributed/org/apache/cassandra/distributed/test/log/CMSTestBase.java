@@ -132,7 +132,7 @@ public class CMSTestBase
             }, schemaProvider));
         }
 
-        public void close() throws Exception
+        public void close()
         {
             ClusterMetadataService.unsetInstance();
         }

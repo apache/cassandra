@@ -19,9 +19,12 @@ package org.apache.cassandra.simulator.test;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.Checksum;
 import javax.annotation.Nullable;
 
@@ -47,6 +50,9 @@ import org.apache.cassandra.schema.*;
 import org.junit.Assert;
 import org.junit.Test;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.db.Keyspace;
@@ -55,6 +61,7 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.tcm.AtomicLongBackedProcessor;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.Isolated;
+import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
 
 public class AccordJournalSimulationTest extends SimulationTestBase
@@ -69,21 +76,13 @@ public class AccordJournalSimulationTest extends SimulationTestBase
                     DatabaseDescriptor.setCommitLogCompression(new ParameterizedClass("LZ4Compressor", ImmutableMap.of())); //
                     DatabaseDescriptor.setCommitLogWriteDiskAccessMode(Config.DiskAccessMode.standard);
                     DatabaseDescriptor.initializeCommitLogDiskAccessMode();
-                    System.out.println("DatabaseDescriptor.getCommitLogWriteDiskAccessMode() = " + DatabaseDescriptor.getCommitLogWriteDiskAccessMode());
-
                     DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
-                    long seed = 1L;
                     DatabaseDescriptor.setAccordJournalDirectory("/journal");
                     new File("/journal").createDirectoriesIfNotExists();
 
                     DatabaseDescriptor.setDumpHeapOnUncaughtException(false);
 
                     Keyspace.setInitialized();
-
-                    CMSTestBase.CMSSut sut = new CMSTestBase.CMSSut(AtomicLongBackedProcessor::new,
-                            false,
-                            new FakeSchema(),
-                            new TokenPlacementModel.SimpleReplicationFactor(1));
 
                     State.journal = new Journal<>("AccordJournal",
                             new File("/journal"),
@@ -100,7 +99,8 @@ public class AccordJournalSimulationTest extends SimulationTestBase
         State.journal.start();
         try
         {
-            for (int i = 0; i < 100; i++)
+            final int count = 100;
+            for (int i = 0; i < count; i++)
             {
                 int finalI = i;
                 State.executor.submit(() -> State.journal.asyncWrite("test" + finalI, "test" + finalI, Collections.singleton(1), null));
@@ -108,19 +108,29 @@ public class AccordJournalSimulationTest extends SimulationTestBase
 
             State.latch.await();
 
-            for (int i = 0; i < 100; i++)
+            for (int i = 0; i < count; i++)
             {
-                System.out.println("Reading " + State.journal.readFirst("test" + i));
+                State.logger.debug("Reading {}", i);
                 Assert.assertEquals(State.journal.readFirst("test" + i), "test" + i);
             }
         }
-        catch (Throwable e)
+
+        catch (InterruptedException e)
         {
-            e.printStackTrace();
+            throw new RuntimeException(e);
         }
         finally
         {
             State.journal.shutdown();
+            State.cms.close();
+
+            if (!State.thrown.isEmpty())
+            {
+                AssertionError throwable = new AssertionError("Caught exceptions");
+                for (Throwable t: State.thrown)
+                    throwable.addSuppressed(t);
+                throw throwable;
+            }
         }
     }
 
@@ -136,6 +146,7 @@ public class AccordJournalSimulationTest extends SimulationTestBase
         @Override
         public void onWriteFailed(String key, String value, Object writeContext, Throwable cause)
         {
+            State.thrown.add(new IllegalStateException("Write failed for " + key));
             State.latch.decrement();
         }
 
@@ -147,14 +158,13 @@ public class AccordJournalSimulationTest extends SimulationTestBase
         @Override
         public void onFlushFailed(Throwable cause)
         {
-            new RuntimeException("Could not flush", cause).printStackTrace();
+            State.thrown.add(new RuntimeException("Could not flush", cause));
         }
     }
 
     @Isolated
     public static class IdentityValueSerializer implements ValueSerializer<String, String>
     {
-
         @Override
         public int serializedSize(String key, String value, int userVersion)
         {
@@ -183,7 +193,7 @@ public class AccordJournalSimulationTest extends SimulationTestBase
     @Isolated
     public static class IdentityKeySerializer implements KeySupport<String>
     {
-
+        private final byte aByte = 0xd;
         @Override
         public int serializedSize(int userVersion)
         {
@@ -201,7 +211,7 @@ public class AccordJournalSimulationTest extends SimulationTestBase
             out.writeBytes(key);
             int remaining = maxSize - key.length();
             for (int i = 0; i < remaining; i++)
-                out.writeByte(0);
+                out.writeByte(aByte + i);
         }
 
         @Override
@@ -215,7 +225,7 @@ public class AccordJournalSimulationTest extends SimulationTestBase
             int maxSize = 16 - TypeSizes.INT_SIZE;
             int remaining = maxSize - size;
             for (int i = 0; i < remaining; i++)
-                in.readByte(); // todo assert 0
+                Assert.assertEquals(aByte + i, in.readByte());
 
             return new String(key);
         }
@@ -231,7 +241,7 @@ public class AccordJournalSimulationTest extends SimulationTestBase
             int maxSize = 16 - TypeSizes.INT_SIZE;
             int remaining = maxSize - size;
             for (int i = 0; i < remaining; i++)
-                buffer.get(); // todo assert 0
+                Assert.assertEquals(aByte + i, buffer.get());
 
             return new String(key);
         }
@@ -258,8 +268,14 @@ public class AccordJournalSimulationTest extends SimulationTestBase
     @Isolated
     public static class State
     {
+        private static final Logger logger = LoggerFactory.getLogger(State.class);
+        static CMSTestBase.CMSSut cms = new CMSTestBase.CMSSut(AtomicLongBackedProcessor::new,
+                                                               false,
+                                                               new FakeSchema(),
+                                                               new TokenPlacementModel.SimpleReplicationFactor(1));
         static Journal<String, String> journal;
         static CountDownLatch latch = CountDownLatch.newCountDownLatch(100);
+        static List<Throwable> thrown = new ArrayList<>();
         static ExecutorPlus executor = ExecutorFactory.Global.executorFactory().pooled("name", 10);
     }
 
