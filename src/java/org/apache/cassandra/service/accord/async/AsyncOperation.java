@@ -29,6 +29,7 @@ import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 
 import accord.api.Key;
+import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.PreLoadContext;
 import accord.local.SafeCommandStore;
@@ -43,8 +44,10 @@ import org.apache.cassandra.service.accord.AccordSafeCommandsForKey;
 import org.apache.cassandra.service.accord.AccordSafeCommandsForRanges;
 import org.apache.cassandra.service.accord.AccordSafeState;
 import org.apache.cassandra.service.accord.AccordSafeTimestampsForKey;
+import org.apache.cassandra.service.accord.SavedCommand;
 
 import static org.apache.cassandra.service.accord.async.AsyncLoader.txnIds;
+import static org.apache.cassandra.service.accord.async.AsyncOperation.State.AWAITING_FLUSH;
 import static org.apache.cassandra.service.accord.async.AsyncOperation.State.COMPLETING;
 import static org.apache.cassandra.service.accord.async.AsyncOperation.State.FAILED;
 import static org.apache.cassandra.service.accord.async.AsyncOperation.State.FINISHED;
@@ -90,7 +93,7 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
 
     enum State
     {
-        INITIALIZED, LOADING, PREPARING, RUNNING, COMPLETING, FINISHED, FAILED;
+        INITIALIZED, LOADING, PREPARING, RUNNING, COMPLETING, AWAITING_FLUSH, FINISHED, FAILED;
 
         boolean isComplete()
         {
@@ -107,6 +110,8 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
     private R result;
     private final String loggingId;
     private BiConsumer<? super R, Throwable> callback;
+
+    private Command sanityCheck = null;
 
     private void setLoggingIds()
     {
@@ -252,13 +257,36 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
                 safeStore = commandStore.beginOperation(preLoadContext, context.commands, context.timestampsForKey, context.commandsForKey, context.commandsForRanges);
                 state(RUNNING);
             case RUNNING:
+                boolean requestedFlush = false;
                 result = apply(safeStore);
+                AccordSafeCommand commandState = context.commands.get(primaryTxnId());
+                if (commandState != null)
+                {
+                    SavedCommand.SavedDiff savedCommand = commandState.diff();
+                    if (savedCommand != null)
+                    {
+                        requestedFlush = this.commandStore.appendCommand(this.commandStore.id(), primaryTxnId(), savedCommand,
+                                                                         () -> this.commandStore.executor().submit(this));
+
+                        sanityCheck = commandState.current();
+                    }
+                }
+
                 safeStore.postExecute(context.commands, context.timestampsForKey, context.commandsForKey, context.commandsForRanges);
                 context.releaseResources(commandStore);
                 commandStore.completeOperation(safeStore);
                 commandStore.executionOrder().unregister(this);
+                if (requestedFlush)
+                {
+                    state(AWAITING_FLUSH);
+                    return;
+                }
+            case AWAITING_FLUSH:
                 state(COMPLETING);
             case COMPLETING:
+                if (sanityCheck != null)
+                    this.commandStore.sanityCheck(this.commandStore.id(), primaryTxnId(), sanityCheck);
+
                 finish(result, null);
             case FINISHED:
             case FAILED:
@@ -326,6 +354,7 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
         return new ForFunction<>((AccordCommandStore) commandStore, loadCtx, function);
     }
 
+    // TODO (desired): these anonymous ops are somewhat tricky to debug. We may want to at least give them names.
     static class ForConsumer extends AsyncOperation<Void>
     {
         private final Consumer<? super SafeCommandStore> consumer;

@@ -171,6 +171,14 @@ class Segments<K, V>
         }
     }
 
+    boolean isFlushed(RecordPointer recordPointer)
+    {
+        Segment<K, V> segment = segments.get(recordPointer.segment);
+        if (null == segment)
+            throw new IllegalArgumentException("Can not reference segment " + recordPointer.segment);
+        return segment.isFlushed(recordPointer.position);
+    }
+
     ReferencedSegment<K, V> selectAndReference(long segmentTimestamp)
     {
         Segment<K, V> segment = segments.get(segmentTimestamp);
