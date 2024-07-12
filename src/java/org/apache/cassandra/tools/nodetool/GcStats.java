@@ -73,7 +73,7 @@ public class GcStats extends NodeToolCmd
 
         probe.output().out.println("Swap in Use: " + PM_SWAPInUseMemoryBytes + " / " + PM_totalswapMemoryBytes + " (" + String.format("%.1f", swapPercent) + "%)\n");
         probe.output().out.printf("%20s%20s%20s%20s%20s%20s%25s%n", "Interval (ms)", "Max GC Elapsed (ms)", "Total GC Elapsed (ms)", "Stdev GC Elapsed (ms)", "GC Reclaimed (MB)", "Collections", "Direct Memory Bytes");
-        probe.output().out.printf("%20.0f%20.0f%20.0f%20.0f%20.0f%20.0f%25d%n", stats[0], stats[1], stats[2], stdev, stats[4], stats[5], -1);
+        probe.output().out.printf("%20.0f%20.0f%20.0f%20.0f%20.0f%20.0f%25d%n", stats[0], stats[1], stats[2], stdev, stats[4], stats[5], (long)stats[6]);
         probe.output().out.printf("\n");
 
         MemoryMXBean memoryMXBean = ManagementFactory.getMemoryMXBean();
