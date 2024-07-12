@@ -33,7 +33,15 @@ import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.assertj.core.api.Assertions;
 
-import static org.apache.cassandra.cql3.statements.TransactionStatement.*;
+import static org.apache.cassandra.cql3.statements.TransactionStatement.DUPLICATE_TUPLE_NAME_MESSAGE;
+import static org.apache.cassandra.cql3.statements.TransactionStatement.EMPTY_TRANSACTION_MESSAGE;
+import static org.apache.cassandra.cql3.statements.TransactionStatement.ILLEGAL_RANGE_QUERY_MESSAGE;
+import static org.apache.cassandra.cql3.statements.TransactionStatement.INCOMPLETE_PRIMARY_KEY_SELECT_MESSAGE;
+import static org.apache.cassandra.cql3.statements.TransactionStatement.NO_CONDITIONS_IN_UPDATES_MESSAGE;
+import static org.apache.cassandra.cql3.statements.TransactionStatement.NO_COUNTERS_IN_TXNS_MESSAGE;
+import static org.apache.cassandra.cql3.statements.TransactionStatement.NO_TIMESTAMPS_IN_UPDATES_MESSAGE;
+import static org.apache.cassandra.cql3.statements.TransactionStatement.SELECT_REFS_NEED_COLUMN_MESSAGE;
+import static org.apache.cassandra.cql3.statements.TransactionStatement.TRANSACTIONS_DISABLED_ON_TABLE_MESSAGE;
 import static org.apache.cassandra.cql3.statements.UpdateStatement.CANNOT_SET_KEY_WITH_REFERENCE_MESSAGE;
 import static org.apache.cassandra.cql3.statements.UpdateStatement.UPDATING_PRIMARY_KEY_MESSAGE;
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
