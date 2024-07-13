@@ -35,10 +35,11 @@ import org.apache.cassandra.tools.NodeTool;
 
 @Command(
 name = "setguardrailsconfig",
-description = "Modify guardrails configurations through MBean. \n" +
-              "For Threshold setter please provide <warn> <fail> thresholds. \n" +
-              "For Properties setter please use the setter ends with CSV and pass in Comma-separated list. \n" +
-              "To disable the guardrail, put 'null' as the argument.\n")
+description = "Modify guardrails configurations. " +
+              "Please use --list to find available setters. " +
+              "For Threshold setter please provide <warn> <fail> thresholds. " +
+              "For Properties setter please use the setter ends with CSV and pass in Comma-separated list. " +
+              "To disable the guardrail, put 'null' as the argument.")
 public class SetGuardrailsConfig extends NodeTool.NodeToolCmd
 {
     @Option(title = "list_guardrails_setters",
@@ -47,7 +48,7 @@ public class SetGuardrailsConfig extends NodeTool.NodeToolCmd
     private boolean listSetters = false;
 
     @Arguments(usage = "[<setter> <value1> ...]", description = "Call setter to modify guardrail configuration")
-    private List<String> args = new ArrayList<>();
+    private final List<String> args = new ArrayList<>();
 
     @Override
     public void execute(NodeProbe probe)
@@ -68,10 +69,12 @@ public class SetGuardrailsConfig extends NodeTool.NodeToolCmd
                 if (setter.getParameterTypes().length == 0)
                 {
                     sb.append("No argument");
-                } else if (setter.getParameterTypes().length == 1)
+                }
+                else if (setter.getParameterTypes().length == 1)
                 {
                     sb.append(setter.getParameterTypes()[0].getName());
-                } else
+                }
+                else
                 {
                     sb.append(Arrays.stream(setter.getParameterTypes()).map(Class::getName).collect(Collectors.toList()));
                 }
@@ -87,9 +90,9 @@ public class SetGuardrailsConfig extends NodeTool.NodeToolCmd
                                   .filter(method -> method.getName().equals(setterName))
                                   .findFirst()
                                   .orElseThrow(() -> new RuntimeException(String.format("Setter method %s not found. " +
-                                                                              "Run nodetool setguardrailsconfig --list " +
-                                                                              "to see available setters",
-                                                                              setterName)));
+                                                                                        "Run nodetool setguardrailsconfig --list " +
+                                                                                        "to see available setters",
+                                                                                        setterName)));
         // verify args count
         if (args.size() != setter.getParameterCount() + 1)
         {
@@ -103,7 +106,8 @@ public class SetGuardrailsConfig extends NodeTool.NodeToolCmd
         try
         {
             setter.invoke(mbean, prepareArguments(methodArgs, setter));
-        } catch (Exception e)
+        }
+        catch (Exception e)
         {
             throw new RuntimeException("Error occured when setting the config", e);
         }
@@ -129,14 +133,16 @@ public class SetGuardrailsConfig extends NodeTool.NodeToolCmd
                 return "";
             }
             return value;
-        } else if (targetType == int.class || targetType == Integer.class)
+        }
+        else if (targetType == int.class || targetType == Integer.class)
         {
             if (value.equals("null"))
             {
                 return -1;
             }
             return Integer.parseInt(value);
-        } else if (targetType == boolean.class || targetType == Boolean.class)
+        }
+        else if (targetType == boolean.class || targetType == Boolean.class)
         {
             return Boolean.parseBoolean(value);
         }

@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * [SO-32221] Refactor getGuardrailConfig nodetool command
  * [SO-32175] Cassandra CI should use Java 11 by default in udj
  * [SO-32019] Explicitly print the message if there is no context data
  * [SO-30810] Functionality to check and return non-default compaction params

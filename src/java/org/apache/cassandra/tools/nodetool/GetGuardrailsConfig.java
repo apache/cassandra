@@ -18,8 +18,13 @@
 
 package org.apache.cassandra.tools.nodetool;
 
+import java.lang.reflect.Method;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import io.airlift.airline.Command;
 import io.airlift.airline.Option;
@@ -30,9 +35,9 @@ import org.apache.cassandra.tools.NodeTool;
 @Command(name = "getguardrailsconfig", description = "Print current guardrails configurations")
 public class GetGuardrailsConfig extends NodeTool.NodeToolCmd
 {
-    @Option(title = "show_full_config",
-    name = {"-f", "--full"},
-    description = "Show full guardrails configuration (including disabled)")
+    @Option(title = "list_all_guardrails_config",
+    name = { "--all" },
+    description = "List all guardrails configuration (including disabled)")
     private boolean showFullConfig = false;
 
     private final StringBuilder sb = new StringBuilder();
@@ -42,179 +47,75 @@ public class GetGuardrailsConfig extends NodeTool.NodeToolCmd
     {
         GuardrailsMBean mbean = probe.getGuardrailsMBean();
         sb.append("Guardrails Configuration:\n");
-        sb.append("guardrails applied on supuerusers\n");
-        sb.append("\tenabled: ").append(mbean.getGuardrailsOnSuperuserEnabled()).append('\n');
-        printConfigHelper(mbean);
+        printConfig(mbean);
         probe.output().out.println(sb);
     }
 
-    private void printConfigHelper(GuardrailsMBean mbean)
+    private void printConfig(GuardrailsMBean mbean)
     {
-        // See Guardrails.java for all available guradrails
-        warnFailMaxThresholdStringHelper("total number of user keyspaces",
-                                         mbean.getKeyspacesWarnThreshold(),
-                                         mbean.getKeyspacesFailThreshold());
-        warnFailMaxThresholdStringHelper("total number of tables on user keyspaces",
-                                         mbean.getTablesWarnThreshold(),
-                                         mbean.getTablesFailThreshold());
-        warnFailMaxThresholdStringHelper("number of columns per table",
-                                         mbean.getColumnsPerTableWarnThreshold(),
-                                         mbean.getColumnsPerTableFailThreshold());
-        warnFailMaxThresholdStringHelper("number of secondary indexes per table",
-                                         mbean.getSecondaryIndexesPerTableWarnThreshold(),
-                                         mbean.getSecondaryIndexesPerTableFailThreshold());
-        enableStringHelper("ability to create secondary indexes",
-                           mbean.getSecondaryIndexesEnabled());
-        warnFailMaxThresholdStringHelper("number of materialized views per table",
-                                         mbean.getMaterializedViewsPerTableWarnThreshold(),
-                                         mbean.getMaterializedViewsPerTableFailThreshold());
-        warnIgnoredDisallowedValuesStringHelper("usage of certain table properties",
-                                                mbean.getTablePropertiesWarned(),
-                                                mbean.getTablePropertiesIgnored(),
-                                                mbean.getTablePropertiesDisallowed());
-        enableStringHelper("ability to use user-provided timestamps",
-                           mbean.getUserTimestampsEnabled());
-        enableStringHelper("ability to use GROUP BY",
-                           mbean.getGroupByEnabled());
-        enableStringHelper("ability to use DROP and TRUNCATE TABLE",
-                           mbean.getDropTruncateTableEnabled());
-        enableStringHelper("ability to do bulk load",
-                           mbean.getBulkLoadEnabled());
-        enableStringHelper("ability to execute DDL statements",
-                           mbean.getDDLEnabled());
-        enableStringHelper("ability to execute DCL statements",
-                           mbean.getDCLEnabled());
-        enableStringHelper("ability to turn off compression",
-                           mbean.getUncompressedTablesEnabled());
-        enableStringHelper("ability to create new COMPACT STORAGE tables",
-                           mbean.getCompactTablesEnabled());
-        warnFailMaxThresholdStringHelper("number of elements returned within page",
-                                         mbean.getPageSizeWarnThreshold(),
-                                         mbean.getPageSizeFailThreshold());
-        warnFailMaxThresholdStringHelper("number of partition keys in the IN clause",
-                                         mbean.getPartitionKeysInSelectWarnThreshold(),
-                                         mbean.getPartitionKeysInSelectFailThreshold());
-        enableStringHelper("ability on operate lists that require read before write",
-                           mbean.getReadBeforeWriteListOperationsEnabled());
-        enableStringHelper("ability to execute statement with ALLOW FILTERING",
-                           mbean.getAllowFilteringEnabled());
-        warnFailMaxThresholdStringHelper("number of restrictions created by a cartesian product of a CQL's IN query",
-                                         mbean.getInSelectCartesianProductWarnThreshold(),
-                                         mbean.getInSelectCartesianProductFailThreshold());
-        warnIgnoredDisallowedValuesStringHelper("usage on read consistency levels",
-                                                mbean.getReadConsistencyLevelsWarned(),
-                                                Collections.emptySet(),
-                                                mbean.getReadConsistencyLevelsDisallowed());
-        warnIgnoredDisallowedValuesStringHelper("usage on write consistency levels",
-                                                mbean.getWriteConsistencyLevelsWarned(),
-                                                Collections.emptySet(),
-                                                mbean.getWriteConsistencyLevelsDisallowed());
-        warnFailMaxThresholdStringHelper("size of a collection",
-                                         mbean.getCollectionSizeWarnThreshold(),
-                                         mbean.getCollectionSizeFailThreshold());
-        warnFailMaxThresholdStringHelper("number of items of a collection",
-                                         mbean.getItemsPerCollectionWarnThreshold(),
-                                         mbean.getItemsPerCollectionFailThreshold());
-        warnFailMaxThresholdStringHelper("number of fields on each UDT",
-                                         mbean.getFieldsPerUDTWarnThreshold(),
-                                         mbean.getFieldsPerUDTFailThreshold());
-        warnFailMaxPercentageStringHelper("data disk usage percentage on the local node, used by a periodic task to " +
-                                          "calculate and propagate that status",
-                                          mbean.getDataDiskUsagePercentageWarnThreshold(),
-                                          mbean.getDataDiskUsagePercentageFailThreshold());
-        warnFailMinThresholdStringHelper("number of minimum replication factor",
-                                         mbean.getMinimumReplicationFactorWarnThreshold(),
-                                         mbean.getMinimumReplicationFactorFailThreshold());
-    }
-
-    private void warnFailMaxThresholdStringHelper(String title, long warn, long fail)
-    {
-        if (!showFullConfig && isGuardrailDisabled(warn) && isGuardrailDisabled(fail)) {
-            // hide this config if disabled
-            return;
-        }
-        sb.append(title).append('\n');
-        sb.append(String.format("\twarning threshold(maximum): %d\n\tfailing threashold(maximum): %d\n", warn, fail));
-    }
-
-    private void warnFailMaxThresholdStringHelper(String title, String warn, String fail)
-    {
-        if (!showFullConfig && isGuardrailDisabled(warn) && isGuardrailDisabled(fail)) {
-            // hide this config if disabled
-            return;
-        }
-        sb.append(title).append('\n');
-        sb.append(String.format("\twarning threshold(maximum): %s\n\tfailing threashold(maximum): %s\n", warn, fail));
-    }
-    private void warnFailMinThresholdStringHelper(String title, long warn, long fail)
-    {
-        if (!showFullConfig && isGuardrailDisabled(warn) && isGuardrailDisabled(fail)) {
-            // hide this config if disabled
-            return;
-        }
-        sb.append(title).append('\n');
-        sb.append(String.format("\twarning threshold(minimum): %d\n\tfailing threashold(minimum): %d\n", warn, fail));
-    }
-
-    private void warnFailMaxPercentageStringHelper(String title, long warn, long fail)
-    {
-        if (!showFullConfig && isGuardrailDisabled(warn) && isGuardrailDisabled(fail)) {
-            // hide this config if disabled
-            return;
-        }
-        sb.append(title).append('\n');
-        sb.append(String.format("\twarning threshold(max percentage): %d%%\n\tfailing threashold(max percentage): %d%%\n", warn, fail));
-    }
-    private void enableStringHelper(String title, boolean enabled)
-    {
-        if (!showFullConfig && enabled) {
-            // hide this config if guardrail disabled (by default all flags are enable=true)
-            return;
-        }
-        sb.append(title).append('\n');
-        sb.append(String.format("\tenabled: %s\n", enabled));
-    }
-    private <T> void warnIgnoredDisallowedValuesStringHelper
-    (String title, Set<T> warn, Set<T> ignored, Set<T> disallowed) {
-        if (!showFullConfig && isGuardrailDisabled(warn) && isGuardrailDisabled(ignored) && isGuardrailDisabled(disallowed)) {
-            // hide this config if disabled
-            return;
-        }
-        sb.append(title).append('\n');
-        sb.append("\twarning values: ");
-        addSetStringHelper(warn);
-        sb.append("\tignored values: ");
-        addSetStringHelper(ignored);
-        sb.append("\tdisallowed values: ");
-        addSetStringHelper(disallowed);
-    }
-
-    private <T> void addSetStringHelper(Set<T> s) {
-        if (s == null || s.isEmpty()) {
-            sb.append("null").append('\n');
-            return;
-        }
-        boolean isFirst = true;
-        for (T v : s) {
-            if (isFirst) {
-                isFirst = false;
-            } else {
-                sb.append(',');
+        // Get all available getters for Guardrails
+        Method[] methods = mbean.getClass().getDeclaredMethods();
+        List<Method> allGetters = Arrays.stream(methods)
+                                        .filter(method -> method.getName().startsWith("get"))
+                                        .sorted(Comparator.comparing(Method::getName))
+                                        .collect(Collectors.toList());
+        try
+        {
+            for (Method getter : allGetters)
+            {
+                String guardrailName = getter.getName().substring(3);
+                Class<?> type = getter.getReturnType();
+                Object res = getter.invoke(mbean);
+                printResObject(res, guardrailName, type);
             }
-            sb.append(v);
         }
-        sb.append('\n');
+        catch (Exception e)
+        {
+            throw new RuntimeException("Error occured when getting the guardrails config", e);
+        }
     }
 
-    private Boolean isGuardrailDisabled(long threshold) {
-        return threshold <= 0;
-    }
-
-    private Boolean isGuardrailDisabled(String threshold) {
-        return threshold == null || threshold.equals("null");
-    }
-
-    private <T> Boolean isGuardrailDisabled(Set<T> props) {
-        return props == null || props.isEmpty();
+    private void printResObject(Object res, String name, Class<?> returnType)
+    {
+        String strVal = "";
+        boolean isGuardrailEnabled = false;
+        if (returnType.equals(int.class) || returnType.equals(Integer.class))
+        {
+            isGuardrailEnabled = (Integer)res > 0;
+            strVal = res.toString();
+        }
+        else if (returnType.equals(boolean.class) || returnType.equals(Boolean.class))
+        {
+            isGuardrailEnabled = !(Boolean)res;
+            strVal = res.toString();
+        }
+        else if (returnType.equals(String.class))
+        {
+            if (res == null || res.toString().isEmpty())
+            {
+                strVal = "null";
+            }
+            else
+            {
+                strVal = res.toString();
+            }
+            isGuardrailEnabled = !strVal.equals("null") && !strVal.isEmpty();
+        }
+        else if (returnType.equals(Set.class))
+        {
+            // skip Set<String> return type, we should have an equivalent CSV method that
+            // returns comma-separated string list.
+            return;
+        }
+        else
+        {
+            // unhandled type
+            throw new RuntimeException("unhandled return type: " + returnType.getTypeName());
+        }
+        if (showFullConfig || isGuardrailEnabled)
+        {
+            // print only if ask for all config or the guardrail is enabled
+            sb.append(name).append(": ").append(strVal).append('\n');
+        }
     }
 }

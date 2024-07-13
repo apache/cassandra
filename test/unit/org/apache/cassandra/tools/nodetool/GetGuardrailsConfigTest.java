@@ -18,11 +18,9 @@
 
 package org.apache.cassandra.tools.nodetool;
 
-import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.tools.ToolRunner;
@@ -47,147 +45,125 @@ public class GetGuardrailsConfigTest extends CQLTester
         ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("getguardrailsconfig");
         tool.assertOnCleanExit();
         assertThat(tool.getStdout()).isEqualTo("Guardrails Configuration:\n" +
-                                               "guardrails applied on supuerusers\n" +
-                                               "\tenabled: false\n" +
+                                               "GuardrailsOnSuperuserEnabled: false\n" +
                                                '\n');
     }
 
     @Test
-    public void testDefaultConfigFullConfig()
+    public void testDefaultConfigFullList()
     {
         // by default, none of the guardrail is enabled
         // guardrails by default is not enabled on superusers
-        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("getguardrailsconfig", "--full");
+        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("getguardrailsconfig", "--all");
         tool.assertOnCleanExit();
         assertThat(tool.getStdout()).isEqualTo("Guardrails Configuration:\n" +
-                                               "guardrails applied on supuerusers\n" +
-                                               "\tenabled: false\n" +
-                                               "total number of user keyspaces\n" +
-                                               "\twarning threshold(maximum): -1\n" +
-                                               "\tfailing threashold(maximum): -1\n" +
-                                               "total number of tables on user keyspaces\n" +
-                                               "\twarning threshold(maximum): -1\n" +
-                                               "\tfailing threashold(maximum): -1\n" +
-                                               "number of columns per table\n" +
-                                               "\twarning threshold(maximum): -1\n" +
-                                               "\tfailing threashold(maximum): -1\n" +
-                                               "number of secondary indexes per table\n" +
-                                               "\twarning threshold(maximum): -1\n" +
-                                               "\tfailing threashold(maximum): -1\n" +
-                                               "ability to create secondary indexes\n" +
-                                               "\tenabled: true\n" +
-                                               "number of materialized views per table\n" +
-                                               "\twarning threshold(maximum): -1\n" +
-                                               "\tfailing threashold(maximum): -1\n" +
-                                               "usage of certain table properties\n" +
-                                               "\twarning values: null\n" +
-                                               "\tignored values: null\n" +
-                                               "\tdisallowed values: null\n" +
-                                               "ability to use user-provided timestamps\n" +
-                                               "\tenabled: true\n" +
-                                               "ability to use GROUP BY\n" +
-                                               "\tenabled: true\n" +
-                                               "ability to use DROP and TRUNCATE TABLE\n" +
-                                               "\tenabled: true\n" +
-                                               "ability to do bulk load\n" +
-                                               "\tenabled: true\n" +
-                                               "ability to execute DDL statements\n" +
-                                               "\tenabled: true\n" +
-                                               "ability to execute DCL statements\n" +
-                                               "\tenabled: true\n" +
-                                               "ability to turn off compression\n" +
-                                               "\tenabled: true\n" +
-                                               "ability to create new COMPACT STORAGE tables\n" +
-                                               "\tenabled: true\n" +
-                                               "number of elements returned within page\n" +
-                                               "\twarning threshold(maximum): -1\n" +
-                                               "\tfailing threashold(maximum): -1\n" +
-                                               "number of partition keys in the IN clause\n" +
-                                               "\twarning threshold(maximum): -1\n" +
-                                               "\tfailing threashold(maximum): -1\n" +
-                                               "ability on operate lists that require read before write\n" +
-                                               "\tenabled: true\n" +
-                                               "ability to execute statement with ALLOW FILTERING\n" +
-                                               "\tenabled: true\n" +
-                                               "number of restrictions created by a cartesian product of a CQL's IN query\n" +
-                                               "\twarning threshold(maximum): -1\n" +
-                                               "\tfailing threashold(maximum): -1\n" +
-                                               "usage on read consistency levels\n" +
-                                               "\twarning values: null\n" +
-                                               "\tignored values: null\n" +
-                                               "\tdisallowed values: null\n" +
-                                               "usage on write consistency levels\n" +
-                                               "\twarning values: null\n" +
-                                               "\tignored values: null\n" +
-                                               "\tdisallowed values: null\n" +
-                                               "size of a collection\n" +
-                                               "\twarning threshold(maximum): null\n" +
-                                               "\tfailing threashold(maximum): null\n" +
-                                               "number of items of a collection\n" +
-                                               "\twarning threshold(maximum): -1\n" +
-                                               "\tfailing threashold(maximum): -1\n" +
-                                               "number of fields on each UDT\n" +
-                                               "\twarning threshold(maximum): -1\n" +
-                                               "\tfailing threashold(maximum): -1\n" +
-                                               "data disk usage percentage on the local node, used by a periodic task to calculate and propagate that status\n" +
-                                               "\twarning threshold(max percentage): -1%\n" +
-                                               "\tfailing threashold(max percentage): -1%\n" +
-                                               "number of minimum replication factor\n" +
-                                               "\twarning threshold(minimum): -1\n" +
-                                               "\tfailing threashold(minimum): -1\n" +
+                                               "AllowFilteringEnabled: true\n" +
+                                               "BulkLoadEnabled: true\n" +
+                                               "CollectionSizeFailThreshold: null\n" +
+                                               "CollectionSizeWarnThreshold: null\n" +
+                                               "ColumnsPerTableFailThreshold: -1\n" +
+                                               "ColumnsPerTableWarnThreshold: -1\n" +
+                                               "CompactTablesEnabled: true\n" +
+                                               "DCLEnabled: true\n" +
+                                               "DDLEnabled: true\n" +
+                                               "DataDiskUsageMaxDiskSize: null\n" +
+                                               "DataDiskUsagePercentageFailThreshold: -1\n" +
+                                               "DataDiskUsagePercentageWarnThreshold: -1\n" +
+                                               "DropTruncateTableEnabled: true\n" +
+                                               "FieldsPerUDTFailThreshold: -1\n" +
+                                               "FieldsPerUDTWarnThreshold: -1\n" +
+                                               "GroupByEnabled: true\n" +
+                                               "GuardrailsOnSuperuserEnabled: false\n" +
+                                               "InSelectCartesianProductFailThreshold: -1\n" +
+                                               "InSelectCartesianProductWarnThreshold: -1\n" +
+                                               "ItemsPerCollectionFailThreshold: -1\n" +
+                                               "ItemsPerCollectionWarnThreshold: -1\n" +
+                                               "KeyspacesFailThreshold: -1\n" +
+                                               "KeyspacesWarnThreshold: -1\n" +
+                                               "MaterializedViewsPerTableFailThreshold: -1\n" +
+                                               "MaterializedViewsPerTableWarnThreshold: -1\n" +
+                                               "MinimumReplicationFactorFailThreshold: -1\n" +
+                                               "MinimumReplicationFactorWarnThreshold: -1\n" +
+                                               "PageSizeFailThreshold: -1\n" +
+                                               "PageSizeWarnThreshold: -1\n" +
+                                               "PartitionKeysInSelectFailThreshold: -1\n" +
+                                               "PartitionKeysInSelectWarnThreshold: -1\n" +
+                                               "ReadBeforeWriteListOperationsEnabled: true\n" +
+                                               "ReadConsistencyLevelsDisallowedCSV: null\n" +
+                                               "ReadConsistencyLevelsWarnedCSV: null\n" +
+                                               "SecondaryIndexesEnabled: true\n" +
+                                               "SecondaryIndexesPerTableFailThreshold: -1\n" +
+                                               "SecondaryIndexesPerTableWarnThreshold: -1\n" +
+                                               "TablePropertiesDisallowedCSV: null\n" +
+                                               "TablePropertiesIgnoredCSV: null\n" +
+                                               "TablePropertiesWarnedCSV: null\n" +
+                                               "TablesFailThreshold: -1\n" +
+                                               "TablesWarnThreshold: -1\n" +
+                                               "UncompressedTablesEnabled: true\n" +
+                                               "UserTimestampsEnabled: true\n" +
+                                               "WriteConsistencyLevelsDisallowedCSV: null\n" +
+                                               "WriteConsistencyLevelsWarnedCSV: null\n" +
                                                '\n');
     }
 
     @Test
-    public void testSetColumnsPerTableThresholds()
+    public void testSetMaxThresholdGuardrail()
     {
-        // set to some new MaxThreshold and the change should be reflected in the nodetool return
         Guardrails.instance.setColumnsPerTableThreshold(3, 3);
 
         ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("getguardrailsconfig");
         tool.assertOnCleanExit();
         assertThat(tool.getStdout()).isEqualTo("Guardrails Configuration:\n" +
-                                               "guardrails applied on supuerusers\n" +
-                                               "\tenabled: false\n" +
-                                               "number of columns per table\n" +
-                                               "\twarning threshold(maximum): 3\n" +
-                                               "\tfailing threashold(maximum): 3\n" +
+                                               "ColumnsPerTableFailThreshold: 3\n" +
+                                               "ColumnsPerTableWarnThreshold: 3\n" +
+                                               "GuardrailsOnSuperuserEnabled: false\n" +
                                                '\n');
         // reset
         Guardrails.instance.setColumnsPerTableThreshold(-1, -1);
+        tool = ToolRunner.invokeNodetool("getguardrailsconfig");
+        tool.assertOnCleanExit();
+        assertThat(tool.getStdout()).isEqualTo("Guardrails Configuration:\n" +
+                                               "GuardrailsOnSuperuserEnabled: false\n" +
+                                               '\n');
     }
 
     @Test
-    public void testDisableDDL()
+    public void testSetDisableFlagGuardrail()
     {
-        // set to some new EnabledFlag and the change should be reflected in the nodetool return
-        Guardrails.instance.setDDLEnabled(false);
+        Guardrails.instance.setGroupByEnabled(false);
 
         ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("getguardrailsconfig");
         tool.assertOnCleanExit();
         assertThat(tool.getStdout()).isEqualTo("Guardrails Configuration:\n" +
-                                               "guardrails applied on supuerusers\n" +
-                                               "\tenabled: false\n" +
-                                               "ability to execute DDL statements\n"+
-                                               "\tenabled: false\n" +
+                                               "GroupByEnabled: false\n" +
+                                               "GuardrailsOnSuperuserEnabled: false\n" +
                                                '\n');
         // reset
-        Guardrails.instance.setDDLEnabled(true);
+        Guardrails.instance.setGroupByEnabled(true);
+        tool = ToolRunner.invokeNodetool("getguardrailsconfig");
+        tool.assertOnCleanExit();
+        assertThat(tool.getStdout()).isEqualTo("Guardrails Configuration:\n" +
+                                               "GuardrailsOnSuperuserEnabled: false\n" +
+                                               '\n');
     }
 
     @Test
-    public void testEnableGuardrailsOnSuperuser()
+    public void testSetValuesGuardrail()
     {
-        // Guardrails applied on superusers should always stay in the return
-        Guardrails.instance.setGuardrailsOnSuperuserEnabled(true);
+        Guardrails.instance.setWriteConsistencyLevelsDisallowedCSV("ANY,ONE");
 
         ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("getguardrailsconfig");
         tool.assertOnCleanExit();
         assertThat(tool.getStdout()).isEqualTo("Guardrails Configuration:\n" +
-                                               "guardrails applied on supuerusers\n" +
-                                               "\tenabled: true\n" +
+                                               "GuardrailsOnSuperuserEnabled: false\n" +
+                                               "WriteConsistencyLevelsDisallowedCSV: ANY,ONE\n" +
                                                '\n');
         // reset
-        Guardrails.instance.setGuardrailsOnSuperuserEnabled(false);
+        Guardrails.instance.setWriteConsistencyLevelsDisallowedCSV("");
+        tool = ToolRunner.invokeNodetool("getguardrailsconfig");
+        tool.assertOnCleanExit();
+        assertThat(tool.getStdout()).isEqualTo("Guardrails Configuration:\n" +
+                                               "GuardrailsOnSuperuserEnabled: false\n" +
+                                               '\n');
     }
 }

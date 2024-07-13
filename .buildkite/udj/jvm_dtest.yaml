@@ -24,5 +24,3 @@ command: ".jenkins/jvm_dtest.sh"
 
 timeout_in_minutes: 300
 
-agent:
-  queue: "odin-generic-ci-gcp"
