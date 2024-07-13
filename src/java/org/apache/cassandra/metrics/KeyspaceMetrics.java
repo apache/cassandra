@@ -60,7 +60,7 @@ public class KeyspaceMetrics
     public final Gauge<Long> memtableSwitchCount;
     /** Estimated number of tasks pending for this column family */
     public final Gauge<Long> pendingFlushes;
-    /** Estimate of number of pending compactios for this CF */
+    /** Estimate of number of pending compactions for this CF */
     public final Gauge<Long> pendingCompactions;
     /** Disk space used by SSTables belonging to tables in this keyspace */
     public final Gauge<Long> liveDiskSpaceUsed;
