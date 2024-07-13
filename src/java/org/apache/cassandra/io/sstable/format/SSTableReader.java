@@ -1152,8 +1152,8 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     public boolean mayHaveTombstones()
     {
         // A sstable is guaranteed to have no tombstones if minLocalDeletionTime is still set to its default,
-        // Cell.NO_DELETION_TIME, which is bigger than any valid deletion times.
-        return getMinLocalDeletionTime() != Cell.NO_DELETION_TIME;
+        // Cell.NO_DELETION_TIME, which is bigger than any valid deletion times, or bigger than current time (for ttl only tombstones).
+        return getMinLocalDeletionTime() != Cell.NO_DELETION_TIME && getMinLocalDeletionTime() < System.currentTimeMillis()/1000;
     }
 
     public int getMinTTL()
