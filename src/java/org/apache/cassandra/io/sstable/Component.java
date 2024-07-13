@@ -19,10 +19,12 @@ package org.apache.cassandra.io.sstable;
 
 import java.io.File;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.regex.Pattern;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
+import com.google.common.base.Splitter;
 
 import org.apache.cassandra.utils.ChecksumType;
 import org.apache.cassandra.utils.Pair;
@@ -35,6 +37,7 @@ import org.apache.cassandra.utils.Pair;
 public class Component
 {
     public static final char separator = '-';
+    private static final Splitter filenameSplitter = Splitter.on(separator);
 
     final static EnumSet<Type> TYPES = EnumSet.allOf(Type.class);
 
@@ -144,6 +147,52 @@ public class Component
         return name;
     }
 
+        /**
+          * Parse the component part of an sstable from the full filename passed in
+          */
+        public static Component parseFromFullFileName(String fullFileName)
+    {
+            List<String> nameSplits = filenameSplitter.splitToList(fullFileName);
+            return parseFromFinalToken(nameSplits.get(nameSplits.size() - 1));
+        }
+
+    /**
+     * Keeping this around for potential ecosystem dependencies on the API. Use parseFromFinalToken or parseFromFullFileName instead
+     * @see Component#parseFromFinalToken
+     */
+    @Deprecated
+    public static Component parse(String name)
+    {
+        return parseFromFinalToken(name);
+    }
+
+    public static Component parseFromFinalToken(String name)
+    {
+        Type type = Type.fromRepresentation(name);
+        switch(type)
+        {
+            case DATA:              return Component.DATA;
+            case PRIMARY_INDEX:     return Component.PRIMARY_INDEX;
+            case FILTER:            return Component.FILTER;
+            case COMPRESSION_INFO:  return Component.COMPRESSION_INFO;
+            case STATS:             return Component.STATS;
+            case DIGEST:            switch (name)
+            {
+                case digestCrc32:   return Component.DIGEST_CRC32;
+                case digestAdler32: return Component.DIGEST_ADLER32;
+                case digestSha1:    return Component.DIGEST_SHA1;
+                default:            throw new IllegalArgumentException("Invalid digest component " + name);
+            }
+            case CRC:               return Component.CRC;
+            case SUMMARY:           return Component.SUMMARY;
+            case TOC:               return Component.TOC;
+            case SECONDARY_INDEX:   return new Component(Type.SECONDARY_INDEX, name);
+            case CUSTOM:            return new Component(Type.CUSTOM, name);
+            default:
+                throw new IllegalStateException();
+        }
+    }
+
     /**
      * {@code
      * Filename of the form "<ksname>/<cfname>-[tmp-][<version>-]<gen>-<component>",
@@ -155,34 +204,8 @@ public class Component
     {
         Pair<Descriptor,String> path = Descriptor.fromFilename(directory, name);
 
-        // parse the component suffix
-        Type type = Type.fromRepresentation(path.right);
         // build (or retrieve singleton for) the component object
-        Component component;
-        switch(type)
-        {
-            case DATA:              component = Component.DATA;                         break;
-            case PRIMARY_INDEX:     component = Component.PRIMARY_INDEX;                break;
-            case FILTER:            component = Component.FILTER;                       break;
-            case COMPRESSION_INFO:  component = Component.COMPRESSION_INFO;             break;
-            case STATS:             component = Component.STATS;                        break;
-            case DIGEST:            switch (path.right)
-                                    {
-                                        case digestCrc32:   component = Component.DIGEST_CRC32;     break;
-                                        case digestAdler32: component = Component.DIGEST_ADLER32;   break;
-                                        case digestSha1:    component = Component.DIGEST_SHA1;      break;
-                                        default:            throw new IllegalArgumentException("Invalid digest component " + path.right);
-                                    }
-                                    break;
-            case CRC:               component = Component.CRC;                          break;
-            case SUMMARY:           component = Component.SUMMARY;                      break;
-            case TOC:               component = Component.TOC;                          break;
-            case SECONDARY_INDEX:   component = new Component(Type.SECONDARY_INDEX, path.right); break;
-            case CUSTOM:            component = new Component(Type.CUSTOM, path.right); break;
-            default:
-                 throw new IllegalStateException();
-        }
-
+        Component component = parseFromFinalToken(path.right);
         return Pair.create(path.left, component);
     }
 
