@@ -553,7 +553,7 @@ public class InboundConnectionInitiator
 
             if (SslHandler.isEncrypted(in))
             {
-                // Connection uses SSL/TLS, replace the detection handler with a SslHandler and so use encryption.
+                // Connection uses SSL/TLS, replace the detection handler with an SslHandler and so use encryption.
                 SslHandler sslHandler = getSslHandler("replacing optional", ctx.channel(), encryptionOptions);
                 ctx.pipeline().replace(this, SSL_HANDLER_NAME, sslHandler);
             }

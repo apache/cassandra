@@ -121,7 +121,7 @@ public class RoleOptions
      * - Ensure that only a subset of the options supported by the configured IRoleManager are set
      * - Validate the type of any option values present.
      * Should either condition fail, then InvalidRequestException is thrown. This method is called
-     * during validation of CQL statements, so the IRE results in a error response to the client.
+     * during validation of CQL statements, so the IRE results in an error response to the client.
      *
      * @throws InvalidRequestException if any options which are not supported by the configured IRoleManager
      *     are set or if any option value is of an incorrect type.
