@@ -40,10 +40,10 @@ import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.Pair;
 import org.apache.commons.lang3.ArrayUtils;
 
-@Command(name = "tablehistograms", description = "Print statistic histograms for a given table")
+@Command(name = "tablehistograms", description = "Print statistic histograms for tables")
 public class TableHistograms extends NodeToolCmd
 {
-    @Arguments(usage = "[<keyspace> <table> | <keyspace.table>]", description = "The keyspace and table name")
+    @Arguments(usage = "[<keyspace> <table> | <keyspace.table>]", description = "The keyspace table pair or keyspace.table format")
     private List<String> args = new ArrayList<>();
 
     @Override
