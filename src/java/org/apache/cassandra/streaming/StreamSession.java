@@ -1047,9 +1047,6 @@ public class StreamSession
     public void streamSent(OutgoingStreamMessage message)
     {
         long headerSize = message.stream.getEstimatedSize();
-        StreamingMetrics.totalOutgoingBytes.inc(headerSize);
-        metrics.outgoingBytes.inc(headerSize);
-
         if(StreamOperation.REPAIR == getStreamOperation())
         {
             StreamingMetrics.totalOutgoingRepairBytes.inc(headerSize);
@@ -1076,9 +1073,6 @@ public class StreamSession
             throw new RuntimeException(String.format("[Stream #%s] Cannot receive files for preview session", planId()));
         }
 
-        long headerSize = message.stream.getSize();
-        StreamingMetrics.totalIncomingBytes.inc(headerSize);
-        metrics.incomingBytes.inc(headerSize);
         // send back file received message
         sendControlMessage(new ReceivedMessage(message.header.tableId, message.header.sequenceNumber)).syncUninterruptibly();
         StreamHook.instance.reportIncomingStream(message.header.tableId, message.stream, this, message.header.sequenceNumber);
