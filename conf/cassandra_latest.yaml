@@ -2175,17 +2175,19 @@ default_secondary_index_enabled: true
 # feature won't be available if this property is set to CASSANDRA_4. See the upgrade guide for more details.
 #
 # Possible values are:
-# - CASSANDRA_4: Stays compatible with the 4.x line in features, formats and component versions.
-# - UPGRADING:   The cluster monitors the version of each node during this interim stage. This has a cost but ensures
+#
+# ** CASSANDRA_4: Stays compatible with the 4.x line in features, formats and component versions.
+# ** UPGRADING:   The cluster monitors the version of each node during this interim stage. This has a cost but ensures
 #                all new features, formats, versions, etc. are enabled safely.
-# - NONE:        Start with all the new features and formats enabled.
+# ** NONE:        Start with all the new features and formats enabled.
 #
 # A typical upgrade would be:
-# - Do a rolling upgrade, starting all nodes in CASSANDRA_X compatibility mode.
-# - Once the new binary is rendered stable, do a rolling restart with the UPGRADING mode. The cluster will keep new
+#
+# . Do a rolling upgrade, starting all nodes in CASSANDRA_X compatibility mode.
+# . Once the new binary is rendered stable, do a rolling restart with the UPGRADING mode. The cluster will keep new
 #   features disabled until all nodes are started in the UPGRADING mode; when that happens, new features controlled by
 #   the storage compatibility mode are enabled.
-# - Do a rolling restart with all nodes starting with the NONE mode. This eliminates the cost of checking node versions
+# . Do a rolling restart with all nodes starting with the NONE mode. This eliminates the cost of checking node versions
 #   and ensures stability. If Cassandra was started at the previous version by accident, a node with disabled
 #   compatibility mode would no longer toggle behaviors as when it was running in the UPGRADING mode.
 #

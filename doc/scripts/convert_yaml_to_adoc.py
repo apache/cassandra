@@ -50,7 +50,9 @@ COMPLEX_OPTIONS = (
     'server_encryption_options',
     'client_encryption_options',
     'transparent_data_encryption_options',
-    'hinted_handoff_disabled_datacenters'
+    'hinted_handoff_disabled_datacenters',
+    'startup_checks',
+    'password_validator'
 )
 
 def convert(yaml_file, dest_file):
