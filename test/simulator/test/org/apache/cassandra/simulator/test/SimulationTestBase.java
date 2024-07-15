@@ -28,10 +28,12 @@ import java.util.function.LongConsumer;
 import java.util.function.Predicate;
 
 import com.google.common.collect.Iterators;
+import org.junit.BeforeClass;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ExecutorFactory;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
@@ -53,12 +55,16 @@ import org.apache.cassandra.simulator.systems.SimulatedQuery;
 import org.apache.cassandra.simulator.systems.SimulatedSystems;
 import org.apache.cassandra.simulator.systems.SimulatedTime;
 import org.apache.cassandra.simulator.utils.LongRange;
+import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.CloseableIterator;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CLOCK_GLOBAL;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CLOCK_MONOTONIC_APPROX;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CLOCK_MONOTONIC_PRECISE;
 import static org.apache.cassandra.simulator.ActionSchedule.Mode.TIME_LIMITED;
 import static org.apache.cassandra.simulator.ActionSchedule.Mode.UNLIMITED;
 import static org.apache.cassandra.simulator.ClusterSimulation.ISOLATE;
@@ -70,6 +76,15 @@ import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 
 public class SimulationTestBase
 {
+    @BeforeClass
+    public static void beforeAll()
+    {
+        // Disallow time on the bootstrap classloader
+        for (CassandraRelevantProperties property : Arrays.asList(CLOCK_GLOBAL, CLOCK_MONOTONIC_APPROX, CLOCK_MONOTONIC_PRECISE))
+            property.setString("org.apache.cassandra.simulator.systems.SimulatedTime$Delegating");
+        try { Clock.Global.nanoTime(); } catch (IllegalStateException e) {} // make sure static initializer gets called
+    }
+
     private static final Logger logger = LoggerFactory.getLogger(Logger.class);
 
     static abstract class DTestClusterSimulation implements Simulation

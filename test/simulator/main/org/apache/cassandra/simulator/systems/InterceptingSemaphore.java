@@ -23,7 +23,6 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.concurrent.Semaphore;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
@@ -126,7 +125,19 @@ public class InterceptingSemaphore extends Semaphore.Standard
         if (ifIntercepted() == null)
             return super.tryAcquire(acquire, time, unit);
 
-        return tryAcquireUntil(acquire, Clock.Global.nanoTime() + unit.toNanos(time));
+        while (true)
+        {
+            int current = permits.get();
+            if (current >= acquire && permits.compareAndSet(current, current - acquire))
+                return true;
+
+            SemaphoreSignal signal = new SemaphoreSignal(acquire);
+            interceptible.add(signal);
+            boolean res = signal.await(time, unit);
+            interceptible.remove(signal);
+            if (!res)
+                return false;
+        }
     }
 
     @Override
@@ -135,21 +146,19 @@ public class InterceptingSemaphore extends Semaphore.Standard
         if (ifIntercepted() == null)
             return super.tryAcquireUntil(acquire, deadline);
 
-        do
+        while (true)
         {
             int current = permits.get();
-            if (current >= acquire)
-            {
-                if (permits.compareAndSet(current, current - acquire))
+            if (current >= acquire && permits.compareAndSet(current, current - acquire))
                     return true;
-            }
+
             SemaphoreSignal signal = new SemaphoreSignal(acquire);
             interceptible.add(signal);
-            signal.awaitUntil(deadline);
+            boolean res = signal.awaitUntil(deadline);
+            interceptible.remove(signal);
+            if (!res)
+                return false;
         }
-        while (Clock.Global.nanoTime() < deadline);
-
-        return false;
     }
 
     @Override
@@ -169,6 +178,7 @@ public class InterceptingSemaphore extends Semaphore.Standard
             SemaphoreSignal signal = new SemaphoreSignal(acquire);
             interceptible.add(signal);
             signal.await();
+            interceptible.remove(signal);
         }
     }
 
