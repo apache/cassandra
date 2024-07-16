@@ -271,6 +271,13 @@ public class NodeTool
             .withCommands(ConsensusMigrationAdmin.ListCmd.class)
             .withCommands(ConsensusMigrationAdmin.FinishMigration.class);
 
+        builder.withGroup("accord")
+               .withDescription("Manage the operation of Accord")
+               .withDefaultCommand(AccordAdmin.Describe.class)
+               .withCommand(AccordAdmin.Describe.class)
+               .withCommand(AccordAdmin.MarkStale.class)
+               .withCommand(AccordAdmin.MarkRejoining.class);
+
         Cli<NodeToolCmdRunnable> parser = builder.build();
 
         int status = 0;

@@ -70,6 +70,7 @@ import org.apache.cassandra.net.StartupClusterConnectivityChecker;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.security.ThreadAwareSecurityManager;
+import org.apache.cassandra.service.accord.AccordOperations;
 import org.apache.cassandra.service.paxos.PaxosState;
 import org.apache.cassandra.streaming.StreamManager;
 import org.apache.cassandra.tcm.CMSOperations;
@@ -275,6 +276,7 @@ public class CassandraDaemon
             Startup.initialize(DatabaseDescriptor.getSeeds());
             disableAutoCompaction(Schema.instance.distributedKeyspaces().names());
             CMSOperations.initJmx();
+            AccordOperations.initJmx();
         }
         catch (InterruptedException | ExecutionException | IOException e)
         {

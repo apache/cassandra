@@ -52,6 +52,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.accord.AccordStaleReplicas;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
@@ -286,7 +287,8 @@ public class GossipHelper
                                    LockedRanges.EMPTY,
                                    InProgressSequences.EMPTY,
                                    ConsensusMigrationState.EMPTY,
-                                   Collections.emptyMap());
+                                   Collections.emptyMap(),
+                                   AccordStaleReplicas.EMPTY);
     }
 
     public static ClusterMetadata fromEndpointStates(DistributedSchema schema, Map<InetAddressAndPort, EndpointState> epStates)
@@ -358,7 +360,8 @@ public class GossipHelper
                                                                       LockedRanges.EMPTY,
                                                                       InProgressSequences.EMPTY,
                                                                       ConsensusMigrationState.EMPTY,
-                                                                      extensions);
+                                                                      extensions,
+                                                                      AccordStaleReplicas.EMPTY);
         return new ClusterMetadata(Epoch.UPGRADE_GOSSIP,
                                    partitioner,
                                    schema,
@@ -369,7 +372,8 @@ public class GossipHelper
                                    LockedRanges.EMPTY,
                                    InProgressSequences.EMPTY,
                                    ConsensusMigrationState.EMPTY,
-                                   extensions);
+                                   extensions,
+                                   AccordStaleReplicas.EMPTY);
     }
 
     public static boolean isValidForClusterMetadata(Map<InetAddressAndPort, EndpointState> epstates)

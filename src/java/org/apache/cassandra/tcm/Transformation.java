@@ -38,6 +38,8 @@ import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.VerboseMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
+import org.apache.cassandra.tcm.transformations.AccordMarkRejoining;
+import org.apache.cassandra.tcm.transformations.AccordMarkStale;
 import org.apache.cassandra.tcm.transformations.AlterSchema;
 import org.apache.cassandra.tcm.transformations.Assassinate;
 import org.apache.cassandra.tcm.transformations.BeginConsensusMigrationForTableAndRange;
@@ -234,6 +236,8 @@ public interface Transformation
 
         BEGIN_CONSENSUS_MIGRATION_FOR_TABLE_AND_RANGE(36, () -> BeginConsensusMigrationForTableAndRange.serializer),
         MAYBE_FINISH_CONSENSUS_MIGRATION_FOR_TABLE_AND_RANGE(37, () -> MaybeFinishConsensusMigrationForTableAndRange.serializer),
+        ACCORD_MARK_STALE(38, () -> AccordMarkStale.serializer),
+        ACCORD_MARK_REJOINING(39, () -> AccordMarkRejoining.serializer),
 
         ;
 
