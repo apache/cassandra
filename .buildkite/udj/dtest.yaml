@@ -25,4 +25,4 @@ command: ".jenkins/dtest.sh"
 timeout_in_minutes: 300
 
 agent:
-  queue: "odin-generic-ci-gcp"
+  queue: "odin-cassandra-ci"

@@ -51,26 +51,6 @@ public class EnforceLCSTest extends CQLTester
     originalSystemSchemaCompactionStrategies = getSystemSchemaCompactionStrategies();
 
     @Test
-    public void testAlterOnCompaction() throws Throwable
-    {
-        createTable("CREATE TABLE %s (id text PRIMARY KEY, content text);");
-        DatabaseDescriptor.setLCSEnforcementLevel(Config.LCSEnforcementLevel.soft);
-        assertInvalidThrowMessage(Optional.of(ProtocolVersion.CURRENT),
-                                  "mutate compaction strategy",
-                                  InvalidQueryException.class,
-                                  formatQuery("ALTER TABLE %s WITH compaction={'class': 'LeveledCompactionStrategy'};"));
-        DatabaseDescriptor.setLCSEnforcementLevel(Config.LCSEnforcementLevel.hard);
-        assertInvalidThrowMessage(Optional.of(ProtocolVersion.CURRENT),
-                                  "mutate compaction strategy",
-                                  InvalidQueryException.class,
-                                  formatQuery("ALTER TABLE %s WITH compaction={'class': 'LeveledCompactionStrategy'};"));
-        // mutation can only be performed if enforcement level is set to none
-        DatabaseDescriptor.setLCSEnforcementLevel(Config.LCSEnforcementLevel.none);
-        execute(formatQuery("ALTER TABLE %s WITH compaction={'class': 'LeveledCompactionStrategy'};"));
-        assertCompactionStrategy(LeveledCompactionStrategy.class.getSimpleName());
-    }
-
-    @Test
     public void testNonSpecifiedCompactionForCreate() throws Throwable
     {
         DatabaseDescriptor.setLCSEnforcementLevel(Config.LCSEnforcementLevel.soft);

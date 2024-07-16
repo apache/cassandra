@@ -275,6 +275,20 @@ public interface GuardrailsMBean
     void setGroupByEnabled(boolean enabled);
 
     /**
+     * Returns whether ALTER TABLE ... WITH compaction = {'class': ...} is allowed.
+     *
+     * @return {@code true} if allowed, {@code false} otherwise.
+     */
+    boolean getAlterTableCompactionStrategyEnabled();
+
+    /**
+     * Sets ALTER TABLE ... WITH compaction = {'class': ...} is allowed.
+     *
+     * @param enabled {@code true} if allowed, {@code false} otherwise.
+     */
+    void setAlterTableCompactionStrategyEnabled(boolean enabled);
+
+    /**
      * Returns whether users can TRUNCATE or DROP TABLE
      *
      * @return {@code true} if allowed, {@code false} otherwise.

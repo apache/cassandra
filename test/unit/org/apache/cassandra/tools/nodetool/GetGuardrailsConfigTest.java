@@ -58,6 +58,7 @@ public class GetGuardrailsConfigTest extends CQLTester
         tool.assertOnCleanExit();
         assertThat(tool.getStdout()).isEqualTo("Guardrails Configuration:\n" +
                                                "AllowFilteringEnabled: true\n" +
+                                               "AlterTableCompactionStrategyEnabled: true\n" +
                                                "BulkLoadEnabled: true\n" +
                                                "CollectionSizeFailThreshold: null\n" +
                                                "CollectionSizeWarnThreshold: null\n" +

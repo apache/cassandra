@@ -344,6 +344,20 @@ public class GuardrailsOptions implements GuardrailsConfig
     }
 
     @Override
+    public boolean getAlterTableCompactionStrategyEnabled()
+    {
+        return config.alter_table_compaction_strategy_enabled;
+    }
+
+    public void setAlterTableCompactionStrategyEnabled(boolean enabled)
+    {
+        updatePropertyWithLogging("alter_table_compaction_strategy_enabled",
+                                  enabled,
+                                  () -> config.alter_table_compaction_strategy_enabled,
+                                  x -> config.alter_table_compaction_strategy_enabled = x);
+    }
+
+    @Override
     public boolean getDropTruncateTableEnabled()
     {
         return config.drop_truncate_table_enabled;

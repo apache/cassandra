@@ -146,6 +146,11 @@ public final class Guardrails implements GuardrailsMBean
                     state -> !CONFIG_PROVIDER.getOrCreate(state).getGroupByEnabled(),
                     "GROUP BY functionality");
 
+    public static final DisableFlag alterTableCompactionStrategyEnabled =
+    new DisableFlag("alter_table_compaction_strategy",
+                    state -> !CONFIG_PROVIDER.getOrCreate(state).getAlterTableCompactionStrategyEnabled(),
+                    "ALTER TABLE compaction strategy");
+
     public static final DisableFlag dropTruncateTableEnabled =
     new DisableFlag("drop_truncate_table_enabled",
                     state -> !CONFIG_PROVIDER.getOrCreate(state).getDropTruncateTableEnabled(),
@@ -622,6 +627,18 @@ public final class Guardrails implements GuardrailsMBean
     public void setGroupByEnabled(boolean enabled)
     {
         DEFAULT_CONFIG.setGroupByEnabled(enabled);
+    }
+
+    @Override
+    public boolean getAlterTableCompactionStrategyEnabled()
+    {
+        return DEFAULT_CONFIG.getAlterTableCompactionStrategyEnabled();
+    }
+
+    @Override
+    public void setAlterTableCompactionStrategyEnabled(boolean enabled)
+    {
+        DEFAULT_CONFIG.setAlterTableCompactionStrategyEnabled(enabled);
     }
 
     @Override

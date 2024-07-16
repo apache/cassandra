@@ -31,4 +31,4 @@ artifact_paths:
   - build/comment/phabricator-comment*
 
 agent:
-  queue: "odin-generic-ci-gcp"
+  queue: "odin-cassandra-ci"

@@ -159,6 +159,13 @@ public interface GuardrailsConfig
     boolean getGroupByEnabled();
 
     /**
+     * Returns whether ALTER TABLE ... WITH compaction = {'class': ...} is allowed
+     *
+     * @return {@code true} if allowed, {@code false} otherwise.
+     */
+    boolean getAlterTableCompactionStrategyEnabled();
+
+    /**
      * Returns whether TRUNCATE or DROP table are allowed
      *
      * @return {@code true} if allowed, {@code false} otherwise.

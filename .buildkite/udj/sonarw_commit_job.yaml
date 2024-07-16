@@ -29,6 +29,6 @@ vault_secrets:
     alias: ARTIFACTORY_AUTH
 
 agent:
-  queue: "odin-generic-ci-gcp"
+  queue: "odin-cassandra-ci"
 
 timeout_in_minutes: 180 # 3 hours, unit tests take ~2 hours to run

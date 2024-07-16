@@ -46,6 +46,7 @@ public class SetGuardrailsConfigTest extends CQLTester
         ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("setguardrailsconfig", "--list");
         tool.assertOnCleanExit();
         assertThat(tool.getStdout()).isEqualTo("setAllowFilteringEnabled\tboolean\n" +
+                                               "setAlterTableCompactionStrategyEnabled\tboolean\n" +
                                                "setBulkLoadEnabled\tboolean\n" +
                                                "setCollectionSizeThreshold\t[java.lang.String, java.lang.String]\n" +
                                                "setColumnsPerTableThreshold\t[int, int]\n" +
