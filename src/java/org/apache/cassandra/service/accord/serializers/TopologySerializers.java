@@ -159,6 +159,7 @@ public class TopologySerializers
         {
             out.writeLong(topology.epoch());
             ArraySerializers.serializeArray(topology.unsafeGetShards(), out, version, shard);
+            CollectionSerializers.serializeCollection(topology.staleIds(), out, version, TopologySerializers.nodeId);
         }
 
         @Override
@@ -166,7 +167,8 @@ public class TopologySerializers
         {
             long epoch = in.readLong();
             Shard[] shards = ArraySerializers.deserializeArray(in, version, shard, Shard[]::new);
-            return new Topology(epoch, shards);
+            Set<Node.Id> staleIds = CollectionSerializers.deserializeSet(in, version, TopologySerializers.nodeId);
+            return new Topology(epoch, staleIds, shards);
         }
 
         @Override
@@ -175,6 +177,7 @@ public class TopologySerializers
             long size = 0;
             size += TypeSizes.LONG_SIZE; // epoch
             size += ArraySerializers.serializedArraySize(topology.unsafeGetShards(), version, shard);
+            size += CollectionSerializers.serializedCollectionSize(topology.staleIds(), version, TopologySerializers.nodeId);
             return size;
         }
     };
