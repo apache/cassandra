@@ -1,4 +1,5 @@
 5.1
+ * Fix cqlsh CAPTURE command to save query results without trace details when TRACING is ON (CASSANDRA-19105)
  * Optionally prevent tombstone purging during repair (CASSANDRA-20071)
  * Add post-filtering support for the IN operator in SAI queries (CASSANDRA-20025)
  * Don’t finish ongoing decommission and move operations during startup (CASSANDRA-20040)

@@ -1524,7 +1524,8 @@ class Shell(cmd.Cmd):
         To inspect the current capture configuration, use CAPTURE with no
         arguments.
         """
-        fname = parsed.get_binding('fname')
+        fname = parsed.get_binding('switch')
+
         if fname is None:
             if self.shunted_query_out is not None:
                 print("Currently capturing query output to %r." % (self.query_out.name,))
