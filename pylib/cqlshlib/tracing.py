@@ -47,12 +47,27 @@ def print_trace(shell, trace):
     formatted_names = list(map(shell.myformat_colname, names))
     formatted_values = [list(map(shell.myformat_value, row)) for row in rows]
 
+    temp_query = None
+    temp_color = None
+
+    if shell.shunted_query_out is not None:
+        temp_query = shell.query_out
+        shell.query_out = shell.shunted_query_out
+        temp_color = shell.color
+        shell.color = shell.shunted_color
+
     shell.writeresult('')
     shell.writeresult('Tracing session: ', color=MAGENTA, newline=False)
     shell.writeresult(trace.trace_id)
     shell.writeresult('')
     shell.print_formatted_result(formatted_names, formatted_values, with_header=True, tty=shell.tty)
     shell.writeresult('')
+
+    if temp_query is not None:
+        shell.query_out = temp_query
+        shell.color = temp_color
+        temp_query, temp_color = None, None
+
 
 
 def make_trace_rows(trace):
