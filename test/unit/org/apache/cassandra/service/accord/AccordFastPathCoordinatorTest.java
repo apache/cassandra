@@ -18,6 +18,15 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import java.util.concurrent.TimeUnit;
+
+import org.junit.Assert;
+import org.junit.BeforeClass;
+import org.junit.Test;
+
 import accord.local.Node;
 import accord.topology.Shard;
 import accord.topology.Topology;
@@ -28,14 +37,6 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.service.accord.AccordFastPath.Status;
 import org.apache.cassandra.tcm.ClusterMetadata;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
-import java.util.concurrent.TimeUnit;
 
 import static org.apache.cassandra.service.accord.AccordTestUtils.*;
 
