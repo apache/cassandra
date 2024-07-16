@@ -219,6 +219,8 @@ public interface Transformation
 
         BEGIN_CONSENSUS_MIGRATION_FOR_TABLE_AND_RANGE(36, () -> BeginConsensusMigrationForTableAndRange.serializer),
         MAYBE_FINISH_CONSENSUS_MIGRATION_FOR_TABLE_AND_RANGE(37, () -> MaybeFinishConsensusMigrationForTableAndRange.serializer),
+        ACCORD_MARK_STALE(38, () -> AccordMarkStale.serializer),
+        ACCORD_MARK_REJOINING(39, () -> AccordMarkRejoining.serializer),
 
         ;
 

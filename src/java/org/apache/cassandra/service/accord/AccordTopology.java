@@ -78,7 +78,7 @@ public class AccordTopology
         }
     }
 
-    static class KeyspaceShard
+    public static class KeyspaceShard
     {
         private final KeyspaceMetadata keyspace;
         private final Range<Token> range;
@@ -139,7 +139,7 @@ public class AccordTopology
             return new KeyspaceShard(keyspace, range, nodes, pending);
         }
 
-        public static List<KeyspaceShard> forKeyspace(KeyspaceMetadata keyspace, DataPlacements placements, Directory directory, ShardLookup lookup)
+        public static List<KeyspaceShard> forKeyspace(KeyspaceMetadata keyspace, DataPlacements placements, Directory directory)
         {
             ReplicationParams replication = keyspace.params.replication;
             DataPlacement placement = placements.get(replication);
@@ -153,6 +153,16 @@ public class AccordTopology
                 shards.add(forRange(keyspace, range, directory, reads, writes));
             }
             return shards;
+        }
+
+        public List<Node.Id> nodes()
+        {
+            return nodes;
+        }
+
+        public Range<Token> range()
+        {
+            return range;
         }
     }
 
@@ -219,7 +229,9 @@ public class AccordTopology
         return builder.build();
     }
 
-    public static Topology createAccordTopology(Epoch epoch, DistributedSchema schema, DataPlacements placements, Directory directory, AccordFastPath accordFastPath, ShardLookup lookup)
+    public static Topology createAccordTopology(Epoch epoch, DistributedSchema schema, DataPlacements placements, 
+                                                Directory directory, AccordFastPath accordFastPath, ShardLookup lookup,
+                                                AccordStaleReplicas staleReplicas)
     {
         List<Shard> shards = new ArrayList<>();
         Set<Node.Id> unavailable = accordFastPath.unavailableIds();
@@ -230,17 +242,18 @@ public class AccordTopology
             List<TableMetadata> tables = keyspace.tables.stream().filter(TableMetadata::requiresAccordSupport).collect(Collectors.toList());
             if (tables.isEmpty())
                 continue;
-            List<KeyspaceShard> ksShards = KeyspaceShard.forKeyspace(keyspace, placements, directory, lookup);
+            List<KeyspaceShard> ksShards = KeyspaceShard.forKeyspace(keyspace, placements, directory);
             tables.forEach(table -> ksShards.forEach(shard -> shards.add(shard.createForTable(table, unavailable, dcMap, lookup))));
         }
 
         shards.sort((a, b) -> a.range.compare(b.range));
-        return new Topology(epoch.getEpoch(), shards.toArray(new Shard[0]));
+
+        return new Topology(epoch.getEpoch(), staleReplicas.ids(), shards.toArray(new Shard[0]));
     }
 
     public static Topology createAccordTopology(ClusterMetadata metadata, ShardLookup lookup)
     {
-        return createAccordTopology(metadata.epoch, metadata.schema, metadata.placements, metadata.directory, metadata.accordFastPath, lookup);
+        return createAccordTopology(metadata.epoch, metadata.schema, metadata.placements, metadata.directory, metadata.accordFastPath, lookup, metadata.accordStaleReplicas);
     }
 
     public static Topology createAccordTopology(ClusterMetadata metadata, Topology current)

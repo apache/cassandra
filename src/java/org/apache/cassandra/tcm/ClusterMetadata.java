@@ -21,6 +21,7 @@ package org.apache.cassandra.tcm;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -56,6 +57,8 @@ import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.service.accord.AccordStaleReplicas;
+import org.apache.cassandra.service.accord.AccordTopology;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
 import org.apache.cassandra.service.consensus.migration.TableMigrationState;
 import org.apache.cassandra.tcm.extensions.ExtensionKey;
@@ -98,6 +101,7 @@ public class ClusterMetadata
     public final InProgressSequences inProgressSequences;
     public final ConsensusMigrationState consensusMigrationState;
     public final ImmutableMap<ExtensionKey<?,?>, ExtensionValue<?>> extensions;
+    public final AccordStaleReplicas accordStaleReplicas;
 
     // These two fields are lazy but only for the test purposes, since their computation requires initialization of the log ks
     private EndpointsForRange fullCMSReplicas;
@@ -129,7 +133,8 @@ public class ClusterMetadata
              LockedRanges.EMPTY,
              InProgressSequences.EMPTY,
              ConsensusMigrationState.EMPTY,
-             ImmutableMap.of());
+             ImmutableMap.of(),
+             AccordStaleReplicas.EMPTY);
     }
 
     public ClusterMetadata(Epoch epoch,
@@ -142,7 +147,8 @@ public class ClusterMetadata
                            LockedRanges lockedRanges,
                            InProgressSequences inProgressSequences,
                            ConsensusMigrationState consensusMigrationState,
-                           Map<ExtensionKey<?, ?>, ExtensionValue<?>> extensions)
+                           Map<ExtensionKey<?, ?>, ExtensionValue<?>> extensions,
+                           AccordStaleReplicas accordStaleReplicas)
     {
         this(EMPTY_METADATA_IDENTIFIER,
              epoch,
@@ -155,7 +161,8 @@ public class ClusterMetadata
              lockedRanges,
              inProgressSequences,
              consensusMigrationState,
-             extensions);
+             extensions,
+             accordStaleReplicas);
     }
 
     private ClusterMetadata(int metadataIdentifier,
@@ -169,7 +176,8 @@ public class ClusterMetadata
                            LockedRanges lockedRanges,
                            InProgressSequences inProgressSequences,
                            ConsensusMigrationState consensusMigrationState,
-                           Map<ExtensionKey<?, ?>, ExtensionValue<?>> extensions)
+                           Map<ExtensionKey<?, ?>, ExtensionValue<?>> extensions,
+                           AccordStaleReplicas accordStaleReplicas)
     {
         // TODO: token map is a feature of the specific placement strategy, and so may not be a relevant component of
         //  ClusterMetadata in the long term. We need to consider how the actual components of metadata can be evolved
@@ -187,17 +195,18 @@ public class ClusterMetadata
         this.inProgressSequences = inProgressSequences;
         this.consensusMigrationState = consensusMigrationState;
         this.extensions = ImmutableMap.copyOf(extensions);
+        this.accordStaleReplicas = accordStaleReplicas;
         this.hashCode = computeHashCode();
     }
 
     public ClusterMetadata withDirectory(Directory directory)
     {
-        return new ClusterMetadata(epoch, partitioner, schema, directory, tokenMap, placements, accordFastPath, lockedRanges, inProgressSequences, consensusMigrationState, extensions);
+        return new ClusterMetadata(epoch, partitioner, schema, directory, tokenMap, placements, accordFastPath, lockedRanges, inProgressSequences, consensusMigrationState, extensions, accordStaleReplicas);
     }
 
     public ClusterMetadata withPlacements(DataPlacements placements)
     {
-        return new ClusterMetadata(epoch, partitioner, schema, directory, tokenMap, placements, accordFastPath, lockedRanges, inProgressSequences, consensusMigrationState, extensions);
+        return new ClusterMetadata(epoch, partitioner, schema, directory, tokenMap, placements, accordFastPath, lockedRanges, inProgressSequences, consensusMigrationState, extensions, accordStaleReplicas);
     }
 
     public Set<InetAddressAndPort> fullCMSMembers()
@@ -246,7 +255,8 @@ public class ClusterMetadata
                                    capLastModified(lockedRanges, epoch),
                                    capLastModified(inProgressSequences, epoch),
                                    capLastModified(consensusMigrationState, epoch),
-                                   capLastModified(extensions, epoch));
+                                   capLastModified(extensions, epoch),
+                                   capLastModified(accordStaleReplicas, epoch));
     }
 
     public ClusterMetadata initializeClusterIdentifier(int clusterIdentifier)
@@ -268,7 +278,8 @@ public class ClusterMetadata
                                    lockedRanges,
                                    inProgressSequences,
                                    consensusMigrationState,
-                                   extensions);
+                                   extensions,
+                                   accordStaleReplicas);
     }
 
     private static Map<ExtensionKey<?,?>, ExtensionValue<?>> capLastModified(Map<ExtensionKey<?,?>, ExtensionValue<?>> original, Epoch maxEpoch)
@@ -393,6 +404,7 @@ public class ClusterMetadata
         private ConsensusMigrationState consensusMigrationState;
         private final Map<ExtensionKey<?, ?>, ExtensionValue<?>> extensions;
         private final Set<MetadataKey> modifiedKeys;
+        private AccordStaleReplicas accordStaleReplicas;
 
         private Transformer(ClusterMetadata metadata, Epoch epoch)
         {
@@ -409,6 +421,7 @@ public class ClusterMetadata
             this.consensusMigrationState = metadata.consensusMigrationState;
             extensions = new HashMap<>(metadata.extensions);
             modifiedKeys = new HashSet<>();
+            accordStaleReplicas = metadata.accordStaleReplicas;
         }
 
         public Epoch epoch()
@@ -437,6 +450,11 @@ public class ClusterMetadata
         public Transformer unregister(NodeId nodeId)
         {
             directory = directory.without(nodeId);
+
+            Node.Id accordId = AccordTopology.tcmIdToAccord(nodeId);
+            if (accordStaleReplicas.contains(accordId))
+                accordStaleReplicas = accordStaleReplicas.without(Collections.singleton(accordId));
+
             return this;
         }
 
@@ -504,6 +522,11 @@ public class ClusterMetadata
             directory = directory.without(replaced)
                                  .withRackAndDC(replacement)
                                  .withNodeState(replacement, NodeState.JOINED);
+
+            Node.Id accordId = AccordTopology.tcmIdToAccord(replaced);
+            if (accordStaleReplicas.contains(accordId))
+                accordStaleReplicas = accordStaleReplicas.without(Collections.singleton(accordId));
+
             return this;
         }
 
@@ -530,6 +553,18 @@ public class ClusterMetadata
         public Transformer withFastPathStatusSince(Node.Id node, AccordFastPath.Status status, long updateTimeMillis, long updateDelayMillis)
         {
             accordFastPath = accordFastPath.withNodeStatusSince(node, status, updateTimeMillis, updateDelayMillis);
+            return this;
+        }
+        
+        public Transformer markStaleReplicas(Set<Node.Id> ids)
+        {
+            accordStaleReplicas = accordStaleReplicas.withNodeIds(ids);
+            return this;
+        }
+
+        public Transformer unmarkStaleReplicas(Set<Node.Id> ids)
+        {
+            accordStaleReplicas = accordStaleReplicas.without(ids);
             return this;
         }
 
@@ -658,6 +693,12 @@ public class ClusterMetadata
                 modifiedKeys.add(MetadataKeys.ACCORD_FAST_PATH);
                 accordFastPath = accordFastPath.withLastModified(epoch);
             }
+            
+            if (accordStaleReplicas != base.accordStaleReplicas)
+            {
+                modifiedKeys.add(MetadataKeys.ACCORD_STALE_REPLICAS);
+                accordStaleReplicas = accordStaleReplicas.withLastModified(epoch);
+            }
 
             if (lockedRanges != base.lockedRanges)
             {
@@ -693,7 +734,8 @@ public class ClusterMetadata
                                                        lockedRanges,
                                                        inProgressSequences,
                                                        consensusMigrationState,
-                                                       extensions),
+                                                       extensions,
+                    accordStaleReplicas),
                                    ImmutableSet.copyOf(modifiedKeys));
         }
 
@@ -710,7 +752,8 @@ public class ClusterMetadata
                                        lockedRanges,
                                        inProgressSequences,
                                        consensusMigrationState,
-                                       extensions);
+                                       extensions,
+                    accordStaleReplicas);
         }
 
         @Override
@@ -975,7 +1018,9 @@ public class ClusterMetadata
             {
                 AccordFastPath.serializer.serialize(metadata.accordFastPath, out, version);
                 ConsensusMigrationState.serializer.serialize(metadata.consensusMigrationState, out, version);
+                AccordStaleReplicas.serializer.serialize(metadata.accordStaleReplicas, out, version);
             }
+
             LockedRanges.serializer.serialize(metadata.lockedRanges, out, version);
             InProgressSequences.serializer.serialize(metadata.inProgressSequences, out, version);
             out.writeInt(metadata.extensions.size());
@@ -1012,18 +1057,24 @@ public class ClusterMetadata
             Directory dir = Directory.serializer.deserialize(in, version);
             TokenMap tokenMap = TokenMap.serializer.deserialize(in, version);
             DataPlacements placements = DataPlacements.serializer.deserialize(in, version);
+
             AccordFastPath accordFastPath;
             ConsensusMigrationState consensusMigrationState;
+            AccordStaleReplicas staleReplicas;
+
             if (version.isAtLeast(V2))
             {
                 accordFastPath = AccordFastPath.serializer.deserialize(in, version);
                 consensusMigrationState = ConsensusMigrationState.serializer.deserialize(in, version);
+                staleReplicas = AccordStaleReplicas.serializer.deserialize(in, version);
             }
             else
             {
                 accordFastPath = AccordFastPath.EMPTY;
                 consensusMigrationState = ConsensusMigrationState.EMPTY;
+                staleReplicas = AccordStaleReplicas.EMPTY;
             }
+
             LockedRanges lockedRanges = LockedRanges.serializer.deserialize(in, version);
             InProgressSequences ips = InProgressSequences.serializer.deserialize(in, version);
             int items = in.readInt();
@@ -1046,7 +1097,8 @@ public class ClusterMetadata
                                        lockedRanges,
                                        ips,
                                        consensusMigrationState,
-                                       extensions);
+                                       extensions,
+                                       staleReplicas);
         }
 
         @Override
@@ -1070,7 +1122,8 @@ public class ClusterMetadata
             if (version.isAtLeast(V2))
             {
                 size += AccordFastPath.serializer.serializedSize(metadata.accordFastPath, version) +
-                        ConsensusMigrationState.serializer.serializedSize(metadata.consensusMigrationState, version);
+                        ConsensusMigrationState.serializer.serializedSize(metadata.consensusMigrationState, version) +
+                        AccordStaleReplicas.serializer.serializedSize(metadata.accordStaleReplicas, version);
             }
 
             size += LockedRanges.serializer.serializedSize(metadata.lockedRanges, version) +

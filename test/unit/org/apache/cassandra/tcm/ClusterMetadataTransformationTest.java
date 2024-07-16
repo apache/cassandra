@@ -309,6 +309,8 @@ public class ClusterMetadataTransformationTest
             return metadata.accordFastPath;
         else if (key == CONSENSUS_MIGRATION_STATE)
             return metadata.consensusMigrationState;
+        else if (key == ACCORD_STALE_REPLICAS)
+            return metadata.accordStaleReplicas;
 
         throw new IllegalArgumentException("Unknown metadata key " + key);
     }

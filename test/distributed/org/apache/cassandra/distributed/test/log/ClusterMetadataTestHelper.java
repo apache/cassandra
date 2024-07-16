@@ -58,6 +58,7 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SchemaTransformation;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.accord.AccordStaleReplicas;
 import org.apache.cassandra.tcm.AtomicLongBackedProcessor;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
@@ -157,7 +158,8 @@ public class ClusterMetadataTestHelper
                                    LockedRanges.EMPTY,
                                    InProgressSequences.EMPTY,
                                    null,
-                                   ImmutableMap.of());
+                                   ImmutableMap.of(),
+                                   AccordStaleReplicas.EMPTY);
     }
 
     public static ClusterMetadata minimalForTesting(IPartitioner partitioner)
@@ -172,7 +174,8 @@ public class ClusterMetadataTestHelper
                                    null,
                                    null,
                                    null,
-                                   ImmutableMap.of());
+                                   ImmutableMap.of(),
+                                   AccordStaleReplicas.EMPTY);
     }
 
     public static ClusterMetadata minimalForTesting(Keyspaces keyspaces)
@@ -187,7 +190,8 @@ public class ClusterMetadataTestHelper
                                    null,
                                    null,
                                    null,
-                                   ImmutableMap.of());
+                                   ImmutableMap.of(),
+                                   AccordStaleReplicas.EMPTY);
     }
 
     public static ClusterMetadataService syncInstanceForTest()
