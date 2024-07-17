@@ -37,7 +37,10 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
+
+import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 
 public class CompactionStrategyMigrationManager implements CompactionStrategyMigrationManagerMBean
 {
@@ -236,6 +239,32 @@ public class CompactionStrategyMigrationManager implements CompactionStrategyMig
             return false;
         }
         return defaultParams.equals(params);
+    }
+
+    public void applySchemaChangesForCompactionParams()
+    {
+        // USE WITH CAUTIOUS: this won't check other nodes' migration status and this will apply the schema change to
+        // all nodes and there is no way back (do snapshot before if necessary)
+
+        // safeguard: only able to run this when current node has migration enabled
+        if (!getCompactionStrategyMigrationEnabled())
+        {
+            logger.error("CompactionStrategyMigration not enabled!");
+            return;
+        }
+
+
+        String alterQuery = "ALTER TABLE %s.%s WITH compaction = %s;";
+        cfsToMigrate.forEach((cfs, params) -> {
+            try
+            {
+                executeInternal(String.format(alterQuery, cfs.keyspace.getName(), cfs.name, FBUtilities.toJsonMapStringSingleQuotes(params.asMap())));
+            }
+            catch (Exception e)
+            {
+                logger.error("failed to alter schema for {}", cfs.keyspace.getName() + '.' + cfs.name, e);
+            }
+        });
     }
 
     @VisibleForTesting

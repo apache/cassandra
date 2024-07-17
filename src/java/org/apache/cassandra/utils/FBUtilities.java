@@ -833,6 +833,16 @@ public class FBUtilities
         }
     }
 
+    public static String toJsonMapStringSingleQuotes(Map<String, String> map) {
+        try {
+            String jsonString = jsonMapper.writeValueAsString(map);
+            // replace double quotes with single quotes for output
+            return jsonString.replace("\"", "'");
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     public static List<String> fromJsonList(String json)
     {
         try

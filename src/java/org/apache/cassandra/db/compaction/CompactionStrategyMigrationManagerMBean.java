@@ -41,4 +41,9 @@ public interface CompactionStrategyMigrationManagerMBean
      * @return user cfs with non-default compaction params
      */
     public Map<String, String> getCfsWithNonDefaultCompactionParams();
+
+    /**
+     * Execute ALTER TABLE internally to change the options for compaction params
+     */
+    public void applySchemaChangesForCompactionParams();
 }
