@@ -19,10 +19,12 @@ package org.apache.cassandra.tools;
 
 import java.io.IOException;
 import java.io.PrintStream;
+import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
 import java.lang.management.MemoryUsage;
 import java.lang.management.RuntimeMXBean;
+import java.lang.management.ThreadMXBean;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.rmi.ConnectException;
@@ -785,6 +787,33 @@ public class NodeProbe implements AutoCloseable
         return gcProxy.getAndResetStats();
     }
 
+    public long getNumberOfGCThreads()
+    {
+
+        ThreadMXBean threadMXBean = ManagementFactory.getThreadMXBean();
+        long gcThreadCount = 0;
+
+        // check to see if has GC
+        for (long threadId : threadMXBean.getAllThreadIds()) {
+            String threadName = threadMXBean.getThreadInfo(threadId).getThreadName();
+            if (threadName.contains("GC")) {
+                gcThreadCount++;
+            }
+        }
+        return gcThreadCount;
+    }
+
+    public long getYoungGenDuration(){
+
+        List<GarbageCollectorMXBean> gcMxBeans = ManagementFactory.getGarbageCollectorMXBeans();
+        for (GarbageCollectorMXBean gcMxBean : gcMxBeans) {
+            if(gcMxBean.getName().contains("Young")){
+                return gcMxBean.getCollectionTime();
+            }
+        }
+        return -1;
+    }
+
     public Iterator<Map.Entry<String, ColumnFamilyStoreMBean>> getColumnFamilyStoreMBeanProxies()
     {
         try
@@ -1424,11 +1453,6 @@ public class NodeProbe implements AutoCloseable
     public long getCompactionThroughputBytes()
     {
         return ssProxy.getCompactionThroughtputBytesPerSec();
-    }
-
-    public Map<String, String> getCurrentCompactionThroughputMiBPerSec()
-    {
-        return ssProxy.getCurrentCompactionThroughputMebibytesPerSec();
     }
 
     public void setBatchlogReplayThrottle(int value)

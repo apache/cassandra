@@ -20,13 +20,12 @@ package org.apache.cassandra.tools.nodetool;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.NativeLibrary; // Import the NativeLibrary class
+import org.apache.cassandra.utils.NativeLibrary;
 import java.lang.management.ManagementFactory;
-import java.lang.management.MemoryMXBean;
 import java.lang.management.MemoryPoolMXBean;
 import java.lang.management.MemoryUsage;
-import java.util.List;
-import com.sun.management.OperatingSystemMXBean; // Import the OperatingSystemMXBean class
+import com.sun.management.OperatingSystemMXBean;
+import org.apache.commons.lang3.StringUtils;
 
 import io.airlift.airline.Command;
 
@@ -39,69 +38,55 @@ public class GcStats extends NodeToolCmd
         double[] stats = probe.getAndResetGCStats();
         double mean = stats[2] / stats[5];
         double stdev = Math.sqrt((stats[3] / stats[5]) - (mean * mean));
-        long[] thread = probe.numberOfGCThreads();
-
-        //value of jnaLockable
-        boolean jnaLockable = NativeLibrary.jnaMemoryLockable();
 
         OperatingSystemMXBean osBean = (OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean();
 
-        long freeMemoryBytes = osBean.getFreeMemorySize();
-        long swapMemoryBytes = osBean.getFreeSwapSpaceSize();
-        long totalMemoryBytes = osBean.getTotalMemorySize();
-        long totalswapMemoryBytes = osBean.getTotalSwapSpaceSize();
+        String freeMemoryBytes = FBUtilities.prettyPrintMemory(osBean.getFreeMemorySize(), " ");
+        String totalMemoryBytes = FBUtilities.prettyPrintMemory(osBean.getTotalMemorySize(), " ");
+        String totalswapMemoryBytes = FBUtilities.prettyPrintMemory(osBean.getTotalSwapSpaceSize(), " ");
 
-        String PM_freeMemoryBytes = FBUtilities.prettyPrintMemory(freeMemoryBytes, " ");
-        String PM_totalMemoryBytes = FBUtilities.prettyPrintMemory(totalMemoryBytes, " ");
-        String PM_totalswapMemoryBytes = FBUtilities.prettyPrintMemory(totalswapMemoryBytes, " ");
+        String OSInUseMemoryBytes = FBUtilities.prettyPrintMemory(osBean.getTotalMemorySize() - osBean.getFreeMemorySize(), " ");
+        String SWAPInUseMemoryBytes = FBUtilities.prettyPrintMemory(osBean.getTotalSwapSpaceSize() - osBean.getFreeSwapSpaceSize(), " ");
 
-        String PM_OSInUseMemoryBytes = FBUtilities.prettyPrintMemory(totalswapMemoryBytes - freeMemoryBytes, " ");
-        String PM_SWAPInUseMemoryBytes = FBUtilities.prettyPrintMemory(totalswapMemoryBytes - swapMemoryBytes, " ");
+        probe.output().out.println("GC Threads: " + probe.getNumberOfGCThreads());
+        probe.output().out.println("Duration: " + probe.getYoungGenDuration() + " ms");
+        probe.output().out.println("MemLock: " + NativeLibrary.jnaMemoryLockable() + "\n");
 
-        probe.output().out.println("GC Threads: " + thread[1]);
-        probe.output().out.println("Duration: " + thread[0] + " ms");
-        probe.output().out.println("MemLock: " + jnaLockable + "\n");
+        long osMemoryInUse = osBean.getTotalMemorySize() - osBean.getFreeMemorySize();
+        double ospercent = ((double)osMemoryInUse/osBean.getTotalMemorySize()) * 100;
+        probe.output().out.println("OS Free Memory Bytes: " + freeMemoryBytes);
+        probe.output().out.println("OS Total Memory Bytes: " + totalMemoryBytes);
+        probe.output().out.println("OS In Use: " +  OSInUseMemoryBytes + " / " + totalMemoryBytes + " (" + String.format("%.1f", ospercent) + "%)\n");
 
-        long osInUse = totalMemoryBytes - freeMemoryBytes;
-        double ospercent = ((double)osInUse/totalMemoryBytes) * 100;
-        probe.output().out.println("OS Free Memory Bytes: " + PM_freeMemoryBytes);
-        probe.output().out.println("OS Total Memory Bytes: " + PM_totalMemoryBytes);
-        probe.output().out.println("OS In Use: " +  PM_OSInUseMemoryBytes + " / " + PM_totalMemoryBytes + " (" + String.format("%.1f", ospercent) + "%)\n");
+        long swapInUse;
+        double swapPercent;
 
-        long swapInUse = (totalswapMemoryBytes - swapMemoryBytes);
-        double swapPercent = ((double)swapInUse/totalswapMemoryBytes) * 100;
+        if(osBean.getTotalSwapSpaceSize() == 0){
+            swapInUse = 0;
+            swapPercent = 0;
+        }
+        else{
+            swapInUse = osBean.getTotalSwapSpaceSize() - osBean.getFreeSwapSpaceSize();
+            swapPercent = ((double)swapInUse/osBean.getTotalSwapSpaceSize()) * 100;
+        }
 
-        probe.output().out.println("Swap in Use: " + PM_SWAPInUseMemoryBytes + " / " + PM_totalswapMemoryBytes + " (" + String.format("%.1f", swapPercent) + "%)\n");
+        probe.output().out.println("Swap in Use: " + SWAPInUseMemoryBytes + " / " + totalswapMemoryBytes + " (" + String.format("%.1f", swapPercent) + "%)\n");
         probe.output().out.printf("%20s%20s%20s%20s%20s%20s%25s%n", "Interval (ms)", "Max GC Elapsed (ms)", "Total GC Elapsed (ms)", "Stdev GC Elapsed (ms)", "GC Reclaimed (MB)", "Collections", "Direct Memory Bytes");
-        probe.output().out.printf("%20.0f%20.0f%20.0f%20.0f%20.0f%20.0f%25d%n", stats[0], stats[1], stats[2], stdev, stats[4], stats[5], (long)stats[6]);
-        probe.output().out.printf("\n");
+        probe.output().out.printf("%20.0f%20.0f%20.0f%20.0f%20.0f%20.0f%25d%n", stats[0], stats[1], stats[2], stdev, stats[4], stats[5], -1);
+        MemoryUsage heapMemoryUsage = probe.getHeapMemoryUsage();
 
-        MemoryMXBean memoryMXBean = ManagementFactory.getMemoryMXBean();
+        probe.output().out.print("\nHeap memory used: " + FBUtilities.prettyPrintMemory(heapMemoryUsage.getUsed(), " "));
+        probe.output().out.println(" (" + String.format("%.1f", ((double)heapMemoryUsage.getUsed()/(double)heapMemoryUsage.getCommitted())*100) + "%)");
 
-        // Get the heap memory usage
-        MemoryUsage heapMemoryUsage = memoryMXBean.getHeapMemoryUsage();
-        long heapUsed = heapMemoryUsage.getUsed();
-        long heapCommitted = heapMemoryUsage.getCommitted();
-
-        String PM_heapUsed = FBUtilities.prettyPrintMemory(heapUsed, " ");
-
-        probe.output().out.print("Heap memory used: " + PM_heapUsed);
-        probe.output().out.println(" (" + String.format("%.1f", ((double)heapUsed/(double)heapCommitted)*100) + "%)");
-
-
-        // Get the MemoryPoolMXBeans
-        List<MemoryPoolMXBean> memoryPoolMXBeans = ManagementFactory.getMemoryPoolMXBeans();
-
-        for (MemoryPoolMXBean memoryPoolMXBean : memoryPoolMXBeans) {
+        for (MemoryPoolMXBean memoryPoolMXBean : ManagementFactory.getMemoryPoolMXBeans()) {
             String name = memoryPoolMXBean.getName();
             MemoryUsage usage = memoryPoolMXBean.getUsage();
 
-            String PM_usage = FBUtilities.prettyPrintMemory(usage.getUsed(), " ");
-
-            if(name.contains("Eden") || name.contains("Old") || name.contains("Survivor")){
-                probe.output().out.print("  " + name + " memory used: " + PM_usage);
+            if(StringUtils.containsAny(name,"Eden", "Old","Survivor")){
+                probe.output().out.print("  " + name + " memory used: " + FBUtilities.prettyPrintMemory(usage.getUsed(), " "));
                 probe.output().out.println(" (" + String.format("%.1f", ((double)usage.getUsed()/(double)usage.getCommitted())*100) + "%)");
             }
         }
     }
 }
+
