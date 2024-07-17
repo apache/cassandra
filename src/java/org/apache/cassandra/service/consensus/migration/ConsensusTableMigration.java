@@ -18,11 +18,13 @@
 
 package org.apache.cassandra.service.consensus.migration;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -36,8 +38,11 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.NormalizedRanges;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.repair.RepairJobDesc;
 import org.apache.cassandra.repair.RepairParallelism;
 import org.apache.cassandra.repair.RepairResult;
@@ -54,6 +59,7 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
+import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.tcm.transformations.BeginConsensusMigrationForTableAndRange;
 import org.apache.cassandra.tcm.transformations.MaybeFinishConsensusMigrationForTableAndRange;
 
@@ -64,7 +70,10 @@ import static com.google.common.collect.ImmutableList.toImmutableList;
 import static java.lang.String.format;
 import static java.util.Collections.emptyList;
 import static org.apache.cassandra.dht.Range.normalize;
-import static org.apache.cassandra.utils.CollectionSerializers.newListSerializer;
+import static org.apache.cassandra.dht.NormalizedRanges.normalizedRanges;
+import static org.apache.cassandra.utils.CollectionSerializers.deserializeList;
+import static org.apache.cassandra.utils.CollectionSerializers.serializeCollection;
+import static org.apache.cassandra.utils.CollectionSerializers.serializedCollectionSize;
 
 /**
  * Track and update the migration state of individual table and ranges within those tables
@@ -73,7 +82,27 @@ public abstract class ConsensusTableMigration
 {
     private static final Logger logger = LoggerFactory.getLogger(ConsensusTableMigration.class);
 
-    public static final MetadataSerializer<List<Range<Token>>> rangesSerializer = newListSerializer(Range.serializer);
+    public static final MetadataSerializer<NormalizedRanges<Token>> rangesSerializer = new MetadataSerializer<NormalizedRanges<Token>>()
+    {
+
+        @Override
+        public void serialize(NormalizedRanges<Token> t, DataOutputPlus out, Version version) throws IOException
+        {
+            serializeCollection(t, out, version, Range.serializer);
+        }
+
+        @Override
+        public NormalizedRanges<Token> deserialize(DataInputPlus in, Version version) throws IOException
+        {
+            return normalizedRanges(deserializeList(in, version, Range.serializer));
+        }
+
+        @Override
+        public long serializedSize(NormalizedRanges<Token> t, Version version)
+        {
+            return serializedCollectionSize(t, version, Range.serializer);
+        }
+    };
 
     public static final FutureCallback<RepairResult> completedRepairJobHandler = new FutureCallback<RepairResult>()
     {
@@ -82,10 +111,11 @@ public abstract class ConsensusTableMigration
         {
             checkNotNull(repairResult, "repairResult should not be null");
             ConsensusMigrationRepairResult migrationResult = repairResult.consensusMigrationRepairResult;
+            ConsensusMigrationRepairType repairType = migrationResult.type;
 
             // Need to repair both Paxos and base table state
             // Could track them separately, but doesn't seem worth the effort
-            if (migrationResult.type == ConsensusMigrationRepairType.ineligible)
+            if (repairType.ineligibleForMigration())
                 return;
 
             RepairJobDesc desc = repairResult.desc;
@@ -99,25 +129,25 @@ public abstract class ConsensusTableMigration
             if (!tms.targetProtocol.isMigratedBy(repairResult.consensusMigrationRepairResult.type))
                 return;
 
-            List<Range<Token>> paxosRepairedRanges = ImmutableList.of();
-            if (migrationResult.type.paxosMigrationEligible)
+            NormalizedRanges<Token> paxosRepairedRanges = NormalizedRanges.empty();
+            if (repairType.migrationToAccordEligible())
                 // Paxos always repairs all ranges requested by the repair although there should be nothing
                 // repaired in the migrated and Accord managed ranges
-                paxosRepairedRanges = ImmutableList.copyOf(desc.ranges);
+                paxosRepairedRanges = normalizedRanges(desc.ranges);
 
-            List<Range<Token>> accordBarrieredRanges = ImmutableList.of();
-            if (migrationResult.type.accordMigrationEligible)
+            NormalizedRanges<Token> accordBarrieredRanges = NormalizedRanges.empty();
+            if (repairType.migrationToPaxosEligible())
                 // Accord only barriers ranges it thinks it manages and repair collects which it barriered
                 // precisely which doesn't have to match what the entire repair covers
-                accordBarrieredRanges = migrationResult.barrieredRanges.stream()
+                accordBarrieredRanges = normalizedRanges(migrationResult.barrieredRanges.stream()
                                                                        .map(range -> ((TokenRange)range).toKeyspaceRange())
-                                                                       .collect(toImmutableList());
-            accordBarrieredRanges = Range.normalize(accordBarrieredRanges);
+                                                                       .collect(toImmutableList()));
+            accordBarrieredRanges = normalizedRanges(accordBarrieredRanges);
 
             ClusterMetadataService.instance().commit(
                 new MaybeFinishConsensusMigrationForTableAndRange(
                     desc.keyspace, desc.columnFamily, paxosRepairedRanges, accordBarrieredRanges,
-                    migrationResult.minEpoch, migrationResult.type));
+                    migrationResult.minEpoch, repairType.repairedData, repairType.repairedPaxos, repairType.repairedAccord));
         }
 
         @Override
@@ -175,7 +205,7 @@ public abstract class ConsensusTableMigration
         IPartitioner partitioner = DatabaseDescriptor.getPartitioner();
         Optional<List<Range<Token>>> maybeParsedRanges = maybeRangesStr.map(rangesStr -> ImmutableList.copyOf(RepairOption.parseRanges(rangesStr, partitioner)));
         Token minToken = partitioner.getMinimumToken();
-        List<Range<Token>> ranges = maybeParsedRanges.orElse(ImmutableList.of(new Range(minToken, minToken)));
+        NormalizedRanges<Token> ranges = normalizedRanges(maybeParsedRanges.orElse(ImmutableList.of(new Range(minToken, minToken))));
 
 
         ClusterMetadataService.instance().commit(new BeginConsensusMigrationForTableAndRange(targetProtocol, ranges, tableIds));
@@ -221,7 +251,12 @@ public abstract class ConsensusTableMigration
         {
             case accord:
                 List<TableMigrationState> migratingToAccord = tableMigrationStates.stream().filter(tms -> tms.targetProtocol == ConsensusMigrationTarget.accord).collect(toImmutableList());
-                return finishMigrationToAccord(keyspace, migratingToAccord, ranges);
+                Integer accordDataRepairCmd = finishMigrationToAccordDataRepair(keyspace, migratingToAccord, ranges);
+                // All ranges are already repaired and ready for Paxos repair
+                // so kick that off instead
+                if (accordDataRepairCmd == null)
+                    return finishMigrationToAccordPaxosRepair(keyspace, migratingToAccord, ranges);
+                return accordDataRepairCmd;
             case paxos:
                 List<TableMigrationState> migratingToPaxos = tableMigrationStates.stream().filter(tms -> tms.targetProtocol == ConsensusMigrationTarget.paxos).collect(toImmutableList());;
                 return finishMigrationToPaxos(keyspace, migratingToPaxos, ranges);
@@ -235,16 +270,16 @@ public abstract class ConsensusTableMigration
         Integer finish(Collection<TableMigrationState> tables, List<Range<Token>> ranges);
     }
 
-    private static Integer finishMigrationTo(String name, List<TableMigrationState> tableMigrationStates, List<Range<Token>> requestedRanges, MigrationFinisher migrationFinisher)
+    private static Integer finishMigrationTo(String name, List<TableMigrationState> tableMigrationStates, List<Range<Token>> requestedRanges, Function<TableMigrationState, List<Range<Token>>> migratingRanges, MigrationFinisher migrationFinisher)
     {
         logger.info("Begin finish migration to {} for ranges {} and tables {}", name, requestedRanges, tableMigrationStates);
-        List<Range<Token>> intersectingRanges = new ArrayList<>();
-        tableMigrationStates.stream().map(TableMigrationState::migratingRanges).forEach(intersectingRanges::addAll);
-        intersectingRanges = Range.normalize(intersectingRanges);
-        intersectingRanges = Range.intersectionOfNormalizedRanges(intersectingRanges, requestedRanges);
+        List<Range<Token>> intersectingRangesList = new ArrayList<>();
+        tableMigrationStates.stream().map(migratingRanges).forEach(intersectingRangesList::addAll);
+        NormalizedRanges<Token> intersectingRanges = normalizedRanges(intersectingRangesList);
+        intersectingRanges = intersectingRanges.intersection(normalizedRanges(requestedRanges));
         if (intersectingRanges.isEmpty())
         {
-            logger.warn("No requested ranges {} intersect any migrating ranges in any table in keyspace {}");
+            logger.warn("No requested ranges {} intersect any migrating ranges in any table for migration: {}", requestedRanges, name);
             return null;
         }
 
@@ -268,19 +303,39 @@ public abstract class ConsensusTableMigration
      *
      * Still maybe more valuable to put this layer of abstraction in so we can change how it works later and it's less
      * tightly coupled with the Repair interface which is pretty orthogonal to consensus migration.
+     *
+     * This first repair is necessary to allow Accord to read data that was written non-serially because we can't do key
+     * migration for those operations because there is no metadata like we have with Paxos.
      */
-    private static Integer finishMigrationToAccord(String keyspace, List<TableMigrationState> migratingToAccord, List<Range<Token>> requestedRanges)
+    private static Integer finishMigrationToAccordDataRepair(String keyspace, List<TableMigrationState> migratingToAccord, List<Range<Token>> requestedRanges)
     {
-        return finishMigrationTo("Accord", migratingToAccord, requestedRanges, (tables, intersectingRanges) -> {
-            RepairOption repairOption = getRepairOption(tables, intersectingRanges, false);
+        return finishMigrationTo("Accord Data Repair", migratingToAccord, requestedRanges, TableMigrationState::repairPendingRanges, (tables, intersectingRanges) -> {
+            RepairOption repairOption = getRepairOption(tables, intersectingRanges, true, false, false);
             return StorageService.instance.repair(keyspace, repairOption, emptyList()).left;
         });
     }
 
+    /*
+     * Need to perform a second repair that is Paxos and then data so that when migrating to FULL mode Accord can read
+     * the result of any Paxos operation from any replica. This should only be done on the migrating ranges that are no longer pending data repair
+     */
+    private static Integer finishMigrationToAccordPaxosRepair(String keyspace, List<TableMigrationState> migratingToAccord, List<Range<Token>> requestedRanges)
+    {
+        return finishMigrationTo("Accord Paxos Repair", migratingToAccord, requestedRanges, tms -> tms.migratingRanges.subtract(tms.repairPendingRanges), (tables, intersectingRanges) -> {
+            RepairOption repairOption = getRepairOption(tables, intersectingRanges, true, true, false);
+            return StorageService.instance.repair(keyspace, repairOption, emptyList()).left;
+        });
+    }
+
+    /*
+     * Migration back to Paxos is pretty simple since Accord can bring all replicas up to date by running barriers and
+     * supports key migration immediately without any repair. Paxos doesn't have the same sensitivity to non-deterministic
+     * data reads.
+     */
     private static Integer finishMigrationToPaxos(String keyspace, List<TableMigrationState> migratingToPaxos, List<Range<Token>> requestedRanges)
     {
-        return finishMigrationTo("Paxos", migratingToPaxos, requestedRanges, (tables, intersectingRanges) -> {
-            RepairOption repairOption = getRepairOption(tables, intersectingRanges, true);
+        return finishMigrationTo("Paxos", migratingToPaxos, requestedRanges, TableMigrationState::migratingRanges, (tables, intersectingRanges) -> {
+            RepairOption repairOption = getRepairOption(tables, intersectingRanges, false, false, true);
             return StorageService.instance.repair(keyspace, repairOption, emptyList()).left;
         });
     }
@@ -318,21 +373,19 @@ public abstract class ConsensusTableMigration
     }
 
     @Nonnull
-    private static RepairOption getRepairOption(Collection<TableMigrationState> tables, List<Range<Token>> intersectingRanges, boolean accordRepair)
+    private static RepairOption getRepairOption(Collection<TableMigrationState> tables, List<Range<Token>> intersectingRanges, boolean repairData, boolean repairPaxos, boolean repairAccord)
     {
         boolean primaryRange = false;
         // TODO (review): Should disabling incremental repair be exposed for the Paxos repair in case someone explicitly does not do incremental repair?
-        boolean incremental = !accordRepair;
+        boolean incremental = repairData;
         boolean trace = false;
         int numJobThreads = 1;
         boolean pullRepair = false;
         boolean forceRepair = false;
         boolean optimiseStreams = false;
         boolean ignoreUnreplicatedKeyspaces = true;
-        boolean repairPaxos = !accordRepair;
-        boolean paxosOnly = false;
-        boolean accordOnly = false;
-        RepairOption repairOption = new RepairOption(RepairParallelism.PARALLEL, primaryRange, incremental, trace, numJobThreads, intersectingRanges, pullRepair, forceRepair, PreviewKind.NONE, optimiseStreams, ignoreUnreplicatedKeyspaces, repairPaxos, paxosOnly, accordOnly, true);
+        boolean isConsensusMigration = true;
+        RepairOption repairOption = new RepairOption(RepairParallelism.PARALLEL, primaryRange, incremental, trace, numJobThreads, intersectingRanges, pullRepair, forceRepair, PreviewKind.NONE, optimiseStreams, ignoreUnreplicatedKeyspaces, repairData, repairPaxos, repairAccord, isConsensusMigration);
         tables.forEach(table -> repairOption.getColumnFamilies().add(table.tableName));
         return repairOption;
     }

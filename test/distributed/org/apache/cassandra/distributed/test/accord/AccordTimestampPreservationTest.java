@@ -18,16 +18,7 @@
 
 package org.apache.cassandra.distributed.test.accord;
 
-import java.io.IOException;
-import java.nio.ByteBuffer;
-
 import com.google.common.collect.ImmutableList;
-import org.junit.After;
-import org.junit.BeforeClass;
-import org.junit.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -46,6 +37,14 @@ import org.apache.cassandra.locator.ReplicaPlans;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.consensus.migration.ConsensusKeyMigrationState;
 import org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter;
+import org.junit.After;
+import org.junit.BeforeClass;
+import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.IOException;
+import java.nio.ByteBuffer;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.Util.spinAssertEquals;

@@ -25,16 +25,16 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.NormalizedRanges;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationTarget;
 import org.apache.cassandra.service.consensus.migration.ConsensusTableMigration;
-import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.sequences.LockedRanges;
@@ -56,13 +56,13 @@ public class BeginConsensusMigrationForTableAndRange implements Transformation
     public final ConsensusMigrationTarget targetProtocol;
 
     @Nonnull
-    public final List<Range<Token>> ranges;
+    public final NormalizedRanges<Token> ranges;
 
     @Nonnull
     public final List<TableId> tables;
 
     public BeginConsensusMigrationForTableAndRange(@Nonnull ConsensusMigrationTarget targetProtocol,
-                                                   @Nonnull List<Range<Token>> ranges,
+                                                   @Nonnull NormalizedRanges<Token> ranges,
                                                    @Nonnull List<TableId> tables)
     {
         checkNotNull(targetProtocol, "targetProtocol should not be null");
@@ -102,7 +102,7 @@ public class BeginConsensusMigrationForTableAndRange implements Transformation
         public BeginConsensusMigrationForTableAndRange deserialize(DataInputPlus in, Version version) throws IOException
         {
             ConsensusMigrationTarget targetProtocol = ConsensusMigrationTarget.fromString(in.readUTF());
-            List<Range<Token>> ranges = ConsensusTableMigration.rangesSerializer.deserialize(in, version);
+            NormalizedRanges<Token> ranges = ConsensusTableMigration.rangesSerializer.deserialize(in, version);
             List<TableId> tables = deserializeList(in, version, TableId.metadataSerializer);
            return new BeginConsensusMigrationForTableAndRange(targetProtocol, ranges, tables);
         }

@@ -592,8 +592,7 @@ public class AccordService implements IAccordService, Shutdownable
                 asyncResult.accept(txnId -> maybeSaveAccordKeyMigrationLocally(key, Epoch.create(txnId.epoch())));
             }
             long deadlineNanos = requestTime.startedAtNanos() + timeoutNanos;
-            TxnId txnId = AsyncChains.getBlocking(asyncResult, deadlineNanos - nanoTime(), NANOSECONDS);
-            ((AccordAgent) node.agent()).onSuccessfulBarrier(txnId, keysOrRanges);
+            AsyncChains.getBlocking(asyncResult, deadlineNanos - nanoTime(), NANOSECONDS);
             logger.debug("Completed barrier attempt in {}ms, {}ms since attempts start, barrier key: {} epoch: {} barrierType: {} isForWrite {}",
                          sw.elapsed(MILLISECONDS),
                          NANOSECONDS.toMillis(nanoTime() - requestTime.startedAtNanos()),
@@ -608,7 +607,7 @@ public class AccordService implements IAccordService, Shutdownable
                 TxnId txnId = ((Timeout) cause).txnId();
                 ((AccordAgent) node.agent()).onFailedBarrier(txnId, keysOrRanges, cause);
                 metrics.timeouts.mark();
-                throw newBarrierTimeout(txnId, barrierType, isForWrite, keysOrRanges);
+                throw newBarrierTimeout(((CoordinationFailed)cause).txnId(), barrierType, isForWrite, keysOrRanges);
             }
             if (cause instanceof Preempted)
             {
@@ -617,7 +616,7 @@ public class AccordService implements IAccordService, Shutdownable
                 //TODO need to improve
                 // Coordinator "could" query the accord state to see whats going on but that doesn't exist yet.
                 // Protocol also doesn't have a way to denote "unknown" outcome, so using a timeout as the closest match
-                throw newBarrierPreempted(txnId, barrierType, isForWrite, keysOrRanges);
+                throw newBarrierPreempted(((CoordinationFailed)cause).txnId(), barrierType, isForWrite, keysOrRanges);
             }
             if (cause instanceof Exhausted)
             {
@@ -625,7 +624,7 @@ public class AccordService implements IAccordService, Shutdownable
                 ((AccordAgent) node.agent()).onFailedBarrier(txnId, keysOrRanges, cause);
                 // this case happens when a non-timeout exception is seen, and we are unable to move forward
                 metrics.failures.mark();
-                throw newBarrierExhausted(txnId, barrierType, isForWrite, keysOrRanges);
+                throw newBarrierExhausted(((CoordinationFailed)cause).txnId(), barrierType, isForWrite, keysOrRanges);
             }
             // unknown error
             metrics.failures.mark();
@@ -719,19 +718,19 @@ public class AccordService implements IAccordService, Shutdownable
     }
 
     @VisibleForTesting
-    static ReadTimeoutException newBarrierTimeout(TxnId txnId, BarrierType barrierType, boolean isForWrite, Seekables<?, ?> keysOrRanges)
+    static ReadTimeoutException newBarrierTimeout(@Nonnull TxnId txnId, BarrierType barrierType, boolean isForWrite, Seekables<?, ?> keysOrRanges)
     {
         return new ReadTimeoutException(barrierType.global ? ConsistencyLevel.ANY : ConsistencyLevel.QUORUM, 0, 0, false, String.format("Timeout waiting on barrier %s / %s / %s; impacted ranges %s", txnId, barrierType, isForWrite ? "write" : "not write", keysOrRanges));
     }
 
     @VisibleForTesting
-    static ReadTimeoutException newBarrierPreempted(TxnId txnId, BarrierType barrierType, boolean isForWrite, Seekables<?, ?> keysOrRanges)
+    static ReadTimeoutException newBarrierPreempted(@Nullable TxnId txnId, BarrierType barrierType, boolean isForWrite, Seekables<?, ?> keysOrRanges)
     {
         return new ReadPreemptedException(barrierType.global ? ConsistencyLevel.ANY : ConsistencyLevel.QUORUM, 0, 0, false, String.format("Preempted waiting on barrier %s / %s / %s; impacted ranges %s", txnId, barrierType, isForWrite ? "write" : "not write", keysOrRanges));
     }
 
     @VisibleForTesting
-    static ReadExhaustedException newBarrierExhausted(TxnId txnId, BarrierType barrierType, boolean isForWrite, Seekables<?, ?> keysOrRanges)
+    static ReadExhaustedException newBarrierExhausted(@Nullable TxnId txnId, BarrierType barrierType, boolean isForWrite, Seekables<?, ?> keysOrRanges)
     {
         return new ReadExhaustedException(barrierType.global ? ConsistencyLevel.ANY : ConsistencyLevel.QUORUM, 0, 0, false, String.format("Exhausted (too many failures from peers) waiting on barrier %s / %s / %s; impacted ranges %s", txnId, barrierType, isForWrite ? "write" : "not write", keysOrRanges));
     }

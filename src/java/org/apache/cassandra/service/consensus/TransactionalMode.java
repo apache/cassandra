@@ -19,7 +19,6 @@
 package org.apache.cassandra.service.consensus;
 
 import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.IAccordService;
@@ -68,8 +67,11 @@ public enum TransactionalMode
     off(false, false, false, false, false),
 
     /*
-     * Execute writes through Cassandra via StorageProxy's normal write path. This can lead Accord to compute
-     * multiple outcomes for a transaction that depends on data written by non-SERIAL writes.
+     * Execute non-SERIAL writes through Cassandra via StorageProxy's normal write path. This can lead Accord to compute
+     * multiple outcomes for a transaction that depend on data written by non-SERIAL writes.
+     *
+     * SERIAL reads and CAS will run on Accord. Accord will honor provided consistency levels and do synchronous commit
+     * so the results can be read with non-SERIAL CLs.
      */
     unsafe(true, false, false, false, false),
 
@@ -94,26 +96,38 @@ public enum TransactionalMode
     full(true, true, true, true, true);
 
     public final boolean accordIsEnabled;
-    public final boolean ignoresSuppleidCommitCL;
+    public final boolean ignoresSuppliedCommitCL;
     public final boolean writesThroughAccord;
     public final boolean readsThroughAccord;
     public final boolean blockingReadRepairThroughAccord;
     private final String cqlParam;
 
-    TransactionalMode(boolean accordIsEnabled, boolean ignoresSuppleidCommitCL, boolean writesThroughAccord, boolean readsThroughAccord, boolean blockingReadRepairThroughAccord)
+    TransactionalMode(boolean accordIsEnabled, boolean ignoresSuppliedCommitCL, boolean writesThroughAccord, boolean readsThroughAccord, boolean blockingReadRepairThroughAccord)
     {
         this.accordIsEnabled = accordIsEnabled;
-        this.ignoresSuppleidCommitCL = ignoresSuppleidCommitCL;
+        this.ignoresSuppliedCommitCL = ignoresSuppliedCommitCL;
         this.writesThroughAccord = writesThroughAccord;
         this.readsThroughAccord = readsThroughAccord;
         this.blockingReadRepairThroughAccord = blockingReadRepairThroughAccord;
         this.cqlParam = String.format("transactional_mode = '%s'", this.name().toLowerCase());
     }
 
-    public ConsistencyLevel commitCLForStrategy(ConsistencyLevel consistencyLevel)
+    public ConsistencyLevel commitCLForStrategy(ConsistencyLevel consistencyLevel, TableId tableId, Token token)
     {
-        if (ignoresSuppleidCommitCL)
+        if (ignoresSuppliedCommitCL)
+        {
+            TableMigrationState tms = ClusterMetadata.current().consensusMigrationState.tableStates.get(tableId);
+            if (tms != null)
+            {
+                // Only ignore the supplied consistency level if the token is not migrating
+                // otherwise honor it since there could still be Paxos and non-SERIAL reads racing with migration.
+                // Migrating to Accord, Paxos continues reading during the first phase of migration
+                // Migrating to Paxos, this doesn't really matter since this transaction will get RetryOnDifferentSystemException
+                if (tms.migratingRanges.intersects(token))
+                    return consistencyLevel;
+            }
             return null;
+        }
 
         if (!IAccordService.SUPPORTED_COMMIT_CONSISTENCY_LEVELS.contains(consistencyLevel))
             throw new UnsupportedOperationException("Consistency level " + consistencyLevel + " is unsupported with Accord for write/commit, supported are ANY, ONE, QUORUM, and ALL");
@@ -137,7 +151,7 @@ public enum TransactionalMode
             // otherwise honor it because we might read through Accord for non-SERIAL reads before repair is run
             // this is OK to do because BRR still works and Accord isn't computing a write so recovery
             // determinism isn't an issue
-            if (tms == null || Range.isInNormalizedRanges(token, tms.migratedRanges))
+            if (tms == null || tms.migratedRanges.intersects(token))
                 return null;
         }
 

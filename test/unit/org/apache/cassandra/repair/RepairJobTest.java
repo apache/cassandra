@@ -124,12 +124,12 @@ public class RepairJobTest
 
         public MeasureableRepairSession(TimeUUID parentRepairSession, CommonRange commonRange, boolean excludedDeadNodes, String keyspace,
                                         RepairParallelism parallelismDegree, boolean isIncremental, boolean pullRepair,
-                                        PreviewKind previewKind, boolean optimiseStreams, boolean repairPaxos, boolean paxosOnly,
+                                        PreviewKind previewKind, boolean optimiseStreams, boolean repairData, boolean repairPaxos, boolean repairAccord,
                                         String... cfnames)
         {
             super(SharedContext.Global.instance, new Scheduler.NoopScheduler(),
                   parentRepairSession, commonRange, excludedDeadNodes, keyspace, parallelismDegree, isIncremental, pullRepair,
-                  previewKind, optimiseStreams, repairPaxos, paxosOnly, false, false, cfnames);
+                  previewKind, optimiseStreams, repairData, repairPaxos, repairAccord, false, cfnames);
         }
 
         @Override
@@ -195,7 +195,7 @@ public class RepairJobTest
         this.session = new MeasureableRepairSession(parentRepairSession,
                                                     new CommonRange(neighbors, emptySet(), FULL_RANGE), false,
                                                     KEYSPACE, SEQUENTIAL, false, false,
-                                                    NONE, false, true, false, CF);
+                                                    NONE, false, true, true, true, CF);
 
         this.job = new RepairJob(session, CF);
         this.sessionJobDesc = new RepairJobDesc(session.state.parentRepairSession, session.getId(),

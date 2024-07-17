@@ -17,13 +17,6 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import static com.google.common.collect.Lists.newArrayList;
-import static org.apache.commons.lang3.StringUtils.EMPTY;
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Cli;
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -34,12 +27,20 @@ import java.util.function.Supplier;
 import com.google.common.collect.Sets;
 import org.apache.commons.lang3.StringUtils;
 
+import io.airlift.airline.Arguments;
+import io.airlift.airline.Cli;
+import io.airlift.airline.Command;
+import io.airlift.airline.Option;
 import org.apache.cassandra.repair.RepairParallelism;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.collect.Lists.newArrayList;
+import static org.apache.commons.lang3.StringUtils.EMPTY;
 
 @Command(name = "repair", description = "Repair one or more tables")
 public class Repair extends NodeToolCmd
@@ -107,6 +108,10 @@ public class Repair extends NodeToolCmd
 
     @Option(title = "accord-only", name = {"-accord-only", "--accord-only"}, description = "If the --accord-only flag is included, no table data is repaired, only accord operations..")
     private boolean accordOnly = false;
+
+    @Option(title = "skip-accord", name = {"-skip-accord", "--skip-accord"}, description = "If the --skip-accord flag is included, the Accord repair step is skipped. Accord repair is also skipped for preview repairs.")
+    private boolean skipAccord = false;
+
 
     @Option(title = "ignore_unreplicated_keyspaces", name = {"-iuk","--ignore-unreplicated-keyspaces"}, description = "Use --ignore-unreplicated-keyspaces to ignore keyspaces which are not replicated, otherwise the repair will fail")
     private boolean ignoreUnreplicatedKeyspaces = false;
@@ -188,9 +193,15 @@ public class Repair extends NodeToolCmd
         options.put(RepairOption.PREVIEW, getPreviewKind().toString());
         options.put(RepairOption.OPTIMISE_STREAMS_KEY, Boolean.toString(optimiseStreams));
         options.put(RepairOption.IGNORE_UNREPLICATED_KS, Boolean.toString(ignoreUnreplicatedKeyspaces));
-        options.put(RepairOption.REPAIR_PAXOS_KEY, Boolean.toString(!skipPaxos && getPreviewKind() == PreviewKind.NONE));
-        options.put(RepairOption.PAXOS_ONLY_KEY, Boolean.toString(paxosOnly && getPreviewKind() == PreviewKind.NONE));
-        options.put(RepairOption.ACCORD_ONLY_KEY, Boolean.toString(accordOnly && getPreviewKind() == PreviewKind.NONE));
+        checkArgument(!(paxosOnly && accordOnly), "Can't specify both paxos-only and accord-only");
+        checkArgument(!(skipPaxos && paxosOnly), "Can't specify both skip-paxos and paxos-only");
+        boolean repairPaxos = !skipPaxos && !accordOnly && getPreviewKind() == PreviewKind.NONE;
+        options.put(RepairOption.REPAIR_PAXOS_KEY, Boolean.toString(repairPaxos));
+        checkArgument(!(skipAccord && accordOnly), "Can't specify both skip-accord and accord-only");
+        boolean repairAccord = !skipAccord && !paxosOnly && getPreviewKind() == PreviewKind.NONE;
+        options.put(RepairOption.REPAIR_ACCORD_KEY, Boolean.toString(repairAccord));
+        options.put(RepairOption.REPAIR_DATA_KEY, Boolean.toString(!(accordOnly || paxosOnly)));
+        options.put(RepairOption.IS_CONSENSUS_MIGRATION_KEY, Boolean.toString(false));
 
         if (!startToken.isEmpty() || !endToken.isEmpty())
         {
