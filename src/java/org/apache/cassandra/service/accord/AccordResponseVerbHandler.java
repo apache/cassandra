@@ -55,7 +55,7 @@ class AccordResponseVerbHandler<T extends Reply> implements IVerbHandler<T>
     @Override
     public void doVerb(Message message)
     {
-        if (!((AccordService)AccordService.instance()).shouldAcceptMessages())
+        if (!AccordService.instance().shouldAcceptMessages())
         {
             dropping.debug(message.verb(), message.from());
             return;

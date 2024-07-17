@@ -661,16 +661,20 @@ public abstract class AccordMigrationRaceTestBase extends AccordTestBase
                      {
                          // Expect two retry on different system responses when migrating from Paxos to Accord, one from each
                          // node that knows it is on the wrong system
-                         Util.spinUntilTrue(() -> messageSink.messages.stream().filter(p -> {
-                             if (p.right.verb() != Verb.FAILURE_RSP.id)
-                                 return false;
-                             if (!p.left.equals(outOfSyncInstance.broadcastAddress()))
-                                 return false;
-                             RequestFailureReason reason = ((RequestFailure) Instance.deserializeMessage(p.right).payload).reason;
-                             if (reason == RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM)
-                                 return true;
-                             return false;
-                         }).count() == 2, 20);
+                         Util.spinUntilTrue(() ->
+                                            {
+                                                outOfSyncInstance.runOnInstance(() -> HintsService.instance.flushAndFsyncBlockingly());
+                                                return messageSink.messages.stream().filter(p -> {
+                                                    if (p.right.verb() != Verb.FAILURE_RSP.id)
+                                                        return false;
+                                                    if (!p.left.equals(outOfSyncInstance.broadcastAddress()))
+                                                        return false;
+                                                    RequestFailureReason reason = ((RequestFailure) Instance.deserializeMessage(p.right).payload).reason;
+                                                    if (reason == RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM)
+                                                        return true;
+                                                    return false;
+                                                }).count() == 2;
+                                            }, 20);
                      }
                      // After this hints should deliver and the final validation should succeed
                      // if we don't unpause enactment

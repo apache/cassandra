@@ -39,14 +39,6 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-
-import org.apache.cassandra.locator.RangesAtEndpoint;
-import org.apache.cassandra.net.Verb;
-import org.apache.cassandra.repair.messages.FailSession;
-import org.apache.cassandra.repair.messages.RepairMessage;
-import org.apache.cassandra.repair.state.ParticipateState;
-import org.apache.cassandra.transport.Dispatcher;
-import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.commons.lang3.time.DurationFormatUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -66,10 +58,15 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.RepairException;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.metrics.StorageMetrics;
+import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.repair.messages.FailSession;
+import org.apache.cassandra.repair.messages.RepairMessage;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.repair.state.CoordinatorState;
+import org.apache.cassandra.repair.state.ParticipateState;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.schema.TableMetadata;
@@ -81,12 +78,14 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tracing.TraceKeyspace;
 import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.WrappedRunnable;
+import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.progress.ProgressEvent;
 import org.apache.cassandra.utils.progress.ProgressEventNotifier;
 import org.apache.cassandra.utils.progress.ProgressEventType;
@@ -499,7 +498,7 @@ public class RepairCoordinator implements Runnable, ProgressEventNotifier, Repai
         {
             task = new PreviewRepairTask(this, state.id, neighborsAndRanges.filterCommonRanges(state.keyspace, cfnames), neighborsAndRanges.shouldExcludeDeadParticipants, cfnames);
         }
-        else if (state.options.isIncremental() && !state.options.isConsensusOnly())
+        else if (state.options.isIncremental())
         {
             task = new IncrementalRepairTask(this, state.id, neighborsAndRanges, cfnames);
         }

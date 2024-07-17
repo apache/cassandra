@@ -100,11 +100,6 @@ public class AccordAgent implements Agent
         throw error;
     }
 
-    public void onSuccessfulBarrier(TxnId id, Seekables<?, ?> keysOrRanges)
-    {
-
-    }
-
     public void onFailedBarrier(TxnId id, Seekables<?, ?> keysOrRanges, Throwable cause)
     {
 

@@ -217,18 +217,17 @@ public abstract class TxnQuery implements Query
 
     private static boolean transactionIsInMigratingOrMigratedRange(Epoch epoch, Seekables<?, ?> keys)
     {
+        // TODO (required): This is going to be problematic when we presumably support range reads and don't validate them
         // Whatever this transaction might be it isn't one supported for migration anyways
         if (!keys.domain().isKey())
             return false;
 
-        if (keys.size() > 1)
-            // It has to be a transaction statement and we don't support migration with those
-            return false;
-        // Could be a transaction statement, but this check does no additional harm
-        // and transaction statement will generate an error when it sees
-        // the RetryOnNewProtocolResult
-        PartitionKey partitionKey = (PartitionKey)keys.get(0);
-        // TODO (required): This is looking at ClusterMetadata, but not the ClusterMetadata for the specified epoch, just that epoch or later. Need to store ConsensusMigrationState in the global Topologies Accord stores for itself.
-        return ConsensusRequestRouter.instance.isKeyInMigratingOrMigratedRangeFromAccord(epoch, partitionKey.table(), partitionKey.partitionKey());
+        for (PartitionKey partitionKey : (Seekables<PartitionKey, ?>)keys)
+        {
+            // TODO (required): This is looking at ClusterMetadata, but not the ClusterMetadata for the specified epoch, just that epoch or later. Need to store ConsensusMigrationState in the global Topologies Accord stores for itself.
+            if (ConsensusRequestRouter.instance.isKeyInMigratingOrMigratedRangeFromAccord(epoch, partitionKey.table(), partitionKey.partitionKey()))
+                return true;
+        }
+        return false;
     }
 }

@@ -51,6 +51,7 @@ import org.apache.cassandra.utils.PojoToString;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
+import static org.apache.cassandra.service.consensus.migration.TableMigrationState.initialRepairPendingRanges;
 import static org.apache.cassandra.utils.CollectionSerializers.deserializeMap;
 import static org.apache.cassandra.utils.CollectionSerializers.newHashMap;
 import static org.apache.cassandra.utils.CollectionSerializers.serializeMap;
@@ -60,6 +61,7 @@ import static org.apache.cassandra.utils.CollectionSerializers.serializedMapSize
 public class ConsensusMigrationState implements MetadataValue<ConsensusMigrationState>
 {
     public static ConsensusMigrationState EMPTY = new ConsensusMigrationState(Epoch.EMPTY, ImmutableMap.of());
+
     @Nonnull
     public final Map<TableId, TableMigrationState> tableStates;
 
@@ -148,7 +150,7 @@ public class ConsensusMigrationState implements MetadataValue<ConsensusMigration
             ImmutableMap.of(Epoch.EMPTY, ranges);
 
         if (overwrite)
-            tableState = new TableMigrationState(metadata.keyspace, metadata.name, metadata.id, target, ImmutableSet.of(), migratingRangesByEpoch);
+            tableState = new TableMigrationState(metadata.keyspace, metadata.name, metadata.id, target, ImmutableSet.of(), initialRepairPendingRanges(target, ranges), migratingRangesByEpoch);
         else
             tableState = tableState.withRangesMigrating(ranges, target);
         next.put(metadata.id, tableState);
@@ -189,10 +191,10 @@ public class ConsensusMigrationState implements MetadataValue<ConsensusMigration
         return new ConsensusMigrationState(lastModified, updated.build());
     }
 
-    public ConsensusMigrationState withRangesRepairedAtEpoch(TableMetadata metadata, List<Range<Token>> ranges, Epoch minEpoch)
+    public ConsensusMigrationState withRangesRepairedAtEpoch(TableMetadata metadata, List<Range<Token>> ranges, Epoch minEpoch, ConsensusMigrationRepairType repairType)
     {
         TableMigrationState state = Preconditions.checkNotNull(tableStates.get(metadata.id));
-        state = state.withRangesRepairedAtEpoch(ranges, minEpoch);
+        state = state.withRangesRepairedAtEpoch(ranges, minEpoch, repairType);
 
         if (state.hasMigratedFullTokenRange(metadata.partitioner))
         {
@@ -271,4 +273,13 @@ public class ConsensusMigrationState implements MetadataValue<ConsensusMigration
                    + serializedMapSize(t.tableStates, version, TableId.metadataSerializer, TableMigrationState.serializer);
         }
     };
+
+    @Override
+    public String toString()
+    {
+        return "ConsensusMigrationState{" +
+               "tableStates=" + tableStates +
+               ", lastModified=" + lastModified +
+               '}';
+    }
 }

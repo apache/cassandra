@@ -113,10 +113,10 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
         this.state = new JobState(ctx.clock(), desc, session.state.commonRange.endpoints);
 
         TableMetadata metadata = this.cfs.metadata();
-        if (session.paxosOnly && !metadata.supportsPaxosOperations())
+        if ((!session.repairData && !session.repairAccord) && !metadata.supportsPaxosOperations())
             throw new IllegalArgumentException(String.format("Cannot run paxos only repair on %s.%s, which isn't configured for paxos operations", cfs.keyspace.getName(), cfs.name));
 
-        if (session.accordOnly && !metadata.requiresAccordSupport())
+        if ((!session.repairData && !session.repairPaxos) && !metadata.requiresAccordSupport())
             throw new IllegalArgumentException(String.format("Cannot run accord only repair on %s.%s, which isn't configured for accord operations", cfs.keyspace.getName(), cfs.name));
 
     }
@@ -157,12 +157,11 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
         Future<Void> paxosRepair;
         Epoch repairStartingEpoch = ClusterMetadata.current().epoch;
 
-        Preconditions.checkArgument(!session.paxosOnly || !session.accordOnly);
+        Preconditions.checkArgument(session.repairData || session.repairPaxos || session.repairAccord);
         boolean doPaxosRepair = paxosRepairEnabled()
-                                && (((useV2() || isMetadataKeyspace()) && session.repairPaxos) || session.paxosOnly)
-                                && metadata.supportsPaxosOperations()
-                                && !session.accordOnly;
-        boolean doAccordRepair = metadata.requiresAccordSupport() && !session.paxosOnly;
+                                && ((useV2() || isMetadataKeyspace()) && session.repairPaxos)
+                                && metadata.supportsPaxosOperations();
+        boolean doAccordRepair = metadata.requiresAccordSupport() && session.repairAccord;
 
         if (doPaxosRepair)
         {
@@ -175,33 +174,25 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
             paxosRepair = ImmediateFuture.success(null);
         }
 
-
-        if (session.paxosOnly)
-        {
-            paxosRepair.addCallback(new FutureCallback<>()
-            {
-                public void onSuccess(Void ignored)
-                {
-                    logger.info("{} {}.{} paxos repair completed", session.previewKind.logPrefix(session.getId()), desc.keyspace, desc.columnFamily);
-                    trySuccess(new RepairResult(desc, Collections.emptyList(), ConsensusMigrationRepairResult.fromPaxosOnlyRepair(repairStartingEpoch, session.excludedDeadNodes)));
-                }
-
-                public void onFailure(Throwable t)
-                {
-                    logger.warn("{} {}.{} paxos repair failed", session.previewKind.logPrefix(session.getId()), desc.keyspace, desc.columnFamily);
-                    tryFailure(t);
-                }
-            }, taskExecutor);
-            return;
-        }
-
         Future<Ranges> accordRepair;
         if (doAccordRepair)
         {
             accordRepair = paxosRepair.flatMap(unused -> {
-                logger.info("{} {}.{} starting accord repair", session.previewKind.logPrefix(session.getId()), desc.keyspace, desc.columnFamily);
+                boolean requireAllEndpoints;
+                // If the session excluded dead nodes it's not eligible for migration and is not supposed to occur at ALL anyways
+                if (session.excludedDeadNodes)
+                    requireAllEndpoints = false;
+                else
+                {
+                    // If the session is doing a data repair (which flushes sstables if not incremental) we can do the barriers at QUORUM
+                    if (session.repairData && !session.isIncremental)
+                        requireAllEndpoints = false;
+                    else
+                        requireAllEndpoints = true;
+                }
+                logger.info("{} {}.{} starting accord repair, require all endpoints {}", session.previewKind.logPrefix(session.getId()), desc.keyspace, desc.columnFamily, requireAllEndpoints);
                 IPartitioner partitioner = metadata.partitioner;
-                AccordRepair repair = new AccordRepair(ctx, cfs, partitioner, desc.keyspace, desc.ranges, session.isConsensusMigration && session.accordOnly, allEndpoints);
+                AccordRepair repair = new AccordRepair(ctx, cfs, partitioner, desc.keyspace, desc.ranges, requireAllEndpoints, allEndpoints);
                 return repair.repair(taskExecutor);
             }, taskExecutor);
         }
@@ -213,62 +204,54 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
             });
         }
 
-        if (session.accordOnly)
+        Future<List<SyncStat>> syncResults;
+        if (session.repairData)
         {
-            accordRepair.addCallback(new FutureCallback<>()
+            // Create a snapshot at all nodes unless we're using pure parallel repairs
+            final Future<?> allSnapshotTasks;
+            if (parallelismDegree != RepairParallelism.PARALLEL)
             {
-                public void onSuccess(Ranges barrieredRanges)
+                if (session.isIncremental)
                 {
-                    logger.info("{} {}.{} accord repair completed", session.previewKind.logPrefix(session.getId()), desc.keyspace, desc.columnFamily);
-                    trySuccess(new RepairResult(desc, Collections.emptyList(), ConsensusMigrationRepairResult.fromAccordOnlyRepair(repairStartingEpoch, barrieredRanges, session.excludedDeadNodes)));
+                    // consistent repair does it's own "snapshotting"
+                    allSnapshotTasks = accordRepair.map(input -> allEndpoints);
                 }
-
-                public void onFailure(Throwable t)
+                else
                 {
-                    logger.warn("{} {}.{} accord repair failed", session.previewKind.logPrefix(session.getId()), desc.keyspace, desc.columnFamily);
-                    tryFailure(t);
+                    // Request snapshot to all replica
+                    allSnapshotTasks = accordRepair.flatMap(input -> {
+                        List<Future<InetAddressAndPort>> snapshotTasks = new ArrayList<>(allEndpoints.size());
+                        state.phase.snapshotsSubmitted();
+                        for (InetAddressAndPort endpoint : allEndpoints)
+                        {
+                            SnapshotTask snapshotTask = new SnapshotTask(ctx, desc, endpoint);
+                            snapshotTasks.add(snapshotTask);
+                            taskExecutor.execute(snapshotTask);
+                        }
+                        return FutureCombiner.allOf(snapshotTasks).map(a -> {
+                            state.phase.snapshotsCompleted();
+                            return a;
+                        });
+                    });
                 }
-            }, taskExecutor);
-            return;
-        }
-
-        // Create a snapshot at all nodes unless we're using pure parallel repairs
-        final Future<?> allSnapshotTasks;
-        if (parallelismDegree != RepairParallelism.PARALLEL)
-        {
-            if (session.isIncremental)
-            {
-                // consistent repair does it's own "snapshotting"
-                allSnapshotTasks = accordRepair.map(input -> allEndpoints);
             }
             else
             {
-                // Request snapshot to all replica
-                allSnapshotTasks = accordRepair.flatMap(input -> {
-                    List<Future<InetAddressAndPort>> snapshotTasks = new ArrayList<>(allEndpoints.size());
-                    state.phase.snapshotsSubmitted();
-                    for (InetAddressAndPort endpoint : allEndpoints)
-                    {
-                        SnapshotTask snapshotTask = new SnapshotTask(ctx, desc, endpoint);
-                        snapshotTasks.add(snapshotTask);
-                        taskExecutor.execute(snapshotTask);
-                    }
-                    return FutureCombiner.allOf(snapshotTasks).map(a -> {
-                        state.phase.snapshotsCompleted();
-                        return a;
-                    });
-                });
+                allSnapshotTasks = null;
             }
+
+            // Run validations and the creation of sync tasks in the scheduler, so it can limit the number of Merkle trees
+            // that there are in memory at once. When all validations complete, submit sync tasks out of the scheduler.
+            syncResults = session.validationScheduler.schedule(() -> createSyncTasks(accordRepair, allSnapshotTasks, allEndpoints), taskExecutor)
+                                                                            .flatMap(this::executeTasks, taskExecutor);
         }
         else
         {
-            allSnapshotTasks = null;
+            syncResults = accordRepair.flatMap(unused -> {
+                logger.info("{} {}.{} not running data repair", session.previewKind.logPrefix(session.getId()), desc.keyspace, desc.columnFamily);
+                return ImmediateFuture.success(Collections.emptyList());
+            });
         }
-
-        // Run validations and the creation of sync tasks in the scheduler, so it can limit the number of Merkle trees
-        // that there are in memory at once. When all validations complete, submit sync tasks out of the scheduler.
-        Future<List<SyncStat>> syncResults = session.validationScheduler.schedule(() -> createSyncTasks(accordRepair, allSnapshotTasks, allEndpoints), taskExecutor)
-                                                                        .flatMap(this::executeTasks, taskExecutor);
 
         // When all sync complete, set the final result
         syncResults.addCallback(new FutureCallback<>()
@@ -276,15 +259,17 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
             @Override
             public void onSuccess(List<SyncStat> stats)
             {
+                logger.info("{} {}.{} Successfully did repair repairData {}, repairPaxos {}, repairAccord {}, excludedDeadNodes {}", session.previewKind.logPrefix(session.getId()), desc.keyspace, desc.columnFamily, session.repairData, session.repairPaxos, session.repairAccord, session.excludedDeadNodes);
                 state.phase.success();
-                if (!session.previewKind.isPreview())
+                if (!session.previewKind.isPreview() && session.repairData)
                 {
                     logger.info("{} {}.{} is fully synced", session.previewKind.logPrefix(session.getId()), desc.keyspace, desc.columnFamily);
                     SystemDistributedKeyspace.successfulRepairJob(session.getId(), desc.keyspace, desc.columnFamily);
                 }
                 cfs.metric.repairsCompleted.inc();
                 logger.info("Completing repair with excludedDeadNodes {}", session.excludedDeadNodes);
-                trySuccess(new RepairResult(desc, stats, ConsensusMigrationRepairResult.fromRepair(repairStartingEpoch, getUnchecked(accordRepair), doPaxosRepair, doAccordRepair, session.excludedDeadNodes)));
+                ConsensusMigrationRepairResult cmrs = ConsensusMigrationRepairResult.fromRepair(repairStartingEpoch, getUnchecked(accordRepair), session.repairData, doPaxosRepair, doAccordRepair, session.excludedDeadNodes);
+                trySuccess(new RepairResult(desc, stats, cmrs));
             }
 
             /**
@@ -293,10 +278,11 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
             @Override
             public void onFailure(Throwable t)
             {
+                logger.info("{} {}.{} Failed repair repairData {}, repairPaxos {}, repairAccord {}, excludedDeadNodes {}", session.previewKind.logPrefix(session.getId()), desc.keyspace, desc.columnFamily, session.repairData, session.repairPaxos, session.repairAccord, session.excludedDeadNodes);
                 state.phase.fail(t);
                 abort(t);
 
-                if (!session.previewKind.isPreview())
+                if (!session.previewKind.isPreview() && session.repairData)
                 {
                     logger.warn("{} {}.{} sync failed", session.previewKind.logPrefix(session.getId()), desc.keyspace, desc.columnFamily);
                     SystemDistributedKeyspace.failedRepairJob(session.getId(), desc.keyspace, desc.columnFamily, t);

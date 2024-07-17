@@ -173,7 +173,6 @@ import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
-import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static accord.messages.SimpleReply.Ok;
@@ -196,8 +195,6 @@ public class AccordService implements IAccordService, Shutdownable
 
     private enum State {INIT, STARTED, SHUTTING_DOWN, SHUTDOWN}
 
-    private static final Future<Void> BOOTSTRAP_SUCCESS = ImmediateFuture.success(null);
-
     private final Node node;
     private final Shutdownable nodeShutdown;
     private final AccordMessageSink messageSink;
@@ -213,149 +210,14 @@ public class AccordService implements IAccordService, Shutdownable
     @GuardedBy("this")
     private State state = State.INIT;
 
-    private static final IAccordService NOOP_SERVICE = new IAccordService()
-    {
-        @Override
-        public IVerbHandler<? extends Request> requestHandler()
-        {
-            return null;
-        }
-
-        @Override
-        public IVerbHandler<? extends Reply> responseHandler()
-        {
-            return null;
-        }
-
-        @Override
-        public Seekables<?, ?> barrierWithRetries(Seekables<?, ?> keysOrRanges, long minEpoch, BarrierType barrierType, boolean isForWrite) throws InterruptedException
-        {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public Seekables<?, ?> barrier(@Nonnull Seekables<?, ?> keysOrRanges, long minEpoch, Dispatcher.RequestTime requestTime, long timeoutNanos, BarrierType barrierType, boolean isForWrite)
-        {
-            throw new UnsupportedOperationException("No accord barriers should be executed when accord.enabled = false in cassandra.yaml");
-        }
-
-        @Override
-        public Seekables<?, ?> repair(@Nonnull Seekables<?, ?> keysOrRanges, long epoch, Dispatcher.RequestTime requestTime, long timeoutNanos, BarrierType barrierType, boolean isForWrite, List<InetAddressAndPort> allEndpoints)
-        {
-            throw new UnsupportedOperationException("No accord repairs should be executed when accord.enabled = false in cassandra.yaml");
-        }
-
-        @Override
-        public @Nonnull TxnResult coordinate(@Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, @Nonnull Dispatcher.RequestTime requestTime)
-        {
-            throw new UnsupportedOperationException("No accord transaction should be executed when accord.enabled = false in cassandra.yaml");
-        }
-
-        @Override
-        public @Nonnull AsyncTxnResult coordinateAsync(@Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
-        {
-            throw new UnsupportedOperationException("No accord transaction should be executed when accord.enabled = false in cassandra.yaml");
-        }
-
-        @Override
-        public TxnResult getTxnResult(AsyncTxnResult asyncTxnResult, boolean isWrite, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
-        {
-            throw new UnsupportedOperationException("No accord transaction should be executed when accord.enabled = false in cassandra.yaml");
-        }
-
-        @Override
-        public long currentEpoch()
-        {
-            throw new UnsupportedOperationException("Cannot return epoch when accord.enabled = false in cassandra.yaml");
-        }
-
-        @Override
-        public void setCacheSize(long kb) { }
-
-        @Override
-        public void setWorkingSetSize(long kb) { }
-
-        @Override
-        public TopologyManager topology()
-        {
-            throw new UnsupportedOperationException("Cannot return topology when accord.enabled = false in cassandra.yaml");
-        }
-
-        @Override
-        public void startup()
-        {
-            try
-            {
-                AccordTopologySorter.checkSnitchSupported(DatabaseDescriptor.getNodeProximity());
-            }
-            catch (Throwable t)
-            {
-                logger.warn("Current snitch  is not compatable with Accord, make sure to fix the snitch before enabling Accord; {}", t.toString());
-            }
-        }
-
-        @Override
-        public void shutdownAndWait(long timeout, TimeUnit unit) { }
-
-        @Override
-        public AccordScheduler scheduler()
-        {
-            return null;
-        }
-
-        @Override
-        public Future<Void> epochReady(Epoch epoch)
-        {
-            return BOOTSTRAP_SUCCESS;
-        }
-
-        @Override
-        public void receive(Message<List<AccordSyncPropagator.Notification>> message) {}
-
-        @Override
-        public CompactionInfo getCompactionInfo()
-        {
-            return new CompactionInfo(new Int2ObjectHashMap<>(), new Int2ObjectHashMap<>(), new Int2ObjectHashMap<>());
-        }
-
-        @Override
-        public AccordAgent agent()
-        {
-            return null;
-        }
-
-        @Override
-        public List<CommandStoreTxnBlockedGraph> debugTxnBlockedGraph(TxnId txnId)
-        {
-            return Collections.emptyList();
-        }
-
-        @Nullable
-        @Override
-        public Long minEpoch(Collection<TokenRange> ranges)
-        {
-            return null;
-        }
-
-        @Override
-        public void tryMarkRemoved(Topology topology, Id node)
-        {
-
-        }
-
-        @Override
-        public Params journalConfiguration()
-        {
-            throw new UnsupportedOperationException("Cannot return configuration when accord.enabled = false in cassandra.yaml");
-        }
-    };
+    private static final IAccordService NOOP_SERVICE = new NoOpAccordService();
 
     private static volatile IAccordService instance = null;
 
     @VisibleForTesting
-    public static void unsafeSetNewAccordService()
+    public static void unsafeSetNewAccordService(IAccordService service)
     {
-        instance = null;
+        instance = service;
     }
 
     @VisibleForTesting
@@ -411,6 +273,7 @@ public class AccordService implements IAccordService, Shutdownable
         i.shutdownAndWait(timeout, unit);
     }
 
+    @Override
     public boolean shouldAcceptMessages()
     {
         return state == State.STARTED && journal.started();
@@ -643,7 +506,6 @@ public class AccordService implements IAccordService, Shutdownable
                 PartitionKey key = (PartitionKey)keysOrRanges.get(0);
                 maybeSaveAccordKeyMigrationLocally(key, Epoch.create(txnId.epoch()));
             }
-            ((AccordAgent) node.agent()).onSuccessfulBarrier(txnId, keysOrRanges);
             logger.debug("Completed barrier attempt in {}ms, {}ms since attempts start, barrier key: {} epoch: {} barrierType: {} isForWrite {}",
                          sw.elapsed(MILLISECONDS),
                          NANOSECONDS.toMillis(nanoTime() - requestTime.startedAtNanos()),
@@ -658,7 +520,7 @@ public class AccordService implements IAccordService, Shutdownable
                 TxnId txnId = ((Timeout) cause).txnId();
                 ((AccordAgent) node.agent()).onFailedBarrier(txnId, keysOrRanges, cause);
                 metrics.timeouts.mark();
-                throw newBarrierTimeout(txnId, barrierType, isForWrite, keysOrRanges);
+                throw newBarrierTimeout(((CoordinationFailed)cause).txnId(), barrierType, isForWrite, keysOrRanges);
             }
             if (cause instanceof Preempted)
             {
@@ -667,7 +529,7 @@ public class AccordService implements IAccordService, Shutdownable
                 //TODO need to improve
                 // Coordinator "could" query the accord state to see whats going on but that doesn't exist yet.
                 // Protocol also doesn't have a way to denote "unknown" outcome, so using a timeout as the closest match
-                throw newBarrierPreempted(txnId, barrierType, isForWrite, keysOrRanges);
+                throw newBarrierPreempted(((CoordinationFailed)cause).txnId(), barrierType, isForWrite, keysOrRanges);
             }
             if (cause instanceof Exhausted)
             {
@@ -675,7 +537,7 @@ public class AccordService implements IAccordService, Shutdownable
                 ((AccordAgent) node.agent()).onFailedBarrier(txnId, keysOrRanges, cause);
                 // this case happens when a non-timeout exception is seen, and we are unable to move forward
                 metrics.failures.mark();
-                throw newBarrierExhausted(txnId, barrierType, isForWrite, keysOrRanges);
+                throw newBarrierExhausted(((CoordinationFailed)cause).txnId(), barrierType, isForWrite, keysOrRanges);
             }
             // unknown error
             metrics.failures.mark();
@@ -769,19 +631,19 @@ public class AccordService implements IAccordService, Shutdownable
     }
 
     @VisibleForTesting
-    static ReadTimeoutException newBarrierTimeout(TxnId txnId, BarrierType barrierType, boolean isForWrite, Seekables<?, ?> keysOrRanges)
+    static ReadTimeoutException newBarrierTimeout(@Nonnull TxnId txnId, BarrierType barrierType, boolean isForWrite, Seekables<?, ?> keysOrRanges)
     {
         return new ReadTimeoutException(barrierType.global ? ConsistencyLevel.ANY : ConsistencyLevel.QUORUM, 0, 0, false, String.format("Timeout waiting on barrier %s / %s / %s; impacted ranges %s", txnId, barrierType, isForWrite ? "write" : "not write", keysOrRanges));
     }
 
     @VisibleForTesting
-    static ReadTimeoutException newBarrierPreempted(TxnId txnId, BarrierType barrierType, boolean isForWrite, Seekables<?, ?> keysOrRanges)
+    static ReadTimeoutException newBarrierPreempted(@Nullable TxnId txnId, BarrierType barrierType, boolean isForWrite, Seekables<?, ?> keysOrRanges)
     {
         return new ReadPreemptedException(barrierType.global ? ConsistencyLevel.ANY : ConsistencyLevel.QUORUM, 0, 0, false, String.format("Preempted waiting on barrier %s / %s / %s; impacted ranges %s", txnId, barrierType, isForWrite ? "write" : "not write", keysOrRanges));
     }
 
     @VisibleForTesting
-    static ReadExhaustedException newBarrierExhausted(TxnId txnId, BarrierType barrierType, boolean isForWrite, Seekables<?, ?> keysOrRanges)
+    static ReadExhaustedException newBarrierExhausted(@Nullable TxnId txnId, BarrierType barrierType, boolean isForWrite, Seekables<?, ?> keysOrRanges)
     {
         return new ReadExhaustedException(barrierType.global ? ConsistencyLevel.ANY : ConsistencyLevel.QUORUM, 0, 0, false, String.format("Exhausted (too many failures from peers) waiting on barrier %s / %s / %s; impacted ranges %s", txnId, barrierType, isForWrite ? "write" : "not write", keysOrRanges));
     }

@@ -574,7 +574,7 @@ public abstract class AccordCQLTestBase extends AccordTestBase
     {
         accordRead = wrapInTxn(accordRead);
         Object[][] simpleReadResult;
-        if (transactionalMode.ignoresSuppleidCommitCL)
+        if (transactionalMode.ignoresSuppliedCommitCL)
             // With accord non-SERIAL write strategy the commit CL is effectively ANY so we need to read at SERIAL
             simpleReadResult = cluster.coordinator(1).execute(simpleRead, ConsistencyLevel.SERIAL, key);
         else

@@ -66,8 +66,8 @@ public class RepairSessionTest
         RepairSession session = new RepairSession(SharedContext.Global.instance, new Scheduler.NoopScheduler(), parentSessionId,
                                                   new CommonRange(endpoints, Collections.emptySet(), Arrays.asList(repairRange)),
                                                   false, "Keyspace1", RepairParallelism.SEQUENTIAL,
-                                                  false, false,
-                                                  PreviewKind.NONE, false, false, false, false, false, false, "Standard1");
+                                                  false, false, PreviewKind.NONE, false,
+                                                  false, false, false, false, "Standard1");
 
         // perform convict
         session.convict(remote, Double.MAX_VALUE);

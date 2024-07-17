@@ -26,6 +26,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.dht.NormalizedRanges;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -71,10 +72,10 @@ public class MaybeFinishConsensusMigrationForTableAndRange implements Transforma
     public final String cf;
 
     @Nonnull
-    public final List<Range<Token>> paxosRepairedRanges;
+    public final NormalizedRanges<Token> paxosRepairedRanges;
 
     @Nonnull
-    public final List<Range<Token>> accordBarrieredRanges;
+    public final NormalizedRanges<Token> accordBarrieredRanges;
 
     @Nonnull
     public final Epoch minEpoch;
@@ -84,10 +85,12 @@ public class MaybeFinishConsensusMigrationForTableAndRange implements Transforma
 
     public MaybeFinishConsensusMigrationForTableAndRange(@Nonnull String keyspace,
                                                          @Nonnull String cf,
-                                                         @Nonnull List<Range<Token>> paxosRepairedRanges,
-                                                         @Nonnull List<Range<Token>> accordBarrieredRanges,
+                                                         @Nonnull NormalizedRanges<Token> paxosRepairedRanges,
+                                                         @Nonnull NormalizedRanges<Token> accordBarrieredRanges,
                                                          @Nonnull Epoch minEpoch,
-                                                         @Nonnull ConsensusMigrationRepairType repairType)
+                                                         boolean repairedData,
+                                                         boolean repairedPaxos,
+                                                         boolean repairedAccord)
     {
         checkNotNull(keyspace, "keyspace should not be null");
         checkNotNull(cf, "cf should not be null");
@@ -95,8 +98,9 @@ public class MaybeFinishConsensusMigrationForTableAndRange implements Transforma
         checkNotNull(accordBarrieredRanges, "accordBarrierRanges should not be null");
         checkNotNull(minEpoch, "minEpoch should not be null");
         checkArgument(minEpoch.isAfter(Epoch.EMPTY), "minEpoch should not be empty");
+        ConsensusMigrationRepairType repairType = new ConsensusMigrationRepairType(repairedData, repairedPaxos, repairedAccord);
         checkNotNull(repairType, "repairType is null");
-        checkArgument(repairType != ConsensusMigrationRepairType.ineligible, "Shouldn't attempt to finish migration with ineligible repair");
+        checkArgument(!repairType.ineligibleForMigration(), "Shouldn't attempt to finish migration with ineligible repair");
         this.keyspace = keyspace;
         this.cf = cf;
         this.paxosRepairedRanges = paxosRepairedRanges;
@@ -130,7 +134,7 @@ public class MaybeFinishConsensusMigrationForTableAndRange implements Transforma
 
     public Result execute(@Nonnull ClusterMetadata metadata)
     {
-        logger.info("Completed repair eligibiliy '{}' paxos repaired ranges {}, accord repaired ranges {}", repairType, paxosRepairedRanges, accordBarrieredRanges);
+        logger.info("Completed repair eligibility '{}' paxos repaired ranges {}, accord repaired ranges {}", repairType, paxosRepairedRanges, accordBarrieredRanges);
         checkNotNull(metadata, "clusterMetadata should not be null");
         String ksAndCF = keyspace + "." + cf;
         TableMetadata tbm = metadata.schema.getTableMetadata(keyspace, cf);
@@ -146,9 +150,9 @@ public class MaybeFinishConsensusMigrationForTableAndRange implements Transforma
             return new Rejected(INVALID, format("Table %s has a target protocol of %s and is the repair type %s is not eligible/needed to progress the migration", ksAndCF, tms.targetProtocol, repairType));
 
         List<Range<Token>> repairedRanges;
-        if (tms.targetProtocol == accord)
+        if (tms.targetProtocol == accord && (repairType.repairedPaxos || repairType.repairedData))
             repairedRanges = paxosRepairedRanges;
-        else if (tms.targetProtocol == paxos)
+        else if (tms.targetProtocol == paxos && repairType.repairedAccord)
             repairedRanges = accordBarrieredRanges;
         else
             throw new IllegalStateException("Unhandled migration target " + tms.targetProtocol);
@@ -159,9 +163,7 @@ public class MaybeFinishConsensusMigrationForTableAndRange implements Transforma
             return new Rejected(INVALID, format("Table %s is migrating ranges %s, which doesn't include repaired ranges %s", ksAndCF, tms.migratingRanges, normalizedRepairedRanges));
 
         Transformer next = metadata.transformer();
-        ConsensusMigrationState migrationState = metadata.consensusMigrationState.withRangesRepairedAtEpoch(tbm, normalizedRepairedRanges, minEpoch);
-        logger.debug("Original migration state {}");
-        logger.debug("New migration state {}");
+        ConsensusMigrationState migrationState = metadata.consensusMigrationState.withRangesRepairedAtEpoch(tbm, normalizedRepairedRanges, minEpoch, repairType);
         next = next.with(migrationState);
 
         // reset the migration value on the table if the migration has completed
@@ -182,18 +184,22 @@ public class MaybeFinishConsensusMigrationForTableAndRange implements Transforma
             ConsensusTableMigration.rangesSerializer.serialize(v.paxosRepairedRanges, out, version);
             ConsensusTableMigration.rangesSerializer.serialize(v.accordBarrieredRanges, out, version);
             Epoch.serializer.serialize(v.minEpoch, out, version);
-            out.write(v.repairType.value);
+            out.writeBoolean(v.repairType.repairedData);
+            out.writeBoolean(v.repairType.repairedPaxos);
+            out.writeBoolean(v.repairType.repairedAccord);
         }
 
         public MaybeFinishConsensusMigrationForTableAndRange deserialize(DataInputPlus in, Version version) throws IOException
         {
             String keyspace = in.readUTF();
             String cf = in.readUTF();
-            List<Range<Token>> paxosRepairedRanges = ConsensusTableMigration.rangesSerializer.deserialize(in, version);
-            List<Range<Token>> accordBarrieredRanges = ConsensusTableMigration.rangesSerializer.deserialize(in, version);
+            NormalizedRanges<Token> paxosRepairedRanges = ConsensusTableMigration.rangesSerializer.deserialize(in, version);
+            NormalizedRanges<Token> accordBarrieredRanges = ConsensusTableMigration.rangesSerializer.deserialize(in, version);
             Epoch minEpoch = Epoch.serializer.deserialize(in, version);
-            ConsensusMigrationRepairType repairType = ConsensusMigrationRepairType.fromValue(in.readByte());
-            return new MaybeFinishConsensusMigrationForTableAndRange(keyspace, cf, paxosRepairedRanges, accordBarrieredRanges, minEpoch, repairType);
+            boolean repairedData = in.readBoolean();
+            boolean repairedPaxos = in.readBoolean();
+            boolean repairedAccord = in.readBoolean();
+            return new MaybeFinishConsensusMigrationForTableAndRange(keyspace, cf, paxosRepairedRanges, accordBarrieredRanges, minEpoch, repairedData, repairedPaxos, repairedAccord);
         }
 
         public long serializedSize(Transformation t, Version version)
@@ -204,7 +210,9 @@ public class MaybeFinishConsensusMigrationForTableAndRange implements Transforma
                    + ConsensusTableMigration.rangesSerializer.serializedSize(v.paxosRepairedRanges, version)
                    + ConsensusTableMigration.rangesSerializer.serializedSize(v.accordBarrieredRanges, version)
                    + Epoch.serializer.serializedSize(v.minEpoch)
-                   + TypeSizes.sizeof(v.repairType.value);
+                   + TypeSizes.sizeof(v.repairType.repairedData)
+                   + TypeSizes.sizeof(v.repairType.repairedPaxos)
+                   + TypeSizes.sizeof(v.repairType.repairedAccord);
         }
     }
 }

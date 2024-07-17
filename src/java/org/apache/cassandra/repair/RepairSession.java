@@ -120,11 +120,10 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
     /** Range to repair */
     public final boolean isIncremental;
     public final PreviewKind previewKind;
+    public final boolean repairData;
     public final boolean repairPaxos; // TODO (now): rename to repairPaxosIfSupported
-    public final boolean paxosOnly;
+    public final boolean repairAccord;
     public final boolean dontPurgeTombstones;
-    public final boolean accordOnly;
-    public final boolean isConsensusMigration;
     public final boolean excludedDeadNodes;
 
     private final AtomicBoolean isFailed = new AtomicBoolean(false);
@@ -153,9 +152,6 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
      * @param parallelismDegree    specifies the degree of parallelism when calculating the merkle trees
      * @param pullRepair           true if the repair should be one way (from remote host to this host and only applicable between two hosts--see RepairOption)
      * @param repairPaxos          true if incomplete paxos operations should be completed as part of repair
-     * @param paxosOnly            true if we should only complete paxos operations, not run a normal repair
-     * @param accordOnly           true if we should only complete accord operations, not run a normal repair
-     * @param isConsensusMigration true if this repair is being run by the consensus migration tool (affects accord repair availability requirements)
      * @param cfnames              names of columnfamilies
      */
     public RepairSession(SharedContext ctx,
@@ -169,18 +165,17 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
                          boolean pullRepair,
                          PreviewKind previewKind,
                          boolean optimiseStreams,
+                         boolean repairData,
                          boolean repairPaxos,
-                         boolean paxosOnly,
                          boolean dontPurgeTombstones,
-                         boolean accordOnly,
-                         boolean isConsensusMigration,
+                         boolean repairAccord,
                          String... cfnames)
     {
         this.ctx = ctx;
         this.validationScheduler = validationScheduler;
+        this.repairData = repairData;
         this.repairPaxos = repairPaxos;
-        this.paxosOnly = paxosOnly;
-        this.isConsensusMigration = isConsensusMigration;
+        this.repairAccord = repairAccord;
         assert cfnames.length > 0 : "Repairing no column families seems pointless, doesn't it";
         this.state = new SessionState(ctx, parentRepairSession, keyspace, cfnames, commonRange);
         this.parallelismDegree = parallelismDegree;
@@ -190,7 +185,6 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
         this.optimiseStreams = optimiseStreams;
         this.dontPurgeTombstones = dontPurgeTombstones;
         this.taskExecutor = new SafeExecutor(createExecutor(ctx));
-        this.accordOnly = accordOnly;
         this.excludedDeadNodes = excludedDeadNodes;
     }
 
@@ -314,7 +308,7 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
         logger.info("{} parentSessionId = {}: new session: will sync {} on range {} for {}.{}",
                     previewKind.logPrefix(getId()), state.parentRepairSession, repairedNodes(), state.commonRange, state.keyspace, Arrays.toString(state.cfnames));
         Tracing.traceRepair("Syncing range {}", state.commonRange);
-        if (!previewKind.isPreview() && !paxosOnly && !accordOnly)
+        if (!previewKind.isPreview() && repairData)
         {
             SystemDistributedKeyspace.startRepairs(getId(), state.parentRepairSession, state.keyspace, state.cfnames, state.commonRange);
         }
@@ -466,6 +460,11 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
                 }
             }
         }
+    }
+
+    public boolean accordOnly()
+    {
+        return repairData && repairAccord && !repairPaxos;
     }
 
     private boolean includesTables(Set<TableId> tableIds)

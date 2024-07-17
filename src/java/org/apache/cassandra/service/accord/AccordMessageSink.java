@@ -41,10 +41,12 @@ import accord.local.Node;
 import accord.messages.Callback;
 import accord.messages.Commit;
 import accord.messages.MessageType;
+import accord.messages.ReadData;
 import accord.messages.Reply;
 import accord.messages.ReplyContext;
 import accord.messages.Request;
 import accord.messages.TxnRequest;
+import accord.primitives.TxnId;
 import org.apache.cassandra.config.AccordSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.RequestFailureReason;
@@ -251,14 +253,19 @@ public class AccordMessageSink implements MessageSink
 
     private static boolean isRangeBarrier(Request request)
     {
-        if (!(request instanceof TxnRequest))
-            return false;
+        TxnId txnId = null;
+        if (request instanceof TxnRequest)
+        {
+            TxnRequest<?> txnRequest = (TxnRequest<?>) request;
+            txnId = txnRequest.txnId;
+        }
+        else if (request instanceof ReadData)
+        {
+            ReadData epochRequest = (ReadData)request;
+            txnId = epochRequest.txnId;
+        }
 
-        TxnRequest<?> txnRequest = (TxnRequest<?>) request;
-        if (!txnRequest.txnId.isSyncPoint())
-            return false;
-
-        return txnRequest.txnId.is(Range);
+        return txnId != null  && txnId.isSyncPoint() && txnId.is(Range);
     }
 
     // TODO (expected): permit bulk send to save esp. on callback registration (and combine records)

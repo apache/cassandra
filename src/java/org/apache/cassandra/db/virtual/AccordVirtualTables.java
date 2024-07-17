@@ -48,7 +48,7 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UserType;
-import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.NormalizedRanges;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.Schema;
@@ -145,6 +145,7 @@ public class AccordVirtualTables
                         "  transactional_mode text,\n" +
                         "  transactional_migration_from text,\n" +
                         "  migrated_ranges frozen<list<text>>,\n" +
+                        "  repair_pending_ranges frozen<list<text>>,\n" +
                         "  migrating_ranges_by_epoch frozen<map<bigint, list<text>>>,\n" +
                         "  PRIMARY KEY (keyspace_name, table_name)" +
                         ')'));
@@ -201,9 +202,12 @@ public class AccordVirtualTables
 
                 List<String> primitiveMigratedRanges = state.migratedRanges.stream().map(Objects::toString).collect(toImmutableList());
                 result.column("migrated_ranges", primitiveMigratedRanges);
-        
+
+                List<String> primitiveRepairPendingRanges = state.repairPendingRanges.stream().map(Objects::toString).collect(toImmutableList());
+                result.column("repair_pending_ranges", primitiveRepairPendingRanges);
+
                 Map<Long, List<String>> primitiveRangesByEpoch = new LinkedHashMap<>();
-                for (Map.Entry<org.apache.cassandra.tcm.Epoch, List<Range<Token>>> entry : state.migratingRangesByEpoch.entrySet())
+                for (Map.Entry<org.apache.cassandra.tcm.Epoch, NormalizedRanges<Token>> entry : state.migratingRangesByEpoch.entrySet())
                     primitiveRangesByEpoch.put(entry.getKey().getEpoch(), entry.getValue().stream().map(Objects::toString).collect(toImmutableList()));
 
                 result.column("migrating_ranges_by_epoch", primitiveRangesByEpoch);

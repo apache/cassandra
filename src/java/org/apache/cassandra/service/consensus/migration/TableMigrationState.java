@@ -19,7 +19,17 @@
 package org.apache.cassandra.service.consensus.migration;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.AbstractMap;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.NavigableMap;
+import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -27,14 +37,13 @@ import javax.annotation.Nullable;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSortedMap;
-
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.dht.IPartitioner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.NormalizedRanges;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -48,10 +57,9 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.collect.ImmutableList.toImmutableList;
 import static org.apache.cassandra.db.TypeSizes.sizeof;
-import static org.apache.cassandra.dht.Range.intersectionOfNormalizedRanges;
 import static org.apache.cassandra.dht.Range.normalize;
+import static org.apache.cassandra.dht.NormalizedRanges.normalizedRanges;
 import static org.apache.cassandra.dht.Range.subtract;
-import static org.apache.cassandra.dht.Range.subtractNormalizedRanges;
 import static org.apache.cassandra.utils.CollectionSerializers.deserializeMap;
 import static org.apache.cassandra.utils.CollectionSerializers.deserializeSet;
 import static org.apache.cassandra.utils.CollectionSerializers.newHashMap;
@@ -77,8 +85,11 @@ public class TableMigrationState
     @Nonnull
     public final ConsensusMigrationTarget targetProtocol;
 
+    /**
+     * Migrated means that both phases are completed when migrating to Accord. Paxos only has one phase.
+     */
     @Nonnull
-    public final List<Range<Token>> migratedRanges;
+    public final NormalizedRanges<Token> migratedRanges;
 
     /*
      * Necessary to track which ranges started migrating at which epoch
@@ -86,33 +97,59 @@ public class TableMigrationState
      * migration of the range.
      */
     @Nonnull
-    public final NavigableMap<Epoch, List<Range<Token>>> migratingRangesByEpoch;
+    public final NavigableMap<Epoch, NormalizedRanges<Token>> migratingRangesByEpoch;
 
+    /**
+     * Ranges that are migrating and could be in either phase when migrating to Accord. Paxos only has one phase.
+     */
     @Nonnull
-    public final List<Range<Token>> migratingRanges;
+    public final NormalizedRanges<Token> migratingRanges;
 
+    /**
+     * These are ranges that are migrating and have not been repaired yet when migrating to Accord so Accord can't read from them. These ranges
+     * should continue to be operated on by Paxos
+     *
+     * When migrating to Accord a repair can only move the range to migrated if it is already in repairCompletedRanges
+     *
+     * Additionally Paxos continues to operate on a migrating range and key migration is not performed
+     *
+     * This is skipped when migrating from Accord to Paxos.
+     */
     @Nonnull
-    public final List<Range<Token>> migratingAndMigratedRanges;
+    public final NormalizedRanges<Token> repairPendingRanges;
+
+    /**
+     * Ranges that are migrating could be in either phase when migrating to Accord. PAxos only has one phase.
+     */
+    @Nonnull
+    public final NormalizedRanges<Token> migratingAndMigratedRanges;
 
     public TableMigrationState(@Nonnull String keyspaceName,
                                @Nonnull String tableName,
                                @Nonnull TableId tableId,
                                @Nonnull ConsensusMigrationTarget targetProtocol,
                                @Nonnull Collection<Range<Token>> migratedRanges,
-                               @Nonnull Map<Epoch, List<Range<Token>>> migratingRangesByEpoch)
+                               @Nonnull Collection<Range<Token>> repairPendingRanges,
+                               @Nonnull Map<Epoch, ? extends List<Range<Token>>> migratingRangesByEpoch)
     {
         this.keyspaceName = keyspaceName;
         this.tableName = tableName;
         this.tableId = tableId;
         this.targetProtocol = targetProtocol;
-        this.migratedRanges = ImmutableList.copyOf(normalize(migratedRanges));
+        this.migratedRanges = normalizedRanges(migratedRanges);
+        this.repairPendingRanges = normalizedRanges(repairPendingRanges);
         this.migratingRangesByEpoch = ImmutableSortedMap.copyOf(
         migratingRangesByEpoch.entrySet()
                               .stream()
-                              .map(entry -> new AbstractMap.SimpleEntry<>(entry.getKey(), ImmutableList.copyOf(normalize(entry.getValue()))))
+                              .map(entry -> new AbstractMap.SimpleEntry<>(entry.getKey(), normalizedRanges(entry.getValue())))
                               .collect(Collectors.toList()));
-        this.migratingRanges = ImmutableList.copyOf(normalize(migratingRangesByEpoch.values().stream().flatMap(Collection::stream).collect(Collectors.toList())));
-        this.migratingAndMigratedRanges = ImmutableList.copyOf(normalize(ImmutableList.<Range<Token>>builder().addAll(migratedRanges).addAll(migratingRanges).build()));
+        this.migratingRanges = normalizedRanges(migratingRangesByEpoch.values().stream().flatMap(Collection::stream).collect(Collectors.toList()));
+        this.migratingAndMigratedRanges = normalizedRanges(ImmutableList.<Range<Token>>builder().addAll(migratedRanges).addAll(migratingRanges).build());
+    }
+
+    static List<Range<Token>> initialRepairPendingRanges(ConsensusMigrationTarget target, List<Range<Token>> initialMigratingRanges)
+    {
+        return target == ConsensusMigrationTarget.accord ? ImmutableList.copyOf(initialMigratingRanges) : ImmutableList.of();
     }
 
     public TableMigrationState reverseMigration(ConsensusMigrationTarget target, Epoch epoch)
@@ -124,6 +161,7 @@ public class TableMigrationState
         allTouched = Range.deoverlap(allTouched);
         return new TableMigrationState(keyspaceName, tableName, tableId, target,
                                        Range.normalize(fullRange.subtractAll(allTouched)),
+                                       initialRepairPendingRanges(target, migratingRanges),
                                        Collections.singletonMap(epoch, migratingRanges));
     }
 
@@ -141,6 +179,12 @@ public class TableMigrationState
     public List<Range<Token>> migratingRanges() {
 
         return migratingRanges;
+    }
+
+    @Nonnull
+    public List<Range<Token>> repairPendingRanges()
+    {
+        return repairPendingRanges;
     }
 
     public TableMigrationState withRangesMigrating(@Nonnull Collection<Range<Token>> ranges,
@@ -167,7 +211,11 @@ public class TableMigrationState
         newMigratingRanges.putAll(migratingRangesByEpoch);
         newMigratingRanges.put(Epoch.EMPTY, normalizedRanges);
 
-        return new TableMigrationState(keyspaceName, tableName, tableId, targetProtocol, migratedRanges, newMigratingRanges);
+        List<Range<Token>> newRepairPendingRanges = new ArrayList<>(repairPendingRanges);
+        if (target == ConsensusMigrationTarget.accord)
+            newRepairPendingRanges.addAll(withoutBoth);
+
+        return new TableMigrationState(keyspaceName, tableName, tableId, targetProtocol, migratedRanges, newRepairPendingRanges, newMigratingRanges);
     }
 
     public TableMigrationState withReplacementForEmptyEpoch(@Nonnull Epoch replacementEpoch)
@@ -183,45 +231,69 @@ public class TableMigrationState
         });
 
         if (newMigratingRangesByEpoch != null)
-            return new TableMigrationState(keyspaceName, tableName, tableId, targetProtocol, migratedRanges, newMigratingRangesByEpoch);
+            return new TableMigrationState(keyspaceName, tableName, tableId, targetProtocol, migratedRanges, repairPendingRanges, newMigratingRangesByEpoch);
         else
             return this;
     }
 
     public TableMigrationState withRangesRepairedAtEpoch(@Nonnull Collection<Range<Token>> ranges,
-                                                         @Nonnull Epoch epoch)
+                                                         @Nonnull Epoch epoch,
+                                                         @Nonnull ConsensusMigrationRepairType repairType)
     {
         checkState(!migratingRangesByEpoch.containsKey(Epoch.EMPTY), "Shouldn't have an entry for the empty epoch");
         checkArgument(epoch.isAfter(Epoch.EMPTY), "Epoch shouldn't be empty");
 
-        List<Range<Token>> normalizedRepairedRanges = normalize(ranges);
+        NormalizedRanges<Token> normalizedRepairedRanges = normalizedRanges(ranges);
         // This should be inclusive because the epoch we store in the map is the epoch in which the range has been marked migrating
         // in startMigrationToConsensusProtocol
-        NavigableMap<Epoch, List<Range<Token>>> coveredEpochs = migratingRangesByEpoch.headMap(epoch, true);
-        List<Range<Token>> normalizedMigratingRanges = normalize(coveredEpochs.values().stream().flatMap(Collection::stream).collect(Collectors.toList()));
-        List<Range<Token>> normalizedRepairedIntersection = intersectionOfNormalizedRanges(normalizedRepairedRanges, normalizedMigratingRanges);
+        NavigableMap<Epoch, NormalizedRanges<Token>> coveredEpochs = migratingRangesByEpoch.headMap(epoch, true);
+        NormalizedRanges<Token> normalizedMigratingRanges = normalizedRanges(coveredEpochs.values().stream().flatMap(Collection::stream).collect(Collectors.toList()));
+        // These are the ranges that are impacted by this repair based on the epoch filtering needed to make sure this repair applies to this migration
+        NormalizedRanges<Token> normalizedRepairedIntersection = normalizedRepairedRanges.intersection(normalizedMigratingRanges);
         checkState(!normalizedRepairedIntersection.isEmpty(), "None of Ranges " + ranges + " were being migrated");
 
-        Map<Epoch, List<Range<Token>>> newMigratingRangesByEpoch = new HashMap<>();
+        // Any ranges that were repair pending can't actually be fully migrated yet, they will be subtracted from repairPendingRanges after
+        // the new migratingRangesByEpoch and migratedRanges are constructed
+        NormalizedRanges<Token> actuallyMigratedRanges = normalizedRepairedIntersection.subtract(repairPendingRanges);
 
-        // Everything in this epoch or later can't have been migrated so re-add all of them
-        newMigratingRangesByEpoch.putAll(migratingRangesByEpoch.tailMap(epoch, false));
+        List<Range<Token>> newMigratedRanges = migratedRanges;
+        Map<Epoch, NormalizedRanges<Token>> newMigratingRangesByEpoch = migratingRangesByEpoch;
 
-        // Include anything still remaining to be migrated after subtracting what was repaired
-        for (Map.Entry<Epoch, List<Range<Token>>> e : coveredEpochs.entrySet())
+        // Not all repairs are capable of completing the migration to a given target
+        if ((targetProtocol == ConsensusMigrationTarget.accord && repairType.repairsPaxos())
+            || (targetProtocol == ConsensusMigrationTarget.paxos && repairType.repairedAccord))
         {
-            // Epoch when these ranges started migrating
-            Epoch rangesEpoch = e.getKey();
-            List<Range<Token>> epochMigratingRanges = e.getValue();
-            List<Range<Token>> remainingRanges = subtractNormalizedRanges(epochMigratingRanges, normalizedRepairedIntersection);
-            if (!remainingRanges.isEmpty())
-                newMigratingRangesByEpoch.put(rangesEpoch, remainingRanges);
+            newMigratingRangesByEpoch = new HashMap<>();
+            // Everything in this epoch or later can't have been migrated so re-add all of them
+            newMigratingRangesByEpoch.putAll(migratingRangesByEpoch.tailMap(epoch, false));
+            // Include anything still remaining to be migrated after subtracting what was repaired (and not excluded to due repairPendingRanges)
+            for (Map.Entry<Epoch, NormalizedRanges<Token>> e : coveredEpochs.entrySet())
+            {
+                // Epoch when these ranges started migrating
+                Epoch rangesEpoch = e.getKey();
+                NormalizedRanges<Token> epochMigratingRanges = e.getValue();
+                NormalizedRanges<Token> remainingRanges = epochMigratingRanges.subtract(actuallyMigratedRanges);
+                if (!remainingRanges.isEmpty())
+                    newMigratingRangesByEpoch.put(rangesEpoch, remainingRanges);
+            }
+
+            newMigratedRanges = new ArrayList<>(normalizedMigratingRanges.size() + ranges.size());
+            newMigratedRanges.addAll(migratedRanges);
+            newMigratedRanges.addAll(actuallyMigratedRanges);
         }
 
-        List<Range<Token>> newMigratedRanges = new ArrayList<>(normalizedMigratingRanges.size() + ranges.size());
-        newMigratedRanges.addAll(migratedRanges);
-        newMigratedRanges.addAll(normalizedRepairedIntersection);
-        return new TableMigrationState(keyspaceName, tableName, tableId, targetProtocol, newMigratedRanges, newMigratingRangesByEpoch);
+        // After this repair any ranges in normalizedRepairedIntersection is repaired and no longer repair pending
+        // Accord can safely read from them if this is a migration to Accord (after Paxos key migration)
+        List<Range<Token>> newRepairPendingRanges = repairPendingRanges;
+        if (repairType.repairedData)
+        {
+            List<Range<Token>> repairedRangesSatisfyingEpoch = new ArrayList<>();
+            for (Map.Entry<Epoch, NormalizedRanges<Token>> e : coveredEpochs.entrySet())
+                repairedRangesSatisfyingEpoch.addAll(normalizedRepairedRanges.intersection(e.getValue()));
+            newRepairPendingRanges = repairPendingRanges.subtract(normalizedRanges(repairedRangesSatisfyingEpoch));
+        }
+
+        return new TableMigrationState(keyspaceName, tableName, tableId, targetProtocol, newMigratedRanges, newRepairPendingRanges, newMigratingRangesByEpoch);
     }
 
     public boolean paxosReadSatisfiedByKeyMigrationAtEpoch(DecoratedKey key, ConsensusMigratedAt consensusMigratedAt)
@@ -240,7 +312,7 @@ public class TableMigrationState
         if (consensusMigratedAt == null)
         {
             // It hasn't been migrated and needs migration if it is in a migrating range
-            return Range.isInNormalizedRanges(key.getToken(), migratingRanges);
+            return migratingRanges.intersects(key.getToken());
         }
         else
         {
@@ -256,9 +328,9 @@ public class TableMigrationState
     public Epoch minMigrationEpoch(Token token)
     {
         // TODO should there be an index to make this more efficient?
-        for (Map.Entry<Epoch, List<Range<Token>>> e : migratingRangesByEpoch.entrySet())
+        for (Map.Entry<Epoch, NormalizedRanges<Token>> e : migratingRangesByEpoch.entrySet())
         {
-            if (Range.isInNormalizedRanges(token, e.getValue()))
+            if (e.getValue().intersects(token))
                 return e.getKey();
         }
         return Epoch.EMPTY;
@@ -270,25 +342,6 @@ public class TableMigrationState
         return tableId;
     }
 
-    public TableMigrationState withMigrationTarget(ConsensusMigrationTarget newTargetProtocol)
-    {
-        checkState(!migratingRangesByEpoch.containsKey(Epoch.EMPTY), "Shouldn't have an entry for the empty epoch");
-        if (targetProtocol == newTargetProtocol)
-            return this;
-
-        // Migrating ranges remain migrating because individual keys may have already been migrated
-        // So for correctness we need to perform key migration
-        // We do need to update the epoch so that a new repair is required to drive the migration
-        Map<Epoch, List<Range<Token>>> migratingRangesByEpoch = ImmutableMap.of(Epoch.EMPTY, migratingRanges);
-
-        Token minToken = ColumnFamilyStore.getIfExists(tableId).getPartitioner().getMinimumToken();
-        Range<Token> fullRange = new Range(minToken, minToken);
-        // What is migrated already is anything that was never migrated/migrating before (untouched)
-        List<Range<Token>> migratedRanges = ImmutableList.copyOf(normalize(fullRange.subtractAll(migratingAndMigratedRanges)));
-
-        return new TableMigrationState(keyspaceName, tableName, tableId, newTargetProtocol, migratedRanges, migratingRangesByEpoch);
-    }
-
     public Map<String, Object> toMap()
     {
         ImmutableMap.Builder<String, Object> builder = ImmutableMap.builder();
@@ -298,11 +351,12 @@ public class TableMigrationState
         builder.put("targetProtocol", targetProtocol.toString());
         builder.put("migratedRanges", migratedRanges.stream().map(Objects::toString).collect(toImmutableList()));
         Map<Long, List<String>> rangesByEpoch = new LinkedHashMap<>();
-        for (Map.Entry<Epoch, List<Range<Token>>> entry : migratingRangesByEpoch.entrySet())
+        for (Map.Entry<Epoch, NormalizedRanges<Token>> entry : migratingRangesByEpoch.entrySet())
         {
             rangesByEpoch.put(entry.getKey().getEpoch(), entry.getValue().stream().map(Objects::toString).collect(toImmutableList()));
         }
         builder.put("migratingRangesByEpoch", rangesByEpoch);
+        builder.put("repairPendingRanges", repairPendingRanges.stream().map(Objects::toString).collect(toImmutableList()));
         return builder.build();
     }
 
@@ -331,6 +385,7 @@ public class TableMigrationState
             out.writeUTF(t.tableName);
             t.tableId.serialize(out);
             serializeCollection(t.migratedRanges, out, version, Range.serializer);
+            serializeCollection(t.repairPendingRanges, out, version, Range.serializer);
             serializeMap(t.migratingRangesByEpoch, out, version, Epoch.serializer, ConsensusTableMigration.rangesSerializer);
         }
 
@@ -342,8 +397,9 @@ public class TableMigrationState
             String tableName = in.readUTF();
             TableId tableId = TableId.deserialize(in);
             Set<Range<Token>> migratedRanges = deserializeSet(in, version, Range.serializer);
-            Map<Epoch, List<Range<Token>>> migratingRangesByEpoch = deserializeMap(in, version, Epoch.serializer, ConsensusTableMigration.rangesSerializer, newHashMap());
-            return new TableMigrationState(keyspaceName, tableName, tableId, targetProtocol, migratedRanges, migratingRangesByEpoch);
+            Set<Range<Token>> repairPendingRanges = deserializeSet(in, version, Range.serializer);
+            Map<Epoch, NormalizedRanges<Token>> migratingRangesByEpoch = deserializeMap(in, version, Epoch.serializer, ConsensusTableMigration.rangesSerializer, newHashMap());
+            return new TableMigrationState(keyspaceName, tableName, tableId, targetProtocol, migratedRanges, repairPendingRanges, migratingRangesByEpoch);
         }
 
         @Override
@@ -354,7 +410,24 @@ public class TableMigrationState
                    + sizeof(t.tableName)
                    + t.tableId.serializedSize()
                    + serializedCollectionSize(t.migratedRanges, version, Range.serializer)
+                   + serializedCollectionSize(t.repairPendingRanges, version, Range.serializer)
                    + serializedMapSize(t.migratingRangesByEpoch, version, Epoch.serializer, ConsensusTableMigration.rangesSerializer);
         }
     };
+
+    @Override
+    public String toString()
+    {
+        return "TableMigrationState{" +
+               "keyspaceName='" + keyspaceName + '\'' +
+               ", tableName='" + tableName + '\'' +
+               ", tableId=" + tableId +
+               ", targetProtocol=" + targetProtocol +
+               ", migratedRanges=" + migratedRanges +
+               ", migratingRangesByEpoch=" + migratingRangesByEpoch +
+               ", migratingRanges=" + migratingRanges +
+               ", repairPendingRanges=" + repairPendingRanges +
+               ", migratingAndMigratedRanges=" + migratingAndMigratedRanges +
+               '}';
+    }
 }
