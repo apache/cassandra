@@ -38,6 +38,18 @@ def print_trace(shell, trace):
     """
     Print an already populated cassandra.query.QueryTrace instance.
     """
+    temp_query = None
+    temp_color = None
+    if shell.shunted_query_out is not None:
+            temp_query = shell.query_out
+            shell.writeresult('')
+            shell.writeresult('Tracing session: ', color=None, newline=False)
+            shell.writeresult(trace.trace_id)
+            shell.writeresult('')
+            shell.query_out = shell.shunted_query_out
+            temp_color = shell.color
+            shell.color = shell.shunted_color
+
     rows = make_trace_rows(trace)
     if not rows:
         shell.printerr("No rows for session %s found." % (trace.trace_id,))
@@ -47,14 +59,7 @@ def print_trace(shell, trace):
     formatted_names = list(map(shell.myformat_colname, names))
     formatted_values = [list(map(shell.myformat_value, row)) for row in rows]
 
-    temp_query = None
-    temp_color = None
 
-    if shell.shunted_query_out is not None:
-        temp_query = shell.query_out
-        shell.query_out = shell.shunted_query_out
-        temp_color = shell.color
-        shell.color = shell.shunted_color
 
     shell.writeresult('')
     shell.writeresult('Tracing session: ', color=MAGENTA, newline=False)
@@ -66,7 +71,6 @@ def print_trace(shell, trace):
     if temp_query is not None:
         shell.query_out = temp_query
         shell.color = temp_color
-        temp_query, temp_color = None, None
 
 
 
