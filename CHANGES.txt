@@ -1,4 +1,5 @@
 5.1
+ * Update legacy peers tables during node replacement (CASSANDRA-19782)
  * Refactor ColumnCondition (CASSANDRA-19620)
  * Allow configuring log format for Audit Logs (CASSANDRA-19792)
  * Support for noboolean rpm (centos7 compatible) packages removed (CASSANDRA-19787)
