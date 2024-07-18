@@ -823,6 +823,15 @@ public final class CassandraGenerators
 
     public static Gen<DecoratedKey> decoratedKeys(Gen<IPartitioner> partitionerGen, Gen<ByteBuffer> keyGen)
     {
-        return rs -> partitionerGen.generate(rs).decorateKey(keyGen.generate(rs));
+        return rs -> {
+            IPartitioner partitioner = partitionerGen.generate(rs);
+            Gen<ByteBuffer> valueGen = keyGen;
+            if (partitioner instanceof LocalPartitioner)
+            {
+                LocalPartitioner lp = (LocalPartitioner) partitioner;
+                valueGen = AbstractTypeGenerators.getTypeSupport(lp.getTokenValidator()).bytesGen();
+            }
+            return partitioner.decorateKey(valueGen.generate(rs));
+        };
     }
 }

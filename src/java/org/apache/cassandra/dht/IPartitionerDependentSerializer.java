@@ -19,6 +19,7 @@ package org.apache.cassandra.dht;
 
 import java.io.IOException;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 
@@ -43,6 +44,6 @@ public interface IPartitionerDependentSerializer<T> extends IVersionedSerializer
 
     default T deserialize(DataInputPlus in, int version) throws IOException
     {
-        return deserialize(in, null, version);
+        return deserialize(in, DatabaseDescriptor.getPartitioner(), version);
     }
 }

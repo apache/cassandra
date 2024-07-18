@@ -41,6 +41,7 @@ import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.IMessage;
 import org.apache.cassandra.distributed.api.IMessageFilters;
+import org.apache.cassandra.distributed.shared.DistributedTestBase;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.utils.EstimatedHistogram;
 
@@ -171,5 +172,14 @@ public class AccordLoadTest extends AccordTestBase
     protected Logger logger()
     {
         return logger;
+    }
+
+    public static void main(String[] args) throws Throwable
+    {
+        DistributedTestBase.beforeClass();
+        AccordLoadTest.setUp();
+        AccordLoadTest test = new AccordLoadTest();
+        test.setup();
+        test.testLoad();
     }
 }

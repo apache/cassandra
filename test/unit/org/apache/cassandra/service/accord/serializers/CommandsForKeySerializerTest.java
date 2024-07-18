@@ -39,11 +39,11 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import accord.api.Key;
-import accord.local.CommandsForKey;
-import accord.local.CommandsForKey.InternalStatus;
+import accord.local.cfk.CommandsForKey;
+import accord.local.cfk.CommandsForKey.InternalStatus;
 import accord.local.Command;
-import accord.local.CommandsForKey.TxnInfo;
-import accord.local.CommandsForKey.Unmanaged;
+import accord.local.cfk.CommandsForKey.TxnInfo;
+import accord.local.cfk.CommandsForKey.Unmanaged;
 import accord.local.CommonAttributes;
 import accord.local.CommonAttributes.Mutable;
 import accord.local.Listeners;
@@ -106,16 +106,18 @@ public class CommandsForKeySerializerTest
         final SaveStatus saveStatus;
         final PartialTxn txn;
         final Timestamp executeAt;
+        final Ballot ballot;
         final List<TxnId> deps = new ArrayList<>();
         final List<TxnId> missing = new ArrayList<>();
         boolean invisible;
 
-        Cmd(TxnId txnId, PartialTxn txn, SaveStatus saveStatus, Timestamp executeAt)
+        Cmd(TxnId txnId, PartialTxn txn, SaveStatus saveStatus, Timestamp executeAt, Ballot ballot)
         {
             this.txnId = txnId;
             this.saveStatus = saveStatus;
             this.txn = txn;
             this.executeAt = executeAt;
+            this.ballot = ballot;
         }
 
         CommonAttributes attributes()
@@ -132,7 +134,7 @@ public class CommandsForKeySerializerTest
                 {
                     for (TxnId id : deps)
                         builder.add((Key)txn.keys().get(0), id);
-                    mutable.partialDeps(new PartialDeps(AccordTestUtils.fullRange(txn), builder.build(), RangeDeps.NONE));
+                    mutable.partialDeps(new PartialDeps(AccordTestUtils.fullRange(txn), builder.build(), RangeDeps.NONE, KeyDeps.NONE));
                 }
             }
 
@@ -157,19 +159,19 @@ public class CommandsForKeySerializerTest
                 case PreCommittedWithDefinitionAndAcceptedDeps:
                 case PreCommittedWithAcceptedDeps:
                 case PreCommitted:
-                    return Command.SerializerSupport.accepted(attributes(), saveStatus, executeAt, Ballot.ZERO, Ballot.ZERO);
+                    return Command.SerializerSupport.accepted(attributes(), saveStatus, executeAt, ballot, ballot);
 
                 case Committed:
-                    return Command.SerializerSupport.committed(attributes(), saveStatus, executeAt, Ballot.ZERO, Ballot.ZERO, null);
+                    return Command.SerializerSupport.committed(attributes(), saveStatus, executeAt, ballot, ballot, null);
 
                 case Stable:
                 case ReadyToExecute:
-                    return Command.SerializerSupport.committed(attributes(), saveStatus, executeAt, Ballot.ZERO, Ballot.ZERO, Command.WaitingOn.EMPTY);
+                    return Command.SerializerSupport.committed(attributes(), saveStatus, executeAt, ballot, ballot, Command.WaitingOn.EMPTY);
 
                 case PreApplied:
                 case Applying:
                 case Applied:
-                    return Command.SerializerSupport.executed(attributes(), saveStatus, executeAt, Ballot.ZERO, Ballot.ZERO, Command.WaitingOn.EMPTY, new Writes(txnId, executeAt, txn.keys(), new TxnWrite(Collections.emptyList(), true)), new TxnData());
+                    return Command.SerializerSupport.executed(attributes(), saveStatus, executeAt, ballot, ballot, Command.WaitingOn.EMPTY, new Writes(txnId, executeAt, txn.keys(), new TxnWrite(Collections.emptyList(), true)), new TxnData());
 
                 case TruncatedApplyWithDeps:
                 case TruncatedApply:
@@ -219,7 +221,7 @@ public class CommandsForKeySerializerTest
         }
     }
 
-    private static ObjectGraph generateObjectGraph(int txnIdCount, Supplier<TxnId> txnIdSupplier, Supplier<SaveStatus> saveStatusSupplier, Function<TxnId, PartialTxn> txnSupplier, Function<TxnId, Timestamp> timestampSupplier, IntSupplier missingCountSupplier, RandomSource source)
+    private static ObjectGraph generateObjectGraph(int txnIdCount, Supplier<TxnId> txnIdSupplier, Supplier<SaveStatus> saveStatusSupplier, Function<TxnId, PartialTxn> txnSupplier, Function<TxnId, Timestamp> timestampSupplier, Supplier<Ballot> ballotSupplier, IntSupplier missingCountSupplier, RandomSource source)
     {
         Cmd[] cmds = new Cmd[txnIdCount];
         for (int i = 0 ; i < txnIdCount ; ++i)
@@ -227,10 +229,30 @@ public class CommandsForKeySerializerTest
             TxnId txnId = txnIdSupplier.get();
             SaveStatus saveStatus = saveStatusSupplier.get();
             Timestamp executeAt = txnId;
-            if (saveStatus.known.executeAt != ExecuteAtErased && saveStatus.known.executeAt != ExecuteAtUnknown)
+            if (!txnId.kind().awaitsOnlyDeps() && saveStatus.known.executeAt != ExecuteAtErased && saveStatus.known.executeAt != ExecuteAtUnknown)
                 executeAt = timestampSupplier.apply(txnId);
 
-            cmds[i] = new Cmd(txnId, txnSupplier.apply(txnId), saveStatus, executeAt);
+            Ballot ballot;
+            switch (saveStatus.status)
+            {
+                default: throw new AssertionError();
+                case NotDefined:
+                case PreAccepted:
+                case Invalidated:
+                case Truncated:
+                    ballot = Ballot.ZERO;
+                    break;
+                case AcceptedInvalidate:
+                case Accepted:
+                case PreCommitted:
+                case Committed:
+                case Stable:
+                case PreApplied:
+                case Applied:
+                    ballot = ballotSupplier.get();
+            }
+
+            cmds[i] = new Cmd(txnId, txnSupplier.apply(txnId), saveStatus, executeAt, ballot);
         }
         Arrays.sort(cmds, Comparator.comparing(o -> o.txnId));
         for (int i = 0 ; i < txnIdCount ; ++i)
@@ -273,14 +295,14 @@ public class CommandsForKeySerializerTest
             for (int j = 0 ; j < i ; ++j)
             {
                 InternalStatus status = InternalStatus.from(cmds[j].saveStatus);
-                if (status == null || !status.hasInfo) continue;
+                if (status == null || !status.hasExecuteAtOrDeps) continue;
                 if (cmds[j].txnId.kind().witnesses(cmds[i].txnId) && status.depsKnownBefore(cmds[j].txnId, cmds[j].executeAt).compareTo(cmds[i].txnId) > 0 && Collections.binarySearch(cmds[j].missing, cmds[i].txnId) < 0)
                     continue outer;
             }
             for (int j = i + 1 ; j < cmds.length ; ++j)
             {
                 InternalStatus status = InternalStatus.from(cmds[j].saveStatus);
-                if (status == null || !status.hasInfo) continue;
+                if (status == null || !status.hasExecuteAtOrDeps) continue;
                 if (cmds[j].txnId.kind().witnesses(cmds[i].txnId) && Collections.binarySearch(cmds[j].missing, cmds[i].txnId) < 0)
                     continue outer;
             }
@@ -312,6 +334,11 @@ public class CommandsForKeySerializerTest
         return min -> Timestamp.fromValues(epochSupplier.applyAsLong(min == null ? 1 : min.epoch()), hlcSupplier.applyAsLong(min == null ? 1 : min.hlc() + 1), flagSupplier.getAsInt(), idSupplier.get());
     }
 
+    private static Supplier<Ballot> ballotSupplier(LongUnaryOperator epochSupplier, LongUnaryOperator hlcSupplier, IntSupplier flagSupplier, Supplier<Node.Id> idSupplier)
+    {
+        return () -> Ballot.fromValues(epochSupplier.applyAsLong(1), hlcSupplier.applyAsLong(1), flagSupplier.getAsInt(), idSupplier.get());
+    }
+
     private static <T extends Timestamp> Function<Timestamp, T> timestampSupplier(Set<Timestamp> unique, Function<Timestamp, T> supplier)
     {
         return min -> {
@@ -329,7 +356,7 @@ public class CommandsForKeySerializerTest
     @Test
     public void serde()
     {
-        testOne(-6946067792202944553L);
+        testOne(-669467611022826851L);
         Random random = new Random();
         for (int i = 0 ; i < 10000 ; ++i)
         {
@@ -364,8 +391,8 @@ public class CommandsForKeySerializerTest
                 float v = source.nextFloat();
                 if (v < 0.5) return Txn.Kind.Read;
                 if (v < 0.95) return Txn.Kind.Write;
-                if (v < 0.99) return Txn.Kind.ExclusiveSyncPoint;
-                return Txn.Kind.EphemeralRead; // not actually a valid value for CFK
+                if (v < 0.97) return Txn.Kind.SyncPoint;
+                return Txn.Kind.ExclusiveSyncPoint;
             };
 
             boolean permitMissing = source.decide(0.75f);
@@ -412,15 +439,21 @@ public class CommandsForKeySerializerTest
                 }
             }
 
+            Supplier<Ballot> ballotSupplier;
+            {
+                Supplier<Ballot> delegate = ballotSupplier(epochSupplier, hlcSupplier, flagSupplier, idSupplier);
+                ballotSupplier =  () -> source.decide(0.5f) ? Ballot.ZERO : delegate.get();
+            }
+
             PartialTxn txn = createPartialTxn(0);
             Key key = (Key) txn.keys().get(0);
-            ObjectGraph graph = generateObjectGraph(source.nextInt(0, 100), () -> txnIdSupplier.apply(null), saveStatusSupplier, ignore -> txn, executeAtSupplier, missingCountSupplier, source);
+            ObjectGraph graph = generateObjectGraph(source.nextInt(0, 100), () -> txnIdSupplier.apply(null), saveStatusSupplier, ignore -> txn, executeAtSupplier, ballotSupplier, missingCountSupplier, source);
             List<Command> commands = graph.toCommands();
             CommandsForKey cfk = new CommandsForKey(key);
             while (commands.size() > 0)
             {
                 int next = source.nextInt(commands.size());
-                cfk = cfk.update(null, commands.get(next));
+                cfk = cfk.update(commands.get(next)).cfk();
                 commands.set(next, commands.get(commands.size() - 1));
                 commands.remove(commands.size() - 1);
             }
@@ -436,10 +469,12 @@ public class CommandsForKeySerializerTest
                 TxnInfo info = cfk.get(i);
                 InternalStatus expectStatus = InternalStatus.from(cmd.saveStatus);
                 if (expectStatus == null) expectStatus = InternalStatus.TRANSITIVELY_KNOWN;
-                if (expectStatus.hasInfo)
+                if (expectStatus.hasExecuteAtOrDeps)
                     Assert.assertEquals(cmd.executeAt, info.executeAt);
                 Assert.assertEquals(expectStatus, info.status);
                 Assert.assertArrayEquals(cmd.missing.toArray(TxnId[]::new), info.missing());
+                if (expectStatus.hasBallot)
+                    Assert.assertEquals(cmd.ballot, info.ballot());
                 ++i;
             }
 
@@ -471,7 +506,10 @@ public class CommandsForKeySerializerTest
             Arrays.sort(ids, Comparator.naturalOrder());
             TxnInfo[] info = new TxnInfo[ids.length];
             for (int i = 0; i < info.length; i++)
-                info[i] = TxnInfo.create(ids[i], rs.pick(InternalStatus.values()), ids[i], CommandsForKey.NO_TXNIDS);
+            {
+                InternalStatus status = rs.pick(InternalStatus.values());
+                info[i] = TxnInfo.create(ids[i], status, ids[i], CommandsForKey.NO_TXNIDS, Ballot.ZERO);
+            }
 
             Gen<Unmanaged.Pending> pendingGen = Gens.enums().allMixedDistribution(Unmanaged.Pending.class).next(rs);
 
@@ -499,7 +537,7 @@ public class CommandsForKeySerializerTest
             }
             else unmanaged = CommandsForKey.NO_PENDING_UNMANAGED;
 
-            CommandsForKey expected = CommandsForKey.SerializerSupport.create(pk, info, unmanaged);
+            CommandsForKey expected = CommandsForKey.SerializerSupport.create(pk, info, unmanaged, TxnId.NONE);
 
             ByteBuffer buffer = CommandsForKeySerializer.toBytesWithoutKey(expected);
             CommandsForKey roundTrip = CommandsForKeySerializer.fromBytes(pk, buffer);
@@ -515,8 +553,8 @@ public class CommandsForKeySerializerTest
         PartitionKey pk = new PartitionKey(TableId.fromString("1b255f4d-ef25-40a6-0000-000000000009"), key);
         TxnId txnId = TxnId.fromValues(11,34052499,2,1);
         CommandsForKey expected = CommandsForKey.SerializerSupport.create(pk,
-                                                     new TxnInfo[] { TxnInfo.create(txnId, InternalStatus.PREACCEPTED, txnId, CommandsForKey.NO_TXNIDS) },
-                                                                          CommandsForKey.NO_PENDING_UNMANAGED);
+                                                     new TxnInfo[] { TxnInfo.create(txnId, InternalStatus.PREACCEPTED_OR_ACCEPTED_INVALIDATE, txnId, CommandsForKey.NO_TXNIDS, Ballot.ZERO) },
+                                                                          CommandsForKey.NO_PENDING_UNMANAGED, TxnId.NONE);
 
         ByteBuffer buffer = CommandsForKeySerializer.toBytesWithoutKey(expected);
         CommandsForKey roundTrip = CommandsForKeySerializer.fromBytes(pk, buffer);

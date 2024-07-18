@@ -108,8 +108,7 @@ public class AccordKeyspaceTest extends CQLTester.InMemory
         PartialTxn partialTxn = txn.slice(scope, true);
         RoutingKey routingKey = partialTxn.keys().get(0).asKey().toUnseekable();
         FullRoute<?> route = partialTxn.keys().toRoute(routingKey);
-        Deps deps = new Deps(KeyDeps.none((Keys) txn.keys()), RangeDeps.NONE);
-        deps.slice(scope);
+        Deps deps = new Deps(KeyDeps.none((Keys) txn.keys()), RangeDeps.NONE, KeyDeps.NONE);
 
         CommonAttributes.Mutable common = new CommonAttributes.Mutable(id);
         common.partialTxn(partialTxn);

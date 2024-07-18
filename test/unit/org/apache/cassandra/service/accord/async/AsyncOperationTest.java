@@ -32,7 +32,7 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
 import org.apache.cassandra.concurrent.SimulatedExecutorFactory;
 import org.apache.cassandra.concurrent.Stage;
-import org.apache.cassandra.config.CassandraRelevantProperties;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -41,7 +41,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.api.RoutingKey;
-import accord.local.SafeCommandsForKey;
+import accord.local.cfk.SafeCommandsForKey;
 import accord.local.CheckedCommands;
 import accord.local.Command;
 import accord.local.PreLoadContext;
@@ -102,11 +102,6 @@ public class AsyncOperationTest
 {
     private static final Logger logger = LoggerFactory.getLogger(AsyncOperationTest.class);
     private static final AtomicLong clock = new AtomicLong(0);
-
-    static
-    {
-        CassandraRelevantProperties.TEST_ACCORD_STORE_THREAD_CHECKS_ENABLED.setBoolean(false);
-    }
 
     @BeforeClass
     public static void beforeClass() throws Throwable
@@ -360,16 +355,16 @@ public class AsyncOperationTest
             .check((rs, ids) -> {
             before(); // truncate tables
 
+
+            assertNoReferences(commandStore, ids, keys);
             createCommand(commandStore, rs, ids);
-
-            Map<TxnId, Boolean> failed = selectFailedTxn(rs, ids);
-
+            awaitDone(commandStore, ids, keys);
             assertNoReferences(commandStore, ids, keys);
 
             PreLoadContext ctx = contextFor(null, ids, keys, COMMANDS);
-
             Consumer<SafeCommandStore> consumer = Mockito.mock(Consumer.class);
 
+            Map<TxnId, Boolean> failed = selectFailedTxn(rs, ids);
             commandStore.commandCache().unsafeSetLoadFunction(txnId ->
             {
                 logger.info("Attempting to load {}; expected to fail? {}", txnId, failed.get(txnId));
@@ -402,6 +397,9 @@ public class AsyncOperationTest
                 });
             });
             getUninterruptibly(o2);
+            awaitDone(commandStore, ids, keys);
+            assertNoReferences(commandStore, ids, keys);
+
         });
     }
 
@@ -419,8 +417,8 @@ public class AsyncOperationTest
             logger.info("Test #{}", counter.incrementAndGet());
             before(); // truncate tables
 
-            createCommand(commandStore, rs, ids);
             assertNoReferences(commandStore, ids, keys);
+            createCommand(commandStore, rs, ids);
 
             PreLoadContext ctx = contextFor(null, ids, keys, COMMANDS);
 
@@ -445,11 +443,18 @@ public class AsyncOperationTest
         // to simulate CommandsForKey not being found, use createCommittedAndPersist periodically as it does not update
         switch (rs.nextInt(3))
         {
-            case 0: ids.forEach(id -> createStableAndPersist(commandStore, id)); break;
-            case 1: ids.forEach(id -> createStableUsingFastLifeCycle(commandStore, id)); break;
-            case 2: ids.forEach(id -> createStableUsingSlowLifeCycle(commandStore, id));
+            case 0:
+                logger.info("createStableAndPersist(): {}", ids);
+                ids.forEach(id -> createStableAndPersist(commandStore, id));
+                break;
+            case 1:
+                logger.info("createStableUsingFastLifeCycle(): {}", ids);
+                ids.forEach(id -> createStableUsingFastLifeCycle(commandStore, id));
+                break;
+            case 2:
+                logger.info("createStableUsingSlowLifeCycle(): {}", ids);
+                ids.forEach(id -> createStableUsingSlowLifeCycle(commandStore, id));
         }
-        commandStore.unsafeClearCache();
     }
 
     private static Map<TxnId, Boolean> selectFailedTxn(RandomSource rs, List<TxnId> ids)

@@ -36,7 +36,7 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import accord.local.CommandsForKey;
+import accord.local.cfk.CommandsForKey;
 import accord.impl.SimpleProgressLog;
 import accord.local.Node;
 import accord.local.PreLoadContext;

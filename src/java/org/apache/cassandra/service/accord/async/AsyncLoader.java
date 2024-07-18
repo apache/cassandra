@@ -18,7 +18,7 @@
 package org.apache.cassandra.service.accord.async;
 
 import accord.api.Key;
-import accord.local.CommandsForKey;
+import accord.local.cfk.CommandsForKey;
 import accord.local.KeyHistory;
 import accord.local.PreLoadContext;
 import accord.primitives.*;
@@ -32,16 +32,20 @@ import com.google.common.collect.Iterables;
 import org.apache.cassandra.service.accord.*;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.utils.NoSpamLogger;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 public class AsyncLoader
 {
     private static final Logger logger = LoggerFactory.getLogger(AsyncLoader.class);
+    private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 1L, TimeUnit.MINUTES);
 
     enum State
     {
@@ -83,7 +87,12 @@ public class AsyncLoader
                                                                                                 List<AsyncChain<?>> listenChains)
     {
         S safeRef = cache.acquire(key);
-        context.put(key, safeRef);
+        if (context.putIfAbsent(key, safeRef) != null)
+        {
+            noSpamLogger.warn("Context {} contained key {} more than once", context, key);
+            cache.release(safeRef);
+            return;
+        }
         AccordCachingState.Status status = safeRef.globalStatus(); // globalStatus() completes
         switch (status)
         {
@@ -140,8 +149,7 @@ public class AsyncLoader
         switch (keysOrRanges.domain())
         {
             case Key:
-                // cast to Keys fails...
-                Iterable<Key> keys = (Iterable<Key>) keysOrRanges;
+                AbstractKeys<Key> keys = (AbstractKeys<Key>) keysOrRanges;
                 keys.forEach(key -> referenceAndAssembleReadsForKey(key, context, chains));
                 break;
             case Range:
@@ -233,9 +241,11 @@ public class AsyncLoader
         {
             case INITIALIZED:
                 state(State.SETUP);
+
             case SETUP:
                 readResult = referenceAndDispatchReads(context);
                 state(State.LOADING);
+
             case LOADING:
                 if (readResult != null)
                 {
@@ -252,13 +262,17 @@ public class AsyncLoader
                     }
                 }
                 state(State.FINISHED);
+
             case FINISHED:
                 break;
+
             default:
                 throw new IllegalStateException("Unexpected state: " + state);
         }
 
-        logger.trace("Exiting load for {} with state {}: {} {}", callback, state, txnIds, keysOrRanges);
+        if (logger.isTraceEnabled())
+            logger.trace("Exiting load for {} with state {}: {} {}", callback, state, txnIds, keysOrRanges);
+
         return state == State.FINISHED;
     }
 }

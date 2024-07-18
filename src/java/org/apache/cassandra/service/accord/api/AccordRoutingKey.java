@@ -43,7 +43,6 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.TokenRange;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 
 import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
@@ -204,8 +203,7 @@ public abstract class AccordRoutingKey extends AccordRoutableKey implements Rout
 
         static
         {
-            Token key = getPartitioner().decorateKey(ByteBufferUtil.EMPTY_BYTE_BUFFER).getToken();
-            EMPTY_SIZE = ObjectSizes.measureDeep(new TokenKey(null, key));
+            EMPTY_SIZE = ObjectSizes.measure(new TokenKey(null, null));
         }
 
         final Token token;

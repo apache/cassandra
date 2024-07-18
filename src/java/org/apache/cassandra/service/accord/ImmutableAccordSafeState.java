@@ -75,10 +75,4 @@ public abstract class ImmutableAccordSafeState<K, V> implements AccordSafeState<
     {
         checkNotInvalidated();
     }
-
-    @Override
-    public void postExecute()
-    {
-        checkNotInvalidated();
-    }
 }

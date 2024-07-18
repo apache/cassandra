@@ -26,7 +26,6 @@ import org.junit.Test;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
-import org.apache.cassandra.distributed.test.log.FetchLogFromPeersTest.ClusterState;
 import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
