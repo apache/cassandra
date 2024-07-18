@@ -34,7 +34,7 @@ import accord.api.Result;
 import accord.impl.TimestampsForKey;
 import accord.impl.TimestampsForKeys;
 import accord.local.Command;
-import accord.local.CommandsForKey;
+import accord.local.cfk.CommandsForKey;
 import accord.local.CommonAttributes;
 import accord.local.SaveStatus;
 import accord.primitives.Ballot;
@@ -133,7 +133,7 @@ public class AccordCommandStoreTest
         attrs.partialDeps(dependencies);
         SimpleBitSet waitingOnApply = new SimpleBitSet(3);
         waitingOnApply.set(1);
-        Command.WaitingOn waitingOn = new Command.WaitingOn(dependencies.keyDeps.keys(), dependencies.rangeDeps.txnIds(), new ImmutableBitSet(waitingOnApply), new ImmutableBitSet(2));
+        Command.WaitingOn waitingOn = new Command.WaitingOn(dependencies.keyDeps.keys(), dependencies.rangeDeps, dependencies.directKeyDeps, new ImmutableBitSet(waitingOnApply), new ImmutableBitSet(2));
         attrs.addListener(new Command.ProxyListener(oldTxnId1));
         Pair<Writes, Result> result = AccordTestUtils.processTxnResult(commandStore, txnId, txn, executeAt);
 
@@ -182,8 +182,8 @@ public class AccordCommandStoreTest
         AccordSafeCommandsForKey cfk = new AccordSafeCommandsForKey(loaded(key, null));
         cfk.initialize();
 
-        cfk.set(cfk.current().update(null, command1));
-        cfk.set(cfk.current().update(null, command2));
+        cfk.set(cfk.current().update(command1).cfk());
+        cfk.set(cfk.current().update(command2).cfk());
 
         AccordKeyspace.getTimestampsForKeyMutation(commandStore, tfk, commandStore.nextSystemTimestampMicros()).apply();
         logger.info("E: {}", tfk);
@@ -213,8 +213,8 @@ public class AccordCommandStoreTest
         AccordSafeCommandsForKey cfk = new AccordSafeCommandsForKey(loaded(key, null));
         cfk.initialize();
 
-        cfk.set(cfk.current().update(null, command1));
-        cfk.set(cfk.current().update(null, command2));
+        cfk.set(cfk.current().update(command1).cfk());
+        cfk.set(cfk.current().update(command2).cfk());
 
         AccordKeyspace.getCommandsForKeyMutation(commandStore.id(), cfk.current(), commandStore.nextSystemTimestampMicros()).apply();
         logger.info("E: {}", cfk);

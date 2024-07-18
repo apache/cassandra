@@ -23,8 +23,11 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.BiFunction;
+import java.util.stream.Stream;
 
 import accord.local.Command;
+import accord.local.RedundantBefore;
 import accord.primitives.Deps;
 import accord.primitives.FullRoute;
 import accord.primitives.KeyDeps;
@@ -32,11 +35,14 @@ import accord.primitives.PartialTxn;
 import accord.primitives.Range;
 import accord.primitives.RangeDeps;
 import accord.primitives.Ranges;
+import accord.primitives.Routable;
 import accord.primitives.Timestamp;
+import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.utils.AccordGens;
 import accord.utils.Gen;
 import accord.utils.Gens;
+import accord.utils.RandomSource;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.dht.AccordSplitter;
 import org.apache.cassandra.dht.IPartitioner;
@@ -48,7 +54,6 @@ import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.quicktheories.impl.JavaRandom;
 
-import static accord.utils.AccordGens.txnIds;
 import static org.apache.cassandra.service.accord.AccordTestUtils.TABLE_ID1;
 import static org.apache.cassandra.service.accord.AccordTestUtils.createPartialTxn;
 
@@ -70,7 +75,7 @@ public class AccordGenerators
 
     public static Gen<Command> commands()
     {
-        Gen<TxnId> ids = txnIds();
+        Gen<TxnId> ids = AccordGens.txnIds();
         //TODO switch to Status once all types are supported
         Gen<SupportedCommandTypes> supportedTypes = Gens.enums().all(SupportedCommandTypes.class);
         //TODO goes against fuzz testing, and also limits to a very specific table existing...
@@ -197,6 +202,19 @@ public class AccordGenerators
         return ranges(Gens.lists(fromQT(CassandraGenerators.TABLE_ID_GEN)).unique().ofSizeBetween(1, 10).map(l -> new HashSet<>(l)), ignore -> partitioner);
     }
 
+    public static Gen<Ranges> rangesArbitrary(IPartitioner partitioner)
+    {
+        Gen<Range> rangeGen = range(partitioner);
+        Gen.IntGen sizeGen = Gens.ints().between(0, 10);
+        return rs -> {
+            int targetSize = sizeGen.nextInt(rs);
+            List<Range> ranges = new ArrayList<>(targetSize);
+            for (int i = 0; i < targetSize; i++)
+                ranges.add(rangeGen.next(rs));
+            return Ranges.of(ranges.toArray(Range[]::new));
+        };
+    }
+
     public static Gen<KeyDeps> keyDepsGen()
     {
         return AccordGens.keyDeps(AccordGenerators.keys());
@@ -205,6 +223,16 @@ public class AccordGenerators
     public static Gen<KeyDeps> keyDepsGen(IPartitioner partitioner)
     {
         return AccordGens.keyDeps(AccordGenerators.keys(partitioner));
+    }
+
+    public static Gen<KeyDeps> directKeyDepsGen()
+    {
+        return AccordGens.directKeyDeps(AccordGenerators.keys());
+    }
+
+    public static Gen<KeyDeps> directKeyDepsGen(IPartitioner partitioner)
+    {
+        return AccordGens.directKeyDeps(AccordGenerators.keys(partitioner));
     }
 
     public static Gen<RangeDeps> rangeDepsGen()
@@ -219,12 +247,41 @@ public class AccordGenerators
 
     public static Gen<Deps> depsGen()
     {
-        return AccordGens.deps(keyDepsGen(), rangeDepsGen());
+        return AccordGens.deps(keyDepsGen(), rangeDepsGen(), directKeyDepsGen());
     }
 
     public static Gen<Deps> depsGen(IPartitioner partitioner)
     {
-        return AccordGens.deps(keyDepsGen(partitioner), rangeDepsGen(partitioner));
+        return AccordGens.deps(keyDepsGen(partitioner), rangeDepsGen(partitioner), directKeyDepsGen(partitioner));
+    }
+
+    public static Gen<RedundantBefore.Entry> redundantBeforeEntry(IPartitioner partitioner)
+    {
+        return redundantBeforeEntry(Gens.bools().all(), range(partitioner), AccordGens.txnIds(Gens.pick(Txn.Kind.SyncPoint, Txn.Kind.ExclusiveSyncPoint), ignore -> Routable.Domain.Range));
+    }
+
+    public static Gen<RedundantBefore.Entry> redundantBeforeEntry(Gen<Boolean> emptyGen, Gen<Range> rangeGen, Gen<TxnId> txnIdGen)
+    {
+        return rs -> {
+            Range range = rangeGen.next(rs);
+            TxnId locallyAppliedOrInvalidatedBefore = emptyGen.next(rs) ? TxnId.NONE : txnIdGen.next(rs); // emptyable or range
+            TxnId shardAppliedOrInvalidatedBefore = emptyGen.next(rs) ? TxnId.NONE : txnIdGen.next(rs); // emptyable or range
+            TxnId bootstrappedAt = txnIdGen.next(rs);
+            Timestamp staleUntilAtLeast = emptyGen.next(rs) ? null : txnIdGen.next(rs); // nullable
+
+            long maxEpoch = Stream.of(locallyAppliedOrInvalidatedBefore, shardAppliedOrInvalidatedBefore, bootstrappedAt, staleUntilAtLeast).filter(t -> t != null).mapToLong(Timestamp::epoch).max().getAsLong();
+            long startEpoch = rs.nextLong(maxEpoch);
+            long endEpoch = emptyGen.next(rs) ? Long.MAX_VALUE : 1 + rs.nextLong(startEpoch, Long.MAX_VALUE);
+            return new RedundantBefore.Entry(range, startEpoch, endEpoch, locallyAppliedOrInvalidatedBefore, shardAppliedOrInvalidatedBefore, bootstrappedAt, staleUntilAtLeast);
+        };
+    }
+
+    public static Gen<RedundantBefore> redundantBefore(IPartitioner partitioner)
+    {
+        Gen<Ranges> rangeGen = rangesArbitrary(partitioner);
+        Gen<TxnId> txnIdGen = AccordGens.txnIds(Gens.pick(Txn.Kind.SyncPoint, Txn.Kind.ExclusiveSyncPoint), ignore -> Routable.Domain.Range);
+        BiFunction<RandomSource, Range, RedundantBefore.Entry> entryGen = (rs, range) -> redundantBeforeEntry(Gens.bools().all(), i -> range, txnIdGen).next(rs);
+        return AccordGens.redundantBefore(rangeGen, entryGen);
     }
 
     public static <T> Gen<T> fromQT(org.quicktheories.core.Gen<T> qt)
