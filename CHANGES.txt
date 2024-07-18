@@ -1,4 +1,5 @@
 5.0.1
+ * Add java.base/java.lang.reflect among opens for jvm11-client.options (CASSANDRA-19780)
 
 
 5.0-rc2
