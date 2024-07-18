@@ -1462,7 +1462,15 @@ public class DatabaseDescriptor
         boolean directIOSupported = false;
         try
         {
-            directIOSupported = FileUtils.getBlockSize(new File(getCommitLogLocation())) > 0;
+            // skip this from resolving in tools
+            if (!toolInitialized)
+            {
+                File commitLogDir = new File(getCommitLogLocation());
+                // double check, because not all tools are using DatabaseDescriptor.toolInitialization() yet
+                // which sets toolInitialized to true
+                if (commitLogDir.exists())
+                    directIOSupported = FileUtils.getBlockSize(commitLogDir) > 0;
+            }
         }
         catch (RuntimeException e)
         {
