@@ -24,11 +24,13 @@ import java.util.Arrays;
 import com.google.common.primitives.Ints;
 
 import accord.api.Key;
-import accord.local.CommandsForKey;
-import accord.local.CommandsForKey.TxnInfo;
-import accord.local.CommandsForKey.InternalStatus;
-import accord.local.CommandsForKey.Unmanaged;
+import accord.local.cfk.CommandsForKey;
+import accord.local.cfk.CommandsForKey.TxnInfo;
+import accord.local.cfk.CommandsForKey.InternalStatus;
+import accord.local.cfk.CommandsForKey.TxnInfoExtra;
+import accord.local.cfk.CommandsForKey.Unmanaged;
 import accord.local.Node;
+import accord.primitives.Ballot;
 import accord.primitives.Routable.Domain;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
@@ -38,9 +40,10 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
-import static accord.local.CommandsForKey.NO_PENDING_UNMANAGED;
-import static accord.primitives.Txn.Kind.ExclusiveSyncPoint;
+import static accord.local.cfk.CommandsForKey.NO_PENDING_UNMANAGED;
+import static accord.local.cfk.CommandsForKey.NO_TXNIDS;
 import static accord.primitives.Txn.Kind.Read;
+import static accord.primitives.Txn.Kind.SyncPoint;
 import static accord.primitives.Txn.Kind.Write;
 import static accord.utils.ArrayBuffers.cachedInts;
 import static accord.utils.ArrayBuffers.cachedTxnIds;
@@ -52,12 +55,15 @@ import static org.apache.cassandra.service.accord.serializers.CommandsForKeySeri
 import static org.apache.cassandra.utils.ByteBufferUtil.readLeastSignificantBytes;
 import static org.apache.cassandra.utils.ByteBufferUtil.writeLeastSignificantBytes;
 import static org.apache.cassandra.utils.ByteBufferUtil.writeMostSignificantBytes;
+import static org.apache.cassandra.utils.vint.VIntCoding.decodeZigZag64;
+import static org.apache.cassandra.utils.vint.VIntCoding.encodeZigZag64;
 
 public class CommandsForKeySerializer
 {
     private static final int HAS_MISSING_DEPS_HEADER_BIT = 0x1;
     private static final int HAS_EXECUTE_AT_HEADER_BIT = 0x2;
-    private static final int HAS_NON_STANDARD_FLAGS = 0x4;
+    private static final int HAS_BALLOT_HEADER_BIT = 0x4;
+    private static final int HAS_NON_STANDARD_FLAGS = 0x8;
 
     /**
      * We read/write a fixed number of intial bytes for each command, with an initial flexible number of flag bits
@@ -70,12 +76,13 @@ public class CommandsForKeySerializer
      *  two flag bytes:
      *   bit 0 is set if there are any missing ids;
      *   bit 1 is set if there are any executeAt specified
-     *   bit 2 is set if there are any queries present besides reads/writes
-     *   bits 3-4 number of header bytes to read for each command
-     *   bits 5-6: level 0 extra hlc bytes to read
-     *   bits 7-8: level 1 extra hlc bytes to read (+ 1 + level 0)
-     *   bits 9-10: level 2 extra hlc bytes to read (+ 1 + level 1)
-     *   bits 12-13: level 3 extra hlc bytes to read (+ 1 + level 2)
+     *   bit 2 is set if there are any ballots specified
+     *   bit 3 is set if there are any queries present besides reads/writes
+     *   bits 4-5 number of header bytes to read for each command
+     *   bits 8-9: level 0 extra hlc bytes to read
+     *   bits 10-11: level 1 extra hlc bytes to read (+ 1 + level 0)
+     *   bits 12-13: level 2 extra hlc bytes to read (+ 1 + level 1)
+     *   bits 14-15: level 3 extra hlc bytes to read (+ 1 + level 2)
      *
      * In order, for each command, we consume:
      * 3 bits for the InternalStatus of the command
@@ -104,6 +111,8 @@ public class CommandsForKeySerializer
     // TODO (desired): determine timestamp resolution as a factor of 10
     public static ByteBuffer toBytesWithoutKey(CommandsForKey cfk)
     {
+        Invariants.checkArgument(!cfk.isLoadingPruned());
+
         int commandCount = cfk.size();
         if (commandCount == 0)
             return ByteBuffer.allocate(1);
@@ -115,15 +124,15 @@ public class CommandsForKeySerializer
             // whether we have any missing transactions to encode, any executeAt that are not equal to their TxnId
             // and whether there are any non-standard flag bits to encode
             boolean hasNonStandardFlags = false;
-            int nodeIdCount = 0, missingIdCount = 0, executeAtCount = 0, bitsPerExecuteAtFlags = 0;
-            int bitsPerExecuteAtEpochDelta = 0, bitsPerExecuteAtHlcDelta = 1; // to permit us to use full 64 bits and encode in 5 bits we force at least one hlc bit
+            int nodeIdCount = 0, missingIdCount = 0, executeAtCount = 0, ballotCount = 0;
+            int bitsPerExecuteAtEpoch = 0, bitsPerExecuteAtFlags = 0, bitsPerExecuteAtHlc = 1; // to permit us to use full 64 bits and encode in 5 bits we force at least one hlc bit
             {
                 for (int i = 0 ; i < commandCount ; ++i)
                 {
-                    if (nodeIdCount + 1 >= nodeIds.length)
+                    if (nodeIdCount + 2 >= nodeIds.length)
                     {
                         nodeIdCount = compact(nodeIds);
-                        if (nodeIdCount > nodeIds.length/2)
+                        if (nodeIdCount > nodeIds.length/2 || nodeIdCount + 2 >= nodeIds.length)
                             nodeIds = cachedInts().resize(nodeIds, nodeIds.length, nodeIds.length * 2);
                     }
 
@@ -132,15 +141,27 @@ public class CommandsForKeySerializer
                     hasNonStandardFlags |= txnIdFlags(txn) != STANDARD;
                     nodeIds[nodeIdCount++] = txn.node.id;
 
-                    missingIdCount += txn.missing().length;
-                    if (txn.executeAt == txn)
-                        continue;
+                    if (txn.executeAt != txn)
+                    {
+                        Invariants.checkState(txn.status.hasExecuteAtOrDeps);
+                        nodeIds[nodeIdCount++] = txn.executeAt.node.id;
+                        bitsPerExecuteAtEpoch = Math.max(bitsPerExecuteAtEpoch, numberOfBitsToRepresent(txn.executeAt.epoch() - txn.epoch()));
+                        bitsPerExecuteAtHlc = Math.max(bitsPerExecuteAtHlc, numberOfBitsToRepresent(txn.executeAt.hlc() - txn.hlc()));
+                        bitsPerExecuteAtFlags = Math.max(bitsPerExecuteAtFlags, numberOfBitsToRepresent(txn.executeAt.flags()));
+                        executeAtCount += 1;
+                    }
 
-                    nodeIds[nodeIdCount++] = txn.executeAt.node.id;
-                    bitsPerExecuteAtEpochDelta = Math.max(bitsPerExecuteAtEpochDelta, numberOfBitsToRepresent(txn.executeAt.epoch() - txn.epoch()));
-                    bitsPerExecuteAtHlcDelta = Math.max(bitsPerExecuteAtHlcDelta, numberOfBitsToRepresent(txn.executeAt.hlc() - txn.hlc()));
-                    bitsPerExecuteAtFlags = Math.max(bitsPerExecuteAtFlags, numberOfBitsToRepresent(txn.executeAt.flags()));
-                    executeAtCount += 1;
+                    if (txn.getClass() == TxnInfoExtra.class)
+                    {
+                        TxnInfoExtra extra = (TxnInfoExtra) txn;
+                        missingIdCount += extra.missing.length;
+                        if (extra.ballot != Ballot.ZERO)
+                        {
+                            Invariants.checkArgument(txn.status.hasBallot);
+                            nodeIds[nodeIdCount++] = extra.ballot.node.id;
+                            ballotCount += 1;
+                        }
+                    }
                 }
                 nodeIdCount = compact(nodeIds);
                 Invariants.checkState(nodeIdCount > 0);
@@ -151,11 +172,14 @@ public class CommandsForKeySerializer
             int bitsPerNodeId = numberOfBitsToRepresent(nodeIdCount);
             int minHeaderBits = 7 + bitsPerNodeId + (hasNonStandardFlags ? 1 : 0);
             int infoHeaderBits = (executeAtCount > 0 ? 1 : 0) + (missingIdCount > 0 ? 1 : 0);
+            int ballotHeaderBits = (ballotCount > 0 ? 1 : 0);
             int maxHeaderBits = minHeaderBits;
             int totalBytes = 0;
 
             long prevEpoch = cfk.get(0).epoch();
             long prevHlc = cfk.get(0).hlc();
+            int prunedBeforeIndex = cfk.prunedBefore().equals(TxnId.NONE) ? -1 : cfk.indexOf(cfk.prunedBefore());
+
             int[] bytesHistogram = cachedInts().getInts(12);
             Arrays.fill(bytesHistogram, 0);
             for (int i = 0 ; i < commandCount ; ++i)
@@ -194,8 +218,10 @@ public class CommandsForKeySerializer
                     totalBytes += 2;
 
                 TxnInfo info = cfk.get(i);
-                if (info.status.hasInfo)
+                if (info.status.hasExecuteAtOrDeps)
                     headerBits += infoHeaderBits;
+                if (info.status.hasBallot)
+                    headerBits += ballotHeaderBits;
                 maxHeaderBits = Math.max(headerBits, maxHeaderBits);
                 int basicBytes = (headerBits + payloadBits + 7)/8;
                 bytesHistogram[basicBytes]++;
@@ -213,10 +239,11 @@ public class CommandsForKeySerializer
 
             int flags = (missingIdCount > 0 ? HAS_MISSING_DEPS_HEADER_BIT : 0)
                         | (executeAtCount > 0 ? HAS_EXECUTE_AT_HEADER_BIT : 0)
+                        | (ballotCount > 0 ? HAS_BALLOT_HEADER_BIT : 0)
                         | (hasNonStandardFlags ? HAS_NON_STANDARD_FLAGS : 0);
 
             int headerBytes = (maxHeaderBits+7)/8;
-            flags |= Invariants.checkArgument(headerBytes - 1, headerBytes <= 4) << 3;
+            flags |= Invariants.checkArgument(headerBytes - 1, headerBytes <= 4) << 4;
 
             int hlcBytesLookup;
             {   // 2bits per size, first value may be zero and remainder may be increments of 1-4;
@@ -234,7 +261,7 @@ public class CommandsForKeySerializer
                 while (l3-l2 > 4) ++l2;
                 while (l2-l1 > 4) ++l1;
                 hlcBytesLookup = setHlcBytes(l0, l1, l2, l3);
-                flags |= (l0 | ((l1-(1+l0))<<2) | ((l2-(1+l1))<<4) | ((l3-(1+l2))<<6)) << 5;
+                flags |= (l0 | ((l1-(1+l0))<<2) | ((l2-(1+l1))<<4) | ((l3-(1+l2))<<6)) << 8;
             }
             int hlcFlagLookup = hlcBytesLookupToHlcFlagLookup(hlcBytesLookup);
 
@@ -252,21 +279,51 @@ public class CommandsForKeySerializer
 
             prevEpoch = cfk.get(0).epoch();
             prevHlc = cfk.get(0).hlc();
-            // account for encoding redundantBefore
             totalBytes += TypeSizes.sizeofUnsignedVInt(prevEpoch);
             totalBytes += TypeSizes.sizeofUnsignedVInt(prevHlc);
+            totalBytes += TypeSizes.sizeofUnsignedVInt(prunedBeforeIndex + 1);
 
-            if (missingIdCount + executeAtCount > 0)
+            int bitsPerBallotEpoch = 0, bitsPerBallotHlc = 1, bitsPerBallotFlags = 0;
+            if ((missingIdCount | executeAtCount | ballotCount) > 0)
             {
+                if (ballotCount > 0)
+                {
+                    Ballot prevBallot = null;
+                    for (int i = 0 ; i < commandCount ; ++i)
+                    {
+                        TxnInfo txn = cfk.get(i);
+                        if (txn.getClass() != TxnInfoExtra.class) continue;
+                        if (!txn.status.hasBallot) continue;
+                        TxnInfoExtra extra = (TxnInfoExtra) txn;
+                        if (extra.ballot == Ballot.ZERO) continue;
+                        if (prevBallot != null)
+                        {
+                            bitsPerBallotEpoch = Math.max(bitsPerBallotEpoch, numberOfBitsToRepresent(encodeZigZag64(extra.ballot.epoch() - prevBallot.epoch())));
+                            bitsPerBallotHlc = Math.max(bitsPerBallotHlc, numberOfBitsToRepresent(encodeZigZag64(extra.ballot.hlc() - prevBallot.hlc())));
+                            bitsPerBallotFlags = Math.max(bitsPerBallotFlags, numberOfBitsToRepresent(extra.ballot.flags()));
+                        }
+                        prevBallot = extra.ballot;
+                    }
+                    totalBytes += 2; // encode bit widths
+                }
+
+                if (executeAtCount > 0)
+                    totalBytes += 2; // encode bit widths
+
                 // account for encoding missing id stream
                 int missingIdBits = 1 + numberOfBitsToRepresent(commandCount);
                 int executeAtBits = bitsPerNodeId
-                                    + bitsPerExecuteAtEpochDelta
-                                    + bitsPerExecuteAtHlcDelta
+                                    + bitsPerExecuteAtEpoch
+                                    + bitsPerExecuteAtHlc
                                     + bitsPerExecuteAtFlags;
-                totalBytes += (missingIdBits * missingIdCount + executeAtBits * executeAtCount + 7)/8;
-                if (executeAtCount > 0)
-                    totalBytes += 2;
+                int ballotBits = bitsPerNodeId
+                                 + bitsPerBallotEpoch
+                                 + bitsPerBallotHlc
+                                 + bitsPerBallotFlags;
+                totalBytes += (missingIdBits * missingIdCount
+                               + executeAtBits * executeAtCount
+                               + (ballotCount > 0 ? ballotBits * (ballotCount - 1) + bitsPerNodeId + 128 : 0)
+                               + 7)/8;
             }
 
             // count unmanaged bytes
@@ -293,9 +350,11 @@ public class CommandsForKeySerializer
 
             VIntCoding.writeUnsignedVInt(prevEpoch, out);
             VIntCoding.writeUnsignedVInt(prevHlc, out);
+            VIntCoding.writeUnsignedVInt32(prunedBeforeIndex + 1, out);
 
             int executeAtMask = executeAtCount > 0 ? 1 : 0;
             int missingDepsMask = missingIdCount > 0 ? 1 : 0;
+            int ballotMask = ballotCount > 0 ? 1 : 0;
             int flagsIncrement = hasNonStandardFlags ? 2 : 1;
             // TODO (desired): check this loop compiles correctly to only branch on epoch case, for binarySearch and flushing
             for (int i = 0 ; i < commandCount ; ++i)
@@ -307,14 +366,19 @@ public class CommandsForKeySerializer
                 long bits = status.ordinal();
                 int bitIndex = 3;
 
-                int statusHasInfo = status.hasInfo ? 1 : 0;
-                long hasExecuteAt = info.executeAt != null & info.executeAt != txnId ? 1 : 0;
+                int statusHasInfo = status.hasExecuteAtOrDeps ? 1 : 0;
+                int statusHasBallot = status.hasBallot ? 1 : 0;
+                long hasExecuteAt = info.executeAt != txnId ? 1 : 0;
                 bits |= hasExecuteAt << bitIndex;
                 bitIndex += statusHasInfo & executeAtMask;
 
-                long hasMissingIds = info.missing() != CommandsForKey.NO_TXNIDS ? 1 : 0;
+                long hasMissingIds = info.getClass() == TxnInfoExtra.class && ((TxnInfoExtra)info).missing != CommandsForKey.NO_TXNIDS ? 1 : 0;
                 bits |= hasMissingIds << bitIndex;
                 bitIndex += statusHasInfo & missingDepsMask;
+
+                long hasBallot = info.getClass() == TxnInfoExtra.class && ((TxnInfoExtra)info).ballot != Ballot.ZERO ? 1 : 0;
+                bits |= hasBallot << bitIndex;
+                bitIndex += statusHasBallot & ballotMask;
 
                 long flagBits = txnIdFlagsBits(txnId);
                 boolean writeFullFlags = flagBits == RAW_BITS;
@@ -399,19 +463,23 @@ public class CommandsForKeySerializer
                 out.position(out.position() + offset);
             }
 
-            if ((executeAtCount | missingIdCount) > 0)
+            if ((executeAtCount | missingIdCount | ballotCount) > 0)
             {
                 int bitsPerCommandId =  numberOfBitsToRepresent(commandCount);
                 int bitsPerMissingId = 1 + bitsPerCommandId;
-                int bitsPerExecuteAt = bitsPerExecuteAtEpochDelta + bitsPerExecuteAtHlcDelta + bitsPerExecuteAtFlags + bitsPerNodeId;
-                Invariants.checkState(bitsPerExecuteAtEpochDelta < 64);
-                Invariants.checkState(bitsPerExecuteAtHlcDelta <= 64);
+                int bitsPerExecuteAt = bitsPerExecuteAtEpoch + bitsPerExecuteAtHlc + bitsPerExecuteAtFlags + bitsPerNodeId;
+                int bitsPerBallot = bitsPerBallotEpoch + bitsPerBallotHlc + bitsPerBallotFlags + bitsPerNodeId;
+                Invariants.checkState(bitsPerExecuteAtEpoch < 64);
+                Invariants.checkState(bitsPerExecuteAtHlc <= 64);
                 Invariants.checkState(bitsPerExecuteAtFlags <= 16);
                 if (executeAtMask > 0) // we encode both 15 and 16 bits for flag length as 15 to fit in a short
-                    out.putShort((short) ((bitsPerExecuteAtEpochDelta << 10) | ((bitsPerExecuteAtHlcDelta-1) << 4) | (Math.min(15, bitsPerExecuteAtFlags))));
+                    out.putShort((short) ((bitsPerExecuteAtEpoch << 10) | ((bitsPerExecuteAtHlc-1) << 4) | (Math.min(15, bitsPerExecuteAtFlags))));
+                if (ballotMask > 0) // we encode both 15 and 16 bits for flag length as 15 to fit in a short
+                    out.putShort((short) ((bitsPerBallotEpoch << 10) | ((bitsPerBallotHlc-1) << 4) | (Math.min(15, bitsPerBallotFlags))));
                 long buffer = 0L;
                 int bufferCount = 0;
 
+                Ballot prevBallot = null;
                 for (int i = 0 ; i < commandCount ; ++i)
                 {
                     TxnInfo txn = cfk.get(i);
@@ -423,9 +491,9 @@ public class CommandsForKeySerializer
                         {
                             Invariants.checkState(executeAt.epoch() >= txn.epoch());
                             long executeAtBits = executeAt.epoch() - txn.epoch();
-                            int offset = bitsPerExecuteAtEpochDelta;
+                            int offset = bitsPerExecuteAtEpoch;
                             executeAtBits |= (executeAt.hlc() - txn.hlc()) << offset ;
-                            offset += bitsPerExecuteAtHlcDelta;
+                            offset += bitsPerExecuteAtHlc;
                             executeAtBits |= ((long)executeAt.flags()) << offset;
                             offset += bitsPerExecuteAtFlags;
                             executeAtBits |= ((long)nodeIdx) << offset;
@@ -434,10 +502,10 @@ public class CommandsForKeySerializer
                         }
                         else
                         {
-                            buffer = flushBits(buffer, bufferCount, executeAt.epoch() - txn.epoch(), bitsPerExecuteAtEpochDelta, out);
-                            bufferCount = (bufferCount + bitsPerExecuteAtEpochDelta) & 63;
-                            buffer = flushBits(buffer, bufferCount, executeAt.hlc() - txn.hlc(), bitsPerExecuteAtHlcDelta, out);
-                            bufferCount = (bufferCount + bitsPerExecuteAtHlcDelta) & 63;
+                            buffer = flushBits(buffer, bufferCount, executeAt.epoch() - txn.epoch(), bitsPerExecuteAtEpoch, out);
+                            bufferCount = (bufferCount + bitsPerExecuteAtEpoch) & 63;
+                            buffer = flushBits(buffer, bufferCount, executeAt.hlc() - txn.hlc(), bitsPerExecuteAtHlc, out);
+                            bufferCount = (bufferCount + bitsPerExecuteAtHlc) & 63;
                             buffer = flushBits(buffer, bufferCount, executeAt.flags(), bitsPerExecuteAtFlags, out);
                             bufferCount = (bufferCount + bitsPerExecuteAtFlags) & 63;
                             buffer = flushBits(buffer, bufferCount, nodeIdx, bitsPerNodeId, out);
@@ -445,20 +513,62 @@ public class CommandsForKeySerializer
                         }
                     }
 
-                    TxnId[] missing = txn.missing();
-                    if (missing.length > 0)
+                    if (txn.getClass() == TxnInfoExtra.class)
                     {
-                        int j = 0;
-                        while (j < missing.length - 1)
+                        TxnInfoExtra extra = (TxnInfoExtra) txn;
+
+                        TxnId[] missing = extra.missing;
+                        if (missing.length > 0)
                         {
-                            int missingId = cfk.indexOf(missing[j++]);
+                            int j = 0;
+                            while (j < missing.length - 1)
+                            {
+                                int missingId = cfk.indexOf(missing[j++]);
+                                buffer = flushBits(buffer, bufferCount, missingId, bitsPerMissingId, out);
+                                bufferCount = (bufferCount + bitsPerMissingId) & 63;
+                            }
+                            int missingId = cfk.indexOf(missing[missing.length - 1]);
+                            missingId |= 1L << bitsPerCommandId;
                             buffer = flushBits(buffer, bufferCount, missingId, bitsPerMissingId, out);
                             bufferCount = (bufferCount + bitsPerMissingId) & 63;
                         }
-                        int missingId = cfk.indexOf(missing[missing.length - 1]);
-                        missingId |= 1L << bitsPerCommandId;
-                        buffer = flushBits(buffer, bufferCount, missingId, bitsPerMissingId, out);
-                        bufferCount = (bufferCount + bitsPerMissingId) & 63;
+
+                        Ballot ballot = extra.ballot;
+                        if (ballot != Ballot.ZERO)
+                        {
+                            int nodeIdx = Arrays.binarySearch(nodeIds, 0, nodeIdCount, ballot.node.id);
+                            if (prevBallot == null)
+                            {
+                                buffer = flushBits(buffer, bufferCount, ballot.msb, 64, out);
+                                buffer = flushBits(buffer, bufferCount, ballot.lsb, 64, out);
+                                buffer = flushBits(buffer, bufferCount, nodeIdx, bitsPerNodeId, out);
+                                bufferCount = (bufferCount + bitsPerNodeId) & 63;
+                            }
+                            else if (bitsPerBallot <= 64)
+                            {
+                                long ballotBits = encodeZigZag64(ballot.epoch() - prevBallot.epoch());
+                                int offset = bitsPerBallotEpoch;
+                                ballotBits |= encodeZigZag64(ballot.hlc() - prevBallot.hlc()) << offset ;
+                                offset += bitsPerBallotHlc;
+                                ballotBits |= ((long)ballot.flags()) << offset;
+                                offset += bitsPerBallotFlags;
+                                ballotBits |= ((long)nodeIdx) << offset;
+                                buffer = flushBits(buffer, bufferCount, ballotBits, bitsPerBallot, out);
+                                bufferCount = (bufferCount + bitsPerBallot) & 63;
+                            }
+                            else
+                            {
+                                buffer = flushBits(buffer, bufferCount, encodeZigZag64(ballot.epoch() - prevBallot.epoch()), bitsPerBallotEpoch, out);
+                                bufferCount = (bufferCount + bitsPerBallotEpoch) & 63;
+                                buffer = flushBits(buffer, bufferCount, encodeZigZag64(ballot.hlc() - prevBallot.hlc()), bitsPerBallotHlc, out);
+                                bufferCount = (bufferCount + bitsPerBallotHlc) & 63;
+                                buffer = flushBits(buffer, bufferCount, ballot.flags(), bitsPerBallotFlags, out);
+                                bufferCount = (bufferCount + bitsPerBallotFlags) & 63;
+                                buffer = flushBits(buffer, bufferCount, nodeIdx, bitsPerNodeId, out);
+                                bufferCount = (bufferCount + bitsPerNodeId) & 63;
+                            }
+                            prevBallot = ballot;
+                        }
                     }
                 }
 
@@ -502,6 +612,7 @@ public class CommandsForKeySerializer
             return new CommandsForKey(key);
 
         TxnId[] txnIds = cachedTxnIds().get(commandCount);
+        int[] decodeFlags = cachedInts().getInts(commandCount);
         TxnInfo[] txns = new TxnInfo[commandCount];
         int nodeIdCount = VIntCoding.readUnsignedVInt32(in);
         int bitsPerNodeId = numberOfBitsToRepresent(nodeIdCount);
@@ -514,34 +625,43 @@ public class CommandsForKeySerializer
                 nodeIds[i] = new Node.Id(prev += VIntCoding.readUnsignedVInt32(in));
         }
 
-        int missingDepsMasks, executeAtMasks, txnIdFlagsMask;
+        int missingDepsMasks, executeAtMasks, ballotMasks, txnIdFlagsMask;
         int headerByteCount, hlcBytesLookup;
         {
             int flags = in.getShort();
             missingDepsMasks = 0 != (flags & HAS_MISSING_DEPS_HEADER_BIT) ? 1 : 0;
             executeAtMasks = 0 != (flags & HAS_EXECUTE_AT_HEADER_BIT) ? 1 : 0;
+            ballotMasks = 0 != (flags & HAS_BALLOT_HEADER_BIT) ? 1 : 0;
             txnIdFlagsMask = 0 != (flags & HAS_NON_STANDARD_FLAGS) ? 3 : 1;
-            headerByteCount = 1 + ((flags >>> 3) & 0x3);
-            hlcBytesLookup = setHlcByteDeltas((flags >>> 5) & 0x3, (flags >>> 7) & 0x3, (flags >>> 9) & 0x3, (flags >>> 11) & 0x3);
+            headerByteCount = 1 + ((flags >>> 4) & 0x3);
+            hlcBytesLookup = setHlcByteDeltas((flags >>> 8) & 0x3, (flags >>> 10) & 0x3, (flags >>> 12) & 0x3, (flags >>> 14) & 0x3);
         }
 
         long prevEpoch = VIntCoding.readUnsignedVInt(in);
         long prevHlc = VIntCoding.readUnsignedVInt(in);
+        int prunedBeforeIndex = VIntCoding.readUnsignedVInt32(in) - 1;
+
         for (int i = 0 ; i < commandCount ; ++i)
         {
             long header = readLeastSignificantBytes(headerByteCount, in);
             header |= 1L << (8 * headerByteCount); // marker so we know where to shift-left most-significant bytes to
-            InternalStatus status = InternalStatus.get((int) (header & 0x7));
+            int commandDecodeFlags = (int)(header & 0x7);
+            InternalStatus status = InternalStatus.get(commandDecodeFlags);
             header >>>= 3;
+            commandDecodeFlags <<= 3;
 
-            int executeAtInfoOffset, missingDepsInfoOffset;
             {
-                int infoMask = status.hasInfo ? 1 : 0;
-                int executeAtMask = infoMask & executeAtMasks, missingDepsMask = infoMask & missingDepsMasks;
-                executeAtInfoOffset = ((int)header & executeAtMask) << 1;
+                int infoMask = status.hasExecuteAtOrDeps ? 1 : 0;
+                int executeAtMask = infoMask & executeAtMasks;
+                int missingDepsMask = infoMask & missingDepsMasks;
+                commandDecodeFlags |= ((int)header & executeAtMask) << 1;
                 header >>>= executeAtMask;
-                missingDepsInfoOffset = (int)header & missingDepsMask;
+                commandDecodeFlags |= (int)header & missingDepsMask;
                 header >>>= missingDepsMask;
+                int ballotMask = status.hasBallot ? ballotMasks : 0;
+                commandDecodeFlags |= ((int)header & ballotMask) << 2;
+                header >>>= ballotMask;
+                decodeFlags[i] = commandDecodeFlags;
             }
 
             Txn.Kind kind = TXN_ID_FLAG_BITS_KIND_LOOKUP[((int)header & txnIdFlagsMask)];
@@ -592,11 +712,8 @@ public class CommandsForKeySerializer
             if (readEpochBytes > 0)
                 epoch += readEpochBytes == 1 ? (in.get() & 0xff) : in.getInt();
 
-            TxnId txnId = kind != null ? new TxnId(epoch, hlc, kind, Domain.Key, node)
-                                       : TxnId.fromValues(epoch, hlc, flags, node);
-
-            txnIds[i] = txnId;
-            txns[i] = DECODE_INFOS[(executeAtInfoOffset | missingDepsInfoOffset)*STATUS_COUNT + status.ordinal()];
+            txnIds[i] = kind != null ? new TxnId(epoch, hlc, kind, Domain.Key, node)
+                                     : TxnId.fromValues(epoch, hlc, flags, node);
 
             prevEpoch = epoch;
             prevHlc = hlc;
@@ -626,7 +743,7 @@ public class CommandsForKeySerializer
             in.position(in.position() + offset);
         }
 
-        if (executeAtMasks + missingDepsMasks > 0)
+        if ((executeAtMasks | missingDepsMasks | ballotMasks) > 0)
         {
             TxnId[] missingIdBuffer = cachedTxnIds().get(8);
             int missingIdCount = 0, maxIdBufferCount = 0;
@@ -634,25 +751,36 @@ public class CommandsForKeySerializer
             int txnIdMask = (1 << bitsPerTxnId) - 1;
             int bitsPerMissingId = bitsPerTxnId + 1;
 
-            int decodeBits = executeAtMasks > 0 ? in.getShort() & 0xffff : 0;
-            int bitsPerEpochDelta = decodeBits >>> 10;
-            int bitsPerHlcDelta = 1 + ((decodeBits >>> 4) & 0x3f);
-            int bitsPerFlags = decodeBits & 0xf;
-            if (bitsPerFlags == 15) bitsPerFlags = 16;
-            int bitsPerExecuteAt = bitsPerEpochDelta + bitsPerHlcDelta + bitsPerFlags + bitsPerNodeId;
+            int decodeExecuteAtBits = executeAtMasks > 0 ? in.getShort() & 0xffff : 0;
+            int bitsPerExecuteAtEpoch = decodeExecuteAtBits >>> 10;
+            int bitsPerExecuteAtHlc = 1 + ((decodeExecuteAtBits >>> 4) & 0x3f);
+            int bitsPerExecuteAtFlags = decodeExecuteAtBits & 0xf;
+            if (bitsPerExecuteAtFlags == 15) bitsPerExecuteAtFlags = 16;
+            int bitsPerExecuteAt = bitsPerExecuteAtEpoch + bitsPerExecuteAtHlc + bitsPerExecuteAtFlags + bitsPerNodeId;
 
-            long epochDeltaMask = bitsPerEpochDelta == 0 ? 0 : (-1L >>> (64 - bitsPerEpochDelta));
-            long hlcDeltaMask = (-1L >>> (64 - bitsPerHlcDelta));
-            long flagsMask = bitsPerFlags == 0 ? 0 : (-1L >>> (64 - bitsPerFlags));
+            long executeAtEpochMask = bitsPerExecuteAtEpoch == 0 ? 0 : (-1L >>> (64 - bitsPerExecuteAtEpoch));
+            long executeAtHlcMask = (-1L >>> (64 - bitsPerExecuteAtHlc));
+            long executeAtFlagsMask = bitsPerExecuteAtFlags == 0 ? 0 : (-1L >>> (64 - bitsPerExecuteAtFlags));
 
+            int decodeBallotBits = ballotMasks > 0 ? in.getShort() & 0xffff : 0;
+            int bitsPerBallotEpoch = decodeBallotBits >>> 10;
+            int bitsPerBallotHlc = 1 + ((decodeBallotBits >>> 4) & 0x3f);
+            int bitsPerBallotFlags = decodeBallotBits & 0xf;
+            if (bitsPerBallotFlags == 15) bitsPerBallotFlags = 16;
+            int bitsPerBallot = bitsPerBallotEpoch + bitsPerBallotHlc + bitsPerBallotFlags + bitsPerNodeId;
+
+            long ballotEpochMask = bitsPerBallotEpoch == 0 ? 0 : (-1L >>> (64 - bitsPerBallotEpoch));
+            long ballotHlcMask = (-1L >>> (64 - bitsPerBallotHlc));
+            long ballotFlagsMask = bitsPerBallotFlags == 0 ? 0 : (-1L >>> (64 - bitsPerBallotFlags));
+
+            Ballot prevBallot = null;
             final BitReader reader = new BitReader();
-
             for (int i = 0 ; i < commandCount ; ++i)
             {
                 TxnId txnId = txnIds[i];
-                TxnInfo placeholder = txns[i];
-                Timestamp executeAt;
-                if (placeholder.executeAt == null)
+                int commandDecodeFlags = decodeFlags[i];
+                Timestamp executeAt = txnId;
+                if ((commandDecodeFlags & HAS_EXECUTE_AT_HEADER_BIT) != 0)
                 {
                     long epoch, hlc;
                     int flags;
@@ -660,30 +788,26 @@ public class CommandsForKeySerializer
                     if (bitsPerExecuteAt <= 64)
                     {
                         long executeAtBits = reader.read(bitsPerExecuteAt, in);
-                        epoch = txnId.epoch() + (executeAtBits & epochDeltaMask);
-                        executeAtBits >>>= bitsPerEpochDelta;
-                        hlc = txnId.hlc() + (executeAtBits & hlcDeltaMask);
-                        executeAtBits >>>= bitsPerHlcDelta;
-                        flags = (int)(executeAtBits & flagsMask);
-                        executeAtBits >>>= bitsPerFlags;
+                        epoch = txnId.epoch() + (executeAtBits & executeAtEpochMask);
+                        executeAtBits >>>= bitsPerExecuteAtEpoch;
+                        hlc = txnId.hlc() + (executeAtBits & executeAtHlcMask);
+                        executeAtBits >>>= bitsPerExecuteAtHlc;
+                        flags = (int)(executeAtBits & executeAtFlagsMask);
+                        executeAtBits >>>= bitsPerExecuteAtFlags;
                         id = nodeIds[(int)(executeAtBits & nodeIdMask)];
                     }
                     else
                     {
-                        epoch = txnId.epoch() + reader.read(bitsPerEpochDelta, in);
-                        hlc = txnId.hlc() + reader.read(bitsPerHlcDelta, in);
-                        flags = (int) reader.read(bitsPerFlags, in);
+                        epoch = txnId.epoch() + reader.read(bitsPerExecuteAtEpoch, in);
+                        hlc = txnId.hlc() + reader.read(bitsPerExecuteAtHlc, in);
+                        flags = (int) reader.read(bitsPerExecuteAtFlags, in);
                         id = nodeIds[(int)(reader.read(bitsPerNodeId, in))];
                     }
                     executeAt = Timestamp.fromValues(epoch, hlc, flags, id);
                 }
-                else
-                {
-                    executeAt = txnId;
-                }
 
-                TxnId[] missing = placeholder.missing();
-                if (missing == null)
+                TxnId[] missing = NO_TXNIDS;
+                if ((commandDecodeFlags & HAS_MISSING_DEPS_HEADER_BIT) != 0)
                 {
                     int prev = -1;
                     while (true)
@@ -704,7 +828,46 @@ public class CommandsForKeySerializer
                     missingIdCount = 0;
                 }
 
-                txns[i] = TxnInfo.create(txnId, placeholder.status, executeAt, missing);
+                Ballot ballot = Ballot.ZERO;
+                if ((commandDecodeFlags & HAS_BALLOT_HEADER_BIT) != 0)
+                {
+                    if (prevBallot == null)
+                    {
+                        long msb = reader.read(64, in);
+                        long lsb = reader.read(64, in);
+                        Node.Id id = nodeIds[(int)(reader.read(bitsPerNodeId, in))];
+                        ballot = Ballot.fromBits(msb, lsb, id);
+                    }
+                    else
+                    {
+                        long epoch, hlc;
+                        int flags;
+                        Node.Id id;
+                        if (bitsPerExecuteAt <= 64)
+                        {
+                            long ballotBits = reader.read(bitsPerBallot, in);
+                            epoch = prevBallot.epoch() + decodeZigZag64(ballotBits & ballotEpochMask);
+                            ballotBits >>>= bitsPerBallotEpoch;
+                            hlc = prevBallot.hlc() + decodeZigZag64(ballotBits & ballotHlcMask);
+                            ballotBits >>>= bitsPerBallotHlc;
+                            flags = (int)(ballotBits & ballotFlagsMask);
+                            ballotBits >>>= bitsPerBallotFlags;
+                            id = nodeIds[(int)(ballotBits & nodeIdMask)];
+                        }
+                        else
+                        {
+                            epoch = prevBallot.epoch() + decodeZigZag64(reader.read(bitsPerBallotEpoch, in));
+                            hlc = prevBallot.hlc() + decodeZigZag64(reader.read(bitsPerBallotHlc, in));
+                            flags = (int) reader.read(bitsPerBallotFlags, in);
+                            id = nodeIds[(int)(reader.read(bitsPerNodeId, in))];
+                        }
+                        ballot = Ballot.fromValues(epoch, hlc, flags, id);
+                    }
+
+                    prevBallot = ballot;
+                }
+
+                txns[i] = TxnInfo.create(txnId, InternalStatus.get(commandDecodeFlags >>> 3), executeAt, missing, ballot);
             }
 
             cachedTxnIds().forceDiscard(missingIdBuffer, maxIdBufferCount);
@@ -712,11 +875,11 @@ public class CommandsForKeySerializer
         else
         {
             for (int i = 0 ; i < commandCount ; ++i)
-                txns[i] = TxnInfo.create(txnIds[i], txns[i].status, txnIds[i]);
+                txns[i] = TxnInfo.create(txnIds[i], InternalStatus.get(decodeFlags[i] >>> 3), txnIds[i], Ballot.ZERO);
         }
         cachedTxnIds().forceDiscard(txnIds, commandCount);
 
-        return CommandsForKey.SerializerSupport.create(key, txns, unmanageds);
+        return CommandsForKey.SerializerSupport.create(key, txns, unmanageds, prunedBeforeIndex == -1 ? TxnId.NONE : txns[prunedBeforeIndex]);
     }
 
     private static int getHlcBytes(int lookup, int index)
@@ -836,9 +999,9 @@ public class CommandsForKeySerializer
             case Read:
             case Write:
                 return STANDARD;
-            case ExclusiveSyncPoint:
-                return EXTENDED;
             case SyncPoint:
+                return EXTENDED;
+            case ExclusiveSyncPoint:
             case LocalOnly:
             case EphemeralRead:
                 return RAW;
@@ -857,19 +1020,5 @@ public class CommandsForKeySerializer
         }
     }
 
-    private static final Txn.Kind[] TXN_ID_FLAG_BITS_KIND_LOOKUP = new Txn.Kind[] { Read, Write, ExclusiveSyncPoint, null };
-    private static final int STATUS_COUNT = InternalStatus.values().length;
-    private static final TxnInfo[] DECODE_INFOS = new TxnInfo[4 * STATUS_COUNT];
-    static
-    {
-        for (InternalStatus status : InternalStatus.values())
-        {
-            int ordinal = status.ordinal();
-            DECODE_INFOS[ordinal] = TxnInfo.createMock(TxnId.NONE, status, TxnId.NONE, CommandsForKey.NO_TXNIDS);
-            DECODE_INFOS[STATUS_COUNT+ordinal] = TxnInfo.createMock(TxnId.NONE, status, TxnId.NONE, null);
-            DECODE_INFOS[2*STATUS_COUNT+ordinal] = TxnInfo.createMock(TxnId.NONE, status, null, CommandsForKey.NO_TXNIDS);
-            DECODE_INFOS[3*STATUS_COUNT+ordinal] = TxnInfo.createMock(TxnId.NONE, status, null, null);
-        }
-    }
-
+    private static final Txn.Kind[] TXN_ID_FLAG_BITS_KIND_LOOKUP = new Txn.Kind[] { Read, Write, SyncPoint, null };
 }

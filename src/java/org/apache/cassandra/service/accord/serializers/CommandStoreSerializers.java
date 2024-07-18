@@ -129,7 +129,7 @@ public class CommandStoreSerializers
         }
     }), DurableBefore.Entry[]::new, DurableBefore.SerializerSupport::create);
 
-    public static IVersionedSerializer<RedundantBefore> redundantBefore = new ReducingRangeMapSerializer<>(NullableSerializer.wrap(new IVersionedSerializer<RedundantBefore.Entry>()
+    public static final IVersionedSerializer<RedundantBefore.Entry> redundantBeforeEntry = new IVersionedSerializer<>()
     {
         @Override
         public void serialize(RedundantBefore.Entry t, DataOutputPlus out, int version) throws IOException
@@ -152,10 +152,10 @@ public class CommandStoreSerializers
             long startEpoch = in.readUnsignedVInt();
             long endEpoch = in.readUnsignedVInt();
             if (endEpoch == 0) endEpoch = Long.MAX_VALUE;
-            else endEpoch = startEpoch + 1 + endEpoch;
-            TxnId bootstrappedAt = CommandSerializers.txnId.deserialize(in, version);
+            else endEpoch = endEpoch - 1 + startEpoch;
             TxnId locallyAppliedOrInvalidatedBefore = CommandSerializers.txnId.deserialize(in, version);
             TxnId shardAppliedOrInvalidatedBefore = CommandSerializers.txnId.deserialize(in, version);
+            TxnId bootstrappedAt = CommandSerializers.txnId.deserialize(in, version);
             Timestamp staleUntilAtLeast = CommandSerializers.nullableTimestamp.deserialize(in, version);
             return new RedundantBefore.Entry(range, startEpoch, endEpoch, locallyAppliedOrInvalidatedBefore, shardAppliedOrInvalidatedBefore, bootstrappedAt, staleUntilAtLeast);
         }
@@ -172,7 +172,8 @@ public class CommandStoreSerializers
             size += CommandSerializers.nullableTimestamp.serializedSize(t.staleUntilAtLeast, version);
             return size;
         }
-    }), RedundantBefore.Entry[]::new, RedundantBefore.SerializerSupport::create);
+    };
+    public static IVersionedSerializer<RedundantBefore> redundantBefore = new ReducingRangeMapSerializer<>(NullableSerializer.wrap(redundantBeforeEntry), RedundantBefore.Entry[]::new, RedundantBefore.SerializerSupport::create);
 
     private static class TimestampToRangesSerializer<T extends Timestamp> implements IVersionedSerializer<NavigableMap<T, Ranges>>
     {

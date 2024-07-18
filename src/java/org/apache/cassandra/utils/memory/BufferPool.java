@@ -1330,7 +1330,7 @@ public class BufferPool
 
         void setAttachment(ByteBuffer buffer)
         {
-            if (Ref.DEBUG_ENABLED)
+            if (Ref.TRACE_ENABLED)
                 MemoryUtil.setAttachment(buffer, new DirectBufferRef<>(this, null));
             else
                 MemoryUtil.setAttachment(buffer, this);
@@ -1342,7 +1342,7 @@ public class BufferPool
             if (attachment == null)
                 return false;
 
-            if (Ref.DEBUG_ENABLED)
+            if (Ref.TRACE_ENABLED)
                 ((DirectBufferRef<Chunk>) attachment).release();
 
             return true;

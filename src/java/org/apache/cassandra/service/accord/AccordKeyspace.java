@@ -48,7 +48,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.api.Key;
-import accord.local.CommandsForKey;
+import accord.local.cfk.CommandsForKey;
 import accord.impl.TimestampsForKey;
 import accord.local.Command;
 import accord.local.CommandStore;
@@ -551,9 +551,8 @@ public class AccordKeyspace
               + format("key %s, ", KEY_TUPLE)
               + "data blob, "
               + "PRIMARY KEY((store_id, key_token, key))"
-              + ')')
-               // TODO (expected): make this uncompressed, as not very compressable (except perhaps the primary key, but could switch to operating on tokens directly)
-//               + " WITH compression = {'enabled':'false'};")
+              + ')'
+               + " WITH compression = {'class':'NoopCompressor'};")
         .partitioner(FOR_KEYS_LOCAL_PARTITIONER)
         .build();
     }
@@ -625,7 +624,7 @@ public class AccordKeyspace
             if (current == null)
                 return null;
 
-            CommandsForKey updated = current.withRedundantBefore(redundantBefore);
+            CommandsForKey updated = current.withRedundantBeforeAtLeast(redundantBefore);
             if (current == updated)
                 return row;
 

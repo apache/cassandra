@@ -126,22 +126,6 @@ public class TxnUpdate extends AccordUpdate
     }
 
     @Override
-    public boolean isEqualOrFuller(Update other)
-    {
-        TxnUpdate that = (TxnUpdate) other;
-
-        int j = 0;
-        for (int i = 0; i < that.keys.size(); ++i)
-        {
-            j = this.keys.findNext(j, that.keys.get(i), CEIL);
-            if (j < 0 || !that.fragments[i].equals(this.fragments[j]))
-                return false;
-        }
-
-        return this.condition.equals(that.condition);
-    }
-
-    @Override
     public int hashCode()
     {
         int result = Objects.hash(condition);

@@ -119,6 +119,19 @@ public class AccordAgent implements Agent
         return getReadRpcTimeout(MICROSECONDS);
     }
 
+    // TODO (expected): we probably want additional configuration here so we can prune on shorter time horizons when we have a lot of transactions on a single key
+    @Override
+    public long cfkHlcPruneDelta()
+    {
+        return SECONDS.toMicros(10L);
+    }
+
+    @Override
+    public int cfkPruneInterval()
+    {
+        return 32;
+    }
+
     @Override
     public Txn emptyTxn(Kind kind, Seekables<?, ?> seekables)
     {

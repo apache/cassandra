@@ -400,7 +400,7 @@ public class SavedCommand
             if (diff.waitingOn != null)
             {
                 size += Integer.BYTES;
-                size += WaitingOnSerializer.serializedSize(diff.txnId, diff.waitingOn);
+                size += WaitingOnSerializer.serializedSize(diff.waitingOn);
             }
 
             if (diff.writes != null)
@@ -448,7 +448,7 @@ public class SavedCommand
 
             if (diff.waitingOn != null)
             {
-                long size = WaitingOnSerializer.serializedSize(diff.txnId, diff.waitingOn);
+                long size = WaitingOnSerializer.serializedSize(diff.waitingOn);
                 ByteBuffer serialized = WaitingOnSerializer.serialize(diff.txnId, diff.waitingOn);
                 out.writeInt((int) size);
                 out.write(serialized);
@@ -556,7 +556,7 @@ public class SavedCommand
                 waitingOn = (localTxnId, deps) -> {
                     try
                     {
-                        return WaitingOnSerializer.deserialize(localTxnId, deps.keyDeps.keys(), deps.rangeDeps.txnIds(), buffer);
+                        return WaitingOnSerializer.deserialize(localTxnId, deps.keyDeps.keys(), deps.rangeDeps, deps.directKeyDeps, buffer);
                     }
                     catch (IOException e)
                     {

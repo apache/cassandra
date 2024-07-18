@@ -20,6 +20,8 @@ package org.apache.cassandra.io;
 
 import java.io.IOException;
 
+import accord.utils.LazyToString;
+import accord.utils.ReflectionUtils;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.assertj.core.api.Assertions;
@@ -34,6 +36,6 @@ public class IVersionedSerializers
         Assertions.assertThat(output.getLength()).describedAs("The serialized size and bytes written do not match").isEqualTo(expectedSize);
         DataInputBuffer in = new DataInputBuffer(output.unsafeGetBufferAndFlip(), false);
         T read = serializer.deserialize(in, version);
-        Assertions.assertThat(read).describedAs("The deserialized output does not match the serialized input").isEqualTo(input);
+        Assertions.assertThat(read).describedAs("The deserialized output does not match the serialized input; difference %s", new LazyToString(() -> ReflectionUtils.recursiveEquals(read, input).toString())).isEqualTo(input);
     }
 }

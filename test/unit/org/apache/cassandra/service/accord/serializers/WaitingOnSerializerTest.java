@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.service.accord.serializers;
 
+import java.nio.ByteBuffer;
+
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -31,8 +33,6 @@ import accord.utils.SimpleBitSet;
 import accord.utils.Utils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Murmur3Partitioner;
-import org.apache.cassandra.io.util.DataInputBuffer;
-import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.utils.AccordGenerators;
 import org.apache.cassandra.utils.CassandraGenerators;
 import org.assertj.core.api.Assertions;
@@ -51,18 +51,16 @@ public class WaitingOnSerializerTest
     @Test
     public void serde()
     {
-        DataOutputBuffer buffer = new DataOutputBuffer();
         qt().forAll(waitingOnGen()).check(waitingOn -> {
             TxnId txnId = TxnId.NONE;
             if (waitingOn.appliedOrInvalidated != null) txnId = new TxnId(txnId.epoch(), txnId.hlc(), txnId.kind(), Routable.Domain.Range, txnId.node);
-            buffer.clear();
-            long expectedSize = WaitingOnSerializer.serializedSize(txnId, waitingOn);
-            WaitingOnSerializer.serialize(txnId, waitingOn, buffer);
-            Assertions.assertThat(buffer.getLength()).isEqualTo(expectedSize);
-            Command.WaitingOn read = WaitingOnSerializer.deserialize(txnId, waitingOn.keys, waitingOn.txnIds, new DataInputBuffer(buffer.unsafeGetBufferAndFlip(), false));
+            long expectedSize = WaitingOnSerializer.serializedSize(waitingOn);
+            ByteBuffer bb = WaitingOnSerializer.serialize(txnId, waitingOn);
+            Assertions.assertThat(bb.remaining()).isEqualTo(expectedSize);
+            Command.WaitingOn read = WaitingOnSerializer.deserialize(txnId, waitingOn.keys, waitingOn.directRangeDeps, waitingOn.directKeyDeps, bb);
             Assertions.assertThat(read)
                       .isEqualTo(waitingOn)
-                      .isEqualTo(WaitingOnSerializer.deserialize(txnId, waitingOn.keys, waitingOn.txnIds, WaitingOnSerializer.serialize(txnId, waitingOn)));
+                      .isEqualTo(WaitingOnSerializer.deserialize(txnId, waitingOn.keys, waitingOn.directRangeDeps, waitingOn.directKeyDeps, WaitingOnSerializer.serialize(txnId, waitingOn)));
         });
     }
 
@@ -76,7 +74,7 @@ public class WaitingOnSerializerTest
         return rs -> {
             Deps deps = depsGen.next(rs);
             if (deps.isEmpty()) return Command.WaitingOn.EMPTY;
-            int txnIdCount = deps.rangeDeps.txnIdCount();
+            int txnIdCount = deps.rangeDeps.txnIdCount() + deps.directKeyDeps.txnIdCount();
             int keyCount = deps.keyDeps.keys().size();
             int[] selected = Gens.arrays(Gens.ints().between(0, txnIdCount + keyCount - 1)).unique().ofSizeBetween(0, txnIdCount + keyCount).next(rs);
             SimpleBitSet waitingOn = new SimpleBitSet(txnIdCount + keyCount, false);
@@ -97,7 +95,7 @@ public class WaitingOnSerializerTest
                 }
             }
 
-            return new Command.WaitingOn(deps.keyDeps.keys(), deps.rangeDeps.txnIds(), Utils.ensureImmutable(waitingOn), Utils.ensureImmutable(appliedOrInvalidated));
+            return new Command.WaitingOn(deps.keyDeps.keys(), deps.rangeDeps, deps.directKeyDeps, Utils.ensureImmutable(waitingOn), Utils.ensureImmutable(appliedOrInvalidated));
         };
     }
 }

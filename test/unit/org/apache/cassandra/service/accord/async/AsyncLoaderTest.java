@@ -32,7 +32,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import accord.api.Key;
-import accord.local.CommandsForKey;
+import accord.local.cfk.CommandsForKey;
 import accord.impl.TimestampsForKey;
 import accord.local.Command;
 import accord.local.KeyHistory;
@@ -105,11 +105,13 @@ public class AsyncLoaderTest
         commandCache.unsafeSetLoadFunction(id -> notDefined(id, txn));
         AccordSafeCommand safeCommand = commandCache.acquire(txnId);
         testLoad(executor, safeCommand, notDefined(txnId, txn));
+        AccordCachingState<TxnId, Command> safeCommandGlobal = safeCommand.global();
         commandCache.release(safeCommand);
 
         timestampsCache.unsafeSetLoadFunction(k -> new TimestampsForKey((PartitionKey) k));
         AccordSafeTimestampsForKey safeTimestamps = timestampsCache.acquire(key);
         testLoad(executor, safeTimestamps, new TimestampsForKey(key));
+        AccordCachingState<Key, TimestampsForKey> safeTimestampsGlobal = safeTimestamps.global();
         timestampsCache.release(safeTimestamps);
 
         AsyncLoader loader = new AsyncLoader(commandStore, singleton(txnId), Keys.of(key), TIMESTAMPS);
@@ -118,13 +120,13 @@ public class AsyncLoaderTest
         commandStore.executeBlocking(() -> {
             Context context = new Context();
             boolean result = loader.load(context, (o, t) -> Assert.fail());
-            Assert.assertEquals(safeCommand.global(), context.commands.get(txnId).global());
-            Assert.assertEquals(safeTimestamps.global(), context.timestampsForKey.get(key).global());
+            Assert.assertEquals(safeCommandGlobal, context.commands.get(txnId).global());
+            Assert.assertEquals(safeTimestampsGlobal, context.timestampsForKey.get(key).global());
             Assert.assertTrue(result);
         });
 
-        Assert.assertSame(safeCommand.global(), commandCache.getUnsafe(txnId));
-        Assert.assertSame(safeTimestamps.global(), timestampsCache.getUnsafe(key));
+        Assert.assertSame(safeCommandGlobal, commandCache.getUnsafe(txnId));
+        Assert.assertSame(safeTimestampsGlobal, timestampsCache.getUnsafe(key));
     }
 
     /**
@@ -374,7 +376,7 @@ public class AsyncLoaderTest
     @Test
     public void inProgressCFKSaveTest()
     {
-        this.inProgressCFKSaveTest(COMMANDS, AccordCommandStore::commandsForKeyCache, context -> context.commandsForKey, CommandsForKey::new, (cfk, u) -> cfk.update(null, u));
+        this.inProgressCFKSaveTest(COMMANDS, AccordCommandStore::commandsForKeyCache, context -> context.commandsForKey, CommandsForKey::new, (cfk, u) -> cfk.update(u).cfk());
     }
 
     @Test

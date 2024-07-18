@@ -26,7 +26,7 @@ import org.junit.Test;
 
 import accord.api.Key;
 import accord.api.RoutingKey;
-import accord.local.CommandsForKey;
+import accord.local.cfk.CommandsForKey;
 import accord.local.Command;
 import accord.local.KeyHistory;
 import accord.local.Node;

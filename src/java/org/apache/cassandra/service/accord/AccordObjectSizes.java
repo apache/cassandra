@@ -24,12 +24,12 @@ import java.util.function.ToLongFunction;
 import accord.api.Key;
 import accord.api.Result;
 import accord.api.RoutingKey;
-import accord.local.CommandsForKey;
-import accord.local.CommandsForKey.TxnInfo;
+import accord.local.cfk.CommandsForKey;
+import accord.local.cfk.CommandsForKey.TxnInfo;
 import accord.impl.TimestampsForKey;
 import accord.local.Command;
 import accord.local.Command.WaitingOn;
-import accord.local.CommandsForKey.TxnInfoWithMissing;
+import accord.local.cfk.CommandsForKey.TxnInfoExtra;
 import accord.local.CommonAttributes;
 import accord.local.Node;
 import accord.local.SaveStatus;
@@ -69,6 +69,7 @@ import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.service.accord.txn.TxnWrite;
 import org.apache.cassandra.utils.ObjectSizes;
 
+import static accord.local.cfk.CommandsForKey.NO_TXNIDS;
 import static org.apache.cassandra.utils.ObjectSizes.measure;
 
 public class AccordObjectSizes
@@ -205,7 +206,9 @@ public class AccordObjectSizes
         return size;
     }
 
-    private static final long TIMESTAMP_SIZE = ObjectSizes.measureDeep(Timestamp.fromBits(0, 0, new Node.Id(0)));
+    // don't count Id size, as should normally be shared
+    private static final long TIMESTAMP_SIZE = ObjectSizes.measure(Timestamp.fromBits(0, 0, new Node.Id(0)));
+    private static final long BALLOT_SIZE = ObjectSizes.measure(Ballot.ZERO);
 
     public static long timestamp()
     {
@@ -215,6 +218,16 @@ public class AccordObjectSizes
     public static long timestamp(Timestamp timestamp)
     {
         return TIMESTAMP_SIZE;
+    }
+
+    public static long ballot()
+    {
+        return BALLOT_SIZE;
+    }
+
+    public static long ballot(Ballot ballot)
+    {
+        return ballot == Ballot.ZERO ? 0 : BALLOT_SIZE;
     }
 
     private static final long EMPTY_DEPS_SIZE = ObjectSizes.measureDeep(Deps.NONE);
@@ -347,7 +360,7 @@ public class AccordObjectSizes
             return size;
 
         Command.Committed committed = command.asCommitted();
-        size += WaitingOnSerializer.serializedSize(command.txnId(), committed.waitingOn);
+        size += WaitingOnSerializer.serializedSize(committed.waitingOn);
 
         return size;
     }
@@ -363,8 +376,8 @@ public class AccordObjectSizes
     }
 
     private static long EMPTY_CFK_SIZE = measure(new CommandsForKey(null));
-    private static long EMPTY_INFO_SIZE = measure(TxnInfo.createMock(TxnId.NONE, null, null, null));
-    private static long EMPTY_INFO_WITH_MISSING_ADDITIONAL_SIZE = measure(TxnInfo.createMock(TxnId.NONE, null, null, null)) - EMPTY_INFO_SIZE;
+    private static long EMPTY_INFO_SIZE = measure(TxnInfo.createMock(TxnId.NONE, null, null, NO_TXNIDS, Ballot.ZERO));
+    private static long EMPTY_INFO_EXTRA_ADDITIONAL_SIZE = EMPTY_INFO_SIZE - measure(TxnInfo.createMock(TxnId.NONE, null, null, null, null));
     public static long commandsForKey(CommandsForKey cfk)
     {
         long size = EMPTY_CFK_SIZE;
@@ -374,13 +387,14 @@ public class AccordObjectSizes
         for (int i = 0 ; i < cfk.size() ; ++i)
         {
             TxnInfo info = cfk.get(i);
-            if (info.getClass() != TxnInfoWithMissing.class) continue;
-            TxnInfoWithMissing infoWithMissing = (TxnInfoWithMissing) info;
-            if (infoWithMissing.missing.length > 0)
+            if (info.getClass() != TxnInfoExtra.class) continue;
+            TxnInfoExtra infoExtra = (TxnInfoExtra) info;
+            if (infoExtra.missing.length > 0)
             {
-                size += EMPTY_INFO_WITH_MISSING_ADDITIONAL_SIZE;
-                size += ObjectSizes.sizeOfReferenceArray(infoWithMissing.missing.length);
-                size += infoWithMissing.missing.length * TIMESTAMP_SIZE;
+                size += EMPTY_INFO_EXTRA_ADDITIONAL_SIZE;
+                size += ObjectSizes.sizeOfReferenceArray(infoExtra.missing.length);
+                size += infoExtra.missing.length * TIMESTAMP_SIZE;
+                size += ballot(infoExtra.ballot);
             }
         }
         return size;

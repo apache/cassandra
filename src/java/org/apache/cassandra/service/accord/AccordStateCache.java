@@ -219,6 +219,7 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
         if (!node.hasListeners())
         {
             AccordCachingState<?, ?> self = instances.get(node.index).cache.remove(node.key());
+            Invariants.checkState(self.references == 0);
             checkState(self == node, "Leaked node detected; was attempting to remove %s but cache had %s", node, self);
             if (instance.listeners != null)
                 instance.listeners.forEach(l -> l.onEvict((AccordCachingState) node));
@@ -380,9 +381,8 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
             @SuppressWarnings("unchecked")
             AccordCachingState<K, V> node = (AccordCachingState<K, V>) cache.get(key);
             if (node == null)
-            {
                 return null;
-            }
+
             return safeRefFactory.apply(acquireExisting(node, false));
         }
 
@@ -422,7 +422,8 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
             node.load(loadExecutor, loadFunction);
             node.references++;
 
-            cache.put(key, node);
+            Object prev = cache.put(key, node);
+            Invariants.checkState(prev == null, "%s not absent from cache: %s already present", key, node);
             if (listeners != null)
                 listeners.forEach(l -> l.onAdd(node));
             maybeUpdateSize(node, heapEstimator);
@@ -467,13 +468,14 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
             @SuppressWarnings("unchecked")
             AccordCachingState<K, V> node = (AccordCachingState<K, V>) cache.get(key);
 
-            checkState(node != null, "node is null for %s", key);
+            checkState(safeRef.global() != null, "safeRef node is null for %s", key);
+            checkState(safeRef.global() == node, "safeRef node not in map: %s != %s", safeRef.global(), node);
             checkState(node.references > 0, "references (%d) are zero for %s (%s)", node.references, key, node);
-            checkState(safeRef.global() == node);
             checkState(!isInQueue(node));
 
             if (safeRef.hasUpdate())
                 node.set(safeRef.current());
+            safeRef.invalidate();
 
             maybeUpdateSize(node, heapEstimator);
 
@@ -688,6 +690,7 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
         bytesCached = 0;
         metrics.reset();;
         instances.forEach(instance -> {
+            instance.cache.forEach((k, v) -> Invariants.checkState(v.references == 0));
             instance.cache.clear();
             instance.bytesCached = 0;
             instance.instanceMetrics.reset();

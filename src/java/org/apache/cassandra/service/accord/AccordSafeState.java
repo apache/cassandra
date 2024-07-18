@@ -28,7 +28,7 @@ public interface AccordSafeState<K, V> extends SafeState<V>
     void invalidate();
     boolean invalidated();
     void preExecute();
-    void postExecute();
+
     AccordCachingState<K, V> global();
 
     default boolean hasUpdate()
