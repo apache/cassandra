@@ -1,4 +1,5 @@
 5.0-rc2
+ * Fix direct IO support always being evaluated to false upon the first start of a node (CASSANDRA-19779)
 
 
 5.0-rc1
