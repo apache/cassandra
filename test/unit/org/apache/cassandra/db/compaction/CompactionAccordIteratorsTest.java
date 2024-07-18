@@ -31,6 +31,8 @@ import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterators;
+
+import accord.primitives.Routable;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.service.accord.*;
@@ -42,7 +44,7 @@ import org.slf4j.LoggerFactory;
 
 import accord.api.Key;
 import accord.api.Result;
-import accord.local.CommandsForKey;
+import accord.local.cfk.CommandsForKey;
 import accord.local.CheckedCommands;
 import accord.local.Command;
 import accord.local.CommandStore;
@@ -115,6 +117,7 @@ public class CompactionAccordIteratorsTest
     private static final TxnId LT_TXN_ID = AccordTestUtils.txnId(EPOCH, HLC_START, NODE);
     private static final TxnId TXN_ID = AccordTestUtils.txnId(EPOCH, LT_TXN_ID.hlc() + 1, NODE);
     private static final TxnId SECOND_TXN_ID = AccordTestUtils.txnId(EPOCH, TXN_ID.hlc() + 1, NODE, Kind.Read);
+    private static final TxnId RANGE_TXN_ID = AccordTestUtils.txnId(EPOCH, TXN_ID.hlc() + 1, NODE, Kind.Read, Routable.Domain.Range);
     private static final TxnId GT_TXN_ID = SECOND_TXN_ID;
     // For CommandsForKey where we test with two commands
     private static final TxnId[] TXN_IDS = new TxnId[]{ TXN_ID, SECOND_TXN_ID };
@@ -480,7 +483,7 @@ public class CompactionAccordIteratorsTest
                 CheckedCommands.apply(safe, txnId, route, null, txnId, partialDeps, partialTxn, result.left, result.right, appendDiffToKeyspace(commandStore));
             }).beginAsResult());
             getUninterruptibly(commandStore.execute(contextFor(txnId, txn.keys(), COMMANDS), safe -> {
-                safe.get(txnId, txnId, route).addListener(new Command.ProxyListener(txnId)); // add a junk listener just to test it in compaction
+                safe.get(txnId, txnId, route).addListener(new Command.ProxyListener(RANGE_TXN_ID)); // add a junk listener just to test it in compaction
             }).beginAsResult());
             flush(commandStore);
             // The apply chain is asychronous, so it is easiest to just spin until it is applied

@@ -561,6 +561,7 @@ public enum CassandraRelevantProperties
     TEST_COMPRESSION("cassandra.test.compression"),
     TEST_COMPRESSION_ALGO("cassandra.test.compression.algo", "lz4"),
     TEST_DEBUG_REF_COUNT("cassandra.debugrefcount"),
+    TEST_DEBUG_REF_EVENTS("cassandra.debug.refevents"),
     TEST_DRIVER_CONNECTION_TIMEOUT_MS("cassandra.test.driver.connection_timeout_ms", "5000"),
     TEST_DRIVER_READ_TIMEOUT_MS("cassandra.test.driver.read_timeout_ms", "12000"),
     TEST_ENCRYPTION("cassandra.test.encryption", "false"),

@@ -78,9 +78,13 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
 
         void releaseResources(AccordCommandStore commandStore)
         {
+            // TODO (expected): we should destructively iterate to avoid invoking second time in fail; or else read and set to null
             commands.values().forEach(commandStore.commandCache()::release);
+            commands.clear();
             timestampsForKey.values().forEach(commandStore.timestampsForKeyCache()::release);
+            timestampsForKey.clear();
             commandsForKey.values().forEach(commandStore.commandsForKeyCache()::release);
+            commandsForKey.clear();
         }
 
         void revertChanges()
@@ -226,7 +230,8 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
         finish(null, throwable);
     }
 
-    protected void runInternal()
+    // return true iff ready to run
+    protected boolean runInternal(boolean loadOnly)
     {
         switch (state)
         {
@@ -235,8 +240,10 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
                 state(LOADING);
             case LOADING:
                 if (!loader.load(context, this::onLoaded))
-                    return;
+                    return false;
                 state(PREPARING);
+                if (loadOnly)
+                    return true;
             case PREPARING:
                 safeStore = commandStore.beginOperation(preLoadContext, context.commands, context.timestampsForKey, context.commandsForKey, context.commandsForRanges);
                 state(RUNNING);
@@ -262,14 +269,13 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
                     }
                 }
 
-                safeStore.postExecute(context.commands, context.timestampsForKey, context.commandsForKey, context.commandsForRanges);
-                context.releaseResources(commandStore);
                 commandStore.completeOperation(safeStore);
+                context.releaseResources(commandStore);
                 if (diffs != null)
                 {
                     state(COMPLETING);
                     this.commandStore.appendCommands(diffs, sanityCheck, () -> finish(result, null));
-                    return;
+                    return false;
                 }
 
                 state(COMPLETING);
@@ -279,6 +285,8 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
             case FAILED:
                 break;
         }
+
+        return false;
     }
 
     @Override
@@ -292,7 +300,7 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
             commandStore.setCurrentOperation(this);
             try
             {
-                runInternal();
+                runInternal(false);
             }
             catch (Throwable t)
             {
@@ -311,12 +319,28 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
         }
     }
 
+    private boolean preRun()
+    {
+        commandStore.checkInStoreThread();
+        try
+        {
+            return runInternal(true);
+        }
+        catch (Throwable t)
+        {
+            logger.error("Operation {} failed", this, t);
+            fail(t);
+            return false;
+        }
+    }
+
     @Override
     public void start(BiConsumer<? super R, Throwable> callback)
     {
         Invariants.checkState(this.callback == null);
         this.callback = callback;
-        commandStore.executor().execute(this);
+        if (!commandStore.inStore() || preRun())
+            commandStore.executor().execute(this);
     }
 
     static class ForFunction<R> extends AsyncOperation<R>

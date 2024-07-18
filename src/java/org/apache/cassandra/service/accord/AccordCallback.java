@@ -46,7 +46,7 @@ class AccordCallback<T extends Reply> extends SafeCallback<T> implements Request
     @Override
     public void onResponse(Message<T> msg)
     {
-        logger.debug("Received response {} from {}", msg.payload, msg.from());
+        logger.trace("Received response {} from {}", msg.payload, msg.from());
         success(endpointMapper.mappedId(msg.from()), msg.payload);
     }
 
@@ -60,7 +60,7 @@ class AccordCallback<T extends Reply> extends SafeCallback<T> implements Request
     @Override
     public void onFailure(InetAddressAndPort from, RequestFailure failure)
     {
-        logger.debug("Received failure {} from {} for {}", failure, from, this);
+        logger.trace("Received failure {} from {} for {}", failure, from, this);
         // TODO (now): we should distinguish timeout failures with some placeholder Exception
         failure(endpointMapper.mappedId(from), convertFailureMessage(failure));
     }

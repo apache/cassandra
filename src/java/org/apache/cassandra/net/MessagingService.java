@@ -257,6 +257,17 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
 
             return Collections.unmodifiableList(versions);
         }
+
+        public List<Version> greaterThanOrEqual()
+        {
+            Version[] all = Version.values();
+            if (ordinal() == all.length - 1)
+                return Collections.singletonList(this);
+            List<Version> values = new ArrayList<>(all.length - ordinal());
+            for (int i = ordinal(); i < all.length; i++)
+                values.add(all[i]);
+            return values;
+        }
     }
     // Maintance Note:
     // Try to keep Version enum in-sync for testing.  By having the versions in the enum tests can get access without forcing this class

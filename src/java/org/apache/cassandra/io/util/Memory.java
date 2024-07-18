@@ -81,7 +81,7 @@ public class Memory implements AutoCloseable, ReadableMemory
         if (bytes < 0)
             throw new IllegalArgumentException();
 
-        if (Ref.DEBUG_ENABLED)
+        if (Ref.TRACE_ENABLED)
             return new SafeMemory(bytes);
 
         return new Memory(bytes);

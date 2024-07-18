@@ -88,11 +88,6 @@ public class AccordStateCacheTest
         }
 
         @Override
-        public void postExecute()
-        {
-        }
-
-        @Override
         public Status globalStatus()
         {
             return global.status();

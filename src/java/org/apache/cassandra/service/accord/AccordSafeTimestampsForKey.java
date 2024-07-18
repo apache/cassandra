@@ -106,13 +106,6 @@ public class AccordSafeTimestampsForKey extends SafeTimestampsForKey implements 
     }
 
     @Override
-    public void postExecute()
-    {
-        checkNotInvalidated();
-        global.set(current);
-    }
-
-    @Override
     public void invalidate()
     {
         invalidated = true;
