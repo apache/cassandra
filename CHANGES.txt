@@ -1,4 +1,5 @@
 5.0.1
+ * Make non-existing commitlog directory to not emit warnings for tools in tools/bin (CASSANDRA-19779)
  * Prioritize built indexes in IndexStatusManager (CASSANDRA-19400)
  * Add java.base/java.lang.reflect among opens for jvm11-client.options (CASSANDRA-19780)
 
