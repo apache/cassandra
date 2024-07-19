@@ -1,3 +1,6 @@
+5.0-rc2
+
+
 5.0-rc1
  * Move bcpkix-jdk18on to build dependencies, update to 1.78 and explicitly enumerate transitive dependencies (CASSANDRA-19739)
  * Avoid streams in the common case for UpdateTransaction creation (CASSANDRA-19675)
