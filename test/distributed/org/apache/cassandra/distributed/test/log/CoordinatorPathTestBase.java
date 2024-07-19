@@ -752,6 +752,11 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
                                                log.append(logState);
                                                return log.waitForHighestConsecutive();
                                            }
+
+                                           public LogState reconstruct(Epoch lowEpoch, Epoch highEpoch, Retry.Deadline retryPolicy)
+                                           {
+                                               return log.getLocalEntries(lowEpoch, highEpoch);
+                                           }
                                        },
                                        (a,b) -> {},
                                        false);

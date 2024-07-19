@@ -23,6 +23,7 @@ import java.util.concurrent.TimeUnit;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.tcm.log.Entry;
+import org.apache.cassandra.tcm.log.LogState;
 
 public interface Processor
 {
@@ -69,5 +70,8 @@ public interface Processor
                                Retry.Deadline.after(DatabaseDescriptor.getCmsAwaitTimeout().to(TimeUnit.NANOSECONDS),
                                                     new Retry.Jitter(TCMMetrics.instance.fetchLogRetries)));
     }
+
     ClusterMetadata fetchLogAndWait(Epoch waitFor, Retry.Deadline retryPolicy);
+
+    LogState reconstruct(Epoch lowEpoch, Epoch highEpoch, Retry.Deadline retryPolicy);
 }

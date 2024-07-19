@@ -845,6 +845,11 @@ public class ClusterMetadataService
             return delegate().fetchLogAndWait(waitFor, retryPolicy);
         }
 
+        public LogState reconstruct(Epoch lowEpoch, Epoch highEpoch, Retry.Deadline retryPolicy)
+        {
+            return delegate().reconstruct(lowEpoch, highEpoch, retryPolicy);
+        }
+
         public String toString()
         {
             return "SwitchableProcessor{" +
