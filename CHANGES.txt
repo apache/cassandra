@@ -2,7 +2,6 @@
  * Refresh stale paxos commit (CASSANDRA-19617)
  * Reduce info logging from automatic paxos repair (CASSANDRA-19445)
  * Support legacy plain_text_auth section in credentials file removed unintentionally (CASSANDRA-19498)
- * Fix idealCLWriteLatency metric which reported the worst response time instead of the time when an ideal CL is satisfied (CASSANDRA-19651)
 Merged from 4.0:
  * Make LWT conditions behavior on frozen and non-frozen columns consistent for null column values (CASSANDRA-19637)
  * Add timeout specifically for bootstrapping nodes (CASSANDRA-15439)

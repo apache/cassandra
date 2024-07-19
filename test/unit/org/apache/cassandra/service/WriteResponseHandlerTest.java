@@ -155,7 +155,7 @@ public class WriteResponseHandlerTest
         awr.onResponse(createDummyMessage(0));
         awr.onResponse(createDummyMessage(1));
 
-        // there are no enough responses for ideal EACH_QUORUM yet
+        // there are not enough responses for ideal EACH_QUORUM yet
         assertEquals(startingCount, ks.metric.idealCLWriteLatency.latency.getCount());
 
         //dc2
