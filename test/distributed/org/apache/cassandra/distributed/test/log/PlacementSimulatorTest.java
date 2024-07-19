@@ -29,10 +29,11 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
-import org.apache.cassandra.harry.sut.TokenPlacementModel.Replica;
 import org.junit.Test;
 
+import org.apache.cassandra.harry.checker.ModelChecker;
 import org.apache.cassandra.harry.sut.TokenPlacementModel;
+import org.apache.cassandra.harry.sut.TokenPlacementModel.Replica;
 
 import static org.apache.cassandra.distributed.test.log.PlacementSimulator.SimulatedPlacements;
 import static org.apache.cassandra.distributed.test.log.PlacementSimulator.Transformations;
@@ -283,7 +284,7 @@ public class PlacementSimulatorTest
                               if (operationCounter.getAndIncrement() % rf.total() == 1)
                               {
                                   // randomly schedule either decommission or replacement of an existing node
-                                  Node toRemove = state.nodes.get(rng.nextInt(0, state.nodes.size() - 1));
+                                  Node toRemove = state.nodes.get(rng.nextInt(0, state.nodes.size()));
                                   state = state.withStashed(rng.nextBoolean()
                                                             ? replace(state, toRemove, factory.make(addressCounter.incrementAndGet(), 1, 1).overrideToken(toRemove.token()))
                                                             : leave(state, toRemove));
@@ -299,7 +300,7 @@ public class PlacementSimulatorTest
                           })
                     .step((state, sut) -> !state.stashedStates.isEmpty(),
                           (state, sut, rng) -> {
-                              int idx = rng.nextInt(0, state.stashedStates.size() - 1);
+                              int idx = rng.nextInt(0, state.stashedStates.size());
                               state = state.stashedStates.get(idx).advance(state);
                               return new ModelChecker.Pair<>(state, sut);
                           })

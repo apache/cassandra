@@ -82,8 +82,7 @@ public class RepairBurnTest extends IntegrationTestBase
         sut.schemaChange("CREATE KEYSPACE " + schema.keyspace + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 3};");
         sut.schemaChange(schema.compile().cql());
 
-        ModelChecker<HistoryBuilder> modelChecker = new ModelChecker<>();
-        JdkRandomEntropySource rng = new JdkRandomEntropySource(new Random(seed));
+        ModelChecker<HistoryBuilder, Void> modelChecker = new ModelChecker<>();
         DataTracker tracker = new DefaultDataTracker();
 
         TokenPlacementModel.ReplicationFactor rf = new TokenPlacementModel.SimpleReplicationFactor(3);
@@ -92,7 +91,7 @@ public class RepairBurnTest extends IntegrationTestBase
         int partitions = 1000;
 
         modelChecker.init(new HistoryBuilder(seed, maxPartitionSize, 10, schema, rf))
-                    .step((history) -> {
+                    .step((history, rng) -> {
                         history.visitPartition(rng.nextInt(partitions),
                                                (ps) -> {
                                                    Object[][] clusterings = new Object[maxPartitionSize][];
@@ -113,7 +112,7 @@ public class RepairBurnTest extends IntegrationTestBase
                                                })
                                .insert(rng.nextInt(maxPartitionSize));
                     })
-                    .step((history) -> {
+                    .step((history, rng) -> {
                         history.visitPartition(rng.nextInt(partitions))
                                .deleteRow(rng.nextInt(maxPartitionSize));
                     })
@@ -129,10 +128,10 @@ public class RepairBurnTest extends IntegrationTestBase
                         Model model = history.quiescentLocalChecker(tracker, sut);
 
                         for (Long pd : history.visitedPds())
-                            model.validate(Query.selectPartition(history.schema(), pd, false));
+                            model.validate(Query.selectAllColumns(history.schema(), pd, false));
 
                         return true;
                     })
-                    .run(Integer.MAX_VALUE, seed);
+                    .run(Integer.MAX_VALUE, seed, new JdkRandomEntropySource(new Random(seed)));
     }
 }

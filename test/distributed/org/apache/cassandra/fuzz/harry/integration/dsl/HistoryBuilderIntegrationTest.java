@@ -56,44 +56,43 @@ public class HistoryBuilderIntegrationTest extends IntegrationTestBase
             beforeEach();
             sut.schemaChange(schema.compile().cql());
 
-            ModelChecker<SingleOperationBuilder> modelChecker = new ModelChecker<>();
-            JdkRandomEntropySource rng = new JdkRandomEntropySource(new Random(SEED));
+            ModelChecker<SingleOperationBuilder, Void> modelChecker = new ModelChecker<>();
 
             TokenPlacementModel.ReplicationFactor rf = new TokenPlacementModel.SimpleReplicationFactor(1);
 
             int maxPartitionSize = 100;
             modelChecker.init(new HistoryBuilder(SEED, maxPartitionSize, 10, schema, rf))
                         .step((history) -> {
-                            return history.insert();
+                            history.insert();
                         })
-                        .step((history) -> {
-                            return history.insert(rng.nextInt(maxPartitionSize));
+                        .step((history, rng) -> {
+                            history.insert(rng.nextInt(maxPartitionSize));
                         })
-                        .step((history) -> {
+                        .step((history, rng) -> {
                             int row = rng.nextInt(maxPartitionSize);
                             long[] vIdxs = new long[schema.regularColumns.size()];
                             for (int j = 0; j < schema.regularColumns.size(); j++)
                                 vIdxs[j] = rng.nextInt(20);
 
-                            return history.insert(row, vIdxs);
+                            history.insert(row, vIdxs);
                         })
                         .step((history) -> {
-                            return history.deleteRow();
+                            history.deleteRow();
                         })
-                        .step((history) -> {
-                            return history.deleteRow(rng.nextInt(maxPartitionSize));
+                        .step((history, rng) -> {
+                            history.deleteRow(rng.nextInt(maxPartitionSize));
                         })
                         .step(SingleOperationBuilder::deletePartition)
                         .step(SingleOperationBuilder::deleteColumns)
                         .step(SingleOperationBuilder::deleteRowSlice)
                         .step((history) -> {
-                            return history.deleteRowRange();
+                            history.deleteRowRange();
                         })
-                        .step((history) -> {
-                            return history.deleteRowRange(rng.nextInt(maxPartitionSize),
-                                                          rng.nextInt(maxPartitionSize),
-                                                          rng.nextBoolean(),
-                                                          rng.nextBoolean());
+                        .step((history, rng) -> {
+                            history.deleteRowRange(rng.nextInt(maxPartitionSize),
+                                                   rng.nextInt(maxPartitionSize),
+                                                   rng.nextBoolean(),
+                                                   rng.nextBoolean());
                         })
                         .step((history) -> history instanceof HistoryBuilder,
                               (history) -> ((HistoryBuilder) history).beginBatch())
@@ -113,11 +112,11 @@ public class HistoryBuilderIntegrationTest extends IntegrationTestBase
                             Model model = historyBuilder.quiescentChecker(tracker, sut);
 
                             for (Long pd : historyBuilder.visitedPds())
-                                model.validate(Query.selectPartition(historyBuilder.schema(), pd,false));
+                                model.validate(Query.selectAllColumns(historyBuilder.schema(), pd, false));
 
                             return true;
                         })
-                        .run(STEPS_PER_ITERATION, SEED);
+                        .run(STEPS_PER_ITERATION, SEED, new JdkRandomEntropySource(new Random(SEED)));
         }
     }
 
@@ -132,49 +131,24 @@ public class HistoryBuilderIntegrationTest extends IntegrationTestBase
             beforeEach();
             sut.schemaChange(schema.compile().cql());
 
-            ModelChecker<HistoryBuilder> modelChecker = new ModelChecker<>();
-            JdkRandomEntropySource rng = new JdkRandomEntropySource(new Random(SEED));
+            ModelChecker<HistoryBuilder, Void> modelChecker = new ModelChecker<>();
 
             TokenPlacementModel.ReplicationFactor rf = new TokenPlacementModel.SimpleReplicationFactor(1);
 
             int maxPartitionSize = 10;
             modelChecker.init(new HistoryBuilder(SEED, maxPartitionSize, 10, schema, rf))
-                        .beforeAll((history) -> {
+                        .beforeAll((history, rng) -> {
                             for (int i = 0; i < MAX_PARTITIONS; i++)
-                                history.forPartition(i).ensureClustering(schema.ckGenerator.inflate(rng.nextLong()));
+                                history.forPartition(i).ensureClustering(schema.ckGenerator.inflate(rng.next()));
                         })
-                        .step((history) -> {
-                            history.visitPartition(rng.nextInt(MAX_PARTITIONS))
-                                   .insert();
-                        })
-                        .step((history) -> {
-                            history.visitPartition(rng.nextInt(MAX_PARTITIONS))
-                                   .insert(rng.nextInt(maxPartitionSize));
-                        })
-                        .step((history) -> {
-                            history.visitPartition(rng.nextInt(MAX_PARTITIONS))
-                                   .deleteRow();
-                        })
-                        .step((history) -> {
-                            history.visitPartition(rng.nextInt(MAX_PARTITIONS))
-                                   .deleteRow(rng.nextInt(maxPartitionSize));
-                        })
-                        .step((history) -> {
-                            history.visitPartition(rng.nextInt(MAX_PARTITIONS))
-                                   .deletePartition();
-                        })
-                        .step((history) -> {
-                            history.visitPartition(rng.nextInt(MAX_PARTITIONS))
-                                   .deleteColumns();
-                        })
-                        .step((history) -> {
-                            history.visitPartition(rng.nextInt(MAX_PARTITIONS))
-                                   .deleteRowRange();
-                        })
-                        .step((history) -> {
-                            history.visitPartition(rng.nextInt(MAX_PARTITIONS))
-                                   .deleteRowSlice();
-                        })
+                        .step((history, rng) -> history.visitPartition(rng.nextInt(MAX_PARTITIONS)).insert())
+                        .step((history, rng) -> history.visitPartition(rng.nextInt(MAX_PARTITIONS)).insert(rng.nextInt(maxPartitionSize)))
+                        .step((history, rng) -> history.visitPartition(rng.nextInt(MAX_PARTITIONS)).deleteRow())
+                        .step((history, rng) -> history.visitPartition(rng.nextInt(MAX_PARTITIONS)).deleteRow(rng.nextInt(maxPartitionSize)))
+                        .step((history, rng) -> history.visitPartition(rng.nextInt(MAX_PARTITIONS)).deletePartition())
+                        .step((history, rng) -> history.visitPartition(rng.nextInt(MAX_PARTITIONS)).deleteColumns())
+                        .step((history, rng) -> history.visitPartition(rng.nextInt(MAX_PARTITIONS)).deleteRowRange())
+                        .step((history, rng) -> history.visitPartition(rng.nextInt(MAX_PARTITIONS)).deleteRowSlice())
                         .exitCondition((history) -> {
                             ReplayingVisitor visitor = history.visitor(tracker, sut, SystemUnderTest.ConsistencyLevel.ALL);
                             visitor.replayAll();
@@ -185,11 +159,15 @@ public class HistoryBuilderIntegrationTest extends IntegrationTestBase
                             Model model = history.quiescentChecker(tracker, sut);
 
                             for (Long pd : history.visitedPds())
-                                model.validate(Query.selectPartition(history.schema(), pd,false));
+                            {
+                                model.validate(Query.selectAllColumns(history.schema(), pd, false));
+                                model.validate(Query.selectAllColumnsWildcard(history.schema(), pd, false));
+                            }
+
 
                             return true;
                         })
-                        .run(STEPS_PER_ITERATION, SEED);
+                        .run(STEPS_PER_ITERATION, SEED, new JdkRandomEntropySource(new Random(SEED)));
         }
     }
 }

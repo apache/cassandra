@@ -164,7 +164,7 @@ public class SimpleReconcilerTest extends IntegrationTestBase
                 {
                     Query query;
 
-                    query = Query.selectPartition(schema, pd, reverse);
+                    query = Query.selectAllColumns(schema, pd, reverse);
 
                     QuiescentChecker.validate(schema,
                                               run.tracker,

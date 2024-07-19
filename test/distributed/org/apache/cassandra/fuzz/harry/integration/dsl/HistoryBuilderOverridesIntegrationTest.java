@@ -87,7 +87,7 @@ public class HistoryBuilderOverridesIntegrationTest extends IntegrationTestBase
 
         history.visitor(tracker, sut, SystemUnderTest.ConsistencyLevel.ALL).replayAll();
 
-        Object[][] res = sut.execute(Query.selectPartition(history.schema(), history.visitedPds().get(0), false).toSelectStatement(),
+        Object[][] res = sut.execute(Query.selectAllColumns(history.schema(), history.visitedPds().get(0), false).toSelectStatement(),
                                      SystemUnderTest.ConsistencyLevel.ALL);
         int found = 0;
         for (Object[] row : res)
@@ -132,7 +132,7 @@ public class HistoryBuilderOverridesIntegrationTest extends IntegrationTestBase
                 visitor.replayAll();
                 long visitedPd = history.forPartition(pdIdx).pd();
                 {
-                    Object[][] res = sut.execute(Query.selectPartition(history.schema(), visitedPd, false).toSelectStatement(),
+                    Object[][] res = sut.execute(Query.selectAllColumns(history.schema(), visitedPd, false).toSelectStatement(),
                                                  SystemUnderTest.ConsistencyLevel.ALL);
 
                     int found = 0;
@@ -201,7 +201,7 @@ public class HistoryBuilderOverridesIntegrationTest extends IntegrationTestBase
                     visitor.replayAll();
                     long visitedPd = history.forPartition(pdIdx).pd();
                     {
-                        Object[][] res = sut.execute(Query.selectPartition(history.schema(), visitedPd, false).toSelectStatement(),
+                        Object[][] res = sut.execute(Query.selectAllColumns(history.schema(), visitedPd, false).toSelectStatement(),
                                                      SystemUnderTest.ConsistencyLevel.ALL);
 
                         int found = 0;
@@ -333,7 +333,7 @@ public class HistoryBuilderOverridesIntegrationTest extends IntegrationTestBase
                 history.validateAll(tracker, sut);
 
                 long visitedPd = history.forPartition(pdIdx).pd();
-                Object[][] res = sut.execute(Query.selectPartition(history.schema(), visitedPd, false).toSelectStatement(),
+                Object[][] res = sut.execute(Query.selectAllColumns(history.schema(), visitedPd, false).toSelectStatement(),
                                              SystemUnderTest.ConsistencyLevel.ALL);
 
                 for (int i = 0; i < res.length; i++)

@@ -52,7 +52,7 @@ public class SingleValidator implements Visitor
 
         for (boolean reverse : new boolean[]{ true, false })
         {
-            model.validate(Query.selectPartition(run.schemaSpec, run.pdSelector.pd(lts, run.schemaSpec), reverse));
+            model.validate(Query.selectAllColumns(run.schemaSpec, run.pdSelector.pd(lts, run.schemaSpec), reverse));
         }
 
         for (Query.QueryKind queryKind : new Query.QueryKind[]{ Query.QueryKind.CLUSTERING_RANGE, Query.QueryKind.CLUSTERING_SLICE, Query.QueryKind.SINGLE_CLUSTERING })

@@ -20,20 +20,22 @@ package org.apache.cassandra.harry.checker;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Random;
+import java.util.function.BiConsumer;
+import java.util.function.BiPredicate;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 import org.apache.cassandra.harry.gen.EntropySource;
 import org.apache.cassandra.harry.gen.rng.JdkRandomEntropySource;
 
-public class ModelChecker<STATE>
+public class ModelChecker<STATE, SUT>
 {
-    private final List<StepExecutor<STATE>> steps;
-    private final List<Precondition<STATE>> invariants;
-    private Precondition<STATE> exitCondition;
-    private Consumer<STATE> beforeAll;
-    private Consumer<STATE> afterAll;
-    private STATE init;
+    private final List<StepExecutor<STATE, SUT>> steps;
+    private final List<Precondition<STATE, SUT>> invariants;
+    private Precondition<STATE, SUT> exitCondition;
+    private Step<STATE, SUT> beforeAll;
+    private Step<STATE, SUT> afterAll;
+    private Pair<STATE, SUT> init;
 
     public ModelChecker()
     {
@@ -43,113 +45,139 @@ public class ModelChecker<STATE>
 
     public void run() throws Throwable
     {
-        run(Integer.MAX_VALUE, System.currentTimeMillis());
+        run(0, Long.MAX_VALUE, new JdkRandomEntropySource(System.currentTimeMillis()));
     }
 
-    public void run(int maxSteps, long seed) throws Throwable
+    public void run(int minSteps, long maxSteps) throws Throwable
+    {
+        run(minSteps, maxSteps, new JdkRandomEntropySource(System.currentTimeMillis()));
+    }
+
+    public void run(int minSteps, long maxSteps, EntropySource entropySource) throws Throwable
     {
         assert init != null : "Initial condition is not specified";
 
-        Ref<STATE> state = new Ref<>(init);
-        EntropySource entropySource = new JdkRandomEntropySource(new Random(seed));
+        Ref<Pair<STATE, SUT>> state = new Ref<>(init, Pair.unchanged());
         if (beforeAll != null)
-            beforeAll.accept(state.get());
+            state.map((s) -> beforeAll.next(s.l, s.r, entropySource));
 
         for (int i = 0; i < maxSteps; i++)
         {
-            if (exitCondition != null && exitCondition.test(state.get()))
+            if (i > minSteps && exitCondition.test(state.get()))
                 return;
 
             // TODO: add randomisation / probability for triggering a specific step
             steps.get(entropySource.nextInt(steps.size())).execute(state, entropySource.derive());
-            for (Precondition<STATE> invariant : invariants)
+            for (Precondition<STATE, SUT> invariant : invariants)
                 invariant.test(state.get());
         }
 
         if (afterAll != null)
-            afterAll.accept(state.get());
+            state.map((s) -> afterAll.next(s.l, s.r, entropySource));
     }
 
-    public ModelChecker<STATE> init(STATE state)
+    public ModelChecker<STATE, SUT> init(STATE state, SUT sut)
     {
-        this.init = state;
+        this.init = new Pair<>(state, sut);
         return this;
     }
 
-    public ModelChecker<STATE> beforeAll(Consumer<STATE> precondition)
+    public Simple init(STATE state)
     {
-        this.beforeAll = precondition;
+        Simple simple = new Simple();
+        simple.init(state);
+        return simple;
+    }
+
+    @SuppressWarnings("unused")
+    public ModelChecker<STATE, SUT> beforeAll(Step<STATE, SUT> beforeAll)
+    {
+        this.beforeAll = beforeAll;
         return this;
     }
 
-    public ModelChecker<STATE> afterAll(Consumer<STATE> postcondition)
+    @SuppressWarnings("unused")
+    public ModelChecker<STATE, SUT> afterAll(Step<STATE, SUT> afterAll)
     {
-        this.afterAll = postcondition;
+        this.afterAll = afterAll;
         return this;
     }
 
-    public ModelChecker<STATE> exitCondition(Precondition<STATE> precondition)
+    public ModelChecker<STATE, SUT> exitCondition(Precondition<STATE, SUT> precondition)
     {
         this.exitCondition = precondition;
         return this;
     }
 
-    public ModelChecker<STATE> step(Precondition<STATE> precondition, Step<STATE> step)
+    public ModelChecker<STATE, SUT> step(Precondition<STATE, SUT> precondition, Step<STATE, SUT> step)
     {
         steps.add((ref, entropySource) -> {
             ref.map(state -> {
                 if (!precondition.test(state))
                     return state;
 
-                return step.next(state, entropySource);
+                return step.next(state.l, state.r, entropySource);
             });
         });
 
         return this;
     }
 
-    public ModelChecker<STATE> invariant(Precondition<STATE> invariant)
+    public ModelChecker<STATE, SUT> invariant(Precondition<STATE, SUT> invariant)
     {
         invariants.add(invariant);
         return this;
     }
 
-    public ModelChecker<STATE> step(Step<STATE> step)
+    public ModelChecker<STATE, SUT> step(Step<STATE, SUT> step)
     {
         return step(Precondition.alwaysTrue(), step);
     }
 
-    public ModelChecker<STATE> step(StatePrecondition<STATE> precondition, ThrowingFunction<STATE, STATE> step)
+    public ModelChecker<STATE, SUT> step(StatePrecondition<STATE> precondition, ThrowingFunction<STATE, STATE> step)
     {
         steps.add((ref, entropySource) -> {
             ref.map(state -> {
-                if (!precondition.test(state))
+                if (!precondition.test(state.l))
                     return state;
 
-                return step.apply(state);
+                STATE newState = step.apply(state.l);
+                if (state.l == newState)
+                    return state;
+
+                return state.next(newState);
             });
         });
 
         return this;
     }
 
-    public ModelChecker<STATE> step(ThrowingConsumer<STATE> step)
+    public ModelChecker<STATE, SUT> step(StatePrecondition<STATE> precondition, ThrowingBiFunction<STATE, SUT, STATE> step)
     {
-        return step((t, entropySource) -> {
-            step.consume(t);
-            return t;
+        steps.add((ref, entropySource) -> {
+            ref.map(state -> {
+                if (!precondition.test(state.l))
+                    return state;
+
+                STATE newState = step.apply(state.l, state.r);
+                if (state.l == newState)
+                    return state;
+
+                return state.next(newState);
+            });
         });
-    }
-    public ModelChecker<STATE> step(ThrowingFunction<STATE, STATE> step)
-    {
-        return step((t, entropySource) -> {
-            return step.apply(t);
-        });
+
+        return this;
     }
 
-    interface StepExecutor<STATE>
+    public ModelChecker<STATE, SUT> step(ThrowingFunction<STATE, STATE> step)
     {
-        void execute(Ref<STATE> state, EntropySource entropySource) throws Throwable;
+        return step((t, sut, entropySource) -> new Pair<>(step.apply(t), sut));
+    }
+
+    interface StepExecutor<STATE, SUT>
+    {
+        void execute(Ref<Pair<STATE, SUT>> state, EntropySource entropySource) throws Throwable;
     }
 
     public interface StatePrecondition<STATE>
@@ -157,24 +185,34 @@ public class ModelChecker<STATE>
         boolean test(STATE state) throws Throwable;
     }
 
-    public interface Precondition<STATE>
+    public interface Precondition<STATE, SUT>
     {
-        boolean test(STATE state) throws Throwable;
+        boolean test(STATE state, SUT sut) throws Throwable;
 
-        static <STATE> Precondition<STATE> alwaysTrue()
+        default boolean test(Pair<STATE, SUT> state) throws Throwable
         {
-            return (a) -> true;
+            return test(state.l, state.r);
+        }
+
+        static <STATE, SUT> Precondition<STATE, SUT> alwaysTrue()
+        {
+            return (a, b) -> true;
         }
     }
 
-    public interface Step<STATE>
+    public interface Step<STATE, SUT>
     {
-        STATE next(STATE t, EntropySource entropySource) throws Throwable;
+        Pair<STATE, SUT> next(STATE t, SUT sut, EntropySource entropySource) throws Throwable;
     }
 
     public interface ThrowingConsumer<I>
     {
-        void consume(I t) throws Throwable;
+        void accept(I t) throws Throwable;
+    }
+
+    public interface ThrowingBiConsumer<I1, I2>
+    {
+        void accept(I1 t1, I2 t2) throws Throwable;
     }
 
     public interface ThrowingFunction<I, O>
@@ -187,13 +225,15 @@ public class ModelChecker<STATE>
         O apply(I1 t1, I2 t2) throws Throwable;
     }
 
-    public static class Ref<T>
+    private static class Ref<T>
     {
         public T ref;
+        private final T unchanged;
 
-        public Ref(T init)
+        public Ref(T init, T unchanged)
         {
             this.ref = init;
+            this.unchanged = unchanged;
         }
 
         public T get()
@@ -203,29 +243,160 @@ public class ModelChecker<STATE>
 
         public void set(T v)
         {
+            if (v == unchanged)
+                return;
             this.ref = v;
         }
 
         public void map(ThrowingFunction<T, T> fn) throws Throwable
         {
-            this.ref = fn.apply(ref);
+            set(fn.apply(ref));
         }
     }
 
-    public static class State<MODEL, SUT>
+    public static class Pair<L, R>
     {
-        public final MODEL model;
-        public final SUT sut;
+        private static final Pair<?, ?> UNCHANGED = new Pair<>(null, null);
 
-        public State(MODEL model, SUT sut)
+        public static <L, R> Pair<L, R> unchanged()
         {
-            this.model = model;
-            this.sut = sut;
+            return (Pair<L, R>) UNCHANGED;
         }
 
-        public State<MODEL, SUT> next(MODEL state)
+        public final L l;
+        public final R r;
+
+        public Pair(L l, R r)
         {
-            return new State<>(state, this.sut);
+            this.l = l;
+            this.r = r;
+        }
+
+        public Pair<L, R> next(L state)
+        {
+            return new Pair<>(state, this.r);
+        }
+    }
+
+    public class Simple
+    {
+        public Simple init(STATE state)
+        {
+            ModelChecker.this.init = new Pair<>(state, null);
+            return this;
+        }
+
+        @SuppressWarnings("unused")
+        public Simple beforeAll(ThrowingConsumer<STATE> beforeAll)
+        {
+            ModelChecker.this.beforeAll = (t, sut, entropySource) -> {
+                beforeAll.accept(t);
+                return Pair.unchanged();
+            };
+            return this;
+        }
+
+        public Simple beforeAll(ThrowingBiConsumer<STATE, EntropySource> beforeAll)
+        {
+            ModelChecker.this.beforeAll = (t, sut, entropySource) -> {
+                beforeAll.accept(t, entropySource);
+                return Pair.unchanged();
+            };
+            return this;
+        }
+
+        @SuppressWarnings("unused")
+        public Simple beforeAll(ThrowingFunction<STATE, STATE> beforeAll)
+        {
+            ModelChecker.this.beforeAll = (t, sut, entropySource) -> new Pair<>(beforeAll.apply(t), sut);
+            return this;
+        }
+
+        public Simple afterAll(ThrowingConsumer<STATE> afterAll)
+        {
+            ModelChecker.this.afterAll = (t, sut, entropySource) -> {
+                afterAll.accept(t);
+                return Pair.unchanged();
+            };
+            return this;
+        }
+
+        @SuppressWarnings("unused")
+        public Simple afterAll(ThrowingFunction<STATE, STATE> afterAll)
+        {
+            ModelChecker.this.afterAll = (t, sut, entropySource) -> new Pair(afterAll.apply(t), sut);
+            return this;
+        }
+
+        public Simple exitCondition(Predicate<STATE> precondition)
+        {
+            ModelChecker.this.exitCondition = (state, sut) -> precondition.test(state);
+            return this;
+        }
+
+        @SuppressWarnings("unused")
+        public Simple invariant(Predicate<STATE> invariant)
+        {
+            invariants.add((state, sut) -> invariant.test(state));
+            return this;
+        }
+
+        public Simple step(ThrowingFunction<STATE, STATE> step)
+        {
+            ModelChecker.this.step((state, sut, entropySource) -> new Pair<>(step.apply(state), sut));
+            return this;
+        }
+
+        public Simple step(ThrowingConsumer<STATE> step)
+        {
+            ModelChecker.this.step((state, sut, entropySource) -> {
+                step.accept(state);
+                return Pair.unchanged();
+            });
+            return this;
+        }
+
+        public Simple step(ThrowingBiConsumer<STATE, EntropySource> step)
+        {
+            ModelChecker.this.step((state, sut, entropySource) -> {
+                step.accept(state, entropySource);
+                return Pair.unchanged();
+            });
+            return this;
+        }
+
+        public Simple step(BiPredicate<STATE, EntropySource> precondition, BiConsumer<STATE, EntropySource> step)
+        {
+            ModelChecker.this.step((state, sut, entropySource) -> {
+                if (!precondition.test(state, entropySource))
+                    return Pair.unchanged();
+
+                step.accept(state, entropySource);
+                return Pair.unchanged();
+            });
+
+            return this;
+        }
+
+        public Simple step(Predicate<STATE> precondition, Consumer<STATE> step)
+        {
+            ModelChecker.this.step((state, ignore) -> precondition.test(state),
+                                   (t, sut, entropySource) -> {
+                                       step.accept(t);
+                                       return Pair.unchanged();
+                                   });
+
+            return this;
+        }
+
+        public void run() throws Throwable
+        {
+            ModelChecker.this.run();
+        }
+
+        public void run(int minSteps, long maxSteps, EntropySource entropySource) throws Throwable
+        {
+            ModelChecker.this.run(minSteps, maxSteps, entropySource);
         }
     }
 }
