@@ -43,12 +43,13 @@ public class DiagnosticEventServiceTest
     public static void setup()
     {
         DatabaseDescriptor.daemonInitialization();
+        DiagnosticEventService.instance().initialize();
     }
 
     @After
     public void cleanup()
     {
-        DiagnosticEventService.instance().cleanup();
+        DiagnosticEventService.instance().unsubscribeAll();
     }
 
     @Test
@@ -168,7 +169,7 @@ public class DiagnosticEventServiceTest
         instance.subscribeAll(consumerAll);
         assertTrue(instance.hasSubscribers(TestEvent1.class));
         assertTrue(instance.hasSubscribers(TestEvent2.class));
-        instance.cleanup();
+        instance.unsubscribeAll();
         assertFalse(instance.hasSubscribers(TestEvent1.class));
         assertFalse(instance.hasSubscribers(TestEvent2.class));
     }

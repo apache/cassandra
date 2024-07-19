@@ -18,12 +18,13 @@
 
 package org.apache.cassandra.audit;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 import javax.management.openmbean.CompositeData;
 import javax.management.openmbean.CompositeDataSupport;
 import javax.management.openmbean.CompositeType;
@@ -32,7 +33,6 @@ import javax.management.openmbean.OpenType;
 import javax.management.openmbean.SimpleType;
 
 import org.apache.cassandra.config.ParameterizedClass;
-import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.audit.AuditLogOptionsCompositeData.AuditLogOption.option;
 
@@ -40,7 +40,6 @@ public class AuditLogOptionsCompositeData
 {
     public static class AuditLogOption
     {
-        // TODO these constants will be used in upcoming audit log vtable too, see CASSANDRA-16725
         public static final String AUDIT_LOGS_DIR = "audit_logs_dir";
         public static final String ARCHIVE_COMMAND = "archive_command";
         public static final String ROLL_CYCLE = "roll_cycle";
@@ -200,12 +199,10 @@ public class AuditLogOptionsCompositeData
     {
         try
         {
-            final Map<String, Object> valueMap = new HashMap<>();
+            Map<String, Object> valueMap = new HashMap<>();
 
-            for (final Pair<String, Function<AuditLogOptions, Object>> pair : Arrays.stream(options).map(o -> Pair.create(o.name, o.toCompositeMapping)).collect(Collectors.toList()))
-            {
-                valueMap.put(pair.left, pair.right.apply(opts));
-            }
+            for (AuditLogOption option : options)
+                valueMap.put(option.name, option.toCompositeMapping.apply(opts));
 
             return new CompositeDataSupport(COMPOSITE_TYPE, valueMap);
         }
@@ -219,13 +216,14 @@ public class AuditLogOptionsCompositeData
     {
         assert data.getCompositeType().equals(COMPOSITE_TYPE);
 
-        final Object[] values = data.getAll(Arrays.stream(options).map(o -> o.name).toArray(String[]::new));
+        List<Object> values = new ArrayList<>();
+        for (AuditLogOption option : options)
+            values.add(data.get(option.name));
+
         final AuditLogOptions opts = new AuditLogOptions();
 
-        for (int i = 0; i < values.length; i++)
-        {
-            options[i].fromCompositeMapping.accept(opts, values[i]);
-        }
+        for (int i = 0; i < values.size(); i++)
+            options[i].fromCompositeMapping.accept(opts, values.get(i));
 
         return opts;
     }

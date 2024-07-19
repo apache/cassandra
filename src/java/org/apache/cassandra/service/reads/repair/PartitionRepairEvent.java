@@ -34,7 +34,7 @@ import org.apache.cassandra.diag.DiagnosticEvent;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-final class PartitionRepairEvent extends DiagnosticEvent
+public final class PartitionRepairEvent extends DiagnosticEvent
 {
     private final PartitionRepairEventType type;
     @VisibleForTesting
@@ -49,7 +49,7 @@ final class PartitionRepairEvent extends DiagnosticEvent
     @VisibleForTesting
     String mutationSummary;
 
-    enum PartitionRepairEventType
+    public enum PartitionRepairEventType
     {
         SEND_INITIAL_REPAIRS,
         SPECULATED_WRITE,

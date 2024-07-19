@@ -38,9 +38,8 @@ import org.apache.cassandra.service.reads.DigestResolver;
 import org.apache.cassandra.service.reads.DigestResolver.DigestResolverDebugResult;
 import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 
-final class ReadRepairEvent extends DiagnosticEvent
+public final class ReadRepairEvent extends DiagnosticEvent
 {
-
     private final ReadRepairEventType type;
     private final Keyspace keyspace;
     private final String tableName;
@@ -54,7 +53,7 @@ final class ReadRepairEvent extends DiagnosticEvent
     @Nullable
     private final DigestResolverDebugResult[] digestsByEndpoint;
 
-    enum ReadRepairEventType
+    public enum ReadRepairEventType
     {
         START_REPAIR,
         SPECULATED_READ

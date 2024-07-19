@@ -26,9 +26,9 @@ import org.apache.cassandra.diag.DiagnosticEvent;
 /**
  * {@link DiagnosticEvent} implementation for guardrail activation events.
  */
-final class GuardrailEvent extends DiagnosticEvent
+public final class GuardrailEvent extends DiagnosticEvent
 {
-    enum GuardrailEventType
+    public enum GuardrailEventType
     {
         WARNED, FAILED
     }

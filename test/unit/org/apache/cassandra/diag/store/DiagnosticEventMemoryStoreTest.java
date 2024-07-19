@@ -21,6 +21,7 @@ package org.apache.cassandra.diag.store;
 import java.util.Map;
 import java.util.NavigableMap;
 
+import org.junit.Before;
 import org.junit.Test;
 
 import org.apache.cassandra.diag.DiagnosticEvent;
@@ -31,10 +32,17 @@ import static org.junit.Assert.assertSame;
 
 public class DiagnosticEventMemoryStoreTest
 {
+    private DiagnosticEventMemoryStore store;
+
+    @Before
+    public void setup()
+    {
+        store = new DiagnosticEventMemoryStore(200);
+    }
+
     @Test
     public void testEmpty()
     {
-        DiagnosticEventMemoryStore store = new DiagnosticEventMemoryStore();
         assertEquals(0, store.size());
         assertEquals(0, store.scan(0L, 10).size());
     }
@@ -42,7 +50,6 @@ public class DiagnosticEventMemoryStoreTest
     @Test
     public void testSingle()
     {
-        DiagnosticEventMemoryStore store = new DiagnosticEventMemoryStore();
         store.store(new TestEvent1());
         assertEquals(1, store.size());
         assertEquals(1, store.scan(0L, 10).size());
@@ -51,7 +58,6 @@ public class DiagnosticEventMemoryStoreTest
     @Test
     public void testIdentity()
     {
-        DiagnosticEventMemoryStore store = new DiagnosticEventMemoryStore();
         TestEvent1 e1 = new TestEvent1();
         TestEvent1 e2 = new TestEvent1();
         TestEvent1 e3 = new TestEvent1();
@@ -81,8 +87,6 @@ public class DiagnosticEventMemoryStoreTest
     @Test
     public void testLimit()
     {
-        DiagnosticEventMemoryStore store = new DiagnosticEventMemoryStore();
-
         TestEvent1 e1 = new TestEvent1();
         TestEvent1 e2 = new TestEvent1();
         TestEvent1 e3 = new TestEvent1();
@@ -106,8 +110,6 @@ public class DiagnosticEventMemoryStoreTest
     @Test
     public void testSeek()
     {
-        DiagnosticEventMemoryStore store = new DiagnosticEventMemoryStore();
-
         TestEvent1 e2 = new TestEvent1();
         TestEvent1 e3 = new TestEvent1();
 
@@ -133,7 +135,6 @@ public class DiagnosticEventMemoryStoreTest
     @Test
     public void testMaxElements()
     {
-        DiagnosticEventMemoryStore store = new DiagnosticEventMemoryStore();
         store.setMaxSize(3);
 
         store.store(new TestEvent1());

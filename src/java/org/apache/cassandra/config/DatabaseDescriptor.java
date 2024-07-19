@@ -70,6 +70,9 @@ import org.slf4j.LoggerFactory;
 
 import com.googlecode.concurrenttrees.common.Iterables;
 import org.apache.cassandra.audit.AuditLogOptions;
+
+import org.apache.cassandra.diag.DiagnosticLogOptions;
+import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.auth.AllowAllInternodeAuthenticator;
 import org.apache.cassandra.auth.AuthConfig;
 import org.apache.cassandra.auth.IAuthenticator;
@@ -89,7 +92,6 @@ import org.apache.cassandra.db.commitlog.CommitLogSegmentManagerCDC;
 import org.apache.cassandra.db.commitlog.CommitLogSegmentManagerStandard;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.io.FSWriteError;
@@ -4345,6 +4347,11 @@ public class DatabaseDescriptor
         return unsafeSystem;
     }
 
+    public static int getDiagnosticEventClassCapacity()
+    {
+        return conf.diagnostic_event_class_capacity;
+    }
+
     public static boolean diagnosticEventsEnabled()
     {
         return conf.diagnostic_events_enabled;
@@ -4426,6 +4433,16 @@ public class DatabaseDescriptor
             throw new ConfigurationException("max_concurrent_automatic_sstable_upgrades can't be negative");
         if (value > getConcurrentCompactors())
             logger.warn("max_concurrent_automatic_sstable_upgrades ({}) is larger than concurrent_compactors ({})", value, getConcurrentCompactors());
+    }
+
+    public static DiagnosticLogOptions getDiagnosticLoggingOptions()
+    {
+        return conf.diagnostic_logging_options;
+    }
+
+    public static void setDiagnosticLoggingOptions(DiagnosticLogOptions diagnosticLogOptions)
+    {
+        conf.diagnostic_logging_options = new DiagnosticLogOptions.Builder(diagnosticLogOptions).build();
     }
 
     public static AuditLogOptions getAuditLoggingOptions()
