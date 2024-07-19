@@ -24,6 +24,7 @@ import org.apache.cassandra.harry.operations.Query;
 public interface Model
 {
     long NO_TIMESTAMP = Long.MIN_VALUE;
+    long TIMESTAMP_UNSET = Long.MIN_VALUE + 1;
 
     void validate(Query query);
 

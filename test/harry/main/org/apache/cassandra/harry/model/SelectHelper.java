@@ -295,17 +295,21 @@ public class SelectHelper
         }
 
         long[] slts = new long[schema.staticColumns.size()];
-        for (int i = 0; i < slts.length; i++)
+        Arrays.fill(slts, Model.TIMESTAMP_UNSET);
+        for (int i = 0, sltsBase = schema.allColumns.size(); i < slts.length && sltsBase + i < result.length; i++)
         {
             Object v = result[schema.allColumns.size() + i];
-            slts[i] = v == null ? Model.NO_TIMESTAMP : clock.lts((long) v);
+            if (v != null)
+                slts[i] = clock.lts((long) v);
         }
 
         long[] lts = new long[schema.regularColumns.size()];
-        for (int i = 0; i < lts.length; i++)
+        Arrays.fill(lts, Model.TIMESTAMP_UNSET);
+        for (int i = 0, ltsBase = schema.allColumns.size() + slts.length; i < lts.length && ltsBase + i < result.length; i++)
         {
-            Object v = result[schema.allColumns.size() + slts.length + i];
-            lts[i] = v == null ? Model.NO_TIMESTAMP : clock.lts((long) v);
+            Object v = result[ltsBase + i];
+            if (v != null)
+                lts[i] = clock.lts((long) v);
         }
 
         return new ResultSetRow(isDeflatable(partitionKey) ? schema.deflatePartitionKey(partitionKey) : UNSET_DESCR,

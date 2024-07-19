@@ -29,10 +29,11 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
-import org.apache.cassandra.harry.sut.TokenPlacementModel.Replica;
 import org.junit.Test;
 
+import org.apache.cassandra.harry.checker.ModelChecker;
 import org.apache.cassandra.harry.sut.TokenPlacementModel;
+import org.apache.cassandra.harry.sut.TokenPlacementModel.Replica;
 
 import static org.apache.cassandra.distributed.test.log.PlacementSimulator.SimulatedPlacements;
 import static org.apache.cassandra.distributed.test.log.PlacementSimulator.Transformations;

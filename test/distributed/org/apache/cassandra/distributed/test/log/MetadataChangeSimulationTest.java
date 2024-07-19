@@ -35,7 +35,6 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.Sets;
-import org.apache.cassandra.harry.sut.TokenPlacementModel.DCReplicas;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -48,7 +47,10 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.harry.checker.ModelChecker;
+import org.apache.cassandra.harry.gen.EntropySource;
 import org.apache.cassandra.harry.sut.TokenPlacementModel;
+import org.apache.cassandra.harry.sut.TokenPlacementModel.DCReplicas;
 import org.apache.cassandra.locator.CMSPlacementStrategy;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -646,17 +648,17 @@ public class MetadataChangeSimulationTest extends CMSTestBase
         return pair(newState, node);
     }
 
-    private Node getRemovalCandidate(ModelState state, ModelChecker.EntropySource entropySource)
+    private Node getRemovalCandidate(ModelState state, EntropySource entropySource)
     {
         return getCandidate(state, entropySource);
     }
 
-    private Node getMoveCandidate(ModelState state, ModelChecker.EntropySource entropySource)
+    private Node getMoveCandidate(ModelState state, EntropySource entropySource)
     {
         return getCandidate(state, entropySource);
     }
 
-    private Node getCandidate(ModelState modelState, ModelChecker.EntropySource entropySource)
+    private Node getCandidate(ModelState modelState, EntropySource entropySource)
     {
         List<String> dcs = new ArrayList<>(modelState.simulatedPlacements.rf.asMap().keySet());
         while (!dcs.isEmpty())
