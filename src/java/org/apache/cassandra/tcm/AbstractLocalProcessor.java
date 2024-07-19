@@ -191,7 +191,7 @@ public abstract class AbstractLocalProcessor implements Processor
             // We can use local log here since we always call this method only if local log is up-to-date:
             // in case of a successful commit, we apply against latest metadata locally before committing,
             // and in case of a rejection, we fetch latest entries to verify linearizability.
-            logState = log.getCommittedEntries(lastKnown);
+            logState = log.getLocalEntries(lastKnown);
         }
 
         return logState;

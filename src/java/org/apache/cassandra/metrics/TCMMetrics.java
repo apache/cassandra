@@ -66,6 +66,7 @@ public class TCMMetrics
     public final Meter coordinatorBehindSchema;
     public final Meter coordinatorBehindPlacements;
     public final Gauge<Long> epochAwareDebounceTrackerSize;
+    public final Meter reconstructLogStateCall;
 
     private TCMMetrics()
     {
@@ -127,6 +128,7 @@ public class TCMMetrics
 
         coordinatorBehindSchema = Metrics.meter(factory.createMetricName("CoordinatorBehindSchema"));
         coordinatorBehindPlacements = Metrics.meter(factory.createMetricName("CoordinatorBehindPlacements"));
+        reconstructLogStateCall = Metrics.meter(factory.createMetricName("ReconstructLogStateCall"));
     }
 
     public void recordCommitFailureLatency(long latency, TimeUnit timeUnit, boolean isRejection)

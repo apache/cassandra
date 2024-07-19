@@ -76,6 +76,11 @@ public class AtomicLongBackedProcessor extends AbstractLocalProcessor
         return log.waitForHighestConsecutive();
     }
 
+    public LogState reconstruct(Epoch lowEpoch, Epoch highEpoch, Retry.Deadline retryPolicy)
+    {
+        return log.getLocalEntries(lowEpoch);
+    }
+
     public static class InMemoryStorage implements LogStorage
     {
         private final List<Entry> entries;
@@ -127,6 +132,11 @@ public class AtomicLongBackedProcessor extends AbstractLocalProcessor
 
         @Override
         public synchronized EntryHolder getEntries(Epoch since)
+        {
+            throw new IllegalStateException("We have overridden all callers of this method, it should never be called");
+        }
+
+        public EntryHolder getEntries(Epoch since, Epoch until)
         {
             throw new IllegalStateException("We have overridden all callers of this method, it should never be called");
         }
