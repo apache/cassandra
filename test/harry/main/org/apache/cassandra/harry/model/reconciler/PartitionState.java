@@ -300,7 +300,7 @@ public class PartitionState implements Iterable<Reconciler.RowState>
         sb.append("Skipped LTS: " + skippedLts).append("\n");
 
         if (staticRow != null)
-            sb.append("Static row: " + staticRow.toString(schema)).append("\n");
+            sb.append("Static row:\n" + staticRow.toString(schema)).append("\n");
 
         for (Reconciler.RowState row : rows.values())
             sb.append(row.toString(schema)).append("\n");

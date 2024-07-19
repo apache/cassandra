@@ -149,10 +149,21 @@ public class InfiniteLoopExecutor implements Interruptible
         interruptHandler.accept(thread);
     }
 
-    public void shutdown()
+    public void shutdownGracefully()
     {
         stateUpdater.updateAndGet(this, cur -> cur != TERMINATED && cur != SHUTTING_DOWN_NOW ? SHUTTING_DOWN : cur);
-        interruptHandler.accept(thread);
+    }
+
+    public void shutdown()
+    {
+        shutdown(true);
+    }
+
+    public void shutdown(boolean interrupt)
+    {
+        stateUpdater.updateAndGet(this, cur -> cur != TERMINATED && cur != SHUTTING_DOWN_NOW ? SHUTTING_DOWN : cur);
+        if (interrupt)
+            interruptHandler.accept(thread);
     }
 
     public Object shutdownNow()

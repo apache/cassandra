@@ -47,8 +47,14 @@ public abstract class Query
     public final Map<String, List<Relation>> relationsMap;
     public final SchemaSpec schemaSpec;
     public final QueryKind queryKind;
+    public final Selection selection;
 
     public Query(QueryKind kind, long pd, boolean reverse, List<Relation> relations, SchemaSpec schemaSpec)
+    {
+        this(kind, pd, reverse, relations, schemaSpec, new Columns(schemaSpec.allColumnsSet, true));
+    }
+
+    public Query(QueryKind kind, long pd, boolean reverse, List<Relation> relations, SchemaSpec schemaSpec, Selection selection)
     {
         this.queryKind = kind;
         this.pd = pd;
@@ -58,6 +64,7 @@ public abstract class Query
         for (Relation relation : relations)
             this.relationsMap.computeIfAbsent(relation.column(), column -> new ArrayList<>()).add(relation);
         this.schemaSpec = schemaSpec;
+        this.selection = selection;
     }
 
     // TODO: pd, values, filtering?
@@ -88,9 +95,9 @@ public abstract class Query
 
     public static class SinglePartitionQuery extends Query
     {
-        public SinglePartitionQuery(QueryKind kind, long pd, boolean reverse, List<Relation> allRelations, SchemaSpec schemaSpec)
+        public SinglePartitionQuery(QueryKind kind, long pd, boolean reverse, List<Relation> allRelations, SchemaSpec schemaSpec, Selection selection)
         {
-            super(kind, pd, reverse, allRelations, schemaSpec);
+            super(kind, pd, reverse, allRelations, schemaSpec, selection);
         }
 
         public boolean matchCd(long cd)
@@ -244,19 +251,14 @@ public abstract class Query
         }
     }
 
-    public CompiledStatement toWildcardSelectStatement()
-    {
-        return SelectHelper.select(schemaSpec, pd, null, reverse, false);
-    }
-
     public CompiledStatement toSelectStatement()
     {
-        return SelectHelper.select(schemaSpec, pd, schemaSpec.allColumnsSet, relations, reverse, true);
+        return SelectHelper.select(schemaSpec, pd, selection.columns(), relations, reverse, selection.includeTimestamp());
     }
 
     public CompiledStatement toSelectStatement(boolean includeWriteTime)
     {
-        return SelectHelper.select(schemaSpec, pd, schemaSpec.allColumnsSet, relations, reverse, includeWriteTime);
+        return SelectHelper.select(schemaSpec, pd, selection.columns(), relations, reverse, includeWriteTime);
     }
 
     public CompiledStatement toSelectStatement(Set<ColumnSpec<?>> columns, boolean includeWriteTime)
@@ -271,13 +273,24 @@ public abstract class Query
 
     public abstract DescriptorRanges.DescriptorRange toRange(long ts);
 
-    public static Query selectPartition(SchemaSpec schemaSpec, long pd, boolean reverse)
+    public static Query selectAllColumns(SchemaSpec schemaSpec, long pd, boolean reverse)
+    {
+        return selectPartition(schemaSpec, pd, reverse, new Columns(schemaSpec.allColumnsSet, true));
+    }
+
+    public static Query selectAllColumnsWildcard(SchemaSpec schemaSpec, long pd, boolean reverse)
+    {
+        return selectPartition(schemaSpec, pd, reverse, Wildcard.instance);
+    }
+
+    public static Query selectPartition(SchemaSpec schemaSpec, long pd, boolean reverse, Selection selection)
     {
         return new Query.SinglePartitionQuery(Query.QueryKind.SINGLE_PARTITION,
                                               pd,
                                               reverse,
                                               Collections.emptyList(),
-                                              schemaSpec);
+                                              schemaSpec,
+                                              selection);
     }
 
     public static Query singleClustering(SchemaSpec schema, long pd, long cd, boolean reverse)
@@ -497,5 +510,48 @@ public abstract class Query
         //
         // Such queries only make sense if written partition actually has clusterings that have intersecting parts.
         CLUSTERING_RANGE
+    }
+
+    public interface Selection
+    {
+        Set<ColumnSpec<?>> columns();
+        boolean includeTimestamp();
+    }
+
+    public static class Wildcard implements Selection
+    {
+        public static final Wildcard instance = new Wildcard();
+
+        public Set<ColumnSpec<?>> columns()
+        {
+            return null;
+        }
+
+        public boolean includeTimestamp()
+        {
+            return false;
+        }
+    }
+
+    public static class Columns implements Selection
+    {
+        private Set<ColumnSpec<?>> columns;
+        private boolean includeTimestamp;
+
+        public Columns(Set<ColumnSpec<?>> columns, boolean includeTimestamp)
+        {
+            this.columns = columns;
+            this.includeTimestamp = includeTimestamp;
+        }
+
+        public Set<ColumnSpec<?>> columns()
+        {
+            return columns;
+        }
+
+        public boolean includeTimestamp()
+        {
+            return includeTimestamp;
+        }
     }
 }

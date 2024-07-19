@@ -77,7 +77,7 @@ public abstract class QuiescentLocalStateCheckerBase extends QuiescentChecker
         TokenPlacementModel.ReplicatedRanges ring = getRing();
 
         for (int lts = 0; lts < clock.peek(); lts++)
-            validate(Query.selectPartition(schema, pdSelector.pd(lts, schema), false), ring);
+            validate(Query.selectAllColumns(schema, pdSelector.pd(lts, schema), false), ring);
     }
 
     @Override

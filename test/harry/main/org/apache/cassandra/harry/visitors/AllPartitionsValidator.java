@@ -21,12 +21,15 @@ package org.apache.cassandra.harry.visitors;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
+import org.junit.Assert;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ExecutorFactory;
+import org.apache.cassandra.concurrent.InfiniteLoopExecutor;
 import org.apache.cassandra.concurrent.Interruptible;
 import org.apache.cassandra.harry.core.Configuration;
 import org.apache.cassandra.harry.core.MetricReporter;
@@ -113,7 +116,7 @@ public class AllPartitionsValidator implements Visitor
                                                                                                  {
                                                                                                      for (boolean reverse : new boolean[]{ true, false })
                                                                                                      {
-                                                                                                         Query query = Query.selectPartition(schema, pdSelector.pd(pdSelector.minLtsAt(pos), schema), reverse);
+                                                                                                         Query query = Query.selectAllColumns(schema, pdSelector.pd(pdSelector.minLtsAt(pos), schema), reverse);
                                                                                                          model.validate(query);
                                                                                                          queryLogger.logSelectQuery((int)pos, query);
                                                                                                      }
@@ -129,7 +132,12 @@ public class AllPartitionsValidator implements Visitor
 
         interrupt.awaitUninterruptibly();
 
-        Runner.shutdown(threads::stream);
+        for (Interruptible thread : threads)
+        {
+            ((InfiniteLoopExecutor)thread).shutdown(false);
+            Assert.assertTrue(thread.awaitTermination(1, TimeUnit.MINUTES));
+        }
+
         if (!errors.isEmpty())
             Runner.mergeAndThrow(errors);
     }
@@ -145,6 +153,4 @@ public class AllPartitionsValidator implements Visitor
             throw new RuntimeException(e);
         }
     }
-
-
 }

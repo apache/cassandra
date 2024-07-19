@@ -32,7 +32,7 @@ import org.apache.cassandra.harry.tracker.DefaultDataTracker;
 
 public class ReconcilerIntegrationTest extends IntegrationTestBase
 {
-    private static final long SEED = 1; // 88
+    private static final long SEED = 1;
 
     @Test
     public void testTrackingWithStatics() throws Throwable

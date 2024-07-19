@@ -170,7 +170,7 @@ class SingleOperationVisitBuilder implements SingleOperationBuilder
     {
         int opId = opIdCounter++;
         operations.add(new GeneratingVisitor.GeneratedDeleteOp(lts, pd, opId, OpSelectors.OperationKind.DELETE_PARTITION,
-                                                               Query.selectPartition(schema, pd, false)));
+                                                               Query.selectAllColumns(schema, pd, false)));
         end();
         return this;
     }

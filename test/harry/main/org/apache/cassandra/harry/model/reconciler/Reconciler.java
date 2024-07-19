@@ -316,16 +316,27 @@ public class Reconciler
 
         public String toString(SchemaSpec schema)
         {
-            return " rowStateRow("
-                   + partitionState.pd +
-                   "L, " + cd +
-                   (partitionState.staticRow == null ? "" : ", values(" + StringUtils.toString(partitionState.staticRow.vds) + ")") +
-                   (partitionState.staticRow == null ? "" : ", lts(" + StringUtils.toString(partitionState.staticRow.lts) + ")") +
-                   ", values(" + StringUtils.toString(vds) + ")" +
-                   ", lts(" + StringUtils.toString(lts) + ")" +
-                   (schema == null ? "" : ", clustering=" + (cd == STATIC_CLUSTERING ? "static" : Arrays.toString(schema.inflateClusteringKey(cd)))) +
-                   (schema == null ? "" : ", values=" + Arrays.toString(cd == STATIC_CLUSTERING ? schema.inflateStaticColumns(vds) : schema.inflateRegularColumns(vds))) +
-                   ")";
+            if (cd == STATIC_CLUSTERING)
+            {
+                return " rowStateRow("
+                       + partitionState.pd +
+                       "L, " + cd + "L" +
+                       ", statics(" + StringUtils.toString(partitionState.staticRow.vds) + ")" +
+                       ", lts(" + StringUtils.toString(partitionState.staticRow.lts) + ")";
+            }
+            else
+            {
+                return " rowStateRow("
+                       + partitionState.pd +
+                       "L, " + cd +
+                       (partitionState.staticRow == null ? "" : ", statics(" + StringUtils.toString(partitionState.staticRow.vds) + ")") +
+                       (partitionState.staticRow == null ? "" : ", lts(" + StringUtils.toString(partitionState.staticRow.lts) + ")") +
+                       ", values(" + StringUtils.toString(vds) + ")" +
+                       ", lts(" + StringUtils.toString(lts) + ")" +
+                       (schema == null ? "" : ", clustering=" + Arrays.toString(schema.inflateClusteringKey(cd))) +
+                       (schema == null ? "" : ", values=" + Arrays.toString(schema.inflateRegularColumns(vds))) +
+                       ")";
+            }
         }
     }
 }

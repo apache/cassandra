@@ -65,7 +65,7 @@ public class RangeTombstoneBurnTest extends IntegrationTestBase
 
             for (int iteration = 0; iteration < ITERATIONS; iteration++)
             {
-                ModelChecker<ReplayingHistoryBuilder> modelChecker = new ModelChecker<>();
+                ModelChecker<ReplayingHistoryBuilder, Void> modelChecker = new ModelChecker<>();
                 EntropySource entropySource = new JdkRandomEntropySource(iteration);
 
                 int maxPartitionSize = entropySource.nextInt(1, 1 << entropySource.nextInt(5, 11));
@@ -84,52 +84,45 @@ public class RangeTombstoneBurnTest extends IntegrationTestBase
 
                 DataTracker tracker = new DefaultDataTracker();
                 modelChecker.init(new ReplayingHistoryBuilder(seed, maxPartitionSize, STEPS_PER_ITERATION, new DefaultDataTracker(), sut, schema, rf, SystemUnderTest.ConsistencyLevel.ALL))
-                            .step((history) -> {
-                                      int rowIdx = entropySource.nextInt(maxPartitionSize);
-                                      int partitionIdx = partitions[entropySource.nextInt(partitions.length)];
+                            .step((history, rng) -> {
+                                      int rowIdx = rng.nextInt(maxPartitionSize);
+                                      int partitionIdx = partitions[rng.nextInt(partitions.length)];
                                       history.visitPartition(partitionIdx).insert(rowIdx);
-                                      return history;
                                   })
-                            .step((history) -> entropySource.nextFloat() > deleteRowChance,
-                                  (history) -> {
-                                      int partitionIdx = partitions[entropySource.nextInt(partitions.length)];
+                            .step((history, rng) -> rng.nextFloat() > deleteRowChance,
+                                  (history, rng) -> {
+                                      int partitionIdx = partitions[rng.nextInt(partitions.length)];
                                       history.visitPartition(partitionIdx).deleteRow();
-                                      return history;
                                   })
-                            .step((history) -> entropySource.nextFloat() > deleteRowChance,
-                                  (history) -> {
-                                      int partitionIdx = partitions[entropySource.nextInt(partitions.length)];
+                            .step((history, rng) -> rng.nextFloat() > deleteRowChance,
+                                  (history, rng) -> {
+                                      int partitionIdx = partitions[rng.nextInt(partitions.length)];
                                       history.visitPartition(partitionIdx).deleteColumns();
-                                      return history;
                                   })
-                            .step((history) -> entropySource.nextFloat() > deletePartitionChance,
-                                  (history) -> {
-                                      int partitionIdx = partitions[entropySource.nextInt(partitions.length)];
+                            .step((history, rng) -> rng.nextFloat() > deletePartitionChance,
+                                  (history, rng) -> {
+                                      int partitionIdx = partitions[rng.nextInt(partitions.length)];
                                       history.visitPartition(partitionIdx).deletePartition();
-                                      return history;
                                   })
-                            .step((history) -> entropySource.nextFloat() > flushChance,
-                                  (history) -> {
+                            .step((history, rng) -> rng.nextFloat() > flushChance,
+                                  (history, rng) -> {
                                       cluster.get(1).nodetool("flush", schema.keyspace, schema.table);
                                       flushes.incrementAndGet();
-                                      return history;
                                   })
-                            .step((history) -> entropySource.nextFloat() > deleteRangeChance,
-                                  (history) -> {
-                                      int partitionIdx = partitions[entropySource.nextInt(partitions.length)];
+                            .step((history, rng) -> rng.nextFloat() > deleteRangeChance,
+                                  (history, rng) -> {
+                                      int partitionIdx = partitions[rng.nextInt(partitions.length)];
                                       history.visitPartition(partitionIdx).deleteRowSlice();
-                                      return history;
                                   })
-                            .step((history) -> entropySource.nextFloat() > deleteRangeChance,
-                                  (history) -> {
-                                      int row1 = entropySource.nextInt(maxPartitionSize);
-                                      int row2 = entropySource.nextInt(maxPartitionSize);
-                                      int partitionIdx = partitions[entropySource.nextInt(partitions.length)];
+                            .step((history, rng) -> rng.nextFloat() > deleteRangeChance,
+                                  (history, rng) -> {
+                                      int row1 = rng.nextInt(maxPartitionSize);
+                                      int row2 = rng.nextInt(maxPartitionSize);
+                                      int partitionIdx = partitions[rng.nextInt(partitions.length)];
                                       history.visitPartition(partitionIdx).deleteRowRange(Math.min(row1, row2),
                                                                                           Math.max(row1, row2),
                                                                                           entropySource.nextBoolean(),
                                                                                           entropySource.nextBoolean());
-                                      return history;
                                   })
                             .afterAll((history) -> {
                                 // Sanity check
@@ -137,7 +130,7 @@ public class RangeTombstoneBurnTest extends IntegrationTestBase
                                                  partitions);
                                 history.validate(partitions);
                             })
-                            .run(STEPS_PER_ITERATION, seed);
+                            .run(STEPS_PER_ITERATION, seed, entropySource);
             }
         }
     }

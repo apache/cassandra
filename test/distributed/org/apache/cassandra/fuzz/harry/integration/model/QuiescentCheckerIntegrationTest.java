@@ -109,9 +109,9 @@ public class QuiescentCheckerIntegrationTest extends ModelTestBase
                                                                                                    run.clock,
                                                                                                    HideRowCorruptor::new);
 
-                         Query query = Query.selectPartition(run.schemaSpec,
-                                                             run.pdSelector.pd(CORRUPT_LTS, run.schemaSpec),
-                                                             false);
+                         Query query = Query.selectAllColumns(run.schemaSpec,
+                                                              run.pdSelector.pd(CORRUPT_LTS, run.schemaSpec),
+                                                              false);
 
                          return corruptor.maybeCorrupt(query, run.sut);
                      },
@@ -137,9 +137,9 @@ public class QuiescentCheckerIntegrationTest extends ModelTestBase
                                                                                      run.tracker,
                                                                                      run.descriptorSelector);
 
-                         return corruptor.maybeCorrupt(Query.selectPartition(run.schemaSpec,
-                                                                             run.pdSelector.pd(CORRUPT_LTS, run.schemaSpec),
-                                                                             false),
+                         return corruptor.maybeCorrupt(Query.selectAllColumns(run.schemaSpec,
+                                                                              run.pdSelector.pd(CORRUPT_LTS, run.schemaSpec),
+                                                                              false),
                                                        run.sut);
                      },
                      (t, run) -> {
@@ -163,9 +163,9 @@ public class QuiescentCheckerIntegrationTest extends ModelTestBase
                                                                                                    run.clock,
                                                                                                    HideValueCorruptor::new);
 
-                         return corruptor.maybeCorrupt(Query.selectPartition(run.schemaSpec,
-                                                                             run.pdSelector.pd(CORRUPT_LTS, run.schemaSpec),
-                                                                             false),
+                         return corruptor.maybeCorrupt(Query.selectAllColumns(run.schemaSpec,
+                                                                              run.pdSelector.pd(CORRUPT_LTS, run.schemaSpec),
+                                                                              false),
                                                        run.sut);
                      },
                      (t, run) -> {
@@ -189,9 +189,9 @@ public class QuiescentCheckerIntegrationTest extends ModelTestBase
                                                                                                    run.clock,
                                                                                                    ChangeValueCorruptor::new);
 
-                         return corruptor.maybeCorrupt(Query.selectPartition(run.schemaSpec,
-                                                                             run.pdSelector.pd(CORRUPT_LTS, run.schemaSpec),
-                                                                             false),
+                         return corruptor.maybeCorrupt(Query.selectAllColumns(run.schemaSpec,
+                                                                              run.pdSelector.pd(CORRUPT_LTS, run.schemaSpec),
+                                                                              false),
                                                        run.sut);
                      },
                      (t, run) -> {

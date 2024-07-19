@@ -801,7 +801,7 @@ public class HarrySimulatorTest
                                             {
                                                 long minLts = simulation.harryRun.pdSelector.minLtsAt(position);
                                                 long pd = simulation.harryRun.pdSelector.pd(minLts, simulation.harryRun.schemaSpec);
-                                                Query query = Query.selectPartition(simulation.harryRun.schemaSpec, pd, false);
+                                                Query query = Query.selectAllColumns(simulation.harryRun.schemaSpec, pd, false);
                                                 actions.add(new HarryValidatingQuery(simulation.simulated, simulation.cluster, rf,
                                                                                      simulation.harryRun, owernship, query));
                                             }

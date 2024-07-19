@@ -61,7 +61,6 @@ public class SchemaGenTest extends CQLTester
                                                                           .staticColumnCount(0, 10)
                                                                           .generator();
 
-
         TestRunner.test(gen,
                         schemaDefinition -> {
                             String tableDef = schemaDefinition.compile().cql();
@@ -69,9 +68,9 @@ public class SchemaGenTest extends CQLTester
 
                             try
                             {
-                                CompiledStatement statement = Query.selectPartition(schemaDefinition, 1, false).toSelectStatement();
+                                CompiledStatement statement = Query.selectAllColumns(schemaDefinition, 1, false).toSelectStatement();
                                 execute(statement.cql(), statement.bindings());
-                                statement = Query.selectPartition(schemaDefinition, 1, true).toSelectStatement();
+                                statement = Query.selectAllColumns(schemaDefinition, 1, true).toSelectStatement();
                                 execute(statement.cql(), statement.bindings());
                             }
                             catch (Throwable t)

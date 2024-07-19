@@ -29,6 +29,7 @@ import java.util.NavigableSet;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 
 import org.apache.cassandra.harry.clock.ApproximateClock;
@@ -521,8 +522,8 @@ public class HistoryBuilder implements Iterable<ReplayingVisitor.Visit>, SingleO
             long pd = presetSelector.pdAtPosition(partitionIdx);
             if (presetSelector.minLtsFor(pd) < 0)
                 continue;
-            model.validate(Query.selectPartition(schema, pd, false));
-            model.validate(Query.selectPartition(schema, pd, true));
+            model.validate(Query.selectAllColumns(schema, pd, false));
+            model.validate(Query.selectAllColumns(schema, pd, true));
         }
     }
 
@@ -535,8 +536,17 @@ public class HistoryBuilder implements Iterable<ReplayingVisitor.Visit>, SingleO
     {
         for (Long pd : partitionStates.keySet())
         {
-            model.validate(Query.selectPartition(schema, pd, false));
-            model.validate(Query.selectPartition(schema, pd, true));
+            model.validate(Query.selectAllColumns(schema, pd, false));
+            model.validate(Query.selectAllColumns(schema, pd, true));
+        }
+    }
+
+    public void validateAll(Model model, Function<Long, List<Query>> queries)
+    {
+        for (Long pd : partitionStates.keySet())
+        {
+            for (Query query : queries.apply(pd))
+                model.validate(query);
         }
     }
 

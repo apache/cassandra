@@ -37,12 +37,12 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.distributed.test.log.CMSTestBase;
-import org.apache.cassandra.distributed.test.log.RngUtils;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.harry.gen.EntropySource;
 import org.apache.cassandra.harry.gen.Surjections;
 import org.apache.cassandra.harry.gen.rng.PCGFastPure;
 import org.apache.cassandra.harry.gen.rng.PcgRSUFast;
+import org.apache.cassandra.harry.gen.rng.RngUtils;
 import org.apache.cassandra.harry.sut.TokenPlacementModel;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.ConnectionType;
@@ -308,6 +308,8 @@ public class ProgressBarrierTest extends CMSTestBase
                 public <REQ> void send(Message<REQ> message, InetAddressAndPort to) {}
                 public <REQ, RSP> void sendWithCallback(Message<REQ> message, InetAddressAndPort to, RequestCallback<RSP> cb, ConnectionType specifyConnection) {}
                 public <REQ, RSP> Future<Message<RSP>> sendWithResult(Message<REQ> message, InetAddressAndPort to) { return null; }
+
+                @Override
                 public <V> void respond(V response, Message<?> message) {}
             };
 

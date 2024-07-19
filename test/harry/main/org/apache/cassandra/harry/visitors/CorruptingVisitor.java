@@ -77,7 +77,7 @@ public class CorruptingVisitor implements Visitor
         long pd = run.pdSelector.pd(random.nextInt((int) maxPos), run.schemaSpec);
         try
         {
-            boolean success = corruptor.maybeCorrupt(Query.selectPartition(run.schemaSpec, pd, false),
+            boolean success = corruptor.maybeCorrupt(Query.selectAllColumns(run.schemaSpec, pd, false),
                                                      run.sut);
             logger.info("{} tried to corrupt a partition with a pd {}@{} my means of {}", success ? "Successfully" : "Unsuccessfully", pd, lts, corruptor.getClass());
         }

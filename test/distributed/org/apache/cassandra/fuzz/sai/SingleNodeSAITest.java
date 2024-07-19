@@ -246,7 +246,7 @@ public class SingleNodeSAITest extends IntegrationTestBase
                     {
                         logger.debug("Partition index = {}, run = {}, j = {}, i = {}", partitionIndex, run, j, i);
 
-                        Query partitionQuery = Query.selectPartition(schema, pd, false);
+                        Query partitionQuery = Query.selectAllColumns(schema, pd, false);
                         QuiescentChecker.validate(schema,
                                                   tracker,
                                                   columns,
