@@ -94,6 +94,7 @@ import org.apache.cassandra.tcm.Discovery;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.FetchCMSLog;
 import org.apache.cassandra.tcm.FetchPeerLog;
+import org.apache.cassandra.tcm.ReconstructLogState;
 import org.apache.cassandra.tcm.migration.Election;
 import org.apache.cassandra.tcm.sequences.DataMovements;
 import org.apache.cassandra.tcm.serialization.MessageSerializers;
@@ -239,6 +240,8 @@ public enum Verb
     TCM_DISCOVER_REQ       (813, P0, rpcTimeout,      INTERNAL_METADATA,    () -> NoPayload.serializer,                         () -> Discovery.instance.requestHandler,    TCM_DISCOVER_RSP       ),
     TCM_FETCH_PEER_LOG_RSP (818, P0, rpcTimeout,      FETCH_LOG,            MessageSerializers::logStateSerializer,             () -> ResponseVerbHandler.instance                                 ),
     TCM_FETCH_PEER_LOG_REQ (819, P0, rpcTimeout,      FETCH_LOG,            () -> FetchPeerLog.serializer,                      () -> FetchPeerLog.Handler.instance,        TCM_FETCH_PEER_LOG_RSP ),
+    TCM_RECONSTRUCT_EPOCH_RSP (820, P0, rpcTimeout,   FETCH_LOG,            MessageSerializers::logStateSerializer,             () -> ResponseVerbHandler.instance                                 ),
+    TCM_RECONSTRUCT_EPOCH_REQ (821, P0, rpcTimeout,   FETCH_LOG,            () -> ReconstructLogState.serializer,               () -> ReconstructLogState.Handler.instance, TCM_FETCH_PEER_LOG_RSP ),
 
     INITIATE_DATA_MOVEMENTS_RSP (814, P1, rpcTimeout, MISC, () -> NoPayload.serializer,             () -> ResponseVerbHandler.instance                                  ),
     INITIATE_DATA_MOVEMENTS_REQ (815, P1, rpcTimeout, MISC, () -> DataMovement.serializer,          () -> DataMovementVerbHandler.instance, INITIATE_DATA_MOVEMENTS_RSP ),

@@ -161,6 +161,11 @@ public final class DistributedMetadataLogKeyspace
         return (consistentFetch ? serialLogReader : localLogReader).getLogState(since);
     }
 
+    public static LogState getLogState(Epoch start, Epoch end, boolean consistentFetch)
+    {
+        return (consistentFetch ? serialLogReader : localLogReader).getLogState(start, end);
+    }
+
     public static class DistributedTableLogReader implements LogReader
     {
         private final ConsistencyLevel consistencyLevel;
@@ -186,6 +191,27 @@ public final class DistributedMetadataLogKeyspace
             UntypedResultSet resultSet = execute(String.format("SELECT epoch, kind, transformation, entry_id FROM %s.%s WHERE token(epoch) <= token(?)",
                                                                SchemaConstants.METADATA_KEYSPACE_NAME, TABLE_NAME),
                                                  consistencyLevel, since.getEpoch());
+            EntryHolder entryHolder = new EntryHolder(since);
+            for (UntypedResultSet.Row row : resultSet)
+            {
+                long entryId = row.getLong("entry_id");
+                Epoch epoch = Epoch.create(row.getLong("epoch"));
+                Transformation.Kind kind = Transformation.Kind.fromId(row.getInt("kind"));
+                Transformation transform = kind.fromVersionedBytes(row.getBlob("transformation"));
+                entryHolder.add(new Entry(new Entry.Id(entryId), epoch, transform));
+            }
+            return entryHolder;
+        }
+
+        public EntryHolder getEntries(Epoch since, Epoch until) throws IOException
+        {
+            // during gossip upgrade we have epoch = Long.MIN_VALUE + 1 (and the reverse partitioner doesn't support negative keys)
+            since = since.isBefore(Epoch.EMPTY) ? Epoch.EMPTY : since;
+            // note that we want all entries with epoch >= since - but since we use a reverse partitioner, we actually
+            // want all entries where the token is less than token(since)
+            UntypedResultSet resultSet = execute(String.format("SELECT epoch, kind, transformation, entry_id FROM %s.%s WHERE token(epoch) <= token(?) AND token(epoch) >= token(?)",
+                                                               SchemaConstants.METADATA_KEYSPACE_NAME, TABLE_NAME),
+                                                 consistencyLevel, since.getEpoch(), until.getEpoch());
             EntryHolder entryHolder = new EntryHolder(since);
             for (UntypedResultSet.Row row : resultSet)
             {

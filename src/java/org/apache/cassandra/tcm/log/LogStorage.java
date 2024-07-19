@@ -63,6 +63,12 @@ public interface LogStorage extends LogReader
         }
 
         @Override
+        public EntryHolder getEntries(Epoch since, Epoch until)
+        {
+            return null;
+        }
+
+        @Override
         public MetadataSnapshots snapshots()
         {
             return null;

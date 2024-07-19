@@ -27,6 +27,7 @@ import java.util.TreeSet;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Ordering;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MetadataSnapshots;
@@ -37,6 +38,7 @@ public interface LogReader
      * Gets all entries where epoch >= since - could be empty if since is a later epoch than the current highest seen
      */
     EntryHolder getEntries(Epoch since) throws IOException;
+    EntryHolder getEntries(Epoch since, Epoch until) throws IOException;
     MetadataSnapshots snapshots();
 
     /**
@@ -110,6 +112,54 @@ public interface LogReader
         }
     }
 
+    default LogState getLogState(Epoch start, Epoch end)
+    {
+        try
+        {
+            ClusterMetadata closestSnapshot = snapshots().getSnapshotBefore(start);
+
+            // Snapshot could not be found, fetch enough epochs to reconstruct the start metadata
+            if (closestSnapshot == null)
+            {
+                closestSnapshot = new ClusterMetadata(DatabaseDescriptor.getPartitioner());
+                ImmutableList.Builder<Entry> entries = new ImmutableList.Builder<>();
+                EntryHolder entryHolder = getEntries(Epoch.EMPTY, end);
+                for (Entry entry : entryHolder.entries)
+                {
+                    if (entry.epoch.isAfter(start))
+                        entries.add(entry);
+                    else
+                        closestSnapshot = entry.transform.execute(closestSnapshot).success().metadata;
+                }
+                return new LogState(closestSnapshot, entries.build());
+            }
+            else if (closestSnapshot.epoch.isBefore(start))
+            {
+                ImmutableList.Builder<Entry> entries = new ImmutableList.Builder<>();
+                // TODO (required): EntryHolder#add seems not to play along with the low epoch bound.
+                EntryHolder entryHolder = getEntries(closestSnapshot.epoch, end);
+                for (Entry entry : entryHolder.entries)
+                {
+                    if (entry.epoch.isAfter(start))
+                        entries.add(entry);
+                    else
+                        closestSnapshot = entry.transform.execute(closestSnapshot).success().metadata;
+                }
+                return new LogState(closestSnapshot, entries.build());
+            }
+            else
+            {
+                assert closestSnapshot.epoch.isEqualOrAfter(start) : String.format("Got %s, but requested snapshot of %s", closestSnapshot.epoch, start);
+                EntryHolder entryHolder = getEntries(closestSnapshot.epoch.nextEpoch(), end);
+                return new LogState(closestSnapshot, ImmutableList.copyOf(entryHolder.entries));
+            }
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
     class EntryHolder
     {
         SortedSet<Entry> entries;
@@ -123,6 +173,7 @@ public interface LogReader
 
         public void add(Entry entry)
         {
+            // TODO: this doesn't seem to play well along with DML Keyspace, since there we are actually fetching this epoch
             if (entry.epoch.isAfter(since))
                 entries.add(entry);
         }
