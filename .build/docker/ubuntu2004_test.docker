@@ -126,20 +126,22 @@ RUN /bin/bash -c "source ${BUILD_HOME}/env3.8/bin/activate && \
 
 # Initialize ccm versions.  right side of each sequence needs to be updated with new releases.
 #  this can be checked with:
-#  `curl -s https://downloads.apache.org/cassandra/ | grep -oP '(?<=href=\")[0-9]+\.[0-9]+\.[0-9]+(?=)' | sort -V | uniq -w 3`
-RUN bash -c 'source ~/env3.8/bin/activate && \
-    for i in {1..12} ; do echo $i ; ccm create --quiet -n 1 -v binary:4.0.$i test && ccm remove test ; done && \
-    for i in {1..4}  ; do echo $i ; ccm create --quiet -n 1 -v binary:4.1.$i test && ccm remove test ; done'
+#  `curl -s https://downloads.apache.org/cassandra/ | grep -oP '(?<=href=\")[0-9]+\.[0-9]+\.[0-9]+(?=)' | sort -rV | uniq -w 3`
+RUN bash -c 'source ${BUILD_HOME}/env3.8/bin/activate && \
+    for i in {1..13} ; do echo $i ; ccm create --quiet -n 1 -v binary:4.0.$i test && ccm remove test ; done && \
+    for i in {1..5}  ; do echo $i ; ccm create --quiet -n 1 -v binary:4.1.$i test && ccm remove test ; done'
 
 # 5+ requires java11
 RUN sudo update-java-alternatives --set java-1.11.0-openjdk-$(dpkg --print-architecture)
 
-# Initialize the CCM git repo as well as this also can fail to clone
-# TODO Move binary:5.0* to above once GA
-RUN /bin/bash -c 'source ~/env3.8/bin/activate && \
-    ccm create -n 1 -v git:trunk test && ccm remove test && \
-    ccm create -n 1 -v git:cassandra-5.0 test && ccm remove test && \
-    ccm create --quiet -n 1 -v binary:5.0-beta1 test && ccm remove test '
+# Initialize the CCM git repo, after removing the git cache, as this also can fail to clone
+RUN rm -fr ${BUILD_HOME}/.ccm/repository/_git_cache_apache
+RUN /bin/bash -c 'source ${BUILD_HOME}/env3.8/bin/activate && \
+    ccm create --quiet -n 1 -v git:cassandra-5.0 test && ccm remove test && \
+    ccm create --quiet -n 1 -v git:trunk test && ccm remove test && \
+    ccm create --quiet -n 1 -v binary:5.0-rc1 test && ccm remove test '
+# TODO When binary:5.0* is GA
+#    for i in {0..0}  ; do echo $i ; ccm create --quiet -n 1 -v binary:5.0.$i test && ccm remove test ; done'
 
 # the .git subdirectories to pip installed cassandra-driver breaks virtualenv-clone, so just remove them
 #  and other directories we don't need in image
