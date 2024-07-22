@@ -43,6 +43,11 @@ public interface Params
      */
     int flushPeriodMillis();
 
+    default int flushPeriodNanos()
+    {
+        return flushPeriodMillis() * 1_000_000;
+    }
+
     /**
      * @return milliseconds to block writes for while waiting for a slow disk flush to complete
      *         when in {@link FlushMode#PERIODIC} mode

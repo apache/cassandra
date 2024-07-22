@@ -41,7 +41,7 @@ abstract class Index<K> implements Closeable
      *
      * @return the found offsets into the segment, if any; can be empty
      */
-    abstract int[] lookUp(K id);
+    abstract long[] lookUp(K id);
 
     /**
      * Look up offsets by id. It's possible, due to retries, for a segment
@@ -50,8 +50,9 @@ abstract class Index<K> implements Closeable
      *
      * @return the first offset into the segment, or -1 is none were found
      */
-    abstract int lookUpFirst(K id);
-    abstract int[] lookUpAll(K id);
+    abstract long lookUpFirst(K id);
+
+    abstract long[] lookUpAll(K id);
 
     /**
      * @return the first (smallest) id in the index
@@ -83,4 +84,47 @@ abstract class Index<K> implements Closeable
     {
         return any(ids, this::mayContainId);
     }
+
+    interface IndexIterator<K>
+    {
+        boolean hasNext();
+        K currentKey();
+        int currentOffset();
+        int currentSize();
+        void next();
+    }
+
+    /**
+     * Helper methods
+     */
+
+    public static int readOffset(long record)
+    {
+        return (int) (0xffffffffL & (record >> 32));
+    }
+
+    public static long writeOffset(long record, int offset)
+    {
+        record &= 0x00000000ffffffffL; //unset all higher bits
+        record |= ((long) offset) << 32;
+        return record;
+    }
+
+    public static int readSize(long record)
+    {
+        return (int) (0xffffffffL & record);
+    }
+
+    public static long writeSize(long record, int size)
+    {
+        record &= 0xffffffff00000000L; // unset all lower bits
+        record |= (long) size;
+        return record;
+    }
+
+    public static long composeOffsetAndSize(int offset, int size)
+    {
+        return writeSize(writeOffset(0, offset), size);
+    }
+
 }

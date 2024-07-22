@@ -70,10 +70,9 @@ final class SegmentWriter<K> implements Closeable
         int position = position();
         try
         {
-            index.update(key, position);
-            metadata.update(hosts);
-
             EntrySerializer.write(key, record, hosts, keySupport, trackedOut, descriptor.userVersion);
+            index.update(key, position, position() - position);
+            metadata.update(hosts);
         }
         catch (IOException e)
         {
