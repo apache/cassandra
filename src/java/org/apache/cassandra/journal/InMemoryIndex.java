@@ -34,9 +34,9 @@ import org.apache.cassandra.io.util.FileOutputStreamPlus;
  */
 final class InMemoryIndex<K> extends Index<K>
 {
-    private static final int[] EMPTY = new int[0];
+    private static final long[] EMPTY = new long[0];
 
-    private final NavigableMap<K, int[]> index;
+    private final NavigableMap<K, long[]> index;
 
     // CSLM#lastKey() can be costly, so track lastId separately;
     // TODO: this could easily be premature and misguided;
@@ -48,29 +48,31 @@ final class InMemoryIndex<K> extends Index<K>
         return new InMemoryIndex<>(keySupport, new ConcurrentSkipListMap<>(keySupport));
     }
 
-    private InMemoryIndex(KeySupport<K> keySupport, NavigableMap<K, int[]> index)
+    private InMemoryIndex(KeySupport<K> keySupport, NavigableMap<K, long[]> index)
     {
         super(keySupport);
         this.index = index;
         this.lastId = new AtomicReference<>();
     }
 
-    public void update(K id, int offset)
+    public void update(K id, int offset, int size)
     {
-        index.merge(id, new int[] { offset }, (current, value) ->
-        {
-            int idx = Arrays.binarySearch(current, offset);
-            if (idx >= 0) // repeat update() call; shouldn't occur, but we might as well allow this NOOP
-                return current;
+        long currentOffsetAndSize = composeOffsetAndSize(offset, size);
+        index.merge(id, new long[] { currentOffsetAndSize },
+                    (current, value) ->
+                    {
+                        int idx = Arrays.binarySearch(current, currentOffsetAndSize);
+                        if (idx >= 0) // repeat update() call; shouldn't occur, but we might as well allow this NOOP
+                            return current;
 
-            /* Merge the new offset with existing values */
-            int pos = -idx - 1;
-            int[] merged = new int[current.length + 1];
-            System.arraycopy(current, 0, merged, 0, pos);
-            merged[pos] = offset;
-            System.arraycopy(current, pos, merged, pos + 1, current.length - pos);
-            return merged;
-        });
+                        /* Merge the new offset with existing values */
+                        int pos = -idx - 1;
+                        long[] merged = new long[current.length + 1];
+                        System.arraycopy(current, 0, merged, 0, pos);
+                        merged[pos] = currentOffsetAndSize;
+                        System.arraycopy(current, pos, merged, pos + 1, current.length - pos);
+                        return merged;
+                    });
 
         lastId.accumulateAndGet(id, (current, update) -> (null == current || keySupport.compare(current, update) < 0) ? update : current);
     }
@@ -90,20 +92,20 @@ final class InMemoryIndex<K> extends Index<K>
     }
 
     @Override
-    public int[] lookUp(K id)
+    public long[] lookUp(K id)
     {
         return mayContainId(id) ? index.getOrDefault(id, EMPTY) : EMPTY;
     }
 
     @Override
-    public int lookUpFirst(K id)
+    public long lookUpFirst(K id)
     {
-        int[] offests = lookUp(id);
-        return offests.length == 0 ? -1 : offests[0];
+        long[] offsets = lookUp(id);
+        return offsets.length == 0 ? -1 : offsets[0];
     }
 
     @Override
-    int[] lookUpAll(K id)
+    long[] lookUpAll(K id)
     {
         return lookUp(id);
     }
@@ -128,10 +130,18 @@ final class InMemoryIndex<K> extends Index<K>
     static <K> InMemoryIndex<K> rebuild(Descriptor descriptor, KeySupport<K> keySupport, int fsyncedLimit)
     {
         InMemoryIndex<K> index = new InMemoryIndex<>(keySupport, new TreeMap<>(keySupport));
+
         try (StaticSegment.SequentialReader<K> reader = StaticSegment.reader(descriptor, keySupport, fsyncedLimit))
         {
+            int last = -1;
             while (reader.advance())
-                index.update(reader.id(), reader.offset());
+            {
+                int current = reader.offset();
+                if (last >= 0)
+                    index.update(reader.id(), last, current);
+                last = current;
+            }
+
         }
         return index;
     }
