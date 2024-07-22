@@ -44,39 +44,42 @@ public class GcStats extends NodeToolCmd
         double mean = stats[2] / stats[5];
         double stdev = Math.sqrt((stats[3] / stats[5]) - (mean * mean));
 
-        OperatingSystemMXBean osBean = (OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean();
-
-        String freeMemoryBytes = FBUtilities.prettyPrintMemory(osBean.getFreeMemorySize(), " ");
-        String totalMemoryBytes = FBUtilities.prettyPrintMemory(osBean.getTotalMemorySize(), " ");
-        String totalswapMemoryBytes = FBUtilities.prettyPrintMemory(osBean.getTotalSwapSpaceSize(), " ");
-
-        String OSInUseMemoryBytes = FBUtilities.prettyPrintMemory(osBean.getTotalMemorySize() - osBean.getFreeMemorySize(), " ");
-        String SWAPInUseMemoryBytes = FBUtilities.prettyPrintMemory(osBean.getTotalSwapSpaceSize() - osBean.getFreeSwapSpaceSize(), " ");
-
         probe.output().out.println("GC Threads: " + probe.getNumberOfGCThreads());
         probe.output().out.println("Duration: " + probe.getYoungGenDuration() + " ms");
         probe.output().out.println("MemLock: " + NativeLibrary.jnaMemoryLockable() + "\n");
         probe.output().out.println("G1HeapRegionSize: " + FBUtilities.prettyPrintMemory(getRegionSize(probe), " ") + "\n");
 
-        long osMemoryInUse = osBean.getTotalMemorySize() - osBean.getFreeMemorySize();
-        double ospercent = ((double)osMemoryInUse/osBean.getTotalMemorySize()) * 100;
-        probe.output().out.println("OS Free Memory Bytes: " + freeMemoryBytes);
-        probe.output().out.println("OS Total Memory Bytes: " + totalMemoryBytes);
-        probe.output().out.println("OS In Use: " +  OSInUseMemoryBytes + " / " + totalMemoryBytes + " (" + String.format("%.1f", ospercent) + "%)\n");
+        try {
 
-        long swapInUse;
-        double swapPercent;
+            MBeanServerConnection mbeanServerConn = probe.getMbeanServerConn();
 
-        if(osBean.getTotalSwapSpaceSize() == 0){
-            swapInUse = 0;
-            swapPercent = 0;
+            Set<ObjectName> osMBeans = mbeanServerConn.queryNames(new ObjectName("java.lang:type=OperatingSystem"), null);
+            if (!osMBeans.isEmpty()) {
+                ObjectName osMBean = osMBeans.iterator().next();
+
+            long freePhysicalMemorySize = (long) mbeanServerConn.getAttribute(osMBean, "FreePhysicalMemorySize");
+            long totalPhysicalMemorySize = (long) mbeanServerConn.getAttribute(osMBean, "TotalPhysicalMemorySize");
+
+            long freeSwapSpaceSize = (long) mbeanServerConn.getAttribute(osMBean, "FreeSwapSpaceSize");
+            long totalSwapSpaceSize = (long) mbeanServerConn.getAttribute(osMBean, "TotalSwapSpaceSize");
+
+            long osMemoryInUse = totalPhysicalMemorySize - freePhysicalMemorySize;
+            double ospercent = ((double) osMemoryInUse / totalPhysicalMemorySize) * 100;
+
+            long swapInUse = totalSwapSpaceSize - freeSwapSpaceSize;
+            double swapPercent = ((double) swapInUse / totalSwapSpaceSize) * 100;
+
+            probe.output().out.println("OS Free Memory Bytes: " + FBUtilities.prettyPrintMemory(freePhysicalMemorySize, " "));
+            probe.output().out.println("OS In Use: " + FBUtilities.prettyPrintMemory(osMemoryInUse, " ") + " / " + FBUtilities.prettyPrintMemory(totalPhysicalMemorySize, " ") + " (" + String.format("%.1f", ospercent) + "%)\n");
+
+            probe.output().out.println("OS Swap In Use: " + FBUtilities.prettyPrintMemory(swapInUse, " ") + " / " + FBUtilities.prettyPrintMemory(totalSwapSpaceSize, " ") + " (" + String.format("%.1f", swapPercent) + "%)\n");
+            } else {
+                probe.output().out.println("Operating System MBean not found.");
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
         }
-        else{
-            swapInUse = osBean.getTotalSwapSpaceSize() - osBean.getFreeSwapSpaceSize();
-            swapPercent = ((double)swapInUse/osBean.getTotalSwapSpaceSize()) * 100;
-        }
 
-        probe.output().out.println("Swap in Use: " + SWAPInUseMemoryBytes + " / " + totalswapMemoryBytes + " (" + String.format("%.1f", swapPercent) + "%)\n");
         probe.output().out.printf("%20s%20s%20s%20s%20s%20s%25s%n", "Interval (ms)", "Max GC Elapsed (ms)", "Total GC Elapsed (ms)", "Stdev GC Elapsed (ms)", "GC Reclaimed (MB)", "Collections", "Direct Memory Bytes");
         probe.output().out.printf("%20.0f%20.0f%20.0f%20.0f%20.0f%20.0f%25d%n", stats[0], stats[1], stats[2], stdev, stats[4], stats[5], -1);
         MemoryUsage heapMemoryUsage = probe.getHeapMemoryUsage();
@@ -101,6 +104,7 @@ public class GcStats extends NodeToolCmd
         } catch (Exception e) {
             e.printStackTrace();
         }
+
     }
 
     private static long getRegionSize(NodeProbe probe) {
