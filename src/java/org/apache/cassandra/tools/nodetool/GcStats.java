@@ -24,6 +24,13 @@ import org.apache.cassandra.utils.NativeLibrary;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryPoolMXBean;
 import java.lang.management.MemoryUsage;
+import java.util.Set;
+
+import javax.management.MBeanServerConnection;
+import javax.management.ObjectName;
+import javax.management.openmbean.CompositeData;
+import javax.management.openmbean.CompositeDataSupport;
+
 import com.sun.management.OperatingSystemMXBean;
 import org.apache.commons.lang3.StringUtils;
 
@@ -51,6 +58,7 @@ public class GcStats extends NodeToolCmd
         probe.output().out.println("GC Threads: " + probe.getNumberOfGCThreads());
         probe.output().out.println("Duration: " + probe.getYoungGenDuration() + " ms");
         probe.output().out.println("MemLock: " + NativeLibrary.jnaMemoryLockable() + "\n");
+        probe.output().out.println("G1HeapRegionSize: " + FBUtilities.prettyPrintMemory(getRegionSize(probe), " ") + "\n");
 
         long osMemoryInUse = osBean.getTotalMemorySize() - osBean.getFreeMemorySize();
         double ospercent = ((double)osMemoryInUse/osBean.getTotalMemorySize()) * 100;
@@ -78,15 +86,51 @@ public class GcStats extends NodeToolCmd
         probe.output().out.print("\nHeap memory used: " + FBUtilities.prettyPrintMemory(heapMemoryUsage.getUsed(), " "));
         probe.output().out.println(" (" + String.format("%.1f", ((double)heapMemoryUsage.getUsed()/(double)heapMemoryUsage.getCommitted())*100) + "%)");
 
-        for (MemoryPoolMXBean memoryPoolMXBean : ManagementFactory.getMemoryPoolMXBeans()) {
-            String name = memoryPoolMXBean.getName();
-            MemoryUsage usage = memoryPoolMXBean.getUsage();
+        try {
+            MBeanServerConnection mbeanServer = probe.getMbeanServerConn();
+            Set<ObjectName> mbeans = mbeanServer.queryNames(new ObjectName("java.lang:type=MemoryPool,*"), null);
 
-            if(StringUtils.containsAny(name,"Eden", "Old","Survivor")){
-                probe.output().out.print("  " + name + " memory used: " + FBUtilities.prettyPrintMemory(usage.getUsed(), " "));
-                probe.output().out.println(" (" + String.format("%.1f", ((double)usage.getUsed()/(double)usage.getCommitted())*100) + "%)");
+            for (ObjectName mbean : mbeans) {
+                String name = mbean.getKeyProperty("name");
+
+                if (name.contains("Eden") || name.contains("Old") || name.contains("Survivor")) {
+                    MemoryUsage usage = MemoryUsage.from((CompositeData) mbeanServer.getAttribute(mbean, "Usage"));
+
+                    long used = usage.getUsed();
+                    long committed = usage.getCommitted();
+
+                    probe.output().out.print("  " + name + " memory used: " + FBUtilities.prettyPrintMemory(used, " "));
+                    probe.output().out.println(" (" + String.format("%.1f", ((double) used / (double) committed) * 100) + "%)");
+                }
             }
+
+            probe.close();
+        } catch (Exception e) {
+            e.printStackTrace();
         }
+    }
+
+    private static long getRegionSize(NodeProbe probe) {
+        try {
+        MBeanServerConnection mbeanServerConn = probe.getMbeanServerConn();
+        ObjectName hotSpotDiagnostic = new ObjectName("com.sun.management:type=HotSpotDiagnostic");
+
+        // Get the CompositeDataSupport object for the G1HeapRegionSize VM option
+        CompositeDataSupport g1HeapRegionSizeData = (CompositeDataSupport) mbeanServerConn.invoke(
+            hotSpotDiagnostic, 
+            "getVMOption", 
+            new Object[]{"G1HeapRegionSize"}, 
+            new String[]{"java.lang.String"}
+        );
+
+        // Extract the "value" field from the CompositeDataSupport object
+        String g1HeapRegionSizeValue = (String) g1HeapRegionSizeData.get("value");
+
+        // Parse and return the heap region size
+        return Long.parseLong(g1HeapRegionSizeValue);
+    } catch (Exception e) {
+        throw new RuntimeException("Failed to get G1 heap region size", e);
+    }
     }
 }
 
