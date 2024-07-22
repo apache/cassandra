@@ -38,6 +38,8 @@ import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 public class AuditLogEntry
 {
+    static final String DEFAULT_KEY_VALUE_SEPARATOR = ":";
+    static final String DEFAULT_FIELD_SEPARATOR = "|";
     private final InetAddressAndPort host = FBUtilities.getBroadcastAddressAndPort();
     private final InetAddressAndPort source;
     private final String user;
@@ -69,42 +71,49 @@ public class AuditLogEntry
     @VisibleForTesting
     public String getLogString()
     {
-        StringBuilder builder = new StringBuilder(100);
-        builder.append("user:").append(user)
-               .append("|host:").append(host);
+        return getLogString(DEFAULT_KEY_VALUE_SEPARATOR, DEFAULT_FIELD_SEPARATOR);
+    }
 
+    String getLogString(String keyValueSeparator, String fieldSeparator)
+    {
+        StringBuilder builder = new StringBuilder(100);
+        builder.append("user").append(keyValueSeparator).append(user)
+               .append(fieldSeparator).append("host").append(keyValueSeparator).append(host);
+
+        // Source is only expected to be null during testing
+        // in MacOS when running in-jvm dtests
         if (source != null)
         {
-            builder.append("|source:").append(source.getAddress());
+            builder.append(fieldSeparator).append("source").append(keyValueSeparator).append(source.getAddress());
             if (source.getPort() > 0)
             {
-                builder.append("|port:").append(source.getPort());
+                builder.append(fieldSeparator).append("port").append(keyValueSeparator).append(source.getPort());
             }
         }
 
-        builder.append("|timestamp:").append(timestamp)
-               .append("|type:").append(type)
-               .append("|category:").append(type.getCategory());
+        builder.append(fieldSeparator).append("timestamp").append(keyValueSeparator).append(timestamp)
+               .append(fieldSeparator).append("type").append(keyValueSeparator).append(type)
+               .append(fieldSeparator).append("category").append(keyValueSeparator).append(type.getCategory());
 
         if (batch != null)
         {
-            builder.append("|batch:").append(batch);
+            builder.append(fieldSeparator).append("batch").append(keyValueSeparator).append(batch);
         }
         if (StringUtils.isNotBlank(keyspace))
         {
-            builder.append("|ks:").append(keyspace);
+            builder.append(fieldSeparator).append("ks").append(keyValueSeparator).append(keyspace);
         }
         if (StringUtils.isNotBlank(scope))
         {
-            builder.append("|scope:").append(scope);
+            builder.append(fieldSeparator).append("scope").append(keyValueSeparator).append(scope);
         }
         if (StringUtils.isNotBlank(operation))
         {
-            builder.append("|operation:").append(operation);
+            builder.append(fieldSeparator).append("operation").append(keyValueSeparator).append(operation);
         }
         if (metadata != null && !metadata.isEmpty())
         {
-            metadata.forEach((key, value) -> builder.append('|').append(key).append(':').append(value));
+            metadata.forEach((key, value) -> builder.append(fieldSeparator).append(key).append(keyValueSeparator).append(value));
         }
         return builder.toString();
     }
@@ -203,9 +212,9 @@ public class AuditLogEntry
 
             if (clientState != null)
             {
-                if (clientState.getRemoteAddress() != null)
+                InetSocketAddress addr = clientState.getRemoteAddress();
+                if (addr != null)
                 {
-                    InetSocketAddress addr = clientState.getRemoteAddress();
                     source = InetAddressAndPort.getByAddressOverrideDefaults(addr.getAddress(), addr.getPort());
                 }
 

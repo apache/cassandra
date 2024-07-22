@@ -85,7 +85,7 @@ public class MutualTlsAuthenticator implements IAuthenticator
     private final DurationSpec.IntMinutesBound certificateValidityWarnThreshold;
 
     // key for the 'identity' value in AuthenticatedUser metadata map.
-    static final String METADATA_IDENTITY_KEY = "identity";
+    public static final String METADATA_IDENTITY_KEY = "identity";
 
     public MutualTlsAuthenticator(Map<String, String> parameters)
     {

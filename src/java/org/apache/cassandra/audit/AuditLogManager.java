@@ -176,6 +176,7 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
         IAuditLogger oldLogger = auditLogger;
         auditLogger = new NoOpAuditLogger(Collections.emptyMap());
         oldLogger.stop();
+        logger.info("Audit logging is disabled.");
     }
 
     /**
@@ -214,6 +215,7 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
         // ensure oldLogger's stop() is called after we swap it with new logger,
         // otherwise, we might be calling log() on the stopped logger.
         oldLogger.stop();
+        logger.info("Audit logging is enabled.");
     }
 
     private void updateAuditLogOptions(final AuditLogOptions options, final AuditLogFilter filter)
