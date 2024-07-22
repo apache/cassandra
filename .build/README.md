@@ -65,7 +65,7 @@ Build with a specific jdk:
     .build/docker/build-redhat.sh rpm 11
 
 
-Build with centos7 and a specific jdk:
+Build with legacy noboolean and a specific jdk:
 
     .build/docker/build-redhat.sh noboolean 11
 
