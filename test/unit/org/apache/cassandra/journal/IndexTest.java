@@ -19,21 +19,28 @@ package org.apache.cassandra.journal;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.Maps;
+import org.junit.Assert;
 import org.junit.Test;
 
 import org.agrona.collections.IntHashSet;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.Generators;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.TimeUUID;
 import org.quicktheories.core.Gen;
 import org.quicktheories.impl.Constraint;
 
+import static org.apache.cassandra.journal.Index.composeOffsetAndSize;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertArrayEquals;
@@ -44,7 +51,7 @@ import static org.quicktheories.QuickTheory.qt;
 
 public class IndexTest
 {
-    private static final int[] EMPTY = new int[0];
+    private static final long[] EMPTY = new long[0];
 
     @Test
     public void testInMemoryIndexBasics()
@@ -70,17 +77,18 @@ public class IndexTest
         int val32 = 3200;
         int val33 = 3300;
 
-        index.update(key1, val11);
-        index.update(key2, val21);
-        index.update(key2, val22);
-        index.update(key3, val31);
-        index.update(key3, val32);
-        index.update(key3, val33);
+        index.update(key1, val11, 1);
+        index.update(key2, val21, 2);
+        index.update(key2, val22, 3);
+        index.update(key3, val31, 4);
+        index.update(key3, val32, 5);
+        index.update(key3, val33, 6);
 
         assertArrayEquals(EMPTY, index.lookUp(key0));
-        assertArrayEquals(new int[] { val11 }, index.lookUp(key1));
-        assertArrayEquals(new int[] { val21, val22 }, index.lookUp(key2));
-        assertArrayEquals(new int[] { val31, val32, val33 }, index.lookUp(key3));
+
+        assertArrayEquals(new long[] { composeOffsetAndSize(val11, 1) }, index.lookUp(key1));
+        assertArrayEquals(new long[] { composeOffsetAndSize(val21, 2), composeOffsetAndSize(val22, 3) }, index.lookUp(key2));
+        assertArrayEquals(new long[] { composeOffsetAndSize(val31, 4), composeOffsetAndSize(val32, 5), composeOffsetAndSize(val33, 6) }, index.lookUp(key3));
         assertArrayEquals(EMPTY, index.lookUp(key4));
 
         assertEquals(key1, index.firstId());
@@ -111,12 +119,12 @@ public class IndexTest
         int val32 = 3200;
         int val33 = 3300;
 
-        inMemory.update(key1, val11);
-        inMemory.update(key2, val21);
-        inMemory.update(key2, val22);
-        inMemory.update(key3, val31);
-        inMemory.update(key3, val32);
-        inMemory.update(key3, val33);
+        inMemory.update(key1, val11, 1);
+        inMemory.update(key2, val21, 2);
+        inMemory.update(key2, val22, 3);
+        inMemory.update(key3, val31, 4);
+        inMemory.update(key3, val32, 5);
+        inMemory.update(key3, val33, 6);
 
         File directory = new File(Files.createTempDirectory(null));
         directory.deleteOnExit();
@@ -126,9 +134,9 @@ public class IndexTest
         try (OnDiskIndex<TimeUUID> onDisk = OnDiskIndex.open(descriptor, TimeUUIDKeySupport.INSTANCE))
         {
             assertArrayEquals(EMPTY, onDisk.lookUp(key0));
-            assertArrayEquals(new int[] { val11 }, onDisk.lookUp(key1));
-            assertArrayEquals(new int[] { val21, val22 }, onDisk.lookUp(key2));
-            assertArrayEquals(new int[] { val31, val32, val33 }, onDisk.lookUp(key3));
+            assertArrayEquals(new long[] { composeOffsetAndSize(val11, 1) }, onDisk.lookUp(key1));
+            assertArrayEquals(new long[] { composeOffsetAndSize(val21, 2), composeOffsetAndSize(val22, 3) }, onDisk.lookUp(key2));
+            assertArrayEquals(new long[] { composeOffsetAndSize(val31, 4), composeOffsetAndSize(val32, 5), composeOffsetAndSize(val33, 6) }, onDisk.lookUp(key3));
             assertArrayEquals(EMPTY, onDisk.lookUp(key4));
 
             assertEquals(key1, onDisk.firstId());
@@ -149,34 +157,34 @@ public class IndexTest
         Constraint valueSizeConstraint = Constraint.between(0, 10);
         Constraint positionConstraint = Constraint.between(0, Integer.MAX_VALUE);
         Gen<TimeUUID> keyGen = Generators.timeUUID();
-        Gen<int[]> valueGen = rs -> {
-            int[] array = new int[(int) rs.next(valueSizeConstraint)];
+        Gen<long[]> valueGen = rs -> {
+            long[] array = new long[(int) rs.next(valueSizeConstraint)];
             IntHashSet uniq = new IntHashSet();
             for (int i = 0; i < array.length; i++)
             {
-                int value = (int) rs.next(positionConstraint);
-                while (!uniq.add(value))
-                    value = (int) rs.next(positionConstraint);
-                array[i] = value;
+                int offset = (int) rs.next(positionConstraint);
+                while (!uniq.add(offset))
+                    offset = (int) rs.next(positionConstraint);
+                array[i] = Index.composeOffsetAndSize(offset, (int) rs.next(positionConstraint));
             }
             return array;
         };
-        Gen<Map<TimeUUID, int[]>> gen = rs -> {
+        Gen<Map<TimeUUID, long[]>> gen = rs -> {
             int size = (int) rs.next(sizeConstraint);
-            Map<TimeUUID, int[]> map = Maps.newHashMapWithExpectedSize(size);
+            Map<TimeUUID, long[]> map = Maps.newHashMapWithExpectedSize(size);
             for (int i = 0; i < size; i++)
             {
                 TimeUUID key = keyGen.generate(rs);
                 while (map.containsKey(key))
                     key = keyGen.generate(rs);
-                int[] value = valueGen.generate(rs);
+                long[] value = valueGen.generate(rs);
                 map.put(key, value);
             }
             return map;
         };
         gen = gen.describedAs(map -> {
             StringBuilder sb = new StringBuilder();
-            for (Map.Entry<TimeUUID, int[]> entry : map.entrySet())
+            for (Map.Entry<TimeUUID, long[]> entry : map.entrySet())
                 sb.append('\n').append(entry.getKey()).append('\t').append(Arrays.toString(entry.getValue()));
             return sb.toString();
         });
@@ -185,19 +193,19 @@ public class IndexTest
         qt().forAll(gen).checkAssert(map -> test(directory, map));
     }
 
-    private static void test(File directory, Map<TimeUUID, int[]> map)
+    private static void test(File directory, Map<TimeUUID, long[]> map)
     {
         InMemoryIndex<TimeUUID> inMemory = InMemoryIndex.create(TimeUUIDKeySupport.INSTANCE);
-        for (Map.Entry<TimeUUID, int[]> e : map.entrySet())
+        for (Map.Entry<TimeUUID, long[]> e : map.entrySet())
         {
             TimeUUID key = e.getKey();
             assertThat(inMemory.lookUp(key)).isEmpty();
 
-            int[] value = e.getValue();
+            long[] value = e.getValue();
             if (value.length == 0)
                 continue;
-            for (int i : value)
-                inMemory.update(key, i);
+            for (long i : value)
+                inMemory.update(key, Index.readOffset(i), Index.readSize(i));
             Arrays.sort(value);
         }
         assertIndex(map, inMemory);
@@ -208,10 +216,29 @@ public class IndexTest
         try (OnDiskIndex<TimeUUID> onDisk = OnDiskIndex.open(descriptor, TimeUUIDKeySupport.INSTANCE))
         {
             assertIndex(map, onDisk);
+
+            List<Pair<TimeUUID, Long>> sortedEntries = new ArrayList<>();
+            for (Map.Entry<TimeUUID, long[]> entry : new TreeMap<>(map).entrySet())
+            {
+                for (long l : entry.getValue())
+                    sortedEntries.add(Pair.create(entry.getKey(), l));
+            }
+
+            Index.IndexIterator<TimeUUID> iter = onDisk.iterator();
+            Iterator<Pair<TimeUUID, Long>> expectedIter = sortedEntries.iterator();
+            while (iter.hasNext())
+            {
+                iter.next();
+                Pair<TimeUUID, Long> expected = expectedIter.next();
+                Assert.assertEquals(iter.currentKey(), expected.left);
+                Assert.assertEquals(iter.currentSize(), Index.readSize(expected.right));
+                Assert.assertEquals(iter.currentOffset(), Index.readOffset(expected.right));
+            }
         }
     }
 
-    private static void assertIndex(Map<TimeUUID, int[]> expected, Index<TimeUUID> actual)
+
+    private static void assertIndex(Map<TimeUUID, long[]> expected, Index<TimeUUID> actual)
     {
         List<TimeUUID> keys = expected.entrySet()
                                       .stream()
@@ -231,11 +258,11 @@ public class IndexTest
             assertThat(actual.lastId()).describedAs("Index %s had wrong lastId", actual).isEqualTo(keys.get(keys.size() - 1));
         }
 
-        for (Map.Entry<TimeUUID, int[]> e : expected.entrySet())
+        for (Map.Entry<TimeUUID, long[]> e : expected.entrySet())
         {
             TimeUUID key = e.getKey();
-            int[] value = e.getValue();
-            int[] read = actual.lookUp(key);
+            long[] value = e.getValue();
+            long[] read = actual.lookUp(key);
 
             if (value.length == 0)
             {
@@ -246,6 +273,23 @@ public class IndexTest
                 assertThat(read).describedAs("Index %s returned wrong values for %s", actual, key).isEqualTo(value);
                 assertThat(actual.mayContainId(key)).describedAs("Index %s expected %s to exist", key, actual).isTrue();
             }
+        }
+    }
+
+    @Test
+    public void testHelperMethods()
+    {
+        Random r = new Random();
+        for (int i = 0; i < 1000000; i++)
+        {
+            long record = 0;
+            int size = Math.abs(r.nextInt());
+            record = Index.writeSize(record, size);
+            int offset = Math.abs(r.nextInt());
+            record = Index.writeOffset(record, offset);
+            assertEquals(size, Index.readSize(record));
+            assertEquals(offset, Index.readOffset(record));
+            assertEquals(record, composeOffsetAndSize(offset, size));
         }
     }
 }

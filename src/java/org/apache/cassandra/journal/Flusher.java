@@ -100,11 +100,15 @@ final class Flusher<K, V>
         flushExecutor = executorFactory().infiniteLoop(flushExecutorName, new FlushRunnable(preciseTime), SAFE, NON_DAEMON, SYNCHRONIZED);
     }
 
-    void shutdown()
+    void shutdown() throws InterruptedException
     {
         flushExecutor.shutdown();
+        flushExecutor.awaitTermination(1, MINUTES);
         if (fsyncExecutor != null)
-            fsyncExecutor.shutdown();
+        {
+            fsyncExecutor.shutdownNow(); // `now` to interrupt potentially parked runnable
+            fsyncExecutor.awaitTermination(1, MINUTES);
+        }
     }
 
     @Simulate(with={MONITORS,GLOBAL_CLOCK,LOCK_SUPPORT})

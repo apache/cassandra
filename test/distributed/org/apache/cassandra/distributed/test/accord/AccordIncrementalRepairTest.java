@@ -248,6 +248,9 @@ public class AccordIncrementalRepairTest extends AccordTestBase
         return txnId;
     }
 
+    // TODO (required): After conversation with Ariel: it's a known issue that I am not sure we need to fix now.
+    //  The problem is that we don't flush after Accord repair, but before data repair when running incremental
+    //  repair so it doesn't see the repaired sstables it is checking for.
     @Test
     public void txnRepairTest() throws Throwable
     {
