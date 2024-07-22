@@ -35,11 +35,11 @@ import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableMultimap;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Multimaps;
+import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.Gossiper;
@@ -97,6 +97,9 @@ public class RangeStreamer
     private final StreamStateStore stateStore;
     private final MovementMap movements;
     private final MovementMap strictMovements;
+
+    // the fetch map is going to be identical for all keyspaces with the same RF, only calculate each once.
+    private final Map<ReplicationParams, Multimap<InetAddressAndPort, FetchReplica>> fetchMapPerReplicationParams = new HashMap<>();
 
     public static class FetchReplica
     {
@@ -352,6 +355,7 @@ public class RangeStreamer
         }
         return failureMessage.toString();
     }
+
     /**
      * Add ranges to be streamed for given keyspace.
      *
@@ -359,26 +363,34 @@ public class RangeStreamer
      */
     public void addKeyspaceToFetch(String keyspaceName)
     {
-        Keyspace keyspace = Keyspace.open(keyspaceName);
-        AbstractReplicationStrategy strat = keyspace.getReplicationStrategy();
+        KeyspaceMetadata ksm = ClusterMetadata.current().schema.getKeyspaceMetadata(keyspaceName);
+        AbstractReplicationStrategy strat = ksm.replicationStrategy;
         if(strat instanceof LocalStrategy)
         {
             logger.info("Not adding ranges for Local Strategy keyspace={}", keyspaceName);
             return;
         }
 
-        boolean useStrictSource = useStrictSourcesForRanges(keyspace.getMetadata().params.replication, strat);
+        if (fetchMapPerReplicationParams.containsKey(ksm.params.replication))
+        {
+            if (toFetch.put(keyspaceName, fetchMapPerReplicationParams.get(ksm.params.replication)) != null)
+                throw new IllegalArgumentException("Keyspace is already added to fetch map");
+            logger.info("Reusing pre-calculated fetch map for keyspace {} with rf={}", keyspaceName, ksm.params.replication);
+            return;
+        }
+
+        boolean useStrictSource = useStrictSourcesForRanges(ksm.params.replication, strat);
         EndpointsByReplica fetchMap = calculateRangesToFetchWithPreferredEndpoints(snitch::sortedByProximity,
-                                                                                   keyspace.getReplicationStrategy(),
+                                                                                   ksm.replicationStrategy,
                                                                                    useStrictConsistency,
                                                                                    metadata,
-                                                                                   keyspace.getName(),
+                                                                                   keyspaceName,
                                                                                    sourceFilters,
                                                                                    movements,
                                                                                    strictMovements);
 
         for (Map.Entry<Replica, Replica> entry : fetchMap.flattenEntries())
-            logger.info("{}: range {} exists on {} for keyspace {}", description, entry.getKey(), entry.getValue(), keyspaceName);
+            logger.info("{}: range {} exists on {} for rf {}", description, entry.getKey(), entry.getValue(), ksm.params.replication);
 
         Multimap<InetAddressAndPort, FetchReplica> workMap;
         //Only use the optimized strategy if we don't care about strict sources, have a replication factor > 1, and no
@@ -389,7 +401,7 @@ public class RangeStreamer
         }
         else
         {
-            workMap = getOptimizedWorkMap(fetchMap, sourceFilters, keyspaceName);
+            workMap = fetchMapPerReplicationParams.computeIfAbsent(ksm.params.replication, (repl) -> getOptimizedWorkMap(fetchMap, sourceFilters, keyspaceName));
         }
 
         if (toFetch.put(keyspaceName, workMap) != null)
@@ -454,8 +466,8 @@ public class RangeStreamer
     /**
      *
      * Get a map of all ranges and the source that will be cleaned up once this bootstrapped node is added for the given ranges.
-     * For each range, the list should only contain a single source. This allows us to consistently migrate data without violating
-     * consistency.
+     * For each range, the list should only contain a single source if useStrictConsistency is true, otherwise it should
+     * contain all sources for each range.
      **/
      public static EndpointsByReplica
      calculateRangesToFetchWithPreferredEndpoints(BiFunction<InetAddressAndPort, EndpointsForRange, EndpointsForRange> snitchGetSortedListByProximity,
@@ -526,9 +538,6 @@ public class RangeStreamer
                  //a random full + transient replica since it's also likely to lose data
                  //Also apply testSourceFilters that were given to us so we can safely select a single source
                  sources = sorted.apply(movements.get(params).get(toFetch).filter(and(isSufficient, testSourceFilters)));
-                 //Limit it to just the first possible source, we don't need more than one and downstream
-                 //will fetch from every source we supply
-                 sources = sources.size() > 0 ? sources.subList(0, 1) : sources;
              }
 
              // storing range and preferred endpoint set
@@ -545,7 +554,7 @@ public class RangeStreamer
               * and the other is a transient replica. So we must need fetch from two places in that case for the full range we gain.
               * For a transient range we only need to fetch from one.
               */
-             if (useStrictConsistency && addressList.size() > 1 && (addressList.filter(Replica::isFull).size() > 1 || addressList.filter(Replica::isTransient).size() > 1))
+             if (isStrictConsistencyApplicable && addressList.size() > 1 && (addressList.filter(Replica::isFull).size() > 1 || addressList.filter(Replica::isTransient).size() > 1))
                  throw new IllegalStateException(String.format("Multiple strict sources found for %s, sources: %s", toFetch, addressList));
 
              //We must have enough stuff to fetch from
@@ -578,7 +587,7 @@ public class RangeStreamer
      * The preferred endpoint list is the wrong format because it is keyed by Replica (this node) rather than the source
      * endpoint we will fetch from which streaming wants.
      */
-    public static Multimap<InetAddressAndPort, FetchReplica> convertPreferredEndpointsToWorkMap(EndpointsByReplica preferredEndpoints)
+    private static Multimap<InetAddressAndPort, FetchReplica> convertPreferredEndpointsToWorkMap(EndpointsByReplica preferredEndpoints)
     {
         Multimap<InetAddressAndPort, FetchReplica> workMap = HashMultimap.create();
         for (Map.Entry<Replica, EndpointsForRange> e : preferredEndpoints.entrySet())
@@ -588,6 +597,7 @@ public class RangeStreamer
                 assert (e.getKey()).isSelf();
                 assert !source.isSelf();
                 workMap.put(source.endpoint(), new FetchReplica(e.getKey(), source));
+                break;
             }
         }
         logger.debug("Work map {}", workMap);

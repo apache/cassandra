@@ -335,7 +335,7 @@ public class BootstrapAndReplace extends MultiStepOperation<Epoch>
      *
      * keys in the map are the ranges the replacement node needs to stream, values are the potential endpoints.
      */
-    private static MovementMap movementMap(InetAddressAndPort beingReplaced, PlacementDeltas startDelta)
+    public static MovementMap movementMap(InetAddressAndPort beingReplaced, PlacementDeltas startDelta)
     {
         MovementMap.Builder movementMapBuilder = MovementMap.builder();
         DataPlacements placements = ClusterMetadata.current().placements;
