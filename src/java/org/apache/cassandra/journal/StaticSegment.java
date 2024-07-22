@@ -205,9 +205,9 @@ final class StaticSegment<K, V> extends Segment<K, V>
      * Expects the record to have been written at this offset, but potentially not flushed and lost.
      */
     @Override
-    boolean read(int offset, EntrySerializer.EntryHolder<K> into)
+    boolean read(int offset, int size, EntrySerializer.EntryHolder<K> into)
     {
-        ByteBuffer duplicate = buffer.duplicate().position(offset);
+        ByteBuffer duplicate = buffer.duplicate().position(offset).limit(offset + size);
         try (DataInputBuffer in = new DataInputBuffer(duplicate, false))
         {
             return EntrySerializer.tryRead(into, keySupport, duplicate, in, syncedOffsets.syncedOffset(), descriptor.userVersion);

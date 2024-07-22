@@ -28,6 +28,7 @@ import java.util.zip.CRC32;
 
 import javax.annotation.Nullable;
 
+import accord.utils.Invariants;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.File;
@@ -36,6 +37,7 @@ import org.apache.cassandra.utils.Crc;
 
 import static org.apache.cassandra.journal.Journal.validateCRC;
 import static org.apache.cassandra.utils.FBUtilities.updateChecksumInt;
+import static org.apache.cassandra.utils.FBUtilities.updateChecksumLong;
 
 /**
  * An on-disk (memory-mapped) index for a completed flushed segment.
@@ -44,10 +46,10 @@ import static org.apache.cassandra.utils.FBUtilities.updateChecksumInt;
  */
 final class OnDiskIndex<K> extends Index<K>
 {
-    private static final int[] EMPTY = new int[0];
+    private static final long[] EMPTY = new long[0];
 
     private static final int FILE_PREFIX_SIZE = 4 + 4; // count of entries, CRC
-    private static final int VALUE_SIZE = 4;           // int offset
+    private static final int VALUE_SIZE = Long.BYTES;   // int offset + int size
 
     private final int KEY_SIZE;
     private final int ENTRY_SIZE;
@@ -146,7 +148,7 @@ final class OnDiskIndex<K> extends Index<K>
     }
 
     static <K> void write(
-        NavigableMap<K, int[]> entries, KeySupport<K> keySupport, DataOutputPlus out, int userVersion) throws IOException
+        NavigableMap<K, long[]> entries, KeySupport<K> keySupport, DataOutputPlus out, int userVersion) throws IOException
     {
         CRC32 crc = Crc.crc32();
 
@@ -158,16 +160,25 @@ final class OnDiskIndex<K> extends Index<K>
         updateChecksumInt(crc, size);
         out.writeInt((int) crc.getValue());
 
-        for (Map.Entry<K, int[]> entry : entries.entrySet())
+        for (Map.Entry<K, long[]> entry : entries.entrySet())
         {
-            for (int offset : entry.getValue())
+            long prev = -1;
+            for (long offsetAndSize : entry.getValue())
             {
                 K key = entry.getKey();
                 keySupport.serialize(key, out, userVersion);
                 keySupport.updateChecksum(crc, key, userVersion);
 
-                out.writeInt(offset);
-                updateChecksumInt(crc, offset);
+                if (prev != -1)
+                {
+                    long tmp = prev;
+                    Invariants.checkState(readOffset(offsetAndSize) > readOffset(prev),
+                                          () -> String.format("Offsets should be strictly monotonic, but found %d following %d",
+                                                              readOffset(offsetAndSize), readOffset(tmp)));
+                }
+                out.writeLong(offsetAndSize);
+                updateChecksumLong(crc, offsetAndSize);
+                prev = offsetAndSize;
             }
         }
 
@@ -189,7 +200,7 @@ final class OnDiskIndex<K> extends Index<K>
     }
 
     @Override
-    public int[] lookUp(K id)
+    public long[] lookUp(K id)
     {
         if (!mayContainId(id))
             return EMPTY;
@@ -198,7 +209,7 @@ final class OnDiskIndex<K> extends Index<K>
         if (keyIndex < 0)
             return EMPTY;
 
-        int[] offsets = new int[] { offsetAtIndex(keyIndex) };
+        long[] records = new long[] { recordAtIndex(keyIndex) };
 
         /*
          * Duplicate entries are possible within one segment (but should be rare).
@@ -207,27 +218,27 @@ final class OnDiskIndex<K> extends Index<K>
 
         for (int i = keyIndex - 1; i >= 0 && id.equals(keyAtIndex(i)); i--)
         {
-            int length = offsets.length;
-            offsets = Arrays.copyOf(offsets, length + 1);
-            offsets[length] = offsetAtIndex(i);
+            int length = records.length;
+            records = Arrays.copyOf(records, length + 1);
+            records[length] = recordAtIndex(i);
         }
 
         for (int i = keyIndex + 1; i < entryCount && id.equals(keyAtIndex(i)); i++)
         {
-            int length = offsets.length;
-            offsets = Arrays.copyOf(offsets, length + 1);
-            offsets[length] = offsetAtIndex(i);
+            int length = records.length;
+            records = Arrays.copyOf(records, length + 1);
+            records[length] = recordAtIndex(i);
         }
 
-        Arrays.sort(offsets);
-        return offsets;
+        Arrays.sort(records);
+        return records;
     }
 
     @Override
-    public int lookUpFirst(K id)
+    public long lookUpFirst(K id)
     {
         if (!mayContainId(id))
-            return -1;
+            return -1L;
 
         int keyIndex = binarySearch(id);
 
@@ -238,14 +249,14 @@ final class OnDiskIndex<K> extends Index<K>
         for (int i = keyIndex - 1; i >= 0 && id.equals(keyAtIndex(i)); i--)
             keyIndex = i;
 
-        return keyIndex < 0 ? -1 : offsetAtIndex(keyIndex);
+        return keyIndex < 0 ? -1 : recordAtIndex(keyIndex);
     }
 
     @Override
-    public int[] lookUpAll(K id)
+    public long[] lookUpAll(K id)
     {
         if (!mayContainId(id))
-            return new int[0];
+            return new long[0];
 
         int start = binarySearch(id);
         int firstKeyIndex = start;
@@ -254,31 +265,81 @@ final class OnDiskIndex<K> extends Index<K>
             firstKeyIndex = i;
 
         if (firstKeyIndex < 0)
-            return new int[0];
+            return new long[0];
 
         int lastKeyIndex = start;
 
         for (int i = lastKeyIndex + 1; i < entryCount && id.equals(keyAtIndex(i)); i++)
             lastKeyIndex = i;
 
-        int[] all = new int[lastKeyIndex - firstKeyIndex + 1];
+        long[] all = new long[lastKeyIndex - firstKeyIndex + 1];
         int idx = firstKeyIndex;
         for (int i = 0; i < all.length; i++)
         {
-            all[i] = offsetAtIndex(idx);
+            all[i] = recordAtIndex(idx);
             idx++;
         }
         return all;
     }
 
+    public IndexIterator<K> iterator()
+    {
+        return new IndexIteratorImpl();
+    }
+
+    private class IndexIteratorImpl implements IndexIterator<K>
+    {
+        int currentIdx;
+        K currentKey;
+        int currentOffset;
+        int currentSize;
+
+        IndexIteratorImpl()
+        {
+            currentIdx = -1;
+        }
+
+        @Override
+        public boolean hasNext()
+        {
+            return currentIdx < (entryCount - 1);
+        }
+
+        @Override
+        public K currentKey()
+        {
+            return currentKey;
+        }
+
+        @Override
+        public int currentOffset()
+        {
+            return currentOffset;
+        }
+
+        @Override
+        public int currentSize()
+        {
+            return currentSize;
+        }
+
+        public void next()
+        {
+            currentIdx++;
+            currentKey = keyAtIndex(currentIdx);
+            long record = recordAtIndex(currentIdx);
+            currentOffset = Index.readOffset(record);
+            currentSize = Index.readSize(record);
+        }
+    }
     private K keyAtIndex(int index)
     {
         return keySupport.deserialize(buffer, FILE_PREFIX_SIZE + index * ENTRY_SIZE, descriptor.userVersion);
     }
 
-    private int offsetAtIndex(int index)
+    private long recordAtIndex(int index)
     {
-        return buffer.getInt(FILE_PREFIX_SIZE + index * ENTRY_SIZE + KEY_SIZE);
+        return buffer.getLong(FILE_PREFIX_SIZE + index * ENTRY_SIZE + KEY_SIZE);
     }
 
     /*

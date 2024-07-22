@@ -274,7 +274,7 @@ public class Journal<K, V> implements Shutdownable
      *
      * @return deserialized record if present, null otherwise
      */
-    public V read(long segmentTimestamp, int offset)
+    public V read(long segmentTimestamp, int offset, int size)
     {
         try (ReferencedSegment<K, V> referenced = selectAndReference(segmentTimestamp))
         {
@@ -283,7 +283,7 @@ public class Journal<K, V> implements Shutdownable
                 return null;
 
             EntrySerializer.EntryHolder<K> holder = new EntrySerializer.EntryHolder<>();
-            segment.read(offset, holder);
+            segment.read(offset, size, holder);
 
             try (DataInputBuffer in = new DataInputBuffer(holder.value, false))
             {
@@ -383,11 +383,13 @@ public class Journal<K, V> implements Shutdownable
         {
             for (Segment<K, V> segment : segments.all())
             {
-                int[] offsets = segment.index().lookUp(id);
-                for (int offset : offsets)
+                long[] offsets = segment.index().lookUp(id);
+                for (long offsetAndSize : offsets)
                 {
+                    int offset = Index.readOffset(offsetAndSize);
+                    int size = Index.readSize(offsetAndSize);
                     holder.clear();
-                    if (segment.read(offset, holder))
+                    if (segment.read(offset, size, holder))
                     {
                         try (DataInputBuffer in = new DataInputBuffer(holder.value, false))
                         {

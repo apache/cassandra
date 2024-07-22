@@ -125,9 +125,9 @@ final class ActiveSegment<K, V> extends Segment<K, V>
      * Expects the caller to acquire the ref to the segment and the record to exist.
      */
     @Override
-    boolean read(int offset, EntrySerializer.EntryHolder<K> into)
+    boolean read(int offset, int size, EntrySerializer.EntryHolder<K> into)
     {
-        ByteBuffer duplicate = buffer.duplicate().position(offset).limit(buffer.capacity());
+        ByteBuffer duplicate = buffer.duplicate().position(offset).limit(offset + size);
         try
         {
             EntrySerializer.read(into, keySupport, duplicate, descriptor.userVersion);
@@ -394,7 +394,7 @@ final class ActiveSegment<K, V> extends Segment<K, V>
                 opGroup.close();
                 return null;
             }
-            return new Allocation(opGroup, buffer.duplicate().position(position).limit(position + totalSize));
+            return new Allocation(opGroup, buffer.duplicate().position(position).limit(position + totalSize), totalSize);
         }
         catch (Throwable t)
         {
@@ -431,13 +431,15 @@ final class ActiveSegment<K, V> extends Segment<K, V>
     {
         private final OpOrder.Group appendOp;
         private final ByteBuffer buffer;
-        private final int position;
+        private final int start;
+        private final int length;
 
-        Allocation(OpOrder.Group appendOp, ByteBuffer buffer)
+        Allocation(OpOrder.Group appendOp, ByteBuffer buffer, int length)
         {
             this.appendOp = appendOp;
             this.buffer = buffer;
-            this.position = buffer.position();
+            this.start = buffer.position();
+            this.length = length;
         }
 
         RecordPointer write(K id, ByteBuffer record, Set<Integer> hosts)
@@ -445,9 +447,9 @@ final class ActiveSegment<K, V> extends Segment<K, V>
             try (BufferedDataOutputStreamPlus out = new DataOutputBufferFixed(buffer))
             {
                 EntrySerializer.write(id, record, hosts, keySupport, out, descriptor.userVersion);
-                index.update(id, position);
+                index.update(id, start, length);
                 metadata.update(hosts);
-                return new RecordPointer(descriptor.timestamp, position);
+                return new RecordPointer(descriptor.timestamp, start);
             }
             catch (IOException e)
             {
@@ -465,7 +467,7 @@ final class ActiveSegment<K, V> extends Segment<K, V>
             try (BufferedDataOutputStreamPlus out = new DataOutputBufferFixed(buffer))
             {
                 EntrySerializer.write(id, record, hosts, keySupport, out, descriptor.userVersion);
-                index.update(id, position);
+                index.update(id, start, length);
                 metadata.update(hosts);
             }
             catch (IOException e)
@@ -482,7 +484,7 @@ final class ActiveSegment<K, V> extends Segment<K, V>
         {
             try (Timer.Context ignored = waitingOnFlush.time())
             {
-                waitForFlush(position);
+                waitForFlush(start);
             }
         }
     }
