@@ -26,7 +26,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
@@ -39,7 +38,6 @@ import org.apache.cassandra.utils.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -53,6 +51,7 @@ import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.service.AutoRepairService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.repair.autorepair.AutoRepairUtils.RepairTurn;
+import org.apache.cassandra.utils.concurrent.Future;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.RepairTurn.MY_TURN;
@@ -73,6 +72,9 @@ public class AutoRepair
 
     @VisibleForTesting
     protected final Map<AutoRepairConfig.RepairType, ScheduledExecutorPlus> repairExecutors;
+
+    protected final Map<AutoRepairConfig.RepairType, ScheduledExecutorPlus> repairRunnableExecutors;
+
     @VisibleForTesting
     protected final Map<AutoRepairConfig.RepairType, AutoRepairState> repairStates;
 
@@ -84,10 +86,12 @@ public class AutoRepair
     {
         AutoRepairConfig config = DatabaseDescriptor.getAutoRepairConfig();
         repairExecutors = new EnumMap<>(AutoRepairConfig.RepairType.class);
+        repairRunnableExecutors = new EnumMap<>(AutoRepairConfig.RepairType.class);
         repairStates = new EnumMap<>(AutoRepairConfig.RepairType.class);
         for (AutoRepairConfig.RepairType repairType : AutoRepairConfig.RepairType.values())
         {
             repairExecutors.put(repairType, executorFactory().scheduled(false, "AutoRepair-Repair-" + repairType, Thread.NORM_PRIORITY));
+            repairRunnableExecutors.put(repairType, executorFactory().scheduled(false, "AutoRepair-RepairRunnable-" + repairType, Thread.NORM_PRIORITY));
             repairStates.put(repairType, AutoRepairConfig.RepairType.getAutoRepairState(repairType));
             tokenRangeSplitters.put(repairType, FBUtilities.newAutoRepairTokenRangeSplitter(config.getTokenRangeSplitter(repairType)));
         }
@@ -297,7 +301,7 @@ public class AutoRepair
                                                                                         config.getRepairByKeyspace(repairType) ? tablesToBeRepaired : ImmutableList.of(tableName),
                                                                                         ranges, primaryRangeOnly);
                                     repairState.resetWaitCondition();
-                                    new Thread(NamedThreadFactory.createAnonymousThread(new FutureTask<>(task, null))).start();
+                                    Future<?> f = repairRunnableExecutors.get(repairType).submit(task);
                                     try
                                     {
                                         repairState.waitForRepairToComplete();
@@ -317,10 +321,11 @@ public class AutoRepair
                                     else
                                     {
                                         repairSuccess = false;
+                                        boolean cancellationStatus = f.cancel(true);
                                         //in future we can add retry, etc.
                                         logger.info("Repair failed for range {}-{} for {}.{} total subranges: {}," +
-                                                    "processed subranges: {}", childStartToken, childEndToken,
-                                                    keyspaceName, config.getRepairByKeyspace(repairType) ? tablesToBeRepaired : tableName, totalSubRanges, totalProcessedSubRanges);
+                                                    "processed subranges: {}, cancellationStatus: {}", childStartToken, childEndToken,
+                                                    keyspaceName, config.getRepairByKeyspace(repairType) ? tablesToBeRepaired : tableName, totalSubRanges, totalProcessedSubRanges, cancellationStatus);
                                     }
                                     ranges.clear();
                                 }

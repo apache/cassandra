@@ -72,6 +72,7 @@ import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.RepairTurn.
 import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.RepairTurn.MY_TURN_DUE_TO_PRIORITY;
 import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.RepairTurn.NOT_MY_TURN;
 import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.RepairTurn.MY_TURN_FORCE_REPAIR;
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 /**
  * This class serves as a utility class for AutoRepair. It contains various helper APIs
@@ -335,7 +336,7 @@ public class AutoRepairUtils
         // this function will be called when a node bootstrap finished
         UUID hostId = Gossiper.instance.getHostId(FBUtilities.getBroadcastAddressAndPort());
         // insert the data first
-        insertNewRepairHistory(repairType, System.currentTimeMillis(), System.currentTimeMillis());
+        insertNewRepairHistory(repairType, currentTimeMillis(), currentTimeMillis());
         setForceRepair(repairType, hostId);
     }
 
@@ -474,7 +475,7 @@ public class AutoRepairUtils
                     AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
                     if (nodeHistory.deleteHosts.size() > 0
                         && config.getAutoRepairHistoryClearDeleteHostsBufferInterval().toSeconds() < TimeUnit.MILLISECONDS.toSeconds(
-                    System.currentTimeMillis() - nodeHistory.deleteHostsUpdateTime
+                    currentTimeMillis() - nodeHistory.deleteHostsUpdateTime
                     ))
                     {
                         clearDeleteHosts(repairType, nodeHistory.hostId);
@@ -505,7 +506,7 @@ public class AutoRepairUtils
                 if (!autoRepairHistoryIds.contains(hostId))
                 {
                     logger.info("{} for repair type {} doesn't exist in the auto repair history table, insert a new record.", repairType, hostId);
-                    insertNewRepairHistory(repairType, hostId, System.currentTimeMillis(), System.currentTimeMillis());
+                    insertNewRepairHistory(repairType, hostId, currentTimeMillis(), currentTimeMillis());
                 }
             }
 
@@ -648,7 +649,7 @@ public class AutoRepairUtils
             ByteBufferUtil.bytes(hostId),
             ByteBufferUtil.bytes(startTime),
             ByteBufferUtil.bytes(finishTime),
-            ByteBufferUtil.bytes(System.currentTimeMillis())
+            ByteBufferUtil.bytes(currentTimeMillis())
             ), false, -1, null, cl, ProtocolVersion.CURRENT, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME),
             Dispatcher.RequestTime.forImmediateExecution());
             resultSet = UntypedResultSet.create(resultMessage.result);
@@ -680,7 +681,7 @@ public class AutoRepairUtils
         addHostIDToDeleteHostsStatement.execute(QueryState.forInternalCalls(),
                                                 QueryOptions.forInternalCalls(internalQueryCL,
                                                                               Lists.newArrayList(serializer.serialize(new HashSet<>(Arrays.asList(myID))),
-                                                                                                 ByteBufferUtil.bytes(System.currentTimeMillis()),
+                                                                                                 ByteBufferUtil.bytes(currentTimeMillis()),
                                                                                                  ByteBufferUtil.bytes(repairType.toString()),
                                                                                                  ByteBufferUtil.bytes(hostToBeDeleted)
                                                                               )), Dispatcher.RequestTime.forImmediateExecution());
@@ -776,14 +777,14 @@ public class AutoRepairUtils
     public static boolean tableMaxRepairTimeExceeded(RepairType repairType, long startTime)
     {
         long tableRepairTimeSoFar = TimeUnit.MILLISECONDS.toSeconds
-                                                         (System.currentTimeMillis() - startTime);
+                                                         (currentTimeMillis() - startTime);
         return AutoRepairService.instance.getAutoRepairConfig().getAutoRepairTableMaxRepairTime(repairType).toSeconds() <
                tableRepairTimeSoFar;
     }
 
     public static boolean keyspaceMaxRepairTimeExceeded(RepairType repairType, long startTime, int numOfTablesToBeRepaired)
     {
-        long keyspaceRepairTimeSoFar = TimeUnit.MILLISECONDS.toSeconds((System.currentTimeMillis() - startTime));
+        long keyspaceRepairTimeSoFar = TimeUnit.MILLISECONDS.toSeconds((currentTimeMillis() - startTime));
         return (long) AutoRepairService.instance.getAutoRepairConfig().getAutoRepairTableMaxRepairTime(repairType).toSeconds() *
                numOfTablesToBeRepaired < keyspaceRepairTimeSoFar;
     }
