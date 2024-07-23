@@ -51,6 +51,7 @@ abstract class Index<K> implements Closeable
      * @return the first offset into the segment, or -1 is none were found
      */
     abstract int lookUpFirst(K id);
+    abstract int[] lookUpAll(K id);
 
     /**
      * @return the first (smallest) id in the index

@@ -102,6 +102,12 @@ final class InMemoryIndex<K> extends Index<K>
         return offests.length == 0 ? -1 : offests[0];
     }
 
+    @Override
+    int[] lookUpAll(K id)
+    {
+        return lookUp(id);
+    }
+
     public void persist(Descriptor descriptor)
     {
         File tmpFile = descriptor.tmpFileFor(Component.INDEX);

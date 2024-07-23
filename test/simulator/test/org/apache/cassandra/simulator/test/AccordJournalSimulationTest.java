@@ -35,9 +35,9 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.filesystem.ListenableFileSystem;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.journal.AsyncCallbacks;
 import org.apache.cassandra.journal.Journal;
 import org.apache.cassandra.journal.KeySupport;
+import org.apache.cassandra.journal.RecordPointer;
 import org.apache.cassandra.journal.ValueSerializer;
 
 import org.junit.Assert;
@@ -60,28 +60,27 @@ public class AccordJournalSimulationTest extends SimulationTestBase
     public void simpleRWTest()
     {
         simulate(arr(() -> {
-                    ListenableFileSystem fs = new ListenableFileSystem(Jimfs.newFileSystem());
-                    File.unsafeSetFilesystem(fs);
-                    DatabaseDescriptor.daemonInitialization();
-                    DatabaseDescriptor.setCommitLogCompression(new ParameterizedClass("LZ4Compressor", ImmutableMap.of())); //
-                    DatabaseDescriptor.setCommitLogWriteDiskAccessMode(Config.DiskAccessMode.standard);
-                    DatabaseDescriptor.initializeCommitLogDiskAccessMode();
-                    DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
-                    DatabaseDescriptor.setAccordJournalDirectory("/journal");
-                    new File("/journal").createDirectoriesIfNotExists();
+                     ListenableFileSystem fs = new ListenableFileSystem(Jimfs.newFileSystem());
+                     File.unsafeSetFilesystem(fs);
+                     DatabaseDescriptor.daemonInitialization();
+                     DatabaseDescriptor.setCommitLogCompression(new ParameterizedClass("LZ4Compressor", ImmutableMap.of())); //
+                     DatabaseDescriptor.setCommitLogWriteDiskAccessMode(Config.DiskAccessMode.standard);
+                     DatabaseDescriptor.initializeCommitLogDiskAccessMode();
+                     DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
+                     DatabaseDescriptor.setAccordJournalDirectory("/journal");
+                     new File("/journal").createDirectoriesIfNotExists();
 
-                    DatabaseDescriptor.setDumpHeapOnUncaughtException(false);
+                     DatabaseDescriptor.setDumpHeapOnUncaughtException(false);
 
-                    Keyspace.setInitialized();
+                     Keyspace.setInitialized();
 
-                    State.journal = new Journal<>("AccordJournal",
-                            new File("/journal"),
-                            new AccordSpec.JournalSpec(),
-                            new TestCallbacks(),
-                            new IdentityKeySerializer(),
-                            new IdentityValueSerializer());
-                }),
-                () -> check());
+                     State.journal = new Journal<>("AccordJournal",
+                                                   new File("/journal"),
+                                                   new AccordSpec.JournalSpec(),
+                                                   new IdentityKeySerializer(),
+                                                   new IdentityValueSerializer());
+                 }),
+                 () -> check());
     }
 
     public static void check()
@@ -93,7 +92,10 @@ public class AccordJournalSimulationTest extends SimulationTestBase
             for (int i = 0; i < count; i++)
             {
                 int finalI = i;
-                State.executor.submit(() -> State.journal.asyncWrite("test" + finalI, "test" + finalI, Collections.singleton(1), null));
+                State.executor.submit(() -> {
+                    RecordPointer ptr = State.journal.asyncWrite("test" + finalI, "test" + finalI, Collections.singleton(1));
+                    State.journal.onFlush(ptr, State.latch::decrement);
+                });
             }
 
             State.latch.await();
@@ -120,34 +122,6 @@ public class AccordJournalSimulationTest extends SimulationTestBase
                     throwable.addSuppressed(t);
                 throw throwable;
             }
-        }
-    }
-
-    public static class TestCallbacks implements AsyncCallbacks<String, String>
-    {
-
-        @Override
-        public void onWrite(long segment, int position, int size, String key, String value, Object writeContext)
-        {
-            State.latch.decrement();
-        }
-
-        @Override
-        public void onWriteFailed(String key, String value, Object writeContext, Throwable cause)
-        {
-            State.thrown.add(new IllegalStateException("Write failed for " + key));
-            State.latch.decrement();
-        }
-
-        @Override
-        public void onFlush(long segment, int position)
-        {
-        }
-
-        @Override
-        public void onFlushFailed(Throwable cause)
-        {
-            State.thrown.add(new RuntimeException("Could not flush", cause));
         }
     }
 

@@ -46,6 +46,7 @@ abstract class Segment<K, V> implements Closeable, RefCounted<Segment<K, V>>
     abstract Index<K> index();
 
     abstract boolean isActive();
+    abstract boolean isFlushed(long position);
     boolean isStatic() { return !isActive(); }
 
     abstract ActiveSegment<K, V> asActive();
@@ -65,7 +66,7 @@ abstract class Segment<K, V> implements Closeable, RefCounted<Segment<K, V>>
         if (read(offset, into))
         {
             Invariants.checkState(id.equals(into.key), "Index for %s read incorrect key: expected %s but read %s", descriptor, id, into.key);
-            consumer.accept(id, into.value, into.hosts, descriptor.userVersion);
+            consumer.accept(descriptor.timestamp, offset, id, into.value, into.hosts, descriptor.userVersion);
             return true;
         }
         return false;
@@ -78,6 +79,17 @@ abstract class Segment<K, V> implements Closeable, RefCounted<Segment<K, V>>
             return false;
         Invariants.checkState(id.equals(into.key), "Index for %s read incorrect key: expected %s but read %s", descriptor, id, into.key);
         return true;
+    }
+
+    void readAll(K id, EntrySerializer.EntryHolder<K> into, Runnable onEntry)
+    {
+        int[] all = index().lookUpAll(id);
+
+        for (int i = 0; i < all.length; i++)
+        {
+            Invariants.checkState(read(all[i], into), "Read should always return true");
+            onEntry.run();
+        }
     }
 
     abstract boolean read(int offset, EntrySerializer.EntryHolder<K> into);

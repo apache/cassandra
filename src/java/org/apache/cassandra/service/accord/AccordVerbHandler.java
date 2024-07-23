@@ -52,7 +52,7 @@ public class AccordVerbHandler<T extends Request> implements IVerbHandler<T>
 
         if (request.type().hasSideEffects())
         {
-            journal.appendRemoteRequest(request, message);
+            journal.processRemoteRequest(request, message);
             return;
         }
 

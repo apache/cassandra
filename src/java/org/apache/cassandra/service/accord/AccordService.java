@@ -611,7 +611,7 @@ public class AccordService implements IAccordService, Shutdownable
     {
         // currently, we only create LocalRequests that have side effects and need to be persisted
         Invariants.checkState(request.type().hasSideEffects());
-        journal.appendLocalRequest(request, callback);
+        journal.processLocalRequest(request, callback);
     }
 
     private static RequestTimeoutException newTimeout(TxnId txnId, Txn txn, ConsistencyLevel consistencyLevel)
@@ -697,6 +697,11 @@ public class AccordService implements IAccordService, Shutdownable
     public Node node()
     {
         return node;
+    }
+
+    public AccordJournal journal()
+    {
+        return journal;
     }
 
     @Override

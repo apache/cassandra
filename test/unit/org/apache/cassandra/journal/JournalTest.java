@@ -47,16 +47,8 @@ public class JournalTest
         File directory = new File(Files.createTempDirectory("JournalTest"));
         directory.deleteRecursiveOnExit();
 
-        AsyncCallbacks<TimeUUID, Long> callbacks = new AsyncCallbacks<>()
-        {
-            @Override public void onWrite(long segment, int position, int size, TimeUUID key, Long value, Object writeContext) {}
-            @Override public void onWriteFailed(TimeUUID key, Long value, Object writeContext, Throwable cause) {}
-            @Override public void onFlush(long segment, int position) {}
-            @Override public void onFlushFailed(Throwable cause) {}
-        };
-
         Journal<TimeUUID, Long> journal =
-            new Journal<>("TestJournal", directory, TestParams.INSTANCE, callbacks, TimeUUIDKeySupport.INSTANCE, LongSerializer.INSTANCE);
+            new Journal<>("TestJournal", directory, TestParams.INSTANCE, TimeUUIDKeySupport.INSTANCE, LongSerializer.INSTANCE);
 
         journal.start();
 
@@ -65,10 +57,10 @@ public class JournalTest
         TimeUUID id3 = nextTimeUUID();
         TimeUUID id4 = nextTimeUUID();
 
-        journal.write(id1, 1L, Collections.singleton(1));
-        journal.write(id2, 2L, Collections.singleton(1));
-        journal.write(id3, 3L, Collections.singleton(1));
-        journal.write(id4, 4L, Collections.singleton(1));
+        journal.blockingWrite(id1, 1L, Collections.singleton(1));
+        journal.blockingWrite(id2, 2L, Collections.singleton(1));
+        journal.blockingWrite(id3, 3L, Collections.singleton(1));
+        journal.blockingWrite(id4, 4L, Collections.singleton(1));
 
         assertEquals(1L, (long) journal.readFirst(id1));
         assertEquals(2L, (long) journal.readFirst(id2));
@@ -77,7 +69,7 @@ public class JournalTest
 
         journal.shutdown();
 
-        journal = new Journal<>("TestJournal", directory, TestParams.INSTANCE, callbacks, TimeUUIDKeySupport.INSTANCE, LongSerializer.INSTANCE);
+        journal = new Journal<>("TestJournal", directory, TestParams.INSTANCE, TimeUUIDKeySupport.INSTANCE, LongSerializer.INSTANCE);
         journal.start();
 
         assertEquals(1L, (long) journal.readFirst(id1));

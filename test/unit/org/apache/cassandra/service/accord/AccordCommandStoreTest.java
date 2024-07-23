@@ -31,18 +31,16 @@ import org.slf4j.LoggerFactory;
 
 import accord.api.Key;
 import accord.api.Result;
-import accord.local.CommandsForKey;
-import accord.impl.TimestampsForKeys;
 import accord.impl.TimestampsForKey;
+import accord.impl.TimestampsForKeys;
 import accord.local.Command;
+import accord.local.CommandsForKey;
 import accord.local.CommonAttributes;
 import accord.local.SaveStatus;
-import accord.messages.Apply;
 import accord.primitives.Ballot;
 import accord.primitives.PartialDeps;
 import accord.primitives.PartialTxn;
 import accord.primitives.Range;
-import accord.primitives.Ranges;
 import accord.primitives.Routable;
 import accord.primitives.Route;
 import accord.primitives.RoutingKeys;
@@ -104,7 +102,7 @@ public class AccordCommandStoreTest
     {
         AtomicLong clock = new AtomicLong(0);
         PartialTxn depTxn = createPartialTxn(0);
-        Key key = (Key)depTxn.keys().get(0);
+        Key key = (Key) depTxn.keys().get(0);
         Range range = key.toUnseekable().asRange();
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
 
@@ -139,31 +137,19 @@ public class AccordCommandStoreTest
         attrs.addListener(new Command.ProxyListener(oldTxnId1));
         Pair<Writes, Result> result = AccordTestUtils.processTxnResult(commandStore, txnId, txn, executeAt);
 
-        Command command = Command.SerializerSupport.executed(attrs, SaveStatus.Applied, executeAt, promised, accepted,
-                                                             waitingOn, result.left, CommandSerializers.APPLIED);
+        Command expected = Command.SerializerSupport.executed(attrs, SaveStatus.Applied, executeAt, promised, accepted,
+                                                              waitingOn, result.left, CommandSerializers.APPLIED);
         AccordSafeCommand safeCommand = new AccordSafeCommand(loaded(txnId, null));
-        safeCommand.set(command);
+        safeCommand.set(expected);
 
-        Apply apply =
-            Apply.SerializationSupport.create(txnId,
-                                              route.slice(Ranges.of(TokenRange.fullRange(tableId))),
-                                              1L,
-                                              Apply.Kind.Maximal,
-                                              depTxn.keys(),
-                                              executeAt,
-                                              dependencies,
-                                              txn,
-                                              null,
-                                              result.left,
-                                              CommandSerializers.APPLIED);
-        commandStore.appendToJournal(apply);
+        AccordTestUtils.appendCommandsBlocking(commandStore, null, expected);
         AccordKeyspace.getCommandMutation(commandStore, safeCommand, commandStore.nextSystemTimestampMicros()).apply();
 
-        logger.info("E: {}", command);
-        Command actual = AccordKeyspace.loadCommand(commandStore, txnId);
+        logger.info("E: {}", expected);
+        Command actual = commandStore.loadCommand(txnId);
         logger.info("A: {}", actual);
 
-        Assert.assertEquals(command, actual);
+        Assert.assertEquals(expected, actual);
     }
 
     @Test

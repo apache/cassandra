@@ -31,6 +31,8 @@ import accord.local.Command;
 import accord.local.KeyHistory;
 import accord.local.Node;
 import accord.local.PreLoadContext;
+import accord.local.SafeCommand;
+import accord.local.SafeCommandStore;
 import accord.local.Status;
 import accord.messages.Accept;
 import accord.messages.Commit;
@@ -41,6 +43,7 @@ import accord.primitives.Keys;
 import accord.primitives.PartialDeps;
 import accord.primitives.PartialRoute;
 import accord.primitives.PartialTxn;
+import accord.primitives.Route;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
@@ -100,25 +103,33 @@ public class AccordCommandTest
         PartialRoute<?> route = fullRoute.slice(fullRange(txn));
         PartialTxn partialTxn = txn.slice(route.covering(), true);
         PreAccept preAccept = PreAccept.SerializerSupport.create(txnId, route, 1, 1, false, 1, partialTxn, fullRoute);
-        commandStore.appendToJournal(preAccept);
 
         // Check preaccept
-        getUninterruptibly(commandStore.execute(preAccept, instance -> {
-            PreAccept.PreAcceptReply reply = preAccept.apply(instance);
+        getUninterruptibly(commandStore.execute(preAccept, safeStore -> {
+            SafeCommand safeCommand = safeStore.get(txnId, txnId, route);
+            Command before = safeCommand.current();
+            PreAccept.PreAcceptReply reply = preAccept.apply(safeStore);
+            Command after = safeCommand.current();
+
             Assert.assertTrue(reply.isOk());
             PreAccept.PreAcceptOk ok = (PreAccept.PreAcceptOk) reply;
             Assert.assertEquals(txnId, ok.witnessedAt);
             Assert.assertTrue(ok.deps.isEmpty());
+
+            AccordTestUtils.appendCommandsBlocking(commandStore, before, after);
         }));
 
-        getUninterruptibly(commandStore.execute(preAccept, instance -> {
-            Command command = instance.ifInitialised(txnId).current();
-            Assert.assertEquals(txnId, command.executeAt());
-            Assert.assertEquals(Status.PreAccepted, command.status());
-            Assert.assertTrue(command.partialDeps() == null || command.partialDeps().isEmpty());
+        getUninterruptibly(commandStore.execute(preAccept, safeStore -> {
+            Command before = safeStore.ifInitialised(txnId).current();
+            SafeCommand safeCommand = safeStore.get(txnId, txnId, route);
+            Assert.assertEquals(txnId, before.executeAt());
+            Assert.assertEquals(Status.PreAccepted, before.status());
+            Assert.assertTrue(before.partialDeps() == null || before.partialDeps().isEmpty());
 
-            CommandsForKey cfk = ((AccordSafeCommandStore) instance).get(key(1)).current();
+            CommandsForKey cfk = safeStore.get(key(1)).current();
             Assert.assertTrue(cfk.indexOf(txnId) >= 0);
+            Command after = safeCommand.current();
+            AccordTestUtils.appendCommandsBlocking(commandStore, before, after);
         }));
 
         // check accept
@@ -131,37 +142,42 @@ public class AccordCommandTest
             deps = builder.build();
         }
         Accept accept = Accept.SerializerSupport.create(txnId, route, 1, 1, false, Ballot.ZERO, executeAt, partialTxn.keys(), deps);
-        commandStore.appendToJournal(accept);
 
-        getUninterruptibly(commandStore.execute(accept, instance -> {
-            Accept.AcceptReply reply = accept.apply(instance);
+        getUninterruptibly(commandStore.execute(accept, safeStore -> {
+            Command before = safeStore.ifInitialised(txnId).current();
+            Accept.AcceptReply reply = accept.apply(safeStore);
             Assert.assertTrue(reply.isOk());
             Assert.assertTrue(reply.deps.isEmpty());
+            Command after = safeStore.ifInitialised(txnId).current();
+            AccordTestUtils.appendCommandsBlocking(commandStore, before, after);
         }));
 
-        getUninterruptibly(commandStore.execute(accept, instance -> {
-            Command command = instance.ifInitialised(txnId).current();
-            Assert.assertEquals(executeAt, command.executeAt());
-            Assert.assertEquals(Status.Accepted, command.status());
-            Assert.assertEquals(deps, command.partialDeps());
+        getUninterruptibly(commandStore.execute(accept, safeStore -> {
+            Command before = safeStore.ifInitialised(txnId).current();
+            Assert.assertEquals(executeAt, before.executeAt());
+            Assert.assertEquals(Status.Accepted, before.status());
+            Assert.assertEquals(deps, before.partialDeps());
 
-            CommandsForKey cfk = ((AccordSafeCommandStore) instance).get(key(1)).current();
+            CommandsForKey cfk = safeStore.get(key(1)).current();
             Assert.assertTrue(cfk.indexOf(txnId) >= 0);
+            Command after = safeStore.ifInitialised(txnId).current();
+            AccordTestUtils.appendCommandsBlocking(commandStore, before, after);
         }));
 
         // check commit
         Commit commit = Commit.SerializerSupport.create(txnId, route, 1, Commit.Kind.StableWithTxnAndDeps, Ballot.ZERO, executeAt, partialTxn.keys(), partialTxn, deps, fullRoute, null);
-        commandStore.appendToJournal(commit);
         getUninterruptibly(commandStore.execute(commit, commit::apply));
 
-        getUninterruptibly(commandStore.execute(PreLoadContext.contextFor(txnId, Keys.of(key), KeyHistory.COMMANDS), instance -> {
-            Command command = instance.ifInitialised(txnId).current();
-            Assert.assertEquals(commit.executeAt, command.executeAt());
-            Assert.assertTrue(command.hasBeen(Status.Committed));
-            Assert.assertEquals(commit.partialDeps, command.partialDeps());
+        getUninterruptibly(commandStore.execute(PreLoadContext.contextFor(txnId, Keys.of(key), KeyHistory.COMMANDS), safeStore -> {
+            Command before = safeStore.ifInitialised(txnId).current();
+            Assert.assertEquals(commit.executeAt, before.executeAt());
+            Assert.assertTrue(before.hasBeen(Status.Committed));
+            Assert.assertEquals(commit.partialDeps, before.partialDeps());
 
-            CommandsForKey cfk = ((AccordSafeCommandStore) instance).get(key(1)).current();
+            CommandsForKey cfk = safeStore.get(key(1)).current();
             Assert.assertTrue(cfk.indexOf(txnId) >= 0);
+            Command after = safeStore.ifInitialised(txnId).current();
+            AccordTestUtils.appendCommandsBlocking(commandStore, before, after);
         }));
     }
 
@@ -179,19 +195,32 @@ public class AccordCommandTest
         PartialRoute<?> route = fullRoute.slice(fullRange(txn));
         PartialTxn partialTxn = txn.slice(route.covering(), true);
         PreAccept preAccept1 = PreAccept.SerializerSupport.create(txnId1, route, 1, 1, false, 1, partialTxn, fullRoute);
-        commandStore.appendToJournal(preAccept1);
 
-        getUninterruptibly(commandStore.execute(preAccept1, preAccept1::apply));
+        getUninterruptibly(commandStore.execute(preAccept1, safeStore -> {
+            persistDiff(commandStore, safeStore, txnId1, route, () -> {
+                preAccept1.apply(safeStore);
+            });
+        }));
 
         // second preaccept should identify txnId1 as a dependency
         TxnId txnId2 = txnId(1, clock.incrementAndGet(), 1);
         PreAccept preAccept2 = PreAccept.SerializerSupport.create(txnId2, route, 1, 1, false, 1, partialTxn, fullRoute);
-        commandStore.appendToJournal(preAccept2);
-        getUninterruptibly(commandStore.execute(preAccept2, instance -> {
-            PreAccept.PreAcceptReply reply = preAccept2.apply(instance);
-            Assert.assertTrue(reply.isOk());
-            PreAccept.PreAcceptOk ok = (PreAccept.PreAcceptOk) reply;
-            Assert.assertTrue(ok.deps.contains(txnId1));
+        getUninterruptibly(commandStore.execute(preAccept2, safeStore -> {
+            persistDiff(commandStore, safeStore, txnId2, route, () -> {
+                PreAccept.PreAcceptReply reply = preAccept2.apply(safeStore);
+                Assert.assertTrue(reply.isOk());
+                PreAccept.PreAcceptOk ok = (PreAccept.PreAcceptOk) reply;
+                Assert.assertTrue(ok.deps.contains(txnId1));
+            });
         }));
+    }
+
+    private static void persistDiff(AccordCommandStore commandStore, SafeCommandStore safeStore, TxnId txnId, Route<?> route, Runnable runnable)
+    {
+        SafeCommand safeCommand = safeStore.get(txnId, txnId, route);
+        Command before = safeCommand.current();
+        runnable.run();
+        Command after = safeCommand.current();
+        AccordTestUtils.appendCommandsBlocking(commandStore, before, after);
     }
 }

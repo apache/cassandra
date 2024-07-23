@@ -24,6 +24,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 
 public interface ValueSerializer<K, V>
 {
+    // TODO (required): this is completely unused in Journal
     int serializedSize(K key, V value, int userVersion);
 
     void serialize(K key, V value, DataOutputPlus out, int userVersion) throws IOException;

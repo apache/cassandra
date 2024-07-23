@@ -18,12 +18,20 @@
 
 package org.apache.cassandra.service.accord;
 
-import accord.local.SerializerSupport;
-import accord.messages.Message;
+import java.util.List;
+
+import accord.local.Command;
 import accord.primitives.TxnId;
 
 public interface IJournal
 {
-    SerializerSupport.MessageProvider makeMessageProvider(TxnId txnId);
-    void appendMessageBlocking(Message message);
+    Command loadCommand(int commandStoreId, TxnId txnId);
+
+    /**
+     * Append outcomes to the log.
+     *
+     * Returns whether an async flush was requested. If it returns false, all commands are guaranteed to be flushed by that time.
+     * If it returns false, onFlush runnable will run whenever flush is done.
+     */
+    void appendCommand(int commandStoreId, List<SavedCommand.SavedDiff> command, List<Command> sanityCheck, Runnable onFlush);
 }
