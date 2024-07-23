@@ -63,13 +63,16 @@ public final class AutoRepairParams
         {
             optionsMap.put(entry.getKey(), new HashMap<>(entry.getValue()));
         }
-        for (Map.Entry<String, String> entry : options.entrySet())
+        if (options != null)
         {
-            if (!Option.ENABLED.toString().equals(entry.getKey().toLowerCase()))
+            for (Map.Entry<String, String> entry : options.entrySet())
             {
-                throw new ConfigurationException(format("Unknown property '%s'", entry.getKey()));
+                if (!Option.ENABLED.toString().equals(entry.getKey().toLowerCase()))
+                {
+                    throw new ConfigurationException(format("Unknown property '%s'", entry.getKey()));
+                }
+                optionsMap.get(repairType).put(entry.getKey(), entry.getValue());
             }
-            optionsMap.get(repairType).put(entry.getKey(), entry.getValue());
         }
         AutoRepairParams repairParams = new AutoRepairParams(repairType);
         repairParams.options = optionsMap;
