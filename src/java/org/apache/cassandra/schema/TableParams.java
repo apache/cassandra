@@ -19,7 +19,7 @@ package org.apache.cassandra.schema;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.HashMap;
+import java.util.EnumMap;
 import java.util.Map;
 import java.util.Map.Entry;
 
@@ -127,7 +127,7 @@ public final class TableParams
         extensions = builder.extensions;
         cdc = builder.cdc;
         readRepair = builder.readRepair;
-        automatedRepair = new HashMap<>()
+        automatedRepair = new EnumMap<AutoRepairConfig.RepairType, AutoRepairParams>(AutoRepairConfig.RepairType.class)
         {
             {
                 put(AutoRepairConfig.RepairType.full, builder.automatedRepairFull);

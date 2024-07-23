@@ -50,6 +50,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
 
 // AutoRepairState represents the state of automated repair for a given repair type.
@@ -115,7 +116,7 @@ public abstract class AutoRepairState implements ProgressListener
     public void progress(String tag, ProgressEvent event)
     {
         ProgressEventType type = event.getType();
-        String message = String.format("[%s] %s", format.format(System.currentTimeMillis()), event.getMessage());
+        String message = String.format("[%s] %s", format.format(currentTimeMillis()), event.getMessage());
         if (type == ProgressEventType.ERROR)
         {
             logger.error("Repair failure for {} repair: {}", repairType.toString(), message);
