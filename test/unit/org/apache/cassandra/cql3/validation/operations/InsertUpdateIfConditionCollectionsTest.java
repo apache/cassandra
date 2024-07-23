@@ -1158,10 +1158,6 @@ public class InsertUpdateIfConditionCollectionsTest extends CQLTester
                    row(true));
 
         // Does not apply
-        assertRows(execute("UPDATE %s SET s = null WHERE k = 0 IF s < ?", set("a")),
-                   row(false, null));
-        assertRows(execute("UPDATE %s SET s = null WHERE k = 0 IF s <= ?", set("a")),
-                   row(false, null));
         assertRows(execute("UPDATE %s SET s = null WHERE k = 0 IF s = ?", set("bar")),
                    row(false, null));
         assertRows(execute("UPDATE %s SET s = null WHERE k = 0 IF s < ?", set("a")),
@@ -1195,10 +1191,6 @@ public class InsertUpdateIfConditionCollectionsTest extends CQLTester
                    row(true));
 
         // Does not apply
-        assertRows(execute("UPDATE %s SET m = null WHERE k = 0 IF m < ?", map("a","a")),
-                   row(false, null));
-        assertRows(execute("UPDATE %s SET m = null WHERE k = 0 IF m <= ?", map("a","a")),
-                   row(false, null));
         assertRows(execute("UPDATE %s SET m = null WHERE k = 0 IF m = ?", map("foo","bar")),
                    row(false, null));
         assertRows(execute("UPDATE %s SET m = null WHERE k = 0 IF m < ?", map("a","a")),

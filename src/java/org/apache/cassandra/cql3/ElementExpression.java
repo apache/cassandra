@@ -156,19 +156,10 @@ public final class ElementExpression
     }
 
     /**
-     * Bind the values in this term to the values contained in the {@code options}.
-     * This is obviously a no-op if the term is Terminal.
+     * Returns the ByteBuffer representation of the key or index.
      *
-     * @param options the values to bind markers to.
-     * @return the {@code Terminal} resulting of binding the values contained in the {@code options}.
-     */
-    public Term.Terminal bind(QueryOptions options)
-    {
-        return keyOrIndex.bind(options);
-    }
-
-    /**
-     * A shorter for {@code bind(options).get()}.
+     * @param options the query options
+     * @return the ByteBuffer representation of the key or index.
      */
     public ByteBuffer bindAndGet(QueryOptions options)
     {
@@ -271,7 +262,7 @@ public final class ElementExpression
          */
         public boolean containsBindMarkers()
         {
-            return rawCollectionElement != null && rawCollectionElement.containsBindMarkers();
+            return rawCollectionElement != null && rawCollectionElement.containsBindMarker();
         }
 
         @Override

@@ -139,7 +139,7 @@ public final class Marker extends Term.NonTerminal
         }
 
         @Override
-        public boolean containsBindMarkers()
+        public boolean containsBindMarker()
         {
             return true;
         }

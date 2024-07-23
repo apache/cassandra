@@ -395,7 +395,7 @@ public final class SimpleRestriction implements SingleRestriction
 
     private static ByteBuffer multiInputOperatorValues(ColumnMetadata column, List<ByteBuffer> values)
     {
-           return ListType.getInstance(column.type, false).pack(values);
+        return ListType.getInstance(column.type, false).pack(values);
     }
 
     @Override

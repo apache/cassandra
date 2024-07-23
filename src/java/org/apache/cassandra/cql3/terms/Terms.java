@@ -345,7 +345,12 @@ public interface Terms
                 @Override
                 public boolean containsBindMarkers()
                 {
-                    return raws.stream().anyMatch(Term.Raw::containsBindMarkers);
+                    for (Term.Raw raw : raws)
+                    {
+                        if (raw.containsBindMarker())
+                            return true;
+                    }
+                    return false;
                 }
             };
         }
@@ -386,7 +391,7 @@ public interface Terms
                 @Override
                 public boolean containsBindMarkers()
                 {
-                    return raw.containsBindMarkers();
+                    return raw.containsBindMarker();
                 }
             };
         }

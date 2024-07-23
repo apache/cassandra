@@ -24,7 +24,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
@@ -75,9 +74,9 @@ public final class ColumnsExpression
             }
 
             @Override
-            String toCQLString(Stream<String> columns, String element)
+            String toCQLString(List<String> columns, String element)
             {
-                return columns.findFirst().orElseThrow();
+                return columns.get(0);
             }
 
             @Override
@@ -95,14 +94,15 @@ public final class ColumnsExpression
             protected void validateColumns(TableMetadata table, List<ColumnMetadata> columns)
             {
                 int previousPosition = -1;
-                for (int i = 0, m = columns.size(); i < m; i++) {
+                for (int i = 0, m = columns.size(); i < m; i++)
+                {
                     ColumnMetadata column = columns.get(i);
                     checkTrue(column.isClusteringColumn(), "Multi-column relations can only be applied to clustering columns but was applied to: %s", column.name);
                     checkFalse(columns.lastIndexOf(column) != i, "Column \"%s\" appeared twice in a relation: %s", column.name, this);
 
                     // check that no clustering columns were skipped
                     checkFalse(previousPosition != -1 && column.position() != previousPosition + 1,
-                            "Clustering columns must appear in the PRIMARY KEY order in multi-column relations: %s", toCQLString(columns, null));
+                               "Clustering columns must appear in the PRIMARY KEY order in multi-column relations: %s", toCQLString(columns, null));
 
                     previousPosition = column.position();
                 }
@@ -115,9 +115,11 @@ public final class ColumnsExpression
             }
 
             @Override
-            String toCQLString(Stream<String> columns, String element)
+            String toCQLString(List<String> columns, String element)
             {
-                return columns.collect(Collectors.joining(", ", "(", ")"));
+                StringBuilder builder = new StringBuilder().append('(');
+                Joiner.on(", ").appendTo(builder, columns);
+                return builder.append(')').toString();
             }
 
             @Override
@@ -156,9 +158,12 @@ public final class ColumnsExpression
             }
 
             @Override
-            String toCQLString(Stream<String> columns, String element)
+            String toCQLString(List<String> columns, String element)
             {
-                return columns.collect(Collectors.joining(", ", "token(", ")"));
+                StringBuilder builder = new StringBuilder();
+                builder.append("token(");
+                Joiner.on(", ").appendTo(builder, columns);
+                return builder.append(')').toString();
             }
 
             @Override
@@ -185,9 +190,9 @@ public final class ColumnsExpression
             }
 
             @Override
-            String toCQLString(Stream<String> columns, String element)
+            String toCQLString(List<String> columns, String element)
             {
-                return columns.findFirst().orElseThrow() + element;
+                return columns.get(0) + element;
             }
         };
 
@@ -215,17 +220,17 @@ public final class ColumnsExpression
          * @param element           the element in case of ELEMENT columns expression
          * @return the CQL representation of the expression.
          */
-        abstract String toCQLString(Stream<String> columns, String element);
+        abstract String toCQLString(List<String> columns, String element);
 
         String toCQLString(List<ColumnMetadata> columns, ElementExpression elementExpression)
         {
-            return toCQLString(columns.stream().map(c -> c.name.toCQLString()), elementExpression != null ? elementExpression.toCQLString() : "");
+            return toCQLString(ColumnMetadata.cqlNames(columns), elementExpression != null ? elementExpression.toCQLString() : "");
         }
 
         String toCQLString(List<ColumnIdentifier> identifiers, ElementExpression.Raw rawElement)
         {
             String element = rawElement == null ? "" : rawElement.toCQLString();
-            return toCQLString(identifiers.stream().map(ColumnIdentifier::toCQLString), element);
+            return toCQLString(ColumnIdentifier.toCqlStrings(identifiers), element);
         }
     }
 
@@ -237,7 +242,7 @@ public final class ColumnsExpression
      *  <ul>for a single column the type of the expression will be the one of the column</ul>
      *  <ul>for a multi-column expression the type will be a tuple type</ul>
      *  <ul>for a token expression the type will be the token type</ul>
-     *  <ul>for an element expression the type will be the one of the element of interest(udt field or collection element)</ul>
+     *  <ul>for an element expression, the type will be one of the elements of interest(UDT field or collection element)</ul>
      * </li>
      */
     private final AbstractType<?> type;
@@ -289,9 +294,7 @@ public final class ColumnsExpression
     @VisibleForTesting
     public static ColumnsExpression multiColumns(List<ColumnMetadata> columns)
     {
-        AbstractType<?> type = new TupleType(columns.stream()
-                                                    .map(c -> c.type)
-                                                    .collect(Collectors.toList()));
+        AbstractType<?> type = new TupleType(ColumnMetadata.types(columns));
         return new ColumnsExpression(Kind.MULTI_COLUMN, type, ImmutableList.copyOf(columns),null);
     }
 
@@ -573,7 +576,7 @@ public final class ColumnsExpression
          * @return the definition of the columns to which apply the token restriction.
          * @throws InvalidRequestException if the entity cannot be resolved
          */
-        static List<ColumnMetadata> getColumnsMetadata(TableMetadata table, List<ColumnIdentifier> identifiers)
+        private static List<ColumnMetadata> getColumnsMetadata(TableMetadata table, List<ColumnIdentifier> identifiers)
         {
             List<ColumnMetadata> columns = new ArrayList<>(identifiers.size());
             for (ColumnIdentifier id : identifiers)

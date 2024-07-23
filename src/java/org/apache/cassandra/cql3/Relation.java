@@ -20,6 +20,8 @@ package org.apache.cassandra.cql3;
 import java.util.List;
 import java.util.Objects;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.cql3.restrictions.SimpleRestriction;
 import org.apache.cassandra.cql3.restrictions.SingleRestriction;
 import org.apache.cassandra.cql3.terms.*;
@@ -103,7 +105,8 @@ public final class Relation
      * @param rawTerm the term to which the map element must be compared
      * @return a relation for a map element.
      */
-    public static Relation mapElement(ColumnIdentifier identifier, Term.Raw rawKey, Operator operator, Term.Raw rawTerm)
+    @VisibleForTesting
+    static Relation mapElement(ColumnIdentifier identifier, Term.Raw rawKey, Operator operator, Term.Raw rawTerm)
     {
         assert operator.kind() == Operator.Kind.BINARY;
         return new Relation(ColumnsExpression.Raw.collectionElement(identifier, rawKey), operator, Terms.Raw.of(rawTerm));

@@ -239,9 +239,14 @@ public class FunctionCall extends Term.NonTerminal
         }
 
         @Override
-        public boolean containsBindMarkers()
+        public boolean containsBindMarker()
         {
-            return terms.stream().anyMatch(Term.Raw::containsBindMarkers);
+            for (Term.Raw t : terms)
+            {
+                if (t.containsBindMarker())
+                    return true;
+            }
+            return false;
         }
     }
 }

@@ -203,7 +203,7 @@ public interface Term
          * Checks if this term is or contains bind markers.
          * @return {@code true} if this term is or contains bind markers, {@code false} otherwise.
          */
-        public boolean containsBindMarkers()
+        public boolean containsBindMarker()
         {
             return false;
         }

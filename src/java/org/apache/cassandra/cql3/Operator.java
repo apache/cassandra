@@ -159,6 +159,7 @@ public enum Operator
         @Override
         public boolean isSupportedByRestrictionsOn(ColumnsExpression expression)
         {
+            // this method is used only in restrictions, not in conditions where different rules apply for now
             return expression.kind() != ColumnsExpression.Kind.ELEMENT;
         }
     },
