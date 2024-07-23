@@ -22,7 +22,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
-import org.apache.cassandra.locator.ReplicaPlan;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -32,9 +31,11 @@ import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.service.reads.ReadCallback;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.service.reads.ReadCoordinator;
+import org.apache.cassandra.service.reads.repair.ReadRepair.ReadRepairSource;
 
 public class ReadOnlyReadRepairTest extends AbstractReadRepairTest
 {
@@ -96,6 +97,6 @@ public class ReadOnlyReadRepairTest extends AbstractReadRepairTest
         ReplicaPlan.SharedForRangeRead readPlan = ReplicaPlan.shared(replicaPlan(replicas, replicas));
         ReplicaPlan.ForWrite writePlan = repairPlan(replicas, replicas);
         InstrumentedReadRepair repair = createInstrumentedReadRepair(readPlan);
-        repair.repairPartition(null, Collections.emptyMap(), writePlan);
+        repair.repairPartition(null, Collections.emptyMap(), writePlan, ReadRepairSource.OTHER);
     }
 }

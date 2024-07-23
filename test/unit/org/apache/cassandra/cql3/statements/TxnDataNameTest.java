@@ -20,52 +20,75 @@ package org.apache.cassandra.cql3.statements;
 
 import org.junit.Test;
 
-import org.apache.cassandra.io.util.DataInputBuffer;
-import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.service.accord.txn.TxnDataName;
-import org.apache.cassandra.service.accord.txn.TxnRead;
-import org.apache.cassandra.utils.Generators;
-import org.assertj.core.api.Assertions;
+import org.apache.cassandra.service.accord.txn.TxnData.TxnDataNameKind;
 import org.quicktheories.core.Gen;
 import org.quicktheories.generators.SourceDSL;
+import org.quicktheories.impl.Constraint;
 
+import static org.apache.cassandra.service.accord.txn.TxnData.TXN_DATA_NAME_INDEX_MAX;
+import static org.apache.cassandra.service.accord.txn.TxnData.txnDataName;
+import static org.apache.cassandra.service.accord.txn.TxnData.txnDataNameIndex;
+import static org.apache.cassandra.service.accord.txn.TxnData.txnDataNameKind;
 import static org.apache.cassandra.utils.FailingConsumer.orFail;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 import static org.quicktheories.QuickTheory.qt;
 
 public class TxnDataNameTest
 {
     @Test
-    public void serde()
+    public void buildAndAccess()
     {
-        try (DataOutputBuffer out = new DataOutputBuffer())
+        qt().forAll(gen()).checkAssert(orFail(test -> {
+            if (test.index < 0 || test.index > TXN_DATA_NAME_INDEX_MAX)
+            {
+                try
+                {
+                    txnDataName(test.kind, test.index);
+                    fail("Expect IllegalArgumentException");
+                }
+                catch (IllegalArgumentException e)
+                {
+                    // expected
+                }
+                return;
+            }
+
+            int txnDataName = txnDataName(test.kind, test.index);
+            assertEquals(test.kind, txnDataNameKind(txnDataName));
+            assertEquals(test.index, txnDataNameIndex(txnDataName));
+        }));
+    }
+
+    @Test
+    public void testIndex()
+    {
+        TxnDataNameKind kind = TxnDataNameKind.values()[TxnDataNameKind.values().length - 1];
+        int txnDataName = txnDataName(kind, 0);
+        assertEquals(0, txnDataNameIndex(txnDataName));
+        txnDataName = txnDataName(kind, TXN_DATA_NAME_INDEX_MAX);
+        assertEquals(TXN_DATA_NAME_INDEX_MAX, txnDataNameIndex(txnDataName));
+    }
+
+    static class TestData
+    {
+        final TxnDataNameKind kind;
+        final int index;
+
+        public TestData(TxnDataNameKind kind, int index)
         {
-            qt().forAll(gen()).checkAssert(orFail(name -> {
-                out.clear();
-
-                long expectedSize = TxnDataName.serializer.serializedSize(name, 12);
-                TxnDataName.serializer.serialize(name, out, 12);
-                Assertions.assertThat(out.getLength()).isEqualTo(expectedSize);
-
-                TxnDataName read = TxnDataName.serializer.deserialize(new DataInputBuffer(out.toByteArray()), 12);
-                Assertions.assertThat(read).isEqualTo(name);
-            }));
+            this.kind = kind;
+            this.index = index;
         }
     }
 
-    public static Gen<TxnDataName> gen()
+    public static Gen<TestData> gen()
     {
-        Gen<TxnDataName.Kind> kindGen = SourceDSL.arbitrary().enumValues(TxnDataName.Kind.class);
-        Gen<String> symbolGen = Generators.SYMBOL_GEN;
+        Gen<TxnDataNameKind> kindGen = SourceDSL.arbitrary().enumValues(TxnDataNameKind.class);
         return rnd -> {
-            TxnDataName.Kind kind = kindGen.generate(rnd);
-            switch (kind)
-            {
-                case USER: return TxnDataName.user(symbolGen.generate(rnd));
-                case RETURNING: return TxnDataName.returning();
-                case AUTO_READ: return new TxnDataName(kind, symbolGen.generate(rnd), symbolGen.generate(rnd), symbolGen.generate(rnd));
-                case CAS_READ: return TxnRead.CAS_READ;
-                default: throw new IllegalArgumentException("Unknown kind: " + kind);
-            }
+            TxnDataNameKind kind = kindGen.generate(rnd);
+            int index = (int)(rnd.next(Constraint.zeroToOne()) == 0 ? rnd.next(Constraint.between(0, TXN_DATA_NAME_INDEX_MAX)) : rnd.next(Constraint.between(Integer.MIN_VALUE, Integer.MAX_VALUE)));
+            return new TestData(kind, index);
         };
     }
 }

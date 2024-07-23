@@ -34,6 +34,7 @@ import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.locator.ReplicaPlans;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.reads.ReadCoordinator;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.FBUtilities;
@@ -55,10 +56,11 @@ public class RangeCommands
 
     public static PartitionIterator partitions(PartitionRangeReadCommand command,
                                                ConsistencyLevel consistencyLevel,
+                                               ReadCoordinator readCoordinator,
                                                Dispatcher.RequestTime requestTime)
     {
         // Note that in general, a RangeCommandIterator will honor the command limit for each range, but will not enforce it globally.
-        RangeCommandIterator rangeCommands = rangeCommandIterator(command, consistencyLevel, requestTime);
+        RangeCommandIterator rangeCommands = rangeCommandIterator(command, consistencyLevel, readCoordinator, requestTime);
         return command.limits().filter(command.postReconciliationProcessing(rangeCommands),
                                        command.nowInSec(),
                                        command.selectsFullPartition(),
@@ -68,6 +70,7 @@ public class RangeCommands
     @VisibleForTesting
     static RangeCommandIterator rangeCommandIterator(PartitionRangeReadCommand command,
                                                      ConsistencyLevel consistencyLevel,
+                                                     ReadCoordinator readCoordinator,
                                                      Dispatcher.RequestTime requestTime)
     {
         Tracing.trace("Computing ranges to query");
@@ -80,7 +83,7 @@ public class RangeCommands
                                                                    consistencyLevel);
 
         if (command.isTopK())
-            return new ScanAllRangesCommandIterator(keyspace, replicaPlans, command, replicaPlans.size(), requestTime);
+            return new ScanAllRangesCommandIterator(keyspace, replicaPlans, command, readCoordinator, replicaPlans.size(), requestTime);
 
         int maxConcurrencyFactor = Math.min(replicaPlans.size(), MAX_CONCURRENT_RANGE_REQUESTS);
         int concurrencyFactor = maxConcurrencyFactor;
@@ -111,6 +114,7 @@ public class RangeCommands
         ReplicaPlanMerger mergedReplicaPlans = new ReplicaPlanMerger(replicaPlans, keyspace, command.metadata().id(), consistencyLevel);
         return new RangeCommandIterator(mergedReplicaPlans,
                                         command,
+                                        readCoordinator,
                                         concurrencyFactor,
                                         maxConcurrencyFactor,
                                         replicaPlans.size(),

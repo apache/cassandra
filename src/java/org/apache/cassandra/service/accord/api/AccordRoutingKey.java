@@ -203,7 +203,7 @@ public abstract class AccordRoutingKey extends AccordRoutableKey implements Rout
         }
     }
 
-    // final in part because we refer to its class directly in AccordRoutableKey.compareToe
+    // final in part because we refer to its class directly in AccordRoutableKey.compareTo
     public static final class TokenKey extends AccordRoutingKey
     {
         private static final long EMPTY_SIZE;

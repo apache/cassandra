@@ -194,7 +194,7 @@ public abstract class ConsensusTableMigration
             if (metadata == null || !metadata.params.transactionalMigrationFrom.isMigrating())
                 continue;
             TransactionalMode transactionalMode = metadata.params.transactionalMode;
-            if (!transactionalMode.writesThroughAccord && transactionalMode != TransactionalMode.unsafe_writes)
+            if (!transactionalMode.nonSerialWritesThroughAccord && transactionalMode != TransactionalMode.unsafe_writes)
                 throw new IllegalStateException("non-SERIAL writes need to be routed through Accord before attempting migration, or enable mixed mode");
             tableIds.add(tableId);
         }

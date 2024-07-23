@@ -99,7 +99,7 @@ public class AccordInteropApply extends Apply implements LocalListeners.ComplexL
     @Override
     public ApplyReply apply(SafeCommandStore safeStore, StoreParticipants participants)
     {
-        ApplyReply reply = super.apply(safeStore);
+        ApplyReply reply = super.apply(safeStore, participants);
         checkState(reply == ApplyReply.Redundant || reply == ApplyReply.Applied || reply == ApplyReply.Insufficient, "Unexpected ApplyReply");
 
         // Hasn't necessarily finished applying yet so need to check and maybe add a listener

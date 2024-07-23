@@ -63,10 +63,11 @@ public class ScanAllRangesCommandIterator extends RangeCommandIterator
 
     ScanAllRangesCommandIterator(Keyspace keyspace, CloseableIterator<ReplicaPlan.ForRangeRead> replicaPlans,
                                  PartitionRangeReadCommand command,
+                                 ReadCoordinator readCoordinator,
                                  int totalRangeCount,
                                  Dispatcher.RequestTime requestTime)
     {
-        super(replicaPlans, command, totalRangeCount, totalRangeCount, totalRangeCount, requestTime);
+        super(replicaPlans, command, readCoordinator, totalRangeCount, totalRangeCount, totalRangeCount, requestTime);
         Preconditions.checkState(command.isTopK());
 
         this.keyspace = keyspace;
@@ -111,6 +112,6 @@ public class ScanAllRangesCommandIterator extends RangeCommandIterator
         Tracing.trace("Submitted scanning all ranges requests to {} nodes", nodes);
 
         // skip read-repair for top-k query because data mismatch may be caused by top-k algorithm instead of actual inconsistency.
-        return new SingleRangeResponse(resolver, handler, NoopReadRepair.instance);
+        return new CassandraRangeResponse(resolver, handler, NoopReadRepair.instance);
     }
 }

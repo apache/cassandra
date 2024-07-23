@@ -26,7 +26,6 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.UpdateParameters;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
@@ -74,17 +73,19 @@ public class AccordUpdateParameters
 
     private Map<DecoratedKey, Partition> prefetchRow(TableMetadata metadata, DecoratedKey dk, int index)
     {
-        for (Map.Entry<TxnDataName, FilteredPartition> e : data.entrySet())
+        for (Map.Entry<Integer, TxnDataValue> e : data.entrySet())
         {
-            TxnDataName name = e.getKey();
-            switch (name.getKind())
+            int name = e.getKey();
+            TxnDataKeyValue value = (TxnDataKeyValue)e.getValue();
+            switch (TxnData.txnDataNameKind(name))
             {
                 case CAS_READ:
                     checkState(data.entrySet().size() == 1, "CAS read should only have one entry");
-                    return ImmutableMap.of(dk, e.getValue());
+                    return ImmutableMap.of(dk, value);
                 case AUTO_READ:
-                    if (name.atIndex(index))
-                        return ImmutableMap.of(name.getDecoratedKey(metadata), e.getValue());
+                    // TODO (review): Is this the right DK being passed into that matches what we used to store in TxnDataName
+                    if (TxnData.txnDataNameIndex(name) == index)
+                        return ImmutableMap.of(dk, value);
                 default:
             }
         }

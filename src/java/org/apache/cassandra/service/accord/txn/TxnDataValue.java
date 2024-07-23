@@ -20,25 +20,23 @@ package org.apache.cassandra.service.accord.txn;
 
 import java.io.IOException;
 
-import accord.api.Read;
-import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
 import static org.apache.cassandra.db.TypeSizes.sizeof;
 
-public interface TxnRead extends Read
+/**
+ * The result of either a key or range read during Accord transaction execution or a transaction result
+ */
+public interface TxnDataValue
 {
-    ConsistencyLevel cassandraConsistencyLevel();
-
-    public interface TxnReadSerializer<T extends TxnRead> extends IVersionedSerializer<T> {}
+    interface TxnDataValueSerializer<T extends TxnDataValue> extends IVersionedSerializer<T> {}
 
     enum Kind
     {
         key(0),
         range(1);
-
         int id;
 
         Kind(int id)
@@ -46,48 +44,48 @@ public interface TxnRead extends Read
             this.id = id;
         }
 
-        public TxnReadSerializer serializer()
+        public TxnDataValueSerializer serializer()
         {
             switch (this)
             {
                 case key:
-                    return TxnKeyRead.serializer;
+                    return TxnDataKeyValue.serializer;
                 case range:
-                    return TxnRangeRead.serializer;
+                    return TxnDataRangeValue.serializer;
                 default:
                     throw new IllegalStateException("Unrecognized kind " + this);
             }
         }
     }
 
+    TxnDataValue.Kind kind();
+
+    TxnDataValue merge(TxnDataValue other);
+
     long estimatedSizeOnHeap();
 
-    Kind kind();
-
-    void unmemoize();
-
-    IVersionedSerializer<TxnRead> serializer = new IVersionedSerializer<TxnRead>()
+    IVersionedSerializer<TxnDataValue> serializer = new IVersionedSerializer<TxnDataValue>()
     {
         @SuppressWarnings("unchecked")
         @Override
-        public void serialize(TxnRead txnRead, DataOutputPlus out, int version) throws IOException
+        public void serialize(TxnDataValue txnDataValue, DataOutputPlus out, int version) throws IOException
         {
-            out.writeByte(txnRead.kind().ordinal());
-            txnRead.kind().serializer().serialize(txnRead, out, version);
+            out.writeByte(txnDataValue.kind().ordinal());
+            txnDataValue.kind().serializer().serialize(txnDataValue, out, version);
         }
 
         @Override
-        public TxnRead deserialize(DataInputPlus in, int version) throws IOException
+        public TxnDataValue deserialize(DataInputPlus in, int version) throws IOException
         {
-            TxnRead.Kind kind = TxnRead.Kind.values()[in.readByte()];
-            return (TxnRead)kind.serializer().deserialize(in, version);
+            TxnDataValue.Kind kind = TxnDataValue.Kind.values()[in.readByte()];
+            return (TxnDataValue)kind.serializer().deserialize(in, version);
         }
 
         @SuppressWarnings("unchecked")
         @Override
-        public long serializedSize(TxnRead txnRead, int version)
+        public long serializedSize(TxnDataValue txnDataValue, int version)
         {
-            return sizeof((byte)txnRead.kind().ordinal()) + txnRead.kind().serializer().serializedSize(txnRead, version);
+            return sizeof((byte)txnDataValue.kind().ordinal()) + txnDataValue.kind().serializer().serializedSize(txnDataValue, version);
         }
     };
 }

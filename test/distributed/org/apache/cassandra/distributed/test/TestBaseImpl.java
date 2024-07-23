@@ -21,6 +21,7 @@ package org.apache.cassandra.distributed.test;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -29,6 +30,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -37,6 +40,8 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListenableFutureTask;
 import org.junit.After;
 import org.junit.BeforeClass;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.cql3.Duration;
@@ -64,8 +69,11 @@ import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.api.IMessage;
+import org.apache.cassandra.distributed.api.IMessageSink;
 import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.shared.DistributedTestBase;
+import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.service.accord.AccordCache;
 
 import static java.lang.System.currentTimeMillis;
@@ -79,12 +87,43 @@ import static org.assertj.core.api.Assertions.fail;
 // checkstyle: suppress below 'blockSystemPropertyUsage'
 public class TestBaseImpl extends DistributedTestBase
 {
+    private static final Logger logger = LoggerFactory.getLogger(TestBaseImpl.class);
+
     public static final Object[][] EMPTY_ROWS = new Object[0][];
     public static final boolean[] BOOLEANS = new boolean[]{ false, true };
+
+    private static final AtomicLong ZERO = new AtomicLong();
+    protected static final Map<Verb, AtomicLong> messageCounts = new ConcurrentHashMap<>();
+
+    protected static class MessageCountingSink implements IMessageSink
+    {
+        private final Cluster cluster;
+
+        public MessageCountingSink(Cluster cluster)
+        {
+            this.cluster = cluster;
+        }
+
+        @Override
+        public void accept(InetSocketAddress to, IMessage message)
+        {
+            Verb verb = Verb.fromId(message.verb());
+            logger.debug("verb {} to {} message {}", verb, to, message);
+            messageCounts.computeIfAbsent(verb, ignored -> new AtomicLong()).incrementAndGet();
+            cluster.get(to).receiveMessage(message);
+        }
+    }
+
+    // Only works if MessageCountingSink is set on the cluster
+    public static long messageCount(Verb verb)
+    {
+        return messageCounts.getOrDefault(verb, ZERO).get();
+    }
 
     @After
     public void afterEach() {
         super.afterEach();
+        messageCounts.clear();
     }
 
     @BeforeClass

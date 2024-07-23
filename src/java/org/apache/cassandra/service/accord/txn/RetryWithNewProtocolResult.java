@@ -18,10 +18,6 @@
 
 package org.apache.cassandra.service.accord.txn;
 
-import java.io.IOException;
-
-import org.apache.cassandra.io.util.DataInputPlus;
-import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.ObjectSizes;
 
@@ -29,9 +25,9 @@ import org.apache.cassandra.utils.ObjectSizes;
  * Potentially returned by any transaction that tries to execute in an Epoch
  * where the range has migrated away from Accord
  */
-public class RetryWithNewProtocolResult extends TxnResult
+public class RetryWithNewProtocolResult implements TxnResult
 {
-    private static final long SIZE = ObjectSizes.measure(new RetryWithNewProtocolResult(Epoch.FIRST));
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new RetryWithNewProtocolResult(null));
 
     public final Epoch epoch;
 
@@ -49,27 +45,6 @@ public class RetryWithNewProtocolResult extends TxnResult
     @Override
     public long estimatedSizeOnHeap()
     {
-        return SIZE;
+        return EMPTY_SIZE + epoch.estimatedSizeOnHeap();
     }
-
-    public static final TxnResultSerializer<RetryWithNewProtocolResult> serializer = new TxnResultSerializer<RetryWithNewProtocolResult>()
-    {
-        @Override
-        public void serialize(RetryWithNewProtocolResult retry, DataOutputPlus out, int version) throws IOException
-        {
-            Epoch.messageSerializer.serialize(retry.epoch, out, version);
-        }
-
-        @Override
-        public RetryWithNewProtocolResult deserialize(DataInputPlus in, int version) throws IOException
-        {
-            return new RetryWithNewProtocolResult(Epoch.messageSerializer.deserialize(in, version));
-        }
-
-        @Override
-        public long serializedSize(RetryWithNewProtocolResult retry, int version)
-        {
-            return Epoch.messageSerializer.serializedSize(retry.epoch, version);
-        }
-    };
 }

@@ -28,7 +28,6 @@ import java.util.stream.Collectors;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterators;
 
-import accord.api.Key;
 import accord.primitives.Keys;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 
@@ -45,7 +44,6 @@ public abstract class AbstractKeySorted<T> implements Iterable<T>
     public AbstractKeySorted(T[] items)
     {
         this.items = items;
-        validateOrder();
         this.itemKeys = extractItemKeys();
     }
 
@@ -55,13 +53,12 @@ public abstract class AbstractKeySorted<T> implements Iterable<T>
         items.toArray(arr);
         Arrays.sort(arr, this::compare);
         this.items = arr;
-        validateOrder();
         this.itemKeys = extractItemKeys();
     }
 
     private Keys extractItemKeys()
     {
-        Key[] keys = new Key[size()];
+        PartitionKey[] keys = new PartitionKey[items.length];
         for (int i = 0 ; i < keys.length ; ++i)
             keys[i] = getKey(items[i]);
         return Keys.ofSorted(keys);

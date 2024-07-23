@@ -18,9 +18,7 @@
 
 package org.apache.cassandra.service.accord.txn;
 
-import java.io.IOException;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -29,6 +27,7 @@ import accord.api.Data;
 import accord.api.Update;
 import accord.api.Write;
 import accord.local.Node;
+import accord.primitives.Keys;
 import accord.primitives.Participants;
 import accord.primitives.Ranges;
 import accord.primitives.Seekables;
@@ -36,7 +35,6 @@ import accord.primitives.Timestamp;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Mutation;
-import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.Endpoints;
@@ -60,16 +58,13 @@ import org.apache.cassandra.service.reads.repair.BlockingReadRepair;
  * coordinator fails to complete the transaction then the dependent Cassandra read that triggered the read repair will
  * also fail and it doesn't matter if the read repair is partially applied or not applied at all since it doesn't propose
  * new values.
+ *
+ * The reason we stash this in an Update that Accord won't actually use is that there isn't an explicit parameter
+ * passing mechanism in Accord we can only provide implementations of Read, Query, and Update and then Accord will hand them
+ * back via the Txn during execution.
  */
 public class UnrecoverableRepairUpdate<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>> extends AccordUpdate
 {
-    private static final ConcurrentHashMap<Key, UnrecoverableRepairUpdate> inflightUpdates = new ConcurrentHashMap<>();
-
-    public static UnrecoverableRepairUpdate removeInflightUpdate(Key updateKey)
-    {
-        return inflightUpdates.remove(updateKey);
-    }
-
     private static class Key
     {
         final int nodeId;
@@ -111,7 +106,7 @@ public class UnrecoverableRepairUpdate<E extends Endpoints<E>, P extends Replica
     public final ReplicaPlan.ForWrite writePlan;
     public final Key updateKey;
 
-    private UnrecoverableRepairUpdate(Node.Id nodeId, BlockingReadRepair<E, P> parent,
+    public UnrecoverableRepairUpdate(Node.Id nodeId, BlockingReadRepair<E, P> parent,
                                       Seekables<?, ?> keys, DecoratedKey dk, Map<Replica, Mutation> mutations, ReplicaPlan.ForWrite writePlan)
     {
         this.parent = parent;
@@ -123,25 +118,16 @@ public class UnrecoverableRepairUpdate<E extends Endpoints<E>, P extends Replica
         this.updateKey = new Key(nodeId.id, nextCounter.getAndIncrement());
     }
 
-    public static <E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>> UnrecoverableRepairUpdate<E, P> create(Node.Id nodeId, BlockingReadRepair<E, P> parent,
-                                                   Seekables<?, ?> keys, DecoratedKey dk, Map<Replica, Mutation> mutations,
-                                                   ReplicaPlan.ForWrite writePlan)
-    {
-        UnrecoverableRepairUpdate<E, P> update = new UnrecoverableRepairUpdate<>(nodeId, parent, keys, dk, mutations, writePlan);
-        inflightUpdates.put(update.updateKey, update);
-        return update;
-    }
-
     @Override
     public Seekables<?, ?> keys()
     {
-        return keys;
+        return Keys.EMPTY;
     }
 
     @Override
     public Write apply(Timestamp executeAt, @Nullable Data data)
     {
-        return TxnWrite.EMPTY_CONDITION_FAILED;
+        return null;
     }
 
     @Override
@@ -191,25 +177,24 @@ public class UnrecoverableRepairUpdate<E extends Endpoints<E>, P extends Replica
         parent.repairPartitionDirectly(readCoordinator, dk, mutations, writePlan);
     }
 
-    public static final AccordUpdateSerializer<UnrecoverableRepairUpdate> serializer = new AccordUpdateSerializer<UnrecoverableRepairUpdate>()
+    // Only the original coordinator ever needs to access an UnrecoverableRepairUpdate
+    public static final AccordUpdateSerializer<UnrecoverableRepairUpdate> serializer = new AccordUpdateSerializer<>()
     {
         @Override
-        public void serialize(UnrecoverableRepairUpdate update, DataOutputPlus out, int version) throws IOException
+        public void serialize(UnrecoverableRepairUpdate update, DataOutputPlus out, int version)
         {
-            out.writeUnsignedVInt32(update.updateKey.nodeId);
-            out.writeUnsignedVInt(update.updateKey.counter);
         }
 
         @Override
-        public UnrecoverableRepairUpdate deserialize(DataInputPlus in, int version) throws IOException
+        public UnrecoverableRepairUpdate deserialize(DataInputPlus in, int version)
         {
-            return inflightUpdates.get(new Key(in.readUnsignedVInt32(), in.readUnsignedVInt()));
+            return null;
        }
 
         @Override
         public long serializedSize(UnrecoverableRepairUpdate update, int version)
         {
-            return TypeSizes.sizeofUnsignedVInt(update.updateKey.nodeId) + TypeSizes.sizeofUnsignedVInt(update.updateKey.counter);
+            return 0;
         }
     };
 }

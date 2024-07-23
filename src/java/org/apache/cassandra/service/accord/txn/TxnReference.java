@@ -46,18 +46,18 @@ import static org.apache.cassandra.service.accord.AccordSerializers.columnMetada
 
 public class TxnReference
 {
-    private final TxnDataName tuple;
+    private final Integer tuple;
     private final ColumnMetadata column;
     private final CellPath path;
 
-    public TxnReference(TxnDataName tuple, ColumnMetadata column, CellPath path)
+    public TxnReference(Integer tuple, ColumnMetadata column, CellPath path)
     {
         this.tuple = tuple;
         this.column = column;
         this.path = path;
     }
 
-    public TxnReference(TxnDataName tuple, ColumnMetadata column)
+    public TxnReference(Integer tuple, ColumnMetadata column)
     {
         this(tuple, column, null);
     }
@@ -135,9 +135,9 @@ public class TxnReference
         return row.clustering().bufferAt(column.position());
     }
 
-    public FilteredPartition getPartition(TxnData data)
+    public TxnDataKeyValue getPartition(TxnData data)
     {
-        return data.get(tuple);
+        return (TxnDataKeyValue)data.get(tuple);
     }
     
     public Row getRow(TxnData data)
@@ -292,7 +292,7 @@ public class TxnReference
         @Override
         public void serialize(TxnReference reference, DataOutputPlus out, int version) throws IOException
         {
-            TxnDataName.serializer.serialize(reference.tuple, out, version);
+            out.writeInt(reference.tuple);
             out.writeBoolean(reference.column != null);
             if (reference.column != null)
                 columnMetadataSerializer.serialize(reference.column, out, version);
@@ -304,7 +304,7 @@ public class TxnReference
         @Override
         public TxnReference deserialize(DataInputPlus in, int version) throws IOException
         {
-            TxnDataName name = TxnDataName.serializer.deserialize(in, version);
+            int name = in.readInt();
             ColumnMetadata column = in.readBoolean() ? columnMetadataSerializer.deserialize(in, version) : null;
             CellPath path = in.readBoolean() ? CollectionType.cellPathSerializer.deserialize(in) : null;
             return new TxnReference(name, column, path);
@@ -314,7 +314,7 @@ public class TxnReference
         public long serializedSize(TxnReference reference, int version)
         {
             long size = 0;
-            size += TxnDataName.serializer.serializedSize(reference.tuple, version);
+            size += TypeSizes.INT_SIZE;
             size += TypeSizes.BOOL_SIZE;
             if (reference.column != null)
                 size += columnMetadataSerializer.serializedSize(reference.column, version);

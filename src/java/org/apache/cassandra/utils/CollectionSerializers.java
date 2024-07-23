@@ -183,7 +183,7 @@ public class CollectionSerializers
 
     public static <K, V> Map<K, V> deserializeMap(DataInputPlus in, int version, IVersionedSerializer<K> keySerializer, IVersionedSerializer<V> valueSerializer) throws IOException
     {
-        return deserializeMap(in, version, keySerializer, valueSerializer, newHashMap());
+        return deserializeMap(in, version, keySerializer, valueSerializer, Maps::newHashMapWithExpectedSize);
     }
 
     public static <V> long serializedCollectionSize(Collection<V> values, int version, IVersionedSerializer<V> valueSerializer)

@@ -27,20 +27,19 @@ import org.apache.cassandra.cql3.AssignmentTestable;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.FieldIdentifier;
-import org.apache.cassandra.cql3.terms.Lists;
-import org.apache.cassandra.cql3.terms.Maps;
 import org.apache.cassandra.cql3.QueryOptions;
-import org.apache.cassandra.cql3.terms.Sets;
-import org.apache.cassandra.cql3.terms.Term;
-import org.apache.cassandra.cql3.terms.UserTypes;
 import org.apache.cassandra.cql3.VariableSpecifications;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.functions.types.utils.Bytes;
 import org.apache.cassandra.cql3.selection.Selectable;
-import org.apache.cassandra.db.marshal.ListType;
-import org.apache.cassandra.service.accord.txn.TxnDataName;
+import org.apache.cassandra.cql3.terms.Lists;
+import org.apache.cassandra.cql3.terms.Maps;
+import org.apache.cassandra.cql3.terms.Sets;
+import org.apache.cassandra.cql3.terms.Term;
+import org.apache.cassandra.cql3.terms.UserTypes;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
+import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.marshal.UserType;
@@ -57,16 +56,18 @@ public class RowDataReference extends Term.NonTerminal
     public static final String CANNOT_FIND_TUPLE_MESSAGE = "Cannot resolve reference to tuple '%s'.";
     public static final String COLUMN_NOT_IN_TUPLE_MESSAGE = "Column '%s' does not exist in tuple '%s'.";
 
-    private final TxnDataName selectName;
+    private final String selectName;
+    private final int txnDataName;
     private final ColumnMetadata column;
     private final Term elementPath;
     private final CellPath fieldPath;
     
-    public RowDataReference(TxnDataName selectName, ColumnMetadata column, Term elementPath, CellPath fieldPath)
+    public RowDataReference(String selectName, int txnDataName, ColumnMetadata column, Term elementPath, CellPath fieldPath)
     {
         Preconditions.checkArgument(elementPath == null || fieldPath == null, "Cannot specify both element and field paths");
         
         this.selectName = selectName;
+        this.txnDataName = txnDataName;
         this.column = column;
         this.elementPath = elementPath;
         this.fieldPath = fieldPath;
@@ -182,14 +183,14 @@ public class RowDataReference extends Term.NonTerminal
     {
         Preconditions.checkState(elementPath == null || column.isComplex() || column.type.isFrozenCollection());
         Preconditions.checkState(fieldPath == null || column.isComplex() || column.type.isUDT());
-        return new TxnReference(selectName, column, bindCellPath(options));
+        return new TxnReference(txnDataName, column, bindCellPath(options));
     }
 
     public ColumnIdentifier getFullyQualifiedName()
     {
         // TODO: Make this more user-friendly...
         String path = fieldPath != null ? '.' + Bytes.toHexString(fieldPath.get(0)) : (elementPath == null ? "" : "[0x" + elementPath + ']');
-        String fullName = selectName.name() + '.' + column.name.toString() + path;
+        String fullName = selectName + '.' + column.name.toString() + path;
         return new ColumnIdentifier(fullName, true);
     }
 
@@ -206,7 +207,7 @@ public class RowDataReference extends Term.NonTerminal
         
         private boolean isResolved = false;
 
-        private TxnDataName tupleName;
+        private int tupleName;
         private ColumnMetadata column;
         private Term elementPath = null;
         private CellPath fieldPath = null;
@@ -250,15 +251,16 @@ public class RowDataReference extends Term.NonTerminal
             isResolved = true;
         }
 
-        public void resolveReference(Map<TxnDataName, ReferenceSource> sources)
+        public void resolveReference(Map<Integer, ReferenceSource> sources, Map<String, Integer> nameToTxnDataName, int userReadIndex)
         {
             if (isResolved)
                 return;
 
-            // root level name
-            tupleName = TxnDataName.user(tuple.toString());
+            // root level name, use the one that was already created if it exists otherwise generate a new one
+            String rawTupleName = tuple.getText();
+            tupleName = nameToTxnDataName.getOrDefault(rawTupleName, userReadIndex);
             ReferenceSource source = sources.get(tupleName);
-            checkNotNull(source, CANNOT_FIND_TUPLE_MESSAGE, tupleName.name());
+            checkNotNull(source, CANNOT_FIND_TUPLE_MESSAGE, rawTupleName);
             
             if (selected == null)
             {
@@ -267,7 +269,7 @@ public class RowDataReference extends Term.NonTerminal
             }
 
             column = source.getColumn(selected.toString());
-            checkNotNull(column, COLUMN_NOT_IN_TUPLE_MESSAGE, selected.toString(), tupleName.name());
+            checkNotNull(column, COLUMN_NOT_IN_TUPLE_MESSAGE, selected.toString(), rawTupleName);
 
             // TODO: confirm update partition key terms don't contain column references. This can't be done in prepare
             //   because there can be intermediate functions (ie: pk=row.v+1 or pk=_add(row.v, 5)). Need a recursive Term visitor
@@ -339,12 +341,12 @@ public class RowDataReference extends Term.NonTerminal
         public RowDataReference prepareAsReceiver()
         {
             checkResolved();
-            return new RowDataReference(tupleName, column, elementPath, fieldPath);
+            return new RowDataReference(tuple.toString(), tupleName, column, elementPath, fieldPath);
         }
 
         private RowDataReference prepare(String keyspace,
                                          ColumnSpecification receiver,
-                                         TxnDataName selectName,
+                                         int txnDataName,
                                          ColumnMetadata column,
                                          Term elementPath,
                                          CellPath fieldPath)
@@ -353,7 +355,7 @@ public class RowDataReference extends Term.NonTerminal
                 throw new InvalidRequestException(String.format("Invalid reference type %s (%s) for \"%s\" of type %s",
                                                                 column.type, column.name, receiver.name, receiver.type.asCQL3Type()));
 
-            return new RowDataReference(selectName, column, elementPath, fieldPath);
+            return new RowDataReference(tuple.toString(), txnDataName, column, elementPath, fieldPath);
         }
 
         @Override
