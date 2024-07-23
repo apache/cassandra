@@ -71,14 +71,19 @@ public enum TransactionalMigrationFromMode
         return from != null && from.accordIsEnabled;
     }
 
-    public boolean writesThroughAccord()
+    public boolean nonSerialWritesThroughAccord()
     {
-        return from != null && from.writesThroughAccord;
+        return from != null && from.nonSerialWritesThroughAccord;
     }
 
-    public boolean readsThroughAccord()
+    public boolean readRepairsThroughAccord()
     {
-        return from != null && from.writesThroughAccord;
+        return from != null && from.blockingReadRepairThroughAccord;
+    }
+
+    public boolean nonSerialReadsThroughAccord()
+    {
+        return from != null && from.nonSerialReadsThroughAccord;
     }
 
     public boolean isMigrating()

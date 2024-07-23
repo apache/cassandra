@@ -60,7 +60,6 @@ import org.apache.cassandra.cql3.transactions.SelectReferenceSource;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.SinglePartitionReadQuery;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.ClientState;
@@ -70,10 +69,11 @@ import org.apache.cassandra.service.accord.api.AccordRoutableKey;
 import org.apache.cassandra.service.accord.txn.AccordUpdate;
 import org.apache.cassandra.service.accord.txn.TxnCondition;
 import org.apache.cassandra.service.accord.txn.TxnData;
+import org.apache.cassandra.service.accord.txn.TxnDataKeyValue;
 import org.apache.cassandra.service.accord.txn.TxnDataName;
+import org.apache.cassandra.service.accord.txn.TxnKeyRead;
 import org.apache.cassandra.service.accord.txn.TxnNamedRead;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
-import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.service.accord.txn.TxnReference;
 import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.service.accord.txn.TxnUpdate;
@@ -89,7 +89,7 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNull;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
-import static org.apache.cassandra.service.accord.txn.TxnRead.createTxnRead;
+import static org.apache.cassandra.service.accord.txn.TxnKeyRead.createTxnRead;
 import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.retry_new_protocol;
 
 public class TransactionStatement implements CQLStatement.CompositeCQLStatement, CQLStatement.ReturningCQLStatement
@@ -335,7 +335,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
             Preconditions.checkState(conditions.isEmpty(), "No condition should exist without updates present");
             List<TxnNamedRead> reads = createNamedReads(options, state, ImmutableMap.of(), keySet::add);
             Keys txnKeys = toKeys(keySet);
-            TxnRead read = createTxnRead(reads, txnKeys, null);
+            TxnKeyRead read = createTxnRead(reads, txnKeys, null);
             Txn.Kind kind = txnKeys.size() == 1
                     && transactionalModeForSingleKey(txnKeys) == TransactionalMode.full
                     && DatabaseDescriptor.getAccordEphemeralReadEnabledEnabled()
@@ -348,7 +348,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
             AccordUpdate update = createUpdate(state, options, autoReads, keySet::add);
             List<TxnNamedRead> reads = createNamedReads(options, state, autoReads, keySet::add);
             Keys txnKeys = toKeys(keySet);
-            TxnRead read = createTxnRead(reads, txnKeys, null);
+            TxnKeyRead read = createTxnRead(reads, txnKeys, null);
             return new Txn.InMemory(txnKeys, read, TxnQuery.ALL, update);
         }
     }
@@ -399,7 +399,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
                 ResultSetBuilder result = new ResultSetBuilder(resultMetadata, selectors, false);
                 if (selectQuery.queries.size() == 1)
                 {
-                    FilteredPartition partition = data.get(TxnDataName.returning());
+                    TxnDataKeyValue partition = (TxnDataKeyValue)data.get(TxnDataName.returning());
                     boolean reversed = selectQuery.queries.get(0).isReversed();
                     if (partition != null)
                         returningSelect.select.processPartition(partition.rowIterator(reversed), options, result, FBUtilities.nowInSeconds());
@@ -409,7 +409,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
                     long nowInSec = FBUtilities.nowInSeconds();
                     for (int i = 0; i < selectQuery.queries.size(); i++)
                     {
-                        FilteredPartition partition = data.get(TxnDataName.returning(i));
+                        TxnDataKeyValue partition = (TxnDataKeyValue)data.get(TxnDataName.returning(i));
                         boolean reversed = selectQuery.queries.get(i).isReversed();
                         if (partition != null)
                             returningSelect.select.processPartition(partition.rowIterator(reversed), options, result, nowInSec);

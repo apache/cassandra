@@ -18,24 +18,20 @@
 
 package org.apache.cassandra.service.accord.txn;
 
-import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.db.partitions.PartitionIterator;
 
-/**
- * Potentially returned by any transaction that tries to execute in an Epoch
- * where the range has migrated away from Accord
- */
-public class RetryWithNewProtocolResult implements TxnResult
+public class TxnRangeReadResult implements TxnResult
 {
-    public final Epoch epoch;
+    public final PartitionIterator partitions;
 
-    RetryWithNewProtocolResult(Epoch epoch)
+    public TxnRangeReadResult(PartitionIterator partitions)
     {
-        this.epoch = epoch;
+        this.partitions = partitions;
     }
 
     @Override
     public Kind kind()
     {
-        return Kind.retry_new_protocol;
+        return Kind.range_read;
     }
 }

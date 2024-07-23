@@ -69,8 +69,8 @@ import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.collect.ImmutableList.toImmutableList;
 import static java.lang.String.format;
 import static java.util.Collections.emptyList;
-import static org.apache.cassandra.dht.Range.normalize;
 import static org.apache.cassandra.dht.NormalizedRanges.normalizedRanges;
+import static org.apache.cassandra.dht.Range.normalize;
 import static org.apache.cassandra.utils.CollectionSerializers.deserializeList;
 import static org.apache.cassandra.utils.CollectionSerializers.serializeCollection;
 import static org.apache.cassandra.utils.CollectionSerializers.serializedCollectionSize;
@@ -194,7 +194,7 @@ public abstract class ConsensusTableMigration
             if (metadata == null || !metadata.params.transactionalMigrationFrom.isMigrating())
                 continue;
             TransactionalMode transactionalMode = metadata.params.transactionalMode;
-            if (!transactionalMode.writesThroughAccord && transactionalMode != TransactionalMode.unsafe_writes)
+            if (!transactionalMode.nonSerialWritesThroughAccord && transactionalMode != TransactionalMode.unsafe_writes)
                 throw new IllegalStateException("non-SERIAL writes need to be routed through Accord before attempting migration, or enable mixed mode");
             tableIds.add(tableId);
         }

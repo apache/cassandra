@@ -52,7 +52,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 import static org.apache.cassandra.service.accord.AccordSerializers.clusteringSerializer;
-import static org.apache.cassandra.service.accord.txn.TxnRead.CAS_READ;
+import static org.apache.cassandra.service.accord.txn.TxnKeyRead.CAS_READ;
 import static org.apache.cassandra.utils.CollectionSerializers.deserializeList;
 import static org.apache.cassandra.utils.CollectionSerializers.serializeCollection;
 import static org.apache.cassandra.utils.CollectionSerializers.serializeList;
@@ -332,8 +332,8 @@ public abstract class TxnCondition
         public boolean applies(@Nonnull TxnData data)
         {
             checkNotNull(data);
-            FilteredPartition partition = data.get(CAS_READ);
-            Row row = partition != null ? partition.getRow(clustering) : null;
+            TxnDataKeyValue value = (TxnDataKeyValue)data.get(CAS_READ);
+            Row row = value != null ? value.getRow(clustering) : null;
             for (Bound bound : bounds)
             {
                 if (!bound.appliesTo(row))

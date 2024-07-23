@@ -16,26 +16,18 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.service.accord.txn;
+package org.apache.cassandra.service.reads.range;
 
-import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.db.partitions.PartitionIterator;
+import org.apache.cassandra.locator.EndpointsForRange;
+import org.apache.cassandra.locator.ReplicaPlan.ForRangeRead;
+import org.apache.cassandra.service.reads.repair.NoopReadRepair;
+import org.apache.cassandra.service.reads.repair.ReadRepair;
 
-/**
- * Potentially returned by any transaction that tries to execute in an Epoch
- * where the range has migrated away from Accord
- */
-public class RetryWithNewProtocolResult implements TxnResult
+public interface IRangeResponse extends PartitionIterator
 {
-    public final Epoch epoch;
-
-    RetryWithNewProtocolResult(Epoch epoch)
+    default ReadRepair<EndpointsForRange, ForRangeRead> getReadRepair()
     {
-        this.epoch = epoch;
-    }
-
-    @Override
-    public Kind kind()
-    {
-        return Kind.retry_new_protocol;
+        return NoopReadRepair.instance;
     }
 }

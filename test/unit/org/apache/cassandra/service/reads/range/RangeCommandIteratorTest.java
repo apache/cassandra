@@ -22,7 +22,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.google.common.collect.Iterators;
-import org.apache.cassandra.schema.TableId;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -41,6 +40,8 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.locator.ReplicaPlans;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.service.reads.ReadCoordinator;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.CloseableIterator;
 
@@ -107,27 +108,27 @@ public class RangeCommandIteratorTest
 
         // without range merger, there will be 2 batches requested: 1st batch with 1 range and 2nd batch with remaining ranges
         CloseableIterator<ReplicaPlan.ForRangeRead> replicaPlans = replicaPlanIterator(keyRange, keyspace, false);
-        RangeCommandIterator data = new RangeCommandIterator(replicaPlans, command, 1, 1000, vnodeCount, Dispatcher.RequestTime.forImmediateExecution());
+        RangeCommandIterator data = new RangeCommandIterator(replicaPlans, command, ReadCoordinator.DEFAULT, 1, 1000, vnodeCount, Dispatcher.RequestTime.forImmediateExecution());
         verifyRangeCommandIterator(data, rows, 2, vnodeCount);
 
         // without range merger and initial cf=5, there will be 1 batches requested: 5 vnode ranges for 1st batch
         replicaPlans = replicaPlanIterator(keyRange, keyspace, false);
-        data = new RangeCommandIterator(replicaPlans, command, vnodeCount, 1000, vnodeCount, Dispatcher.RequestTime.forImmediateExecution());
+        data = new RangeCommandIterator(replicaPlans, command, ReadCoordinator.DEFAULT, vnodeCount, 1000, vnodeCount, Dispatcher.RequestTime.forImmediateExecution());
         verifyRangeCommandIterator(data, rows, 1, vnodeCount);
 
         // without range merger and max cf=1, there will be 5 batches requested: 1 vnode range per batch
         replicaPlans = replicaPlanIterator(keyRange, keyspace, false);
-        data = new RangeCommandIterator(replicaPlans, command, 1, 1, vnodeCount, Dispatcher.RequestTime.forImmediateExecution());
+        data = new RangeCommandIterator(replicaPlans, command, ReadCoordinator.DEFAULT, 1, 1, vnodeCount, Dispatcher.RequestTime.forImmediateExecution());
         verifyRangeCommandIterator(data, rows, vnodeCount, vnodeCount);
 
         // with range merger, there will be only 1 batch requested, as all ranges share the same replica - localhost
         replicaPlans = replicaPlanIterator(keyRange, keyspace, true);
-        data = new RangeCommandIterator(replicaPlans, command, 1, 1000, vnodeCount, Dispatcher.RequestTime.forImmediateExecution());
+        data = new RangeCommandIterator(replicaPlans, command, ReadCoordinator.DEFAULT, 1, 1000, vnodeCount, Dispatcher.RequestTime.forImmediateExecution());
         verifyRangeCommandIterator(data, rows, 1, vnodeCount);
 
         // with range merger and max cf=1, there will be only 1 batch requested, as all ranges share the same replica - localhost
         replicaPlans = replicaPlanIterator(keyRange, keyspace, true);
-        data = new RangeCommandIterator(replicaPlans, command, 1, 1, vnodeCount, Dispatcher.RequestTime.forImmediateExecution());
+        data = new RangeCommandIterator(replicaPlans, command, ReadCoordinator.DEFAULT, 1, 1, vnodeCount, Dispatcher.RequestTime.forImmediateExecution());
         verifyRangeCommandIterator(data, rows, 1, vnodeCount);
     }
 

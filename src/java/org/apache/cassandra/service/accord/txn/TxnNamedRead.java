@@ -37,7 +37,6 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
-import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -151,9 +150,9 @@ public class TxnNamedRead extends AbstractSerialized<ReadCommand>
                 TxnData result = new TxnData();
                 if (iterator.hasNext())
                 {
-                    FilteredPartition filtered = FilteredPartition.create(iterator.next());
-                    if (filtered.hasRows() || read.selectsFullPartition())
-                        result.put(name, filtered);
+                    TxnDataKeyValue value = new TxnDataKeyValue(iterator.next());
+                    if (value.hasRows() || read.selectsFullPartition())
+                        result.put(name, value);
                 }
                 return result;
             }
