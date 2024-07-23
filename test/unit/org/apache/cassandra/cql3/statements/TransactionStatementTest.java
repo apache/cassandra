@@ -42,6 +42,7 @@ import static org.apache.cassandra.cql3.statements.TransactionStatement.NO_CONDI
 import static org.apache.cassandra.cql3.statements.TransactionStatement.NO_COUNTERS_IN_TXNS_MESSAGE;
 import static org.apache.cassandra.cql3.statements.TransactionStatement.NO_TIMESTAMPS_IN_UPDATES_MESSAGE;
 import static org.apache.cassandra.cql3.statements.TransactionStatement.SELECT_REFS_NEED_COLUMN_MESSAGE;
+import static org.apache.cassandra.cql3.statements.TransactionStatement.TRANSACTIONS_DISABLED_ON_TABLE_MESSAGE;
 import static org.apache.cassandra.cql3.statements.UpdateStatement.CANNOT_SET_KEY_WITH_REFERENCE_MESSAGE;
 import static org.apache.cassandra.cql3.statements.UpdateStatement.UPDATING_PRIMARY_KEY_MESSAGE;
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
@@ -57,18 +58,20 @@ public class TransactionStatementTest
     private static final TableId TABLE4_ID = TableId.fromString("00000000-0000-0000-0000-000000000004");
     private static final TableId TABLE5_ID = TableId.fromString("00000000-0000-0000-0000-000000000005");
     private static final TableId TABLE6_ID = TableId.fromString("00000000-0000-0000-0000-000000000006");
+    private static final TableId TABLE7_ID = TableId.fromString("00000000-0000-0000-0000-000000000007");
 
     @BeforeClass
     public static void beforeClass() throws Exception
     {
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace("ks", KeyspaceParams.simple(1),
-                                    parse("CREATE TABLE tbl1 (k int, c int, v int, primary key (k, c))", "ks").id(TABLE1_ID),
-                                    parse("CREATE TABLE tbl2 (k int, c int, v int, primary key (k, c))", "ks").id(TABLE2_ID),
-                                    parse("CREATE TABLE tbl3 (k int PRIMARY KEY, \"with spaces\" int, \"with\"\"quote\" int, \"MiXeD_CaSe\" int)", "ks").id(TABLE3_ID),
-                                    parse("CREATE TABLE tbl4 (k int PRIMARY KEY, int_list list<int>)", "ks").id(TABLE4_ID),
-                                    parse("CREATE TABLE tbl5 (k int PRIMARY KEY, v int)", "ks").id(TABLE5_ID),
-                                    parse("CREATE TABLE tbl6 (k int PRIMARY KEY, c counter)", "ks").id(TABLE6_ID));
+                                    parse("CREATE TABLE tbl1 (k int, c int, v int, PRIMARY KEY (k, c)) WITH transactional_mode = 'full'", "ks").id(TABLE1_ID),
+                                    parse("CREATE TABLE tbl2 (k int, c int, v int, primary key (k, c)) WITH transactional_mode = 'full'", "ks").id(TABLE2_ID),
+                                    parse("CREATE TABLE tbl3 (k int PRIMARY KEY, \"with spaces\" int, \"with\"\"quote\" int, \"MiXeD_CaSe\" int) WITH transactional_mode = 'full'", "ks").id(TABLE3_ID),
+                                    parse("CREATE TABLE tbl4 (k int PRIMARY KEY, int_list list<int>) WITH transactional_mode = 'full'", "ks").id(TABLE4_ID),
+                                    parse("CREATE TABLE tbl5 (k int PRIMARY KEY, v int) WITH transactional_mode = 'full'", "ks").id(TABLE5_ID),
+                                    parse("CREATE TABLE tbl6 (k int PRIMARY KEY, c counter) WITH transactional_mode = 'full'", "ks").id(TABLE6_ID),
+                                    parse("CREATE TABLE tbl7 (k int PRIMARY KEY, v int) WITH transactional_mode = 'off'", "ks").id(TABLE7_ID));
     }
 
     @Test
@@ -398,6 +401,43 @@ public class TransactionStatementTest
         Assertions.assertThatThrownBy(() -> prepare(query))
                   .isInstanceOf(InvalidRequestException.class)
                   .hasMessageContaining(String.format(ILLEGAL_RANGE_QUERY_MESSAGE, "LET assignment row1", "at [2:15]"));
+    }
+
+    @Test
+    public void shouldRejectLetSelectOnNonTransactionalTable()
+    {
+        String query = "BEGIN TRANSACTION\n" +
+                       "  LET row1 = (SELECT * FROM ks.tbl7 WHERE k = 0);\n" +
+                       "  INSERT INTO ks.tbl5 (k, v) VALUES (1, 2);\n" +
+                       "COMMIT TRANSACTION;";
+
+        Assertions.assertThatThrownBy(() -> prepare(query))
+                .isInstanceOf(InvalidRequestException.class)
+                .hasMessageContaining(String.format(TRANSACTIONS_DISABLED_ON_TABLE_MESSAGE, "SELECT", "at [2:15]"));
+    }
+
+    @Test
+    public void shouldRejectSelectOnNonTransactionalTable()
+    {
+        String query = "BEGIN TRANSACTION\n" +
+                       "  SELECT * FROM ks.tbl7 WHERE k = 0;\n" +
+                       "COMMIT TRANSACTION;";
+
+        Assertions.assertThatThrownBy(() -> prepare(query))
+                .isInstanceOf(InvalidRequestException.class)
+                .hasMessageContaining(String.format(TRANSACTIONS_DISABLED_ON_TABLE_MESSAGE, "SELECT", "at [2:3]"));
+    }
+
+    @Test
+    public void shouldRejectUpdateOnNonTransactionalTable()
+    {
+        String query = "BEGIN TRANSACTION\n" +
+                       "  INSERT INTO ks.tbl7 (k, v) VALUES (1, 2);\n" +
+                       "COMMIT TRANSACTION;";
+
+        Assertions.assertThatThrownBy(() -> prepare(query))
+                .isInstanceOf(InvalidRequestException.class)
+                .hasMessageContaining(String.format(TRANSACTIONS_DISABLED_ON_TABLE_MESSAGE, "INSERT", "at [2:3]"));
     }
 
     private static CQLStatement prepare(String query)

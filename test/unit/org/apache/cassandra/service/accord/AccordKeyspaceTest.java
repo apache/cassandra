@@ -97,7 +97,7 @@ public class AccordKeyspaceTest extends CQLTester.InMemory
     {
         AtomicLong now = new AtomicLong();
 
-        String tableName = createTable("CREATE TABLE %s (k int, c int, v int, PRIMARY KEY (k, c))");
+        String tableName = createTable("CREATE TABLE %s (k int, c int, v int, PRIMARY KEY (k, c)) WITH transactional_mode = 'full'");
         TableId tableId = Schema.instance.getTableMetadata(KEYSPACE, tableName).id;
         Ranges scope = Ranges.of(new TokenRange(AccordRoutingKey.SentinelKey.min(tableId), AccordRoutingKey.SentinelKey.max(tableId)));
 
