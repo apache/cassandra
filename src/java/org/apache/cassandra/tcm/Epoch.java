@@ -30,6 +30,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
+import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
 public class Epoch implements Comparable<Epoch>, Serializable
@@ -62,6 +63,7 @@ public class Epoch implements Comparable<Epoch>, Serializable
     public static final Epoch UPGRADE_STARTUP = new Epoch(Long.MIN_VALUE);
     public static final Epoch UPGRADE_GOSSIP = new Epoch(Long.MIN_VALUE + 1);
     private static final Set<Epoch> beforeFirst = Sets.newHashSet(EMPTY, UPGRADE_GOSSIP, UPGRADE_STARTUP);
+    private static final long EMPTY_SIZE = ObjectSizes.measure(EMPTY);
 
     private final long epoch;
 
@@ -204,5 +206,10 @@ public class Epoch implements Comparable<Epoch>, Serializable
         {
             return VIntCoding.computeUnsignedVIntSize(t.epoch);
         }
+    }
+
+    public long estimatedSizeOnHeap()
+    {
+        return EMPTY_SIZE;
     }
 }

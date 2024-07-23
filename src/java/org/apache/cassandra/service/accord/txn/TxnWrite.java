@@ -380,6 +380,12 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
     @Override
     public AsyncChain<Void> apply(Seekable key, SafeCommandStore safeStore, TxnId txnId, Timestamp executeAt, DataStore store, PartialTxn txn)
     {
+        // UnrecoverableRepairUpdate will deserialize as null at other nodes
+        // Accord should skip the Update for a read transaction, but handle it here anyways
+        if (txn.update() == null)
+            return Writes.SUCCESS;
+
+        TxnUpdate txnUpdate = ((TxnUpdate)txn.update());
         // TODO (expected, efficiency): 99.9999% of the time we can just use executeAt.hlc(), so can avoid bringing
         //  cfk into memory by retaining at all times in memory key ranges that are dirty and must use this logic;
         //  any that aren't can just use executeAt.hlc
@@ -390,7 +396,7 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
 
         List<AsyncChain<Void>> results = new ArrayList<>();
 
-        boolean preserveTimestamps = ((TxnUpdate)txn.update()).preserveTimestamps();
+        boolean preserveTimestamps = txnUpdate.preserveTimestamps();
         // Apply updates not specified fully by the client but built from fragments completed by data from reads.
         // This occurs, for example, when an UPDATE statement uses a value assigned by a LET statement.
         Function<Cell, CellPath> accordListPathSuppler = accordListPathSupplier(timestamp);
@@ -401,7 +407,6 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
             // Apply updates that are fully specified by the client and not reliant on data from reads.
             // ex. INSERT INTO tbl (a, b, c) VALUES (1, 2, 3)
             // These updates are persisted only in TxnUpdate and not in TxnWrite to avoid duplication.
-            TxnUpdate txnUpdate = (TxnUpdate) txn.update();
             assert txnUpdate != null : "PartialTxn should contain an update if we're applying a write!";
             List<Update> updates = txnUpdate.completeUpdatesForKey((RoutableKey) key);
             updates.forEach(update -> results.add(update.write(preserveTimestamps, accordListPathSuppler, timestamp, nowInSeconds)));

@@ -31,9 +31,10 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import accord.primitives.SaveStatus;
+import accord.Utils;
 import accord.messages.TxnRequest;
 import accord.primitives.Routable;
+import accord.primitives.SaveStatus;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.utils.async.AsyncChains;
@@ -89,8 +90,8 @@ public class AccordDebugKeyspaceTest extends CQLTester
         Txn txn = createTxn(wrapInTxn(String.format("INSERT INTO %s.%s(k, c, v) VALUES (?, ?, ?)", KEYSPACE, tableName)), 0, 0, 0);
         AsyncChains.getBlocking(accord.node().coordinate(id, txn));
 
-        assertRows(execute(QUERY_TXN_BLOCKED_BY, id.toString()),
-                   row(id.toString(), anyInt(), 0, ByteBufferUtil.EMPTY_BYTE_BUFFER, "Self", any(), null, anyOf(SaveStatus.ReadyToExecute.name(), SaveStatus.Applying.name(), SaveStatus.Applied.name())));
+        Utils.spinUntilSuccess(() -> assertRows(execute(QUERY_TXN_BLOCKED_BY, id.toString()),
+                   row(id.toString(), anyInt(), 0, ByteBufferUtil.EMPTY_BYTE_BUFFER, "Self", any(), null, anyOf(SaveStatus.ReadyToExecute.name(), SaveStatus.Applying.name(), SaveStatus.Applied.name()))));
     }
 
     @Test
@@ -103,7 +104,13 @@ public class AccordDebugKeyspaceTest extends CQLTester
             String tableName = createTable("CREATE TABLE %s (k int, c int, v int, PRIMARY KEY (k, c)) WITH transactional_mode = 'full'");
             var accord = accord();
             TxnId id = accord.node().nextTxnId(Txn.Kind.Write, Routable.Domain.Key);
-            Txn txn = createTxn(wrapInTxn(String.format("INSERT INTO %s.%s(k, c, v) VALUES (?, ?, ?)", KEYSPACE, tableName)), 0, 0, 0);
+            String insertTxn = String.format("BEGIN TRANSACTION\n" +
+                                             "    LET r = (SELECT * FROM %s.%s WHERE k = ? AND c = ?);\n" +
+                                             "    IF r IS NULL THEN\n " +
+                                             "        INSERT INTO %s.%s (k, c, v) VALUES (?, ?, ?);\n" +
+                                             "    END IF\n" +
+                                             "COMMIT TRANSACTION", KEYSPACE, tableName, KEYSPACE, tableName);
+            Txn txn = createTxn(insertTxn, 0, 0, 0, 0, 0);
             accord.node().coordinate(id, txn);
 
             filter.preAccept.awaitThrowUncheckedOnInterrupt();
@@ -131,7 +138,13 @@ public class AccordDebugKeyspaceTest extends CQLTester
             String tableName = createTable("CREATE TABLE %s (k int, c int, v int, PRIMARY KEY (k, c)) WITH transactional_mode = 'full'");
             var accord = accord();
             TxnId first = accord.node().nextTxnId(Txn.Kind.Write, Routable.Domain.Key);
-            accord.node().coordinate(first, createTxn(wrapInTxn(String.format("INSERT INTO %s.%s(k, c, v) VALUES (?, ?, ?)", KEYSPACE, tableName)), 0, 0, 0));
+            String insertTxn = String.format("BEGIN TRANSACTION\n" +
+                                             "    LET r = (SELECT * FROM %s.%s WHERE k = ? AND c = ?);\n" +
+                                             "    IF r IS NULL THEN\n " +
+                                             "        INSERT INTO %s.%s (k, c, v) VALUES (?, ?, ?);\n" +
+                                             "    END IF\n" +
+                                             "COMMIT TRANSACTION", KEYSPACE, tableName, KEYSPACE, tableName);
+            accord.node().coordinate(first, createTxn(insertTxn, 0, 0, 0, 0, 0));
 
             filter.preAccept.awaitThrowUncheckedOnInterrupt();
             assertRows(execute(QUERY_TXN_BLOCKED_BY, first.toString()),
@@ -144,7 +157,7 @@ public class AccordDebugKeyspaceTest extends CQLTester
             filter.reset();
 
             TxnId second = accord.node().nextTxnId(Txn.Kind.Write, Routable.Domain.Key);
-            accord.node().coordinate(second, createTxn(wrapInTxn(String.format("INSERT INTO %s.%s(k, c, v) VALUES (?, ?, ?)", KEYSPACE, tableName)), 0, 0, 0));
+            accord.node().coordinate(second, createTxn(insertTxn, 0, 0, 0, 0, 0));
 
             filter.commit.awaitThrowUncheckedOnInterrupt();
 

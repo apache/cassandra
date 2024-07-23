@@ -18,15 +18,21 @@
 
 package org.apache.cassandra.harry.ddl;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import java.util.function.Consumer;
-
 import javax.annotation.Nullable;
 
 import org.apache.cassandra.harry.gen.DataGenerators;
-import org.apache.cassandra.harry.sut.SystemUnderTest;
 import org.apache.cassandra.harry.operations.CompiledStatement;
 import org.apache.cassandra.harry.operations.Relation;
+import org.apache.cassandra.harry.sut.SystemUnderTest;
 import org.apache.cassandra.harry.util.BitSet;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 
@@ -331,7 +337,7 @@ public class SchemaSpec
 
     public boolean isWriteTimeFromAccord()
     {
-        return writeTimeFromAccord;
+        return transactionalMode.isPresent() && transactionalMode.get().nonSerialWritesThroughAccord;
     }
 
     public CompiledStatement compile()
@@ -585,6 +591,6 @@ public class SchemaSpec
 
     private static boolean isWriteTimeFromAccord(Optional<TransactionalMode> transactionalMode)
     {
-        return transactionalMode.isPresent() && transactionalMode.get().writesThroughAccord;
+        return transactionalMode.isPresent() && transactionalMode.get().nonSerialWritesThroughAccord;
     }
 }

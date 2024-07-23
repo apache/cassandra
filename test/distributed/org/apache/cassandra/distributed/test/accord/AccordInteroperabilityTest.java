@@ -19,20 +19,37 @@
 package org.apache.cassandra.distributed.test.accord;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Function;
 
+import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.DataRange;
+import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.memtable.Memtable;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.shared.AssertUtils;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.io.sstable.SSTableReadsListener;
+import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.service.accord.IAccordService;
 
+import static com.google.common.base.Throwables.getStackTraceAsString;
+import static org.apache.cassandra.Util.dk;
+import static org.apache.commons.collections.ListUtils.synchronizedList;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class AccordInteroperabilityTest extends AccordTestBase
@@ -51,6 +68,12 @@ public class AccordInteroperabilityTest extends AccordTestBase
         AccordTestBase.setupCluster(builder -> builder, 3);
     }
 
+    @After
+    public void tearDown()
+    {
+        SHARED_CLUSTER.setMessageSink(null);
+    }
+
     @Test
     public void testSerialReadDescending() throws Throwable
     {
@@ -65,6 +88,73 @@ public class AccordInteroperabilityTest extends AccordTestBase
                  assertRowSerial(cluster, "SELECT c, v FROM " + qualifiedAccordTableName + " WHERE k=0 ORDER BY c DESC LIMIT 4", AssertUtils.row(10, 100), AssertUtils.row(9, 90), AssertUtils.row(8, 80), AssertUtils.row(7, 70));
              }
          );
+    }
+
+    @Test
+    public void testApplyIsInteropApply() throws Throwable
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int, c int, v int, PRIMARY KEY(k, c)) WITH transactional_mode='mixed_reads'",
+             cluster -> {
+                 MessageCountingSink messageCountingSink = new MessageCountingSink(SHARED_CLUSTER);
+                 List<String> failures = synchronizedList(new ArrayList<>());
+                 // Verify that the apply response is only sent after the row has been inserted
+                 // TODO (required): Need to delay mutation stage/mutation to ensure this has time to catch it
+                 SHARED_CLUSTER.setMessageSink((to, message) -> {
+                     try
+                     {
+                         if (message.verb() == Verb.ACCORD_APPLY_RSP.id)
+                         {
+                             String currentThread = Thread.currentThread().getName();
+                             char nodeIndexChar = currentThread.charAt(4);
+                             int nodeIndex = Integer.parseInt(String.valueOf(nodeIndexChar));
+                             try
+                             {
+                                 String keyspace = KEYSPACE;
+                                 String tableName = accordTableName;
+                                 String fail = SHARED_CLUSTER.get(nodeIndex).callOnInstance(() -> {
+                                     ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(keyspace, tableName);
+                                     Memtable memtable = cfs.getCurrentMemtable();
+                                     assertEquals(1, memtable.partitionCount());
+                                     UnfilteredPartitionIterator partitions = memtable.partitionIterator(ColumnFilter.all(cfs.metadata()), DataRange.allData(cfs.getPartitioner()), SSTableReadsListener.NOOP_LISTENER);
+                                     assertTrue(partitions.hasNext());
+                                     UnfilteredRowIterator rows = partitions.next();
+                                     assertEquals(dk(42), rows.partitionKey());
+                                     assertFalse(partitions.hasNext());
+                                     assertTrue(rows.hasNext());
+                                     Row row = (Row)rows.next();
+                                     assertFalse(rows.hasNext());
+                                     return null;
+                                 });
+                                 if (fail != null)
+                                     failures.add(fail);
+                             }
+                             catch (Exception e)
+                             {
+                                 failures.add(getStackTraceAsString(e));
+                             }
+                         }
+                     }
+                     finally
+                     {
+                         messageCountingSink.accept(to, message);
+                     }
+                 });
+                cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (42, 2, 3)", org.apache.cassandra.distributed.api.ConsistencyLevel.QUORUM);
+                assertEquals(3, messageCounts.get(Verb.ACCORD_INTEROP_APPLY_REQ).get());
+                assertTrue(failures.toString(), failures.isEmpty());
+             });
+    }
+
+    @Test
+    public void testReadIsAtQuorum() throws Throwable
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int, c int, v int, PRIMARY KEY(k, c)) WITH transactional_mode='unsafe_writes'",
+             cluster -> {
+                 SHARED_CLUSTER.setMessageSink(new MessageCountingSink(SHARED_CLUSTER));
+                 cluster.coordinator(1).execute("SELECT * FROM " + qualifiedAccordTableName + " WHERE k = 0", org.apache.cassandra.distributed.api.ConsistencyLevel.SERIAL);
+                 assertEquals(2, messageCounts.get(Verb.ACCORD_INTEROP_COMMIT_REQ).get());
+                 assertEquals(2, messageCounts.get(Verb.ACCORD_INTEROP_READ_RSP).get());
+             });
     }
 
     private static Object[][] assertTargetAccordRead(Function<Integer, Object[][]> query, int coordinatorIndex, int key, int expectedAccordReadCount)

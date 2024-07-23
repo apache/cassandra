@@ -48,13 +48,14 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.IAccordService;
 import org.apache.cassandra.service.accord.IAccordService.AsyncTxnResult;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.txn.TxnCondition;
+import org.apache.cassandra.service.accord.txn.TxnKeyRead;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
-import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.service.accord.txn.TxnReferenceOperations;
 import org.apache.cassandra.service.accord.txn.TxnUpdate;
 import org.apache.cassandra.service.accord.txn.TxnWrite;
@@ -110,11 +111,13 @@ public class ConsensusMigrationMutationHelper
         {
             for (TableId tableId : mutation.getTableIds())
             {
-                TransactionalMode mode = getTableMetadata(cm, tableId).params.transactionalMode;
+                TableParams tableParams = getTableMetadata(cm, tableId).params;
+                TransactionalMode mode = tableParams.transactionalMode;
+                TransactionalMigrationFromMode migrationFromMode = tableParams.transactionalMigrationFrom;
                 // commitCLForStrategy should return either null or the supplied consistency level
                 // in which case we will commit everything at that CL since Accord doesn't support per table
                 // commit consistency
-                ConsistencyLevel commitCL = mode.commitCLForStrategy(consistencyLevel, tableId, mutation.key().getToken());
+                ConsistencyLevel commitCL = mode.commitCLForStrategy(migrationFromMode, consistencyLevel, cm, tableId, mutation.key().getToken());
                 if (commitCL != null)
                     return commitCL;
             }
@@ -217,7 +220,7 @@ public class ConsensusMigrationMutationHelper
             return new SplitMutation<>(null, mutation);
 
         Token token = mutation.key().getToken();
-        Predicate<TableId> isAccordUpdate = tableId -> tokenShouldBeWrittenThroughAccord(cm, tableId, token);
+        Predicate<TableId> isAccordUpdate = tableId -> tokenShouldBeWrittenThroughAccord(cm, tableId, token, TransactionalMode::nonSerialWritesThroughAccord, TransactionalMigrationFromMode::nonSerialReadsThroughAccord);
 
         T accordMutation = (T)mutation.filter(isAccordUpdate);
         T normalMutation = (T)mutation.filter(not(isAccordUpdate));
@@ -252,7 +255,7 @@ public class ConsensusMigrationMutationHelper
         // Potentially ignore commit consistency level if the TransactionalMode specifies full
         ConsistencyLevel clForCommit = consistencyLevelForCommit(cm, mutations, consistencyLevel);
         TxnUpdate update = new TxnUpdate(fragments, TxnCondition.none(), clForCommit, true);
-        Txn.InMemory txn = new Txn.InMemory(Keys.of(partitionKeys), TxnRead.EMPTY, TxnQuery.NONE, update);
+        Txn.InMemory txn = new Txn.InMemory(Keys.of(partitionKeys), TxnKeyRead.EMPTY, TxnQuery.NONE, update);
         IAccordService accordService = AccordService.instance();
         try
         {
@@ -291,7 +294,7 @@ public class ConsensusMigrationMutationHelper
         {
             TableId tableId = pu.metadata().id;
             ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(tableId);
-            if (tokenShouldBeWrittenThroughAccord(cm, tableId, dk.getToken()))
+            if (tokenShouldBeWrittenThroughAccord(cm, tableId, dk.getToken(), TransactionalMode::nonSerialWritesThroughAccord, TransactionalMigrationFromMode::nonSerialReadsThroughAccord))
             {
                 throwRetryOnDifferentSystem = true;
                 if (markedColumnFamilies == null)
@@ -306,15 +309,19 @@ public class ConsensusMigrationMutationHelper
             throw new RetryOnDifferentSystemException();
     }
 
-    public static boolean tokenShouldBeWrittenThroughAccord(@Nonnull ClusterMetadata cm, @Nonnull TableId tableId, @Nonnull Token token)
+    public static boolean tokenShouldBeWrittenThroughAccord(@Nonnull ClusterMetadata cm,
+                                                            @Nonnull TableId tableId,
+                                                            @Nonnull Token token,
+                                                            Predicate<TransactionalMode> nonSerialWritesThroughAccord,
+                                                            Predicate<TransactionalMigrationFromMode> nonSerialWritesThroughAccordFrom)
     {
         TableMetadata tm = getTableMetadata(cm, tableId);
         if (tm == null)
             return false;
 
-        boolean transactionalModeWritesThroughAccord = tm.params.transactionalMode.writesThroughAccord;
+        boolean transactionalModeWritesThroughAccord = nonSerialWritesThroughAccord.test(tm.params.transactionalMode);
         TransactionalMigrationFromMode transactionalMigrationFromMode = tm.params.transactionalMigrationFrom;
-        boolean migrationFromWritesThroughAccord = transactionalMigrationFromMode.writesThroughAccord();
+        boolean migrationFromWritesThroughAccord = nonSerialWritesThroughAccordFrom.test(transactionalMigrationFromMode);
         if (transactionalModeWritesThroughAccord && migrationFromWritesThroughAccord)
             return true;
 

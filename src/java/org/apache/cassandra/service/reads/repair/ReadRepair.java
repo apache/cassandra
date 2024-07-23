@@ -90,11 +90,20 @@ public interface ReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRea
      */
     public void awaitWrites();
 
+    // For metrics need to know the source of the repair
+    enum ReadRepairSource
+    {
+        // Running a dedicated repair transacation to do RR for a non-transactional reads
+        REPAIR_VIA_ACCORD,
+        // Read repair from a regular Accord transaction or non-transactional read
+        OTHER
+    }
+
     /**
      * Repairs a partition _after_ receiving data responses. This method receives replica list, since
      * we will block repair only on the replicas that have responded.
      */
-    void repairPartition(DecoratedKey partitionKey, Map<Replica, Mutation> mutations, ReplicaPlan.ForWrite writePlan);
+    void repairPartition(DecoratedKey partitionKey, Map<Replica, Mutation> mutations, ReplicaPlan.ForWrite writePlan, ReadRepairSource rrSource);
 
     /**
      * Repairs a partition using the provided read coordinator

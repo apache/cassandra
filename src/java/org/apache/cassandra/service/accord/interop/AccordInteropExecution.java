@@ -62,7 +62,6 @@ import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.SinglePartitionReadCommand.Group;
-import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.dht.Range;
@@ -84,7 +83,8 @@ import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.interop.AccordInteropReadCallback.MaximalCommitSender;
 import org.apache.cassandra.service.accord.txn.AccordUpdate;
 import org.apache.cassandra.service.accord.txn.TxnData;
-import org.apache.cassandra.service.accord.txn.TxnRead;
+import org.apache.cassandra.service.accord.txn.TxnDataKeyValue;
+import org.apache.cassandra.service.accord.txn.TxnKeyRead;
 import org.apache.cassandra.service.accord.txn.UnrecoverableRepairUpdate;
 import org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter;
 import org.apache.cassandra.service.consensus.migration.ConsensusTableMigration;
@@ -251,7 +251,7 @@ public class AccordInteropExecution implements ReadCoordinator, MaximalCommitSen
         // TODO (expected): use normal query nano time
         Dispatcher.RequestTime requestTime = Dispatcher.RequestTime.forImmediateExecution();
 
-        TxnRead read = (TxnRead) txn.read();
+        TxnKeyRead read = (TxnKeyRead) txn.read();
         List<AsyncChain<Data>> results = new ArrayList<>();
         Seekables<?, ?> keys = txn.read().keys();
         keys.forEach(key -> {
@@ -280,9 +280,9 @@ public class AccordInteropExecution implements ReadCoordinator, MaximalCommitSen
                         {
                             try (RowIterator partition = iterator.next())
                             {
-                                FilteredPartition filtered = FilteredPartition.create(partition);
-                                if (filtered.hasRows() || command.selectsFullPartition())
-                                    result.put(fragment.txnDataName(), filtered);
+                                TxnDataKeyValue value = new TxnDataKeyValue(partition);
+                                if (value.hasRows() || command.selectsFullPartition())
+                                    result.put(fragment.txnDataName(), value);
                             }
                         }
                     }
@@ -357,6 +357,7 @@ public class AccordInteropExecution implements ReadCoordinator, MaximalCommitSen
             UnrecoverableRepairUpdate repairUpdate = (UnrecoverableRepairUpdate)txn.update();
             // TODO (expected): We should send the read in the same message as the commit. This requires refactor ReadData.Kind so that it doesn't specify the ordinal encoding
             // and can be extended similar to MessageType which allows additional types not from Accord to be added
+            // This commit won't necessarily execute before the interop read repair message so there could be an insufficient which is fine
             for (Node.Id to : executeTopology.nodes())
                     node.send(to, new Commit(Kind.StableFastPath, to, coordinateTopology, allTopologies, txnId, txn, route, Ballot.ZERO, executeAt, deps, (ReadTxnData) null));
             repairUpdate.runBRR(AccordInteropExecution.this);

@@ -26,33 +26,30 @@ import java.util.zip.Checksum;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.jimfs.Jimfs;
+import org.junit.Assert;
+import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ExecutorFactory;
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.config.AccordSpec;
 import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.ParameterizedClass;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.io.filesystem.ListenableFileSystem;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.journal.Journal;
 import org.apache.cassandra.journal.KeySupport;
 import org.apache.cassandra.journal.RecordPointer;
 import org.apache.cassandra.journal.SegmentCompactor;
 import org.apache.cassandra.journal.ValueSerializer;
-
-import org.junit.Assert;
-import org.junit.Test;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.ParameterizedClass;
-import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.dht.Murmur3Partitioner;
-import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.Isolated;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
 

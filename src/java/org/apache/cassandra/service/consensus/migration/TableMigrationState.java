@@ -37,6 +37,7 @@ import javax.annotation.Nullable;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSortedMap;
+import com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -62,7 +63,6 @@ import static org.apache.cassandra.dht.NormalizedRanges.normalizedRanges;
 import static org.apache.cassandra.dht.Range.subtract;
 import static org.apache.cassandra.utils.CollectionSerializers.deserializeMap;
 import static org.apache.cassandra.utils.CollectionSerializers.deserializeSet;
-import static org.apache.cassandra.utils.CollectionSerializers.newHashMap;
 import static org.apache.cassandra.utils.CollectionSerializers.serializeCollection;
 import static org.apache.cassandra.utils.CollectionSerializers.serializeMap;
 import static org.apache.cassandra.utils.CollectionSerializers.serializedCollectionSize;
@@ -398,7 +398,7 @@ public class TableMigrationState
             TableId tableId = TableId.deserialize(in);
             Set<Range<Token>> migratedRanges = deserializeSet(in, version, Range.serializer);
             Set<Range<Token>> repairPendingRanges = deserializeSet(in, version, Range.serializer);
-            Map<Epoch, NormalizedRanges<Token>> migratingRangesByEpoch = deserializeMap(in, version, Epoch.serializer, ConsensusTableMigration.rangesSerializer, newHashMap());
+            Map<Epoch, NormalizedRanges<Token>> migratingRangesByEpoch = deserializeMap(in, version, Epoch.serializer, ConsensusTableMigration.rangesSerializer, Maps::newHashMapWithExpectedSize);
             return new TableMigrationState(keyspaceName, tableName, tableId, targetProtocol, migratedRanges, repairPendingRanges, migratingRangesByEpoch);
         }
 

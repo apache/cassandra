@@ -22,9 +22,12 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -62,6 +65,7 @@ import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.service.consensus.migration.TransactionalMigrationFromMode;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FailingConsumer;
+import org.apache.cassandra.utils.Pair;
 import org.assertj.core.api.Assertions;
 
 import static java.lang.String.format;
@@ -73,16 +77,15 @@ import static org.apache.cassandra.distributed.util.QueryResultUtil.assertThat;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public abstract class AccordCQLTestBase extends AccordTestBase
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordCQLTestBase.class);
 
-    private final TransactionalMode transactionalMode;
-
     protected AccordCQLTestBase(TransactionalMode transactionalMode) {
-        this.transactionalMode = transactionalMode;
+        super(transactionalMode);
     }
 
     @Override
@@ -293,6 +296,140 @@ public abstract class AccordCQLTestBase extends AccordTestBase
                                                        .columns("k", "c", "s", "v")
                                                        .row(0, null, 9, null)
                                                        .build());
+        });
+    }
+
+    @Test
+    public void testRangeReadPageOne() throws Exception
+    {
+        testRangeRead(1);
+    }
+
+    @Test
+    public void testRangeReadSmallPage() throws Exception
+    {
+        testRangeRead(2);
+    }
+
+    @Test
+    public void testRangeReadExactPage() throws Exception
+    {
+        testRangeRead(100);
+    }
+
+    @Test
+    public void testRangeReadLargePage() throws Exception
+    {
+        testRangeRead(200);
+    }
+
+    @Test
+    public void testRangeReadClosePageLT() throws Exception
+    {
+        testRangeRead(99);
+    }
+
+    @Test
+    public void testRangeReadClosePageGT() throws Exception
+    {
+        testRangeRead(101);
+    }
+
+    private void testRangeRead(int pageSize) throws Exception
+    {
+        test(cluster -> {
+            Random r = new Random(0);
+            Map<Pair<Integer, Integer>, Object[]> insertedRows = new HashMap<>();
+            for (int i = 0; i < 10; i++)
+            {
+                int k = r.nextInt();
+                for (int j = 0; j < 10; j++)
+                {
+                    cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + "(k, c, v) VALUES (?, ?, ?);", ConsistencyLevel.ALL, k, j, i + j);
+                    insertedRows.put(Pair.create(k, j), new Object[] {k, j, i + j});
+                }
+            }
+
+            Iterator<Object[]> iterator = cluster.coordinator(1).executeWithPaging("SELECT * FROM " + qualifiedAccordTableName + " WHERE TOKEN(k) > " + Long.MIN_VALUE + " AND TOKEN(k) < " + Long.MAX_VALUE, ConsistencyLevel.ALL, pageSize);
+            List<Object[]> resultRows = ImmutableList.copyOf(iterator);
+            resultRows.forEach(row -> System.out.println(Arrays.toString(row)));
+            Integer lastPartitionKey = null;
+            int currentRowKey = 0;
+            for (Object[] row : resultRows)
+            {
+                assertEquals(currentRowKey, row[1]);
+
+                if (lastPartitionKey == null)
+                    lastPartitionKey = (Integer)row[0];
+                else
+                    assertEquals(lastPartitionKey, row[0]);
+
+                if (currentRowKey == 9)
+                {
+                    currentRowKey = 0;
+                    lastPartitionKey = null;
+                }
+                else
+                    currentRowKey++;
+
+                Object[] expected = insertedRows.remove(Pair.create(row[0], row[1]));
+                assertEquals(expected, row);
+            }
+            assertTrue(insertedRows.isEmpty());
+        });
+    }
+
+    @Test
+    public void testIN() throws Exception
+    {
+        test(cluster -> {
+            Random r = new Random(0);
+            Map<Pair<Integer, Integer>, Object[]> insertedRows = new HashMap<>();
+            List<Integer> partitionKeys = new ArrayList<>();
+            for (int i = 0; i < 10; i++)
+            {
+                int k = r.nextInt();
+                for (int j = 0; j < 10; j++)
+                {
+                    cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + "(k, c, v) VALUES (?, ?, ?);", ConsistencyLevel.ALL, k, j, i + j);
+                    insertedRows.put(Pair.create(k, j), new Object[] {k, j, i + j});
+                    partitionKeys.add(k);
+                }
+            }
+
+            String query = "SELECT * FROM " + qualifiedAccordTableName + " WHERE k IN (";
+            for (Integer key : partitionKeys)
+            {
+                query = query + key + ", ";
+            }
+            query = query.substring(0, query.length() - 2);
+            query = query + ")";
+            Iterator<Object[]> iterator = cluster.coordinator(1).executeWithPaging(query, ConsistencyLevel.ALL, 2);
+            List<Object[]> resultRows = ImmutableList.copyOf(iterator);
+            resultRows.forEach(row -> System.out.println(Arrays.toString(row)));
+            Integer lastPartitionKey = null;
+            int currentRowKey = 0;
+            for (Object[] row : resultRows)
+            {
+                assertEquals(currentRowKey, row[1]);
+
+                if (lastPartitionKey == null)
+                    lastPartitionKey = (Integer)row[0];
+                else
+                    assertEquals(lastPartitionKey, row[0]);
+
+                if (currentRowKey == 9)
+                {
+                    currentRowKey = 0;
+                    lastPartitionKey = null;
+                }
+                else
+                    currentRowKey++;
+
+                Object[] expected = insertedRows.remove(Pair.create(row[0], row[1]));
+                assertEquals(expected, row);
+            }
+            assertTrue(insertedRows.isEmpty());
         });
     }
 
@@ -2781,8 +2918,6 @@ public abstract class AccordCQLTestBase extends AccordTestBase
         });
     }
 
-    // TODO: Re-enable when TrM integration is working
-    @Ignore
     @Test
     public void testCASAndSerialRead() throws Exception
     {
@@ -2823,7 +2958,7 @@ public abstract class AccordCQLTestBase extends AccordTestBase
                 assertEquals(1, rangeDeletionCheck.length);
 
                 // Make sure all the consensus using queries actually were run on Accord
-                if (transactionalMode.writesThroughAccord)
+                if (transactionalMode.nonSerialWritesThroughAccord)
                     assertEquals( 20, getAccordCoordinateCount() - startingAccordCoordinateCount);
                 else
                     // Non-serial writes don't go through Accord in these modes

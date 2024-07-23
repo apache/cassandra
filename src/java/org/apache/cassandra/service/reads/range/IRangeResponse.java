@@ -16,27 +16,18 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.service.accord.txn;
+package org.apache.cassandra.service.reads.range;
 
-import accord.api.Result;
+import org.apache.cassandra.db.partitions.PartitionIterator;
+import org.apache.cassandra.locator.EndpointsForRange;
+import org.apache.cassandra.locator.ReplicaPlan.ForRangeRead;
+import org.apache.cassandra.service.reads.repair.NoopReadRepair;
+import org.apache.cassandra.service.reads.repair.ReadRepair;
 
-public interface TxnResult extends Result
+public interface IRangeResponse extends PartitionIterator
 {
-    enum Kind
+    default ReadRepair<EndpointsForRange, ForRangeRead> getReadRepair()
     {
-        txn_data(0),
-        retry_new_protocol(1),
-        range_read(2);
-
-        int id;
-
-        Kind(int id)
-        {
-            this.id = id;
-        }
+        return NoopReadRepair.instance;
     }
-
-    Kind kind();
-
-    long estimatedSizeOnHeap();
 }

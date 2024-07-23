@@ -99,8 +99,8 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.accord.api.AccordAgent;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.txn.TxnData;
+import org.apache.cassandra.service.accord.txn.TxnKeyRead;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
-import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
@@ -235,7 +235,7 @@ public class AccordTestUtils
 
     public static Pair<Writes, Result> processTxnResultDirect(SafeCommandStore safeStore, TxnId txnId, PartialTxn txn, Timestamp executeAt)
     {
-        TxnRead read = (TxnRead) txn.read();
+        TxnKeyRead read = (TxnKeyRead) txn.read();
         Data readData = read.keys().stream().map(key -> {
                                 try
                                 {
@@ -319,7 +319,7 @@ public class AccordTestUtils
 
     public static Txn createTxn(Txn.Kind kind, Seekables<?, ?> seekables)
     {
-        return new Txn.InMemory(kind, seekables, TxnRead.EMPTY, TxnQuery.NONE, null);
+        return new Txn.InMemory(kind, seekables, TxnKeyRead.EMPTY, TxnQuery.NONE, null);
     }
 
     public static Ranges fullRange(Txn txn)

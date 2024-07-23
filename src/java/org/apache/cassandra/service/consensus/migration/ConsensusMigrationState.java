@@ -34,6 +34,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
 import org.apache.cassandra.dht.Range;
@@ -53,7 +54,6 @@ import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
 import static org.apache.cassandra.service.consensus.migration.TableMigrationState.initialRepairPendingRanges;
 import static org.apache.cassandra.utils.CollectionSerializers.deserializeMap;
-import static org.apache.cassandra.utils.CollectionSerializers.newHashMap;
 import static org.apache.cassandra.utils.CollectionSerializers.serializeMap;
 import static org.apache.cassandra.utils.CollectionSerializers.serializedMapSize;
 
@@ -153,6 +153,7 @@ public class ConsensusMigrationState implements MetadataValue<ConsensusMigration
             tableState = new TableMigrationState(metadata.keyspace, metadata.name, metadata.id, target, ImmutableSet.of(), initialRepairPendingRanges(target, ranges), migratingRangesByEpoch);
         else
             tableState = tableState.withRangesMigrating(ranges, target);
+
         next.put(metadata.id, tableState);
     }
 
@@ -262,7 +263,7 @@ public class ConsensusMigrationState implements MetadataValue<ConsensusMigration
         public ConsensusMigrationState deserialize(DataInputPlus in, Version version) throws IOException
         {
             Epoch lastModified = Epoch.serializer.deserialize(in, version);
-            Map<TableId, TableMigrationState> tableMigrationStates = deserializeMap(in, version, TableId.metadataSerializer, TableMigrationState.serializer, newHashMap());
+            Map<TableId, TableMigrationState> tableMigrationStates = deserializeMap(in, version, TableId.metadataSerializer, TableMigrationState.serializer, Maps::newHashMapWithExpectedSize);
             return new ConsensusMigrationState(lastModified, tableMigrationStates);
         }
 

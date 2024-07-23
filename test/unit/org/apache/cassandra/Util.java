@@ -721,6 +721,16 @@ public class Util
         }
     }
 
+    public static void spinAssertEquals(int expected, Supplier<Object> actualSupplier)
+    {
+        spinAssertEquals((long)expected, () -> ((Number)actualSupplier.get()).longValue());
+    }
+
+    public static void spinAssertEquals(Object expected, Supplier<Object> actualSupplier)
+    {
+        spinAssertEquals(null, expected, actualSupplier, 10, TimeUnit.SECONDS);
+    }
+
     public static void spinAssertEquals(Object expected, Supplier<Object> actualSupplier, int timeoutInSeconds)
     {
         spinAssertEquals(null, expected, actualSupplier, timeoutInSeconds, TimeUnit.SECONDS);

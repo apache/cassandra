@@ -177,8 +177,8 @@ public class AccordMessageSink implements MessageSink
             builder.put(AccordMessageType.INTEROP_READ_REPAIR_RSP,            Verb.ACCORD_INTEROP_READ_REPAIR_RSP);
             builder.put(AccordMessageType.INTEROP_COMMIT_MINIMAL_REQ,         Verb.ACCORD_INTEROP_COMMIT_REQ);
             builder.put(AccordMessageType.INTEROP_COMMIT_MAXIMAL_REQ,         Verb.ACCORD_INTEROP_COMMIT_REQ);
-            builder.put(AccordMessageType.INTEROP_APPLY_MINIMAL_REQ,          Verb.ACCORD_APPLY_REQ);
-            builder.put(AccordMessageType.INTEROP_APPLY_MAXIMAL_REQ,          Verb.ACCORD_APPLY_REQ);
+            builder.put(AccordMessageType.INTEROP_APPLY_MINIMAL_REQ,          Verb.ACCORD_INTEROP_APPLY_REQ);
+            builder.put(AccordMessageType.INTEROP_APPLY_MAXIMAL_REQ,          Verb.ACCORD_INTEROP_APPLY_REQ);
             mapping = builder.build();
 
             for (MessageType type : Iterables.concat(AccordMessageType.values, MessageType.values))
@@ -208,7 +208,7 @@ public class AccordMessageSink implements MessageSink
     {
         MessageType type = request.type();
         if (type != null)
-            return getVerb(request.type());
+            return getVerb(type);
 
         return null;
     }

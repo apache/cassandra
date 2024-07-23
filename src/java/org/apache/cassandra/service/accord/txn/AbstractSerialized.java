@@ -20,7 +20,7 @@ package org.apache.cassandra.service.accord.txn;
 
 import java.nio.ByteBuffer;
 import java.util.Objects;
-
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -32,17 +32,17 @@ import org.apache.cassandra.service.accord.AccordSerializers;
 @NotThreadSafe
 public abstract class AbstractSerialized<T>
 {
-    private final ByteBuffer bytes;
-    private T memoized = null;
+    private @Nullable final ByteBuffer bytes;
+    private @Nullable T memoized = null;
 
-    public AbstractSerialized(ByteBuffer bytes)
+    public AbstractSerialized(@Nullable ByteBuffer bytes)
     {
         this.bytes = bytes;
     }
 
-    public AbstractSerialized(T value)
+    public AbstractSerialized(@Nullable T value)
     {
-        this.bytes = AccordSerializers.serialize(value, serializer());
+        this.bytes = value != null ? AccordSerializers.serialize(value, serializer()) : null;
         this.memoized = value;
     }
 
@@ -51,14 +51,16 @@ public abstract class AbstractSerialized<T>
     {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
+
         AbstractSerialized<?> that = (AbstractSerialized<?>) o;
-        return bytes.equals(that.bytes);
+
+        return Objects.equals(bytes, that.bytes);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(bytes);
+        return bytes != null ? bytes.hashCode() : 0;
     }
 
     @Override
@@ -72,7 +74,7 @@ public abstract class AbstractSerialized<T>
     protected T get()
     {
         T result = memoized;
-        if (result == null)
+        if (result == null && bytes != null)
             memoized = result = AccordSerializers.deserialize(bytes, serializer());
         return result;
     }

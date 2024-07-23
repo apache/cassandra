@@ -72,8 +72,8 @@ import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Promise;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
-import static accord.primitives.SaveStatus.Applying;
 import static accord.local.KeyHistory.SYNC;
+import static accord.primitives.SaveStatus.Applying;
 import static accord.primitives.Status.Committed;
 import static accord.primitives.Status.Invalidated;
 import static accord.primitives.Status.Truncated;

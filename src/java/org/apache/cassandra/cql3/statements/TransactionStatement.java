@@ -35,12 +35,12 @@ import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 
 import accord.api.Key;
 import accord.primitives.Keys;
 import accord.primitives.Txn;
+import org.agrona.collections.Int2ObjectHashMap;
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -59,7 +59,6 @@ import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.SinglePartitionReadQuery;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
@@ -70,10 +69,10 @@ import org.apache.cassandra.service.accord.api.AccordRoutableKey;
 import org.apache.cassandra.service.accord.txn.AccordUpdate;
 import org.apache.cassandra.service.accord.txn.TxnCondition;
 import org.apache.cassandra.service.accord.txn.TxnData;
-import org.apache.cassandra.service.accord.txn.TxnDataName;
+import org.apache.cassandra.service.accord.txn.TxnDataKeyValue;
+import org.apache.cassandra.service.accord.txn.TxnKeyRead;
 import org.apache.cassandra.service.accord.txn.TxnNamedRead;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
-import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.service.accord.txn.TxnReference;
 import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.service.accord.txn.TxnUpdate;
@@ -89,7 +88,11 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNull;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
-import static org.apache.cassandra.service.accord.txn.TxnRead.createTxnRead;
+import static org.apache.cassandra.service.accord.txn.TxnData.TxnDataNameKind.AUTO_READ;
+import static org.apache.cassandra.service.accord.txn.TxnData.TxnDataNameKind.RETURNING;
+import static org.apache.cassandra.service.accord.txn.TxnData.TxnDataNameKind.USER;
+import static org.apache.cassandra.service.accord.txn.TxnData.txnDataName;
+import static org.apache.cassandra.service.accord.txn.TxnKeyRead.createTxnRead;
 import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.retry_new_protocol;
 
 public class TransactionStatement implements CQLStatement.CompositeCQLStatement, CQLStatement.ReturningCQLStatement
@@ -115,10 +118,10 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
 
     static class NamedSelect
     {
-        final TxnDataName name;
+        final int name;
         final SelectStatement select;
 
-        public NamedSelect(TxnDataName name, SelectStatement select)
+        public NamedSelect(int name, SelectStatement select)
         {
             this.name = name;
             this.select = select;
@@ -244,11 +247,11 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
 
         List<TxnNamedRead> list = new ArrayList<>(selectQuery.queries.size());
         for (int i = 0; i < selectQuery.queries.size(); i++)
-            list.add(new TxnNamedRead(TxnDataName.returning(i), selectQuery.queries.get(i)));
+            list.add(new TxnNamedRead(txnDataName(RETURNING, i), selectQuery.queries.get(i)));
         return list;
     }
 
-    private List<TxnNamedRead> createNamedReads(QueryOptions options, ClientState state, Map<TxnDataName, NamedSelect> autoReads, Consumer<Key> keyConsumer)
+    private List<TxnNamedRead> createNamedReads(QueryOptions options, ClientState state, @Nullable Int2ObjectHashMap<NamedSelect> autoReads, Consumer<Key> keyConsumer)
     {
         List<TxnNamedRead> reads = new ArrayList<>(assignments.size() + 1);
 
@@ -268,9 +271,12 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
             }
         }
 
-        for (NamedSelect select : autoReads.values())
-            // don't need keyConsumer as the keys are known to exist due to Modification
-            reads.add(createNamedRead(select, options, state));
+        if (autoReads != null)
+        {
+            for (NamedSelect select : autoReads.values())
+                // don't need keyConsumer as the keys are known to exist due to Modification
+                reads.add(createNamedRead(select, options, state));
+        }
 
         return reads;
     }
@@ -290,7 +296,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
         return new TxnCondition.BooleanGroup(TxnCondition.Kind.AND, result);
     }
 
-    List<TxnWrite.Fragment> createWriteFragments(ClientState state, QueryOptions options, Map<TxnDataName, NamedSelect> autoReads, Consumer<Key> keyConsumer)
+    List<TxnWrite.Fragment> createWriteFragments(ClientState state, QueryOptions options, Map<Integer, NamedSelect> autoReads, Consumer<Key> keyConsumer)
     {
         List<TxnWrite.Fragment> fragments = new ArrayList<>(updates.size());
         int idx = 0;
@@ -303,7 +309,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
             if (modification.allReferenceOperations().stream().anyMatch(ReferenceOperation::requiresRead))
             {
                 // Reads are not merged by partition here due to potentially differing columns retrieved, etc.
-                TxnDataName partitionName = TxnDataName.partitionRead(modification.metadata(), fragment.key.partitionKey(), idx);
+                int partitionName = txnDataName(AUTO_READ, idx);
                 if (!autoReads.containsKey(partitionName))
                     autoReads.put(partitionName, new NamedSelect(partitionName, modification.createSelectForTxn()));
             }
@@ -313,7 +319,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
         return fragments;
     }
 
-    AccordUpdate createUpdate(ClientState state, QueryOptions options, Map<TxnDataName, NamedSelect> autoReads, Consumer<Key> keyConsumer)
+    AccordUpdate createUpdate(ClientState state, QueryOptions options, Map<Integer, NamedSelect> autoReads, Consumer<Key> keyConsumer)
     {
         return new TxnUpdate(createWriteFragments(state, options, autoReads, keyConsumer), createCondition(options), null, false);
     }
@@ -337,9 +343,9 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
         {
             // TODO: Test case around this...
             Preconditions.checkState(conditions.isEmpty(), "No condition should exist without updates present");
-            List<TxnNamedRead> reads = createNamedReads(options, state, ImmutableMap.of(), keySet::add);
+            List<TxnNamedRead> reads = createNamedReads(options, state, null, keySet::add);
             Keys txnKeys = toKeys(keySet);
-            TxnRead read = createTxnRead(reads, txnKeys, null);
+            TxnKeyRead read = createTxnRead(reads, null);
             Txn.Kind kind = txnKeys.size() == 1
                     && transactionalModeForSingleKey(txnKeys) == TransactionalMode.full
                     && DatabaseDescriptor.getAccordEphemeralReadEnabledEnabled()
@@ -348,11 +354,11 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
         }
         else
         {
-            Map<TxnDataName, NamedSelect> autoReads = new HashMap<>();
+            Int2ObjectHashMap<NamedSelect> autoReads = new Int2ObjectHashMap<>();
             AccordUpdate update = createUpdate(state, options, autoReads, keySet::add);
             List<TxnNamedRead> reads = createNamedReads(options, state, autoReads, keySet::add);
             Keys txnKeys = toKeys(keySet);
-            TxnRead read = createTxnRead(reads, txnKeys, null);
+            TxnKeyRead read = createTxnRead(reads, null);
             return new Txn.InMemory(txnKeys, read, TxnQuery.ALL, update);
         }
     }
@@ -401,7 +407,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
             ResultSetBuilder result = new ResultSetBuilder(resultMetadata, selectors, false);
             if (selectQuery.queries.size() == 1)
             {
-                FilteredPartition partition = data.get(TxnDataName.returning());
+                TxnDataKeyValue partition = (TxnDataKeyValue)data.get(txnDataName(RETURNING));
                 boolean reversed = selectQuery.queries.get(0).isReversed();
                 if (partition != null)
                     returningSelect.select.processPartition(partition.rowIterator(reversed), options, result, FBUtilities.nowInSeconds());
@@ -411,7 +417,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
                 long nowInSec = FBUtilities.nowInSeconds();
                 for (int i = 0; i < selectQuery.queries.size(); i++)
                 {
-                    FilteredPartition partition = data.get(TxnDataName.returning(i));
+                    TxnDataKeyValue partition = (TxnDataKeyValue)data.get(txnDataName(RETURNING, i));
                     boolean reversed = selectQuery.queries.get(i).isReversed();
                     if (partition != null)
                         returningSelect.select.processPartition(partition.rowIterator(reversed), options, result, nowInSec);
@@ -535,28 +541,31 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
                 checkTrue(select != null ^ returning != null, "Cannot specify both a full SELECT and a SELECT w/ LET references.");
 
             List<NamedSelect> preparedAssignments = new ArrayList<>(assignments.size());
-            Map<TxnDataName, RowDataReference.ReferenceSource> refSources = new HashMap<>();
-            Set<TxnDataName> selectNames = new HashSet<>();
+            Map<Integer, RowDataReference.ReferenceSource> refSources = new HashMap<>();
+            Set<String> selectNames = new HashSet<>();
 
+            int userReadIndex = 0;
+            Map<String, Integer> nameToTxnDataName = new HashMap<>();
             for (SelectStatement.RawStatement select : assignments)
             {
                 checkNotNull(select.parameters.refName, "Assignments must be named");
-                TxnDataName name = TxnDataName.user(select.parameters.refName);
-                checkTrue(selectNames.add(name), DUPLICATE_TUPLE_NAME_MESSAGE, name.name());
+                int name = txnDataName(USER, userReadIndex++);
+                nameToTxnDataName.put(select.parameters.refName, name);
+                checkTrue(selectNames.add(select.parameters.refName), DUPLICATE_TUPLE_NAME_MESSAGE, select.parameters.refName);
                 validate(select);
 
                 SelectStatement prepared = select.prepare(bindVariables);
                 validate(prepared);
 
                 NamedSelect namedSelect = new NamedSelect(name, prepared);
-                checkAtMostOneRowSpecified(namedSelect.select, "LET assignment " + name.name());
+                checkAtMostOneRowSpecified(namedSelect.select, "LET assignment " + select.parameters.refName);
                 preparedAssignments.add(namedSelect);
                 refSources.put(name, new SelectReferenceSource(prepared));
             }
 
             if (dataReferences != null)
                 for (RowDataReference.Raw reference : dataReferences)
-                    reference.resolveReference(refSources);
+                    reference.resolveReference(refSources, nameToTxnDataName, userReadIndex++);
 
             NamedSelect returningSelect = null;
             if (select != null)
@@ -564,7 +573,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
                 validate(select);
                 SelectStatement prepared = select.prepare(bindVariables);
                 validate(prepared);
-                returningSelect = new NamedSelect(TxnDataName.returning(), prepared);
+                returningSelect = new NamedSelect(txnDataName(RETURNING), prepared);
                 checkAtMostOnePartitionSpecified(returningSelect.select, "returning select");
             }
 

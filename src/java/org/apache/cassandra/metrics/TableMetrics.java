@@ -195,6 +195,7 @@ public class TableMetrics
     public final TableMeter accordRepairUnexpectedFailures;
     public final TableMeter accordRepairDependencyLimitFailures;
     public final TableMeter mutationsRejectedOnWrongSystem;
+    public final TableMeter readsRejectedOnWrongSystem;
     /** percent of the data that is repaired */
     public final Gauge<Double> percentRepaired;
     /** Reports the size of sstables in repaired, unrepaired, and any ongoing repair buckets */
@@ -813,6 +814,7 @@ public class TableMetrics
         accordRepairUnexpectedFailures = createTableMeter("AccordRepairUnexpectedFailures", cfs.keyspace.metric.rangeMigrationUnexpectedFailures);
         accordRepairDependencyLimitFailures = createTableMeter("AccordRepairDependencyLimitFaiures", cfs.keyspace.metric.rangeMigrationDependencyLimitFailures);
         mutationsRejectedOnWrongSystem = createTableMeter("MutationsRejectedOnWrongSystem", cfs.keyspace.metric.mutationsRejectedOnWrongSystem);
+        readsRejectedOnWrongSystem = createTableMeter("ReadsRejectedOnWrongSystem", cfs.keyspace.metric.mutationsRejectedOnWrongSystem);
 
         repairsStarted = createTableCounter("RepairJobsStarted");
         repairsCompleted = createTableCounter("RepairJobsCompleted");
