@@ -55,6 +55,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.auth.jmx.AuthenticationProxy;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.EncryptionOptions;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_JMX_AUTHORIZER;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_JMX_REMOTE_LOGIN_CONFIG;
@@ -222,8 +224,12 @@ public class JMXServerUtils
     private static Map<String, Object> configureJmxSocketFactories(InetAddress serverAddress, boolean localOnly)
     {
         Map<String, Object> env = new HashMap<>();
+        EncryptionOptions jmxEncryptionOptions = DatabaseDescriptor.getJmxEncryptionOptions();
         if (COM_SUN_MANAGEMENT_JMXREMOTE_SSL.getBoolean())
         {
+            logger.info("Enabling JMX SSL using environment file properties");
+            logger.warn("Consider using the jmx_encryption_options section of cassandra.yaml instead to prevent " +
+                        "sensitive information being exposxed");
             boolean requireClientAuth = COM_SUN_MANAGEMENT_JMXREMOTE_SSL_NEED_CLIENT_AUTH.getBoolean();
             String[] protocols = null;
             String protocolList = COM_SUN_MANAGEMENT_JMXREMOTE_SSL_ENABLED_PROTOCOLS.getString();
@@ -247,6 +253,12 @@ public class JMXServerUtils
             env.put(RMIConnectorServer.RMI_CLIENT_SOCKET_FACTORY_ATTRIBUTE, clientFactory);
             env.put("com.sun.jndi.rmi.factory.socket", clientFactory);
             logJmxSslConfig(serverFactory);
+        }
+        else if (jmxEncryptionOptions != null)
+        {
+            logger.info("Enabling JMX SSL using jmx_encryption_options from cassandra.yaml");
+            System.setProperty("com.sun.management.jmxremote.ssl", "true");
+
         }
         else if (localOnly)
         {

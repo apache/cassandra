@@ -907,6 +907,9 @@ public class DatabaseDescriptor
         if (conf.client_encryption_options != null)
             conf.client_encryption_options.applyConfig();
 
+        if (conf.jmx_encryption_options != null)
+            conf.jmx_encryption_options.applyConfig();
+
         if (conf.snapshot_links_per_second < 0)
             throw new ConfigurationException("snapshot_links_per_second must be >= 0");
 
@@ -1251,7 +1254,9 @@ public class DatabaseDescriptor
         {
             SSLFactory.validateSslContext("Internode messaging", conf.server_encryption_options, REQUIRED, true);
             SSLFactory.validateSslContext("Native transport", conf.client_encryption_options, conf.client_encryption_options.getClientAuth(), true);
+            SSLFactory.validateSslContext("JMX transport", conf.jmx_encryption_options, conf.jmx_encryption_options.getClientAuth(), true);
             SSLFactory.initHotReloading(conf.server_encryption_options, conf.client_encryption_options, false);
+            //TODO:Maulin Add Hot Reloading for jmx encyption options also
         }
         catch (IOException e)
         {
@@ -3585,10 +3590,21 @@ public class DatabaseDescriptor
         return conf.client_encryption_options;
     }
 
+    public static EncryptionOptions getJmxEncryptionOptions()
+    {
+        return conf.jmx_encryption_options;
+    }
+
     @VisibleForTesting
     public static void updateNativeProtocolEncryptionOptions(Function<EncryptionOptions, EncryptionOptions> update)
     {
         conf.client_encryption_options = update.apply(conf.client_encryption_options);
+    }
+
+    @VisibleForTesting
+    public static void updateJmxEncryptionOptions(Function<EncryptionOptions, EncryptionOptions> update)
+    {
+        conf.jmx_encryption_options = update.apply(conf.jmx_encryption_options);
     }
 
     public static int getHintedHandoffThrottleInKiB()
