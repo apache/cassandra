@@ -18,6 +18,7 @@
 package org.apache.cassandra.io.sstable;
 
 import java.io.IOException;
+import java.util.Collection;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Throwables;
@@ -25,6 +26,7 @@ import com.google.common.base.Throwables;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.TableMetadataRef;
 
@@ -137,8 +139,11 @@ class SSTableSimpleWriter extends AbstractSSTableSimpleWriter
     {
         try
         {
-            if (writer != null)
-                writer.finish(false);
+            if (writer == null)
+                return;
+
+            Collection<SSTableReader> finished = writer.finish(shouldOpenSSTables());
+            notifySSTableProduced(finished);
         }
         catch (Throwable t)
         {

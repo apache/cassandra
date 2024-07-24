@@ -26,6 +26,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -36,6 +37,7 @@ import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.service.ActiveRepairService;
@@ -52,6 +54,7 @@ abstract class AbstractSSTableSimpleWriter implements Closeable
     protected static final AtomicReference<SSTableId> id = new AtomicReference<>(SSTableIdFactory.instance.defaultBuilder().generator(Stream.empty()).get());
     protected boolean makeRangeAware = false;
     protected final Collection<Index.Group> indexGroups;
+    protected Consumer<Collection<SSTableReader>> sstableProducedListener;
 
     protected AbstractSSTableSimpleWriter(File directory, TableMetadataRef metadata, RegularAndStaticColumns columns)
     {
@@ -74,6 +77,29 @@ abstract class AbstractSSTableSimpleWriter implements Closeable
     protected void addIndexGroup(Index.Group indexGroup)
     {
         this.indexGroups.add(indexGroup);
+    }
+
+    protected void setSSTableProducedListener(Consumer<Collection<SSTableReader>> listener)
+    {
+        this.sstableProducedListener = listener;
+    }
+
+    /**
+     * Indicate whether the produced sstable should be opened or not.
+     *
+     * @return true when {@link #sstableProducedListener} is registered, i.e. not null; otherwise, false
+     */
+    protected boolean shouldOpenSSTables()
+    {
+        return sstableProducedListener != null;
+    }
+
+    protected void notifySSTableProduced(Collection<SSTableReader> sstables)
+    {
+        if (sstableProducedListener == null)
+            return;
+
+        sstableProducedListener.accept(sstables);
     }
 
     protected SSTableTxnWriter createWriter(SSTable.Owner owner) throws IOException
