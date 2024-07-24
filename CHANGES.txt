@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * [SO-32774] ArrayIndexOutOfBoundsException failed read response when getting debug message
  * [SO-30792] nodetool to change the schema after migration done on all nodes
  * [SO-32198] Guardrail: alter table compaction strategy
  * [SO-32221] Refactor getGuardrailConfig nodetool command

@@ -211,8 +211,17 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         if (command instanceof SinglePartitionReadCommand && resolver instanceof DataResolver && ((DataResolver)resolver).getReadRepair() instanceof BlockingReadRepair)
         {
             DecoratedKey key = ((SinglePartitionReadCommand) command).partitionKey();
-            BlockingReadRepairDebugLog.info(key, String.format("received full data read from %s, data received %s",
-                                                               message.from(), message.payload.toDebugString(command, key)));
+            try
+            {
+                BlockingReadRepairDebugLog.info(key, String.format("received full data read from %s, data received %s",
+                                                                   message.from(), message.payload.toDebugString(command, key)));
+            }
+            catch (Exception e)
+            {
+                // Error occurs in toDebugString (ArrayIndexOutOfBoundsException, etc.)
+                BlockingReadRepairDebugLog.info(key, String.format("received full data read from %s, but failed to get debug " +
+                                                                   "string for message payload. error is %s", message.from(), e));
+            }
         }
         Map<ParamType, Object> params = message.header.params();
         InetAddressAndPort from = message.from();
