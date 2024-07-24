@@ -114,7 +114,7 @@ public class KubernetesSecretsPEMSslContextFactoryTest
          * In order to test with real 'env' variables comment out this line and set appropriate env variable. This is
          * done to avoid having a dependency on env in the unit test.
          */
-        commonConfig.put("require_client_auth", "false";
+        commonConfig.put("require_client_auth", "false");
         commonConfig.put("cipher_suites", Arrays.asList("TLS_RSA_WITH_AES_128_CBC_SHA"));
     }
 

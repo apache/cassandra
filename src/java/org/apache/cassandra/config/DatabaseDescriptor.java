@@ -960,6 +960,9 @@ public class DatabaseDescriptor
         if (conf.client_encryption_options != null)
             conf.client_encryption_options.applyConfig();
 
+        if (conf.jmx_encryption_options != null)
+            conf.jmx_encryption_options.applyConfig();
+
         if (conf.snapshot_links_per_second < 0)
             throw new ConfigurationException("snapshot_links_per_second must be >= 0");
 
@@ -1306,7 +1309,14 @@ public class DatabaseDescriptor
         {
             SSLFactory.validateSslContext("Internode messaging", conf.server_encryption_options, REQUIRED, true);
             SSLFactory.validateSslContext("Native transport", conf.client_encryption_options, conf.client_encryption_options.getClientAuth(), true);
+            // For JMX SSL the validation is pretty much the same as the Native transport
+            SSLFactory.validateSslContext("JMX transport", conf.jmx_encryption_options, conf.jmx_encryption_options.getClientAuth(), true);
             SSLFactory.initHotReloading(conf.server_encryption_options, conf.client_encryption_options, false);
+            /*
+            For JMX SSL, the hot reloading of the SSLContext is out of scope for CASSANDRA-18508.
+            Since JMXServerUtil that initializes the JMX Server is used statically, it may require significant
+            effort to change that behavior unlike SSLFactory used for Native transport/Internode messaging.
+             */
         }
         catch (IOException e)
         {
@@ -3651,6 +3661,11 @@ public class DatabaseDescriptor
     public static EncryptionOptions getNativeProtocolEncryptionOptions()
     {
         return conf.client_encryption_options;
+    }
+
+    public static EncryptionOptions getJmxEncryptionOptions()
+    {
+        return conf.jmx_encryption_options;
     }
 
     @VisibleForTesting

@@ -75,6 +75,11 @@ public class AbstractEncryptionOptionsImpl extends TestBaseImpl
                                                                     "truststore", validTrustStorePath,
                                                                     "truststore_password", validTrustStorePassword);
 
+    // Configuration for a valid PEM based keystore
+    final static Map<String, Object> validPEMKeystore = ImmutableMap.of("ssl_context_factory", ImmutableMap.of("class_name", "org.apache.cassandra.security.PEMBasedSslContextFactory"),
+                                                                        "keystore", TlsTestUtils.SERVER_KEYSTORE_PATH_UNENCRYPTED_PEM,
+                                                                        "truststore", TlsTestUtils.SERVER_TRUSTSTORE_PEM_PATH);
+
     // Configuration with a valid keystore, but an unknown protocol
     final static Map<String,Object> nonExistantProtocol = ImmutableMap.<String,Object>builder()
                                                                            .putAll(validKeystore)

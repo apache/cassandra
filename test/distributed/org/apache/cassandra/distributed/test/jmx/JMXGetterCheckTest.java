@@ -20,6 +20,7 @@ package org.apache.cassandra.distributed.test.jmx;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import javax.management.JMRuntimeException;
@@ -80,11 +81,25 @@ public class JMXGetterCheckTest extends TestBaseImpl
     /**
      * Tests JMX getters and operations.
      * Useful for more than just testing getters, it also is used in JMXFeatureTest
-     * to make sure we've touched the complete JMX code path.
+     * to make sure we've touched the complete JMX code path. If you want to pass additional JMX Env for the client
+     * JMX connection then use {@link #testAllValidGetters(Cluster, Map)} instead.
+     *
      * @param cluster the cluster to test
      * @throws Exception several kinds of exceptions can be thrown, mostly from JMX infrastructure issues.
      */
     public static void testAllValidGetters(Cluster cluster) throws Exception
+    {
+        testAllValidGetters(cluster, null);
+    }
+
+    /**
+     * Tests JMX getters and operations and allows passing JMX Env used for the client JMX connection.
+     * Rest of the implementation is same as {@link #testAllValidGetters(Cluster)}.
+     *
+     * @param cluster the cluster to test
+     * @throws Exception several kinds of exceptions can be thrown, mostly from JMX infrastructure issues.
+     */
+    public static void testAllValidGetters(Cluster cluster, Map<String, ?> jmxEnv) throws Exception
     {
         for (IInvokableInstance instance: cluster)
         {
@@ -94,7 +109,7 @@ public class JMXGetterCheckTest extends TestBaseImpl
             }
             IInstanceConfig config = instance.config();
             List<Named> errors = new ArrayList<>();
-            try (JMXConnector jmxc = JMXUtil.getJmxConnector(config))
+            try (JMXConnector jmxc = JMXUtil.getJmxConnector(config, jmxEnv))
             {
                 MBeanServerConnection mbsc = jmxc.getMBeanServerConnection();
                 Set<ObjectName> metricNames = new TreeSet<>(mbsc.queryNames(null, null));

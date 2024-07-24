@@ -172,10 +172,10 @@ public class EncryptionOptions
 
         ConfigKey(String keyName)
         {
-            this.keyName=keyName;
+            this.keyName = keyName;
         }
 
-        String getKeyName()
+        public String toString()
         {
             return keyName;
         }
@@ -184,8 +184,9 @@ public class EncryptionOptions
         {
             Set<String> valueSet = new HashSet<>();
             ConfigKey[] values = values();
-            for(ConfigKey key: values) {
-                valueSet.add(toLowerCaseLocalized(key.getKeyName()));
+            for (ConfigKey key : values)
+            {
+                valueSet.add(toLowerCaseLocalized(key.toString()));
             }
             return valueSet;
         }
@@ -357,7 +358,7 @@ public class EncryptionOptions
     protected static void putSslContextFactoryParameter(Map<String, Object> existingParameters, ConfigKey configKey, Object value)
     {
         if (value != null) {
-            existingParameters.put(configKey.getKeyName(), value);
+            existingParameters.put(configKey.toString(), value);
         }
     }
 

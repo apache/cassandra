@@ -708,9 +708,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         assert config.networkTopology().contains(config.broadcastAddress()) : String.format("Network topology %s doesn't contain the address %s",
                                                                                             config.networkTopology(), config.broadcastAddress());
         DistributedTestSnitch.assign(config.networkTopology());
+        DatabaseDescriptor.daemonInitialization();
         if (config.has(JMX))
             startJmx();
-        DatabaseDescriptor.daemonInitialization();
         LoggingSupportFactory.getLoggingSupport().onStartup();
         logSystemInfo(inInstancelogger);
 
