@@ -19,6 +19,7 @@
 package org.apache.cassandra.index;
 
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -41,6 +42,7 @@ import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
@@ -84,17 +86,31 @@ public class IndexStatusManager
      */
     public <E extends Endpoints<E>> E filterForQuery(E liveEndpoints, Keyspace keyspace, Index.QueryPlan indexQueryPlan, ConsistencyLevel level)
     {
+        // UNKNOWN states are transient/rare; only a few replicas should have this state at any time. See CASSANDRA-19400
+        Set<Replica> queryableNonSucceeded = new HashSet<>(4);
+
         E queryableEndpoints = liveEndpoints.filter(replica -> {
 
+            boolean allBuilt = true;
             for (Index index : indexQueryPlan.getIndexes())
             {
                 Index.Status status = getIndexStatus(replica.endpoint(), keyspace.getName(), index.getIndexMetadata().name);
                 if (!index.isQueryable(status))
                     return false;
+
+                if (status != Index.Status.BUILD_SUCCEEDED)
+                    allBuilt = false;
             }
+
+            if (!allBuilt)
+                queryableNonSucceeded.add(replica);
 
             return true;
         });
+
+        // deprioritize replicas with queryable but non-succeeded indexes
+        if (!queryableNonSucceeded.isEmpty() && queryableNonSucceeded.size() != queryableEndpoints.size())
+            queryableEndpoints = queryableEndpoints.sorted(Comparator.comparingInt(e -> queryableNonSucceeded.contains(e) ? 1 : -1));
 
         int initial = liveEndpoints.size();
         int filtered = queryableEndpoints.size();
