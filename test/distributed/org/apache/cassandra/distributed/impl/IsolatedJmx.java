@@ -22,9 +22,9 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.util.HashMap;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-
 import javax.management.remote.JMXConnector;
 import javax.management.remote.JMXConnectorServer;
 import javax.management.remote.JMXServiceURL;
@@ -34,12 +34,14 @@ import javax.management.remote.rmi.RMIJRMPServerImpl;
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.slf4j.Logger;
 
+import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.shared.JMXUtil;
 import org.apache.cassandra.utils.JMXServerUtils;
 import org.apache.cassandra.utils.MBeanWrapper;
-import org.apache.cassandra.utils.RMIClientSocketFactoryImpl;
+import org.apache.cassandra.utils.RMICloseableClientSocketFactory;
+import org.apache.cassandra.utils.RMICloseableServerSocketFactory;
 import sun.rmi.transport.tcp.TCPEndpoint;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_RMI_DGC_LEASE_VALUE_IN_JVM_DTEST;
@@ -57,17 +59,20 @@ public class IsolatedJmx
     private JMXServerUtils.JmxRegistry registry;
     private RMIJRMPServerImpl jmxRmiServer;
     private MBeanWrapper.InstanceMBeanWrapper wrapper;
-    private RMIClientSocketFactoryImpl clientSocketFactory;
-    private CollectingRMIServerSocketFactoryImpl serverSocketFactory;
+    private RMICloseableClientSocketFactory clientSocketFactory;
+    private RMICloseableServerSocketFactory serverSocketFactory;
     private Logger inInstancelogger;
     private IInstanceConfig config;
 
-    public IsolatedJmx(IInstance instance, Logger inInstanceLogger) {
+    public IsolatedJmx(IInstance instance, Logger inInstanceLogger)
+    {
         this.config = instance.config();
         this.inInstancelogger = inInstanceLogger;
     }
 
-    public void startJmx() {
+    @SuppressWarnings("unchecked")
+    public void startJmx()
+    {
         try
         {
             // Several RMI threads hold references to in-jvm dtest objects, and are, by default, kept
@@ -84,14 +89,17 @@ public class IsolatedJmx
             String hostname = addr.getHostAddress();
             wrapper = new MBeanWrapper.InstanceMBeanWrapper(hostname + ":" + jmxPort);
             ((MBeanWrapper.DelegatingMbeanWrapper) MBeanWrapper.instance).setDelegate(wrapper);
-            Map<String, Object> env = new HashMap<>();
 
-            serverSocketFactory = new CollectingRMIServerSocketFactoryImpl(addr);
-            env.put(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE,
-                    serverSocketFactory);
-            clientSocketFactory = new RMIClientSocketFactoryImpl(addr);
-            env.put(RMIConnectorServer.RMI_CLIENT_SOCKET_FACTORY_ATTRIBUTE,
-                    clientSocketFactory);
+            // CASSANDRA-18508: Sensitive JMX SSL configuration options can be easily exposed
+            Map<String, Object> encryptionOptionsMap = (Map<String, Object>) config.getParams().get("jmx_encryption_options");
+            EncryptionOptions jmxEncryptionOptions = getJmxEncryptionOptions(encryptionOptionsMap);
+            // Here the `localOnly` is always passed as true as it is for the local isolated JMX testing
+            // However if the `jmxEncryptionOptions` are provided or JMX SSL configuration is set it will configure
+            // the socket factories appropriately.
+            Map<String, Object> socketFactories = new IsolatedJmxSocketFactory().configure(addr, true, jmxEncryptionOptions);
+            serverSocketFactory = (RMICloseableServerSocketFactory) socketFactories.get(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE);
+            clientSocketFactory = (RMICloseableClientSocketFactory) socketFactories.get(RMIConnectorServer.RMI_CLIENT_SOCKET_FACTORY_ATTRIBUTE);
+            Map<String, Object> env = new HashMap<>(socketFactories);
 
             // configure the RMI registry
             registry = new JMXServerUtils.JmxRegistry(jmxPort,
@@ -135,6 +143,49 @@ public class IsolatedJmx
         {
             throw new RuntimeException("Feature.JMX was enabled but could not be started.", t);
         }
+    }
+
+    /**
+     * Builds {@code EncryptionOptions} from the map based SSL configuration properties.
+     *
+     * @param encryptionOptionsMap of SSL configuration properties
+     * @return EncryptionOptions built object
+     */
+    @SuppressWarnings("unchecked")
+    private EncryptionOptions getJmxEncryptionOptions(Map<String, Object> encryptionOptionsMap)
+    {
+        if (encryptionOptionsMap == null)
+        {
+            return null;
+        }
+        EncryptionOptions jmxEncryptionOptions = new EncryptionOptions();
+        String[] cipherSuitesArray = (String[]) encryptionOptionsMap.get(EncryptionOptions.ConfigKey.CIPHER_SUITES.toString());
+        if (cipherSuitesArray != null)
+        {
+            jmxEncryptionOptions = jmxEncryptionOptions.withCipherSuites(cipherSuitesArray);
+        }
+        List<String> acceptedProtocols = (List<String>) encryptionOptionsMap.get(EncryptionOptions.ConfigKey.ACCEPTED_PROTOCOLS.toString());
+        if (acceptedProtocols != null)
+        {
+            jmxEncryptionOptions = jmxEncryptionOptions.withAcceptedProtocols(acceptedProtocols);
+        }
+
+        Boolean requireClientAuthValue = (Boolean) encryptionOptionsMap.get(EncryptionOptions.ConfigKey.REQUIRE_CLIENT_AUTH.toString());
+        EncryptionOptions.ClientAuth requireClientAuth = requireClientAuthValue == null ?
+                                                         EncryptionOptions.ClientAuth.NOT_REQUIRED :
+                                                         EncryptionOptions.ClientAuth.from(String.valueOf(requireClientAuthValue));
+        Object enabledOption = encryptionOptionsMap.get(EncryptionOptions.ConfigKey.ENABLED.toString());
+        boolean enabled = enabledOption != null ? (Boolean) encryptionOptionsMap.get(EncryptionOptions.ConfigKey.ENABLED.toString()) : false;
+
+        //CASSANDRA-18508 NOTE - We do not populate sslContextFactory configuration here for tests, it could be enhanced
+        jmxEncryptionOptions = jmxEncryptionOptions
+                               .withKeyStore((String) encryptionOptionsMap.get(EncryptionOptions.ConfigKey.KEYSTORE.toString()))
+                               .withKeyStorePassword((String) encryptionOptionsMap.get(EncryptionOptions.ConfigKey.KEYSTORE_PASSWORD.toString()))
+                               .withTrustStore((String) encryptionOptionsMap.get(EncryptionOptions.ConfigKey.TRUSTSTORE.toString()))
+                               .withTrustStorePassword((String) encryptionOptionsMap.get(EncryptionOptions.ConfigKey.TRUSTSTORE_PASSWORD.toString()))
+                               .withRequireClientAuth(requireClientAuth)
+                               .withEnabled(enabled);
+        return jmxEncryptionOptions;
     }
 
     private void waitForJmxAvailability(Map<String, ?> env)

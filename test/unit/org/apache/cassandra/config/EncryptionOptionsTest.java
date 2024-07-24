@@ -250,7 +250,7 @@ public class EncryptionOptionsTest
 
         for(EncryptionOptions.ConfigKey configKey: EncryptionOptions.ConfigKey.values())
         {
-            customSslContextFactoryParams.put(configKey.getKeyName(), "my-custom-value");
+            customSslContextFactoryParams.put(configKey.toString(), "my-custom-value");
         }
 
         EncryptionOptionsTestCase.of(null, absentKeystore, true, customSslContextFactoryParams, ENCRYPTED);

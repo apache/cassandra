@@ -88,6 +88,7 @@ New features
       generate a password of configured password strength policy upon role creation or alteration
       when 'GENERATED PASSWORD' clause is used. Character sets supported are: English, Cyrillic, modern Cyrillic,
       German, Polish and Czech.
+    - JMX SSL configuration can be now done in cassandra.yaml via jmx_encryption_options section instead of cassandra-env.sh
 
 
 Upgrading

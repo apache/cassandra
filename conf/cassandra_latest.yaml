@@ -1676,6 +1676,24 @@ client_encryption_options:
   #   TLS_RSA_WITH_AES_256_CBC_SHA
   # ]
 
+# Configure SSL for JMX
+#
+# Using system properties via cassandra-env.sh to configure JMX SSL is
+# considered legacy and only supported for backward compatibility. If SSL
+# is enabled via both methods, a configuration error will occur at
+# startup. Hot reloading of the `SSLContext` is not yet supported for the
+# JMX SSL.
+# Similar to `client/server_encryption_options`, you can specify PEM-based
+# key material or customize the SSL configuration using `ssl_context_factory` in `jmx_encryption_options`.
+#jmx_encryption_options:
+#  enabled: true
+#  cipher_suites: [TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256]
+#  accepted_protocols: [TLSv1.2,TLSv1.3,TLSv1.1]
+#  keystore: conf/cassandra_ssl.keystore
+#  keystore_password: cassandra
+#  truststore: conf/cassandra_ssl.truststore
+#  truststore_password: cassandra
+
 # internode_compression controls whether traffic between nodes is
 # compressed.
 # Can be:

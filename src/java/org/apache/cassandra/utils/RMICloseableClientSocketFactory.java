@@ -15,26 +15,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.distributed.test.jmx;
 
-import org.junit.Test;
+package org.apache.cassandra.utils;
 
-import org.apache.cassandra.distributed.Cluster;
-import org.apache.cassandra.distributed.api.Feature;
-import org.apache.cassandra.distributed.test.TestBaseImpl;
+import java.rmi.server.RMIClientSocketFactory;
 
-public class JMXGetterCheckTest extends TestBaseImpl
+/**
+ * This represents closeable RMI Client Socket factory. It extends {@link AutoCloseable} and can be used with
+ * {@code try-with-resources}.
+ */
+public interface RMICloseableClientSocketFactory extends RMIClientSocketFactory, AutoCloseable
 {
-
-    @Test
-    public void testGetters() throws Exception
-    {
-        for (int i=0; i < 2; i++)
-        {
-            try (Cluster cluster = Cluster.build(1).withConfig(c -> c.with(Feature.values())).start())
-            {
-                JMXTestsUtil.testAllValidGetters(cluster, null);
-            }
-        }
-    }
 }

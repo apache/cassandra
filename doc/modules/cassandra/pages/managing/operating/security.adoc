@@ -78,7 +78,8 @@ files having the required PEM data as shown below,
 * Configuration: PEM keys/certs defined in-line (mind the spaces in the
 YAML!)
 
-....
+[source,yaml]
+----
    client/server_encryption_options:
      ssl_context_factory:
         class_name: org.apache.cassandra.security.PEMBasedSslContextFactory
@@ -97,17 +98,19 @@ YAML!)
               -----BEGIN CERTIFICATE-----
               <your base64 encoded certificate>
               -----END CERTIFICATE-----
-....
+----
 
 * Configuration: PEM keys/certs defined in files
-....
+
+[source,yaml]
+----
     client/server_encryption_options:
      ssl_context_factory:
         class_name: org.apache.cassandra.security.PEMBasedSslContextFactory
      keystore: <file path to the keystore file in the PEM format with the private key and the certificate chain>
      keystore_password: "<your password if the private key is encrypted with a password>"
      truststore: <file path to the truststore file in the PEM format>
-....
+----
 
 == SSL Certificate Hot Reloading
 
@@ -564,8 +567,61 @@ See also: xref:cassandra:developing/cql/security.adoc#permissions[`Permissions`]
 
 === JMX With SSL
 
-JMX SSL configuration is controlled by a number of system properties,
-some of which are optional. To turn on SSL, edit the relevant lines in
+JMX SSL configuration should be specified in `cassandra.yaml` under
+`encryption_options`, similar to how `client/server_encryption_options`
+are configured. Using system properties to configure JMX SSL is
+considered legacy and only supported for backward compatibility. If SSL
+is enabled via both methods, a configuration error will occur at
+startup. Hot reloading of the `SSLContext` is not yet supported for the
+JMX SSL.
+
+==== JMX SSL configuration in cassandra.yaml
+Below is an example of configuring JMX SSL in `cassandra.yaml`
+
+[source,yaml]
+----
+jmx_encryption_options:
+    enabled: true
+    cipher_suites: [TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256]
+    accepted_protocols: [TLSv1.2,TLSv1.3,TLSv1.1]
+    keystore: test/conf/cassandra_ssl_test.keystore
+    keystore_password: cassandra
+    truststore: test/conf/cassandra_ssl_test.truststore
+    truststore_password: cassandra
+----
+
+Similar to `client/server_encryption_options`, you can specify PEM-based
+key material or customize the SSL configuration using
+`ssl_context_factory` in `jmx_encryption_options`.
+
+Below is an example of configuring PEM based key material,
+[source,yaml]
+----
+jmx_encryption_options:
+    enabled: true
+    cipher_suites: [TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256]
+    accepted_protocols: [TLSv1.2,TLSv1.3,TLSv1.1]
+    ssl_context_factory:
+      class_name: org.apache.cassandra.security.PEMBasedSslContextFactory
+      parameters:
+          private_key: |
+           -----BEGIN ENCRYPTED PRIVATE KEY----- OR -----BEGIN PRIVATE KEY-----
+           <your base64 encoded private key>
+           -----END ENCRYPTED PRIVATE KEY----- OR -----END PRIVATE KEY-----
+           -----BEGIN CERTIFICATE-----
+           <your base64 encoded certificate chain>
+           -----END CERTIFICATE-----
+
+          private_key_password: "<your password if the private key is encrypted with a password>"
+
+          trusted_certificates: |
+            -----BEGIN CERTIFICATE-----
+            <your base64 encoded certificate>
+            -----END CERTIFICATE-----
+----
+
+==== (Legacy) JMX SSL configuration with system properties
+To turn on SSL this way, edit the relevant lines in
 `cassandra-env.sh` to uncomment and
 set the values of these properties as required:
 

@@ -87,7 +87,7 @@ public class NativeTransportEncryptionOptionsTest extends AbstractEncryptionOpti
     {
         try (Cluster cluster = builder().withNodes(1).withConfig(c -> {
             c.with(Feature.NATIVE_PROTOCOL);
-            c.set("client_encryption_options", validKeystore);
+            c.set("client_encryption_options", validFileBasedKeystores);
         }).createWithoutStarting())
         {
             InetAddress address = cluster.get(1).config().broadcastAddress().getAddress();
@@ -119,7 +119,7 @@ public class NativeTransportEncryptionOptionsTest extends AbstractEncryptionOpti
         try (Cluster cluster = builder().withNodes(1).withConfig(c -> {
             c.with(Feature.NATIVE_PROTOCOL);
             c.set("client_encryption_options",
-                  ImmutableMap.builder().putAll(validKeystore)
+                  ImmutableMap.builder().putAll(validFileBasedKeystores)
                               .put("enabled", true)
                               .put("accepted_protocols", ImmutableList.of("TLSv1.1", "TLSv1.2", "TLSv1.3"))
                               .build());
@@ -156,7 +156,7 @@ public class NativeTransportEncryptionOptionsTest extends AbstractEncryptionOpti
         try (Cluster cluster = builder().withNodes(1).withConfig(c -> {
             c.with(Feature.NATIVE_PROTOCOL);
             c.set("client_encryption_options",
-                  ImmutableMap.builder().putAll(validKeystore)
+                  ImmutableMap.builder().putAll(validFileBasedKeystores)
                               .put("enabled", true)
                               .put("accepted_protocols", Collections.singletonList("TLSv1.2"))
                               .put("cipher_suites", Collections.singletonList("TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384"))
@@ -237,7 +237,7 @@ public class NativeTransportEncryptionOptionsTest extends AbstractEncryptionOpti
         try (Cluster cluster = builder().withNodes(1).withConfig(c -> {
             c.with(Feature.NATIVE_PROTOCOL);
             c.set("client_encryption_options",
-                  ImmutableMap.builder().putAll(validKeystore)
+                  ImmutableMap.builder().putAll(validFileBasedKeystores)
                               .put("enabled", true)
                               .put("require_client_auth", "optional")
                               .put("optional", true)
@@ -282,7 +282,7 @@ public class NativeTransportEncryptionOptionsTest extends AbstractEncryptionOpti
         try (Cluster cluster = builder().withNodes(1).withConfig(c -> {
             c.with(Feature.NATIVE_PROTOCOL);
             c.set("client_encryption_options",
-                  ImmutableMap.builder().putAll(validKeystore)
+                  ImmutableMap.builder().putAll(validFileBasedKeystores)
                               .put("enabled", true)
                               .put("require_client_auth", "optional")
                               .put("optional", false)
@@ -329,7 +329,7 @@ public class NativeTransportEncryptionOptionsTest extends AbstractEncryptionOpti
             // Server configuration for optional mTLS mode
             c.with(Feature.NATIVE_PROTOCOL);
             c.set("client_encryption_options",
-                  ImmutableMap.builder().putAll(validKeystore)
+                  ImmutableMap.builder().putAll(validFileBasedKeystores)
                               .put("enabled", true)
                               .put("require_client_auth", "false")
                               .put("optional", true)
@@ -384,7 +384,7 @@ public class NativeTransportEncryptionOptionsTest extends AbstractEncryptionOpti
         try (Cluster cluster = builder().withNodes(1).withConfig(c -> {
             c.with(Feature.NATIVE_PROTOCOL);
             c.set("client_encryption_options",
-                  ImmutableMap.builder().putAll(validKeystore)
+                  ImmutableMap.builder().putAll(validFileBasedKeystores)
                               .put("enabled", true)
                               .put("require_client_auth", true)
                               .put("require_endpoint_verification", requireEndpointVerification)

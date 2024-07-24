@@ -70,19 +70,19 @@ public class AbstractEncryptionOptionsImpl extends TestBaseImpl
     final static String validTrustStorePassword = TlsTestUtils.SERVER_TRUSTSTORE_PASSWORD;
 
     // Base configuration map for a valid keystore that can be opened
-    final static Map<String,Object> validKeystore = ImmutableMap.of("keystore", validKeyStorePath,
-                                                                    "keystore_password", validKeyStorePassword,
-                                                                    "truststore", validTrustStorePath,
-                                                                    "truststore_password", validTrustStorePassword);
+    protected final static Map<String,Object> validFileBasedKeystores = ImmutableMap.of("keystore", validKeyStorePath,
+                                                                                        "keystore_password", validKeyStorePassword,
+                                                                                        "truststore", validTrustStorePath,
+                                                                                        "truststore_password", validTrustStorePassword);
 
     // Configuration with a valid keystore, but an unknown protocol
     final static Map<String,Object> nonExistantProtocol = ImmutableMap.<String,Object>builder()
-                                                                           .putAll(validKeystore)
+                                                                           .putAll(validFileBasedKeystores)
                                                                            .put("accepted_protocols", Collections.singletonList("NoProtocolIKnow"))
                                                                            .build();
     // Configuration with a valid keystore, but an unknown cipher suite
     final static Map<String,Object> nonExistantCipher = ImmutableMap.<String,Object>builder()
-                                                                           .putAll(validKeystore)
+                                                                           .putAll(validFileBasedKeystores)
                                                                            .put("cipher_suites", Collections.singletonList("NoCipherIKnow"))
                                                                            .build();
 
@@ -340,7 +340,7 @@ public class AbstractEncryptionOptionsImpl extends TestBaseImpl
     }
 
     /* Provde the cluster cannot start with the configured options */
-    void assertCannotStartDueToConfigurationException(Cluster cluster)
+    protected void assertCannotStartDueToConfigurationException(Cluster cluster)
     {
         Throwable tr = null;
         try

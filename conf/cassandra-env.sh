@@ -236,6 +236,11 @@ else
   JVM_OPTS="$JVM_OPTS -Dcom.sun.management.jmxremote.authenticate=true"
 
   # jmx ssl options
+  # Consider using the jmx_encryption_options section of cassandra.yaml instead
+  # to prevent sensitive information being exposed.
+  # In case jmx ssl options are configured in both the places - this file and cassandra.yaml, and
+  # if com.sun.management.jmxremote.ssl is configured to be true here and encryption_options are marked enabled in
+  # cassandra.yaml, then we will get exception at the startup
   #JVM_OPTS="$JVM_OPTS -Dcom.sun.management.jmxremote.ssl=true"
   #JVM_OPTS="$JVM_OPTS -Dcom.sun.management.jmxremote.ssl.need.client.auth=true"
   #JVM_OPTS="$JVM_OPTS -Dcom.sun.management.jmxremote.ssl.enabled.protocols=<enabled-protocols>"
