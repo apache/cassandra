@@ -230,7 +230,7 @@ public class JMXServerUtils
         {
             logger.info("Enabling JMX SSL using environment file properties");
             logger.warn("Consider using the jmx_encryption_options section of cassandra.yaml instead to prevent " +
-                        "sensitive information being exposxed");
+                        "sensitive information being exposed");
             boolean requireClientAuth = COM_SUN_MANAGEMENT_JMXREMOTE_SSL_NEED_CLIENT_AUTH.getBoolean();
             String[] protocols = null;
             String protocolList = COM_SUN_MANAGEMENT_JMXREMOTE_SSL_ENABLED_PROTOCOLS.getString();
