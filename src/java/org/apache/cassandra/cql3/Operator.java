@@ -326,7 +326,8 @@ public enum Operator
     IN(7)
     {
         @Override
-        public Kind kind() {
+        public Kind kind()
+        {
             return Kind.MULTI_VALUE;
         }
 
@@ -477,7 +478,8 @@ public enum Operator
         }
 
         @Override
-        public boolean isSatisfiedBy(MultiElementType<?> type, ComplexColumnData leftOperand, ByteBuffer rightOperand) {
+        public boolean isSatisfiedBy(MultiElementType<?> type, ComplexColumnData leftOperand, ByteBuffer rightOperand)
+        {
             // Legacy behavior of LWT conditions
             if (rightOperand == null)
                 return leftOperand != null;
@@ -490,6 +492,7 @@ public enum Operator
             return leftOperand == null || type.compareCQL(leftOperand, elements) != 0;
         }
 
+        @Override
         public void restrict(RangeSet<ClusteringElements> rangeSet, List<ClusteringElements> args)
         {
             assert args.size() == 1;
@@ -638,7 +641,8 @@ public enum Operator
     NOT_IN(16)
     {
         @Override
-        public Kind kind() {
+        public Kind kind()
+        {
             return Kind.MULTI_VALUE;
         }
 
@@ -649,6 +653,12 @@ public enum Operator
         }
         @Override
         public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
+        {
+            return !IN.isSatisfiedBy(type, leftOperand, rightOperand);
+        }
+
+        @Override
+        public boolean isSatisfiedBy(MultiElementType<?> type, ComplexColumnData leftOperand, ByteBuffer rightOperand)
         {
             return !IN.isSatisfiedBy(type, leftOperand, rightOperand);
         }
@@ -722,9 +732,11 @@ public enum Operator
             return CONTAINS;
         }
     },
-    NOT_CONTAINS_KEY(18) {
+    NOT_CONTAINS_KEY(18)
+    {
         @Override
-        public String toString() {
+        public String toString()
+        {
             return "NOT CONTAINS KEY";
         }
 
@@ -741,24 +753,28 @@ public enum Operator
         }
 
         @Override
-        public boolean appliesToColumnValues() {
+        public boolean appliesToColumnValues()
+        {
             return false;
         }
 
         @Override
-        public boolean appliesToMapKeys() {
+        public boolean appliesToMapKeys()
+        {
             return true;
         }
 
         @Override
-        public Operator negate() {
+        public Operator negate()
+        {
             return CONTAINS_KEY;
         }
     },
     BETWEEN(19)
     {
         @Override
-        public Kind kind() {
+        public Kind kind()
+        {
             return Kind.TERNARY;
         }
 

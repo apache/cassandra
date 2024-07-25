@@ -145,7 +145,7 @@ public final class SimpleRestriction implements SingleRestriction
                 || operator == Operator.NOT_CONTAINS
                 || operator == Operator.NOT_CONTAINS_KEY
                 // TODO only map elements supported for now in restrictions
-               || columnsExpression.isMapElementExpression();
+                || columnsExpression.isMapElementExpression();
     }
 
     @Override
