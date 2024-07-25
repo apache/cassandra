@@ -55,6 +55,7 @@ abstract class AbstractSSTableSimpleWriter implements Closeable
     protected boolean makeRangeAware = false;
     protected final Collection<Index.Group> indexGroups;
     protected Consumer<Collection<SSTableReader>> sstableProducedListener;
+    protected boolean openSSTableOnProduced = false;
 
     protected AbstractSSTableSimpleWriter(File directory, TableMetadataRef metadata, RegularAndStaticColumns columns)
     {
@@ -84,14 +85,17 @@ abstract class AbstractSSTableSimpleWriter implements Closeable
         this.sstableProducedListener = listener;
     }
 
+    protected void setShouldOpenProducedSSTable(boolean openSSTableOnProduced)
+    {
+        this.openSSTableOnProduced = openSSTableOnProduced;
+    }
+
     /**
      * Indicate whether the produced sstable should be opened or not.
-     *
-     * @return true when {@link #sstableProducedListener} is registered, i.e. not null; otherwise, false
      */
     protected boolean shouldOpenSSTables()
     {
-        return sstableProducedListener != null;
+        return openSSTableOnProduced;
     }
 
     protected void notifySSTableProduced(Collection<SSTableReader> sstables)

@@ -1399,6 +1399,7 @@ public abstract class CQLSSTableWriterTest
                                            .using("INSERT INTO " + qualifiedTable +
                                                   " (k, v) VALUES (?, text_as_blob(?))")
                                            .withMaxSSTableSizeInMiB(1)
+                                           .openSSTableOnProduced()
                                            .withSSTableProducedListener(produced::addAll);
         if (sorted)
         {

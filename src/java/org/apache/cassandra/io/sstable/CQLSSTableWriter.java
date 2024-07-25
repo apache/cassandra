@@ -411,6 +411,7 @@ public class CQLSSTableWriter implements Closeable
         private long maxSSTableSizeInMiB = -1L;
         private boolean buildIndexes = true;
         private Consumer<Collection<SSTableReader>> sstableProducedListener;
+        private boolean openSSTableOnProduced = false;
 
         protected Builder()
         {
@@ -639,6 +640,18 @@ public class CQLSSTableWriter implements Closeable
             return this;
         }
 
+        /**
+         * Whether the produced sstable should be open or not.
+         * By default, the writer does not open the produced sstables
+         *
+         * @return this builder
+         */
+        public Builder openSSTableOnProduced()
+        {
+            this.openSSTableOnProduced = true;
+            return this;
+        }
+
         public CQLSSTableWriter build()
         {
             if (directory == null)
@@ -750,6 +763,7 @@ public class CQLSSTableWriter implements Closeable
                 {
                     writer.setSSTableProducedListener(sstableProducedListener);
                 }
+                writer.setShouldOpenProducedSSTable(openSSTableOnProduced);
 
                 return new CQLSSTableWriter(writer, preparedModificationStatement, preparedModificationStatement.getBindVariables());
             }
