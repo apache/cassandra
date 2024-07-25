@@ -744,6 +744,9 @@ syntax_rules += r'''
                              ")" ("=" | "<" | ">" | "<=" | ">=") <tokenDefinition>
              | [rel_lhs]=<cident> "IN" "(" <term> ( "," <term> )* ")"
              | [rel_lhs]=<cident> "BETWEEN" <term> "AND" <term>
+             | "maxTimeuuid()" "(" [colname]=<cident> ")"
+             | "minTimeuuid()" "(" [colname]=<cident> ")"
+             | "token()" "(" [colname]=<cident> ")"
              ;
 <selectClause> ::= "DISTINCT"? <selector> ("AS" <cident>)? ("," <selector> ("AS" <cident>)?)*
                  | "*"
@@ -756,6 +759,24 @@ syntax_rules += r'''
              | "MAXWRITETIME" "(" [colname]=<cident> ")"
              | "TTL" "(" [colname]=<cident> ")"
              | "COUNT" "(" star=( "*" | "1" ) ")"
+             | "AVG" "(" star=( "*" | "1" ) ")"
+             | "MIN" "(" star=( "*" | "1" ) ")"
+             | "MAX" "(" star=( "*" | "1" ) ")"
+             | "SUM" "(" star=( "*" | "1" ) ")"
+             | "ABS" "(" star=( "*" | "1" ) ")"
+             | "EXP" "(" star=( "*" | "1" ) ")"
+             | "LOG" "(" star=( "*" | "1" ) ")"
+             | "LOG10" "(" star=( "*" | "1" ) ")"
+             | "ROUND" "(" [colname]=<cident> ")"
+             | "TODATE" "(" [colname]=<cident> ")"
+             | "TOTIMESTAMP" "(" [colname]=<cident> ")"
+             | "TOUNIXTIMESTAMP" "(" [colname]=<cident> ")"
+             | "TOKEN" "(" [colname]=<cident> ")"
+             | "TODATE" "(" [colname]=<cident> ")"
+             | "MAP_KEYS" "(" [colname]=<cident> ")"
+             | "MAP_VALUES" "(" [colname]=<cident> ")"
+             | "MINTIMEUUID" "(" [colname]=<cident> ")"
+             | "MAXTIMEUUID" "(" [colname]=<cident> ")"
              | "CAST" "(" <selector> "AS" <storageType> ")"
              | <functionName> <selectionFunctionArguments>
              | <term>
@@ -1480,12 +1501,12 @@ syntax_rules += r'''
              ;
 
 <createUserStatement> ::= "CREATE" "USER" ( "IF" "NOT" "EXISTS" )? <username>
-                              ( ("WITH" ("HASHED")? "PASSWORD" <stringLiteral>) | ("WITH" "GENERATED" "PASSWORD") )?
+                              ( "WITH" ("HASHED")? "PASSWORD" <stringLiteral> )?
                               ( "SUPERUSER" | "NOSUPERUSER" )?
                         ;
 
 <alterUserStatement> ::= "ALTER" "USER" ("IF" "EXISTS")? <username>
-                              ( ("WITH" "PASSWORD" <stringLiteral>) | ("WITH" "GENERATED" "PASSWORD") )?
+                              ( "WITH" "PASSWORD" <stringLiteral> )?
                               ( "SUPERUSER" | "NOSUPERUSER" )?
                        ;
 
@@ -1511,7 +1532,6 @@ syntax_rules += r'''
                        ;
 
 <roleProperty> ::= (("HASHED")? "PASSWORD") "=" <stringLiteral>
-                 | "GENERATED" "PASSWORD"
                  | "OPTIONS" "=" <mapLiteral>
                  | "SUPERUSER" "=" <boolean>
                  | "LOGIN" "=" <boolean>
