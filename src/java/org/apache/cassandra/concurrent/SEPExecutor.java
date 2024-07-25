@@ -419,4 +419,15 @@ public class SEPExecutor implements LocalAwareExecutorPlus, SEPExecutorMBean
     {
         return (((long) workPermits) << 32) | taskPermits;
     }
+
+    // DO NOT INVOKE THIS METHOD UNLESS YOU KNOW WHAT YOU ARE DOING
+    // THIS IS FOR EMERGENCY PURPOSE ONLY FOR FASTER MITIGATION;
+    // NOT TO BE USED IN NORMAL OPERATION
+    public void nativeTransportCleanupEMERGENCYUSEONLY()
+    {
+        // It is not safe to clear the queue without lock here; but we do not want to introduce lock
+        // in the hot path. This should be used only for EMERGENCY purpose only.
+        this.permits.set(combine(0, maximumPoolSize.get()));
+        tasks.clear();
+    }
 }

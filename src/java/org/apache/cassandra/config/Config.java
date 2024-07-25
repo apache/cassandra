@@ -1477,9 +1477,15 @@ public class Config
     public DurationSpec.LongMillisecondsBound native_transport_min_backoff_on_queue_overload = new DurationSpec.LongMillisecondsBound("10ms");
     public DurationSpec.LongMillisecondsBound native_transport_max_backoff_on_queue_overload = new DurationSpec.LongMillisecondsBound("200ms");
 
-    // 3.0 Cassandra Driver has its "read" timeout set to 12 seconds. Our recommendation is match this.
-    public DurationSpec.LongMillisecondsBound native_transport_timeout = new DurationSpec.LongMillisecondsBound("12000ms");
     public boolean enforce_native_deadline_for_hints = false;
 
     public boolean paxos_repair_race_wait = true;
+
+    // 3.0 Cassandra Driver has its "read" timeout set to 12 seconds. Our recommendation is match this.
+    // At Uber, we are setting to 20s assuming most use cases will be fine
+    public volatile DurationSpec.LongMillisecondsBound native_transport_timeout = new DurationSpec.LongMillisecondsBound("20000ms");
+
+    // WARNING!!! - DO NOT ENABLE THIS FOR PRODUCTION
+    // This parameter is for testing purposes only. It is used to simulate expensive queries.
+    public volatile DurationSpec.LongMillisecondsBound inject_artificial_delay = new DurationSpec.LongMillisecondsBound("0ms");
 }

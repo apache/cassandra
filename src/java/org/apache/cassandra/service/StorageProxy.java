@@ -192,7 +192,6 @@ public class StorageProxy implements StorageProxyMBean
 {
     public static final String MBEAN_NAME = "org.apache.cassandra.db:type=StorageProxy";
     private static final Logger logger = LoggerFactory.getLogger(StorageProxy.class);
-
     public static final String UNREACHABLE = "UNREACHABLE";
 
     private static final int FAILURE_LOGGING_INTERVAL_SECONDS = CassandraRelevantProperties.FAILURE_LOGGING_INTERVAL_SECONDS.getInt();
@@ -1784,6 +1783,8 @@ public class StorageProxy implements StorageProxyMBean
             {
                 try
                 {
+                    // this is purely for testing purpose only
+                    maybeAddArtificialDelay();
                     runnable.run();
                     handler.onResponse(null);
                 }
@@ -3417,5 +3418,18 @@ public class StorageProxy implements StorageProxyMBean
             }
         }
         return null;
+    }
+
+    // NOTE: TESTING PURPOSE ONLY!!!!
+    // the usage of this API is purely for testing purpose only; this API mimics the behavior of
+    // some slowdown while writing to a disk on Cassandra node; say disk has become slow for whatever reason
+    // this artifical delay is necessary to reproduce some corner cases which is not feasible in normal testing
+    private static void maybeAddArtificialDelay() throws InterruptedException
+    {
+        if (DatabaseDescriptor.getInjectArtificialDelay().toMilliseconds() > 0)
+        {
+            NoSpamLogger.log(logger, NoSpamLogger.Level.INFO, 5, TimeUnit.MINUTES, "Artificial delay of {} ms applied" , DatabaseDescriptor.getInjectArtificialDelay().toMilliseconds());
+            Uninterruptibles.sleepUninterruptibly(DatabaseDescriptor.getInjectArtificialDelay().toMilliseconds(), MILLISECONDS);
+        }
     }
 }

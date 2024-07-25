@@ -86,6 +86,8 @@ import com.google.common.util.concurrent.RateLimiter;
 import com.google.common.util.concurrent.Uninterruptibles;
 
 import org.apache.cassandra.audit.AuditUsersCacheService;
+import org.apache.cassandra.concurrent.SEPExecutor;
+import org.apache.cassandra.concurrent.SharedExecutorPool;
 import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.db.compaction.CompactionStrategyMigrationManager;
 import org.apache.cassandra.db.monitoring.MonitoringSchemaChangeListener;
@@ -124,7 +126,6 @@ import org.apache.cassandra.config.Config.LCSEnforcementLevel;
 import org.apache.cassandra.config.Config.AuthEnforcementFlag;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
-import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
@@ -142,16 +143,12 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.OwnedRanges;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.RangeStreamer;
-import org.apache.cassandra.dht.RangeStreamer.FetchReplica;
 import org.apache.cassandra.dht.StreamStateStore;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.dht.Token.TokenFactory;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.UnavailableException;
-import org.apache.cassandra.fql.FullQueryLogger;
-import org.apache.cassandra.fql.FullQueryLoggerOptions;
-import org.apache.cassandra.fql.FullQueryLoggerOptionsCompositeData;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.FailureDetector;
@@ -181,7 +178,6 @@ import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.RangesByEndpoint;
 import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
 import org.apache.cassandra.locator.Replicas;
 import org.apache.cassandra.locator.SystemReplicas;
 import org.apache.cassandra.locator.TokenMetadata;
@@ -265,6 +261,7 @@ import static org.apache.cassandra.net.NoPayload.noPayload;
 import static org.apache.cassandra.net.Verb.REPLICATION_DONE_REQ;
 import static org.apache.cassandra.service.ActiveRepairService.ParentRepairStatus;
 import static org.apache.cassandra.service.ActiveRepairService.repairCommandExecutor;
+import static org.apache.cassandra.transport.Dispatcher.NATIVE_TRANSPORT_THREAD_POOL;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
@@ -7546,5 +7543,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             QueryProcessor.initFixedSizePreparedStatementCache();
         }
         DatabaseDescriptor.setUseWeightBasedPreparedStatementsCache(enabled);
+    }
+
+    @Override
+    public void nativeTransportCleanupEMERGENCYUSEONLY()
+    {
+        SEPExecutor nativeTransportSEPTP = SharedExecutorPool.SHARED.getExecutor(NATIVE_TRANSPORT_THREAD_POOL);
+        nativeTransportSEPTP.nativeTransportCleanupEMERGENCYUSEONLY();
     }
 }

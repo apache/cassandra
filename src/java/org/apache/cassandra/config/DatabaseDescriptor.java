@@ -5128,4 +5128,19 @@ public class DatabaseDescriptor
     {
         conf.prepared_statements_cache_max_capacity = capacity;
     }
+
+    public static void setNativeTransportTimeout(long deadlineMillis)
+    {
+        conf.native_transport_timeout = new DurationSpec.LongMillisecondsBound(deadlineMillis);
+    }
+
+    public static DurationSpec.LongMillisecondsBound getInjectArtificialDelay()
+    {
+        return conf.inject_artificial_delay;
+    }
+
+    public static void setInjectArtificialDelay(String delay)
+    {
+        conf.inject_artificial_delay = new DurationSpec.LongMillisecondsBound(delay);
+    }
 }

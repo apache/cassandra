@@ -2866,6 +2866,21 @@ public class NodeProbe implements AutoCloseable
     {
         csmmProxy.reloadAndOverrideLocalCompactionStrategy();
     }
+
+    public long getNativeTransportTimeoutMillis()
+    {
+        return ssProxy.getNativeTransportTimeoutMillis();
+    }
+
+    public void setNativeTransportTimeoutMillis(long deadlineMillis)
+    {
+        ssProxy.setNativeTransportTimeoutMillis(deadlineMillis);
+    }
+
+    public void nativeTransportCleanupEMERGENCYUSEONLY()
+    {
+        ssProxy.nativeTransportCleanupEMERGENCYUSEONLY();
+    }
 }
 
 class ColumnFamilyStoreMBeanIterator implements Iterator<Map.Entry<String, ColumnFamilyStoreMBean>>

@@ -58,7 +58,7 @@ public final class ClientMetrics
     private Meter requestDiscarded;
     private Meter requestDispatched;
 
-    private Meter timedOutBeforeProcessing;
+    public Meter timedOutBeforeProcessing;
     private Meter protocolException;
     private Meter unknownException;
     private Timer queueTime;

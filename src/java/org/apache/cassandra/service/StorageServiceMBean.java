@@ -38,7 +38,6 @@ import javax.management.openmbean.OpenDataException;
 import javax.management.openmbean.TabularData;
 
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
-import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.utils.BreaksJMX;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 
@@ -1193,4 +1192,7 @@ public interface StorageServiceMBean extends NotificationEmitter
     /** Sets the value for use_weight_based_prepared_statements_cache */
     public void setUseWeightBasedPreparedStatementsCacheEnabled(boolean enabled);
 
+    /** WARNING!!!!! DO NOT USE THIS API FOR PRODUCTION; THIS IS EMERGENCY
+     TOOLING FOR FASTER MITIGATION PURPOSES ONLY  */
+    public void nativeTransportCleanupEMERGENCYUSEONLY();
 }
