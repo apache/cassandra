@@ -20,6 +20,7 @@ package org.apache.cassandra.io.sstable;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
@@ -27,6 +28,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -60,6 +62,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.utils.IndexIdentifier;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.PathUtils;
@@ -1360,6 +1363,85 @@ public abstract class CQLSSTableWriterTest
                 assertEquals(i, row.getInt("k"));
             }
         }
+    }
+
+    @Test
+    public void testNotifySSTableFinishedForSorted() throws Exception
+    {
+        testNotifySSTableFinished(true, false);
+    }
+
+    @Test
+    public void testNotifySSTableFinishedForUnsorted() throws Exception
+    {
+        testNotifySSTableFinished(false, false);
+    }
+
+    @Test
+    public void testCloseSortedWriterOnFirstPorducedShouldStillResultInTwoSSTables() throws Exception
+    {
+        // Writing a new partition (and exceeding the size limit) lead to closing the current writer and buffering the last partition update.
+        // Since there is a last partition buffered, closing the sstable writer flushes to a new sstable.
+        // Therefore, even though the test closes the writer immediately, there are still 2 sstables produced.
+        testNotifySSTableFinished(true, true);
+    }
+
+    private void testNotifySSTableFinished(boolean sorted, boolean closeWriterOnFirstProduced) throws Exception
+    {
+        List<SSTableReader> produced = new ArrayList<>();
+        String schema = "CREATE TABLE " + qualifiedTable + " ("
+                        + "  k int PRIMARY KEY,"
+                        + "  v blob )";
+        CQLSSTableWriter.Builder builder = CQLSSTableWriter
+                                           .builder()
+                                           .inDirectory(dataDir)
+                                           .forTable(schema)
+                                           .using("INSERT INTO " + qualifiedTable +
+                                                  " (k, v) VALUES (?, text_as_blob(?))")
+                                           .withMaxSSTableSizeInMiB(1)
+                                           .withSSTableProducedListener(produced::addAll);
+        if (sorted)
+        {
+            builder.sorted();
+        }
+        CQLSSTableWriter writer = builder.build();
+
+        int rowCount = 30_000;
+        // Max SSTable size is 1 MiB
+        // 30_000 rows should take 30_000 * (4 + 37) = 1.17 MiB > 1 MiB, i.e. producing 2 sstables
+        for (int i = 0; i < rowCount; i++)
+        {
+            writer.addRow(i, UUID.randomUUID().toString());
+            if (closeWriterOnFirstProduced && !produced.isEmpty())
+            {
+                // on closing writer, it flushes the last update to the new sstable
+                writer.close();
+                break;
+            }
+        }
+        // the assertion is only performed for sorted because unsorted writer writes asynchrously; avoid flakiness
+        if (!closeWriterOnFirstProduced && sorted)
+        {
+            // while writing, one sstable should be finished
+            assertEquals(1, produced.size());
+        }
+
+        if (!closeWriterOnFirstProduced)
+            writer.close();
+        // another sstable is finished on closing the writer
+        assertEquals(2, produced.size());
+
+        File[] dataFiles = dataDir.list(f -> f.name().endsWith(BigFormat.Components.DATA.type.repr));
+        assertNotNull(dataFiles);
+        assertEquals("The sorted writer should produce 2 sstables when max sstable size is configured",
+                     2, dataFiles.length);
+        Set<File> notifiedDataFileSet = produced.stream()
+                                                .map(sstable -> sstable.descriptor.fileFor(BigFormat.Components.DATA))
+                                                .collect(Collectors.toSet());
+        Set<File> listedDataFileSet = Arrays.stream(dataFiles)
+                                            .map(File::toCanonical)
+                                            .collect(Collectors.toSet());
+        assertEquals(notifiedDataFileSet, listedDataFileSet);
     }
 
     @Test
