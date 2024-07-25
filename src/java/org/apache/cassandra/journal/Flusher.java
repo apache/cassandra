@@ -303,6 +303,9 @@ final class Flusher<K, V>
             {
                 if (synchronousFsync) fsyncFinishedFor = startedAt;
                 else fSyncRunnable.doNoOpFlush(startedAt);
+
+                if (current != null)
+                    callbacks.onFlush(current.descriptor.timestamp, (int) current.lastFlushedOffset());
                 return;
             }
 

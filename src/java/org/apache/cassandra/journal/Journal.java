@@ -124,6 +124,7 @@ public class Journal<K, V> implements Shutdownable
     {
         private final MpscUnboundedArrayQueue<WaitingFor> waitingFor = new MpscUnboundedArrayQueue<>(256);
         private List<WaitingFor> drained = new ArrayList<>();
+
         @Override
         public void onFlush(long segment, int position)
         {
@@ -132,7 +133,7 @@ public class Journal<K, V> implements Shutdownable
             for (WaitingFor wait : drained)
             {
                 if (wait.segment == segment && wait.position <= position)
-                    wait.onFlush.run();
+                    wait.run();
                 else
                     remaining.add(wait);
             }
@@ -147,15 +148,14 @@ public class Journal<K, V> implements Shutdownable
 
         public void submit(RecordPointer pointer, Runnable runnable)
         {
-            WaitingFor wait = new WaitingFor(pointer.segment, pointer.position, runnable);
             if (isFlushed(pointer))
-                wait.onFlush.run();
+                runnable.run();
             else
-                waitingFor.add(wait);
+                waitingFor.add(new WaitingFor(pointer.segment, pointer.position, runnable));
         }
     }
 
-    private static class WaitingFor extends RecordPointer
+    private static class WaitingFor extends RecordPointer implements Runnable
     {
         private final Runnable onFlush;
 
@@ -163,6 +163,11 @@ public class Journal<K, V> implements Shutdownable
         {
             super(segment, position);
             this.onFlush = onFlush;
+        }
+
+        public void run()
+        {
+            onFlush.run();
         }
     }
 

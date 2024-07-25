@@ -265,6 +265,11 @@ final class ActiveSegment<K, V> extends Segment<K, V>
         return lastFlushedOffset >= position;
     }
 
+    public long lastFlushedOffset()
+    {
+        return lastFlushedOffset;
+    }
+
     /**
      * Possibly force a disk flush for this segment file.
      * TODO FIXME: calls from outside Flusher + callbacks
