@@ -1368,28 +1368,38 @@ public abstract class CQLSSTableWriterTest
     @Test
     public void testNotifySSTableFinishedForSorted() throws Exception
     {
-        testNotifySSTableFinished(true);
+        testNotifySSTableFinished(true, false);
     }
 
     @Test
     public void testNotifySSTableFinishedForUnsorted() throws Exception
     {
-        testNotifySSTableFinished(false);
+        testNotifySSTableFinished(false, false);
     }
 
-    private void testNotifySSTableFinished(boolean sorted) throws Exception
+    @Test
+    public void testCloseSortedWriterOnFirstPorducedShouldStillResultInTwoSSTables() throws Exception
+    {
+        // Writing a new partition (and exceeding the size limit) lead to closing the current writer and buffering the last partition update.
+        // Since there is a last partition buffered, closing the sstable writer flushes to a new sstable.
+        // Therefore, even though the test closes the writer immediately, there are still 2 sstables produced.
+        testNotifySSTableFinished(true, true);
+    }
+
+    private void testNotifySSTableFinished(boolean sorted, boolean closeWriterOnFirstProduced) throws Exception
     {
         List<SSTableReader> produced = new ArrayList<>();
         String schema = "CREATE TABLE " + qualifiedTable + " ("
                         + "  k int PRIMARY KEY,"
                         + "  v blob )";
-        CQLSSTableWriter.Builder builder = CQLSSTableWriter.builder()
-                                                  .inDirectory(dataDir)
-                                                  .forTable(schema)
-                                                  .using("INSERT INTO " + qualifiedTable +
-                                                         " (k, v) VALUES (?, text_as_blob(?))")
-                                                  .withMaxSSTableSizeInMiB(1)
-                                                  .withSSTableProducedListener(produced::addAll);
+        CQLSSTableWriter.Builder builder = CQLSSTableWriter
+                                           .builder()
+                                           .inDirectory(dataDir)
+                                           .forTable(schema)
+                                           .using("INSERT INTO " + qualifiedTable +
+                                                  " (k, v) VALUES (?, text_as_blob(?))")
+                                           .withMaxSSTableSizeInMiB(1)
+                                           .withSSTableProducedListener(produced::addAll);
         if (sorted)
         {
             builder.sorted();
@@ -1402,13 +1412,22 @@ public abstract class CQLSSTableWriterTest
         for (int i = 0; i < rowCount; i++)
         {
             writer.addRow(i, UUID.randomUUID().toString());
+            if (closeWriterOnFirstProduced && !produced.isEmpty())
+            {
+                // on closing writer, it flushes the last update to the new sstable
+                writer.close();
+                break;
+            }
         }
-        if (sorted) // the assertion is only performed for sorted because unsorted writer writes asynchrously; avoid flakiness
+        // the assertion is only performed for sorted because unsorted writer writes asynchrously; avoid flakiness
+        if (!closeWriterOnFirstProduced && sorted)
         {
             // while writing, one sstable should be finished
             assertEquals(1, produced.size());
         }
-        writer.close();
+
+        if (!closeWriterOnFirstProduced)
+            writer.close();
         // another sstable is finished on closing the writer
         assertEquals(2, produced.size());
 
