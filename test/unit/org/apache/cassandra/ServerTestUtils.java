@@ -255,7 +255,7 @@ public final class ServerTestUtils
         }
     }
 
-    private static void cleanupDirectory(String dirName)
+    public static void cleanupDirectory(String dirName)
     {
         if (dirName != null)
             cleanupDirectory(new File(dirName));

@@ -18,199 +18,52 @@
 
 package org.apache.cassandra.service.accord;
 
-import java.util.EnumSet;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
-import com.google.common.collect.Sets;
-
-import accord.local.SerializerSupport;
-import accord.messages.Accept;
-import accord.messages.Apply;
-import accord.messages.ApplyThenWaitUntilApplied;
-import accord.messages.BeginRecovery;
-import accord.messages.Commit;
-import accord.messages.Message;
-import accord.messages.MessageType;
-import accord.messages.PreAccept;
-import accord.messages.Propagate;
-import accord.primitives.Ballot;
+import accord.local.Command;
 import accord.primitives.TxnId;
-import org.agrona.collections.ObjectHashSet;
-import org.apache.cassandra.service.accord.AccordJournal.Key;
 import org.apache.cassandra.service.accord.AccordJournal.Type;
-
-import static accord.messages.MessageType.ACCEPT_REQ;
-import static accord.messages.MessageType.APPLY_MAXIMAL_REQ;
-import static accord.messages.MessageType.APPLY_MINIMAL_REQ;
-import static accord.messages.MessageType.APPLY_THEN_WAIT_UNTIL_APPLIED_REQ;
-import static accord.messages.MessageType.BEGIN_RECOVER_REQ;
-import static accord.messages.MessageType.COMMIT_MAXIMAL_REQ;
-import static accord.messages.MessageType.COMMIT_SLOW_PATH_REQ;
-import static accord.messages.MessageType.PRE_ACCEPT_REQ;
-import static accord.messages.MessageType.PROPAGATE_APPLY_MSG;
-import static accord.messages.MessageType.PROPAGATE_OTHER_MSG;
-import static accord.messages.MessageType.PROPAGATE_PRE_ACCEPT_MSG;
-import static accord.messages.MessageType.PROPAGATE_STABLE_MSG;
-import static accord.messages.MessageType.STABLE_FAST_PATH_REQ;
-import static accord.messages.MessageType.STABLE_MAXIMAL_REQ;
-import static accord.messages.MessageType.STABLE_SLOW_PATH_REQ;
 
 public class MockJournal implements IJournal
 {
-    private final Map<Key, Message> writes = new HashMap<>();
+    private final Map<JournalKey, List<SavedCommand.LoadedDiff>> commands = new HashMap<>();
+
     @Override
-    public SerializerSupport.MessageProvider makeMessageProvider(TxnId txnId)
+    public Command loadCommand(int commandStoreId, TxnId txnId)
     {
-        return new SerializerSupport.MessageProvider()
-        {
-            @Override
-            public TxnId txnId()
-            {
-                return txnId;
-            }
-
-            @Override
-            public Set<MessageType> test(Set<MessageType> messages)
-            {
-                Set<Key> keys = new ObjectHashSet<>(messages.size() + 1, 0.9f);
-                for (MessageType message : messages)
-                    for (Type synonymousType : Type.synonymousTypesFromMessageType(message))
-                        keys.add(new Key(txnId, synonymousType));
-                Set<Key> presentKeys = Sets.intersection(writes.keySet(), keys);
-                Set<MessageType> presentMessages = new ObjectHashSet<>(presentKeys.size() + 1, 0.9f);
-                for (Key key : presentKeys)
-                    presentMessages.add(key.type.outgoingType);
-                return presentMessages;
-            }
-
-            @Override
-            public Set<MessageType> all()
-            {
-                Set<Type> types = EnumSet.allOf(Type.class);
-                Set<Key> keys = new ObjectHashSet<>(types.size() + 1, 0.9f);
-                for (Type type : types)
-                    keys.add(new Key(txnId, type));
-                Set<Key> presentKeys = Sets.intersection(writes.keySet(), keys);
-                Set<MessageType> presentMessages = new ObjectHashSet<>(presentKeys.size() + 1, 0.9f);
-                for (Key key : presentKeys)
-                    presentMessages.add(key.type.outgoingType);
-                return presentMessages;
-            }
-
-            private <T extends Message> T get(Key key)
-            {
-                return (T) writes.get(key);
-            }
-
-            private <T extends Message> T get(MessageType messageType)
-            {
-                for (Type type : Type.synonymousTypesFromMessageType(messageType))
-                {
-                    T value = get(new Key(txnId, type));
-                    if (value != null) return value;
-                }
-                return null;
-            }
-
-            @Override
-            public PreAccept preAccept()
-            {
-                return get(PRE_ACCEPT_REQ);
-            }
-
-            @Override
-            public BeginRecovery beginRecover()
-            {
-                return get(BEGIN_RECOVER_REQ);
-            }
-
-            @Override
-            public Propagate propagatePreAccept()
-            {
-                return get(PROPAGATE_PRE_ACCEPT_MSG);
-            }
-
-            @Override
-            public Accept accept(Ballot ballot)
-            {
-                return get(ACCEPT_REQ);
-            }
-
-            @Override
-            public Commit commitSlowPath()
-            {
-                return get(COMMIT_SLOW_PATH_REQ);
-            }
-
-            @Override
-            public Commit commitMaximal()
-            {
-                return get(COMMIT_MAXIMAL_REQ);
-            }
-
-            @Override
-            public Commit stableFastPath()
-            {
-                return get(STABLE_FAST_PATH_REQ);
-            }
-
-            @Override
-            public Commit stableSlowPath()
-            {
-                return get(STABLE_SLOW_PATH_REQ);
-            }
-
-            @Override
-            public Commit stableMaximal()
-            {
-                return get(STABLE_MAXIMAL_REQ);
-            }
-
-            @Override
-            public Propagate propagateStable()
-            {
-                return get(PROPAGATE_STABLE_MSG);
-            }
-
-            @Override
-            public Apply applyMinimal()
-            {
-                return get(APPLY_MINIMAL_REQ);
-            }
-
-            @Override
-            public Apply applyMaximal()
-            {
-                return get(APPLY_MAXIMAL_REQ);
-            }
-
-            @Override
-            public Propagate propagateApply()
-            {
-                return get(PROPAGATE_APPLY_MSG);
-            }
-
-            @Override
-            public Propagate propagateOther()
-            {
-                return get(PROPAGATE_OTHER_MSG);
-            }
-
-            @Override
-            public ApplyThenWaitUntilApplied applyThenWaitUntilApplied()
-            {
-                return get(APPLY_THEN_WAIT_UNTIL_APPLIED_REQ);
-            }
-        };
+        Type type = Type.SAVED_COMMAND;
+        JournalKey key = new JournalKey(txnId, type, commandStoreId);
+        List<SavedCommand.LoadedDiff> saved = commands.get(key);
+        if (saved == null)
+            return null;
+        return SavedCommand.reconstructFromDiff(new ArrayList<>(saved));
     }
 
     @Override
-    public void appendMessageBlocking(Message message)
+    public void appendCommand(int commandStoreId, List<SavedCommand.SavedDiff> diffs, List<Command> sanityCheck, Runnable onFlush)
     {
-        Type type = Type.fromMessageType(message.type());
-        Key key = new Key(type.txnId(message), type);
-        writes.put(key, message);
+        Type type = Type.SAVED_COMMAND;
+        for (SavedCommand.SavedDiff diff : diffs)
+        {
+            JournalKey key = new JournalKey(diff.txnId, type, commandStoreId);
+            commands.computeIfAbsent(key, (ignore_) -> new ArrayList<>())
+                    .add(new SavedCommand.LoadedDiff(diff.txnId,
+                                                     diff.executeAt,
+                                                     diff.saveStatus,
+                                                     diff.durability,
+                                                     diff.acceptedOrCommitted,
+                                                     diff.promised,
+                                                     diff.route,
+                                                     diff.partialTxn,
+                                                     diff.partialDeps,
+                                                     diff.additionalKeysOrRanges,
+                                                     (i1, i2) -> diff.waitingOn,
+                                                     diff.writes,
+                                                     diff.listeners));
+        }
+        onFlush.run();
     }
 }
