@@ -35,7 +35,7 @@ public enum OperationType
     FLUSH("Flush", true, 1),
     WRITE("Write", true, 1),
 
-    ANTICOMPACTION("Anticompaction after repair", true, 2),
+    ANTICOMPACTION("Anticompaction for repair", true, 2),
     VALIDATION("Validation", false, 3),
 
     INDEX_BUILD("Secondary index build", false, 4),
