@@ -1797,6 +1797,8 @@
       <jvmarg line="-XX:Tier4CompileThreshold=1000"/>
       <jvmarg line="-XX:ReservedCodeCacheSize=256M"/>
       <jvmarg line="-Xmx8G"/>
+      <!-- Harry tests kept failing due to direct memory failures and looks like its undersized... so upping to allow more stable runs -->
+      <jvmarg line="-XX:MaxDirectMemorySize=8G"/>
     </testmacro>
   </target>
 

@@ -113,8 +113,9 @@ public class HarryValidatingQuery extends SimulatedAction
 
                             if (!throwables.isEmpty())
                             {
-                                logger.error(String.format("Could not validate %d out of %d replicas %s", throwables.size(), replicas.size(), replicas), throwables.get(0));
-                                System.exit(0);
+                                AssertionError error = new AssertionError(String.format("Could not validate %d out of %d replicas %s", throwables.size(), replicas.size(), replicas));
+                                throwables.forEach(error::addSuppressed);
+                                throw error;
                             }
                         }
 
@@ -137,9 +138,8 @@ public class HarryValidatingQuery extends SimulatedAction
                 catch (Throwable t)
                 {
                     logger.error("Caught an exception while validating", t);
-                    t.printStackTrace();
+                    throw t;
                 }
-                finally {  }
             }
         };
     }

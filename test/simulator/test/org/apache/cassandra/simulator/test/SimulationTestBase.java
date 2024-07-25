@@ -206,7 +206,7 @@ public class SimulationTestBase
         long seed = System.currentTimeMillis();
         // Development seed:
         //long seed = 1687184561194L;
-        System.out.println("Simulation seed: " + seed + "L");
+        logger.info("Simulation seed: {}L", seed);
         configure.accept(factory);
         try (ClusterSimulation<?> cluster = factory.create(seed))
         {
