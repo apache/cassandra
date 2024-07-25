@@ -44,11 +44,25 @@ cat >${DIST_DIR}/ci_summary.html <<EOL
 <html>
 <head></head>
 <body>
-<h1>CI Summary</h1>
-<h2>sha:  $(git ls-files -s ${CASSANDRA_DIR} | git hash-object --stdin)</h2>
-<h2>branch: $(git -C ${CASSANDRA_DIR} branch --remote --verbose --no-abbrev --contains | sed -rne 's/^[^\/]*\/([^\ ]+).*$/\1/p')</h2>
-<h2>repo: $(git -C ${CASSANDRA_DIR} remote get-url origin)</h2>
-<h2>Date: $(date)</h2>
+<h1>CI Summary ${BUILD_TAG}</h1>
+<h2>Build State</h2>
+<ul>
+  <li>sha:  $(git ls-files -s ${CASSANDRA_DIR} | git hash-object --stdin)</li>
+  <li>repo: $(git -C ${CASSANDRA_DIR} remote get-url origin)</li>
+  <li>branch: $(git -C ${CASSANDRA_DIR} branch --remote --verbose --no-abbrev --contains | sed -rne 's/^[^\/]*\/([^\ ]+).*$/\1/p')</li>
+  <li>date: $(date)</li>
+</ul>
+<h2>Build Parameters</h2>
+<ul>
+  <li>repository: ${REPOSITORY}</li>
+  <li>branch: ${BRANCH}</li>
+  <li>profile: ${PROFILE}</li>
+  <li>profile_custom_regexp: ${PROFILE_CUSTOM_REGEXP}</li>
+  <li>architecture: ${ARCHITECTURE}</li>
+  <li>jdk: ${JDK}</li>
+  <li>dtest_repository: {DTEST_REPOSITORY}</li>
+  <li>dtest_branch: ${DTEST_BRANCH}</li>
+</ul>
 </body>
 </html>
 ...

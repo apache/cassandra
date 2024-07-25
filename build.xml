@@ -1251,6 +1251,7 @@
         <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
         <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
         <jvmarg value="-Dcassandra.skip_sync=true" />
+        <!-- total memory must fit within the pod constraints, see comments in .jenkins/Jenkinsfile and dind's container resourceRequestMemory in .jenkins/k8s/jenkins-deployment.yaml -->
         <jvmarg value="-Xmx${maxMemory}"/>
       </testmacrohelper>
     </sequential>
@@ -1764,6 +1765,7 @@
       <jvmarg value="-Dcassandra.ring_delay_ms=10000"/>
       <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
       <jvmarg value="-Dcassandra.skip_sync=true" />
+      <!-- total memory must fit within the pod constraints, see comments in .jenkins/Jenkinsfile and dind's container resourceRequestMemory in .jenkins/k8s/jenkins-deployment.yaml -->
       <jvmarg value="-Xmx8G"/>
     </testmacro>
   </target>
@@ -1797,6 +1799,7 @@
       <jvmarg line="-XX:CICompilerCount=1"/>
       <jvmarg line="-XX:Tier4CompileThreshold=1000"/>
       <jvmarg line="-XX:ReservedCodeCacheSize=256M"/>
+      <!-- total memory must fit within the pod constraints, see comments in .jenkins/Jenkinsfile and dind's container resourceRequestMemory in .jenkins/k8s/jenkins-deployment.yaml -->
       <jvmarg line="-Xmx8G"/>
     </testmacro>
   </target>
@@ -1811,6 +1814,7 @@
       <jvmarg value="-Dcassandra.ring_delay_ms=10000"/>
       <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
       <jvmarg value="-Dcassandra.skip_sync=true" />
+      <!-- total memory must fit within the pod constraints, see comments in .jenkins/Jenkinsfile and dind's container resourceRequestMemory in .jenkins/k8s/jenkins-deployment.yaml -->
       <jvmarg value="-Xmx8G"/>
     </testmacro>
   </target>
@@ -1827,6 +1831,7 @@
       <jvmarg value="-Dcassandra.ring_delay_ms=10000"/>
       <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
       <jvmarg value="-Dcassandra.skip_sync=true" />
+      <!-- total memory must fit within the pod constraints, see comments in .jenkins/Jenkinsfile and dind's container resourceRequestMemory in .jenkins/k8s/jenkins-deployment.yaml -->
       <jvmarg value="-Xmx8G"/>
     </testmacro>
   </target>

@@ -14,8 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-#
-# Changes to this file must also be put into
 
-beautifulsoup4==4.12.3
-jinja2==3.1.5
+# apache/cassandra-jenkins-k8s
+#
+# docker buildx build --platform="linux/amd64,linux/arm64" -t apache/cassandra-jenkins-k8s -t apache.jfrog.io/cassan-docker/apache/cassandra-jenkins-k8s  --push  .
+#
+
+FROM jenkins/inbound-agent
+USER root
+RUN apt-get update && apt-get -y install docker.io bc procps
+USER jenkins
