@@ -106,13 +106,13 @@ public interface CMSPlacementStrategy
                 rf.put(e.getKey(), ReplicationFactor.fullOnly(e.getValue()));
             }
 
-            Directory directory = metadata.directory;
+            Directory tmpDirectory = metadata.directory;
             TokenMap tokenMap = metadata.tokenMap;
             for (NodeId peerId : metadata.directory.peerIds())
             {
                 if (!filter.apply(metadata, peerId))
                 {
-                    directory = directory.without(peerId);
+                    tmpDirectory = tmpDirectory.without(peerId);
                     tokenMap = tokenMap.unassignTokens(peerId);
                 }
             }
@@ -123,7 +123,7 @@ public interface CMSPlacementStrategy
             Token minToken = DatabaseDescriptor.getPartitioner().getMinimumToken();
             EndpointsForRange endpoints = NetworkTopologyStrategy.calculateNaturalReplicas(minToken,
                                                                                            new Range<>(minToken, minToken),
-                                                                                           directory,
+                                                                                           tmpDirectory,
                                                                                            tokenMap,
                                                                                            rf);
 

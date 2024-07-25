@@ -215,6 +215,9 @@ public class PrepareCMSReconfiguration
 
     public static Diff diff(Set<NodeId> currentCms, Set<NodeId> newCms)
     {
+        assert !currentCms.contains(null) : "Current CMS contains a null value " + currentCms;
+        assert !newCms.contains(null) : "New CMS contains a null value " + newCms;
+
         List<NodeId> additions = new ArrayList<>();
         for (NodeId node : newCms)
         {
