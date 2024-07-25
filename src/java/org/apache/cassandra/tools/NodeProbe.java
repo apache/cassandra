@@ -2861,6 +2861,11 @@ public class NodeProbe implements AutoCloseable
     {
         return csmmProxy.getCfsWithNonDefaultCompactionParams();
     }
+
+    public void reloadAndOverrideLocalCompactionStrategy()
+    {
+        csmmProxy.reloadAndOverrideLocalCompactionStrategy();
+    }
 }
 
 class ColumnFamilyStoreMBeanIterator implements Iterator<Map.Entry<String, ColumnFamilyStoreMBean>>

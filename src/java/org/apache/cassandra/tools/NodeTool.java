@@ -197,6 +197,7 @@ public class NodeTool
                 RecompressSSTables.class,
                 Refresh.class,
                 RefreshSizeEstimates.class,
+                ReloadAndOverrideLocalCompactionStrategy.class,
                 ReloadLocalSchema.class,
                 ReloadSeeds.class,
                 ReloadSslCertificates.class,

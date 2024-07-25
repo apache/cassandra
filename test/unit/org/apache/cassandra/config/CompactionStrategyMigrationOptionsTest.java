@@ -84,6 +84,7 @@ public class CompactionStrategyMigrationOptionsTest
                      options.compaction_params_json);
     }
 
+    @Test
     public void testIsJsonValid()
     {
         assertTrue(CompactionStrategyMigrationOptions.isJsonValid("{\"class\": \"org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy\"}"));

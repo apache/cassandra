@@ -30,6 +30,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CompactionStrategyMigrationOptions;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
@@ -140,6 +141,8 @@ public class CompactionStrategyMigrationManager implements CompactionStrategyMig
             logger.info("Compaction strategy migration not enabled");
             return;
         }
+        // clean up before setup, in case options are changed at run time
+        cfsToMigrate.clear();
         setup(options);
 
         // do override: here we override both compaction strategy and options regardless what was set before
@@ -265,6 +268,18 @@ public class CompactionStrategyMigrationManager implements CompactionStrategyMig
                 logger.error("failed to alter schema for {}", cfs.keyspace.getName() + '.' + cfs.name, e);
             }
         });
+    }
+
+    public void reloadAndOverrideLocalCompactionStrategy()
+    {
+        reloadOptionsFromDisk();
+        mayOverrideLocalCompactionStrategy();
+    }
+
+    public void reloadOptionsFromDisk()
+    {
+        Config config = DatabaseDescriptor.loadConfig();
+        DatabaseDescriptor.setCompactionStrategyMigrationOptions(config.compaction_strategy_migration_options);
     }
 
     @VisibleForTesting

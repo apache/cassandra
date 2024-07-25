@@ -46,4 +46,10 @@ public interface CompactionStrategyMigrationManagerMBean
      * Execute ALTER TABLE internally to change the options for compaction params
      */
     public void applySchemaChangesForCompactionParams();
+
+    /**
+     * Reload options from DatabaseDescriptor, initialize CompactionStrategyMigrationManager, and switch local compaction
+     * strategy if feasible
+     */
+    public void reloadAndOverrideLocalCompactionStrategy();
 }
