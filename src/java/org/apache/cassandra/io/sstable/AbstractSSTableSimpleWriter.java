@@ -25,6 +25,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
@@ -82,7 +83,7 @@ abstract class AbstractSSTableSimpleWriter implements Closeable
 
     protected void setSSTableProducedListener(Consumer<Collection<SSTableReader>> listener)
     {
-        this.sstableProducedListener = listener;
+        this.sstableProducedListener = Objects.requireNonNull(listener);
     }
 
     protected void setShouldOpenProducedSSTable(boolean openSSTableOnProduced)
