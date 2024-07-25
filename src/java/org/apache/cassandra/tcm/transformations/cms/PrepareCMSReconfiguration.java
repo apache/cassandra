@@ -215,6 +215,9 @@ public class PrepareCMSReconfiguration
 
     public static Diff diff(Set<NodeId> currentCms, Set<NodeId> newCms)
     {
+        assert !currentCms.contains(null);
+        assert !newCms.contains(null);
+
         List<NodeId> additions = new ArrayList<>();
         for (NodeId node : newCms)
         {
