@@ -23,43 +23,55 @@ import java.io.Serializable;
 import java.net.Socket;
 import java.rmi.server.RMIClientSocketFactory;
 import javax.net.SocketFactory;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLSocket;
-import javax.net.ssl.SSLSocketFactory;
 
 import org.apache.cassandra.config.EncryptionOptions;
 
 public class JmxSslRMIClientSocketFactory implements RMIClientSocketFactory, Serializable
 {
-    private EncryptionOptions jmxEncryptionOptions;
-    public JmxSslRMIClientSocketFactory(EncryptionOptions jmxEncryptionOptions)
+    private static final JmxSslRMIClientSocketFactory self = new JmxSslRMIClientSocketFactory();
+
+    private static EncryptionOptions jmxEncryptionOptions;
+    private static SocketFactory sslSocketFactory;
+
+    public static synchronized void init(EncryptionOptions encryptionOptions) throws SSLException
     {
-        this.jmxEncryptionOptions = jmxEncryptionOptions;
+        jmxEncryptionOptions = encryptionOptions;
+        SSLContext sslContext = jmxEncryptionOptions.sslContextFactoryInstance.createJSSESslContext(EncryptionOptions.ClientAuth.NOT_REQUIRED);
+        sslSocketFactory = sslContext.getSocketFactory();
     }
 
     @Override
     public Socket createSocket(String host, int port) throws IOException
     {
-        // Retrieve the SSLSocketFactory
-        //
-        final SocketFactory sslSocketFactory = jmxEncryptionOptions.sslContextFactoryInstance.createJSSESslContext(jmxEncryptionOptions.getClientAuth()).getSocketFactory();
         // Create the SSLSocket
         final SSLSocket sslSocket = (SSLSocket)
                                     sslSocketFactory.createSocket(host, port);
         // Set the SSLSocket Enabled Cipher Suites
         final String[] enabledCipherSuites = jmxEncryptionOptions.cipherSuitesArray();
-        if (enabledCipherSuites != null) {
-            try {
+        if (enabledCipherSuites != null)
+        {
+            try
+            {
                 sslSocket.setEnabledCipherSuites(enabledCipherSuites);
-            } catch (IllegalArgumentException e) {
+            }
+            catch (IllegalArgumentException e)
+            {
                 throw new IOException(e.getMessage());
             }
         }
         // Set the SSLSocket Enabled Protocols
         final String[] enabledProtocols = jmxEncryptionOptions.acceptedProtocolsArray();
-        if (enabledProtocols != null) {
-            try {
+        if (enabledProtocols != null)
+        {
+            try
+            {
                 sslSocket.setEnabledProtocols(enabledProtocols);
-            } catch (IllegalArgumentException e) {
+            }
+            catch (IllegalArgumentException e)
+            {
                 throw new IOException(e.getMessage());
             }
         }
@@ -78,7 +90,8 @@ public class JmxSslRMIClientSocketFactory implements RMIClientSocketFactory, Ser
      * as {@link #hashCode()}) if its instances are not all
      * functionally equivalent.</p>
      */
-    public boolean equals(Object obj) {
+    public boolean equals(Object obj)
+    {
         if (obj == null) return false;
         if (obj == this) return true;
         return this.getClass().equals(obj.getClass());
@@ -91,15 +104,8 @@ public class JmxSslRMIClientSocketFactory implements RMIClientSocketFactory, Ser
      * @return a hash code value for this
      * <code>JmxSslRMIClientSocketFactory</code>.
      */
-    public int hashCode() {
+    public int hashCode()
+    {
         return this.getClass().hashCode();
-    }
-
-    private static SocketFactory defaultSocketFactory = null;
-
-    private static synchronized SocketFactory getDefaultClientSocketFactory() {
-        if (defaultSocketFactory == null)
-            defaultSocketFactory = SSLSocketFactory.getDefault();
-        return defaultSocketFactory;
     }
 }

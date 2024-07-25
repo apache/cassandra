@@ -44,6 +44,7 @@ import java.util.stream.Collectors;
 import javax.management.remote.*;
 import javax.management.remote.rmi.RMIConnectorServer;
 import javax.management.remote.rmi.RMIJRMPServerImpl;
+import javax.net.ssl.SSLException;
 import javax.rmi.ssl.SslRMIClientSocketFactory;
 import javax.rmi.ssl.SslRMIServerSocketFactory;
 import javax.security.auth.Subject;
@@ -221,7 +222,7 @@ public class JMXServerUtils
         }
     }
 
-    private static Map<String, Object> configureJmxSocketFactories(InetAddress serverAddress, boolean localOnly)
+    private static Map<String, Object> configureJmxSocketFactories(InetAddress serverAddress, boolean localOnly) throws SSLException
     {
         Map<String, Object> env = new HashMap<>();
         EncryptionOptions jmxEncryptionOptions = DatabaseDescriptor.getJmxEncryptionOptions();
@@ -249,16 +250,16 @@ public class JMXServerUtils
 
             SslRMIClientSocketFactory clientFactory = new SslRMIClientSocketFactory();
             SslRMIServerSocketFactory serverFactory = new SslRMIServerSocketFactory(ciphers, protocols, requireClientAuth);
-            env.put(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE, serverFactory);
-            env.put(RMIConnectorServer.RMI_CLIENT_SOCKET_FACTORY_ATTRIBUTE, clientFactory);
-            env.put("com.sun.jndi.rmi.factory.socket", clientFactory);
-            logJmxSslConfig(serverFactory);
+            setSocketFactoriesInEnv(env, clientFactory, serverFactory);
         }
-        else if (jmxEncryptionOptions != null)
+        else if (jmxEncryptionOptions != null && jmxEncryptionOptions.getEnabled() != null && jmxEncryptionOptions.getEnabled())
         {
             logger.info("Enabling JMX SSL using jmx_encryption_options from cassandra.yaml");
             System.setProperty("com.sun.management.jmxremote.ssl", "true");
-
+            JmxSslRMIClientSocketFactory.init(jmxEncryptionOptions);
+            JmxSslRMIClientSocketFactory clientFactory = new JmxSslRMIClientSocketFactory();
+            JmxSslRMIServerSocketFactory serverFactory = new JmxSslRMIServerSocketFactory(jmxEncryptionOptions);
+            setSocketFactoriesInEnv(env, clientFactory, serverFactory);
         }
         else if (localOnly)
         {
@@ -287,6 +288,15 @@ public class JMXServerUtils
         }
         String url = String.format(urlTemplate, hostName, port);
         logger.info("Configured JMX server at: {}", url);
+    }
+
+    private static void setSocketFactoriesInEnv(Map<String, Object> env, RMIClientSocketFactory clientFactory,
+                                                SslRMIServerSocketFactory serverFactory)
+    {
+        env.put(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE, serverFactory);
+        env.put(RMIConnectorServer.RMI_CLIENT_SOCKET_FACTORY_ATTRIBUTE, clientFactory);
+        env.put("com.sun.jndi.rmi.factory.socket", clientFactory);
+        logJmxSslConfig(serverFactory);
     }
 
     private static void logJmxSslConfig(SslRMIServerSocketFactory serverFactory)
