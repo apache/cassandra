@@ -27,6 +27,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -80,6 +82,7 @@ import org.apache.cassandra.simulator.OrderOn;
 import org.apache.cassandra.simulator.RandomSource;
 import org.apache.cassandra.simulator.RunnableActionScheduler;
 import org.apache.cassandra.simulator.Simulation;
+import org.apache.cassandra.simulator.SimulationException;
 import org.apache.cassandra.simulator.SimulationRunner;
 import org.apache.cassandra.simulator.SimulatorUtils;
 import org.apache.cassandra.simulator.cluster.ClusterActionListener.NoOpListener;
@@ -187,6 +190,8 @@ public class HarrySimulatorTest
     public int rowsPerPhase = 10;
     @Option(name = {"--nodes-per-dc"}, description = "How many nodes per dc for replication")
     public int nodesPerDc = 3;
+    @Option(name = {"-s", "--seed"}, title = "0x", description = "What seed to run with; in hex format... example: 0x190e6ff01d6")
+    public String seed = null;
 
     public static void main(String... args) throws Throwable
     {
@@ -201,6 +206,8 @@ public class HarrySimulatorTest
     public void test() throws Exception
     {
         rowsPerPhase = 1;
+        // To rerun a failing test for a given seed, uncomment the below and set the seed
+//        this.seed = "<your seed here>";
         harryTest();
     }
 
@@ -436,7 +443,23 @@ public class HarrySimulatorTest
             try (CloseableIterator<?> iter = iterator())
             {
                 while (iter.hasNext())
+                {
+                    checkForErrors();
                     iter.next();
+                }
+                checkForErrors();
+            }
+        }
+
+        private void checkForErrors()
+        {
+            if (simulated.failures.hasFailure())
+            {
+                AssertionError error = new AssertionError("Errors detected during simulation");
+                // don't care about the stack trace... the issue is the errors found and not what part of the scheduler we stopped
+                error.setStackTrace(new StackTraceElement[0]);
+                simulated.failures.get().forEach(error::addSuppressed);
+                throw error;
             }
         }
 
@@ -504,42 +527,37 @@ public class HarrySimulatorTest
     /**
      * Simulation entrypoint; syntax sugar for creating a simulation.
      */
-    static void simulate(Consumer<ClusterSimulation.Builder<HarrySimulation>> configure,
-                         Consumer<IInstanceConfig> instanceConfigUpdater,
-                         Configuration.ConfigurationBuilder harryConfig,
-                         String[] properties,
-                         Function<HarrySimulation, ActionSchedule.Work[]>... phases) throws IOException
+    void simulate(Consumer<ClusterSimulation.Builder<HarrySimulation>> configure,
+                  Consumer<IInstanceConfig> instanceConfigUpdater,
+                  Configuration.ConfigurationBuilder harryConfig,
+                  String[] properties,
+                  Function<HarrySimulation, ActionSchedule.Work[]>... phases) throws IOException
     {
         try (WithProperties p = new WithProperties().with(properties))
         {
             HarrySimulationBuilder factory = new HarrySimulationBuilder(harryConfig, instanceConfigUpdater);
 
             SimulationRunner.beforeAll();
-            long seed = System.currentTimeMillis();
-            // Development seed:
-            //long seed = 1687184561194L;
-            System.out.println("Simulation seed: " + seed + "L");
+            long seed = SimulationRunner.parseHex(Optional.ofNullable(this.seed)).orElseGet(() -> new Random().nextLong());
+            logger.info("Seed 0x{}", Long.toHexString(seed));
             configure.accept(factory);
             try (ClusterSimulation<HarrySimulation> clusterSimulation = factory.create(seed))
             {
-                try
-                {
-                    HarrySimulation simulation = clusterSimulation.simulation();
+                HarrySimulation simulation = clusterSimulation.simulation();
 
-                    // For better determinism during startup, we allow instances to fully start (including daemon work)
-                    for (int i = 0; i < phases.length; i++)
-                    {
-                        HarrySimulation current = simulation;
-                        if (i == 0)
-                            current = current.withScheduler(new RunnableActionScheduler.Immediate()).withSchedulers((s) -> Collections.emptyMap());
-                        current.withSchedule(phases[i]).run();
-                    }
-                }
-                catch (Throwable t)
+                // For better determinism during startup, we allow instances to fully start (including daemon work)
+                for (int i = 0; i < phases.length; i++)
                 {
-                    throw new AssertionError(String.format("Failed on seed %s", Long.toHexString(seed)),
-                                             t);
+                    HarrySimulation current = simulation;
+                    if (i == 0)
+                        current = current.withScheduler(new RunnableActionScheduler.Immediate()).withSchedulers((s) -> Collections.emptyMap());
+                    current.withSchedule(phases[i]).run();
                 }
+            }
+            catch (Throwable t)
+            {
+                if (t instanceof SimulationException) throw t;
+                throw new SimulationException(seed, "Failure creating the simulation", t);
             }
         }
     }
@@ -976,9 +994,7 @@ public class HarrySimulatorTest
         public void onFailure(Throwable t)
         {
             super.onFailure(t);
-            t.printStackTrace();
             logger.error("Caught an exception, going to halt", t);
-            //while (true) { }
         }
     }
 }
