@@ -219,7 +219,7 @@ public final class SimpleRestriction implements SingleRestriction
     @Override
     public List<ClusteringElements> values(QueryOptions options)
     {
-        assert operator == Operator.EQ || operator == Operator.IN || operator == Operator.ANN || operator == Operator.NEQ || operator == Operator.NOT_IN;
+        assert operator == Operator.EQ || operator == Operator.IN || operator == Operator.ANN;
         return bindAndGetClusteringElements(options);
     }
 
@@ -329,7 +329,7 @@ public final class SimpleRestriction implements SingleRestriction
         {
             case SINGLE_COLUMN:
                 List<ByteBuffer> buffers = bindAndGet(options);
-                if (operator == Operator.IN || operator == Operator.BETWEEN || operator == Operator.NOT_IN)
+                if (operator.kind() == Operator.Kind.MULTI_VALUE || operator.kind() == Operator.Kind.TERNARY)
                 {
                     filter.add(column, operator, multiInputOperatorValues(column, buffers));
                 }
