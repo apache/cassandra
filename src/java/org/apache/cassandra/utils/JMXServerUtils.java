@@ -222,7 +222,8 @@ public class JMXServerUtils
         }
     }
 
-    private static Map<String, Object> configureJmxSocketFactories(InetAddress serverAddress, boolean localOnly) throws SSLException
+    @VisibleForTesting
+    static Map<String, Object> configureJmxSocketFactories(InetAddress serverAddress, boolean localOnly) throws SSLException
     {
         Map<String, Object> env = new HashMap<>();
         EncryptionOptions jmxEncryptionOptions = DatabaseDescriptor.getJmxEncryptionOptions();
