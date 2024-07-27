@@ -49,7 +49,7 @@ seed_provider:
 endpoint_snitch: org.apache.cassandra.locator.SimpleSnitch
 dynamic_snitch: true
 jmx_encryption_options:
-    enabled: true
+    enabled: false
     cipher_suites: [TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256]
     accepted_protocols: [TLSv1.2,TLSv1.3,TLSv1.1]
     ssl_context_factory:

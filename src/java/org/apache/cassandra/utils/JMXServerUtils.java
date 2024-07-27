@@ -41,7 +41,10 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
-import javax.management.remote.*;
+import javax.management.remote.JMXAuthenticator;
+import javax.management.remote.JMXConnectorServer;
+import javax.management.remote.JMXServiceURL;
+import javax.management.remote.MBeanServerForwarder;
 import javax.management.remote.rmi.RMIConnectorServer;
 import javax.management.remote.rmi.RMIJRMPServerImpl;
 import javax.net.ssl.SSLException;
@@ -256,9 +259,12 @@ public class JMXServerUtils
         else if (jmxEncryptionOptions != null && jmxEncryptionOptions.getEnabled() != null && jmxEncryptionOptions.getEnabled())
         {
             logger.info("Enabling JMX SSL using jmx_encryption_options from cassandra.yaml");
-            System.setProperty("com.sun.management.jmxremote.ssl", "true");
-            JmxSslRMIClientSocketFactory.init(jmxEncryptionOptions);
-            JmxSslRMIClientSocketFactory clientFactory = new JmxSslRMIClientSocketFactory();
+            /*
+             * Here we can continue to use the SslRMIClientSocketFactory for client sockets.
+             * However, we should still set System properties for cipher_suites and enabled_protocols
+             */
+            setJmxSystemProperties(jmxEncryptionOptions);
+            SslRMIClientSocketFactory clientFactory = new SslRMIClientSocketFactory();
             JmxSslRMIServerSocketFactory serverFactory = new JmxSslRMIServerSocketFactory(jmxEncryptionOptions);
             setSocketFactoriesInEnv(env, clientFactory, serverFactory);
         }
@@ -313,6 +319,13 @@ public class JMXServerUtils
                          serverFactory.getNeedClientAuth());
     }
 
+    private static void setJmxSystemProperties(EncryptionOptions jmxEncryptionOptions)
+    {
+        System.setProperty("com.sun.management.jmxremote.ssl", "true");
+        JAVAX_RMI_SSL_CLIENT_ENABLED_PROTOCOLS.setString(StringUtils.join(jmxEncryptionOptions.getAcceptedProtocols(), ","));
+        JAVAX_RMI_SSL_CLIENT_ENABLED_CIPHER_SUITES.setString(StringUtils.join(jmxEncryptionOptions.cipherSuitesArray(), ","));
+    }
+    
     private static class JMXPluggableAuthenticatorWrapper implements JMXAuthenticator
     {
         private static final MethodHandle ctorHandle;
