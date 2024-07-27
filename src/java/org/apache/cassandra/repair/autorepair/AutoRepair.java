@@ -140,10 +140,7 @@ public class AutoRepair
             logger.debug("Auto-repair is disabled for repair type {}", repairType);
             return;
         }
-
-
         AutoRepairState repairState = repairStates.get(repairType);
-
         try
         {
             String localDC = DatabaseDescriptor.getLocalDataCenter();
@@ -169,19 +166,9 @@ public class AutoRepair
                 boolean primaryRangeOnly = config.getRepairPrimaryTokenRangeOnly(repairType)
                                            && turn != MY_TURN_FORCE_REPAIR;
                 repairState.setTotalTablesConsideredForRepair(0);
-                if (repairState.getLastRepairTime() != 0)
+                if (tooSoonToRunRepair(repairType, repairState, config))
                 {
-                    /** check if it is too soon to run repair. one of the reason we
-                     * should not run frequent repair is because repair triggers
-                     * memtable flush
-                     */
-                    long timeElapsedSinceLastRepair = TimeUnit.MILLISECONDS.toSeconds(timeFunc.get() - repairState.getLastRepairTime());
-                    if (timeElapsedSinceLastRepair < config.getRepairMinInterval(repairType).toSeconds())
-                    {
-                        logger.info("Too soon to run repair, last repair was done {} seconds ago",
-                                    timeElapsedSinceLastRepair);
-                        return;
-                    }
+                    return;
                 }
 
                 long startTime = timeFunc.get();
@@ -197,34 +184,16 @@ public class AutoRepair
                 repairState.setTotalMVTablesConsideredForRepair(0);
                 for (Keyspace keyspace : Keyspace.all())
                 {
-                    Tables tables = keyspace.getMetadata().tables;
-                    Iterator<TableMetadata> iter = tables.iterator();
-                    String keyspaceName = keyspace.getName();
                     if (!AutoRepairUtils.checkNodeContainsKeyspaceReplica(keyspace))
                     {
                         continue;
                     }
 
                     repairState.setRepairKeyspaceCount(repairState.getRepairKeyspaceCount() + 1);
-                    List<String> tablesToBeRepaired = new ArrayList<>();
-                    while (iter.hasNext())
-                    {
-                        repairState.setTotalTablesConsideredForRepair(repairState.getTotalTablesConsideredForRepair() + 1);
-                        TableMetadata tableMetadata = iter.next();
-                        String tableName = tableMetadata.name;
-                        tablesToBeRepaired.add(tableName);
-
-                        // See if we should repair MVs as well that are associated with this given table
-                        List<String> mvs = AutoRepairUtils.getAllMVs(repairType, keyspace, tableMetadata);
-                        if (!mvs.isEmpty())
-                        {
-                            tablesToBeRepaired.addAll(mvs);
-                            repairState.setTotalMVTablesConsideredForRepair(repairState.getTotalMVTablesConsideredForRepair() + mvs.size());
-                        }
-                    }
-
+                    List<String> tablesToBeRepaired = retrieveTablesToBeRepaired(keyspace, repairType, repairState);
                     for (String tableName : tablesToBeRepaired)
                     {
+                        String keyspaceName = keyspace.getName();
                         try
                         {
                             ColumnFamilyStore columnFamilyStore = keyspace.getColumnFamilyStore(tableName);
@@ -356,38 +325,7 @@ public class AutoRepair
                         }
                     }
                 }
-
-                //if it was due to priority then remove it now
-                if (turn == MY_TURN_DUE_TO_PRIORITY)
-                {
-                    logger.info("Remove current host from priority list");
-                    AutoRepairUtils.removePriorityStatus(repairType, myId);
-                }
-
-                repairState.setNodeRepairTimeInSec((int) TimeUnit.MILLISECONDS.toSeconds(timeFunc.get() - startTime));
-                long timeInHours = TimeUnit.SECONDS.toHours(repairState.getNodeRepairTimeInSec());
-                logger.info("Local {} repair time {} hour(s), stats: repairKeyspaceCount {}, " +
-                            "repairTableSuccessCount {}, repairTableFailureCount {}, " +
-                            "repairTableSkipCount {}", repairType, timeInHours, repairState.getRepairKeyspaceCount(),
-                            repairState.getRepairTableSuccessCount(), repairState.getRepairFailedTablesCount(),
-                            repairState.getRepairSkippedTablesCount());
-                if (repairState.getLastRepairTime() != 0)
-                {
-                    repairState.setClusterRepairTimeInSec((int) TimeUnit.MILLISECONDS.toSeconds(timeFunc.get() -
-                                                                                                repairState.getLastRepairTime()));
-                    logger.info("Cluster repair time for repair type {}: {} day(s)", repairType,
-                                TimeUnit.SECONDS.toDays(repairState.getClusterRepairTimeInSec()));
-                }
-                repairState.setLastRepairTime(timeFunc.get());
-                if (timeInHours == 0 && millisToWait > 0)
-                {
-                    //If repair finished quickly, happens for an empty instance, in such case
-                    //wait for a minute so that the JMX metrics can detect the repairInProgress
-                    logger.info("Wait for {} milliseconds for repair type {}.", millisToWait, repairType);
-                    Thread.sleep(millisToWait);
-                }
-                repairState.setRepairInProgress(false);
-                AutoRepairUtils.updateFinishAutoRepairHistory(repairType, myId, timeFunc.get());
+                cleanupAndUpdateStats(turn, repairType, repairState, myId, startTime, millisToWait);
             }
             else
             {
@@ -398,6 +336,84 @@ public class AutoRepair
         {
             logger.error("Exception in autorepair:", e);
         }
+    }
+
+    private boolean tooSoonToRunRepair(AutoRepairConfig.RepairType repairType, AutoRepairState repairState, AutoRepairConfig config)
+    {
+        if (repairState.getLastRepairTime() != 0)
+        {
+            /** check if it is too soon to run repair. one of the reason we
+             * should not run frequent repair is that repair triggers
+             * memtable flush
+             */
+            long timeElapsedSinceLastRepair = TimeUnit.MILLISECONDS.toSeconds(timeFunc.get() - repairState.getLastRepairTime());
+            if (timeElapsedSinceLastRepair < config.getRepairMinInterval(repairType).toSeconds())
+            {
+                logger.info("Too soon to run repair, last repair was done {} seconds ago",
+                            timeElapsedSinceLastRepair);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private List<String> retrieveTablesToBeRepaired(Keyspace keyspace, AutoRepairConfig.RepairType repairType, AutoRepairState repairState)
+    {
+        Tables tables = keyspace.getMetadata().tables;
+        List<String> tablesToBeRepaired = new ArrayList<>();
+        Iterator<TableMetadata> iter = tables.iterator();
+        while (iter.hasNext())
+        {
+            repairState.setTotalTablesConsideredForRepair(repairState.getTotalTablesConsideredForRepair() + 1);
+            TableMetadata tableMetadata = iter.next();
+            String tableName = tableMetadata.name;
+            tablesToBeRepaired.add(tableName);
+
+            // See if we should repair MVs as well that are associated with this given table
+            List<String> mvs = AutoRepairUtils.getAllMVs(repairType, keyspace, tableMetadata);
+            if (!mvs.isEmpty())
+            {
+                tablesToBeRepaired.addAll(mvs);
+                repairState.setTotalMVTablesConsideredForRepair(repairState.getTotalMVTablesConsideredForRepair() + mvs.size());
+            }
+        }
+        return tablesToBeRepaired;
+    }
+
+    private void cleanupAndUpdateStats(RepairTurn turn, AutoRepairConfig.RepairType repairType, AutoRepairState repairState, UUID myId,
+                                       long startTime, long millisToWait) throws InterruptedException
+    {
+        //if it was due to priority then remove it now
+        if (turn == MY_TURN_DUE_TO_PRIORITY)
+        {
+            logger.info("Remove current host from priority list");
+            AutoRepairUtils.removePriorityStatus(repairType, myId);
+        }
+
+        repairState.setNodeRepairTimeInSec((int) TimeUnit.MILLISECONDS.toSeconds(timeFunc.get() - startTime));
+        long timeInHours = TimeUnit.SECONDS.toHours(repairState.getNodeRepairTimeInSec());
+        logger.info("Local {} repair time {} hour(s), stats: repairKeyspaceCount {}, " +
+                    "repairTableSuccessCount {}, repairTableFailureCount {}, " +
+                    "repairTableSkipCount {}", repairType, timeInHours, repairState.getRepairKeyspaceCount(),
+                    repairState.getRepairTableSuccessCount(), repairState.getRepairFailedTablesCount(),
+                    repairState.getRepairSkippedTablesCount());
+        if (repairState.getLastRepairTime() != 0)
+        {
+            repairState.setClusterRepairTimeInSec((int) TimeUnit.MILLISECONDS.toSeconds(timeFunc.get() -
+                                                                                        repairState.getLastRepairTime()));
+            logger.info("Cluster repair time for repair type {}: {} day(s)", repairType,
+                        TimeUnit.SECONDS.toDays(repairState.getClusterRepairTimeInSec()));
+        }
+        repairState.setLastRepairTime(timeFunc.get());
+        if (timeInHours == 0 && millisToWait > 0)
+        {
+            //If repair finished quickly, happens for an empty instance, in such case
+            //wait for a minute so that the JMX metrics can detect the repairInProgress
+            logger.info("Wait for {} milliseconds for repair type {}.", millisToWait, repairType);
+            Thread.sleep(millisToWait);
+        }
+        repairState.setRepairInProgress(false);
+        AutoRepairUtils.updateFinishAutoRepairHistory(repairType, myId, timeFunc.get());
     }
 
     public AutoRepairState getRepairState(AutoRepairConfig.RepairType repairType)
