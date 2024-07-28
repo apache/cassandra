@@ -70,6 +70,7 @@ import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.concurrent.SequentialExecutorPlus;
 import org.apache.cassandra.concurrent.SimulatedExecutorFactory;
 import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.UnitConfigOverride;
 import org.apache.cassandra.cql3.CQLTester;
@@ -93,6 +94,7 @@ import org.apache.cassandra.gms.IGossiper;
 import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.io.util.FileSystems;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.LocalStrategy;
@@ -159,7 +161,7 @@ import org.quicktheories.impl.JavaRandom;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CLOCK_GLOBAL;
 import static org.apache.cassandra.config.CassandraRelevantProperties.ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION;
 
-public abstract class FuzzTestBase extends CQLTester.InMemory
+public abstract class FuzzTestBase extends CQLTester
 {
     private static final int MISMATCH_NUM_PARTITIONS = 1;
     private static final Gen<String> IDENTIFIER_GEN = fromQT(Generators.IDENTIFIER_GEN);
@@ -277,7 +279,10 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
         DatabaseDescriptor.setRepairRpcTimeout(TimeUnit.DAYS.toMillis(1));
 
 
-        InMemory.setUpClass();
+        CassandraRelevantProperties.IGNORE_MISSING_NATIVE_FILE_HINTS.setBoolean(true);
+        FileSystems.maybeCreateTmp();
+
+        CQLTester.setUpClass();
     }
 
     @Before
