@@ -39,12 +39,22 @@ public class CommitLogArchiverTest extends CQLTester
 {
     private static String dirName = "backup_commitlog";
     private static Path backupDir;
-    private String rpiTime = "2024:03:22 20:43:12.633222";
+    private static String rpiTime = "2024:03:22 20:43:12.633222";
+    private static CommitLogArchiver archiver;
 
     @BeforeClass
     public static void beforeClass() throws IOException
     {
         backupDir = Files.createTempDirectory(dirName);
+        CommitLog commitLog = CommitLog.instance;
+        Properties properties = new Properties();
+        archiver = commitLog.archiver;
+        properties.putAll(Map.of("archive_command", "/bin/cp %path " + backupDir,
+                                 "restore_command", "/bin/cp -f %from %to",
+                                 "restore_directories", backupDir,
+                                 "restore_point_in_time", rpiTime));
+        CommitLogArchiver commitLogArchiver = CommitLogArchiver.getArchiverFromProperty(properties);
+        commitLog.setCommitlogArchiver(commitLogArchiver);
     }
 
     @AfterClass
@@ -52,6 +62,7 @@ public class CommitLogArchiverTest extends CQLTester
     {
         File dir = new File(backupDir);
         dir.deleteRecursive();
+        CommitLog.instance.setCommitlogArchiver(archiver);
     }
 
     @Test
@@ -59,14 +70,6 @@ public class CommitLogArchiverTest extends CQLTester
     {
         CommitLog.instance.resetUnsafe(true);
         String table = createTable(KEYSPACE, "CREATE TABLE %s (a TEXT PRIMARY KEY, b INT);");
-        CommitLog commitLog = CommitLog.instance;
-        Properties properties = new Properties();
-        properties.putAll(Map.of("archive_command", "/bin/cp %path " + backupDir,
-                                 "restore_command", "/bin/cp -f %from %to",
-                                 "restore_directories", backupDir,
-                                 "restore_point_in_time", rpiTime));
-        CommitLogArchiver commitLogArchiver = CommitLogArchiver.getArchiverFromProperty(properties);
-        commitLog.setCommitlogArchiver(commitLogArchiver);
 
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(table);
         long ts = CommitLogArchiver.getMicroSeconds(rpiTime);

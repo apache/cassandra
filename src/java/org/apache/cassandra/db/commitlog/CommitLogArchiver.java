@@ -173,7 +173,8 @@ public class CommitLogArchiver
     {
         if (Strings.isNullOrEmpty(archiveCommand))
             return;
-
+        if (!segment.logFile.exists())
+            return;
         archivePending.put(segment.getName(), executor.submit(new WrappedRunnable()
         {
             protected void runMayThrow() throws IOException
@@ -199,7 +200,9 @@ public class CommitLogArchiver
     {
         if (Strings.isNullOrEmpty(archiveCommand))
             return;
-
+        File file = new File(path, name);
+        if (!file.exists())
+            return;
         archivePending.put(name, executor.submit(new Runnable()
         {
             public void run()
