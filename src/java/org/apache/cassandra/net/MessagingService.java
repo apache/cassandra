@@ -506,7 +506,7 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
     {
         if (isShuttingDown)
         {
-            logger.error("Cannot send the message {} to {}, as messaging service is shutting down", message, to);
+            logger.warn("Cannot send the message {} to {}, as messaging service is shutting down", message, to);
             return;
         }
 
