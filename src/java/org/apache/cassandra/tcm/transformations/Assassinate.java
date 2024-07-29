@@ -30,6 +30,7 @@ import org.apache.cassandra.tcm.ownership.PlacementDeltas;
 import org.apache.cassandra.tcm.ownership.PlacementProvider;
 import org.apache.cassandra.tcm.sequences.LeaveStreams;
 import org.apache.cassandra.tcm.sequences.LockedRanges;
+import org.apache.cassandra.tcm.sequences.ReconfigureCMS;
 import org.apache.cassandra.tcm.sequences.UnbootstrapAndLeave;
 
 public class Assassinate extends PrepareLeave
@@ -59,6 +60,8 @@ public class Assassinate extends PrepareLeave
         // Gossip implementation of assassinate was a no-op. Preserving this behaviour.
         if (!metadata.directory.isRegistered(endpoint))
             return;
+
+        ReconfigureCMS.maybeReconfigureCMS(metadata, endpoint);
 
         NodeId nodeId = metadata.directory.peerId(endpoint);
         ClusterMetadataService.instance().commit(new Assassinate(nodeId,

@@ -135,8 +135,6 @@ public class TokenMap implements MetadataValue<TokenMap>
     public ImmutableList<Token> tokens(NodeId nodeId)
     {
         Collection<Token> tokens = map.inverse().get(nodeId);
-        if (tokens == null)
-            return null;
         return ImmutableList.copyOf(tokens);
     }
 

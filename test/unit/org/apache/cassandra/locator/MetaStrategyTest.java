@@ -113,21 +113,21 @@ public class MetaStrategyTest
         CMSPlacementStrategy placementStrategy = new CMSPlacementStrategy.DatacenterAware(rf, (cd, n) -> true);
         Assert.assertEquals(nodeIds(metadata.directory,
                                     1, 2, 4, 5, 7, 8),
-                            placementStrategy.reconfigure(Collections.EMPTY_SET, metadata));
+                            placementStrategy.reconfigure(metadata));
 
         Assert.assertEquals(nodeIds(metadata.directory,
                                     1, 2, 4, 5, 7, 8),
-                            placementStrategy.reconfigure(nodeIds(metadata.directory, 3, 6, 9), metadata));
+                            placementStrategy.reconfigure(metadata));
 
         placementStrategy = new CMSPlacementStrategy.DatacenterAware(rf, (cd, n) -> !n.equals(metadata.directory.peerId(addr(2).broadcastAddress)) &&
                                                                                     !n.equals(metadata.directory.peerId(addr(2).broadcastAddress)));
         Assert.assertEquals(nodeIds(metadata.directory,
                                     1, 3, 4, 5, 7, 8),
-                            placementStrategy.reconfigure(Collections.EMPTY_SET, metadata));
+                            placementStrategy.reconfigure(metadata));
 
         Assert.assertEquals(nodeIds(metadata.directory,
                                     1, 3, 4, 5, 7, 8),
-                            placementStrategy.reconfigure(nodeIds(metadata.directory, 3, 6, 9), metadata));
+                            placementStrategy.reconfigure(metadata));
     }
 
     public static Set<NodeId> nodeIds(Directory directory, int... addrs) throws UnknownHostException

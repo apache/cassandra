@@ -19,6 +19,7 @@
 package org.apache.cassandra.utils.btree;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -54,6 +55,7 @@ public class BTreeMultimapTest
         map = map.without("hello", 125);
         assertEquals(0, map.size());
         assertFalse(map.containsKey("hello"));
+        assertEquals(Collections.emptySet(), map.get("non-existing"));
     }
 
     @Test
