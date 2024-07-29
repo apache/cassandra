@@ -219,7 +219,7 @@ public final class SimpleRestriction implements SingleRestriction
     @Override
     public List<ClusteringElements> values(QueryOptions options)
     {
-        assert operator == Operator.EQ || operator == Operator.IN || operator == Operator.ANN;
+        assert operator == Operator.EQ || operator == Operator.IN || operator == Operator.ANN || operator == Operator.NEQ || operator == Operator.NOT_IN;
         return bindAndGetClusteringElements(options);
     }
 
