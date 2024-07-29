@@ -31,6 +31,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.locator.CMSPlacementStrategy;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
@@ -41,7 +42,6 @@ import org.apache.cassandra.tcm.sequences.ReconfigureCMS;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.tcm.transformations.Unregister;
 import org.apache.cassandra.tcm.transformations.cms.AdvanceCMSReconfiguration;
-import org.apache.cassandra.tcm.transformations.cms.PrepareCMSReconfiguration;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
 
@@ -142,7 +142,8 @@ public class CMSOperations implements CMSOperationsMBean
         ClusterMetadata metadata = ClusterMetadata.current();
         String members = metadata.fullCMSMembers().stream().sorted().map(Object::toString).collect(Collectors.joining(","));
         info.put(MEMBERS, members);
-        info.put(NEEDS_RECONFIGURATION, Boolean.toString(PrepareCMSReconfiguration.needsReconfiguration(metadata)));
+        CMSPlacementStrategy placementStrategy = CMSPlacementStrategy.fromReplicationParams(ReplicationParams.meta(metadata), nodeId -> true);
+        info.put(NEEDS_RECONFIGURATION, Boolean.toString(placementStrategy.needsReconfiguration(metadata)));
         info.put(IS_MEMBER, Boolean.toString(cms.isCurrentMember(FBUtilities.getBroadcastAddressAndPort())));
         info.put(SERVICE_STATE, ClusterMetadataService.state(metadata).toString());
         info.put(IS_MIGRATING, Boolean.toString(cms.isMigrating()));

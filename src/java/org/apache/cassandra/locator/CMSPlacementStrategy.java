@@ -48,7 +48,8 @@ import static org.apache.cassandra.locator.SimpleStrategy.REPLICATION_FACTOR;
  */
 public interface CMSPlacementStrategy
 {
-    Set<NodeId> reconfigure(Set<NodeId> currentCms, ClusterMetadata metadata);
+    Set<NodeId> reconfigure(ClusterMetadata metadata);
+    boolean needsReconfiguration(ClusterMetadata metadata);
 
     static CMSPlacementStrategy fromReplicationParams(ReplicationParams params, Predicate<NodeId> filter)
     {
@@ -92,20 +93,24 @@ public interface CMSPlacementStrategy
             this.filter = filter;
         }
 
-        public Set<NodeId> reconfigure(Set<NodeId> currentCms, ClusterMetadata metadata)
+        public Set<NodeId> reconfigure(ClusterMetadata metadata)
         {
             Map<String, ReplicationFactor> rf = new HashMap<>(this.rf.size());
             for (Map.Entry<String, Integer> e : this.rf.entrySet())
             {
                 Collection<InetAddressAndPort> nodesInDc = metadata.directory.allDatacenterEndpoints().get(e.getKey());
-                if (nodesInDc == null)
+                if (nodesInDc.isEmpty())
                     throw new IllegalStateException(String.format("There are no nodes in %s datacenter", e.getKey()));
                 if (nodesInDc.size() < e.getValue())
                     throw new Transformation.RejectedTransformationException(String.format("There are not enough nodes in %s datacenter to satisfy replication factor", e.getKey()));
 
                 rf.put(e.getKey(), ReplicationFactor.fullOnly(e.getValue()));
             }
+            return reconfigure(metadata, rf);
+        }
 
+        public Set<NodeId> reconfigure(ClusterMetadata metadata, Map<String, ReplicationFactor> rf)
+        {
             Directory tmpDirectory = metadata.directory;
             TokenMap tokenMap = metadata.tokenMap;
             for (NodeId peerId : metadata.directory.peerIds())
@@ -128,6 +133,25 @@ public interface CMSPlacementStrategy
                                                                                            rf);
 
             return endpoints.endpoints().stream().map(metadata.directory::peerId).collect(Collectors.toSet());
+        }
+
+        public boolean needsReconfiguration(ClusterMetadata metadata)
+        {
+            Map<String, ReplicationFactor> rf = new HashMap<>(this.rf.size());
+            for (Map.Entry<String, Integer> e : this.rf.entrySet())
+            {
+                Collection<InetAddressAndPort> nodesInDc = metadata.directory.allDatacenterEndpoints().get(e.getKey());
+                if (nodesInDc.size() < e.getValue())
+                    return true;
+                rf.put(e.getKey(), ReplicationFactor.fullOnly(e.getValue()));
+            }
+
+            Set<NodeId> currentCms = metadata.fullCMSMembers()
+                                             .stream()
+                                             .map(metadata.directory::peerId)
+                                             .collect(Collectors.toSet());
+            Set<NodeId> newCms = reconfigure(metadata, rf);
+            return !currentCms.equals(newCms);
         }
     }
 
