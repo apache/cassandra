@@ -80,7 +80,7 @@ public class CommitLogArchiverTest extends CQLTester
                     .build()
                     .apply();
         }
-        // commitlog may be archived and delted by resetUnsafe then the commitlog in the write path may throw no such file exception
+        // commitlog may be archived and deleted by resetUnsafe then the commitlog in the write path may throw no such file exception
         CommitLog.instance.resetUnsafe(false, false);
         assertTrue(Files.list(backupDir).count() > 0);
     }
