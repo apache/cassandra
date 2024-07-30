@@ -35,6 +35,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.metrics.ClientMetrics;
+import org.apache.cassandra.metrics.ServiceLevelIndicatorMetrics;
 import org.apache.cassandra.service.EmbeddedCassandraService;
 import org.apache.cassandra.service.StorageService;
 
@@ -128,6 +129,7 @@ public class AutomatedTrasnsportQueueClearTest extends CQLTester
         System.out.println("TimedOutBeforeProcessing3: " + ClientMetrics.instance.timedOutBeforeProcessing.getCount() + ", pendingQueue3: " + pendingQueue3);
         Assert.assertTrue(ClientMetrics.instance.timedOutBeforeProcessing.getCount() >= timeoutBeforeMetric + pendingQueue2);
         Assert.assertEquals(0, pendingQueue3);
+        Assert.assertEquals(ClientMetrics.instance.timedOutBeforeProcessing.getCount(), ServiceLevelIndicatorMetrics.overloadedExceptionMetrics.getCount());
     }
 
     @Test
