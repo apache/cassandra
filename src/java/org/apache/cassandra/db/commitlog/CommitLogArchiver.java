@@ -179,7 +179,11 @@ public class CommitLogArchiver
     {
         if (Strings.isNullOrEmpty(archiveCommand))
             return;
-
+        if (!segment.logFile.exists())
+        {
+            logger.warn("Commitlog file : " + segment.logFile + " is not exist, skip archiving");
+            return;
+        }
         archivePending.put(segment.getName(), executor.submit(new WrappedRunnable()
         {
             protected void runMayThrow() throws IOException
@@ -205,7 +209,12 @@ public class CommitLogArchiver
     {
         if (Strings.isNullOrEmpty(archiveCommand))
             return;
-
+        File file = new File(path, name);
+        if (!file.exists())
+        {
+            logger.warn("The file : " + file + " is not exist, skip archiving");
+            return;
+        }
         archivePending.put(name, executor.submit(new Runnable()
         {
             public void run()

@@ -460,7 +460,7 @@ public class CommitLogReplayer implements CommitLogReadHandler
 
         for (PartitionUpdate upd : fm.getPartitionUpdates())
         {
-            if ( upd.maxTimestamp() > tsInMicroSecondsLevel)
+            if (upd.maxTimestamp() > tsInMicroSecondsLevel)
                 return true;
         }
         return false;

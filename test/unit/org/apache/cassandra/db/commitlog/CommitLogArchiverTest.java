@@ -30,7 +30,7 @@ import org.junit.Test;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.HashMap;
+import java.util.Map;
 import java.util.Properties;
 
 import static org.junit.Assert.assertTrue;
@@ -39,12 +39,22 @@ public class CommitLogArchiverTest extends CQLTester
 {
     private static String dirName = "backup_commitlog";
     private static Path backupDir;
-    private String rpiTime = "2024:03:22 20:43:12.633222";
+    private static String rpiTime = "2024:03:22 20:43:12.633222";
+    private static CommitLogArchiver archiver;
 
     @BeforeClass
     public static void beforeClass() throws IOException
     {
         backupDir = Files.createTempDirectory(dirName);
+        CommitLog commitLog = CommitLog.instance;
+        Properties properties = new Properties();
+        archiver = commitLog.archiver;
+        properties.putAll(Map.of("archive_command", "/bin/cp %path " + backupDir,
+                                 "restore_command", "/bin/cp -f %from %to",
+                                 "restore_directories", backupDir,
+                                 "restore_point_in_time", rpiTime));
+        CommitLogArchiver commitLogArchiver = CommitLogArchiver.getArchiverFromProperty(properties);
+        commitLog.setCommitlogArchiver(commitLogArchiver);
     }
 
     @AfterClass
@@ -52,6 +62,7 @@ public class CommitLogArchiverTest extends CQLTester
     {
         File dir = new File(backupDir);
         dir.deleteRecursive();
+        CommitLog.instance.setCommitlogArchiver(archiver);
     }
 
     @Test
@@ -59,15 +70,6 @@ public class CommitLogArchiverTest extends CQLTester
     {
         CommitLog.instance.resetUnsafe(true);
         String table = createTable(KEYSPACE, "CREATE TABLE %s (a TEXT PRIMARY KEY, b INT);");
-        CommitLog commitLog = CommitLog.instance;
-        Properties properties = new Properties();
-        properties.putAll(new HashMap<String, String>() {{
-                          put("archive_command", "/bin/cp %path " + backupDir.toString());
-                          put("restore_command", "/bin/cp -f %from %to");
-                          put("restore_directories", backupDir.toString());
-                          put("restore_point_in_time", rpiTime); }});
-        CommitLogArchiver commitLogArchiver = CommitLogArchiver.getArchiverFromProperty(properties);
-        commitLog.setCommitlogArchiver(commitLogArchiver);
 
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(table);
         long ts = CommitLogArchiver.getMicroSeconds(rpiTime);
@@ -78,7 +80,7 @@ public class CommitLogArchiverTest extends CQLTester
                     .build()
                     .apply();
         }
-        // commitlog may be archived and delted by resetUnsafe then the commitlog in the write path may throw no such file exception
+        // commitlog may be archived and deleted by resetUnsafe then the commitlog in the write path may throw no such file exception
         CommitLog.instance.resetUnsafe(false, false);
         assertTrue(Files.list(backupDir).count() > 0);
     }
