@@ -203,12 +203,7 @@ public class CommitLogArchiver
     {
         if (Strings.isNullOrEmpty(archiveCommand))
             return;
-        File file = new File(path, name);
-        if (!file.exists())
-        {
-            logger.warn("The file : " + file + " is not exist, skip archiving");
-            return;
-        }
+
         archivePending.put(name, executor.submit(new Runnable()
         {
             public void run()
