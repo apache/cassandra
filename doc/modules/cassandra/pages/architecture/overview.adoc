@@ -50,7 +50,6 @@ as:
 * User-defined types, tuples, functions and aggregates
 * Storage-attached indexing (SAI) for secondary indexes
 * Local secondary indexes (2i)
-* User-defined types, functions and aggregates
 * Single-partition lightweight transactions with atomic compare and set
 semantics
 * (Experimental) materialized views
