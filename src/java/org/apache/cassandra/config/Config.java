@@ -124,6 +124,7 @@ public class Config
     public DiskFailurePolicy disk_failure_policy = DiskFailurePolicy.ignore;
     public CommitFailurePolicy commit_failure_policy = CommitFailurePolicy.stop;
 
+    @Deprecated(since = "5.0.1")
     public volatile boolean use_deterministic_table_id = false;
 
     /* initial token in the ring */
