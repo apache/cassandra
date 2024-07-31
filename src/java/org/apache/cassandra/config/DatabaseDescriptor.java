@@ -1001,6 +1001,8 @@ public class DatabaseDescriptor
                                                            conf.native_transport_min_backoff_on_queue_overload,
                                                            conf.native_transport_max_backoff_on_queue_overload));
 
+        if (conf.use_deterministic_table_id)
+            logger.warn("use_deterministic_table_id is deprecated and will be ignored in a future release.");
     }
 
     @VisibleForTesting
