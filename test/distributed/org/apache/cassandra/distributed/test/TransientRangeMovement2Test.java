@@ -118,7 +118,8 @@ public class TransientRangeMovement2Test extends TestBaseImpl
             // pausing + cleanup in.
             Callable<Epoch> pending = pauseBeforeCommit(cluster.get(1), (e) -> e instanceof PrepareMove.MidMove);
 
-            new Thread(() -> cluster.get(1).nodetoolResult("move", "15").asserts().success()).start();
+            Thread t = new Thread(() -> cluster.get(1).nodetoolResult("move", "15").asserts().success());
+            t.start();
             Epoch pauseBeforeEnacting = pending.call().nextEpoch();
 
             Callable<?> beforeEnacted = pauseBeforeEnacting(cluster.get(3), pauseBeforeEnacting);
@@ -130,7 +131,7 @@ public class TransientRangeMovement2Test extends TestBaseImpl
 
             unpauseEnactment(cluster.get(3));
             waitForCMSToQuiesce(cluster, cluster.get(1));
-
+            t.join();
             cluster.forEach(i -> i.nodetoolResult("cleanup").asserts().success());
             assertAllContained(localStrs(cluster.get(1)),
                                newArrayList("22", "24", "26", "28", "30"),
