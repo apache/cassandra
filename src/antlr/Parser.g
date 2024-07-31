@@ -1756,7 +1756,7 @@ columnCondition returns [ColumnCondition.Raw condition]
     // Note: we'll reject duplicates later
     : column=cident
         ( op=relationType t=term       { $condition = ColumnCondition.Raw.simpleCondition(column, op, Terms.Raw.of(t)); }
-        | K_CONTAINS t=term            { $condition = ColumnCondition.Raw.simpleCondition(column, Operator.CONTAINS, Terms.Raw.of(t)); }
+        | K_CONTAINS (K_KEY)? t=term   { $condition = ColumnCondition.Raw.simpleCondition(column, $K_KEY != null ? Operator.CONTAINS_KEY : Operator.CONTAINS, Terms.Raw.of(t)); }
         | K_IN v=singleColumnInValues  { $condition = ColumnCondition.Raw.simpleCondition(column, Operator.IN, v); }
         | '[' element=term ']'
             ( op=relationType t=term      { $condition = ColumnCondition.Raw.collectionElementCondition(column, element, op, Terms.Raw.of(t)); }
