@@ -64,6 +64,7 @@
  * Add the ability to disable bulk loading of SSTables (CASSANDRA-18781)
  * Clean up obsolete functions and simplify cql_version handling in cqlsh (CASSANDRA-18787)
 Merged from 5.0:
+ * Deprecate and ignore use_deterministic_table_id (CASSANDRA-19809)
  * Prioritize built indexes in IndexStatusManager (CASSANDRA-19400)
  * Add java.base/java.lang.reflect among opens for jvm11-client.options (CASSANDRA-19780)
  * Move bcpkix-jdk18on to build dependencies, update to 1.78 and explicitly enumerate transitive dependencies (CASSANDRA-19739)

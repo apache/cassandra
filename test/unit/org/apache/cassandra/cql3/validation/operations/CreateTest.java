@@ -27,7 +27,6 @@ import java.util.UUID;
 import org.junit.Assert;
 import org.junit.Test;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.Duration;
 import org.apache.cassandra.db.Mutation;
@@ -62,6 +61,7 @@ import static org.apache.cassandra.cql3.Duration.NANOS_PER_MINUTE;
 import static org.apache.cassandra.tcm.membership.MembershipUtils.endpoint;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -725,24 +725,11 @@ public class CreateTest extends CQLTester
     }
 
     @Test
-    public void testUsingDeterministicTableID()
+    public void testNotUsingDeterministicTableIDOnCreate()
     {
-        DatabaseDescriptor.useDeterministicTableID(true);
-
         createTable("CREATE TABLE %s (id text PRIMARY KEY);");
         TableMetadata tmd = currentTableMetadata();
-        assertEquals(TableId.unsafeDeterministic(tmd.keyspace, tmd.name), tmd.id);
-
-    }
-
-    @Test
-    public void testNotUsingDeterministicTableIDWhenDisabled()
-    {
-        DatabaseDescriptor.useDeterministicTableID(false);
-
-        createTable("CREATE TABLE %s (id text PRIMARY KEY);");
-        TableMetadata tmd = currentTableMetadata();
-        assertFalse(TableId.unsafeDeterministic(tmd.keyspace, tmd.name).equals(tmd.id));
+        assertNotEquals(TableId.unsafeDeterministic(tmd.keyspace, tmd.name), tmd.id);
     }
 
     private void assertThrowsConfigurationException(String errorMsg, String createStmt)
