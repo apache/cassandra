@@ -1,4 +1,5 @@
 5.0.1
+ * Deprecate and ignore use_deterministic_table_id (CASSANDRA-19809)
  * Prioritize built indexes in IndexStatusManager (CASSANDRA-19400)
  * Add java.base/java.lang.reflect among opens for jvm11-client.options (CASSANDRA-19780)
 
