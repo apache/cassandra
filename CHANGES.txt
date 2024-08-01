@@ -177,6 +177,7 @@ Merged from 3.0:
 Unreleased
  * [SO-32855] Update SLI for early termination of requests at the transport layer
  * [SO-32855] Generalize the internal queue cleanup tooling to handle various internal queues
+ * [SO-33082] Remove coded exceptions out of OtherExceptions
 4.1.3.10
  * [SO-32855] Semi-automate transport queue cleanup operation
  * UnsupportedOperationException when reducing scope for LCS compactions (CASSANDRA-19704)

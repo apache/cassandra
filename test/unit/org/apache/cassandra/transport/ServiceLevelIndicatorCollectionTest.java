@@ -170,7 +170,7 @@ public class ServiceLevelIndicatorCollectionTest extends CQLTester
         assertEquals(ServiceLevelIndicatorMetrics.unpreparedExceptionMetrics.getCount(), unpreparedExceptionCount + 1);
 
         ServiceLevelIndicatorMetricsCollection.collectMetricsAndLog(new Exception("dummy exception"));
-        assertEquals(ServiceLevelIndicatorMetrics.otherExceptionMetrics.getCount(), otherExceptionCount + 8 + 1);
+        assertEquals(ServiceLevelIndicatorMetrics.otherExceptionMetrics.getCount(), otherExceptionCount + 1);
     }
 
     @Test
@@ -253,6 +253,7 @@ public class ServiceLevelIndicatorCollectionTest extends CQLTester
 
         // Exception in the path of ExecuteMessage
         beforeTestValue = ServiceLevelIndicatorMetrics.otherExceptionMetrics.getCount();
+        long beforeTestValueForInvalidRequest = ServiceLevelIndicatorMetrics.invalidExceptionMetrics.getCount();
         try
         {
             PrepareMessage prepareMessage = new PrepareMessage("SELECT * FROM table1", KEYSPACE);
@@ -264,8 +265,11 @@ public class ServiceLevelIndicatorCollectionTest extends CQLTester
         }
         catch (Exception ex)
         {
-            Assert.assertEquals("OtherExceptionCount should be incremented by 1",
-                                ServiceLevelIndicatorMetrics.otherExceptionMetrics.getCount(), beforeTestValue+1);
+            Assert.assertEquals("OtherExceptionCount should not be changed",
+                                ServiceLevelIndicatorMetrics.otherExceptionMetrics.getCount(), beforeTestValue);
+            Assert.assertEquals("InvalidExceptionCount should be incremented by 1",
+                                ServiceLevelIndicatorMetrics.invalidExceptionMetrics.getCount(),
+                                beforeTestValueForInvalidRequest+1);
         }
     }
 

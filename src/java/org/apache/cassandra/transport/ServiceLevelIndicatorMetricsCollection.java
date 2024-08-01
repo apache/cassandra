@@ -133,12 +133,9 @@ public class ServiceLevelIndicatorMetricsCollection
 
                 default:
                     code = null;
+                    ServiceLevelIndicatorMetrics.otherExceptionMetrics.mark();
                     break;
             }
-            // We are keeping otherExceptionMetrics to make sure the existing graphs still work during the code rollout.
-            // TODO (mingc): after the new metrics are rolled out to the fleet, change all m3 queries and remove
-            // otherExceptionMetrics.
-            ServiceLevelIndicatorMetrics.otherExceptionMetrics.mark();
         }
         else if (ex instanceof ServerError)
         {
@@ -149,7 +146,6 @@ public class ServiceLevelIndicatorMetricsCollection
         {
             ServiceLevelIndicatorMetrics.protocolErrorExceptionMetrics.mark();
             code = ExceptionCode.PROTOCOL_ERROR;
-            ServiceLevelIndicatorMetrics.otherExceptionMetrics.mark();
         }
         else {
             code = null;
