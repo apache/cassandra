@@ -33,11 +33,24 @@ public interface QueryHandler
 {
     CQLStatement parse(String queryString, QueryState queryState, QueryOptions options);
 
-    ResultMessage process(CQLStatement statement,
+    @Deprecated
+    default ResultMessage process(CQLStatement statement,
+                                  QueryState state,
+                                  QueryOptions options,
+                                  Map<String, ByteBuffer> customPayload,
+                                  long ignore) throws RequestExecutionException, RequestValidationException
+    {
+        throw new IllegalStateException("Should be overriden");
+    }
+
+    default ResultMessage process(CQLStatement statement,
                           QueryState state,
                           QueryOptions options,
                           Map<String, ByteBuffer> customPayload,
-                          Dispatcher.RequestTime requestTime) throws RequestExecutionException, RequestValidationException;
+                          Dispatcher.RequestTime requestTime) throws RequestExecutionException, RequestValidationException
+    {
+        return process(statement, state, options, customPayload, requestTime.startedAtNanos());
+    }
 
     ResultMessage.Prepared prepare(String query,
                                    ClientState clientState,
@@ -45,17 +58,43 @@ public interface QueryHandler
 
     QueryHandler.Prepared getPrepared(MD5Digest id);
 
-    ResultMessage processPrepared(CQLStatement statement,
-                                  QueryState state,
-                                  QueryOptions options,
-                                  Map<String, ByteBuffer> customPayload,
-                                  Dispatcher.RequestTime requestTime) throws RequestExecutionException, RequestValidationException;
+    @Deprecated
+    default ResultMessage processPrepared(CQLStatement statement,
+                                          QueryState state,
+                                          QueryOptions options,
+                                          Map<String, ByteBuffer> customPayload,
+                                          long ignore) throws RequestExecutionException, RequestValidationException
+    {
+        throw new IllegalStateException("Should be overriden");
+    }
 
-    ResultMessage processBatch(BatchStatement statement,
-                               QueryState state,
-                               BatchQueryOptions options,
-                               Map<String, ByteBuffer> customPayload,
-                               Dispatcher.RequestTime requestTime) throws RequestExecutionException, RequestValidationException;
+    default ResultMessage processPrepared(CQLStatement statement,
+                                          QueryState state,
+                                          QueryOptions options,
+                                          Map<String, ByteBuffer> customPayload,
+                                          Dispatcher.RequestTime requestTime) throws RequestExecutionException, RequestValidationException
+    {
+        return processPrepared(statement, state, options, customPayload, requestTime.startedAtNanos());
+    }
+
+    @Deprecated
+    default ResultMessage processBatch(BatchStatement statement,
+                                       QueryState state,
+                                       BatchQueryOptions options,
+                                       Map<String, ByteBuffer> customPayload,
+                                       long ignoreag) throws RequestExecutionException, RequestValidationException
+    {
+        throw new IllegalStateException("Should be overriden");
+    }
+
+    default ResultMessage processBatch(BatchStatement statement,
+                                       QueryState state,
+                                       BatchQueryOptions options,
+                                       Map<String, ByteBuffer> customPayload,
+                                       Dispatcher.RequestTime requestTime) throws RequestExecutionException, RequestValidationException
+    {
+        return processBatch(statement, state, options, customPayload, requestTime.startedAtNanos());
+    }
 
     public static class Prepared
     {
