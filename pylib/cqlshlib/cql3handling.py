@@ -602,7 +602,7 @@ def cf_prop_val_mapender_completer(ctxt, cass):
 
 @completer_for('tokenDefinition', 'token')
 def token_word_completer(ctxt, cass):
-    return ['token(']
+    return ['TOKEN']
 
 
 @completer_for('simpleStorageType', 'typename')
@@ -741,12 +741,13 @@ syntax_rules += r'''
                     ;
 <whereClause> ::= <relation> ( "AND" <relation> )*
                 ;
-<relation> ::= [rel_lhs]=<cident> ( "[" <term> "]" )? ( "=" | "<" | ">" | "<=" | ">=" | "!=" | ( "NOT" )? "CONTAINS" ( "KEY" )? ) <term>
+<relation> ::= [rel_lhs]=<cident> ( "[" <term> "]" )? ( "=" | "<" | ">" | "<=" | ">=" | "!=" | ( "NOT" )? "CONTAINS" ( "KEY" )? ) (<term> | <operandFunctions>)
              | token="TOKEN" "(" [rel_tokname]=<cident>
                                  ( "," [rel_tokname]=<cident> )*
                              ")" ("=" | "<" | ">" | "<=" | ">=") <tokenDefinition>
              | [rel_lhs]=<cident> (( "NOT" )? "IN" ) "(" <term> ( "," <term> )* ")"
              | [rel_lhs]=<cident> "BETWEEN" <term> "AND" <term>
+             | <operandFunctions>
              ;
 <selectClause> ::= "DISTINCT"? <selector> ("AS" <cident>)? ("," <selector> ("AS" <cident>)?)*
                  | "*"
@@ -755,14 +756,20 @@ syntax_rules += r'''
                          ;
 <selector> ::= [colname]=<cident> ( "[" ( <term> ( ".." <term> "]" )? | <term> ".." ) )?
              | <udtSubfieldSelection>
-             | "WRITETIME" "(" [colname]=<cident> ")"
-             | "MAXWRITETIME" "(" [colname]=<cident> ")"
-             | "TTL" "(" [colname]=<cident> ")"
-             | "COUNT" "(" star=( "*" | "1" ) ")"
              | "CAST" "(" <selector> "AS" <storageType> ")"
+             | "TTL" "(" [colname]=<cident> ")"
+             | "TOKEN" "(" [colname]=<cident> ")"
+             | <aggregateMathFunctions>
+             | <scalarMathFunctions>
+             | <collectionFunctions>
+             | <currentTimeFunctions>
+             | <maskFunctions>
+             | <timeConversionFunctions>
+             | <writetimeFunctions>
              | <functionName> <selectionFunctionArguments>
              | <term>
              ;
+
 <selectionFunctionArguments> ::= "(" ( <selector> ( "," <selector> )* )? ")"
                           ;
 <orderByClause> ::= [ordercol]=<cident> ( "ASC" | "DESC" )?
@@ -775,6 +782,60 @@ syntax_rules += r'''
 <groupByFunctionArgument> ::= [groupcol]=<cident>
                             | <term>
                             ;
+
+<aggregateMathFunctions> ::= "COUNT" "(" star=( "*" | "1" ) ")"
+             | "AVG" "(" [colname]=<cident> ")"
+             | "MIN" "(" [colname]=<cident> ")"
+             | "MAX" "(" [colname]=<cident> ")"
+             | "SUM" "(" [colname]=<cident> ")"
+             ;
+
+<scalarMathFunctions> ::= "ABS" "(" [colname]=<cident> ")"
+             | "EXP" "(" [colname]=<cident> ")"
+             | "LOG" "(" [colname]=<cident> ")"
+             | "LOG10" "(" [colname]=<cident> ")"
+             | "ROUND" "(" [colname]=<cident> ")"
+             ;
+
+<collectionFunctions> ::= "MAP_KEYS" "(" [colname]=<cident> ")"
+             | "MAP_VALUES" "(" [colname]=<cident> ")"
+             | "COLLECTION_AVG" "(" [colname]=<cident> ")"
+             | "COLLECTION_COUNT" "(" [colname]=<cident> ")"
+             | "COLLECTION_MIN" "(" [colname]=<cident> ")"
+             | "COLLECTION_MAX" "(" [colname]=<cident> ")"
+             | "COLLECTION_SUM" "(" [colname]=<cident> ")"
+             ;
+
+<currentTimeFunctions> ::= "CURRENT_DATE()"
+             | "CURRENT_TIME()"
+             | "CURRENT_TIMESTAMP()"
+             | "CURRENT_TIMEUUID()"
+             ;
+
+<maskFunctions> ::= "MASK_DEFAULT" "(" [colname]=<cident> ")"
+             | "MASK_HASH" "(" [colname]=<cident> ")"
+             | "MASK_INNER" "(" [colname]=<cident> "," <wholenumber> "," <wholenumber> ")"
+             | "MASK_NULL" "(" [colname]=<cident> ")"
+             | "MASK_REPLACE" "(" [colname]=<cident> "," <propertyValue> ")"
+             | "MASK_OUTER" "(" [colname]=<cident> "," <wholenumber> "," <wholenumber> ")"
+             ;
+
+<timeConversionFunctions> ::= "TO_DATE" "(" [colname]=<cident> ")"
+             | "TO_TIMESTAMP" "(" [colname]=<cident> ")"
+             | "TO_UNIX_TIMESTAMP" "(" [colname]=<cident> ")"
+             ;
+
+<timeuuidFunctions> ::= "MAX_TIMEUUID" "(" [colname]=<cident> ")"
+             | "MIN_TIMEUUID" "(" [colname]=<cident> ")"
+             ;
+
+<writetimeFunctions> ::= "MAX_WRITETIME" "(" [colname]=<cident> ")"
+             | "MIN_WRITETIME" "(" [colname]=<cident> ")"
+             | "WRITETIME" "(" [colname]=<cident> ")"
+             ;
+<operandFunctions> ::= <currentTimeFunctions> | <timeuuidFunctions>
+             ;
+
 '''
 
 
@@ -867,7 +928,7 @@ def select_group_column_completer(ctxt, cass):
 
 @completer_for('relation', 'token')
 def relation_token_word_completer(ctxt, cass):
-    return ['TOKEN(']
+    return ['TOKEN']
 
 
 @completer_for('relation', 'rel_tokname')
@@ -1001,7 +1062,7 @@ syntax_rules += r'''
 
 @completer_for('updateStatement', 'updateopt')
 def update_option_completer(ctxt, cass):
-    opts = set('TIMESTAMP TTL'.split())
+    opts = {'TIMESTAMP', 'TTL'}
     for opt in ctxt.get_binding('updateopt', ()):
         opts.discard(opt.split()[0])
     return opts
