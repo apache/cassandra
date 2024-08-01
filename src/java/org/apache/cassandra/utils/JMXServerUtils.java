@@ -259,13 +259,12 @@ public class JMXServerUtils
         else if (jmxEncryptionOptions != null && jmxEncryptionOptions.getEnabled() != null && jmxEncryptionOptions.getEnabled())
         {
             logger.info("Enabling JMX SSL using jmx_encryption_options from cassandra.yaml");
-            /*
-             * Here we can continue to use the SslRMIClientSocketFactory for client sockets.
-             * However, we should still set System properties for cipher_suites and enabled_protocols
-             */
+            // Here we can continue to use the SslRMIClientSocketFactory for client sockets.
+            // However, we should still set System properties for cipher_suites and enabled_protocols
+            // to have the same behavior as cassandra-env.sh based JMX SSL settings
             setJmxSystemProperties(jmxEncryptionOptions);
             SslRMIClientSocketFactory clientFactory = new SslRMIClientSocketFactory();
-            JmxSslRMIServerSocketFactory serverFactory = new JmxSslRMIServerSocketFactory(jmxEncryptionOptions);
+            JMXSslRMIServerSocketFactory serverFactory = new JMXSslRMIServerSocketFactory(jmxEncryptionOptions);
             setSocketFactoriesInEnv(env, clientFactory, serverFactory);
         }
         else if (localOnly)
@@ -321,7 +320,7 @@ public class JMXServerUtils
 
     private static void setJmxSystemProperties(EncryptionOptions jmxEncryptionOptions)
     {
-        System.setProperty("com.sun.management.jmxremote.ssl", "true");
+        COM_SUN_MANAGEMENT_JMXREMOTE_SSL.setBoolean(true);
         JAVAX_RMI_SSL_CLIENT_ENABLED_PROTOCOLS.setString(StringUtils.join(jmxEncryptionOptions.getAcceptedProtocols(), ","));
         JAVAX_RMI_SSL_CLIENT_ENABLED_CIPHER_SUITES.setString(StringUtils.join(jmxEncryptionOptions.cipherSuitesArray(), ","));
     }
