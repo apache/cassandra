@@ -38,7 +38,8 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.JAVAX_RMI_
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVAX_RMI_SSL_CLIENT_ENABLED_PROTOCOLS;
 
 /**
- * This class tests for Local JMX settings and the SSL configuration via System Properties.
+ * Tests for Local JMX server, the remote JMX SSL configuration via System properties in absence of jmx_encryption_options
+ * in the cassandra.yaml. This is the behavior before CASSANDRA-18508.
  */
 public class JMXSslConfigTest
 {
@@ -48,8 +49,11 @@ public class JMXSslConfigTest
         DatabaseDescriptor.daemonInitialization();
     }
 
+    /**
+     * Tests for remote JMX SSL configuration specified via the System properties.
+     */
     @Test
-    public void testRemoteJMXSystemConfig() throws SSLException
+    public void testRemoteJmxSystemConfig() throws SSLException
     {
         InetAddress serverAddress = InetAddress.getLoopbackAddress();
         String enabledProtocols = "TLSv1.2,TLSv1.3,TLSv1.1";
@@ -68,8 +72,11 @@ public class JMXSslConfigTest
         Assert.assertEquals("cipher-suites must match", cipherSuites, JAVAX_RMI_SSL_CLIENT_ENABLED_CIPHER_SUITES.getString());
     }
 
+    /**
+     * Tests for {@code localOnly} JMX Server configuration.
+     */
     @Test
-    public void testLocalJMXConfig() throws SSLException
+    public void testLocalJmxServer() throws SSLException
     {
         InetAddress serverAddress = InetAddress.getLoopbackAddress();
         COM_SUN_MANAGEMENT_JMXREMOTE_SSL.setBoolean(false);

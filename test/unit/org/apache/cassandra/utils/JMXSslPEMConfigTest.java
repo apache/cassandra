@@ -39,8 +39,7 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.JAVAX_RMI_
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVAX_RMI_SSL_CLIENT_ENABLED_PROTOCOLS;
 
 /**
- * This class tests for JMX SSL config using keystore/trusstore in the PEM format with jmx_encryption_options in the
- * cassandra.yaml.
+ * Tests for JMX SSL config using keystore/trusstore in the PEM format with jmx_encryption_options in the cassandra.yaml.
  */
 public class JMXSslPEMConfigTest
 {
@@ -60,7 +59,7 @@ public class JMXSslPEMConfigTest
     }
 
     @Test
-    public void testJMXPluggableConfig() throws SSLException
+    public void testPEMBasedJmxSslConfig() throws SSLException
     {
         EncryptionOptions jmxEncryptionOptions = DatabaseDescriptor.getJmxEncryptionOptions();
         String expectedProtocols = StringUtils.join(jmxEncryptionOptions.getAcceptedProtocols(), ",");

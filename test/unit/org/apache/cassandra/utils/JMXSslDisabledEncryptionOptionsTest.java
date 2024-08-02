@@ -37,7 +37,7 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.JAVAX_RMI_
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVAX_RMI_SSL_CLIENT_ENABLED_PROTOCOLS;
 
 /**
- * This class tests for disabling jmx_encryption_options in the cassandra.yaml.
+ * Tests for disabling jmx_encryption_options in the cassandra.yaml.
  */
 public class JMXSslDisabledEncryptionOptionsTest
 {
@@ -57,14 +57,13 @@ public class JMXSslDisabledEncryptionOptionsTest
     }
 
     /**
-     * Tests absence of any JMX SSL configuration out of the below three,
+     * Tests absence of all JMX SSL configurations,
      * 1. local only JMX server
      * 2. System properties set for remote JMX SSL
      * 3. jmx_encryption_options in the cassandra.yaml
-     * @throws SSLException
      */
     @Test
-    public void testJMXDisabledEncryptionOptions() throws SSLException
+    public void testAbsenceOfAllJmxSslConfigs() throws SSLException
     {
         InetAddress serverAddress = InetAddress.getLoopbackAddress();
         COM_SUN_MANAGEMENT_JMXREMOTE_SSL.setBoolean(false);
@@ -78,10 +77,9 @@ public class JMXSslDisabledEncryptionOptionsTest
     /**
      * Tests fallback to the `local only` JMX server when jmx_encryption_options are disabled in the cassandra.yaml
      * and no System settings provided for the remote SSL config.
-     * @throws SSLException
      */
     @Test
-    public void testJMXSslConfigFallbackToLocal() throws SSLException
+    public void testFallbackToLocalJmxServer() throws SSLException
     {
         InetAddress serverAddress = InetAddress.getLoopbackAddress();
         COM_SUN_MANAGEMENT_JMXREMOTE_SSL.setBoolean(false);

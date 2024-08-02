@@ -39,7 +39,9 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.JAVAX_RMI_
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVAX_RMI_SSL_CLIENT_ENABLED_PROTOCOLS;
 
 /**
- * This class tests for Default JMX SSL configuration specified in the cassandra.yaml using jmx_encryption_options.
+ * Tests for Default JMX SSL configuration specified in the cassandra.yaml using jmx_encryption_options.
+ * The default configurtion means keystore/truststore configured with file paths and using {@code DefaultSslContextFactory}
+ * to initialize the SSLContext.
  */
 public class JMXSslDefaultEncryptionOptionsTest
 {
@@ -59,7 +61,7 @@ public class JMXSslDefaultEncryptionOptionsTest
     }
 
     @Test
-    public void testJMXPluggableConfig() throws SSLException
+    public void testDefaultJmxEncryptionOptions() throws SSLException
     {
         EncryptionOptions jmxEncryptionOptions = DatabaseDescriptor.getJmxEncryptionOptions();
         String expectedProtocols = StringUtils.join(jmxEncryptionOptions.getAcceptedProtocols(), ",");
@@ -75,6 +77,6 @@ public class JMXSslDefaultEncryptionOptionsTest
         Assert.assertNotNull("ClientSocketFactory must not be null", env.get(RMIConnectorServer.RMI_CLIENT_SOCKET_FACTORY_ATTRIBUTE));
         Assert.assertNotNull("com.sun.jndi.rmi.factory.socket must be set in the env", env.get("com.sun.jndi.rmi.factory.socket"));
         Assert.assertEquals("javax.rmi.ssl.client.enabledProtocols must match", expectedProtocols, JAVAX_RMI_SSL_CLIENT_ENABLED_PROTOCOLS.getString());
-        Assert.assertEquals("javax.rmi.ssl.client.enabledCipherSuites must match", expectedCipherSuites, JAVAX_RMI_SSL_CLIENT_ENABLED_CIPHER_SUITES.getString() );
+        Assert.assertEquals("javax.rmi.ssl.client.enabledCipherSuites must match", expectedCipherSuites, JAVAX_RMI_SSL_CLIENT_ENABLED_CIPHER_SUITES.getString());
     }
 }
