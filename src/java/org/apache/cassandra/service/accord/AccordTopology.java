@@ -32,6 +32,7 @@ import accord.local.Node;
 import accord.topology.Shard;
 import accord.topology.Topology;
 import accord.utils.Invariants;
+import accord.utils.SortedArrays.SortedArrayList;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Range;
@@ -64,7 +65,7 @@ public class AccordTopology
 
     private static class ShardLookup extends HashMap<accord.primitives.Range, Shard>
     {
-        private Shard createOrReuse(accord.primitives.Range range, List<Node.Id> nodes, Set<Node.Id> fastPathElectorate, Set<Node.Id> joining)
+        private Shard createOrReuse(accord.primitives.Range range, SortedArrayList<Node.Id> nodes, Set<Node.Id> fastPathElectorate, Set<Node.Id> joining)
         {
             Shard prev = get(range);
             if (prev != null
@@ -81,10 +82,10 @@ public class AccordTopology
     {
         private final KeyspaceMetadata keyspace;
         private final Range<Token> range;
-        private final List<Node.Id> nodes;
+        private final SortedArrayList<Node.Id> nodes;
         private final Set<Node.Id> pending;
 
-        private KeyspaceShard(KeyspaceMetadata keyspace, Range<Token> range, List<Node.Id> nodes, Set<Node.Id> pending)
+        private KeyspaceShard(KeyspaceMetadata keyspace, Range<Token> range, SortedArrayList<Node.Id> nodes, Set<Node.Id> pending)
         {
             this.keyspace = keyspace;
             this.range = range;
@@ -106,7 +107,7 @@ public class AccordTopology
         {
             TokenRange tokenRange = AccordTopology.range(metadata.id, range);
 
-            Set<Node.Id> fastPath = strategyFor(metadata).calculateFastPath(nodes, unavailable, dcMap);
+            SortedArrayList<Node.Id> fastPath = strategyFor(metadata).calculateFastPath(nodes, unavailable, dcMap);
 
             return lookup.createOrReuse(tokenRange, nodes, fastPath, pending);
         }
@@ -122,10 +123,10 @@ public class AccordTopology
             Sets.SetView<InetAddressAndPort> readOnly = Sets.difference(readEndpoints, writeEndpoints);
             Invariants.checkState(readOnly.isEmpty(), "Read only replicas detected: %s", readOnly);
 
-            List<Node.Id> nodes = writes.endpoints().stream()
+            SortedArrayList<Node.Id> nodes = new SortedArrayList<>(writes.endpoints().stream()
                                         .map(directory::peerId)
                                         .map(AccordTopology::tcmIdToAccord)
-                                        .sorted().collect(Collectors.toList());
+                                        .sorted().toArray(Node.Id[]::new));
 
             Set<Node.Id> pending = readEndpoints.equals(writeEndpoints) ?
                                    Collections.emptySet() :

@@ -32,6 +32,7 @@ import accord.api.DataStore;
 import accord.api.Read;
 import accord.local.SafeCommandStore;
 import accord.primitives.Keys;
+import accord.primitives.Participants;
 import accord.primitives.Ranges;
 import accord.primitives.Seekable;
 import accord.primitives.Timestamp;
@@ -158,14 +159,25 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
     @Override
     public Read slice(Ranges ranges)
     {
-        Keys keys = itemKeys.slice(ranges);
+        return intersecting(itemKeys.slice(ranges));
+    }
+
+    @Override
+    public Read intersecting(Participants<?> participants)
+    {
+        return intersecting(itemKeys.intersecting(participants));
+    }
+
+    private Read intersecting(Keys select)
+    {
+        Keys keys = itemKeys.intersecting(select);
         List<TxnNamedRead> reads = new ArrayList<>(keys.size());
 
         for (TxnNamedRead read : items)
             if (keys.contains(read.key()))
                 reads.add(read);
 
-        return createTxnRead(reads, txnKeys.slice(ranges), cassandraConsistencyLevel);
+        return createTxnRead(reads, txnKeys.intersecting(select), cassandraConsistencyLevel);
     }
 
     @Override

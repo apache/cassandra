@@ -36,7 +36,6 @@ import accord.local.Status.Known;
 import accord.primitives.Ballot;
 import accord.primitives.PartialTxn;
 import accord.primitives.ProgressToken;
-import accord.primitives.Ranges;
 import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
@@ -234,7 +233,6 @@ public class CommandSerializers
         private void serializeWithoutKeys(PartialTxn txn, DataOutputPlus out, int version) throws IOException
         {
             CommandSerializers.kind.serialize(txn.kind(), out, version);
-            KeySerializers.ranges.serialize(txn.covering(), out, version);
             readSerializer.serialize(txn.read(), out, version);
             querySerializer.serialize(txn.query(), out, version);
             out.writeBoolean(txn.update() != null);
@@ -245,18 +243,16 @@ public class CommandSerializers
         private PartialTxn deserializeWithoutKeys(Seekables<?, ?> keys, DataInputPlus in, int version) throws IOException
         {
             Txn.Kind kind = CommandSerializers.kind.deserialize(in, version);
-            Ranges covering = KeySerializers.ranges.deserialize(in, version);
             Read read = readSerializer.deserialize(in, version);
             Query query = querySerializer.deserialize(in, version);
             Update update = in.readBoolean() ? updateSerializer.deserialize(in, version) : null;
-            return new PartialTxn.InMemory(covering, kind, keys, read, query, update);
+            return new PartialTxn.InMemory(kind, keys, read, query, update);
         }
 
 
         private long serializedSizeWithoutKeys(PartialTxn txn, int version)
         {
             long size = CommandSerializers.kind.serializedSize(txn.kind(), version);
-            size += KeySerializers.ranges.serializedSize(txn.covering(), version);
             size += readSerializer.serializedSize(txn.read(), version);
             size += querySerializer.serializedSize(txn.query(), version);
             size += TypeSizes.sizeof(txn.update() != null);

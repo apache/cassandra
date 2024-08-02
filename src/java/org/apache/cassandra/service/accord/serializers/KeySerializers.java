@@ -91,38 +91,31 @@ public class KeySerializers
     {
         @Override PartialKeyRoute deserialize(DataInputPlus in, int version, RoutingKey[] keys) throws IOException
         {
-            Ranges covering = ranges.deserialize(in, version);
             RoutingKey homeKey = routingKey.deserialize(in, version);
-            boolean isParticipatingHomeKey = (in.readByte() & 0x1) != 0;
-            return PartialKeyRoute.SerializationSupport.create(covering, homeKey, isParticipatingHomeKey, keys);
+            return PartialKeyRoute.SerializationSupport.create(homeKey, keys);
         }
 
         @Override
         public void serialize(PartialKeyRoute route, DataOutputPlus out, int version) throws IOException
         {
             super.serialize(route, out, version);
-            ranges.serialize(route.covering, out, version);
             routingKey.serialize(route.homeKey, out, version);
-            out.writeByte(route.isParticipatingHomeKey ? 0x1 : 0);
         }
 
         @Override
         public long serializedSize(PartialKeyRoute keys, int version)
         {
             return super.serializedSize(keys, version)
-                   + ranges.serializedSize(keys.covering, version)
-                   + routingKey.serializedSize(keys.homeKey, version)
-                   + 1;
+                   + routingKey.serializedSize(keys.homeKey, version);
         }
     };
 
-    public static final IVersionedSerializer<FullKeyRoute> fullKeyRoute = new AbstractKeysSerializer<RoutingKey, FullKeyRoute>(routingKey, RoutingKey[]::new)
+    public static final IVersionedSerializer<FullKeyRoute> fullKeyRoute = new AbstractKeysSerializer<>(routingKey, RoutingKey[]::new)
     {
         @Override FullKeyRoute deserialize(DataInputPlus in, int version, RoutingKey[] keys) throws IOException
         {
             RoutingKey homeKey = routingKey.deserialize(in, version);
-            boolean isParticipatingHomeKey = (in.readByte() & 0x1) != 0;
-            return FullKeyRoute.SerializationSupport.create(homeKey, isParticipatingHomeKey, keys);
+            return FullKeyRoute.SerializationSupport.create(homeKey, keys);
         }
 
         @Override
@@ -130,15 +123,13 @@ public class KeySerializers
         {
             super.serialize(route, out, version);
             routingKey.serialize(route.homeKey, out, version);
-            out.writeByte(route.isParticipatingHomeKey ? 0x1 : 0);
         }
 
         @Override
         public long serializedSize(FullKeyRoute route, int version)
         {
             return super.serializedSize(route, version)
-                   + routingKey.serializedSize(route.homeKey, version)
-                   + 1;
+                   + routingKey.serializedSize(route.homeKey, version);
         }
     };
 
@@ -146,28 +137,22 @@ public class KeySerializers
     {
         @Override PartialRangeRoute deserialize(DataInputPlus in, int version, Range[] rs) throws IOException
         {
-            Ranges covering = ranges.deserialize(in, version);
             RoutingKey homeKey = routingKey.deserialize(in, version);
-            boolean isParticipatingHomeKey = (in.readByte() & 0x1) != 0;
-            return PartialRangeRoute.SerializationSupport.create(covering, homeKey, isParticipatingHomeKey, rs);
+            return PartialRangeRoute.SerializationSupport.create(homeKey, rs);
         }
 
         @Override
         public void serialize(PartialRangeRoute route, DataOutputPlus out, int version) throws IOException
         {
             super.serialize(route, out, version);
-            ranges.serialize(route.covering, out, version);
             routingKey.serialize(route.homeKey, out, version);
-            out.writeByte(route.isParticipatingHomeKey ? 0x1 : 0);
         }
 
         @Override
         public long serializedSize(PartialRangeRoute rs, int version)
         {
             return super.serializedSize(rs, version)
-                   + ranges.serializedSize(rs.covering, version)
-                   + routingKey.serializedSize(rs.homeKey, version)
-                   + 1;
+                   + routingKey.serializedSize(rs.homeKey, version);
 
         }
     };
@@ -177,8 +162,7 @@ public class KeySerializers
         @Override FullRangeRoute deserialize(DataInputPlus in, int version, Range[] Ranges) throws IOException
         {
             RoutingKey homeKey = routingKey.deserialize(in, version);
-            boolean isParticipatingHomeKey = (in.readByte() & 0x1) != 0;
-            return FullRangeRoute.SerializationSupport.create(homeKey, isParticipatingHomeKey, Ranges);
+            return FullRangeRoute.SerializationSupport.create(homeKey, Ranges);
         }
 
         @Override
@@ -186,15 +170,13 @@ public class KeySerializers
         {
             super.serialize(route, out, version);
             routingKey.serialize(route.homeKey, out, version);
-            out.writeByte(route.isParticipatingHomeKey ? 0x1 : 0);
         }
 
         @Override
         public long serializedSize(FullRangeRoute ranges, int version)
         {
             return super.serializedSize(ranges, version)
-                   + routingKey.serializedSize(ranges.homeKey(), version)
-                   + 1;
+                   + routingKey.serializedSize(ranges.homeKey(), version);
         }
     };
 

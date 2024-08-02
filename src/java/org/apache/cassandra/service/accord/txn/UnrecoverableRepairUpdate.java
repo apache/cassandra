@@ -29,6 +29,7 @@ import accord.api.Data;
 import accord.api.Update;
 import accord.api.Write;
 import accord.local.Node;
+import accord.primitives.Participants;
 import accord.primitives.Ranges;
 import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
@@ -143,6 +144,12 @@ public class UnrecoverableRepairUpdate<E extends Endpoints<E>, P extends Replica
 
     @Override
     public Update slice(Ranges ranges)
+    {
+        return this;
+    }
+
+    @Override
+    public Update intersecting(Participants<?> participants)
     {
         return this;
     }

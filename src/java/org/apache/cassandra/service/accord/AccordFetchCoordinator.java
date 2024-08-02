@@ -35,6 +35,7 @@ import accord.local.CommandStore;
 import accord.local.Node;
 import accord.local.SafeCommandStore;
 import accord.primitives.PartialTxn;
+import accord.primitives.Participants;
 import accord.primitives.Range;
 import accord.primitives.Ranges;
 import accord.primitives.Routable;
@@ -291,6 +292,9 @@ public class AccordFetchCoordinator extends AbstractFetchCoordinator implements 
         public Read slice(Ranges ranges) { return new StreamingRead(to, this.ranges.slice(ranges)); }
 
         @Override
+        public Read intersecting(Participants<?> participants) { return new StreamingRead(to, this.ranges.intersecting(ranges)); }
+
+        @Override
         public Read merge(Read other) { throw new UnsupportedOperationException(); }
     }
 
@@ -383,7 +387,7 @@ public class AccordFetchCoordinator extends AbstractFetchCoordinator implements 
     protected PartialTxn rangeReadTxn(Ranges ranges)
     {
         StreamingRead read = new StreamingRead(FBUtilities.getBroadcastAddressAndPort(), ranges);
-        return new PartialTxn.InMemory(ranges, Txn.Kind.Read, ranges, read, noopQuery, null);
+        return new PartialTxn.InMemory(Txn.Kind.Read, ranges, read, noopQuery, null);
     }
 
     @Override

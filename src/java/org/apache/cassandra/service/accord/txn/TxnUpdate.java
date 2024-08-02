@@ -32,6 +32,7 @@ import accord.api.Data;
 import accord.api.Key;
 import accord.api.Update;
 import accord.primitives.Keys;
+import accord.primitives.Participants;
 import accord.primitives.Ranges;
 import accord.primitives.RoutableKey;
 import accord.primitives.Timestamp;
@@ -144,6 +145,14 @@ public class TxnUpdate extends AccordUpdate
     public Update slice(Ranges ranges)
     {
         Keys keys = this.keys.slice(ranges);
+        // TODO: Slice the condition.
+        return new TxnUpdate(keys, select(this.keys, keys, fragments), condition, cassandraCommitCL);
+    }
+
+    @Override
+    public Update intersecting(Participants<?> participants)
+    {
+        Keys keys = this.keys.intersecting(participants);
         // TODO: Slice the condition.
         return new TxnUpdate(keys, select(this.keys, keys, fragments), condition, cassandraCommitCL);
     }

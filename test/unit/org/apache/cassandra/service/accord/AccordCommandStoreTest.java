@@ -41,6 +41,7 @@ import accord.primitives.Ballot;
 import accord.primitives.PartialDeps;
 import accord.primitives.PartialTxn;
 import accord.primitives.Range;
+import accord.primitives.Ranges;
 import accord.primitives.Routable;
 import accord.primitives.Route;
 import accord.primitives.RoutingKeys;
@@ -113,7 +114,7 @@ public class AccordCommandStoreTest
         TxnId txnId = txnId(1, clock.incrementAndGet(), 1, Txn.Kind.Write, Routable.Domain.Range);
 
         PartialDeps dependencies;
-        try (PartialDeps.Builder builder = PartialDeps.builder(depTxn.covering()))
+        try (PartialDeps.Builder builder = PartialDeps.builder(Ranges.of(range)))
         {
             builder.add(range, oldTxnId1);
             builder.add(range, oldTxnId2);

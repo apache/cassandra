@@ -113,7 +113,7 @@ public class AccordKeyspaceTest extends CQLTester.InMemory
         CommonAttributes.Mutable common = new CommonAttributes.Mutable(id);
         common.partialTxn(partialTxn);
         common.route(route);
-        common.partialDeps(deps.slice(scope));
+        common.partialDeps(deps.intersecting(scope));
         common.durability(Status.Durability.NotDurable);
         Command.WaitingOn waitingOn = null;
 

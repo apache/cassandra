@@ -19,7 +19,6 @@
 package org.apache.cassandra.service.accord.fastpath;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import com.google.common.collect.ImmutableMap;
@@ -27,6 +26,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import accord.local.Node;
+import accord.utils.SortedArrays.SortedArrayList;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.accord.fastpath.ParameterizedFastPathStrategy.WeightedDc;
 
@@ -39,7 +39,7 @@ import static org.junit.Assert.assertEquals;
 
 public class ParameterizedFastPathStrategyTest
 {
-    private static final List<Node.Id> NODES = idList(1, 2, 3, 4, 5, 6);
+    private static final SortedArrayList<Node.Id> NODES = idList(1, 2, 3, 4, 5, 6);
     private static final Map<Node.Id, String> DCS_2;
     private static final Map<Node.Id, String> DCS_3;
 

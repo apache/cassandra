@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import org.junit.Assert;
@@ -38,6 +37,7 @@ import accord.local.Node;
 import accord.local.Node.Id;
 import accord.topology.Shard;
 import accord.topology.Topology;
+import accord.utils.SortedArrays.SortedArrayList;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
@@ -71,7 +71,7 @@ public class AccordConfigurationServiceTest
     private static final Id ID1 = new Id(1);
     private static final Id ID2 = new Id(2);
     private static final Id ID3 = new Id(3);
-    private static final List<Id> ID_LIST = ImmutableList.of(ID1, ID2, ID3);
+    private static final SortedArrayList<Id> ID_LIST = new SortedArrayList<>(new Id[] { ID1, ID2, ID3 });
     private static final Set<Id> ID_SET = ImmutableSet.copyOf(ID_LIST);
     private static final TableId TBL1 = TableId.fromUUID(new UUID(0, 1));
     private static final TableId TBL2 = TableId.fromUUID(new UUID(0, 2));

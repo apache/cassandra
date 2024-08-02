@@ -259,7 +259,7 @@ public class RouteIndexTest extends CQLTester.InMemory
                     var token = new LongToken(state.tokenGen.nextInt(rs));
                     keys.add(new TokenKey(table, token));
                 }
-                return new FullKeyRoute(keys.first(), true, keys.toArray(RoutingKey[]::new));
+                return new FullKeyRoute(keys.first(), keys.toArray(RoutingKey[]::new));
             }
             case Range:
             {

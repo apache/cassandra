@@ -93,7 +93,7 @@ public class CheckStatusSerializersTest
                     List<AccordRoutingKey> forOrdering = Gens.lists(keyGen).unique().ofSizeBetween(1, 10).next(rs);
                     forOrdering.sort(Comparator.naturalOrder());
                     // TODO (coverage): don't hard code keys type
-                    keysOrRanges = new FullKeyRoute(homeKey, forOrdering.contains(homeKey), forOrdering.toArray(RoutingKey[]::new));
+                    keysOrRanges = new FullKeyRoute(homeKey, forOrdering.toArray(RoutingKey[]::new));
                     break;
                 case Range:
                     keysOrRanges = AccordGenerators.ranges(Murmur3Partitioner.instance).next(rs);
