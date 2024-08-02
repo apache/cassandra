@@ -746,7 +746,6 @@ syntax_rules += r'''
              | [rel_lhs]=<cident> "BETWEEN" <term> "AND" <term>
              | "maxTimeuuid()" "(" [colname]=<cident> ")"
              | "minTimeuuid()" "(" [colname]=<cident> ")"
-             | "token()" "(" [colname]=<cident> ")"
              ;
 <selectClause> ::= "DISTINCT"? <selector> ("AS" <cident>)? ("," <selector> ("AS" <cident>)?)*
                  | "*"
