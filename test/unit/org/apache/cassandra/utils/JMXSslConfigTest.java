@@ -24,6 +24,7 @@ import javax.management.remote.rmi.RMIConnectorServer;
 import javax.net.ssl.SSLException;
 import javax.rmi.ssl.SslRMIServerSocketFactory;
 
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -47,6 +48,17 @@ public class JMXSslConfigTest
     public static void setupDatabaseDescriptor()
     {
         DatabaseDescriptor.daemonInitialization();
+    }
+
+    @After
+    public void resetJmxSslSystemProperties()
+    {
+        COM_SUN_MANAGEMENT_JMXREMOTE_SSL.reset();
+        COM_SUN_MANAGEMENT_JMXREMOTE_SSL_NEED_CLIENT_AUTH.reset();
+        COM_SUN_MANAGEMENT_JMXREMOTE_SSL_ENABLED_PROTOCOLS.reset();
+        COM_SUN_MANAGEMENT_JMXREMOTE_SSL_ENABLED_CIPHER_SUITES.reset();
+        JAVAX_RMI_SSL_CLIENT_ENABLED_PROTOCOLS.reset();
+        JAVAX_RMI_SSL_CLIENT_ENABLED_CIPHER_SUITES.reset();
     }
 
     /**

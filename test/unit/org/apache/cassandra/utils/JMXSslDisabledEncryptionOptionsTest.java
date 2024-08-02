@@ -23,6 +23,7 @@ import java.util.Map;
 import javax.management.remote.rmi.RMIConnectorServer;
 import javax.net.ssl.SSLException;
 
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -33,6 +34,9 @@ import org.apache.cassandra.distributed.shared.WithProperties;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_CONFIG;
 import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_SSL;
+import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_SSL_ENABLED_CIPHER_SUITES;
+import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_SSL_ENABLED_PROTOCOLS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_SSL_NEED_CLIENT_AUTH;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVAX_RMI_SSL_CLIENT_ENABLED_CIPHER_SUITES;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVAX_RMI_SSL_CLIENT_ENABLED_PROTOCOLS;
 
@@ -54,6 +58,17 @@ public class JMXSslDisabledEncryptionOptionsTest
     public static void tearDownDatabaseDescriptor()
     {
         properties.close();
+    }
+
+    @After
+    public void resetJmxSslSystemProperties()
+    {
+        COM_SUN_MANAGEMENT_JMXREMOTE_SSL.reset();
+        COM_SUN_MANAGEMENT_JMXREMOTE_SSL_NEED_CLIENT_AUTH.reset();
+        COM_SUN_MANAGEMENT_JMXREMOTE_SSL_ENABLED_PROTOCOLS.reset();
+        COM_SUN_MANAGEMENT_JMXREMOTE_SSL_ENABLED_CIPHER_SUITES.reset();
+        JAVAX_RMI_SSL_CLIENT_ENABLED_PROTOCOLS.reset();
+        JAVAX_RMI_SSL_CLIENT_ENABLED_CIPHER_SUITES.reset();
     }
 
     /**
