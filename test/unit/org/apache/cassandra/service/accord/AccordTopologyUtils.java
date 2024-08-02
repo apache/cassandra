@@ -24,10 +24,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 
 import accord.local.Node;
+import accord.utils.SortedArrays.SortedArrayList;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
@@ -53,7 +53,7 @@ public class AccordTopologyUtils
     public static final Node.Id ID1 = new Node.Id(1);
     public static final Node.Id ID2 = new Node.Id(2);
     public static final Node.Id ID3 = new Node.Id(3);
-    public static final List<Node.Id> NODE_LIST = ImmutableList.of(ID1, ID2, ID3);
+    public static final SortedArrayList<Node.Id> NODE_LIST = new SortedArrayList<>(new Node.Id[] { ID1, ID2, ID3 });
     public static final Set<Node.Id> NODE_SET = ImmutableSet.copyOf(NODE_LIST);
 
     private static final IPartitioner partitioner = Murmur3Partitioner.instance;

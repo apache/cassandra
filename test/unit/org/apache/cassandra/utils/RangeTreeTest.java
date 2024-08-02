@@ -544,7 +544,7 @@ public class RangeTreeTest
         {
             List<Map.Entry<Range, Integer>> matches = new ArrayList<>();
             // find ranges, then add the values
-            list.forEach(range, (a, b, c, d, idx) -> {
+            list.forEachRange(range, (a, b, c, d, idx) -> {
                 Range match = ranges[idx];
                 map.get(match).forEachInt(v -> matches.add(Map.entry(match, v)));
             }, (a, b, c, d, start, end) -> {

@@ -32,8 +32,9 @@ import java.util.stream.IntStream;
 
 import javax.annotation.Nullable;
 
-import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+
+import accord.utils.SortedArrays.SortedArrayList;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.File;
@@ -157,7 +158,7 @@ public class AccordTestUtils
         {
             Seekable key = txn.keys().get(0);
             RoutingKey routingKey = key.asKey().toUnseekable();
-            return new FullKeyRoute(routingKey, true, new RoutingKey[]{ routingKey });
+            return new FullKeyRoute(routingKey, new RoutingKey[]{ routingKey });
         }
     }
 
@@ -347,7 +348,7 @@ public class AccordTestUtils
     {
         Txn txn = createTxn(key, key);
         Ranges ranges = fullRange(txn);
-        return new PartialTxn.InMemory(ranges, txn.kind(), txn.keys(), txn.read(), txn.query(), txn.update());
+        return new PartialTxn.InMemory(txn.kind(), txn.keys(), txn.read(), txn.query(), txn.update());
     }
 
     private static class SingleEpochRanges extends CommandStore.EpochUpdateHolder
@@ -370,7 +371,7 @@ public class AccordTestUtils
         TableMetadata metadata = Schema.instance.getTableMetadata(keyspace, table);
         TokenRange range = TokenRange.fullRange(metadata.id);
         Node.Id node = new Id(1);
-        Topology topology = new Topology(1, new Shard(range, Lists.newArrayList(node), Sets.newHashSet(node), Collections.emptySet()));
+        Topology topology = new Topology(1, new Shard(range, new SortedArrayList<>(new Id[] { node }), Sets.newHashSet(node), Collections.emptySet()));
         NodeTimeService time = new NodeTimeService()
         {
             @Override public Id id() { return node;}
@@ -437,7 +438,7 @@ public class AccordTestUtils
         TableMetadata metadata = Schema.instance.getTableMetadata(keyspace, table);
         TokenRange range = TokenRange.fullRange(metadata.id);
         Node.Id node = new Id(1);
-        Topology topology = new Topology(1, new Shard(range, Lists.newArrayList(node), Sets.newHashSet(node), Collections.emptySet()));
+        Topology topology = new Topology(1, new Shard(range, new SortedArrayList<>(new Id[] { node }), Sets.newHashSet(node), Collections.emptySet()));
         AccordCommandStore store = createAccordCommandStore(node, now, topology, loadExecutor, saveExecutor);
         store.execute(PreLoadContext.empty(), safeStore -> ((AccordCommandStore)safeStore.commandStore()).setCapacity(1 << 20));
         return store;
@@ -480,9 +481,9 @@ public class AccordTestUtils
         return new Node.Id(id);
     }
 
-    public static List<Node.Id> idList(int... ids)
+    public static SortedArrayList<Id> idList(int... ids)
     {
-        return Arrays.stream(ids).mapToObj(AccordTestUtils::id).collect(Collectors.toList());
+        return new SortedArrayList<>(Arrays.stream(ids).mapToObj(AccordTestUtils::id).toArray(Id[]::new));
     }
 
     public static Set<Id> idSet(int... ids)

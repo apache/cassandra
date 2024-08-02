@@ -464,7 +464,7 @@ public class AccordIndexStressTest extends CQLTester
                     var token = new Murmur3Partitioner.LongToken(rs.nextInt(minToken, maxToken));
                     keys.add(new TokenKey(table, token));
                 }
-                return new FullKeyRoute(keys.first(), true, keys.toArray(RoutingKey[]::new));
+                return new FullKeyRoute(keys.first(), keys.toArray(RoutingKey[]::new));
             }
             case Range:
             {

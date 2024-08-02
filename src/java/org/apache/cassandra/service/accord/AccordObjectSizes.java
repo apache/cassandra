@@ -137,7 +137,7 @@ public class AccordObjectSizes
         return EMPTY_ROUTING_KEYS_SIZE + routingKeysOnly(keys);
     }
 
-    private static final long EMPTY_FULL_KEY_ROUTE_SIZE = measure(new FullKeyRoute(new TokenKey(null, null), true, new RoutingKey[0]));
+    private static final long EMPTY_FULL_KEY_ROUTE_SIZE = measure(new FullKeyRoute(new TokenKey(null, null), new RoutingKey[0]));
     public static long fullKeyRoute(FullKeyRoute route)
     {
         return EMPTY_FULL_KEY_ROUTE_SIZE
@@ -145,12 +145,11 @@ public class AccordObjectSizes
                + key(route.homeKey()); // TODO: we will probably dedup homeKey, serializer dependent, but perhaps this is an acceptable error
     }
 
-    private static final long EMPTY_PARTIAL_KEY_ROUTE_KEYS_SIZE = measure(new PartialKeyRoute(Ranges.EMPTY, new TokenKey(null, null), true, new RoutingKey[0]));
+    private static final long EMPTY_PARTIAL_KEY_ROUTE_KEYS_SIZE = measure(new PartialKeyRoute(new TokenKey(null, null), new RoutingKey[0]));
     public static long partialKeyRoute(PartialKeyRoute route)
     {
         return EMPTY_PARTIAL_KEY_ROUTE_KEYS_SIZE
                + routingKeysOnly(route)
-               + ranges(route.covering())
                + key(route.homeKey());
     }
 
@@ -162,7 +161,7 @@ public class AccordObjectSizes
         return size;
     }
 
-    private static final long EMPTY_FULL_RANGE_ROUTE_SIZE = measure(new FullRangeRoute(new TokenKey(null, null), true, new Range[0]));
+    private static final long EMPTY_FULL_RANGE_ROUTE_SIZE = measure(new FullRangeRoute(new TokenKey(null, null), new Range[0]));
     public static long fullRangeRoute(FullRangeRoute route)
     {
         return EMPTY_FULL_RANGE_ROUTE_SIZE
@@ -170,12 +169,11 @@ public class AccordObjectSizes
                + key(route.homeKey()); // TODO: we will probably dedup homeKey, serializer dependent, but perhaps this is an acceptable error
     }
 
-    private static final long EMPTY_PARTIAL_RANGE_ROUTE_KEYS_SIZE = measure(new PartialRangeRoute(Ranges.EMPTY, new TokenKey(null, null), true, new Range[0]));
+    private static final long EMPTY_PARTIAL_RANGE_ROUTE_KEYS_SIZE = measure(new PartialRangeRoute(new TokenKey(null, null), new Range[0]));
     public static long partialRangeRoute(PartialRangeRoute route)
     {
         return EMPTY_PARTIAL_RANGE_ROUTE_KEYS_SIZE
                + rangesOnly(route)
-               + ranges(route.covering())
                + key(route.homeKey());
     }
 
@@ -193,7 +191,7 @@ public class AccordObjectSizes
         }
     }
 
-    private static final long EMPTY_TXN = measure(new PartialTxn.InMemory(null, null, null, null, null, null));
+    private static final long EMPTY_TXN = measure(new PartialTxn.InMemory(null, null, null, null, null));
     public static long txn(PartialTxn txn)
     {
         long size = EMPTY_TXN;
@@ -283,13 +281,13 @@ public class AccordObjectSizes
 
         private static CommonAttributes attrs(boolean hasDeps, boolean hasTxn)
         {
-            CommonAttributes.Mutable attrs = new CommonAttributes.Mutable(EMPTY_TXNID).route(new FullKeyRoute(EMPTY_KEY, true, new RoutingKey[]{ EMPTY_KEY }));
+            CommonAttributes.Mutable attrs = new CommonAttributes.Mutable(EMPTY_TXNID).route(new FullKeyRoute(EMPTY_KEY, new RoutingKey[]{ EMPTY_KEY }));
             attrs.durability(Status.Durability.NotDurable);
             if (hasDeps)
                 attrs.partialDeps(PartialDeps.NONE);
 
             if (hasTxn)
-                attrs.partialTxn(new PartialTxn.InMemory(null, null, null, null, null, null));
+                attrs.partialTxn(new PartialTxn.InMemory(null, null, null, null, null));
 
             return attrs;
         }

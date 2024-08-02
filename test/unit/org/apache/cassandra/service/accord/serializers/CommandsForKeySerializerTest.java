@@ -183,7 +183,7 @@ public class CommandsForKeySerializerTest
                     else return Command.SerializerSupport.truncatedApply(attributes(), saveStatus, executeAt, new Writes(txnId, executeAt, txn.keys(), new TxnWrite(Collections.emptyList(), true)), new TxnData());
 
                 case Erased:
-                case ErasedOrInvalidated:
+                case ErasedOrInvalidOrVestigial:
                 case Invalidated:
                     return Command.SerializerSupport.invalidated(txnId, Listeners.Immutable.EMPTY);
             }
