@@ -38,6 +38,7 @@ import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.metrics.ServiceLevelIndicatorMetrics;
 import org.apache.cassandra.service.EmbeddedCassandraService;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.throttler.dynamic.CassandraResourceUtilization;
 
 import static org.apache.cassandra.transport.Dispatcher.NATIVE_TRANSPORT_THREAD_POOL;
 
@@ -170,9 +171,23 @@ public class AutomatedTrasnsportQueueClearTest extends CQLTester
         Assert.assertTrue(pendingQueue2 > 100);
 
         // Cleanup the queue through nodetool
-        StorageService.instance.nativeTransportCleanupEMERGENCYUSEONLY();
+        StorageService.instance.internalQueueCleanupEMERGENCYUSEONLY(NATIVE_TRANSPORT_THREAD_POOL);
         int pendingQueue3 = nativeTransportSEPTP.getPendingTaskCount();
         System.out.println("TimedOutBeforeProcessing3: " + ClientMetrics.instance.timedOutBeforeProcessing.getCount() + ", pendingQueue3: " + pendingQueue3);
         Assert.assertEquals(0, pendingQueue3);
+    }
+
+    @Test
+    public void testInternalQueue()
+    {
+        session.execute(String.format("INSERT INTO transport.tbl (id, a, b, c) VALUES (%d, %d, %d, %d);", 1, 2, 3, 4)); // insert a row to activate the Mutation thread pool
+        session.execute("SELECT * FROM transport.tbl WHERE id = 1"); // read a row to activate the Read thread pool
+        Assert.assertTrue(StorageService.instance.internalQueueCleanupEMERGENCYUSEONLY(NATIVE_TRANSPORT_THREAD_POOL));
+        Assert.assertEquals(0, SharedExecutorPool.SHARED.getExecutor(NATIVE_TRANSPORT_THREAD_POOL).getPendingTaskCount());
+        Assert.assertTrue(StorageService.instance.internalQueueCleanupEMERGENCYUSEONLY(CassandraResourceUtilization.READ_THREAD_POOL));
+        Assert.assertEquals(0, SharedExecutorPool.SHARED.getExecutor(CassandraResourceUtilization.READ_THREAD_POOL).getPendingTaskCount());
+        Assert.assertTrue(StorageService.instance.internalQueueCleanupEMERGENCYUSEONLY(CassandraResourceUtilization.MUTATION_THREAD_POOL));
+        Assert.assertEquals(0, SharedExecutorPool.SHARED.getExecutor(CassandraResourceUtilization.MUTATION_THREAD_POOL).getPendingTaskCount());
+        Assert.assertFalse(StorageService.instance.internalQueueCleanupEMERGENCYUSEONLY("Some invalid queue"));
     }
 }

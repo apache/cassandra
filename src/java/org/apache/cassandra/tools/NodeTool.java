@@ -101,7 +101,7 @@ public class NodeTool
                 CfStats.class,
                 CheckTokenMetadata.class,
                 Cleanup.class,
-                ClearNativeTransportQueue.class,
+                ClearInternalQueue.class,
                 ClearSnapshot.class,
                 ClearSnapshotFiles.class,
                 ClientStats.class,

@@ -1194,5 +1194,5 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     /** WARNING!!!!! DO NOT USE THIS API FOR PRODUCTION; THIS IS EMERGENCY
      TOOLING FOR FASTER MITIGATION PURPOSES ONLY  */
-    public void nativeTransportCleanupEMERGENCYUSEONLY();
+    public boolean internalQueueCleanupEMERGENCYUSEONLY(String queueName);
 }

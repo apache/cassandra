@@ -2877,9 +2877,9 @@ public class NodeProbe implements AutoCloseable
         ssProxy.setNativeTransportTimeoutMillis(deadlineMillis);
     }
 
-    public void nativeTransportCleanupEMERGENCYUSEONLY()
+    public boolean internalQueueCleanupEMERGENCYUSEONLY(String queueName)
     {
-        ssProxy.nativeTransportCleanupEMERGENCYUSEONLY();
+        return ssProxy.internalQueueCleanupEMERGENCYUSEONLY(queueName);
     }
 }
 

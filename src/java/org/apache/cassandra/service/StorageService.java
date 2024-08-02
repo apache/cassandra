@@ -261,7 +261,6 @@ import static org.apache.cassandra.net.NoPayload.noPayload;
 import static org.apache.cassandra.net.Verb.REPLICATION_DONE_REQ;
 import static org.apache.cassandra.service.ActiveRepairService.ParentRepairStatus;
 import static org.apache.cassandra.service.ActiveRepairService.repairCommandExecutor;
-import static org.apache.cassandra.transport.Dispatcher.NATIVE_TRANSPORT_THREAD_POOL;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
@@ -7546,9 +7545,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     }
 
     @Override
-    public void nativeTransportCleanupEMERGENCYUSEONLY()
+    public boolean internalQueueCleanupEMERGENCYUSEONLY(String queueName)
     {
-        SEPExecutor nativeTransportSEPTP = SharedExecutorPool.SHARED.getExecutor(NATIVE_TRANSPORT_THREAD_POOL);
-        nativeTransportSEPTP.nativeTransportCleanupEMERGENCYUSEONLY();
+        SEPExecutor internalQueueSEPTP = SharedExecutorPool.SHARED.getExecutor(queueName);
+        if (internalQueueSEPTP != null)
+        {
+            internalQueueSEPTP.internalQueueCleanupEMERGENCYUSEONLY();
+            return true;
+        }
+        return false;
     }
 }

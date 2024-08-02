@@ -61,11 +61,11 @@ public class CassandraResourceUtilization
     private static final String THROW_MESSAGE = "from dynamic throttler";
     // TODO: make this configurable
     private final IResourceUtilzation resourceUtilzation = new NativeResourceUtilization();
-    private static final String READ_THREAD_POOL = "ReadStage";
-    private static final String MUTATION_THREAD_POOL = "MutationStage";
     protected static double MAX_THROTTLING = 1.0;
     protected static int LOG_CPU_CORES_INTERVAL_MINUTES = 10;
 
+    public static final String READ_THREAD_POOL = "ReadStage";
+    public static final String MUTATION_THREAD_POOL = "MutationStage";
     public boolean isSetupComplete = false;
     public volatile double currentThrottlingPercentage;
     public ScheduledExecutorPlus reportThread = executorFactory().scheduled(false, "CassandraResourceUtilization", Thread.MAX_PRIORITY);

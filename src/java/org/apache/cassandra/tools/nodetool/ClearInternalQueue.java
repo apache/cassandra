@@ -22,23 +22,40 @@ import io.airlift.airline.Option;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
-@Command(name = "clearnativetransportqueue", description = "Clears the native transport queue. Be careful before you execute this command, as it will clear the native transport queue and may cause unexpected behavior to the clients, such as timeout, etc.")
-public class ClearNativeTransportQueue extends NodeToolCmd
+import static org.apache.commons.lang3.StringUtils.EMPTY;
+
+@Command(name = "clearinternalqueue", description = "Clears the internal queue. Be careful before you execute this command, as it will clear the queue and may cause unexpected behavior to the clients, such as timeout, etc.")
+public class ClearInternalQueue extends NodeToolCmd
 {
     @Option(title = "realclean",
     name = { "-r", "--realclean" },
-    description = "Clears the native transport queue. Be careful before you execute this command, as it will clear the native transport queue and may cause unexpected behavior to the clients, such as timeout, etc.")
+    description = "Clears the internal queue. Be careful before you execute this command, as it will clear the queue and may cause unexpected behavior to the clients, such as timeout, etc.")
     private boolean realclean = false;
+
+    @Option(title = "queue_name", name = "-q", description = "The name of the queue to clear. For example, Native-Transport-Requests, MutationStage, ReadStage, etc.")
+
+    private String queueName = EMPTY;
 
     @Override
     public void execute(NodeProbe probe)
     {
+        if(queueName.isEmpty())
+        {
+            throw new RuntimeException("Queue name cannot be empty. Some of the valid names are: Native-Transport-Requests, MutationStage, ReadStage, etc.");
+        }
         if (realclean)
         {
             System.out.println("WARNING!!!!! DO NOT USE THIS API FOR PRODUCTION; THIS IS EMERGENCY TOOLING FOR FASTER MITIGATION PURPOSES ONLY");
             /** WARNING!!!!! DO NOT USE THIS API FOR PRODUCTION; THIS IS EMERGENCY
              TOOLING FOR FASTER MITIGATION PURPOSES ONLY  */
-            probe.nativeTransportCleanupEMERGENCYUSEONLY();
+            if (probe.internalQueueCleanupEMERGENCYUSEONLY(queueName))
+            {
+                System.out.printf("Internal queue %s cleared successfully.\n", queueName);
+            }
+            else
+            {
+                System.err.printf("Internal queue %s could not be cleared.%n", queueName);
+            }
         }
     }
 }
