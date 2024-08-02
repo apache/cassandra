@@ -18,17 +18,19 @@
 
 package org.apache.cassandra.db.commitlog;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.PathUtils;
+
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.Properties;
@@ -37,51 +39,63 @@ import static org.junit.Assert.assertTrue;
 
 public class CommitLogArchiverTest extends CQLTester
 {
-    private static String dirName = "backup_commitlog";
-    private static Path backupDir;
+    private static Path dirName = Path.of("/tmp/backup_commitlog_for_test");
     private static String rpiTime = "2024:03:22 20:43:12.633222";
     private static CommitLogArchiver archiver;
 
     @BeforeClass
     public static void beforeClass() throws IOException
     {
-        backupDir = Files.createTempDirectory(dirName);
+        PathUtils.createDirectoryIfNotExists(dirName);
         CommitLog commitLog = CommitLog.instance;
         Properties properties = new Properties();
         archiver = commitLog.archiver;
-        properties.putAll(Map.of("archive_command", "/bin/cp %path " + backupDir,
+        properties.putAll(Map.of("archive_command", "/bin/cp %path " + dirName,
                                  "restore_command", "/bin/cp -f %from %to",
-                                 "restore_directories", backupDir,
+                                 "restore_directories", dirName,
                                  "restore_point_in_time", rpiTime));
         CommitLogArchiver commitLogArchiver = CommitLogArchiver.getArchiverFromProperty(properties);
+        // set the archiver at the very beginning
         commitLog.setCommitlogArchiver(commitLogArchiver);
+        // set the CommitLogSegment size to 1M
+        DatabaseDescriptor.setCommitLogSegmentSize(1);
     }
 
     @AfterClass
     public static void afterClass() throws IOException
     {
-        File dir = new File(backupDir);
+        File dir = new File(dirName);
         dir.deleteRecursive();
         CommitLog.instance.setCommitlogArchiver(archiver);
     }
 
     @Test
-    public void testArchiveAndRestore() throws IOException
+    public void testArchiver()
     {
-        CommitLog.instance.resetUnsafe(true);
-        String table = createTable(KEYSPACE, "CREATE TABLE %s (a TEXT PRIMARY KEY, b INT);");
+        File dir = new File(dirName);
+        assertTrue(dir.isDirectory() && dir.tryList().length == 0);
 
+        String table = createTable(KEYSPACE, "CREATE TABLE %s (a TEXT PRIMARY KEY, b TEXT);");
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(table);
         long ts = CommitLogArchiver.getMicroSeconds(rpiTime);
-        for (int i = 1; i <= 10; ++i)
+
+        String value = "";
+        // Make sure that new CommitLogSegment will be allocated as the CommitLogSegment size is 1M
+        // and if new CommitLogSegment is allocated then the old CommitLogSegment will be archived.
+        for (int i = 0; i != 10000; ++i)
+        {
+            value += i;
+        }
+        for (int i = 1; i <= 2000; ++i)
         {
             new RowUpdateBuilder(cfs.metadata(), ts - i, "name-" + i)
-                    .add("b", i)
+                    .add("b", value)
                     .build()
                     .apply();
         }
-        // commitlog may be archived and deleted by resetUnsafe then the commitlog in the write path may throw no such file exception
-        CommitLog.instance.resetUnsafe(false, false);
-        assertTrue(Files.list(backupDir).count() > 0);
+
+        // If the number of files that under backup dir is bigger than 1, that means the
+        // arhiver for commitlog is effective.
+        assertTrue(dir.isDirectory() && dir.tryList().length > 0);
     }
 }
