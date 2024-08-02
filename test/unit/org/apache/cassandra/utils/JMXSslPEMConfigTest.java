@@ -38,6 +38,10 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MA
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVAX_RMI_SSL_CLIENT_ENABLED_CIPHER_SUITES;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVAX_RMI_SSL_CLIENT_ENABLED_PROTOCOLS;
 
+/**
+ * This class tests for JMX SSL config using keystore/trusstore in the PEM format with jmx_encryption_options in the
+ * cassandra.yaml.
+ */
 public class JMXSslPEMConfigTest
 {
     static WithProperties properties;
@@ -45,7 +49,7 @@ public class JMXSslPEMConfigTest
     @BeforeClass
     public static void setupDatabaseDescriptor()
     {
-        properties = new WithProperties().set(CASSANDRA_CONFIG, "cassandra-jmx-pem-sslcontextfactory.yaml");
+        properties = new WithProperties().set(CASSANDRA_CONFIG, "cassandra-jmx-pem-sslconfig.yaml");
         DatabaseDescriptor.daemonInitialization();
     }
 
@@ -68,6 +72,7 @@ public class JMXSslPEMConfigTest
 
         Assert.assertTrue("com.sun.management.jmxremote.ssl must be true", COM_SUN_MANAGEMENT_JMXREMOTE_SSL.getBoolean());
         Assert.assertNotNull("ServerSocketFactory must not be null", env.get(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE));
+        Assert.assertTrue("RMI_SERVER_SOCKET_FACTORY must be of JMXSslRMIServerSocketFactory type", env.get(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE) instanceof JMXSslRMIServerSocketFactory);
         Assert.assertNotNull("ClientSocketFactory must not be null", env.get(RMIConnectorServer.RMI_CLIENT_SOCKET_FACTORY_ATTRIBUTE));
         Assert.assertNotNull("com.sun.jndi.rmi.factory.socket must be set in the env", env.get("com.sun.jndi.rmi.factory.socket"));
         Assert.assertEquals("javax.rmi.ssl.client.enabledProtocols must match", expectedProtocols, JAVAX_RMI_SSL_CLIENT_ENABLED_PROTOCOLS.getString());

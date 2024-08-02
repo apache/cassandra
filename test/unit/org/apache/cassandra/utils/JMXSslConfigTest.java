@@ -22,6 +22,7 @@ import java.net.InetAddress;
 import java.util.Map;
 import javax.management.remote.rmi.RMIConnectorServer;
 import javax.net.ssl.SSLException;
+import javax.rmi.ssl.SslRMIServerSocketFactory;
 
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -36,6 +37,9 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MA
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVAX_RMI_SSL_CLIENT_ENABLED_CIPHER_SUITES;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVAX_RMI_SSL_CLIENT_ENABLED_PROTOCOLS;
 
+/**
+ * This class tests for Local JMX settings and the SSL configuration via System Properties.
+ */
 public class JMXSslConfigTest
 {
     @BeforeClass
@@ -57,6 +61,7 @@ public class JMXSslConfigTest
         Map<String, Object> env = JMXServerUtils.configureJmxSocketFactories(serverAddress, false);
 
         Assert.assertNotNull("ServerSocketFactory must not be null", env.get(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE));
+        Assert.assertTrue("RMI_SERVER_SOCKET_FACTORY must be of SslRMIServerSocketFactory type", env.get(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE) instanceof SslRMIServerSocketFactory);
         Assert.assertNotNull("ClientSocketFactory must not be null", env.get(RMIConnectorServer.RMI_CLIENT_SOCKET_FACTORY_ATTRIBUTE));
         Assert.assertNotNull("com.sun.jndi.rmi.factory.socket must be set in the env", env.get("com.sun.jndi.rmi.factory.socket"));
         Assert.assertEquals("protocols must match", enabledProtocols, JAVAX_RMI_SSL_CLIENT_ENABLED_PROTOCOLS.getString());

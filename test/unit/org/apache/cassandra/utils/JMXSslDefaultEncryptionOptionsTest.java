@@ -23,12 +23,14 @@ import java.util.Map;
 import javax.management.remote.rmi.RMIConnectorServer;
 import javax.net.ssl.SSLException;
 
+import org.apache.commons.lang3.StringUtils;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.distributed.shared.WithProperties;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_CONFIG;
@@ -36,14 +38,17 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MA
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVAX_RMI_SSL_CLIENT_ENABLED_CIPHER_SUITES;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVAX_RMI_SSL_CLIENT_ENABLED_PROTOCOLS;
 
-public class JMXSslDisabledPluggableConfigTest
+/**
+ * This class tests for Default JMX SSL configuration specified in the cassandra.yaml using jmx_encryption_options.
+ */
+public class JMXSslDefaultEncryptionOptionsTest
 {
     static WithProperties properties;
 
     @BeforeClass
     public static void setupDatabaseDescriptor()
     {
-        properties = new WithProperties().set(CASSANDRA_CONFIG, "cassandra-jmx-disabled-sslcontextfactory.yaml");
+        properties = new WithProperties().set(CASSANDRA_CONFIG, "cassandra-jmx-sslconfig.yaml");
         DatabaseDescriptor.daemonInitialization();
     }
 
@@ -54,28 +59,22 @@ public class JMXSslDisabledPluggableConfigTest
     }
 
     @Test
-    public void testJMXDisabledPluggableConfig() throws SSLException
+    public void testJMXPluggableConfig() throws SSLException
     {
+        EncryptionOptions jmxEncryptionOptions = DatabaseDescriptor.getJmxEncryptionOptions();
+        String expectedProtocols = StringUtils.join(jmxEncryptionOptions.getAcceptedProtocols(), ",");
+        String expectedCipherSuites = StringUtils.join(jmxEncryptionOptions.cipherSuitesArray(), ",");
+
         InetAddress serverAddress = InetAddress.getLoopbackAddress();
         COM_SUN_MANAGEMENT_JMXREMOTE_SSL.setBoolean(false);
         Map<String, Object> env = JMXServerUtils.configureJmxSocketFactories(serverAddress, false);
-        Assert.assertTrue("no properties must be set", env.isEmpty());
-        Assert.assertFalse("com.sun.management.jmxremote.ssl must be false", COM_SUN_MANAGEMENT_JMXREMOTE_SSL.getBoolean());
-        Assert.assertNull("javax.rmi.ssl.client.enabledProtocols must be null", JAVAX_RMI_SSL_CLIENT_ENABLED_PROTOCOLS.getString());
-        Assert.assertNull("javax.rmi.ssl.client.enabledCipherSuites must be null", JAVAX_RMI_SSL_CLIENT_ENABLED_CIPHER_SUITES.getString());
-    }
 
-    @Test
-    public void testJMXDisabledPluggableConfigAndLocalEnabled() throws SSLException
-    {
-        InetAddress serverAddress = InetAddress.getLoopbackAddress();
-        COM_SUN_MANAGEMENT_JMXREMOTE_SSL.setBoolean(false);
-        Map<String, Object> env = JMXServerUtils.configureJmxSocketFactories(serverAddress, true);
-        Assert.assertFalse("com.sun.management.jmxremote.ssl must be false", COM_SUN_MANAGEMENT_JMXREMOTE_SSL.getBoolean());
-        Assert.assertNull("com.sun.jndi.rmi.factory.socket must be null", env.get("com.sun.jndi.rmi.factory.socket"));
+        Assert.assertTrue("com.sun.management.jmxremote.ssl must be true", COM_SUN_MANAGEMENT_JMXREMOTE_SSL.getBoolean());
         Assert.assertNotNull("ServerSocketFactory must not be null", env.get(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE));
-        Assert.assertFalse("com.sun.management.jmxremote.ssl must be false", COM_SUN_MANAGEMENT_JMXREMOTE_SSL.getBoolean());
-        Assert.assertNull("javax.rmi.ssl.client.enabledProtocols must be null", JAVAX_RMI_SSL_CLIENT_ENABLED_PROTOCOLS.getString());
-        Assert.assertNull("javax.rmi.ssl.client.enabledCipherSuites must be null", JAVAX_RMI_SSL_CLIENT_ENABLED_CIPHER_SUITES.getString());
+        Assert.assertTrue("RMI_SERVER_SOCKET_FACTORY must be of JMXSslRMIServerSocketFactory type", env.get(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE) instanceof JMXSslRMIServerSocketFactory);
+        Assert.assertNotNull("ClientSocketFactory must not be null", env.get(RMIConnectorServer.RMI_CLIENT_SOCKET_FACTORY_ATTRIBUTE));
+        Assert.assertNotNull("com.sun.jndi.rmi.factory.socket must be set in the env", env.get("com.sun.jndi.rmi.factory.socket"));
+        Assert.assertEquals("javax.rmi.ssl.client.enabledProtocols must match", expectedProtocols, JAVAX_RMI_SSL_CLIENT_ENABLED_PROTOCOLS.getString());
+        Assert.assertEquals("javax.rmi.ssl.client.enabledCipherSuites must match", expectedCipherSuites, JAVAX_RMI_SSL_CLIENT_ENABLED_CIPHER_SUITES.getString() );
     }
 }
