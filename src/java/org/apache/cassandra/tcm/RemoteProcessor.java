@@ -152,7 +152,7 @@ public final class RemoteProcessor implements Processor
     {
         try
         {
-            return fetchLogAndWaitInternal(candidateIterator, log).awaitUninterruptibly().get();
+            return fetchLogAndWaitInternal(candidateIterator, log).await().get();
         }
         catch (InterruptedException | ExecutionException e)
         {
@@ -191,7 +191,7 @@ public final class RemoteProcessor implements Processor
         {
             Promise<RSP> promise = new AsyncPromise<>();
             sendWithCallbackAsync(promise, verb, request, candidates, retryPolicy);
-            return promise.awaitUninterruptibly().get();
+            return promise.await().get();
         }
         catch (InterruptedException | ExecutionException e)
         {

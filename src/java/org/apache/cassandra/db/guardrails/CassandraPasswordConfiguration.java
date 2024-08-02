@@ -21,6 +21,7 @@ package org.apache.cassandra.db.guardrails;
 import java.util.Arrays;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.util.File;
 import org.passay.IllegalSequenceRule;
 
 import static java.lang.String.format;
@@ -71,6 +72,7 @@ public class CassandraPasswordConfiguration
     public static final String SPECIAL_FAIL_KEY = "special_fail";
 
     public static final String ILLEGAL_SEQUENCE_LENGTH_KEY = "illegal_sequence_length";
+    public static final String DICTIONARY_KEY = "dictionary";
 
     public static final String DETAILED_MESSAGES_KEY = "detailed_messages";
 
@@ -93,7 +95,9 @@ public class CassandraPasswordConfiguration
     protected final int specialsWarn;
     protected final int specialsFail;
 
+    // various
     protected final int illegalSequenceLength;
+    protected final String dictionary;
 
     public boolean detailedMessages;
 
@@ -115,6 +119,7 @@ public class CassandraPasswordConfiguration
         config.put(SPECIAL_FAIL_KEY, specialsFail);
         config.put(ILLEGAL_SEQUENCE_LENGTH_KEY, illegalSequenceLength);
         config.put(DETAILED_MESSAGES_KEY, detailedMessages);
+        config.put(DICTIONARY_KEY, dictionary);
 
         return config;
     }
@@ -141,6 +146,7 @@ public class CassandraPasswordConfiguration
         specialsFail = config.resolveInteger(SPECIAL_FAIL_KEY, DEFAULT_SPECIAL_FAIL);
 
         illegalSequenceLength = config.resolveInteger(ILLEGAL_SEQUENCE_LENGTH_KEY, DEFAULT_ILLEGAL_SEQUENCE_LENGTH);
+        dictionary = config.resolveString(DICTIONARY_KEY);
         detailedMessages = config.resolveBoolean(DETAILED_MESSAGES_KEY, true);
 
         validateParameters();
@@ -258,6 +264,16 @@ public class CassandraPasswordConfiguration
                                                     minimumLenghtOfFailCharacteristics,
                                                     LENGTH_FAIL_KEY,
                                                     lengthFail));
+
+        if (dictionary != null)
+        {
+            File dictionaryFile = new File(dictionary);
+            if (!dictionaryFile.exists())
+                throw new ConfigurationException(format("Dictionary file %s does not exist.", dictionary));
+
+            if (!dictionaryFile.isReadable())
+                throw new ConfigurationException(format("Dictionary file %s is not readable.", dictionary));
+        }
     }
 
     private ConfigurationException getValidationException(String key1, int value1, String key2, int value2)

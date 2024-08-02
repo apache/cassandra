@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.db.guardrails;
 
+import java.io.IOException;
+import java.io.RandomAccessFile; // checkstyle: permit this import
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -38,6 +40,7 @@ import org.passay.CyrillicModernSequenceData;
 import org.passay.CyrillicSequenceData;
 import org.passay.CzechCharacterData;
 import org.passay.CzechSequenceData;
+import org.passay.DictionaryRule;
 import org.passay.EnglishCharacterData;
 import org.passay.EnglishSequenceData;
 import org.passay.GermanCharacterData;
@@ -54,6 +57,8 @@ import org.passay.RuleResultDetail;
 import org.passay.RuleResultMetadata;
 import org.passay.SequenceData;
 import org.passay.WhitespaceRule;
+import org.passay.dictionary.FileWordList;
+import org.passay.dictionary.WordListDictionary;
 
 import static java.util.Optional.empty;
 import static org.passay.EnglishCharacterData.Digit;
@@ -129,6 +134,10 @@ import static org.passay.EnglishCharacterData.Digit;
  *    <li>tests if a password does not violate a warning threshold, if it does, warning is emitted</li>
  * </ol>
  * <p>
+ * Passwords will be searched against a dictionary if "dictionary" configuration property is specified pointing to
+ * a dictionary to read passwords from. This dictionary is all cached in a memory. Dictionary lookup is done
+ * only upon {@link #shouldFail(String, boolean)} method call.
+ * <p>
  *
  * @see CharacterCharacteristicsRule
  * @see CassandraPasswordConfiguration
@@ -138,13 +147,16 @@ import static org.passay.EnglishCharacterData.Digit;
  * @see ValueValidator#shouldWarn(Object, boolean)
  * @see ValueValidator#shouldFail(Object, boolean)
  */
-public class CassandraPasswordValidator extends ValueValidator<String>
+public class CassandraPasswordValidator extends ValueValidator<String> implements PasswordDictionaryAware<CassandraPasswordConfiguration>
 {
+    private static final RuleResult VALID = new RuleResult(true);
+
     protected final PasswordValidator warnValidator;
     protected final PasswordValidator failValidator;
 
     protected final CassandraPasswordConfiguration configuration;
     private final UnsupportedCharsetRule unsupportedCharsetRule = new UnsupportedCharsetRule();
+    private final DictionaryRule dictionaryRule;
     private final boolean provideDetailedMessages;
 
     public CassandraPasswordValidator(CustomGuardrailConfig config)
@@ -152,6 +164,8 @@ public class CassandraPasswordValidator extends ValueValidator<String>
         super(config);
         configuration = new CassandraPasswordConfiguration(config);
         provideDetailedMessages = configuration.detailedMessages;
+
+        dictionaryRule = initializeDictionaryRule(configuration);
 
         warnValidator = new PasswordValidator(getRules(configuration.lengthWarn,
                                                        configuration.maxLength,
@@ -204,6 +218,12 @@ public class CassandraPasswordValidator extends ValueValidator<String>
         }
         else
         {
+            if (!toWarn && configuration.dictionary != null) // for shouldFail
+            {
+                RuleResult result = foundInDictionary(passwordData);
+                if (!result.isValid())
+                    return Optional.of(getValidationMessage(calledBySuperUser, validator, false, result));
+            }
             RuleResult result = validator.validate(passwordData);
             return result.isValid() ? empty() : Optional.of(getValidationMessage(calledBySuperUser, validator, toWarn, result));
         }
@@ -294,6 +314,24 @@ public class CassandraPasswordValidator extends ValueValidator<String>
                                                redactedMessage);
             }
         }
+    }
+
+    @Override
+    public RuleResult foundInDictionary(String password)
+    {
+        if (dictionaryRule == null)
+            return VALID;
+
+        return dictionaryRule.validate(new PasswordData(password));
+    }
+
+    @Override
+    public RuleResult foundInDictionary(PasswordData passwordData)
+    {
+        if (dictionaryRule == null)
+            return VALID;
+
+        return dictionaryRule.validate(passwordData);
     }
 
     protected static class CustomLowerCaseCharacterData implements CharacterData
@@ -434,6 +472,35 @@ public class CassandraPasswordValidator extends ValueValidator<String>
                         new CassandraPasswordValidator.CustomLowerCaseCharacterData().getCharacters() +
                         CassandraPasswordValidator.specialCharacters.getCharacters() +
                         "0123456789").toCharArray();
+        }
+    }
+
+    @Override
+    public DictionaryRule initializeDictionaryRule(CassandraPasswordConfiguration configuration)
+    {
+        if (configuration.dictionary == null)
+            return null;
+
+        try
+        {
+            RandomAccessFile raf = new RandomAccessFile(configuration.dictionary, "r");
+            FileWordList fileWordList = new FileWordList(raf, true, 100);
+            WordListDictionary wordListDictionary = new WordListDictionary(fileWordList);
+            return new DictionaryRule(wordListDictionary);
+        }
+        catch (IllegalArgumentException ex)
+        {
+            // improve message a little bit
+            if ("File is not sorted correctly for this comparator".equals(ex.getMessage()))
+                throw new ConfigurationException("Dictionary file " + configuration.dictionary + " is not correctly " +
+                                                 "sorted for case-sensitive comparator according to String's " +
+                                                 "compareTo contract.");
+            else
+                throw new ConfigurationException(ex.getMessage());
+        }
+        catch (IOException ex)
+        {
+            throw new ConfigurationException(ex.getMessage());
         }
     }
 }

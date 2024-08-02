@@ -137,5 +137,11 @@ public final class Marker extends Term.NonTerminal
         {
             return "?";
         }
+
+        @Override
+        public boolean containsBindMarker()
+        {
+            return true;
+        }
     }
 }

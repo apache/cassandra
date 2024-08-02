@@ -1012,6 +1012,8 @@ public class DatabaseDescriptor
                                                            conf.native_transport_min_backoff_on_queue_overload,
                                                            conf.native_transport_max_backoff_on_queue_overload));
 
+        if (conf.use_deterministic_table_id)
+            logger.warn("use_deterministic_table_id is no longer supported and should be removed from cassandra.yaml.");
     }
 
     @VisibleForTesting
@@ -3485,16 +3487,6 @@ public class DatabaseDescriptor
     public static Set<String> hintedHandoffDisabledDCs()
     {
         return conf.hinted_handoff_disabled_datacenters;
-    }
-
-    public static boolean useDeterministicTableID()
-    {
-        return conf != null && conf.use_deterministic_table_id;
-    }
-
-    public static void useDeterministicTableID(boolean value)
-    {
-        conf.use_deterministic_table_id = value;
     }
 
     public static void enableHintsForDC(String dc)
