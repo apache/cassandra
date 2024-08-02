@@ -32,6 +32,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Ordering;
 
 import accord.local.Cleanup;
+import accord.local.CommandStores.RangesForEpoch;
 import accord.local.DurableBefore;
 import accord.local.RedundantBefore;
 import accord.local.SaveStatus;
@@ -87,7 +88,6 @@ import org.apache.cassandra.service.accord.IAccordService;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.paxos.PaxosRepairHistory;
 import org.apache.cassandra.service.paxos.uncommitted.PaxosRows;
-import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static accord.local.Cleanup.TRUNCATE_WITH_OUTCOME;
@@ -784,6 +784,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
     class AccordCommandsPurger extends AbstractPurger
     {
         final Int2ObjectHashMap<RedundantBefore> redundantBefores;
+        final Int2ObjectHashMap<RangesForEpoch> ranges;
         final DurableBefore durableBefore;
 
         int storeId;
@@ -791,9 +792,10 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
         AccordCommandsPurger(Supplier<IAccordService> accordService)
         {
-            Pair<Int2ObjectHashMap<RedundantBefore>, DurableBefore> redundantBeforesAndDurableBefore = accordService.get().getRedundantBeforesAndDurableBefore();
-            this.redundantBefores = redundantBeforesAndDurableBefore.left;
-            this.durableBefore = redundantBeforesAndDurableBefore.right;
+            IAccordService.CompactionInfo compactionInfo = accordService.get().getCompactionInfo();
+            this.redundantBefores = compactionInfo.redundantBefores;
+            this.ranges = compactionInfo.ranges;
+            this.durableBefore = compactionInfo.durableBefore;
         }
 
         protected void beginPartition(UnfilteredRowIterator partition)
@@ -815,7 +817,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
             // When commands end up being sliced by compaction we need this to discard tombstones and slices
             // without enough information to run the rest of the cleanup logic
-            if (Cleanup.isSafeToCleanup(durableBefore, txnId))
+            if (Cleanup.isSafeToCleanup(durableBefore, txnId, ranges.get(storeId).allAt(txnId.epoch())))
                 return null;
 
             Cell durabilityCell = row.getCell(CommandsColumns.durability);
@@ -878,7 +880,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
         AccordTimestampsForKeyPurger(Supplier<IAccordService> accordService)
         {
-            this.redundantBefores = accordService.get().getRedundantBeforesAndDurableBefore().left;
+            this.redundantBefores = accordService.get().getCompactionInfo().redundantBefores;
         }
 
         protected void beginPartition(UnfilteredRowIterator partition)
@@ -954,7 +956,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         AccordCommandsForKeyPurger(CommandsForKeyAccessor accessor, Supplier<IAccordService> accordService)
         {
             this.accessor = accessor;
-            this.redundantBefores = accordService.get().getRedundantBeforesAndDurableBefore().left;
+            this.redundantBefores = accordService.get().getCompactionInfo().redundantBefores;
         }
 
         protected void beginPartition(UnfilteredRowIterator partition)

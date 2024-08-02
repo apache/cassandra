@@ -18,16 +18,16 @@
 
 package org.apache.cassandra.service.accord.fastpath;
 
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 
 import accord.local.Node;
 import accord.topology.Shard;
+import accord.utils.ArrayBuffers;
 import accord.utils.Invariants;
+import accord.utils.SortedArrays.SortedArrayList;
 
 public class SimpleFastPathStrategy implements FastPathStrategy
 {
@@ -38,26 +38,27 @@ public class SimpleFastPathStrategy implements FastPathStrategy
     private SimpleFastPathStrategy() {}
 
     @Override
-    public Set<Node.Id> calculateFastPath(List<Node.Id> nodes, Set<Node.Id> unavailable, Map<Node.Id, String> dcMap)
+    public SortedArrayList<Node.Id> calculateFastPath(SortedArrayList<Node.Id> nodes, Set<Node.Id> unavailable, Map<Node.Id, String> dcMap)
     {
         int maxFailures = Shard.maxToleratedFailures(nodes.size());
         int discarded = 0;
 
-        ImmutableSet.Builder<Node.Id> builder = ImmutableSet.builder();
+        if (unavailable.isEmpty())
+            return nodes;
 
+        Object[] tmp = ArrayBuffers.cachedAny().get(nodes.size());
         for (int i=0,mi=nodes.size(); i<mi; i++)
         {
             Node.Id node = nodes.get(i);
             if (unavailable.contains(node) && discarded < maxFailures)
-            {
                 discarded++;
-                continue;
-            }
-
-            builder.add(node);
+            else
+                tmp[i - discarded] = node;
         }
 
-        Set<Node.Id> fastPath = builder.build();
+        Node.Id[] array = new Node.Id[nodes.size() - discarded];
+        System.arraycopy(tmp, 0, array, 0, nodes.size() - discarded);
+        SortedArrayList<Node.Id> fastPath = new SortedArrayList<>(array);
         Invariants.checkState(fastPath.size() >= Shard.slowPathQuorumSize(nodes.size()));
         return fastPath;
     }

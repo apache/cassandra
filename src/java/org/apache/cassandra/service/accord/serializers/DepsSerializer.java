@@ -25,9 +25,9 @@ import accord.primitives.Deps;
 import accord.primitives.KeyDeps;
 import accord.primitives.Keys;
 import accord.primitives.PartialDeps;
+import accord.primitives.Participants;
 import accord.primitives.Range;
 import accord.primitives.RangeDeps;
-import accord.primitives.Ranges;
 import accord.primitives.Seekables;
 import accord.primitives.TxnId;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -60,7 +60,7 @@ public abstract class DepsSerializer<D extends Deps> extends IVersionedWithKeysS
         @Override
         PartialDeps deserialize(KeyDeps keyDeps, RangeDeps rangeDeps, KeyDeps directKeyDeps, DataInputPlus in, int version) throws IOException
         {
-            Ranges covering = KeySerializers.ranges.deserialize(in, version);
+            Participants<?> covering = KeySerializers.participants.deserialize(in, version);
             return new PartialDeps(covering, keyDeps, rangeDeps, directKeyDeps);
         }
 
@@ -68,28 +68,28 @@ public abstract class DepsSerializer<D extends Deps> extends IVersionedWithKeysS
         public void serialize(PartialDeps partialDeps, DataOutputPlus out, int version) throws IOException
         {
             super.serialize(partialDeps, out, version);
-            KeySerializers.ranges.serialize(partialDeps.covering, out, version);
+            KeySerializers.participants.serialize(partialDeps.covering, out, version);
         }
 
         @Override
         public void serialize(Seekables<?, ?> superset, PartialDeps partialDeps, DataOutputPlus out, int version) throws IOException
         {
             super.serialize(superset, partialDeps, out, version);
-            KeySerializers.ranges.serialize(partialDeps.covering, out, version);
+            KeySerializers.participants.serialize(partialDeps.covering, out, version);
         }
 
         @Override
         public long serializedSize(PartialDeps partialDeps, int version)
         {
             return super.serializedSize(partialDeps, version)
-                 + KeySerializers.ranges.serializedSize(partialDeps.covering, version);
+                 + KeySerializers.participants.serializedSize(partialDeps.covering, version);
         }
 
         @Override
         public long serializedSize(Seekables<?, ?> keys, PartialDeps partialDeps, int version)
         {
             return super.serializedSize(keys, partialDeps, version)
-                 + KeySerializers.ranges.serializedSize(partialDeps.covering, version);
+                 + KeySerializers.participants.serializedSize(partialDeps.covering, version);
         }
     };
 

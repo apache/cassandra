@@ -25,13 +25,9 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
-import static org.apache.cassandra.utils.CollectionSerializers.deserializeSet;
-import static org.apache.cassandra.utils.CollectionSerializers.serializeCollection;
-import static org.apache.cassandra.utils.CollectionSerializers.serializedCollectionSize;
-
 public class InformHomeDurableSerializers
 {
-    public static final IVersionedSerializer<InformHomeDurable> request = new IVersionedSerializer<InformHomeDurable>()
+    public static final IVersionedSerializer<InformHomeDurable> request = new IVersionedSerializer<>()
     {
         @Override
         public void serialize(InformHomeDurable inform, DataOutputPlus out, int version) throws IOException
@@ -40,7 +36,6 @@ public class InformHomeDurableSerializers
             KeySerializers.route.serialize(inform.route, out, version);
             CommandSerializers.timestamp.serialize(inform.executeAt, out, version);
             CommandSerializers.durability.serialize(inform.durability, out, version);
-            serializeCollection(inform.persistedOn, out, version, TopologySerializers.nodeId);
         }
 
         @Override
@@ -49,8 +44,7 @@ public class InformHomeDurableSerializers
             return new InformHomeDurable(CommandSerializers.txnId.deserialize(in, version),
                                          KeySerializers.route.deserialize(in, version),
                                          CommandSerializers.timestamp.deserialize(in, version),
-                                         CommandSerializers.durability.deserialize(in, version),
-                                         deserializeSet(in, version, TopologySerializers.nodeId));
+                                         CommandSerializers.durability.deserialize(in, version));
         }
 
         @Override
@@ -59,8 +53,7 @@ public class InformHomeDurableSerializers
             return CommandSerializers.txnId.serializedSize(inform.txnId, version)
                    + KeySerializers.route.serializedSize(inform.route, version)
                    + CommandSerializers.timestamp.serializedSize(inform.executeAt, version)
-                   + CommandSerializers.durability.serializedSize(inform.durability, version)
-                   + serializedCollectionSize(inform.persistedOn, version, TopologySerializers.nodeId);
+                   + CommandSerializers.durability.serializedSize(inform.durability, version);
         }
 
     };

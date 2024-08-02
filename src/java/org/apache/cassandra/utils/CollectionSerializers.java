@@ -31,6 +31,7 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
+import accord.utils.SortedArrays.SortedArrayList;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.IPartitionerDependentSerializer;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -100,6 +101,15 @@ public class CollectionSerializers
             keySerializer.serialize(e.getKey(), out, version);
             valueSerializer.serialize(e.getValue(), out, version);
         }
+    }
+
+    public static <V extends Comparable<? super V>> SortedArrayList<V> deserializeSortedArrayList(DataInputPlus in, int version, IVersionedSerializer<V> serializer, IntFunction<V[]> allocator) throws IOException
+    {
+        int size = in.readUnsignedVInt32();
+        V[] array = allocator.apply(size);
+        for (int i = 0 ; i < array.length ; ++i)
+            array[i] = serializer.deserialize(in, version);
+        return new SortedArrayList<>(array);
     }
 
     public static <V> List<V> deserializeList(DataInputPlus in, int version, IVersionedSerializer<V> serializer) throws IOException

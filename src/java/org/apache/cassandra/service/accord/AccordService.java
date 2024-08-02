@@ -45,6 +45,7 @@ import accord.coordinate.Exhausted;
 import accord.coordinate.FailureAccumulator;
 import accord.coordinate.TopologyMismatch;
 import accord.impl.CoordinateDurabilityScheduling;
+import accord.local.CommandStores;
 import accord.primitives.SyncPoint;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.cql3.statements.RequestValidations;
@@ -226,9 +227,9 @@ public class AccordService implements IAccordService, Shutdownable
         public void receive(Message<List<AccordSyncPropagator.Notification>> message) {}
 
         @Override
-        public Pair<Int2ObjectHashMap<RedundantBefore>, DurableBefore> getRedundantBeforesAndDurableBefore()
+        public CompactionInfo getCompactionInfo()
         {
-            return Pair.create(new Int2ObjectHashMap<>(), DurableBefore.EMPTY);
+            return new CompactionInfo(new Int2ObjectHashMap<>(), new Int2ObjectHashMap<>(), DurableBefore.EMPTY);
         }
     };
 
@@ -773,17 +774,19 @@ public class AccordService implements IAccordService, Shutdownable
     }
 
     @Override
-    public Pair<Int2ObjectHashMap<RedundantBefore>, DurableBefore> getRedundantBeforesAndDurableBefore()
+    public CompactionInfo getCompactionInfo()
     {
         Int2ObjectHashMap<RedundantBefore> redundantBefores = new Int2ObjectHashMap<>();
+        Int2ObjectHashMap<CommandStores.RangesForEpoch>ranges = new Int2ObjectHashMap<>();
         AtomicReference<DurableBefore> durableBefore = new AtomicReference<>(DurableBefore.EMPTY);
         AsyncChains.getBlockingAndRethrow(node.commandStores().forEach(safeStore -> {
             synchronized (redundantBefores)
             {
                 redundantBefores.put(safeStore.commandStore().id(), safeStore.commandStore().redundantBefore());
+                ranges.put(safeStore.commandStore().id(), safeStore.ranges());
             }
             durableBefore.set(DurableBefore.merge(durableBefore.get(), safeStore.commandStore().durableBefore()));
         }));
-        return Pair.create(redundantBefores, durableBefore.get());
+        return new CompactionInfo(redundantBefores, ranges, durableBefore.get());
     }
 }
