@@ -101,7 +101,7 @@ public class AccordCommandTest
         RoutingKey homeKey = key.toUnseekable();
         FullRoute<?> fullRoute = txn.keys().toRoute(homeKey);
         PartialRoute<?> route = fullRoute.slice(fullRange(txn));
-        PartialTxn partialTxn = txn.slice(route.covering(), true);
+        PartialTxn partialTxn = txn.intersecting(route, true);
         PreAccept preAccept = PreAccept.SerializerSupport.create(txnId, route, 1, 1, false, 1, partialTxn, fullRoute);
 
         // Check preaccept
@@ -136,7 +136,7 @@ public class AccordCommandTest
         TxnId txnId2 = txnId(1, clock.incrementAndGet(), 1);
         Timestamp executeAt = timestamp(1, clock.incrementAndGet(), 1);
         PartialDeps deps;
-        try (PartialDeps.Builder builder = PartialDeps.builder(route.covering()))
+        try (PartialDeps.Builder builder = PartialDeps.builder(route))
         {
             builder.add(key, txnId2);
             deps = builder.build();
@@ -193,7 +193,7 @@ public class AccordCommandTest
         RoutingKey homeKey = key.toUnseekable();
         FullRoute<?> fullRoute = txn.keys().toRoute(homeKey);
         PartialRoute<?> route = fullRoute.slice(fullRange(txn));
-        PartialTxn partialTxn = txn.slice(route.covering(), true);
+        PartialTxn partialTxn = txn.intersecting(route, true);
         PreAccept preAccept1 = PreAccept.SerializerSupport.create(txnId1, route, 1, 1, false, 1, partialTxn, fullRoute);
 
         getUninterruptibly(commandStore.execute(preAccept1, safeStore -> {

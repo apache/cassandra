@@ -19,6 +19,7 @@
 package org.apache.cassandra.service.accord;
 
 import accord.api.BarrierType;
+import accord.local.CommandStores;
 import accord.local.DurableBefore;
 import accord.local.Node.Id;
 import accord.local.RedundantBefore;
@@ -40,7 +41,6 @@ import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.service.accord.api.AccordScheduler;
 import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.tcm.Epoch;
-import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Future;
 
 import javax.annotation.Nonnull;
@@ -108,10 +108,24 @@ public interface IAccordService
 
     void receive(Message<List<AccordSyncPropagator.Notification>> message);
 
+    class CompactionInfo
+    {
+        public final Int2ObjectHashMap<RedundantBefore> redundantBefores;
+        public final Int2ObjectHashMap<CommandStores.RangesForEpoch> ranges;
+        public final DurableBefore durableBefore;
+
+        public CompactionInfo(Int2ObjectHashMap<RedundantBefore> redundantBefores, Int2ObjectHashMap<CommandStores.RangesForEpoch> ranges, DurableBefore durableBefore)
+        {
+            this.redundantBefores = redundantBefores;
+            this.ranges = ranges;
+            this.durableBefore = durableBefore;
+        }
+    }
+
     /**
      * Fetch the redundnant befores for every command store
      */
-    Pair<Int2ObjectHashMap<RedundantBefore>, DurableBefore> getRedundantBeforesAndDurableBefore();
+    CompactionInfo getCompactionInfo();
 
     default Id nodeId() { throw new UnsupportedOperationException(); }
 }

@@ -609,7 +609,7 @@ public class CheckpointIntervalArrayIndex
                 };
                 var searcher = new CheckpointIntervalArray<>(accessor, indexInput, checkpoints.bounds, checkpoints.headers, checkpoints.lists, checkpoints.maxScanAndCheckpointMatches);
 
-                searcher.forEach(start, end, (i1, i2, i3, i4, index) -> {
+                searcher.forEachRange(start, end, (i1, i2, i3, i4, index) -> {
                     stats.matches++;
                     callback.accept(reader.copyTo(accessor.get(indexInput, index), buffer));
                 }, (i1, i2, i3, i4, startIdx, endIdx) -> {

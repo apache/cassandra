@@ -61,7 +61,7 @@ public class RepairSyncPointAdapter<S extends Seekables<?, ?>> extends Coordinat
     public void execute(Node node, Topologies all, FullRoute<?> route, ExecutePath path, TxnId txnId, Txn txn, Timestamp executeAt, Deps deps, BiConsumer<? super SyncPoint<S>, Throwable> callback)
     {
         RequiredResponseTracker tracker = new RequiredResponseTracker(requiredResponses, all);
-        ExecuteSyncPoint.ExecuteBlocking<S> execute = new ExecuteSyncPoint.ExecuteBlocking<>(node, tracker, new SyncPoint<>(txnId, deps, (S) txn.keys(), route), executeAt);
+        ExecuteSyncPoint.ExecuteBlocking<S> execute = new ExecuteSyncPoint.ExecuteBlocking<>(node, new SyncPoint<>(txnId, deps, (S) txn.keys(), route), tracker, executeAt);
         execute.addCallback(callback);
         execute.start();
     }

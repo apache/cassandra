@@ -20,13 +20,13 @@ package org.apache.cassandra.service.accord.serializers;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.List;
 import java.util.Set;
 
 import accord.local.Node;
 import accord.primitives.Range;
 import accord.topology.Shard;
 import accord.topology.Topology;
+import accord.utils.SortedArrays.SortedArrayList;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -135,7 +135,7 @@ public class TopologySerializers
         public Shard deserialize(DataInputPlus in, int version) throws IOException
         {
             Range range = TokenRange.serializer.deserialize(in, version);
-            List<Node.Id> nodes = CollectionSerializers.deserializeList(in, version, nodeId);
+            SortedArrayList<Node.Id> nodes = CollectionSerializers.deserializeSortedArrayList(in, version, nodeId, Node.Id[]::new);
             Set<Node.Id> fastPathElectorate = CollectionSerializers.deserializeSet(in, version, nodeId);
             Set<Node.Id> joining = CollectionSerializers.deserializeSet(in, version, nodeId);
             return new Shard(range, nodes, fastPathElectorate, joining);

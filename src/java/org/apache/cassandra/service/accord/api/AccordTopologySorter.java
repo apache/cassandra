@@ -27,6 +27,7 @@ import accord.local.Node;
 import accord.topology.ShardSelection;
 import accord.topology.Topologies;
 import accord.topology.Topology;
+import accord.utils.SortedList;
 import org.apache.cassandra.locator.DynamicEndpointSnitch;
 import org.apache.cassandra.locator.Endpoint;
 import org.apache.cassandra.locator.IEndpointSnitch;
@@ -61,7 +62,7 @@ public class AccordTopologySorter implements TopologySorter
             return create(topologies.nodes());
         }
 
-        private AccordTopologySorter create(Set<Node.Id> nodes)
+        private AccordTopologySorter create(SortedList<Node.Id> nodes)
         {
             SortableEndpoints endpoints = SortableEndpoints.from(nodes, mapper);
             Comparator<Endpoint> comparator = snitch.endpointComparator(FBUtilities.getBroadcastAddressAndPort(), endpoints);
