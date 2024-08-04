@@ -71,6 +71,7 @@ import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.concurrent.SequentialExecutorPlus;
 import org.apache.cassandra.concurrent.SimulatedExecutorFactory;
 import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -182,6 +183,8 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
         UnitConfigOverride.maybeOverrideConfig();
 
         DatabaseDescriptor.daemonInitialization();
+        DatabaseDescriptor.setCommitLogWriteDiskAccessMode(Config.DiskAccessMode.mmap);
+
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance); // TOOD (coverage): random select
         DatabaseDescriptor.setLocalDataCenter("test");
         StreamingChannel.Factory.Global.unsafeSet(new StreamingChannel.Factory()
