@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.config;
 
+import java.io.IOError;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.lang.management.RuntimeMXBean;
@@ -1456,7 +1457,18 @@ public class DatabaseDescriptor
         boolean directIOSupported = false;
         try
         {
-            directIOSupported = FileUtils.getBlockSize(new File(getCommitLogLocation())) > 0;
+            String commitLogLocation = getCommitLogLocation();
+
+            if (commitLogLocation == null)
+                throw new ConfigurationException("commitlog_directory must be specified", false);
+
+            File commitLogLocationDir = new File(commitLogLocation);
+            PathUtils.createDirectoriesIfNotExists(commitLogLocationDir.toPath());
+            directIOSupported = FileUtils.getBlockSize(commitLogLocationDir) > 0;
+        }
+        catch (IOError | ConfigurationException ex)
+        {
+            throw  ex;
         }
         catch (RuntimeException e)
         {
@@ -2844,6 +2856,7 @@ public class DatabaseDescriptor
     @VisibleForTesting
     public static void setCommitLogWriteDiskAccessMode(DiskAccessMode diskAccessMode)
     {
+        commitLogWriteDiskAccessMode = diskAccessMode;
         conf.commitlog_disk_access_mode = diskAccessMode;
     }
 
