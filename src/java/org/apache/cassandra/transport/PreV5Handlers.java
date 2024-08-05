@@ -343,7 +343,8 @@ public class PreV5Handlers
                 logger.debug("Excluding client exception for {}; address contained in client_error_reporting_exclusions", ctx.channel().remoteAddress(), cause);
                 return;
             }
-            ExceptionHandlers.logClientNetworkingExceptions(cause);
+            
+            ExceptionHandlers.logClientNetworkingExceptions(cause, ctx.channel().remoteAddress());
             JVMStabilityInspector.inspectThrowable(cause);
         }
 
