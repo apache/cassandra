@@ -360,7 +360,8 @@ public class PreV5Handlers
                              remoteAddress, cause);
                 return;
             }
-            ExceptionHandlers.logClientNetworkingExceptions(cause);
+            
+            ExceptionHandlers.logClientNetworkingExceptions(cause, ctx.channel().remoteAddress());
             JVMStabilityInspector.inspectThrowable(cause);
         }
 
