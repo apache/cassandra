@@ -95,6 +95,7 @@ public final class ClientMetrics
 
     private Meter timedOutBeforeProcessing;
     private Meter protocolException;
+    private Meter sslHandshakeException;
     private Meter unknownException;
     private Timer queueTime;
 
@@ -174,6 +175,11 @@ public final class ClientMetrics
         protocolException.mark();
     }
 
+    public void markSSLHandshakeException()
+    {
+        sslHandshakeException.mark();
+    }
+
     public void markUnknownException()
     {
         unknownException.mark();
@@ -235,6 +241,7 @@ public final class ClientMetrics
 
         timedOutBeforeProcessing = registerMeter("TimedOutBeforeProcessing");
         protocolException = registerMeter("ProtocolException");
+        sslHandshakeException = registerMeter("SSLHandshakeException");
         unknownException = registerMeter("UnknownException");
 
         initialized = true;
