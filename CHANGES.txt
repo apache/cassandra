@@ -2,6 +2,8 @@
  * Deprecate and ignore use_deterministic_table_id (CASSANDRA-19809)
  * Prioritize built indexes in IndexStatusManager (CASSANDRA-19400)
  * Add java.base/java.lang.reflect among opens for jvm11-client.options (CASSANDRA-19780)
+Merged from 4.0:
+ * Do not spam log with SSLExceptions (CASSANDRA-18839)
 
 
 5.0-rc2
