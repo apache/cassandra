@@ -48,6 +48,7 @@ public class AssassinateCMSNodeTest extends TestBaseImpl
             cluster.get(1).nodetoolResult("assassinate", toAssassinate.getHostString()).asserts().success();
             cluster.get(1).runOnInstance(() -> assertTrue(ClusterMetadata.current().isCMSMember(FBUtilities.getBroadcastAddressAndPort())));
             cluster.get(3).runOnInstance(() -> assertTrue(ClusterMetadata.current().isCMSMember(FBUtilities.getBroadcastAddressAndPort())));
+            cluster.get(1).nodetoolResult("cms").asserts().success();
         }
     }
 }
