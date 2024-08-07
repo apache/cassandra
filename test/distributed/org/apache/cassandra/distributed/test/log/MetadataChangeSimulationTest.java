@@ -548,8 +548,7 @@ public class MetadataChangeSimulationTest extends CMSTestBase
                 }
             }
 
-            Set<NodeId> newCms = CMSConfigurationStrategy.reconfigure(sut.service.metadata().directory.toNodeIds(sut.service.metadata().fullCMSMembers()),
-                                                                      sut.service.metadata());
+            Set<NodeId> newCms = CMSConfigurationStrategy.reconfigure(sut.service.metadata());
 
             ClusterMetadata metadata = sut.service.metadata();
 
