@@ -180,6 +180,7 @@ Unreleased
  * [SO-32238] Provide DC groups to repair options when starting repair
  * [SO-33225] Nodetool to SetAndOverrideLocalCompactionStrategy
  * IR may leak SSTables with pending repair when coming from streaming (CASSANDRA-19182)
+ * [SO-33083] Add a config to enable/disable the custom payload logging in query message
  * [SO-32855] Update SLI for early termination of requests at the transport layer
  * [SO-32855] Generalize the internal queue cleanup tooling to handle various internal queues
  * [SO-33082] Remove coded exceptions out of OtherExceptions

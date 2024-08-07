@@ -5143,4 +5143,14 @@ public class DatabaseDescriptor
     {
         conf.inject_artificial_delay = new DurationSpec.LongMillisecondsBound(delay);
     }
+
+    public static boolean getEnableCustomPayloadLogging()
+    {
+        return conf.enable_custom_payload_logging;
+    }
+
+    public static void setEnableCustomPayloadLogging(boolean enableCustomPayloadLogging)
+    {
+        conf.enable_custom_payload_logging = enableCustomPayloadLogging;
+    }
 }

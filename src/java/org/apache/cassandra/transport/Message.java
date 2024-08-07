@@ -188,14 +188,14 @@ public abstract class Message
 
     public Map<String, ByteBuffer> getCustomPayload()
     {
-        if(customPayload != null && ! customPayload.isEmpty())
+        if (DatabaseDescriptor.getEnableCustomPayloadLogging() && customPayload != null && ! customPayload.isEmpty())
         {
             Map<String, String> res = new HashMap<>();
             for (Map.Entry entry : customPayload.entrySet())
             {
                 res.put((String) entry.getKey(), new String(((ByteBuffer) entry.getValue()).array()));
             }
-            logger.info("Client context data in query message: {}", res);
+            logger.info("Client custom payload data in query message: {}", res);
         }
         return customPayload;
     }

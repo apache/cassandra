@@ -1488,4 +1488,7 @@ public class Config
     // WARNING!!! - DO NOT ENABLE THIS FOR PRODUCTION
     // This parameter is for testing purposes only. It is used to simulate expensive queries.
     public volatile DurationSpec.LongMillisecondsBound inject_artificial_delay = new DurationSpec.LongMillisecondsBound("0ms");
+
+    // Whether to enable the logging of the custom_payload in the query message, by default is false, this is mainly used for debugging
+    public boolean enable_custom_payload_logging = false;
 }
