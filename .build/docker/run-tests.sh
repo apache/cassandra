@@ -189,6 +189,8 @@ chmod -R ag+rwx "${build_dir}"
 case "${target}" in
     "cqlsh-test" | "dtest" | "dtest-novnode" | "dtest-latest" | "dtest-large" | "dtest-large-novnode" | "dtest-upgrade" | "dtest-upgrade-large" | "dtest-upgrade-novnode" | "dtest-upgrade-novnode-large" )
         ANT_OPTS="-Dtesttag.extra=_$(arch)_python${python_version/./-}"
+        # intentionally not TMP_DIR
+        DTEST_TMPDIR_LOCAL="$(mktemp -d ${build_dir}/run-python-dtest.XXXXXX)"
     ;;
     "jvm-dtest-novnode" | "jvm-dtest-upgrade-novnode" )
         ANT_OPTS="-Dtesttag.extra=_$(arch)_novnode"
@@ -208,6 +210,10 @@ fi
 
 # the docker container's env
 docker_envs="--env TEST_SCRIPT=${test_script} --env JAVA_VERSION=${java_version} --env PYTHON_VERSION=${python_version} --env cython=${cython} --env ANT_OPTS=\"${ANT_OPTS}\""
+if [ -n "${DTEST_TMPDIR_LOCAL}" ] ; then
+    DTEST_TMPDIR_REMOTE="$(sed "s:${build_dir}:/home/cassandra/cassandra/build:" <<< ${DTEST_TMPDIR_LOCAL})"
+    docker_envs="${docker_envs} --env TMPDIR=${DTEST_TMPDIR_REMOTE} --env CCM_CONFIG_DIR=${DTEST_TMPDIR_REMOTE}/.ccm"
+fi
 [ $DEBUG ] && docker_envs="${docker_envs} --env DEBUG=1"
 
 split_str="0_0"
@@ -241,6 +247,12 @@ echo "Running container ${container_name} ${docker_id}"
 docker exec --user root ${container_name} bash -c "\${CASSANDRA_DIR}/.build/docker/_create_user.sh cassandra $(id -u) $(id -g)" | tee -a ${logfile}
 docker exec --user root ${container_name} update-alternatives --set python /usr/bin/python${python_version} | tee -a ${logfile}
 
+if [ -n "${DTEST_TMPDIR_LOCAL}" ] && [[ "${target}" =~ ^dtest-upgrade ]] ; then
+    # prepopulate a tmp ccm repository directory, if running dtest-upgrade tests
+    docker exec --user cassandra ${container_name} bash -c "\${CASSANDRA_DIR}/.build/docker/_copy_ccm_repositories.sh" | tee -a ${logfile}
+    trap 'nohup rm -rf "${DTEST_TMPDIR_LOCAL}/.ccm/repository" >/dev/null 2>&1 &' EXIT
+fi
+
 # capture logs and status
 set -o pipefail
 docker exec --user cassandra ${container_name} bash -c "${docker_command}" | tee -a ${logfile}
@@ -266,5 +278,5 @@ xz -f ${logfile} 2>/dev/null
 
 popd >/dev/null
 popd >/dev/null
-set -x
+echo "+ exit ${status}"
 exit ${status}

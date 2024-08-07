@@ -178,8 +178,8 @@ def tasks() {
     'dtest-large-novnode': [splits: 8, size: 'large'],
     'dtest-upgrade': [splits: 64, size: 'large'],
     'dtest-upgrade-novnode': [splits: 64, size: 'large'],
-    'dtest-upgrade-large': [splits: 64, size: 'large'],
-    'dtest-upgrade-novnode-large': [splits: 64, size: 'large'],
+    'dtest-upgrade-large': [splits: 32, size: 'large'],
+    'dtest-upgrade-novnode-large': [splits: 32, size: 'large'],
   ]
   testSteps.each() {
     it.value.put('type', 'test')

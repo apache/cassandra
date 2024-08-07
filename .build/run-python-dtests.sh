@@ -43,19 +43,19 @@ DTEST_SPLIT_CHUNK="$2"
 
 # variables, with defaults
 [ "x${CASSANDRA_DIR}" != "x" ] || CASSANDRA_DIR="$(readlink -f $(dirname "$0")/..)"
-[ "x${CASSANDRA_DTEST_DIR}" != "x" ] || CASSANDRA_DTEST_DIR="${CASSANDRA_DIR}/../cassandra-dtest"
+[ "x${CASSANDRA_DTEST_DIR}" != "x" ] || CASSANDRA_DTEST_DIR="$(readlink -f ${CASSANDRA_DIR}/../cassandra-dtest)"
 [ "x${DIST_DIR}" != "x" ] || DIST_DIR="${CASSANDRA_DIR}/build"
+[ "x${TMPDIR}" != "x" ] || { TMPDIR_SET=1 && export TMPDIR="$(mktemp -d ${DIST_DIR}/run-python-dtest.XXXXXX)" ; }
+[ "x${CCM_CONFIG_DIR}" != "x" ] && ls $CCM_CONFIG_DIR
 
-export TMPDIR="$(mktemp -d ${DIST_DIR}/run-python-dtest.XXXXXX)"
 export PYTHONIOENCODING="utf-8"
 export PYTHONUNBUFFERED=true
 export CASS_DRIVER_NO_EXTENSIONS=true
 export CASS_DRIVER_NO_CYTHON=true
 export CCM_MAX_HEAP_SIZE="1024M"
 export CCM_HEAP_NEWSIZE="512M"
-export CCM_CONFIG_DIR="${TMPDIR}/.ccm"
 export NUM_TOKENS="16"
-#Have Cassandra skip all fsyncs to improve test performance and reliability
+# Have Cassandra skip all fsyncs to improve test performance and reliability
 export CASSANDRA_SKIP_SYNC=true
 unset CASSANDRA_HOME
 
@@ -146,6 +146,12 @@ if [[ "${DTEST_SPLIT_CHUNK}" =~ ^[0-9]+/[0-9]+$ ]]; then
     ( split --help 2>&1 ) | grep -q "r/K/N" || split_cmd=gsplit
     command -v ${split_cmd} >/dev/null 2>&1 || { echo >&2 "${split_cmd} needs to be installed"; exit 1; }
     SPLIT_TESTS=$(${split_cmd} -n r/${DTEST_SPLIT_CHUNK} ${DIST_DIR}/test_list.txt)
+    if [[ -z "${SPLIT_TESTS}" ]]; then
+      # something has to run in the split to generate a nosetest xml result (and to not rerun all tests)
+      echo "Hacking ${DTEST_TARGET} to run only first test found as no tests in split ${DTEST_SPLIT_CHUNK} were found: "
+      SPLIT_TESTS="$( echo ${DIST_DIR}/test_list.txt | head -n1)"
+      echo "  ${SPLIT_TESTS}"
+    fi
     SPLIT_STRING="_${DTEST_SPLIT_CHUNK//\//_}"
 elif [[ "x" != "x${DTEST_SPLIT_CHUNK}" ]] ; then
     SPLIT_TESTS=$(grep -e "${DTEST_SPLIT_CHUNK}" ${DIST_DIR}/test_list.txt)
@@ -182,8 +188,10 @@ popd  >/dev/null
 #
 ################################
 
-[[ "${TMPDIR}" == *"${DIST_DIR}/run-python-dtest."* ]] && rm -rf "${TMPDIR}"
-unset TMPDIR
+if [ ${TMPDIR_SET} ] ; then
+    [[ "${TMPDIR}" == *"${DIST_DIR}/run-python-dtest."* ]] && rm -rf "${TMPDIR}"
+    unset TMPDIR
+fi
 deactivate
 
 # Exit cleanly for usable "Unstable" status

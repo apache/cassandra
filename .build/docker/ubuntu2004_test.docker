@@ -51,7 +51,7 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
         python3.8 python3.8-venv python3.8-dev \
         python3.11 python3.11-venv python3.11-dev \
         virtualenv net-tools libev4 libev-dev wget gcc libxml2 libxslt1-dev \
-        vim lsof sudo libjemalloc2 dumb-init locales \
+        vim lsof sudo libjemalloc2 dumb-init locales rsync \
         openjdk-8-jdk openjdk-11-jdk openjdk-17-jdk ant ant-optional
 
 
