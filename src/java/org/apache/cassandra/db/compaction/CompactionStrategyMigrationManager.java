@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.db.compaction;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -30,6 +31,8 @@ import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.cassandra.config.CompactionStrategyMigrationOptions;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -274,6 +277,22 @@ public class CompactionStrategyMigrationManager implements CompactionStrategyMig
     public void reloadAndOverrideLocalCompactionStrategy()
     {
         reloadOptionsFromDisk();
+        mayOverrideLocalCompactionStrategy();
+    }
+
+    public void setAndOverrideLocalCompactionStrategy(String jsonOptions)
+    {
+        ObjectMapper jsonMapper = new ObjectMapper(new JsonFactory());
+        CompactionStrategyMigrationOptions options;
+        try
+        {
+            options =  jsonMapper.readValue(jsonOptions, CompactionStrategyMigrationOptions.class);
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+        DatabaseDescriptor.setCompactionStrategyMigrationOptions(options);
         mayOverrideLocalCompactionStrategy();
     }
 

@@ -220,6 +220,7 @@ public class NodeTool
                 SetAutoRepairConfig.class,
                 RunAutoRepairOnce.class,
                 Shutdown.class,
+                SetAndOverrideLocalCompactionStrategy.class,
                 SetAuthEnforcementFlag.class,
                 SetGossipServiceCacheMismatchConfig.class,
                 SetBatchlogReplayThrottle.class,

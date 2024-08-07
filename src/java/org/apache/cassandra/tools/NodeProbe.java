@@ -2867,6 +2867,11 @@ public class NodeProbe implements AutoCloseable
         csmmProxy.reloadAndOverrideLocalCompactionStrategy();
     }
 
+    public void setAndOverrideLocalCompactionStrategy(String jsonOptions)
+    {
+        csmmProxy.setAndOverrideLocalCompactionStrategy(jsonOptions);
+    }
+
     public long getNativeTransportTimeoutMillis()
     {
         return ssProxy.getNativeTransportTimeoutMillis();

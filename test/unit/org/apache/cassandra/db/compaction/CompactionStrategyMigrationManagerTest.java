@@ -18,12 +18,9 @@
 
 package org.apache.cassandra.db.compaction;
 
-import java.io.IOException;
-import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -379,6 +376,42 @@ public class CompactionStrategyMigrationManagerTest extends CQLTester
             Config.setOverrideLoadConfig(null);
             Files.delete(p);
         }
+    }
+
+    @Test
+    public void testSetAndOverrideLocalCompactionStrategy()
+    {
+        assertFalse(DatabaseDescriptor.getCompactionStrategyMigrationOptions().enabled);
+
+        String jsonOptions = "{\"enabled\":true,\"compaction_params_json\":\"{\\\"class\\\":\\\"org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy\\\"}\",\"keyspace_options\":{\"ks1\":\"{\\\"class\\\":\\\"org.apache.cassandra.db.compaction.LeveledCompactionStrategy\\\"}\"},\"table_options\":{\"ks2.lcstbl\":\"{\\\"class\\\":\\\"org.apache.cassandra.db.compaction.TimeWindowCompactionStrategy\\\"}\"}}";
+        CompactionStrategyMigrationManager.instance.setAndOverrideLocalCompactionStrategy(jsonOptions);
+        assertTrue(DatabaseDescriptor.getCompactionStrategyMigrationOptions().enabled);
+        assertTrue(DatabaseDescriptor.getCompactionStrategyMigrationOptions().keyspace_options.containsKey(KS_1));
+        assertTrue(DatabaseDescriptor.getCompactionStrategyMigrationOptions().table_options.containsKey(KS_2 + '.' + LCS_TBL));
+        // KS_1 should be overriden with LCS
+        Keyspace.open(KS_1).getColumnFamilyStores().forEach(cfs -> {
+            if (cfs.name.equals(LCS_TBL))
+            {
+                assertEquals(CompactionParams.lcs(Collections.singletonMap("sstable_size_in_mb", "1")), cfs.getCompactionStrategyManager().getCompactionParams());
+            }
+            else
+            {
+                assertEquals(CompactionParams.lcs(Collections.emptyMap()), cfs.getCompactionStrategyManager().getCompactionParams());
+            }
+        });
+
+        // Only KS_2.LCS_TBL should be overriden
+        Keyspace.open(KS_2).getColumnFamilyStores().forEach(cfs -> {
+            if (cfs.name.equals(LCS_TBL))
+            {
+                assertEquals(CompactionParams.twcs(Collections.emptyMap()), cfs.getCompactionStrategyManager().getCompactionParams());
+            }
+            else
+            {
+                assertEquals(originalCompactionParams.get(cfs),
+                             cfs.getCompactionStrategyManager().getCompactionParams());
+            }
+        });
     }
 
     private void assertTableCompactionParamsInSystemSchemaKS(CompactionParams expectedParams, ColumnFamilyStore cfs)

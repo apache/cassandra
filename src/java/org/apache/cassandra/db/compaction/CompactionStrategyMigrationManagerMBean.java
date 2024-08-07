@@ -52,4 +52,10 @@ public interface CompactionStrategyMigrationManagerMBean
      * strategy if feasible
      */
     public void reloadAndOverrideLocalCompactionStrategy();
+
+    /**
+     * Set compaction_strategy_migration_options from input JSON string options, and switch local compaction
+     * strategy if feasible
+     */
+    public void setAndOverrideLocalCompactionStrategy(String jsonOptions);
 }
