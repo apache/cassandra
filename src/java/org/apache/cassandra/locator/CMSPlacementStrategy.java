@@ -98,7 +98,7 @@ public interface CMSPlacementStrategy
             for (Map.Entry<String, Integer> e : this.rf.entrySet())
             {
                 Collection<InetAddressAndPort> nodesInDc = metadata.directory.allDatacenterEndpoints().get(e.getKey());
-                if (nodesInDc == null)
+                if (nodesInDc.isEmpty())
                     throw new IllegalStateException(String.format("There are no nodes in %s datacenter", e.getKey()));
                 if (nodesInDc.size() < e.getValue())
                     throw new Transformation.RejectedTransformationException(String.format("There are not enough nodes in %s datacenter to satisfy replication factor", e.getKey()));
