@@ -101,9 +101,7 @@ public class PrepareCMSReconfiguration
                                          .map(prev.directory::peerId)
                                          .collect(Collectors.toSet());
 
-            Set<NodeId> withoutReplaced = new HashSet<>(currentCms);
-            withoutReplaced.remove(toReplace);
-            Set<NodeId> newCms = placementStrategy.reconfigure(withoutReplaced, prev);
+            Set<NodeId> newCms = placementStrategy.reconfigure(prev);
             if (newCms.equals(currentCms))
             {
                 logger.info("Proposed CMS reconfiguration resulted in no required modifications at epoch {}", prev.epoch.getEpoch());
@@ -171,7 +169,7 @@ public class PrepareCMSReconfiguration
                                          .map(prev.directory::peerId)
                                          .collect(Collectors.toSet());
 
-            Set<NodeId> newCms = placementStrategy.reconfigure(currentCms, prev);
+            Set<NodeId> newCms = placementStrategy.reconfigure(prev);
             if (newCms.equals(currentCms))
             {
                 logger.info("Proposed CMS reconfiguration resulted in no required modifications at epoch {}", prev.epoch.getEpoch());
@@ -240,7 +238,7 @@ public class PrepareCMSReconfiguration
                                          .map(metadata.directory::peerId)
                                          .collect(Collectors.toSet());
 
-        Set<NodeId> newCms = placementStrategy.reconfigure(currentCms, metadata);
+        Set<NodeId> newCms = placementStrategy.reconfigure(metadata);
         return !currentCms.equals(newCms);
     }
 

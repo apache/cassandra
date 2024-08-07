@@ -48,7 +48,7 @@ import static org.apache.cassandra.locator.SimpleStrategy.REPLICATION_FACTOR;
  */
 public interface CMSPlacementStrategy
 {
-    Set<NodeId> reconfigure(Set<NodeId> currentCms, ClusterMetadata metadata);
+    Set<NodeId> reconfigure(ClusterMetadata metadata);
 
     static CMSPlacementStrategy fromReplicationParams(ReplicationParams params, Predicate<NodeId> filter)
     {
@@ -92,7 +92,7 @@ public interface CMSPlacementStrategy
             this.filter = filter;
         }
 
-        public Set<NodeId> reconfigure(Set<NodeId> currentCms, ClusterMetadata metadata)
+        public Set<NodeId> reconfigure(ClusterMetadata metadata)
         {
             Map<String, ReplicationFactor> rf = new HashMap<>(this.rf.size());
             for (Map.Entry<String, Integer> e : this.rf.entrySet())
@@ -105,7 +105,11 @@ public interface CMSPlacementStrategy
 
                 rf.put(e.getKey(), ReplicationFactor.fullOnly(e.getValue()));
             }
+            return reconfigure(metadata, rf);
+        }
 
+        public Set<NodeId> reconfigure(ClusterMetadata metadata, Map<String, ReplicationFactor> rf)
+        {
             Directory directory = metadata.directory;
             TokenMap tokenMap = metadata.tokenMap;
             for (NodeId peerId : metadata.directory.peerIds())
