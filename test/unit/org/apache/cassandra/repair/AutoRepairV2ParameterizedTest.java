@@ -447,7 +447,7 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
 
         config.setAutoRepairTableMaxRepairTimeInSec(repairType, Long.MAX_VALUE);
         AutoRepairV2.instance.repairStates.put(repairType, autoRepairState);
-        when(autoRepairState.getRepairRunnable(any(), any(), any(), anyBoolean()))
+        when(autoRepairState.getRepairRunnable(any(), any(), any(), anyBoolean(), any()))
         .thenReturn(repairRunnable);
         when(autoRepairState.getRepairFailedTablesCount()).thenReturn(10);
         when(autoRepairState.getLongestUnrepairedSec()).thenReturn(10);
@@ -463,7 +463,7 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
     {
         AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
         config.setMVRepairEnabled(repairType, false);
-        when(autoRepairState.getRepairRunnable(any(), any(), any(), anyBoolean()))
+        when(autoRepairState.getRepairRunnable(any(), any(), any(), anyBoolean(), any()))
         .thenReturn(repairRunnable);
         AutoRepairV2.instance.repairStates.put(repairType, autoRepairState);
         when(autoRepairState.getLastRepairTime()).thenReturn((long) 0);
@@ -485,5 +485,20 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
         AutoRepairV2.instance.repair(repairType, 0);
         AutoRepairV2.instance.repair(repairType, 0);
         AutoRepairV2.instance.repair(repairType, 0);
+    }
+
+    @Test
+    public void testRepairDCGroups()
+    {
+        AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
+        config.setDCGroups(repairType, Sets.newHashSet(DatabaseDescriptor.getLocalDataCenter(), "dc2"));
+        AutoRepairService.instance.getAutoRepairConfig().setRepairMinIntervalInHours(repairType, -1);
+        AutoRepairV2.instance.repair(repairType, 0);
+        assertEquals(0, AutoRepairV2.instance.repairStates.get(repairType).getTotalMVTablesConsideredForRepair());
+        assertEquals(0, AutoRepairMetricsManager.getMetrics(repairType).totalMVTablesConsideredForRepair.getValue().intValue());
+        long lastRepairTime = AutoRepairV2.instance.repairStates.get(repairType).getLastRepairTime();
+        //if repair was done then lastRepairTime should be non-zero
+        Assert.assertTrue(String.format("Expected lastRepairTime > 0, actual value lastRepairTime %d",
+                                        lastRepairTime), lastRepairTime > 0);
     }
 }

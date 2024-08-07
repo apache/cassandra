@@ -20,6 +20,8 @@ package org.apache.cassandra.repair.state;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
@@ -76,7 +78,7 @@ public class AutoRepairStateTest extends CQLTester
         AutoRepairState state = AutoRepairStateFactory.getAutoRepairState(repairType);
         AutoRepairService.setup();
 
-        Runnable runnable = state.getRepairRunnable(KEYSPACE, ImmutableList.of(testTable), ImmutableSet.of(), false);
+        Runnable runnable = state.getRepairRunnable(KEYSPACE, ImmutableList.of(testTable), ImmutableSet.of(), false, new HashSet<>(List.of("dc1", "dc2")));
 
         assertNotNull(runnable);
     }

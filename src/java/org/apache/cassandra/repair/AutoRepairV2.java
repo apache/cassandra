@@ -328,7 +328,7 @@ public class AutoRepairV2
                                     {
                                         RepairRunnable task = repairState.getRepairRunnable(keyspaceName,
                                                                                             config.getRepairByKeyspace(repairType) ? tablesToBeRepaired : ImmutableList.of(tableName),
-                                                                                            ranges, primaryRangeOnly);
+                                                                                            ranges, primaryRangeOnly, AutoRepairUtilsV2.getLocalDCGroup(repairType));
                                         repairState.resetWaitCondition();
                                         new Thread(NamedThreadFactory.createAnonymousThread(new FutureTask<>(task, null))).start();
                                         try

@@ -192,7 +192,7 @@ public class AutoRepairUtilsV2Test extends CQLTester
     public void testGetLocalDCGroup()
     {
         DatabaseDescriptor.getAutoRepairConfig().setDCGroups(repairType, ImmutableSet.of(
-        String.format("%s|dc2", DatabaseDescriptor.getLocalDataCenter()), "dc3"));
+        String.format("%s,dc2", DatabaseDescriptor.getLocalDataCenter()), "dc3"));
 
         Set<String> dcGroup = AutoRepairUtilsV2.getLocalDCGroup(repairType);
 
@@ -240,7 +240,7 @@ public class AutoRepairUtilsV2Test extends CQLTester
         InetAddressAndPort otherEndpoint = localEndpoint.withPort(localEndpoint.getPort() + 1);
         InetAddressAndPort ignoredEndpoint = localEndpoint.withPort(localEndpoint.getPort() + 2);
         DatabaseDescriptor.getAutoRepairConfig().setDCGroups(repairType,
-                                                             ImmutableSet.of(String.format("%s|dc2", DatabaseDescriptor.getLocalDataCenter())));
+                                                             ImmutableSet.of(String.format("%s,dc2", DatabaseDescriptor.getLocalDataCenter())));
         DatabaseDescriptor.setEndpointSnitch(snitchMock);
         when(snitchMock.getDatacenter(localEndpoint)).thenReturn(DatabaseDescriptor.getLocalDataCenter());
         when(snitchMock.getDatacenter(otherEndpoint)).thenReturn("dc2");

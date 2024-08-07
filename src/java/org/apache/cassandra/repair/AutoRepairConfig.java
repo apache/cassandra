@@ -272,7 +272,7 @@ public class AutoRepairConfig implements Serializable
     public static class Options implements Serializable
     {
         // The separator separating different DCs in repair_dc_groups
-        public static final String DC_GROUP_SEPARATOR = "\\|";
+        public static final String DC_GROUP_SEPARATOR = ",";
 
         // defaultOptions defines the default auto-repair behavior when no overrides are defined
         @VisibleForTesting
@@ -336,7 +336,7 @@ public class AutoRepairConfig implements Serializable
         // by default, the value is empty, it means the all nodes are in one ring and the repair in that ring should be done
         // node by node. Adding this config for special case(cstar-peloton) that certain keyspace data is only stored in
         // certain cluster. We can run multiple node repair at the same time without worrying about the conflict. For example,
-        // if the value is "dca1,phx2|dca11|phx3|phx4,dca5,dca6", there will be 4 groups {dca1, phx2}, {dca11}, {phx3} and
+        // if the value is {"dca1", "phx2", "dca11", "phx3", "phx4,dca5,dca6"}, there will be 4 groups {dca1, phx2}, {dca11}, {phx3} and
         // {phx4, dca5, dca6}. This means we can run repair parallely on 4 nodes, each in one group.
         public volatile Set<String> repair_dc_groups;
         // configures whether to force immediate repair on new nodes

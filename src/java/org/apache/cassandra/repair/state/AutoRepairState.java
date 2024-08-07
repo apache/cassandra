@@ -19,6 +19,7 @@
 package org.apache.cassandra.repair.state;
 
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -96,7 +97,7 @@ public abstract class AutoRepairState implements ProgressListener
         this.repairType = repairType;
     }
 
-    public abstract RepairRunnable getRepairRunnable(String keyspace, List<String> tables, Set<Range<Token>> ranges, boolean primaryRangeOnly);
+    public abstract RepairRunnable getRepairRunnable(String keyspace, List<String> tables, Set<Range<Token>> ranges, boolean primaryRangeOnly, Set<String> dcGroup);
 
     protected RepairRunnable getRepairRunnable(String keyspace, RepairOption options)
     {
@@ -278,12 +279,16 @@ class IncrementalRepairState extends AutoRepairState
     }
 
     @Override
-    public RepairRunnable getRepairRunnable(String keyspace, List<String> tables, Set<Range<Token>> ranges, boolean primaryRangeOnly)
+    public RepairRunnable getRepairRunnable(String keyspace, List<String> tables, Set<Range<Token>> ranges, boolean primaryRangeOnly, Set<String> dcGroup)
     {
         RepairOption option = new RepairOption(RepairParallelism.PARALLEL, primaryRangeOnly, true, false,
                                                AutoRepairService.instance.getAutoRepairConfig().getRepairThreads(repairType), ranges,
                                                !ranges.isEmpty(), false, false, PreviewKind.NONE, false, true, false, false);
 
+        if (dcGroup != null)
+        {
+            option.getDataCenters().addAll(new ArrayList<>(dcGroup));
+        }
         option.getColumnFamilies().addAll(filterOutUnsafeTables(keyspace, tables));
 
         return getRepairRunnable(keyspace, option);
@@ -323,12 +328,16 @@ class FullRepairState extends AutoRepairState
     }
 
     @Override
-    public RepairRunnable getRepairRunnable(String keyspace, List<String> tables, Set<Range<Token>> ranges, boolean primaryRangeOnly)
+    public RepairRunnable getRepairRunnable(String keyspace, List<String> tables, Set<Range<Token>> ranges, boolean primaryRangeOnly, Set<String> dcGroup)
     {
         RepairOption option = new RepairOption(RepairParallelism.PARALLEL, primaryRangeOnly, false, false,
                                                AutoRepairService.instance.getAutoRepairConfig().getRepairThreads(repairType), ranges,
                                                !ranges.isEmpty(), false, false, PreviewKind.NONE, false, true, false, false);
 
+        if (dcGroup != null)
+        {
+            option.getDataCenters().addAll(new ArrayList<>(dcGroup));
+        }
         option.getColumnFamilies().addAll(tables);
 
         return getRepairRunnable(keyspace, option);
