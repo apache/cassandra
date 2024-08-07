@@ -110,6 +110,7 @@ import static org.apache.cassandra.repair.consistent.ConsistentSession.State.*;
 import static org.apache.cassandra.repair.messages.RepairMessage.always;
 import static org.apache.cassandra.repair.messages.RepairMessage.sendAck;
 import static org.apache.cassandra.repair.messages.RepairMessage.sendFailureResponse;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /**
  * Manages all consistent repair sessions a node is participating in.
@@ -353,6 +354,8 @@ public class LocalSessions
      */
     public synchronized void start()
     {
+        long startTime = nanoTime();
+        int loadedSessionsCount = 0;
         Preconditions.checkArgument(!started, "LocalSessions.start can only be called once");
         Preconditions.checkArgument(sessions.isEmpty(), "No sessions should be added before start");
         UntypedResultSet rows = QueryProcessor.executeInternalWithPaging(String.format("SELECT * FROM %s.%s", keyspace, table), 1000);
@@ -360,6 +363,7 @@ public class LocalSessions
         Map<TableId, List<RepairedState.Level>> initialLevels = new HashMap<>();
         for (UntypedResultSet.Row row : rows)
         {
+            loadedSessionsCount++;
             try
             {
                 LocalSession session = load(row);
@@ -383,6 +387,9 @@ public class LocalSessions
 
         sessions = ImmutableMap.copyOf(loadedSessions);
         failOngoingRepairs();
+        long endTime = nanoTime();
+        logger.info("LocalSessions start completed in {} ms, sessions loaded from DB: {}",
+                    TimeUnit.NANOSECONDS.toMillis(endTime - startTime), loadedSessionsCount);
         started = true;
     }
 
