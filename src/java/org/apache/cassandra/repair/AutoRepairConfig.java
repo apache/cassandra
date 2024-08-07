@@ -294,7 +294,7 @@ public class AutoRepairConfig implements Serializable
             opts.parallel_repair_count_in_group = 1;
             opts.parallel_repair_percentage_in_group = 0;
             opts.sstable_upper_threshold = 10000;
-            opts.ignore_keyspaces = "\\b(?!system_auth\\b)system\\w+|.*staging.*|.*test.*|health|pingless";
+            opts.ignore_keyspaces = "\\b(?!system_(auth|distributed|auto_repair)\\b)system($|_.*)|.*staging.*|.*test.*|health|pingless";
             opts.repair_only_keyspaces = "";
             opts.min_repair_interval_in_hours = 24;
             opts.ignore_dcs = new HashSet<>();

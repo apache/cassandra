@@ -49,6 +49,7 @@ import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.LocalStrategy;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
@@ -820,16 +821,21 @@ public class AutoRepairUtilsV2
         return hosts;
     }
 
-    public static boolean shouldRepair(RepairType repairType, String keyspace)
+    public static boolean shouldRepair(RepairType repairType, Keyspace ks)
     {
+        if (ks.getReplicationStrategy() instanceof LocalStrategy)
+        {
+            return false;
+        }
+
         AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
         if (!config.getRepairOnlyKeyspaces(repairType).isEmpty())
         {
-            return Pattern.matches(config.getRepairOnlyKeyspaces(repairType), keyspace);
+            return Pattern.matches(config.getRepairOnlyKeyspaces(repairType), ks.getName());
         }
         else if (!config.getRepairIgnoreKeyspaces(repairType).isEmpty())
         {
-            return !Pattern.matches(config.getRepairIgnoreKeyspaces(repairType), keyspace);
+            return !Pattern.matches(config.getRepairIgnoreKeyspaces(repairType), ks.getName());
         }
         return true;
     }

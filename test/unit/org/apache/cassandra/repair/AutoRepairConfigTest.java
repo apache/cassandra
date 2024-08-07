@@ -20,6 +20,7 @@ package org.apache.cassandra.repair;
 
 import java.util.EnumMap;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 import com.google.common.collect.ImmutableSet;
 import org.junit.Before;
@@ -526,5 +527,25 @@ public class AutoRepairConfigTest extends CQLTester
         Options defaultOptions = Options.getDefaultOptions();
 
         assertTrue(defaultOptions.mv_repair_enabled);
+    }
+
+    @Test
+    public void testGetDefaultOptionsCorrectKeyspacesIgnored()
+    {
+        Set<String> allowedKeyspaces = ImmutableSet.of("system", "system_traces", "system_schema", "system_virtual_schema", "system_views");
+        Options defaultOptions = Options.getDefaultOptions();
+
+        for (String keyspace : allowedKeyspaces)
+            assertTrue("Keyspace " + keyspace + " should not be allowed", Pattern.matches(defaultOptions.ignore_keyspaces, keyspace));
+    }
+
+    @Test
+    public void testGetDefaultOptionsCorrectKeyspacesAllowed()
+    {
+        Set<String> allowedKeyspaces = ImmutableSet.of("system_auth", "system_distributed", "systematic", "system_auto_repair");
+        Options defaultOptions = Options.getDefaultOptions();
+
+        for (String keyspace : allowedKeyspaces)
+            assertFalse("Keyspace " + keyspace + " should be allowed", Pattern.matches(defaultOptions.ignore_keyspaces, keyspace));
     }
 }

@@ -71,6 +71,7 @@ public class AutoRepairUtilsV2Test extends CQLTester
     static RepairType repairType = RepairType.incremental;
     static int pid = "".hashCode();
     static UUID hostId;
+    static String localKS = "local_keyspace";
 
     static InetAddressAndPort localEndpoint;
 
@@ -95,6 +96,8 @@ public class AutoRepairUtilsV2Test extends CQLTester
                                     TableMetadata.builder("ks", "tbl")
                                                  .addPartitionKeyColumn("k", UTF8Type.instance)
                                                  .build());
+        SchemaLoader.createKeyspace(localKS, KeyspaceParams.create(false,
+                                                                   ImmutableMap.of("class", "LocalStrategy")));
     }
 
     @Before
@@ -463,25 +466,32 @@ public class AutoRepairUtilsV2Test extends CQLTester
         DatabaseDescriptor.getAutoRepairConfig().setRepairOnlyKeyspaces(repairType, "");
         DatabaseDescriptor.getAutoRepairConfig().setRepairIgnoreKeyspaces(repairType, "");
 
-        assertTrue(AutoRepairUtilsV2.shouldRepair(repairType, "ks1"));
+
+        assertTrue(AutoRepairUtilsV2.shouldRepair(repairType, Keyspace.open(KEYSPACE)));
     }
 
     @Test
     public void testShouldRepair_allowlist()
     {
-        DatabaseDescriptor.getAutoRepairConfig().setRepairOnlyKeyspaces(repairType, "ks\\d");
+        DatabaseDescriptor.getAutoRepairConfig().setRepairOnlyKeyspaces(repairType, KEYSPACE);
         DatabaseDescriptor.getAutoRepairConfig().setRepairIgnoreKeyspaces(repairType, "");
 
-        assertTrue(AutoRepairUtilsV2.shouldRepair(repairType, "ks1"));
+        assertTrue(AutoRepairUtilsV2.shouldRepair(repairType, Keyspace.open(KEYSPACE)));
     }
 
     @Test
     public void testShouldRepair_denylist()
     {
         DatabaseDescriptor.getAutoRepairConfig().setRepairOnlyKeyspaces(repairType, "");
-        DatabaseDescriptor.getAutoRepairConfig().setRepairIgnoreKeyspaces(repairType, "ks\\d");
+        DatabaseDescriptor.getAutoRepairConfig().setRepairIgnoreKeyspaces(repairType, KEYSPACE);
 
-        assertFalse(AutoRepairUtilsV2.shouldRepair(repairType, "ks1"));
+        assertFalse(AutoRepairUtilsV2.shouldRepair(repairType, Keyspace.open(KEYSPACE)));
+    }
+
+    @Test
+    public void testShouldRepairLocalStrategy()
+    {
+        assertFalse(AutoRepairUtilsV2.shouldRepair(repairType, Keyspace.open(localKS)));
     }
 
     @Test
