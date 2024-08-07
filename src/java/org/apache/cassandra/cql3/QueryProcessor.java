@@ -154,6 +154,7 @@ public class QueryProcessor implements QueryHandler
 
     public void preloadPreparedStatements()
     {
+        long startTime = nanoTime();
         int count = SystemKeyspace.loadPreparedStatements((id, query, keyspace) -> {
             try
             {
@@ -172,12 +173,13 @@ public class QueryProcessor implements QueryHandler
             catch (RequestValidationException e)
             {
                 JVMStabilityInspector.inspectThrowable(e);
-                logger.warn(String.format("Prepared statement recreation error, removing statement: %s %s %s", id, query, keyspace));
+                logger.warn("Prepared statement recreation error, removing statement: {} {} {}, error details: {}", id, query, keyspace, e.getMessage());
                 SystemKeyspace.removePreparedStatement(id);
                 return false;
             }
         });
-        logger.info("Preloaded {} prepared statements", count);
+        long endTime = nanoTime();
+        logger.info("Preloaded {} prepared statements in {} ms", count, TimeUnit.NANOSECONDS.toMillis(endTime - startTime));
     }
 
 
