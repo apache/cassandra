@@ -183,7 +183,9 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
         UnitConfigOverride.maybeOverrideConfig();
 
         DatabaseDescriptor.daemonInitialization();
-        DatabaseDescriptor.setCommitLogWriteDiskAccessMode(Config.DiskAccessMode.mmap);
+
+        if (DatabaseDescriptor.getCommitLogWriteDiskAccessMode() == Config.DiskAccessMode.direct)
+            DatabaseDescriptor.setCommitLogWriteDiskAccessMode(Config.DiskAccessMode.mmap);
 
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance); // TOOD (coverage): random select
         DatabaseDescriptor.setLocalDataCenter("test");
