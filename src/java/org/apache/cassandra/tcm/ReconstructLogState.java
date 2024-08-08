@@ -20,12 +20,10 @@ package org.apache.cassandra.tcm;
 
 import java.io.IOException;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -75,6 +73,7 @@ public class ReconstructLogState
 
         public void doVerb(Message<ReconstructLogState> message) throws IOException
         {
+            TCMMetrics.instance.reconstructLogStateCall.mark();
             ReconstructLogState request = message.payload;
 
             if (!ClusterMetadataService.instance().isCurrentMember(FBUtilities.getBroadcastAddressAndPort()))
