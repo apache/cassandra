@@ -29,6 +29,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -78,6 +79,8 @@ public class AutoRepairV2
     protected final Map<AutoRepairConfig.RepairType, ScheduledExecutorPlus> repairExecutors;
     @VisibleForTesting
     protected final Map<AutoRepairConfig.RepairType, AutoRepairState> repairStates;
+    @VisibleForTesting
+    protected static Consumer<List<?>> shuffleFunc = java.util.Collections::shuffle;
 
 
     @VisibleForTesting
@@ -189,7 +192,14 @@ public class AutoRepairV2
                 repairState.setRepairSkippedTablesCount(0);
                 repairState.setRepairInProgress(true);
                 repairState.setTotalMVTablesConsideredForRepair(0);
-                for (Keyspace keyspace : Keyspace.all())
+
+                List<Keyspace> keyspaces = new ArrayList<>();
+                Keyspace.all().forEach(keyspaces::add);
+                // Auto-repair is likely to be run on multiple nodes independently, we want to avoid running multiple repair
+                // sessions on overlapping datasets at the same time. Shuffling keyspaces reduces the likelihood of this happening.
+                shuffleFunc.accept(keyspaces);
+
+                for (Keyspace keyspace : keyspaces)
                 {
                     Tables tables = keyspace.getMetadata().tables;
                     Iterator<TableMetadata> iter = tables.iterator();
@@ -218,6 +228,7 @@ public class AutoRepairV2
                         }
                     }
 
+                    shuffleFunc.accept(tablesToBeRepaired);
                     for (String tableName : tablesToBeRepaired)
                     {
                         try

@@ -21,6 +21,7 @@ package org.apache.cassandra.repair;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -54,7 +55,6 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.AutoRepairService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.progress.ProgressEvent;
-import org.apache.cassandra.utils.progress.ProgressEventType;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
@@ -500,5 +500,29 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
         //if repair was done then lastRepairTime should be non-zero
         Assert.assertTrue(String.format("Expected lastRepairTime > 0, actual value lastRepairTime %d",
                                         lastRepairTime), lastRepairTime > 0);
+    }
+
+    @Test
+    public void testRepairShufflesKeyspacesAndTables()
+    {
+        AtomicInteger shuffleKeyspacesCall = new AtomicInteger();
+        AtomicInteger shuffleTablesCall = new AtomicInteger();
+        AutoRepairV2.shuffleFunc = (List<?> list) -> {
+            assertFalse(list.isEmpty());
+            assertTrue(list.get(0) instanceof Keyspace || list.get(0) instanceof String);
+            if (list.get(0) instanceof Keyspace)
+            {
+                shuffleKeyspacesCall.getAndIncrement();
+            }
+            else if (list.get(0) instanceof String)
+            {
+                shuffleTablesCall.getAndIncrement();
+            }
+        };
+
+        AutoRepairV2.instance.repair(repairType, 0);
+
+        assertEquals(1, shuffleKeyspacesCall.get());
+        assertEquals(4, shuffleTablesCall.get());
     }
 }
