@@ -18,19 +18,26 @@
 package org.apache.cassandra.metrics;
 
 import java.lang.reflect.Method;
+import java.util.AbstractMap;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import javax.management.MalformedObjectNameException;
@@ -38,6 +45,7 @@ import javax.management.ObjectName;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
 import com.codahale.metrics.Counter;
@@ -71,8 +79,10 @@ import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.memory.MemtablePool;
 
 import static java.util.Optional.ofNullable;
-import static org.apache.cassandra.db.virtual.CollectionVirtualTableAdapter.createSinglePartitionedKeyFiltered;
+import static org.apache.cassandra.db.virtual.CollectionVirtualTableAdapter.createFilterable;
 import static org.apache.cassandra.db.virtual.CollectionVirtualTableAdapter.createSinglePartitionedValueFiltered;
+import static org.apache.cassandra.db.virtual.walker.MetricRowWalker.NAME_COLUMN_FILTER;
+import static org.apache.cassandra.db.virtual.walker.MetricRowWalker.SCOPE_COLUMN_FILTER;
 import static org.apache.cassandra.schema.SchemaConstants.VIRTUAL_METRICS;
 
 /**
@@ -88,19 +98,12 @@ import static org.apache.cassandra.schema.SchemaConstants.VIRTUAL_METRICS;
 public class CassandraMetricsRegistry extends MetricRegistry
 {
     public static final UnaryOperator<String> METRICS_GROUP_POSTFIX = name -> name + "_group";
-
-    /** A set of all known metric groups, used to validate metric groups that are statically defined in Cassandra. */
-    static final Set<String> metricGroups;
-
-    /**
-     * Root metrics registry that is used by Cassandra to store all metrics.
-     * All modifications to the registry are delegated to the corresponding listeners as well.
-     */
-    public static final CassandraMetricsRegistry Metrics = new CassandraMetricsRegistry();
-
-    private final Map<String, ThreadPoolMetrics> threadPoolMetrics = new ConcurrentHashMap<>();
     public static final String METRIC_SCOPE_UNDEFINED = "undefined";
     public static final TimeUnit DEFAULT_TIMER_UNIT = TimeUnit.MICROSECONDS;
+    private final TreeMetricRegistry metricsTrie = TreeMetricRegistry.root;
+    /** A set of all known metric groups, used to validate metric groups that are statically defined in Cassandra. */
+    static final Set<String> metricGroups;
+    private final Map<String, ThreadPoolMetrics> threadPoolMetrics = new ConcurrentHashMap<>();
 
     static
     {
@@ -153,7 +156,13 @@ public class CassandraMetricsRegistry extends MetricRegistry
                                    .build();
     }
 
-    private CassandraMetricsRegistry()
+    /**
+     * Root metrics registry that is used by Cassandra to store all metrics.
+     * All modifications to the registry are delegated to the corresponding listeners as well.
+     */
+    public static final CassandraMetricsRegistry Metrics = new CassandraMetricsRegistry();
+
+    CassandraMetricsRegistry()
     {
     }
 
@@ -197,20 +206,85 @@ public class CassandraMetricsRegistry extends MetricRegistry
             return value.toString();
     }
 
+    @Override
+    protected ConcurrentMap<String, Metric> buildMap()
+    {
+        // Override the default map implementation to use a trie-based map.
+        return TreeMetricRegistry.root;
+    }
+
+    Set<Map<String, Metric>> findMetricsByType(String type)
+    {
+        return metricsTrie.nested(DefaultNameFactory.GROUP_NAME).nested(type).registers();
+    }
+
+    Set<Map<String, Metric>> findMetricsByScope(String type, List<Map.Entry<String, Object>> filter)
+    {
+        Set<Map<String, Metric>> result = new HashSet<>();
+        for (Map.Entry<String, Object> entry : filter)
+        {
+            if (!entry.getKey().equals(SCOPE_COLUMN_FILTER) || entry.getValue() == null)
+                continue;
+
+            String scope = (String) entry.getValue();
+            result.addAll(metricsTrie.nested(DefaultNameFactory.GROUP_NAME).nested(type).nested(scope).registers());
+        }
+
+        return result;
+    }
+
+    private Metric findMetricByName(String fullName)
+    {
+        return metricsTrie.get(fullName);
+    }
+
+    private static boolean containsColumn(String key, List<Map.Entry<String, Object>> list)
+    {
+        for (Map.Entry<String, Object> entry : list)
+        {
+            if (entry.getKey().equals(key))
+                return true;
+        }
+        return false;
+    }
+
     public static List<VirtualTable> createMetricsKeyspaceTables()
     {
         ImmutableList.Builder<VirtualTable> builder = ImmutableList.builder();
         metricGroups.forEach(groupName -> {
             // This is a very efficient way to filter metrics by group name, so make sure that metrics group name
             // and metric type following the same order as it constructed in MetricName class.
-            final String groupPrefix = DefaultNameFactory.GROUP_NAME + '.' + groupName + '.';
-            builder.add(createSinglePartitionedKeyFiltered(VIRTUAL_METRICS,
-                                                           METRICS_GROUP_POSTFIX.apply(groupName),
-                                                           "All metrics for \"" + groupName + "\" metric group",
-                                                           new MetricRowWalker(),
-                                                           Metrics.getMetrics(),
-                                                           key -> key.startsWith(groupPrefix),
-                                                           MetricRow::new));
+            builder.add(createFilterable(VIRTUAL_METRICS,
+                                         METRICS_GROUP_POSTFIX.apply(groupName),
+                                         "All metrics for \"" + groupName + "\" metric group",
+                                         new MetricRowWalker(),
+                                         filter -> {
+                                             // If the filter is empty, we can return all metrics for the group.
+                                             if (filter.isEmpty())
+                                                 return () -> Metrics.findMetricsByType(groupName).stream()
+                                                                     .flatMap(m -> m.entrySet().stream())
+                                                                     .iterator();
+
+                                             // If the filter contains primary key, we can return only a single metric.
+                                             if (containsColumn(NAME_COLUMN_FILTER, filter))
+                                             {
+                                                 String fullName = (String) filter.get(0).getValue();
+                                                 Metric metric = Metrics.findMetricByName(fullName);
+                                                 return metric == null ? Collections::emptyIterator :
+                                                        () -> Collections.singletonMap(fullName, metric).entrySet().iterator();
+                                             }
+
+                                             // If the filter contains a scope column, we need to filter by scope.
+                                             // This is a very efficient way to filter metrics by group name and scope.
+                                             return containsColumn(SCOPE_COLUMN_FILTER, filter) ?
+                                                    () -> Metrics.findMetricsByScope(groupName, filter).stream()
+                                                                 .flatMap(m -> m.entrySet().stream())
+                                                                 .iterator() :
+                                                    () -> Metrics.findMetricsByType(groupName).stream()
+                                                                 .flatMap(m -> m.entrySet().stream())
+                                                                 .iterator();
+                                         },
+                                         MetricRow::new));
         });
         // Register virtual table of all known metric groups.
         builder.add(CollectionVirtualTableAdapter.create(VIRTUAL_METRICS,
@@ -272,24 +346,12 @@ public class CassandraMetricsRegistry extends MetricRegistry
                                             newMetricName.getSystemViewName());
     }
 
-    public String getMetricScope(String metricName)
+    public String getMetricScope(String fullName)
     {
-        int groupLen = DefaultNameFactory.GROUP_NAME.length();
-        int lastIndex = findNthIndexOf(metricName, groupLen, 2);
-        return metricName.length() <= groupLen || lastIndex == -1 ? METRIC_SCOPE_UNDEFINED :
-               metricName.substring(lastIndex + 1);
-    }
-
-    // Helper method to find the index of the nth occurrence of a specified character
-    private static int findNthIndexOf(String str, int start, int n)
-    {
-        int index = start;
-        while (n-- > 0)
-        {
-            index = str.indexOf('.', index + 1);
-            if (index == -1) break;
-        }
-        return index;
+        MetricName name = MetricName.from(fullName);
+        if (name == null || name.getScope() == null)
+            return METRIC_SCOPE_UNDEFINED;
+        return name.getScope();
     }
 
     public Counter counter(MetricName... name)
@@ -986,7 +1048,8 @@ public class CassandraMetricsRegistry extends MetricRegistry
         private final String type;
         private final String name;
         private final String scope;
-        private final String mBeanName;
+        /** Lazy create of the MBean name */
+        private final Supplier<String> mBeanName;
         private final String systemViewName;
 
         /**
@@ -1037,12 +1100,12 @@ public class CassandraMetricsRegistry extends MetricRegistry
          */
         public MetricName(String group, String type, String name, String scope)
         {
-            this(group, type, name, scope, createMBeanName(group, type, name, scope));
+            this(group, type, name, scope, () -> createMBeanName(group, type, name, scope), type);
         }
 
         public MetricName(String group, String type, String name, String scope, String mBeanName)
         {
-            this(group, type, name, scope, mBeanName, type);
+            this(group, type, name, scope, () -> mBeanName, type);
         }
 
         /**
@@ -1055,7 +1118,7 @@ public class CassandraMetricsRegistry extends MetricRegistry
          * @param mBeanName the 'ObjectName', represented as a string, to use when registering the MBean.
          * @param systemViewName the name of the virtual table to which the {@link Metric} belongs.
          */
-        public MetricName(String group, String type, String name, String scope, String mBeanName, String systemViewName)
+        public MetricName(String group, String type, String name, String scope, Supplier<String> mBeanName, String systemViewName)
         {
             if (group == null || type == null)
             {
@@ -1116,6 +1179,29 @@ public class CassandraMetricsRegistry extends MetricRegistry
         }
 
         /**
+         * @return returns the full name of the {@link Metric} or {@code null} if the name is not valid.
+         */
+        public static @Nullable MetricName from(String fullName)
+        {
+            if (fullName.startsWith(DefaultNameFactory.GROUP_NAME))
+            {
+                String group = DefaultNameFactory.GROUP_NAME;
+                int dotType = fullName.indexOf('.', group.length() + 1);
+                String type = fullName.substring(group.length() + 1, dotType);
+                int dotName = fullName.indexOf('.', dotType + 1);
+                return dotName == -1 ?
+                       new MetricName(group,
+                                      type,
+                                      fullName.substring(dotType + 1)) :
+                       new MetricName(group,
+                                      type,
+                                      fullName.substring(dotType + 1, dotName),
+                                      fullName.substring(dotName + 1));
+            }
+            return null;
+        }
+
+        /**
          * Returns the scope of the {@link Metric}.
          *
          * @return the scope of the {@link Metric}
@@ -1143,7 +1229,7 @@ public class CassandraMetricsRegistry extends MetricRegistry
         public ObjectName getMBeanName()
         {
 
-            String mname = mBeanName;
+            String mname = mBeanName();
 
             if (mname == null)
                 mname = getMetricName();
@@ -1164,6 +1250,11 @@ public class CassandraMetricsRegistry extends MetricRegistry
             }
         }
 
+        private String mBeanName()
+        {
+            return mBeanName.get();
+        }
+
         public String getSystemViewName()
         {
             return systemViewName;
@@ -1181,25 +1272,25 @@ public class CassandraMetricsRegistry extends MetricRegistry
                 return false;
             }
             final MetricName that = (MetricName) o;
-            return mBeanName.equals(that.mBeanName);
+            return mBeanName().equals(that.mBeanName());
         }
 
         @Override
         public int hashCode()
         {
-            return mBeanName.hashCode();
+            return mBeanName().hashCode();
         }
 
         @Override
         public String toString()
         {
-            return mBeanName;
+            return mBeanName();
         }
 
         @Override
         public int compareTo(MetricName o)
         {
-            return mBeanName.compareTo(o.mBeanName);
+            return mBeanName().compareTo(o.mBeanName());
         }
 
         private static String createMBeanName(String group, String type, String name, String scope)
@@ -1267,6 +1358,143 @@ public class CassandraMetricsRegistry extends MetricRegistry
                 name = method.getName();
             }
             return name;
+        }
+    }
+
+    private static class TreeMetricRegistry extends AbstractMap<String, Metric> implements ConcurrentMap<String, Metric>, MetricSet
+    {
+        public static final TreeMetricRegistry root = new TreeMetricRegistry();
+        private final ConcurrentMap<String, Metric> metrics = new ConcurrentHashMap<>();
+        private final ConcurrentMap<String, TreeMetricRegistry> nested = new ConcurrentSkipListMap<>(Comparator.naturalOrder());
+
+        /** Recursively collects all metrics from the registry and its nested registries. */
+        private Set<Map<String, Metric>> registers()
+        {
+            Set<Map<String, Metric>> result = new HashSet<>();
+            result.add(metrics);
+            nested.values().forEach(reg -> result.addAll(reg.registers()));
+            return result;
+        }
+
+        public TreeMetricRegistry nested(String param)
+        {
+            return nested.computeIfAbsent(param, k -> new TreeMetricRegistry());
+        }
+
+        @Override
+        public Map<String, Metric> getMetrics()
+        {
+            return registers().stream().flatMap(m -> m.entrySet().stream())
+                              .collect(ImmutableMap.toImmutableMap(Entry::getKey, Entry::getValue));
+        }
+
+        @Override
+        public Metric get(Object key)
+        {
+            if (!(key instanceof String))
+                return null;
+
+            MetricName name = MetricName.from((String) key);
+            if (name == null)
+                return metrics.get(key);
+
+            return name.getScope() == null ? root.nested(name.getGroup()).nested(name.getType()).metrics.get(key) :
+                     root.nested(name.getGroup()).nested(name.getType()).nested(name.getScope()).metrics.get(key);
+        }
+
+        @Override
+        public Metric putIfAbsent(String key, Metric value)
+        {
+            MetricName name = MetricName.from(key);
+            if (name == null)
+                return metrics.putIfAbsent(key, value);
+
+            String scope = name.getScope();
+            TreeMetricRegistry reg = scope == null ? root.nested(name.getGroup()) :
+                                     root.nested(name.getGroup()).nested(name.getType());
+            return reg.putIfAbsent(scope == null ? name.getType() : scope, key, value);
+        }
+
+        /**
+         * @param key Part of the metric full name, used to find the registry. Type or scope.
+         * @param fullName Full metric name.
+         * @param value New metric to put.
+         * @return {@code null} if the metric was not found, otherwise the previous metric.
+         */
+        private Metric putIfAbsent(String key, String fullName, Metric value)
+        {
+            Metric[] result = new Metric[1];
+            nested.compute(key, (k, registry) -> {
+                TreeMetricRegistry remap = registry;
+                if (registry == null)
+                    remap = new TreeMetricRegistry();
+                result[0] = remap.metrics.putIfAbsent(fullName, value);
+                return remap;
+            });
+            return result[0];
+        }
+
+        @Override
+        public Set<Entry<String, Metric>> entrySet()
+        {
+            return registers().stream().flatMap(m -> m.entrySet().stream())
+                              .collect(Collectors.toConcurrentMap(Entry::getKey, Entry::getValue))
+                              .entrySet();
+        }
+
+        @Override
+        public Metric remove(Object key)
+        {
+            if (!(key instanceof String))
+                return null;
+
+            MetricName name = MetricName.from((String) key);
+            if (name == null)
+                return metrics.remove(key);
+
+            String scope = name.getScope();
+            TreeMetricRegistry reg = scope == null ? root.nested(name.getGroup()) :
+                                     root.nested(name.getGroup()).nested(name.getType());
+            return reg.remove(scope == null ? name.getType() : scope, (String) key);
+        }
+
+        /**
+         * @param key Part of the metric full name, used to find the registry. Type or scope.
+         * @param fullKey Full metric name.
+         * @return Removed metric or {@code null} if the metric was not found.
+         */
+        private Metric remove(String key, String fullKey)
+        {
+            Metric[] result = new Metric[1];
+            nested.computeIfPresent(key, (k, registry) -> {
+                result[0] = registry.metrics.remove(fullKey);
+                return registry.metrics.isEmpty() ? null : registry;
+            });
+            return result[0];
+        }
+
+        @Override
+        public int size()
+        {
+            return registers().stream().mapToInt(Map::size).sum();
+        }
+
+        @Override
+        public boolean remove(Object key, Object value)
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean replace(String key, Metric oldValue, Metric newValue)
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Metric replace(String key, Metric value)
+        {
+            throw new UnsupportedOperationException();
         }
     }
 }
