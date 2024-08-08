@@ -207,7 +207,7 @@ public class CommitLog implements CommitLogMBean
             long startTime = nanoTime();
             replayed = recoverFiles(files);
             long endTime = nanoTime();
-            logger.info("Log replay complete, {} replayed mutations, it took {} ms", replayed,
+            logger.info("Log replay complete, {} replayed mutations in {} ms", replayed,
                         TimeUnit.NANOSECONDS.toMillis(endTime - startTime));
 
             for (File f : files)
