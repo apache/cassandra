@@ -57,12 +57,13 @@ import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFac
 public class CassandraResourceUtilization
 {
     private static final Logger logger = LoggerFactory.getLogger(CassandraResourceUtilization.class);
+    private static final NoSpamLogger noSpam1m = NoSpamLogger.getLogger(logger, 1, TimeUnit.MINUTES);
+
     private static final DecimalFormat df = new DecimalFormat("0");
     private static final String THROW_MESSAGE = "from dynamic throttler";
     // TODO: make this configurable
     private final IResourceUtilzation resourceUtilzation = new NativeResourceUtilization();
     protected static double MAX_THROTTLING = 1.0;
-    protected static int LOG_CPU_CORES_INTERVAL_MINUTES = 10;
 
     public static final String READ_THREAD_POOL = "ReadStage";
     public static final String MUTATION_THREAD_POOL = "MutationStage";
@@ -207,8 +208,7 @@ public class CassandraResourceUtilization
             checkSignals();
             adjustThrottling();
 
-            NoSpamLogger.log(logger, NoSpamLogger.Level.INFO, LOG_CPU_CORES_INTERVAL_MINUTES, TimeUnit.MINUTES,
-                             "availableProcessors = {}", Runtime.getRuntime().availableProcessors());
+            noSpam1m.info("availableProcessors = {}", Runtime.getRuntime().availableProcessors());
         }
     }
 
@@ -244,29 +244,27 @@ public class CassandraResourceUtilization
             shouldThrottle = true;
             lastThrottlingIndicatorTimeInMS = System.currentTimeMillis();
             throttlingMetrics.needsThrottling.inc();
-            // TODO: avoid the spamming of logs before deploying to higher tiers
-            logger.info("Enforcing throttling CpuUtil1: {}-{}, CpuUtil2: {}-{}, PendingReads: {}-{}, PendingMutations: {}-{}, PendingNativeTransportSignal: {}-{}, " +
-                        "LastThrottlingCheckPointTimeInMS: {}, LastThrottlingIndicatorTimeInMS: {}, CurrentThrottlingPercentage: {}",
-                        resourcesStats.getCpuUtil1Cur(), resourcesStats.getCpuUtil1OneMinute(),
-                        resourcesStats.getCpuUtil2Cur(), resourcesStats.getCpuUtil2OneMinute(),
-                        resourcesStats.getPendingReadsCur(), resourcesStats.getPendingReadsOneMinute(),
-                        resourcesStats.getPendingMutationsCur(), resourcesStats.getPendingMutationsOneMinute(),
-                        resourcesStats.getPendingNativeTransportCur(), resourcesStats.getPendingNativeTransportOneMinute(),
-                        convertEpochTimeToUTC(lastThrottlingCheckPointTimeInMS), convertEpochTimeToUTC(lastThrottlingIndicatorTimeInMS), currentThrottlingPercentage);
+            noSpam1m.info("Enforcing throttling CpuUtil1: {}-{}, CpuUtil2: {}-{}, PendingReads: {}-{}, PendingMutations: {}-{}, PendingNativeTransportSignal: {}-{}, " +
+                            "LastThrottlingCheckPointTimeInMS: {}, LastThrottlingIndicatorTimeInMS: {}, CurrentThrottlingPercentage: {}",
+                    resourcesStats.getCpuUtil1Cur(), resourcesStats.getCpuUtil1OneMinute(),
+                    resourcesStats.getCpuUtil2Cur(), resourcesStats.getCpuUtil2OneMinute(),
+                    resourcesStats.getPendingReadsCur(), resourcesStats.getPendingReadsOneMinute(),
+                    resourcesStats.getPendingMutationsCur(), resourcesStats.getPendingMutationsOneMinute(),
+                    resourcesStats.getPendingNativeTransportCur(), resourcesStats.getPendingNativeTransportOneMinute(),
+                    convertEpochTimeToUTC(lastThrottlingCheckPointTimeInMS), convertEpochTimeToUTC(lastThrottlingIndicatorTimeInMS), currentThrottlingPercentage);
         }
         else
         {
             shouldThrottle = false;
             throttlingMetrics.doesNotNeedThrottling.inc();
-            // TODO: avoid the spamming of logs before deploying to higher tiers
-            logger.info("DO NOT Enforce throttling CpuUtil1: {}-{}-{}, CpuUtil2: {}-{}-{}, PendingReads: {}-{}-{}, PendingMutations: {}-{}-{}, PendingNativeTransportSignal: {}-{}, " +
-                        "LastThrottlingCheckPointTimeInMS: {}, LastThrottlingIndicatorTimeInMS: {}, CurrentThrottlingPercentage: {}",
-                        cpuUtilSignal1, resourcesStats.getCpuUtil1Cur(), resourcesStats.getCpuUtil1OneMinute(),
-                        cpuUtilSignal2, resourcesStats.getCpuUtil2Cur(), resourcesStats.getCpuUtil2OneMinute(),
-                        pendingReadsSignal, resourcesStats.getPendingReadsCur(), resourcesStats.getPendingReadsOneMinute(),
-                        pendingMutationsSignal, resourcesStats.getPendingMutationsCur(), resourcesStats.getPendingMutationsOneMinute(),
-                        resourcesStats.getPendingNativeTransportCur(), resourcesStats.getPendingNativeTransportOneMinute(),
-                        convertEpochTimeToUTC(lastThrottlingCheckPointTimeInMS), convertEpochTimeToUTC(lastThrottlingIndicatorTimeInMS), currentThrottlingPercentage);
+            noSpam1m.info("DO NOT Enforce throttling CpuUtil1: {}-{}-{}, CpuUtil2: {}-{}-{}, PendingReads: {}-{}-{}, PendingMutations: {}-{}-{}, PendingNativeTransportSignal: {}-{}, " +
+                            "LastThrottlingCheckPointTimeInMS: {}, LastThrottlingIndicatorTimeInMS: {}, CurrentThrottlingPercentage: {}",
+                    cpuUtilSignal1, resourcesStats.getCpuUtil1Cur(), resourcesStats.getCpuUtil1OneMinute(),
+                    cpuUtilSignal2, resourcesStats.getCpuUtil2Cur(), resourcesStats.getCpuUtil2OneMinute(),
+                    pendingReadsSignal, resourcesStats.getPendingReadsCur(), resourcesStats.getPendingReadsOneMinute(),
+                    pendingMutationsSignal, resourcesStats.getPendingMutationsCur(), resourcesStats.getPendingMutationsOneMinute(),
+                    resourcesStats.getPendingNativeTransportCur(), resourcesStats.getPendingNativeTransportOneMinute(),
+                    convertEpochTimeToUTC(lastThrottlingCheckPointTimeInMS), convertEpochTimeToUTC(lastThrottlingIndicatorTimeInMS), currentThrottlingPercentage);
         }
     }
 

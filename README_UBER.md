@@ -52,23 +52,23 @@
       [jar] Building jar: /Users/panl/cassandra_ucs/cassandra/build/apache-cassandra-4.123.456.789-SNAPSHOT.jar
    ```
 3. Download an **arbitrary** (meaning the version doesn't matter) Cassandra artifact from [here](https://artifactory-dca1.uberinternal.com/artifactory/webapp/#/artifacts/browse/tree/General/libs-release-local-dca1/org/apache/cassandra/apache-cassandra).
-   All you need to download is the tar.gz file, e.g. apache-cassandra/3.0.25.1/apache-cassandra-4.0.6.5-bin.tar.gz
+   All you need to download is the tar.gz file, e.g. apache-cassandra/4.1.3.7/apache-cassandra-4.1.3.7-bin.tar.gz
 4. Untar the tar.gz file
-5. cd into it. For example: `% cd apache-cassandra-4.0.6.5`
+5. cd into it. For example: `% cd apache-cassandra-4.1.3.7`
 6. cd in the _lib_ folder. For example: `% cd lib`
-7. In thie folder there are many jar files. Find the one whose name goes like "apache-cassandra-xxx.jar". For example:
+7. In the folder there are many jar files. Find the one whose name goes like "apache-cassandra-xxx.jar". For example:
    ```
    % ls | grep apache-cassandra
-   apache-cassandra-4.0.6.5.jar
+   apache-cassandra-4.1.3.7.jar
    ```
 8. Here comes the most important step: we need to change the jar file in step 6 into a soft-link pointing to
    the jar file we created in step 2. For example:
    ```
-   rm -rf apache-cassandra-4.0.6.5.jar
-   ln -s <full_jar_path_in_step2> apache-cassandra-4.0.6.5.jar
+   rm -rf apache-cassandra-4.1.3.7.jar
+   ln -s <full_jar_path_in_step2> apache-cassandra-4.1.3.7.jar
    ```
 
-9. Run `arch` in your terminal. If you're running with M1/M2 architecture(arch returns arm64), you'll need JNA > 5.8 to start Cassandra 4.0 node. 
+9. Run `arch` in your terminal. If you're running with M1/M2/M3 architecture(arch returns arm64), you'll need JNA > 5.8 to start Cassandra 4.0 node. 
    Goto the folder of step 5 and do `ls lib | grep jna` to check the JNA jar (e.g. jna-5.6.0.jar).
    Download source code from [JNA gitrepo](https://github.com/java-native-access/jna). For example, jna-5.8.0.tar.gz. Untar the tar.gz file, cd into it and run `ant jar` to build the jar file.
    You should see 

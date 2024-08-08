@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * [SO-32802] Reduce log rate in checkSignals() for dynamic rate limiter
  * [SO-32238] Provide DC groups to repair options when starting repair
  * [SO-33225] Nodetool to SetAndOverrideLocalCompactionStrategy
  * IR may leak SSTables with pending repair when coming from streaming (CASSANDRA-19182)
