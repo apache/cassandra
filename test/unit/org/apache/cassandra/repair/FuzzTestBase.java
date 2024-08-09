@@ -183,7 +183,16 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
         UnitConfigOverride.maybeOverrideConfig();
 
         DatabaseDescriptor.daemonInitialization();
-        DatabaseDescriptor.setCommitLogWriteDiskAccessMode(Config.DiskAccessMode.mmap);
+
+        // in-memory fs (jimfs) we use for testing purposes does not handle direct mode well,
+        // it is evalauted to direct only in case we are running -latest test profile where
+        // commitlog_disk_access_mode is set to auto which would evaluate it to "direct" which fails,
+        // other test profiles (normal or compression) would run with in-memory fs just fine,
+        // it is just "direct" which can not be run with in-memory fs, in that case,
+        // we set it forcibly to mmap to bypass that
+        // please keep in mind this is a static field, impacting every test running in the same jvm
+        if (DatabaseDescriptor.getCommitLogWriteDiskAccessMode() == Config.DiskAccessMode.direct)
+            DatabaseDescriptor.setCommitLogWriteDiskAccessMode(Config.DiskAccessMode.mmap);
 
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance); // TOOD (coverage): random select
         DatabaseDescriptor.setLocalDataCenter("test");
