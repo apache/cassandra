@@ -110,7 +110,6 @@ import static org.apache.cassandra.repair.consistent.ConsistentSession.State.*;
 import static org.apache.cassandra.repair.messages.RepairMessage.always;
 import static org.apache.cassandra.repair.messages.RepairMessage.sendAck;
 import static org.apache.cassandra.repair.messages.RepairMessage.sendFailureResponse;
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /**
  * Manages all consistent repair sessions a node is participating in.
@@ -354,7 +353,7 @@ public class LocalSessions
      */
     public synchronized void start()
     {
-        long startTime = nanoTime();
+        long startTime = ctx.clock().nanoTime();
         int loadedSessionsCount = 0;
         Preconditions.checkArgument(!started, "LocalSessions.start can only be called once");
         Preconditions.checkArgument(sessions.isEmpty(), "No sessions should be added before start");
@@ -387,7 +386,7 @@ public class LocalSessions
 
         sessions = ImmutableMap.copyOf(loadedSessions);
         failOngoingRepairs();
-        long endTime = nanoTime();
+        long endTime = ctx.clock().nanoTime();
         logger.info("LocalSessions start completed in {} ms, sessions loaded from DB: {}",
                     TimeUnit.NANOSECONDS.toMillis(endTime - startTime), loadedSessionsCount);
         started = true;
