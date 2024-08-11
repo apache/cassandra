@@ -2009,7 +2009,7 @@ public class SelectTest extends CQLTester
         execute("INSERT INTO %s (a, b, c, d, e) VALUES (1, 4, [1, 2], {2, 4}, {1: 2})");
         execute("INSERT INTO %s (a, b, c, d, e) VALUES (2, 3, [3, 6], {6, 12}, {3: 6})");
 
-        //beforeAndAfterFlush(() -> {
+        beforeAndAfterFlush(() -> {
 
             // Checks filtering for lists
             assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
@@ -2092,7 +2092,7 @@ public class SelectTest extends CQLTester
             assertRows(
                     execute("SELECT * FROM %s WHERE a >= 1 AND b in (3) AND c CONTAINS 2 AND d CONTAINS 4 AND e NOT CONTAINS KEY 1 ALLOW FILTERING"),
                     row(1, 3, list(3, 2), set(6, 4), map(3, 2)));
-        //});
+        });
 
         // Checks filtering with null
         assertInvalidMessage("Invalid null value for column c",

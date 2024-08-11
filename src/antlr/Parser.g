@@ -1813,8 +1813,7 @@ relation[WhereClause.Builder clauses]
         )
     | name=cident '[' key=term ']' type=relationType t=term { $clauses.add(Relation.mapElement(name, key, type, t)); }
     | ids=tupleOfIdentifiers
-        ( K_IN inValue=multiColumnInValues { $clauses.add(Relation.multiColumn(ids, Operator.IN, inValue)); }
-        | K_NOT K_IN inValue=multiColumnInValues { $clauses.add(Relation.multiColumn(ids, Operator.NOT_IN, inValue)); }
+        ( rt=inOperator inValue=multiColumnInValues { $clauses.add(Relation.multiColumn(ids, rt, inValue)); }
         | type=relationType v=multiColumnValue {$clauses.add(Relation.multiColumn(ids, type, v)); }
         | K_BETWEEN t1=multiColumnValue K_AND t2=multiColumnValue { $clauses.add(Relation.multiColumn(ids, Operator.BETWEEN, Terms.Raw.of(List.of(t1, t2)))); }
         )
