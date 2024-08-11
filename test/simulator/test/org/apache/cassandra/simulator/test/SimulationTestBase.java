@@ -24,13 +24,16 @@ import java.util.Collections;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntSupplier;
+import java.util.function.LongConsumer;
 import java.util.function.Predicate;
 
 import com.google.common.collect.Iterators;
+import org.junit.BeforeClass;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ExecutorFactory;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
@@ -42,6 +45,7 @@ import org.apache.cassandra.simulator.ActionSchedule.Work;
 import org.apache.cassandra.simulator.asm.InterceptClasses;
 import org.apache.cassandra.simulator.asm.NemesisFieldSelectors;
 import org.apache.cassandra.simulator.systems.Failures;
+import org.apache.cassandra.simulator.systems.InterceptedWait;
 import org.apache.cassandra.simulator.systems.InterceptibleThread;
 import org.apache.cassandra.simulator.systems.InterceptingExecutorFactory;
 import org.apache.cassandra.simulator.systems.InterceptingGlobalMethods;
@@ -51,24 +55,36 @@ import org.apache.cassandra.simulator.systems.SimulatedQuery;
 import org.apache.cassandra.simulator.systems.SimulatedSystems;
 import org.apache.cassandra.simulator.systems.SimulatedTime;
 import org.apache.cassandra.simulator.utils.LongRange;
+import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.CloseableIterator;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CLOCK_GLOBAL;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CLOCK_MONOTONIC_APPROX;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CLOCK_MONOTONIC_PRECISE;
 import static org.apache.cassandra.simulator.ActionSchedule.Mode.TIME_LIMITED;
 import static org.apache.cassandra.simulator.ActionSchedule.Mode.UNLIMITED;
 import static org.apache.cassandra.simulator.ClusterSimulation.ISOLATE;
 import static org.apache.cassandra.simulator.ClusterSimulation.SHARE;
 import static org.apache.cassandra.simulator.SimulatorUtils.failWithOOM;
-import static org.apache.cassandra.simulator.systems.InterceptedWait.CaptureSites.Capture.NONE;
 import static org.apache.cassandra.simulator.utils.KindOfSequence.UNIFORM;
 import static org.apache.cassandra.utils.Shared.Scope.ANY;
 import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 
 public class SimulationTestBase
 {
+    @BeforeClass
+    public static void beforeAll()
+    {
+        // Disallow time on the bootstrap classloader
+        for (CassandraRelevantProperties property : Arrays.asList(CLOCK_GLOBAL, CLOCK_MONOTONIC_APPROX, CLOCK_MONOTONIC_PRECISE))
+            property.setString("org.apache.cassandra.simulator.systems.SimulatedTime$Delegating");
+        try { Clock.Global.nanoTime(); } catch (IllegalStateException e) {} // make sure static initializer gets called
+    }
+
     private static final Logger logger = LoggerFactory.getLogger(Logger.class);
 
     static abstract class DTestClusterSimulation implements Simulation
@@ -190,7 +206,7 @@ public class SimulationTestBase
         long seed = System.currentTimeMillis();
         // Development seed:
         //long seed = 1687184561194L;
-        System.out.println("Simulation seed: " + seed + "L");
+        logger.info("Simulation seed: {}L", seed);
         configure.accept(factory);
         try (ClusterSimulation<?> cluster = factory.create(seed))
         {
@@ -216,9 +232,15 @@ public class SimulationTestBase
     public static void simulate(IIsolatedExecutor.SerializableRunnable[] runnables,
                                 IIsolatedExecutor.SerializableRunnable check)
     {
+        simulate(runnables, check, System.currentTimeMillis());
+    }
+
+    public static void simulate(IIsolatedExecutor.SerializableRunnable[] runnables,
+                                IIsolatedExecutor.SerializableRunnable check,
+                                long seed)
+    {
         Failures failures = new HarrySimulatorTest.HaltOnError();
         RandomSource random = new RandomSource.Default();
-        long seed = System.currentTimeMillis();
         System.out.println("Using seed: " + seed);
         random.reset(seed);
         SimulatedTime time = new SimulatedTime(1, random, 1577836800000L /*Jan 1st UTC*/, new LongRange(1, 100, MILLISECONDS, NANOSECONDS),
@@ -229,10 +251,16 @@ public class SimulationTestBase
         InstanceClassLoader classLoader = new InstanceClassLoader(1, 1, AbstractCluster.CURRENT_VERSION.classpath,
                                                                   Thread.currentThread().getContextClassLoader(),
                                                                   sharedClassPredicate,
-                                                                  new InterceptClasses(() -> 1.0f, () -> 1.0f, NemesisFieldSelectors.get(), ClassLoader.getSystemClassLoader(), sharedClassPredicate.negate())::apply);
+                                                                  new InterceptClasses(() -> 1.0f, () -> 1.0f,
+                                                                                       NemesisFieldSelectors.get(),
+                                                                                       ClassLoader.getSystemClassLoader(),
+                                                                                       sharedClassPredicate.negate())::apply);
 
         ThreadGroup tg = new ThreadGroup("test");
-        InterceptorOfGlobalMethods interceptorOfGlobalMethods = new InterceptingGlobalMethods(NONE, null, failures, random);
+        InterceptedWait.CaptureSites.Capture capture = new InterceptedWait.CaptureSites.Capture(false, false, false);
+        InterceptorOfGlobalMethods interceptorOfGlobalMethods = IsolatedExecutor.transferAdhoc((IIsolatedExecutor.SerializableQuadFunction<InterceptedWait.CaptureSites.Capture, LongConsumer, Consumer<Throwable>, RandomSource, InterceptorOfGlobalMethods>) InterceptingGlobalMethods::new, classLoader)
+                                                                                .apply(capture, (ignore) -> {}, failures, random);
+
         InterceptingExecutorFactory factory = execution.factory(interceptorOfGlobalMethods, classLoader, tg);
 
         time.setup(1, classLoader);
@@ -295,8 +323,23 @@ public class SimulationTestBase
 
         ActionSchedule testSchedule = new ActionSchedule(simulated.time, simulated.futureScheduler, () -> 0, runnableScheduler, new Work(UNLIMITED, Collections.singletonList(ActionList.of(entrypoint))));
         Iterators.advance(testSchedule, Integer.MAX_VALUE);
+        if (failures.hasFailure())
+        {
+            AssertionError error = new AssertionError(String.format("Unexpected errors for seed %d", seed));
+            for (Throwable t : failures.get())
+                error.addSuppressed(t);
+            throw error;
+        }
+
         ActionSchedule checkSchedule = new ActionSchedule(simulated.time, simulated.futureScheduler, () -> 0, runnableScheduler, new Work(UNLIMITED, Collections.singletonList(ActionList.of(toAction(check, classLoader, factory, simulated)))));
         Iterators.advance(checkSchedule, Integer.MAX_VALUE);
+        if (failures.hasFailure())
+        {
+            AssertionError error = new AssertionError(String.format("Unexpected errors for seed %d", seed));
+            for (Throwable t : failures.get())
+                error.addSuppressed(t);
+            throw error;
+        }
     }
 
     public static Action toAction(IIsolatedExecutor.SerializableRunnable r, ClassLoader classLoader, InterceptingExecutorFactory factory, SimulatedSystems simulated)

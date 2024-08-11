@@ -150,18 +150,11 @@ public class ListSerializer<T> extends CollectionSerializer<List<T>>
 
             for (int i = 0; i < s; i++)
             {
-                int size = accessor.getInt(input, offset);
-                if (size < 0)
-                    continue;
-
-                offset += TypeSizes.INT_SIZE;
-
-                V value = accessor.slice(input, offset, size);
+                V value = readValue(input, accessor, offset);
+                offset += sizeOfValue(value, accessor);
 
                 if (predicate.test(value))
                     return true;
-
-                offset += size;
             }
             return false;
         }

@@ -18,11 +18,13 @@
 package org.apache.cassandra.cql3;
 
 import java.nio.ByteBuffer;
+import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.ConcurrentMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import com.google.common.collect.Lists;
 import com.google.common.collect.MapMaker;
 
 import org.apache.cassandra.cache.IMeasurableMemory;
@@ -184,6 +186,17 @@ public class ColumnIdentifier implements IMeasurableMemory, Comparable<ColumnIde
     public String toString()
     {
         return text;
+    }
+
+    /**
+     * Returns the CQL String corresponding to the specified identifiers.
+     *
+     * @param identifiers the column identifiers to convert.
+     * @return the CQL String corresponding to the specified identifiers
+     */
+    public static List<String> toCqlStrings(List<ColumnIdentifier> identifiers)
+    {
+        return Lists.transform(identifiers, ColumnIdentifier::toCQLString);
     }
 
     /**

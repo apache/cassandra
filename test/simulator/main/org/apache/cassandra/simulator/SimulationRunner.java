@@ -433,13 +433,16 @@ public class SimulationRunner
     }
 
 
-    private static Optional<Long> parseHex(Optional<String> value)
+    public static Optional<Long> parseHex(Optional<String> value)
     {
-        return value.map(s -> {
-            if (s.startsWith("0x"))
-                return Hex.parseLong(s, 2, s.length());
-            throw new IllegalArgumentException("Invalid hex string: " + s);
-        });
+        return value.map(SimulationRunner::parseHex);
+    }
+
+    public static long parseHex(String s)
+    {
+        if (s.startsWith("0x"))
+            return Hex.parseLong(s, 2, s.length());
+        throw new IllegalArgumentException("Invalid hex string: " + s);
     }
 
     private static final Pattern CHANCE_PATTERN = Pattern.compile("(uniform|(?<qlog>qlog(\\((?<quantizations>[0-9]+)\\))?):)?(?<min>0(\\.[0-9]+)?)(..(?<max>0\\.[0-9]+))?", Pattern.CASE_INSENSITIVE);

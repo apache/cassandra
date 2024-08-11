@@ -29,9 +29,14 @@ import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
+import javax.annotation.Nullable;
+
 import org.apache.cassandra.cql3.terms.MultiElements;
 import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.CellPath;
+import org.apache.cassandra.db.rows.ColumnData;
+import org.apache.cassandra.db.rows.ComplexColumnData;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.serializers.CollectionSerializer;
@@ -403,5 +408,52 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
             sortedBuffers.add(entry.getValue());
         }
         return sortedBuffers;
+    }
+
+    protected int compareNextCell(Iterator<Cell<?>> cellIterator, Iterator<ByteBuffer> elementIter)
+    {
+        Cell<?> c = cellIterator.next();
+
+        // compare the keys
+        int comparison = getKeysType().compare(c.path().get(0), elementIter.next());
+        if (comparison != 0)
+            return comparison;
+
+        // compare the values
+        return getValuesType().compare(c.buffer(), elementIter.next());
+    }
+
+    @Override
+    public boolean contains(ComplexColumnData columnData, ByteBuffer value)
+    {
+        Iterator<Cell<?>> iter = columnData.iterator();
+        while(iter.hasNext())
+        {
+            ByteBuffer cellValue = iter.next().buffer();
+            if(valueComparator().compare(cellValue, value) == 0)
+                return true;
+        }
+        return false;
+    }
+
+    @Override
+    public AbstractType<?> elementType(ByteBuffer keyOrIndex)
+    {
+        return getValuesType();
+    }
+
+    @Override
+    public ByteBuffer getElement(@Nullable ColumnData columnData, ByteBuffer keyOrIndex)
+    {
+        if (columnData == null)
+            return null;
+
+        if (isMultiCell())
+        {
+            Cell<?> cell = ((ComplexColumnData) columnData).getCell(CellPath.create(keyOrIndex));
+            return cell == null ? null : cell.buffer();
+        }
+
+        return getSerializer().getSerializedValue(((Cell<?>) columnData).buffer(), keyOrIndex, getValuesType());
     }
 }
