@@ -51,6 +51,7 @@ import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableBiCons
 import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableConsumer;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableRunnable;
 import org.apache.cassandra.distributed.impl.DirectStreamingConnectionFactory;
+import org.apache.cassandra.distributed.impl.InstanceConfig;
 import org.apache.cassandra.distributed.impl.IsolatedExecutor;
 import org.apache.cassandra.io.compress.LZ4Compressor;
 import org.apache.cassandra.io.util.FileSystems;
@@ -686,7 +687,17 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
                                    .set("file_cache_size", "16MiB")
                                    .set("use_deterministic_table_id", true)
                                    .set("disk_access_mode", disk_access_mode)
-                                   .set("failure_detector", SimulatedFailureDetector.Instance.class.getName());
+                                   .set("failure_detector", SimulatedFailureDetector.Instance.class.getName())
+                                   .set("commitlog_sync", "batch");
+
+                             // TODO: Add remove() to IInstanceConfig
+                             if (config instanceof InstanceConfig)
+                             {
+                                 InstanceConfig instanceConfig = (InstanceConfig) config;
+                                 instanceConfig.remove("commitlog_sync_period_in_ms");
+                                 instanceConfig.remove("commitlog_sync_period");
+                             }
+
                              if (commitlogCompressed)
                                  config.set("commitlog_compression", new ParameterizedClass(LZ4Compressor.class.getName(), emptyMap()));
                              configUpdater.accept(threadAllocator.update(config));
