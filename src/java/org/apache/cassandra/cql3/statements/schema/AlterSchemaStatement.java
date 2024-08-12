@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableSet;
 
 import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.auth.IResource;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryOptions;
@@ -96,6 +97,9 @@ abstract public class AlterSchemaStatement implements CQLStatement.SingleKeyspac
 
     public ResultMessage execute(QueryState state, boolean locally)
     {
+        if (!CassandraRelevantProperties.SCHEMA_MODIFICATIONS.getBoolean())
+            throw ire("Schema modifications are disabled.");
+
         if (SchemaConstants.isLocalSystemKeyspace(keyspaceName))
             throw ire("System keyspace '%s' is not user-modifiable", keyspaceName);
 

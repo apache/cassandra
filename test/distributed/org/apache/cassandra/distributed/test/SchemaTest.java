@@ -35,14 +35,31 @@ import org.awaitility.Awaitility;
 
 import static java.time.Duration.ofMillis;
 import static java.time.Duration.ofSeconds;
+import static org.apache.cassandra.distributed.Cluster.build;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertTrue;
 
 public class SchemaTest extends TestBaseImpl
 {
     @Test
+    public void testSchemaModificationDisabled() throws Throwable
+    {
+        try (Cluster cluster = build(1).withConfig(c -> c.with(Feature.NATIVE_PROTOCOL)).start())
+        {
+            CassandraRelevantProperties.SCHEMA_MODIFICATIONS.setBoolean(false);
+            assertThatThrownBy(() -> cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v1 int, v2 int,  primary key (pk, ck))"))
+            .hasMessage("Schema modifications are disabled.");
+        }
+        finally
+        {
+            CassandraRelevantProperties.SCHEMA_MODIFICATIONS.setBoolean(true);
+        }
+    }
+
+    @Test
     public void readRepair() throws Throwable
     {
-        try (Cluster cluster = init(Cluster.build(2).start()))
+        try (Cluster cluster = init(build(2).start()))
         {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v1 int, v2 int,  primary key (pk, ck))");
             String name = "aaa";
@@ -61,7 +78,7 @@ public class SchemaTest extends TestBaseImpl
     @Test
     public void readRepairWithCompaction() throws Throwable
     {
-        try (Cluster cluster = init(Cluster.build(2).start()))
+        try (Cluster cluster = init(build(2).start()))
         {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v1 int, v2 int,  primary key (pk, ck))");
             String name = "v10";
@@ -91,7 +108,7 @@ public class SchemaTest extends TestBaseImpl
             Throwable cause = e;
             while (cause != null)
             {
-                if (cause.getMessage() != null && cause.getMessage().contains("Unknown column "+name+" during deserialization"))
+                if (cause.getMessage() != null && cause.getMessage().contains("Unknown column " + name + " during deserialization"))
                     causeIsUnknownColumn = true;
                 cause = cause.getCause();
             }
@@ -107,7 +124,7 @@ public class SchemaTest extends TestBaseImpl
         CassandraRelevantProperties.SCHEMA_PULL_INTERVAL_MS.setInt(5 * delayUnit);
         CassandraRelevantProperties.SCHEMA_PULL_BACKOFF_DELAY_MS.setInt(delayUnit);
 
-        try (Cluster cluster = init(Cluster.build(2).withConfig(cfg -> cfg.with(Feature.GOSSIP, Feature.NETWORK)).start()))
+        try (Cluster cluster = init(build(2).withConfig(cfg -> cfg.with(Feature.GOSSIP, Feature.NETWORK)).start()))
         {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk INT PRIMARY KEY, v TEXT)");
 
@@ -152,5 +169,4 @@ public class SchemaTest extends TestBaseImpl
                       .until(() -> cluster.get(2).callOnInstance(() -> Schema.instance.getTableMetadata(KEYSPACE, "tbl") != null));
         }
     }
-
 }
