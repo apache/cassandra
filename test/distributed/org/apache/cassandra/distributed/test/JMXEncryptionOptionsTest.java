@@ -28,7 +28,7 @@ import org.apache.cassandra.distributed.test.jmx.JMXGetterCheckTest;
 public class JMXEncryptionOptionsTest extends AbstractEncryptionOptionsImpl
 {
     @Test
-    public void testEndpointVerification() throws Throwable
+    public void testDefaultSettings() throws Throwable
     {
         try (Cluster cluster = builder().withNodes(1).withConfig(c -> {
             c.with(Feature.JMX);
@@ -36,6 +36,62 @@ public class JMXEncryptionOptionsTest extends AbstractEncryptionOptionsImpl
                   ImmutableMap.builder().putAll(validKeystore)
                               .put("enabled", true)
                               .put("require_client_auth", false)
+                              .build());
+        }).start())
+        {
+            // Invoke the same code vs duplicating any code from the JMXGetterCheckTest
+            JMXGetterCheckTest.testAllValidGetters(cluster);
+        }
+    }
+
+    @Test
+    public void testPEMBasedEncryptionOptions() throws Throwable
+    {
+        try (Cluster cluster = builder().withNodes(1).withConfig(c -> {
+            c.with(Feature.JMX);
+            c.set("jmx_encryption_options",
+                  ImmutableMap.builder().putAll(validPEMKeystore)
+                              .put("enabled", true)
+                              .put("require_client_auth", false)
+                              .build());
+        }).start())
+        {
+            // Invoke the same code vs duplicating any code from the JMXGetterCheckTest
+            JMXGetterCheckTest.testAllValidGetters(cluster);
+        }
+    }
+
+    @Test
+    public void testInvalidKeystorePath() throws Throwable
+    {
+        try(Cluster cluster = builder().withNodes(1).withConfig(c -> {
+            c.with(Feature.JMX);
+            c.set("jmx_encryption_options",
+                  ImmutableMap.builder()
+                              .put("enabled", true)
+                              .put("keystore", "/path/to/bad/keystore/that/should/not/exist")
+                              .put("keystore_password", "cassandra")
+                              .build());
+        }).createWithoutStarting())
+        {
+            assertCannotStartDueToConfigurationException(cluster);
+        }
+    }
+
+    /**
+     * Tests {@code disabled} jmx_encryption_options. Here even if the configured {@code keystore} is invalid, it will
+     * not matter and the JMX server/client will start.
+     */
+    @Test
+    public void testDisabledEncryptionOptions() throws Throwable
+    {
+        try(Cluster cluster = builder().withNodes(1).withConfig(c -> {
+            c.with(Feature.JMX);
+            c.set("jmx_encryption_options",
+                  ImmutableMap.builder()
+                              .put("enabled", false)
+                              .put("keystore", "/path/to/bad/keystore/that/should/not/exist")
+                              .put("keystore_password", "cassandra")
                               .build());
         }).start())
         {
