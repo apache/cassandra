@@ -464,6 +464,8 @@ public enum CassandraRelevantProperties
      */
     SAI_VECTOR_SEARCH_ORDER_CHUNK_SIZE("cassandra.sai.vector_search.order_chunk_size", "100000"),
 
+    /** If set to false, schema modifications will not be allowed, defaults to true. */
+    SCHEMA_MODIFICATIONS("cassandra.schema.modifications", "true"),
     SCHEMA_PULL_INTERVAL_MS("cassandra.schema_pull_interval_ms", "60000"),
     SCHEMA_UPDATE_HANDLER_FACTORY_CLASS("cassandra.schema.update_handler_factory.class"),
     SEARCH_CONCURRENCY_FACTOR("cassandra.search_concurrency_factor", "1"),
