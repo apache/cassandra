@@ -353,6 +353,8 @@ public class LocalSessions
      */
     public synchronized void start()
     {
+        long startTime = ctx.clock().nanoTime();
+        int loadedSessionsCount = 0;
         Preconditions.checkArgument(!started, "LocalSessions.start can only be called once");
         Preconditions.checkArgument(sessions.isEmpty(), "No sessions should be added before start");
         UntypedResultSet rows = QueryProcessor.executeInternalWithPaging(String.format("SELECT * FROM %s.%s", keyspace, table), 1000);
@@ -360,6 +362,7 @@ public class LocalSessions
         Map<TableId, List<RepairedState.Level>> initialLevels = new HashMap<>();
         for (UntypedResultSet.Row row : rows)
         {
+            loadedSessionsCount++;
             try
             {
                 LocalSession session = load(row);
@@ -383,6 +386,9 @@ public class LocalSessions
 
         sessions = ImmutableMap.copyOf(loadedSessions);
         failOngoingRepairs();
+        long endTime = ctx.clock().nanoTime();
+        logger.info("LocalSessions start completed in {} ms, sessions loaded from DB: {}",
+                    TimeUnit.NANOSECONDS.toMillis(endTime - startTime), loadedSessionsCount);
         started = true;
     }
 
