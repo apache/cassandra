@@ -39,6 +39,7 @@ import org.awaitility.core.ConditionFactory;
 
 import static java.time.Duration.ofSeconds;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -46,6 +47,21 @@ public class SchemaTest extends TestBaseImpl
 {
     public static final String TABLE_ONE = "tbl_one";
     public static final String TABLE_TWO = "tbl_two";
+
+    @Test
+    public void testSchemaModificationDisabled() throws Throwable
+    {
+        try (Cluster cluster = Cluster.build(1).withConfig(c -> c.with(Feature.NATIVE_PROTOCOL)).start())
+        {
+            CassandraRelevantProperties.SCHEMA_MODIFICATIONS.setBoolean(false);
+            assertThatThrownBy(() -> cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v1 int, v2 int,  primary key (pk, ck))"))
+            .hasMessage("Schema modifications are disabled.");
+        }
+        finally
+        {
+            CassandraRelevantProperties.SCHEMA_MODIFICATIONS.setBoolean(true);
+        }
+    }
 
     @Test
     public void readRepair() throws Throwable
