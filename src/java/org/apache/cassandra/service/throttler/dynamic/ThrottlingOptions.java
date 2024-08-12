@@ -32,8 +32,8 @@ public class ThrottlingOptions
     public int pending_mutations_threshold_one_minute = 10;
     public int pending_native_transport_threshold_cur = 1;
     public int pending_native_transport_threshold_one_minute = 10;
-    public double percentage_of_traffic_to_throttling = 0.05;
-    public int more_aggressive_throttling_after_in_sec = 2 * 60; // 2 minutes
+    public double percentage_of_traffic_to_throttling = 0.1;
+    public int more_aggressive_throttling_after_in_sec = 1 * 60; // 2 minutes
     public int reset_after_no_throttling_seen_in_sec = 15 * 60; // 15 minutes
     public double aggressive_throttling_qps_ratio = 5;
     public double aggressive_throttling_latency_ratio = 5;
