@@ -471,7 +471,7 @@ public enum CassandraRelevantProperties
      * the results of an ANN query constrained by non-ANN predicates.
      */
     SAI_VECTOR_SEARCH_ORDER_CHUNK_SIZE("cassandra.sai.vector_search.order_chunk_size", "100000"),
-
+    SCHEMA_MODIFICATIONS("cassandra.schema.modifications", "true"),
     SCHEMA_UPDATE_HANDLER_FACTORY_CLASS("cassandra.schema.update_handler_factory.class"),
     SEARCH_CONCURRENCY_FACTOR("cassandra.search_concurrency_factor", "1"),
 
