@@ -35,10 +35,26 @@ import org.awaitility.Awaitility;
 
 import static java.time.Duration.ofMillis;
 import static java.time.Duration.ofSeconds;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertTrue;
 
 public class SchemaTest extends TestBaseImpl
 {
+    @Test
+    public void testSchemaModificationDisabled() throws Throwable
+    {
+        try (Cluster cluster = Cluster.build(1).withConfig(c -> c.with(Feature.NATIVE_PROTOCOL)).start())
+        {
+            CassandraRelevantProperties.SCHEMA_MODIFICATIONS.setBoolean(false);
+            assertThatThrownBy(() -> cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v1 int, v2 int,  primary key (pk, ck))"))
+            .hasMessage("Schema modifications are disabled.");
+        }
+        finally
+        {
+            CassandraRelevantProperties.SCHEMA_MODIFICATIONS.setBoolean(true);
+        }
+    }
+
     @Test
     public void readRepair() throws Throwable
     {

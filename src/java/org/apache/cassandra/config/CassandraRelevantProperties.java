@@ -217,8 +217,11 @@ public enum CassandraRelevantProperties
     DTEST_IS_IN_JVM_DTEST("org.apache.cassandra.dtest.is_in_jvm_dtest"),
 
     MIGRATION_DELAY("cassandra.migration_delay_ms", "60000"),
+    /** If set to false, schema modifications will not be allowed, defaults to true. */
+    SCHEMA_MODIFICATIONS("cassandra.schema.modifications", "true"),
     /** Defines how often schema definitions are pulled from the other nodes */
     SCHEMA_PULL_INTERVAL_MS("cassandra.schema_pull_interval_ms", "60000"),
+
     /**
      * Minimum delay after a failed pull request before it is reattempted. It prevents reattempting failed requests
      * immediately as it is high chance they will fail anyway. It is better to wait a bit instead of flooding logs
