@@ -729,6 +729,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 try
                 {
                     ExecutorUtils.shutdownNowAndWait(1, MINUTES, ScheduledExecutors.scheduledFastTasks);
+                    logger.info("Cassandra shutdown complete");
                 }
                 catch (Throwable t)
                 {
