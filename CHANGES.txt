@@ -68,6 +68,7 @@ Merged from 4.1:
  * Memoize Cassandra verion and add a backoff interval for failed schema pulls (CASSANDRA-18902)
  * Fix StackOverflowError on ALTER after many previous schema changes (CASSANDRA-19166)
 Merged from 4.0:
+ * Use default commitlog settings in test YAMLs (CASSANDRA-19830)
  * Fix schema.cql created by a snapshot after dropping more than one column (CASSANDRA-19747)
  * UnsupportedOperationException when reducing scope for LCS compactions (CASSANDRA-19704)
  * Make LWT conditions behavior on frozen and non-frozen columns consistent for null column values (CASSANDRA-19637)
