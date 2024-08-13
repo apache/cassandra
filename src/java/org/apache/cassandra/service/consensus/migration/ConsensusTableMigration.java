@@ -181,11 +181,13 @@ public abstract class ConsensusTableMigration
         ClusterMetadataService.instance().commit(new BeginConsensusMigrationForTableAndRange(targetProtocol, ranges, tableIds));
     }
 
-    public static List<Integer> finishMigrationToConsensusProtocol(@Nonnull String keyspace,
+    public static Integer finishMigrationToConsensusProtocol(@Nonnull String keyspace,
                                                                    @Nonnull Optional<List<String>> maybeTables,
-                                                                   @Nonnull Optional<String> maybeRangesStr)
+                                                                   @Nonnull Optional<String> maybeRangesStr,
+                                                                   ConsensusMigrationTarget target)
     {
         checkArgument(!maybeTables.isPresent() || !maybeTables.get().isEmpty(), "Must provide at least 1 table if Optional is not empty");
+        checkNotNull(target);
 
         Optional<List<Range<Token>>> localKeyspaceRanges = Optional.of(ImmutableList.copyOf(StorageService.instance.getLocalReplicas(keyspace).onlyFull().ranges()));
         List<Range<Token>> ranges = maybeRangesToRanges(maybeRangesStr, localKeyspaceRanges);
@@ -215,17 +217,17 @@ public abstract class ConsensusTableMigration
             tableMigrationStates.add(tms);
         });
 
-        List<TableMigrationState> migratingToAccord = tableMigrationStates.stream().filter(tms -> tms.targetProtocol == ConsensusMigrationTarget.accord).collect(toImmutableList());
-        List<TableMigrationState> migratingToPaxos = tableMigrationStates.stream().filter(tms -> tms.targetProtocol == ConsensusMigrationTarget.paxos).collect(toImmutableList());;
-
-        Integer accordRepairCmd = finishMigrationToAccord(keyspace, migratingToAccord, ranges);
-        Integer paxosRepairCmd = finishMigrationToPaxos(keyspace, migratingToPaxos, ranges);
-        List<Integer> result = new ArrayList<>();
-        if (accordRepairCmd != null)
-            result.add(accordRepairCmd);
-        if (paxosRepairCmd != null)
-            result.add(paxosRepairCmd);
-        return result;
+        switch (target)
+        {
+            case accord:
+                List<TableMigrationState> migratingToAccord = tableMigrationStates.stream().filter(tms -> tms.targetProtocol == ConsensusMigrationTarget.accord).collect(toImmutableList());
+                return finishMigrationToAccord(keyspace, migratingToAccord, ranges);
+            case paxos:
+                List<TableMigrationState> migratingToPaxos = tableMigrationStates.stream().filter(tms -> tms.targetProtocol == ConsensusMigrationTarget.paxos).collect(toImmutableList());;
+                return finishMigrationToPaxos(keyspace, migratingToPaxos, ranges);
+            default:
+                throw new IllegalArgumentException("Unsupported target: " + target);
+        }
     }
 
     private interface MigrationFinisher
