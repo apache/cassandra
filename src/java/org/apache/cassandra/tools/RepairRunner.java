@@ -22,6 +22,9 @@ import java.io.PrintStream;
 import java.text.SimpleDateFormat;
 import java.util.List;
 
+import javax.management.ListenerNotFoundException;
+import javax.management.remote.JMXConnector;
+
 import org.apache.cassandra.service.StorageServiceMBean;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.apache.cassandra.utils.progress.ProgressEvent;
@@ -41,30 +44,78 @@ import static org.apache.cassandra.utils.progress.ProgressEventType.PROGRESS;
 
 public class RepairRunner extends JMXNotificationProgressListener
 {
+    public static abstract class RepairCmd
+    {
+        private final String keyspace;
+
+        public RepairCmd(String keyspace)
+        {
+            this.keyspace = keyspace;
+        }
+
+
+
+        public abstract Integer start();
+    }
     private final SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss,SSS");
 
     private final PrintStream out;
+    private final JMXConnector jmxc;
     private final StorageServiceMBean ssProxy;
-    private final String keyspace;
     private final Condition condition = newOneTimeCondition();
 
+    private final RepairCmd repairCmd;
     private Integer cmd;
     private volatile Exception error;
 
-    public RepairRunner(PrintStream out, StorageServiceMBean ssProxy, String keyspace, Integer cmd)
+    public RepairRunner(PrintStream out, JMXConnector jmxc, StorageServiceMBean ssProxy, RepairCmd repairCmd)
     {
         this.out = out;
+        this.jmxc = jmxc;
         this.ssProxy = ssProxy;
-        this.keyspace = keyspace;
-        this.cmd = cmd;
+        this.repairCmd = repairCmd;
+    }
+
+    public void start()
+    {
+        if (jmxc != null)
+            jmxc.addConnectionNotificationListener(this, null, null);
+        ssProxy.addNotificationListener(this, null, null);
+        this.cmd = repairCmd.start();
+    }
+
+    public void close()
+    {
+        try
+        {
+            ssProxy.removeNotificationListener(this);
+        }
+        catch (ListenerNotFoundException e)
+        {
+            // noop - there may be double removes with error handling
+        }
+        if (jmxc != null)
+        {
+            try
+            {
+                jmxc.removeConnectionNotificationListener(this);
+            }
+            catch (ListenerNotFoundException e)
+            {
+                // noop - there may be double removes with error handling
+            }
+        }
     }
 
     public void run() throws Exception
     {
+        if (cmd == null)
+            return;
+
         if (cmd <= 0)
         {
             // repairAsync can only return 0 for replication factor 1.
-            String message = String.format("Replication factor is 1. No repair is needed for keyspace '%s'", keyspace);
+            String message = String.format("Replication factor is 1. No repair is needed for keyspace '%s'", repairCmd.keyspace);
             printMessage(message);
         }
         else
@@ -116,7 +167,7 @@ public class RepairRunner extends JMXNotificationProgressListener
     {
         error = new IOException(String.format("[%s] JMX connection closed. You should check server log for repair status of keyspace %s"
                                               + "(Subsequent keyspaces are not going to be repaired).",
-                                              format.format(timestamp), keyspace));
+                                              format.format(timestamp), repairCmd.keyspace));
         condition.signalAll();
     }
 
