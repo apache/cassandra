@@ -172,6 +172,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.schema.ViewMetadata;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
+import org.apache.cassandra.service.consensus.migration.ConsensusMigrationTarget;
 import org.apache.cassandra.service.disk.usage.DiskUsageBroadcaster;
 import org.apache.cassandra.service.paxos.Paxos;
 import org.apache.cassandra.service.paxos.PaxosCommit;
@@ -1651,12 +1652,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     }
 
     @Override
-    public List<Integer> finishConsensusMigration(@Nonnull String keyspace,
-                                                  @Nullable List<String> maybeTableNames,
-                                                  @Nullable String maybeRangesStr)
+    public Integer finishConsensusMigration(@Nonnull String keyspace,
+                                            @Nullable List<String> maybeTableNames,
+                                            @Nullable String maybeRangesStr,
+                                            @Nonnull ConsensusMigrationTarget target)
     {
         checkArgument(!keyspace.equals(SchemaConstants.METADATA_KEYSPACE_NAME));
-        return finishMigrationToConsensusProtocol(keyspace, Optional.ofNullable(maybeTableNames), Optional.ofNullable(maybeRangesStr));
+        return finishMigrationToConsensusProtocol(keyspace, Optional.ofNullable(maybeTableNames), Optional.ofNullable(maybeRangesStr), target);
     }
 
     @Override

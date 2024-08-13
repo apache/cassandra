@@ -30,6 +30,7 @@ import java.rmi.server.RMIClientSocketFactory;
 import java.rmi.server.RMISocketFactory;
 import java.util.AbstractMap;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -121,6 +122,7 @@ import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.streaming.management.StreamStateCompositeData;
 import org.apache.cassandra.tcm.CMSOperations;
 import org.apache.cassandra.tcm.CMSOperationsMBean;
+import org.apache.cassandra.tools.RepairRunner.RepairCmd;
 import org.apache.cassandra.tools.nodetool.GetTimeout;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
 import org.apache.cassandra.utils.NativeLibrary;
@@ -512,18 +514,28 @@ public class NodeProbe implements AutoCloseable
 
     public void repairAsync(final PrintStream out, final String keyspace, Map<String, String> options) throws IOException
     {
-        blockOnAsyncRepair(out, keyspace, ssProxy.repairAsync(keyspace, options));
+        startAndBlockOnAsyncRepairs(out, Collections.singleton(new RepairCmd(keyspace)
+        {
+            @Override
+            public Integer start()
+            {
+                return ssProxy.repairAsync(keyspace, options);
+            }
+        }));
     }
 
-    public void blockOnAsyncRepair(final PrintStream out, final String keyspace, Integer cmd) throws IOException
+    public void startAndBlockOnAsyncRepairs(final PrintStream out, Collection<RepairCmd> cmds) throws IOException
     {
-        RepairRunner runner = new RepairRunner(out, ssProxy, keyspace, cmd);
+        List<RepairRunner> runners = new ArrayList<>(cmds.size());
+        for (RepairCmd cmd : cmds)
+            runners.add(new RepairRunner(out, jmxc, ssProxy, cmd));
+
         try
         {
-            if (jmxc != null)
-                jmxc.addConnectionNotificationListener(runner, null, null);
-            ssProxy.addNotificationListener(runner, null, null);
-            runner.run();
+            runners.forEach(RepairRunner::start);
+
+            for (RepairRunner runner : runners)
+                runner.run();
         }
         catch (Exception e)
         {
@@ -533,9 +545,7 @@ public class NodeProbe implements AutoCloseable
         {
             try
             {
-                ssProxy.removeNotificationListener(runner);
-                if (jmxc != null)
-                    jmxc.removeConnectionNotificationListener(runner);
+                runners.forEach(RepairRunner::close);
             }
             catch (Throwable e)
             {

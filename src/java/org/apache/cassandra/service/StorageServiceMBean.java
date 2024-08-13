@@ -36,6 +36,7 @@ import javax.management.openmbean.TabularData;
 
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.service.consensus.migration.ConsensusMigrationTarget;
 import org.apache.cassandra.utils.BreaksJMX;
 
 public interface StorageServiceMBean extends NotificationEmitter
@@ -1077,9 +1078,10 @@ public interface StorageServiceMBean extends NotificationEmitter
                                   @Nullable List<String> maybeTableNames,
                                   @Nullable String maybeRangesStr);
 
-    List<Integer> finishConsensusMigration(@Nonnull String keyspace,
-                                           @Nullable List<String> maybeTableNames,
-                                           @Nullable String maybeRangesStr);
+    Integer finishConsensusMigration(@Nonnull String keyspace,
+                                     @Nullable List<String> maybeTableNames,
+                                     @Nullable String maybeRangesStr,
+                                     @Nonnull ConsensusMigrationTarget target);
 
     String listConsensusMigrations(@Nullable Set<String> keyspaceNames, @Nullable Set<String> tableNames, @Nonnull String format);
 

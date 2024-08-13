@@ -27,8 +27,10 @@ import java.util.Set;
 import io.airlift.airline.Arguments;
 import io.airlift.airline.Command;
 import io.airlift.airline.Option;
+import org.apache.cassandra.service.consensus.migration.ConsensusMigrationTarget;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool;
+import org.apache.cassandra.tools.RepairRunner.RepairCmd;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static java.util.Collections.singleton;
@@ -96,26 +98,50 @@ public abstract class ConsensusMigrationAdmin extends NodeTool.NodeToolCmd
         @Arguments(usage = "[<keyspace> <tables>...]", description = "The keyspace followed by one or many tables")
         private List<String> schemaArgs = new ArrayList<>();
 
+        private static class FinishMigrationRepairCommand extends RepairCmd
+        {
+            private final NodeProbe probe;
+            private final String keyspace;
+            private final List<String> maybeTableNames;
+            private final String maybeRangesStr;
+            private final ConsensusMigrationTarget target;
+
+            public FinishMigrationRepairCommand(NodeProbe probe, String keyspace, List<String> maybeTableNames, String maybeRangesStr, ConsensusMigrationTarget target)
+            {
+                super(keyspace);
+                this.probe = probe;
+                this.keyspace = keyspace;
+                this.maybeTableNames = maybeTableNames;
+                this.maybeRangesStr = maybeRangesStr;
+                this.target = target;
+            }
+
+            @Override
+            public Integer start()
+            {
+                return probe.getStorageService().finishConsensusMigration(keyspace, maybeTableNames, maybeRangesStr, target);
+            }
+        }
+
         protected void execute(NodeProbe probe)
         {
             checkArgument((endToken != null) == (startToken != null), "Start and end token must be specified together");
             String maybeRangesStr = startToken != null ? startToken + ":" + endToken : null;
             List<String> keyspaceNames = parseOptionalKeyspace(schemaArgs, probe, KeyspaceSet.ACCORD_MANAGED);
             List<String> maybeTableNames = schemaArgs.size() > 1 ? schemaArgs.subList(1, schemaArgs.size()) : null;
+            List<RepairCmd> repairCmds = new ArrayList<>(keyspaceNames.size() * 2);
             for (String keyspace : keyspaceNames)
             {
-                List<Integer> commands = probe.getStorageService().finishConsensusMigration(keyspace, maybeTableNames, maybeRangesStr);
-                for (Integer command : commands)
-                {
-                    try
-                    {
-                        probe.blockOnAsyncRepair(probe.output().out, keyspace, command);
-                    }
-                    catch (IOException e)
-                    {
-                        throw new RuntimeException("Error occurred attempting to finish migration for keyspace " + keyspace + " tables " + maybeTableNames + " and ranges " + maybeRangesStr, e);
-                    }
-                }
+                repairCmds.add(new FinishMigrationRepairCommand(probe, keyspace, maybeTableNames, maybeRangesStr, ConsensusMigrationTarget.paxos));
+                repairCmds.add(new FinishMigrationRepairCommand(probe, keyspace, maybeTableNames, maybeRangesStr, ConsensusMigrationTarget.accord));
+            }
+            try
+            {
+                probe.startAndBlockOnAsyncRepairs(probe.output().out, repairCmds);
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException("Error occurred attempting to finish migration for keyspace(s) " + keyspaceNames + " tables " + maybeTableNames + " and ranges " + maybeRangesStr, e);
             }
             probe.output().out.printf("Finished consensus migration range (%s) of keyspaces %s and tables %s%n", maybeRangesStr, keyspaceNames, maybeTableNames);
         }
