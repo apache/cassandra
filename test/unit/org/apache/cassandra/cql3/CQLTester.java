@@ -74,11 +74,16 @@ import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.rules.TestName;
+import org.junit.rules.TestWatcher;
+import org.junit.runner.Description;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.utils.DefaultRandom;
+import accord.utils.RandomSource;
 import com.codahale.metrics.Gauge;
 import com.datastax.driver.core.CloseFuture;
 import com.datastax.driver.core.Cluster;
@@ -106,9 +111,11 @@ import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.auth.IRoleManager;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
+import org.apache.cassandra.config.YamlConfigurationLoader;
 import org.apache.cassandra.cql3.functions.FunctionName;
 import org.apache.cassandra.cql3.functions.types.ParseUtils;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -174,6 +181,7 @@ import org.apache.cassandra.transport.SimpleClient;
 import org.apache.cassandra.transport.TlsTestUtils;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.ConfigGenBuilder;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JMXServerUtils;
 import org.apache.cassandra.utils.Pair;
@@ -422,7 +430,6 @@ public abstract class CQLTester
     public static void setUpClass()
     {
         prePrepareServer();
-
         // Once per-JVM is enough
         prepareServer();
     }
@@ -2987,6 +2994,131 @@ public abstract class CQLTester
 
             return Objects.equal(username, u.username)
                 && Objects.equal(password, u.password);
+        }
+    }
+
+    public static abstract class Fuzzed extends CQLTester
+    {
+        protected static RandomSource RANDOM = new DefaultRandom();
+        private static long SEED;
+        private static long CONFIG_SEED;
+        private static String CONFIG = null;
+
+        @ClassRule
+        public static TestName TEST_CLASS_NAME = new TestName();
+        @Rule
+        public TestName testName = new TestName();
+        @Rule
+        public FailureWatcher failureRule = new FailureWatcher();
+
+        @BeforeClass
+        public static void setUpClass()
+        {
+            setupConfigSeed();
+            try
+            {
+                prePrepareServer();
+                updateConfigs();
+
+                // Once per-JVM is enough
+                prepareServer();
+            }
+            catch (Throwable t)
+            {
+                throwPropertyError(t, null);
+            }
+        }
+
+        protected static void setupConfigSeed()
+        {
+            String configProp = configSeedProperty();
+            if (System.getProperty(configProp, null) != null)
+            {
+                CONFIG_SEED = Long.parseLong(System.getProperty(configProp));
+            }
+            else
+            {
+                CONFIG_SEED = RANDOM.nextLong();
+            }
+            RANDOM.setSeed(CONFIG_SEED);
+        }
+
+        protected static void updateConfigs()
+        {
+            Map<String, Object> config = new ConfigGenBuilder().build().next(RANDOM);
+            CONFIG = YamlConfigurationLoader.toYaml(config);
+
+            Config c = DatabaseDescriptor.loadConfig();
+            YamlConfigurationLoader.updateFromMap(config, true, c);
+
+            DatabaseDescriptor.unsafeDaemonInitialization(() -> c);
+        }
+
+        @Before
+        public void setupRandomSeed()
+        {
+            updateSeed(testSeedProperty(testName.klass, testName.method));
+        }
+
+        private static String testSeedProperty(String klass, String method)
+        {
+            return String.format("cassandra.test.cqltester.fuzzed.seed.%s.%s", klass, method);
+        }
+
+        private static String configSeedProperty()
+        {
+            return String.format("cassandra.test.cqltester.fuzzed.seed.%s", TEST_CLASS_NAME.klass);
+        }
+
+        private static void updateSeed(String property)
+        {
+            if (System.getProperty(property, null) != null)
+            {
+                SEED = Long.parseLong(System.getProperty(property));
+            }
+            else
+            {
+                SEED = RANDOM.nextLong();
+            }
+            RANDOM.setSeed(SEED);
+        }
+
+        public static class TestName extends TestWatcher
+        {
+            private String klass, method;
+
+            @Override
+            protected void starting(Description description)
+            {
+                klass = description.getClassName();
+                method = description.getMethodName();
+            }
+        }
+
+        public static class FailureWatcher extends TestWatcher
+        {
+            @Override
+            protected void failed(Throwable e, Description description)
+            {
+                String property = testSeedProperty(description.getClassName(), description.getMethodName());
+                throwPropertyError(e, property);
+            }
+        }
+
+        private static AssertionError throwPropertyError(Throwable e, @Nullable String testProp)
+        {
+            String configSeedProp = configSeedProperty();
+            StringBuilder sb = new StringBuilder();
+            sb.append("Property error detected:");
+            sb.append("\nConfig Seed: ").append(CONFIG_SEED).append(" -- To rerun do -D").append(configSeedProp).append('=').append(CONFIG_SEED);
+            if (testProp != null)
+                sb.append("\nSeed: ").append(SEED).append(" -- To rerun do -D").append(testProp).append('=').append(SEED);
+            if (CONFIG != null)
+                sb.append("\nConfig:\n\t").append(CONFIG.replaceAll("\n", "\n\t"));
+            String message = e.getMessage();
+            if (message != null)
+                sb.append("\nError:\n\t").append(message.replaceAll("\n", "\n\t"));
+            throw new AssertionError(sb.toString(), e);
         }
     }
 
