@@ -61,6 +61,18 @@ public class ConfigGenBuilder
     // for this reason the period must be "short"
     Gen<DurationSpec.IntMillisecondsBound> commitlogSyncGroupWindowGen = Gens.longs().between(1, 20).map(l -> new DurationSpec.IntMillisecondsBound(l));
 
+    public ConfigGenBuilder withPartitioner(IPartitioner instance)
+    {
+        this.partitionerGen = ignore -> instance;
+        return this;
+    }
+
+    public ConfigGenBuilder withCommitLogSync(Config.CommitLogSync commitLogSync)
+    {
+        this.commitLogSyncGen = ignore -> commitLogSync;
+        return this;
+    }
+
     public Gen<Map<String, Object>> build()
     {
         return rs -> {
