@@ -89,7 +89,6 @@ public class RepairTest extends TestBaseImpl
     {
         configModifier = configModifier.andThen(
         config -> config.set("hinted_handoff_enabled", false)
-                        .set("commitlog_sync_batch_window_in_ms", 5)
                         .with(NETWORK)
                         .with(GOSSIP)
         );
