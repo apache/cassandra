@@ -3032,9 +3032,9 @@ public abstract class CQLTester
         protected static void setupConfigSeed()
         {
             String configProp = configSeedProperty();
-            if (System.getProperty(configProp, null) != null)
+            if (System.getProperty(configProp, null) != null) // checkstyle: suppress nearby 'blockSystemPropertyUsage'
             {
-                CONFIG_SEED = Long.parseLong(System.getProperty(configProp));
+                CONFIG_SEED = Long.parseLong(System.getProperty(configProp)); // checkstyle: suppress nearby 'blockSystemPropertyUsage'
             }
             else
             {
@@ -3072,9 +3072,9 @@ public abstract class CQLTester
 
         private static void updateSeed(String property)
         {
-            if (System.getProperty(property, null) != null)
+            if (System.getProperty(property, null) != null) // checkstyle: suppress nearby 'blockSystemPropertyUsage'
             {
-                SEED = Long.parseLong(System.getProperty(property));
+                SEED = Long.parseLong(System.getProperty(property)); // checkstyle: suppress nearby 'blockSystemPropertyUsage'
             }
             else
             {
