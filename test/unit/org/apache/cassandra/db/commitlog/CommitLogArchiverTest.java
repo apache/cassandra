@@ -32,6 +32,7 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Properties;
 
@@ -39,7 +40,7 @@ import static org.junit.Assert.assertTrue;
 
 public class CommitLogArchiverTest extends CQLTester
 {
-    private static Path dirName = Path.of("/tmp/backup_commitlog_for_test");
+    private static Path dirName = Paths.get("/tmp/backup_commitlog_for_test");
     private static String rpiTime = "2024:03:22 20:43:12.633222";
     private static CommitLogArchiver archiver;
 
