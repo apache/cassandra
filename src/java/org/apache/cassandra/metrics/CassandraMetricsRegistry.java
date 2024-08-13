@@ -162,7 +162,7 @@ public class CassandraMetricsRegistry extends MetricRegistry
      */
     public static final CassandraMetricsRegistry Metrics = new CassandraMetricsRegistry();
 
-    CassandraMetricsRegistry()
+    public CassandraMetricsRegistry()
     {
     }
 
