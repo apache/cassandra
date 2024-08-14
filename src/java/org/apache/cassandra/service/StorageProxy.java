@@ -2139,8 +2139,16 @@ public class StorageProxy implements StorageProxyMBean
             StorageProxyMetricsManager.getMetrics(metadata.keyspace, consistencyLevel).readMetrics.addNano(latency);
             StorageProxyMetricsManager.getMetrics(metadata.keyspace, consistencyLevel).casReadMetrics.addNano(latency);
             Keyspace.open(metadata.keyspace).getColumnFamilyStore(metadata.name).metric.coordinatorReadLatency.update(latency, TimeUnit.NANOSECONDS);
-        }
 
+            try
+            {
+                QueryAnalyticsService.instance.processLatencyMetric("coordinatorReadLatency", String.valueOf(latency), command);
+            }
+            catch (Exception e)
+            {
+                logger.error("Error processing latency metrics for QAN: ", e);
+            }
+        }
         return result;
     }
 
@@ -2229,9 +2237,19 @@ public class StorageProxy implements StorageProxyMBean
             readMetricsForLevel(consistencyLevel).addNano(latency);
             StorageProxyMetricsManager.getMetrics(group.queries.get(0).metadata().keyspace, consistencyLevel).readMetrics.addNano(latency);
             // TODO avoid giving every command the same latency number.  Can fix this in CASSADRA-5329
-            for (ReadCommand command : group.queries)
+            for (SinglePartitionReadCommand command : group.queries)
+            {
                 Keyspace.openAndGetStore(command.metadata()).metric.coordinatorReadLatency.update(latency, TimeUnit.NANOSECONDS);
 
+                try
+                {
+                    QueryAnalyticsService.instance.processLatencyMetric("coordinatorReadLatency", String.valueOf(latency), command);
+                }
+                catch (Exception e)
+                {
+                    logger.error("Error processing latency metrics for QAN: ", e);
+                }
+            }
             BadQuery.checkForSlowCoordinatorRead(group.queries, latency);
         }
     }

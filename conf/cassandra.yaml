@@ -1741,6 +1741,14 @@ transient_replication_enabled: false
 # 'ALTER ... DROP COMPACT STORAGE' is considered experimental and is not recommended for production use.
 drop_compact_storage_enabled: false
 
+# Enables kafka messages to be sent to hp-cstar-qan for query analytics
+# Kafka messages are currently being tested and is still not recommended for production use
+
+#query_analytics:
+#  enabled : true
+#  kafka_topic: "hp-cstar-qan"
+#  logs_enabled: true
+
 # Whether or not USE <keyspace> is allowed. This is enabled by default to avoid failure on upgrade.
 #use_statements_enabled: true
 

@@ -40,6 +40,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.audit.AuditLogOptions;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
+import org.apache.cassandra.service.QueryAnalyticsConfig;
 import org.apache.cassandra.service.StartupChecks.StartupCheckType;
 import org.apache.cassandra.repair.AutoRepairConfig;
 import org.apache.cassandra.service.throttler.dynamic.ThrottlingOptions;
@@ -773,6 +774,8 @@ public class Config
     public Boolean auto_repair_mv_repair_enabled = true;
 
     public volatile AutoRepairConfig auto_repair = new AutoRepairConfig();
+
+    public volatile QueryAnalyticsConfig query_analytics = new QueryAnalyticsConfig();
 
     // Set this to be true if compaction should ignore repair status of the SSTables and reset them to be unrepaired
     public volatile boolean ignore_repairedat_enabled = false;

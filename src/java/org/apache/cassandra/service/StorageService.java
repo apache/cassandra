@@ -1414,6 +1414,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         doGossipServiceCacheMismatchSetup();
 
         doRateLimiterSetup();
+
+        doQueryAnalyticsSetup();
     }
 
     @VisibleForTesting
@@ -1494,6 +1496,22 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
         AutoRepairService.instance.setAutoRepairStatus(DatabaseDescriptor.isAutoRepairEnabled());
         logger.info("AutoRepair setup complete!");
+    }
+
+    private void doQueryAnalyticsSetup()
+    {
+        if(DatabaseDescriptor.getQueryAnalyticsConfig().isQueryAnalyticsEnabled())
+        {
+            try
+            {
+                QueryAnalyticsService.setup();
+                logger.info("Enable Query Analytics");
+            }
+            catch (Exception e)
+            {
+                logger.error("Query Analytics Setup Failed, error: ",e);
+            }
+        }
     }
 
     private void doGossipServiceCacheMismatchSetup() {

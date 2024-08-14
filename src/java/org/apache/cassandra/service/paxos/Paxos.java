@@ -83,6 +83,7 @@ import org.apache.cassandra.metrics.ClientRequestMetrics;
 import org.apache.cassandra.service.CASRequest;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.FailureRecordingCallback.AsMap;
+import org.apache.cassandra.service.QueryAnalyticsService;
 import org.apache.cassandra.service.paxos.Commit.Proposal;
 import org.apache.cassandra.service.reads.DataResolver;
 import org.apache.cassandra.service.reads.repair.NoopReadRepair;
@@ -905,6 +906,15 @@ public class Paxos
             Keyspace.open(table.keyspace).getColumnFamilyStore(table.name).metric.coordinatorReadLatency.update(latency, TimeUnit.NANOSECONDS);
             if (failedAttemptsDueToContention > 0)
                 casReadMetrics.contention.update(failedAttemptsDueToContention);
+
+            try
+            {
+                QueryAnalyticsService.instance.processLatencyMetric("coordinatorReadLatency", String.valueOf(latency), read);
+            }
+            catch (Exception e)
+            {
+                logger.error("Error processing latency metrics for QAN: ",e);
+            }
         }
     }
 

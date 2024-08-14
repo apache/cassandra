@@ -55,6 +55,7 @@ import org.apache.cassandra.db.monitoring.BadQueriesInSystemLog;
 import org.apache.cassandra.db.monitoring.BadQueriesInTable;
 import org.apache.cassandra.db.monitoring.IBadQueryReporter;
 import org.apache.cassandra.repair.AutoRepairConfig;
+import org.apache.cassandra.service.QueryAnalyticsConfig;
 import org.apache.cassandra.service.throttler.dynamic.ThrottlingOptions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -5152,5 +5153,10 @@ public class DatabaseDescriptor
     public static void setEnableCustomPayloadLogging(boolean enableCustomPayloadLogging)
     {
         conf.enable_custom_payload_logging = enableCustomPayloadLogging;
+    }
+
+    public static QueryAnalyticsConfig getQueryAnalyticsConfig()
+    {
+        return conf.query_analytics;
     }
 }

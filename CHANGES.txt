@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * [SO-33245] Implement Query Analytics MVP
  * [SO-32238] Shuffle keyspaces before running auto-repair
  * [SO-32238] Prevent repair for system and LocalStrategy keyspaces
  * [SO-32802] Reduce log rate in checkSignals() for dynamic rate limiter

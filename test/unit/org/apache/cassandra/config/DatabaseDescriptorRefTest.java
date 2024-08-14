@@ -224,6 +224,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.LogbackStatusListener$ToLoggerOutputStream",
     "org.apache.cassandra.LogbackStatusListener$WrappedPrintStream",
     "org.apache.cassandra.TeeingAppender",
+    "org.apache.cassandra.service.QueryAnalyticsConfig",
     // generated classes
     "org.apache.cassandra.config.ConfigBeanInfo",
     "org.apache.cassandra.config.ConfigCustomizer",
