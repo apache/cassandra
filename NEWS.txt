@@ -51,6 +51,16 @@ restore snapshots created with the previous major version using the
 'sstableloader' tool. You can upgrade the file format of your snapshots
 using the provided 'sstableupgrade' tool.
 
+4.1.6
+=====
+
+Upgrading
+---------
+    - Note that the QueryHandler interface has been changed to accomodate
+      improved management of pending requests; any custom implementations
+      (using the cassandra.custom_query_handler_class system property) will
+      need to be recompiled.  For further details, see CASSANDRA-19534.
+
 4.1.3
 =====
 
