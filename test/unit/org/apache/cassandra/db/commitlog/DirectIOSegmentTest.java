@@ -31,6 +31,7 @@ import org.junit.Test;
 import net.openhft.chronicle.core.util.ThrowingFunction;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.SimpleCachedBufferPool;
 import org.apache.cassandra.utils.Generators;
@@ -38,7 +39,9 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.internal.creation.MockSettingsImpl;
 import sun.nio.ch.DirectBuffer;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.COMMITLOG_DIRECTIO_SUPPORT_FOR_TEST;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doCallRealMethod;
@@ -169,5 +172,16 @@ public class DirectIOSegmentTest
         {
             pool.releaseBuffer(buf);
         }
+    }
+
+    @Test
+    public void testDirectIOUnSupportWithDirectConfig()
+    {
+        boolean supportBefore = COMMITLOG_DIRECTIO_SUPPORT_FOR_TEST.getBoolean();
+        COMMITLOG_DIRECTIO_SUPPORT_FOR_TEST.setBoolean(false);
+        DatabaseDescriptor.setCommitLogWriteDiskAccessMode(Config.DiskAccessMode.direct);
+        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(DatabaseDescriptor::initializeCommitLogDiskAccessMode)
+                                                               .withMessage("commitlog_disk_access_mode can not be set to direct when direct IO is not supported now.");
+        COMMITLOG_DIRECTIO_SUPPORT_FOR_TEST.setBoolean(supportBefore);
     }
 }
