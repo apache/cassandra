@@ -1186,6 +1186,7 @@ public class Config
             switch (this)
             {
                 case unslabbed_heap_buffers:
+                case unslabbed_heap_buffers_logged:
                 case heap_buffers:
                     return BufferType.ON_HEAP;
                 case offheap_buffers:
