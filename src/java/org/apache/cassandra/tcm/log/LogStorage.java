@@ -51,6 +51,12 @@ public interface LogStorage extends LogReader
         }
 
         @Override
+        public LogState getLogState(Epoch start, Epoch end)
+        {
+            return LogState.EMPTY;
+        }
+
+        @Override
         public LogState getPersistedLogState()
         {
             return LogState.EMPTY;

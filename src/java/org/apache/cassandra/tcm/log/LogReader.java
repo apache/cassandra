@@ -136,7 +136,6 @@ public interface LogReader
             else if (closestSnapshot.epoch.isBefore(start))
             {
                 ImmutableList.Builder<Entry> entries = new ImmutableList.Builder<>();
-                // TODO (required): EntryHolder#add seems not to play along with the low epoch bound.
                 EntryHolder entryHolder = getEntries(closestSnapshot.epoch, end);
                 for (Entry entry : entryHolder.entries)
                 {
@@ -173,7 +172,6 @@ public interface LogReader
 
         public void add(Entry entry)
         {
-            // TODO: this doesn't seem to play well along with DML Keyspace, since there we are actually fetching this epoch
             if (entry.epoch.isAfter(since))
                 entries.add(entry);
         }

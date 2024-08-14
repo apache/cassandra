@@ -161,9 +161,13 @@ public final class DistributedMetadataLogKeyspace
         return (consistentFetch ? serialLogReader : localLogReader).getLogState(since);
     }
 
-    public static LogState getLogState(Epoch start, Epoch end, boolean consistentFetch)
+    /**
+     * Reconstructs the log state by returning a _consistent_ base snapshot of a start epoch, and
+     * a list of transformations between start and end.
+     */
+    public static LogState getLogState(Epoch start, Epoch end)
     {
-        return (consistentFetch ? serialLogReader : localLogReader).getLogState(start, end);
+        return serialLogReader.getLogState(start, end);
     }
 
     public static class DistributedTableLogReader implements LogReader

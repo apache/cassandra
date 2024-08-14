@@ -169,7 +169,7 @@ public class PaxosBackedProcessor extends AbstractLocalProcessor
 
     public LogState reconstruct(Epoch lowEpoch, Epoch highEpoch, Retry.Deadline retryPolicy)
     {
-        return DistributedMetadataLogKeyspace.getLogState(lowEpoch, highEpoch, true);
+        return DistributedMetadataLogKeyspace.getLogState(lowEpoch, highEpoch);
     }
 
     private static <T> T unwrap(Promise<T> promise)
