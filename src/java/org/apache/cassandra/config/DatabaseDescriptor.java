@@ -118,7 +118,6 @@ import org.apache.cassandra.utils.StorageCompatibilityMode;
 import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOCATE_TOKENS_FOR_KEYSPACE;
 import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_UNLIMITED_CONCURRENT_VALIDATIONS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.AUTO_BOOTSTRAP;
-import static org.apache.cassandra.config.CassandraRelevantProperties.COMMITLOG_DIRECTIO_SUPPORT_FOR_TEST;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CONFIG_LOADER;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CHRONICLE_ANALYTICS_DISABLE;
 import static org.apache.cassandra.config.CassandraRelevantProperties.DISABLE_STCS_IN_L0;
@@ -1467,17 +1466,14 @@ public class DatabaseDescriptor
         boolean directIOSupported = false;
         try
         {
-            if (COMMITLOG_DIRECTIO_SUPPORT_FOR_TEST.getBoolean())
-            {
-                String commitLogLocation = getCommitLogLocation();
+            String commitLogLocation = getCommitLogLocation();
 
-                if (commitLogLocation == null)
-                    throw new ConfigurationException("commitlog_directory must be specified", false);
+            if (commitLogLocation == null)
+                throw new ConfigurationException("commitlog_directory must be specified", false);
 
-                File commitLogLocationDir = new File(commitLogLocation);
-                PathUtils.createDirectoriesIfNotExists(commitLogLocationDir.toPath());
-                directIOSupported = FileUtils.getBlockSize(commitLogLocationDir) > 0;
-            }
+            File commitLogLocationDir = new File(commitLogLocation);
+            PathUtils.createDirectoriesIfNotExists(commitLogLocationDir.toPath());
+            directIOSupported = FileUtils.getBlockSize(commitLogLocationDir) > 0;
         }
         catch (IOError | ConfigurationException ex)
         {
