@@ -864,9 +864,9 @@ public class DatabaseDescriptorTest
                 DatabaseDescriptor.setCommitLogCompression(null);
                 DatabaseDescriptor.setEncryptionContext(null);
                 DatabaseDescriptor.getRawConfig().disk_optimization_strategy = Config.DiskOptimizationStrategy.spinning;
-                assertCommitLogDiskAccessModes(Config.DiskAccessMode.mmap, Config.DiskAccessMode.mmap, Config.DiskAccessMode.mmap, Config.DiskAccessMode.direct);
+                assertCommitLogDiskAccessModes(Config.DiskAccessMode.mmap, Config.DiskAccessMode.mmap, Config.DiskAccessMode.mmap);
                 DatabaseDescriptor.getRawConfig().disk_optimization_strategy = Config.DiskOptimizationStrategy.ssd;
-                assertCommitLogDiskAccessModes(Config.DiskAccessMode.mmap, Config.DiskAccessMode.mmap, Config.DiskAccessMode.mmap, Config.DiskAccessMode.direct);
+                assertCommitLogDiskAccessModes(Config.DiskAccessMode.mmap, Config.DiskAccessMode.mmap, Config.DiskAccessMode.mmap);
 
                 // compression enabled
                 DatabaseDescriptor.setCommitLogCompression(new ParameterizedClass("LZ4Compressor", null));

@@ -58,6 +58,7 @@ import com.google.common.collect.Sets;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.RateLimiter;
+import org.apache.cassandra.utils.Pair;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -1451,7 +1452,7 @@ public class DatabaseDescriptor
         partitionerName = partitioner.getClass().getCanonicalName();
     }
 
-    private static DiskAccessMode resolveCommitLogWriteDiskAccessMode(DiskAccessMode providedDiskAccessMode)
+    private static Pair<DiskAccessMode, Boolean> resolveCommitLogWriteDiskAccessMode(DiskAccessMode providedDiskAccessMode)
     {
         boolean compressOrEncrypt = getCommitLogCompression() != null || (getEncryptionContext() != null && getEncryptionContext().isEnabled());
         boolean directIOSupported = false;
@@ -1491,20 +1492,24 @@ public class DatabaseDescriptor
             providedDiskAccessMode = compressOrEncrypt ? DiskAccessMode.standard : DiskAccessMode.mmap;
         }
 
-        return providedDiskAccessMode;
+        return Pair.create(providedDiskAccessMode, directIOSupported);
     }
 
-    private static void validateCommitLogWriteDiskAccessMode(DiskAccessMode diskAccessMode) throws ConfigurationException
+    private static void validateCommitLogWriteDiskAccessMode(Pair<DiskAccessMode, Boolean> accessModeDirectIoPair) throws ConfigurationException
     {
         boolean compressOrEncrypt = getCommitLogCompression() != null || (getEncryptionContext() != null && getEncryptionContext().isEnabled());
 
-        if (compressOrEncrypt && diskAccessMode != DiskAccessMode.standard)
+        if (!accessModeDirectIoPair.right && accessModeDirectIoPair.left == DiskAccessMode.direct)
         {
-            throw new ConfigurationException("commitlog_disk_access_mode = " + diskAccessMode + " is not supported with compression or encryption. Please use 'auto' when unsure.", false);
+            throw new ConfigurationException("commitlog_disk_access_mode can not be set to direct when direct IO is not supported by the file system.");
         }
-        else if (!compressOrEncrypt && diskAccessMode != DiskAccessMode.mmap && diskAccessMode != DiskAccessMode.direct)
+        else if (compressOrEncrypt && accessModeDirectIoPair.left != DiskAccessMode.standard)
         {
-            throw new ConfigurationException("commitlog_disk_access_mode = " + diskAccessMode + " is not supported. Please use 'auto' when unsure.", false);
+            throw new ConfigurationException("commitlog_disk_access_mode = " + accessModeDirectIoPair.left + " is not supported with compression or encryption. Please use 'auto' when unsure.", false);
+        }
+        else if (!compressOrEncrypt && accessModeDirectIoPair.left != DiskAccessMode.mmap && accessModeDirectIoPair.left != DiskAccessMode.direct)
+        {
+            throw new ConfigurationException("commitlog_disk_access_mode = " + accessModeDirectIoPair.left + " is not supported. Please use 'auto' when unsure.", false);
         }
     }
 
@@ -2863,9 +2868,9 @@ public class DatabaseDescriptor
     @VisibleForTesting
     public static void initializeCommitLogDiskAccessMode()
     {
-        DiskAccessMode resolved = resolveCommitLogWriteDiskAccessMode(conf.commitlog_disk_access_mode);
-        validateCommitLogWriteDiskAccessMode(resolved);
-        commitLogWriteDiskAccessMode = resolved;
+        Pair<DiskAccessMode, Boolean> accessModeDirectIoPair = resolveCommitLogWriteDiskAccessMode(conf.commitlog_disk_access_mode);
+        validateCommitLogWriteDiskAccessMode(accessModeDirectIoPair);
+        commitLogWriteDiskAccessMode = accessModeDirectIoPair.left;
     }
 
     public static String getSavedCachesLocation()
