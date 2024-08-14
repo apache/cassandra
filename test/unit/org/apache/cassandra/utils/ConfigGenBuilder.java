@@ -34,12 +34,15 @@ import org.apache.cassandra.io.sstable.format.SSTableFormat;
 
 public class ConfigGenBuilder
 {
+    public enum Memtable {SkipListMemtable, TrieMemtable, ShardedSkipListMemtable}
+
     Gen<IPartitioner> partitionerGen = Generators.toGen(CassandraGenerators.nonLocalPartitioners());
     Gen<Config.DiskAccessMode> commitLogDiskAccessModeGen = Gens.enums().all(Config.DiskAccessMode.class)
                                                                 .filter(m -> m != Config.DiskAccessMode.standard && m != Config.DiskAccessMode.mmap_index_only);
     Gen<Config.DiskAccessMode> diskAccessModeGen = Gens.enums().all(Config.DiskAccessMode.class).filter(m -> m != Config.DiskAccessMode.direct);
     Gen<String> sstableFormatGen = Generators.toGen(CassandraGenerators.sstableFormat()).map(SSTableFormat::name);
     Gen<Config.MemtableAllocationType> memtableAllocationTypeGen = Gens.enums().all(Config.MemtableAllocationType.class);
+    Gen<Memtable> memtableGen = Gens.enums().all(Memtable.class);
     Gen<Config.CommitLogSync> commitLogSyncGen = Gens.enums().all(Config.CommitLogSync.class);
     Gen<DurationSpec.IntMillisecondsBound> commitLogSyncPeriodGen = rs -> {
         // how long?
@@ -103,10 +106,10 @@ public class ConfigGenBuilder
                 break;
             case periodic:
                 config.put("commitlog_sync_period", commitLogSyncPeriodGen.next(rs).toString());
-            break;
+                break;
             case group:
                 config.put("commitlog_sync_group_window", commitlogSyncGroupWindowGen.next(rs).toString());
-            break;
+                break;
             default:
                 throw new AssertionError(commitlog_sync.name());
         }
@@ -116,6 +119,52 @@ public class ConfigGenBuilder
     private void updateConfigMemtable(RandomSource rs, Map<String, Object> config)
     {
         config.put("memtable_allocation_type", memtableAllocationTypeGen.next(rs));
+        //TODO (usability, operability): rather than defining each config, we should have common configs and let you override... this is what we did with sstables...
+        Memtable defaultMemtable = memtableGen.next(rs);
+        Map<String, Map<String, Object>> memtables = new LinkedHashMap<>();
+        if (rs.nextBoolean())
+        {
+            // use inherits
+            for (Memtable m : Memtable.values())
+                memtables.put(m.name(), createConfig(m).next(rs));
+            memtables.put("default", ImmutableMap.of("inherits", defaultMemtable.name()));
+        }
+        else
+        {
+            // define inline
+            memtables.put("default", createConfig(defaultMemtable).next(rs));
+        }
+        config.put("memtable", ImmutableMap.of("configurations", memtables));
+    }
+
+    private static Gen<Map<String, Object>> createConfig(Memtable type)
+    {
+        return rs -> {
+            ImmutableMap.Builder<String, Object> builder = ImmutableMap.builder();
+            builder.put("class_name", type.name());
+            ImmutableMap.Builder<String, Object> parametersBuilder = ImmutableMap.builder();
+            switch (type)
+            {
+                case TrieMemtable:
+                {
+                    if (rs.nextBoolean())
+                        parametersBuilder.put("shards", rs.nextInt(1, 64));
+                }
+                break;
+                case ShardedSkipListMemtable:
+                {
+                    if (rs.nextBoolean())
+                        parametersBuilder.put("serialize_writes", rs.nextBoolean());
+                    if (rs.nextBoolean())
+                        parametersBuilder.put("shards", rs.nextInt(1, 64));
+                }
+                break;
+            }
+            ImmutableMap<String, Object> params = parametersBuilder.build();
+            if (!params.isEmpty())
+                builder.put("parameters", params);
+            return builder.build();
+        };
     }
 
     private void updateConfigSSTables(RandomSource rs, Map<String, Object> config)
