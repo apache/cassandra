@@ -74,15 +74,18 @@ import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.ClassRule;
+import org.junit.FixMethodOrder;
 import org.junit.Rule;
 import org.junit.rules.TestName;
 import org.junit.rules.TestWatcher;
 import org.junit.runner.Description;
+import org.junit.runners.MethodSorters;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.utils.DefaultRandom;
+import accord.utils.Gen;
+import accord.utils.Property;
 import accord.utils.RandomSource;
 import com.codahale.metrics.Gauge;
 import com.datastax.driver.core.CloseFuture;
@@ -192,6 +195,7 @@ import org.awaitility.Awaitility;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_JMX_LOCAL_PORT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_DRIVER_CONNECTION_TIMEOUT_MS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_DRIVER_READ_TIMEOUT_MS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_RANDOM_SEED;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_REUSE_PREPARED;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_ROW_CACHE_SIZE;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_USE_PREPARED;
@@ -2997,24 +3001,33 @@ public abstract class CQLTester
         }
     }
 
+    /**
+     * Enhances {@link CQLTester} to make it easier for tests to leverage randomness.  This class is not the best way to
+     * leverage randomness as it won't run the tests against multiple seeds (so could take a long time to find faults), and also
+     * forces a test ordering to simplify the seed management (rather than each test having its own seed, the class has a
+     * single seed, so tests must be run in a deterministic order that doesn't change from host or JVM).
+     *
+     * The main use case for this class is to take existing tests or tests patterns people wish to write, and make it easy
+     * and safe to add randomness.  One main advantage is that the node spun up has non-static configs, meaning that each
+     * test run can explore different spaces and avoid having to create a new yaml/CI pipeline to test different configs.
+     *
+     * When possible {@link Property#qt()} should be leveraged as it will rerun the test many times with different seeds.
+     */
+    @FixMethodOrder(MethodSorters.NAME_ASCENDING)
     public static abstract class Fuzzed extends CQLTester
     {
-        protected static RandomSource RANDOM = new DefaultRandom();
+        private static RandomSource RANDOM;
         private static long SEED;
-        private static long CONFIG_SEED;
         private static String CONFIG = null;
+        protected static Gen<Map<String, Object>> CONFIG_GEN = null;
 
-        @ClassRule
-        public static TestName TEST_CLASS_NAME = new TestName();
-        @Rule
-        public TestName testName = new TestName();
         @Rule
         public FailureWatcher failureRule = new FailureWatcher();
 
         @BeforeClass
         public static void setUpClass()
         {
-            setupConfigSeed();
+            setupSeed();
             try
             {
                 prePrepareServer();
@@ -3025,27 +3038,34 @@ public abstract class CQLTester
             }
             catch (Throwable t)
             {
-                throwPropertyError(t, null);
+                throwPropertyError(t);
             }
         }
 
-        protected static void setupConfigSeed()
+        protected static RandomSource random()
         {
-            String configProp = configSeedProperty();
-            if (System.getProperty(configProp, null) != null) // checkstyle: suppress nearby 'blockSystemPropertyUsage'
-            {
-                CONFIG_SEED = Long.parseLong(System.getProperty(configProp)); // checkstyle: suppress nearby 'blockSystemPropertyUsage'
-            }
-            else
-            {
-                CONFIG_SEED = RANDOM.nextLong();
-            }
-            RANDOM.setSeed(CONFIG_SEED);
+            if (RANDOM == null)
+                setupSeed();
+            return RANDOM;
+        }
+
+        protected static long seed()
+        {
+            return SEED;
+        }
+
+        private static void setupSeed()
+        {
+            if (RANDOM != null) return;
+            SEED = TEST_RANDOM_SEED.getLong(new DefaultRandom().nextLong());
+            RANDOM = new DefaultRandom(SEED);
         }
 
         protected static void updateConfigs()
         {
-            Map<String, Object> config = new ConfigGenBuilder().build().next(RANDOM);
+            if (CONFIG_GEN == null)
+                CONFIG_GEN = new ConfigGenBuilder().build();
+            Map<String, Object> config = CONFIG_GEN.next(RANDOM);
             CONFIG = YamlConfigurationLoader.toYaml(config);
 
             Config c = DatabaseDescriptor.loadConfig();
@@ -3054,70 +3074,25 @@ public abstract class CQLTester
             DatabaseDescriptor.unsafeDaemonInitialization(() -> c);
         }
 
-        @Before
-        public void setupRandomSeed()
-        {
-            updateSeed(testSeedProperty(testName.klass, testName.method));
-        }
-
-        private static String testSeedProperty(String klass, String method)
-        {
-            return String.format("cassandra.test.cqltester.fuzzed.seed.%s.%s", klass, method);
-        }
-
-        private static String configSeedProperty()
-        {
-            return String.format("cassandra.test.cqltester.fuzzed.seed.%s", TEST_CLASS_NAME.klass);
-        }
-
-        private static void updateSeed(String property)
-        {
-            if (System.getProperty(property, null) != null) // checkstyle: suppress nearby 'blockSystemPropertyUsage'
-            {
-                SEED = Long.parseLong(System.getProperty(property)); // checkstyle: suppress nearby 'blockSystemPropertyUsage'
-            }
-            else
-            {
-                SEED = RANDOM.nextLong();
-            }
-            RANDOM.setSeed(SEED);
-        }
-
-        public static class TestName extends TestWatcher
-        {
-            private String klass, method;
-
-            @Override
-            protected void starting(Description description)
-            {
-                klass = description.getClassName();
-                method = description.getMethodName();
-            }
-        }
-
         public static class FailureWatcher extends TestWatcher
         {
             @Override
             protected void failed(Throwable e, Description description)
             {
-                String property = testSeedProperty(description.getClassName(), description.getMethodName());
-                throwPropertyError(e, property);
+                throwPropertyError(e);
             }
         }
 
-        private static AssertionError throwPropertyError(Throwable e, @Nullable String testProp)
+        private static AssertionError throwPropertyError(Throwable e)
         {
-            String configSeedProp = configSeedProperty();
+            String seedProp = TEST_RANDOM_SEED.getKey();
             StringBuilder sb = new StringBuilder();
             sb.append("Property error detected:");
-            sb.append("\nConfig Seed: ").append(CONFIG_SEED).append(" -- To rerun do -D").append(configSeedProp).append('=').append(CONFIG_SEED);
-            if (testProp != null)
-                sb.append("\nSeed: ").append(SEED).append(" -- To rerun do -D").append(testProp).append('=').append(SEED);
+            sb.append("\nSeed: ").append(SEED).append(" -- To rerun do -D").append(seedProp).append('=').append(SEED);
             if (CONFIG != null)
                 sb.append("\nConfig:\n\t").append(CONFIG.replaceAll("\n", "\n\t"));
-            String message = e.getMessage();
-            if (message != null)
-                sb.append("\nError:\n\t").append(message.replaceAll("\n", "\n\t"));
+            String message = e.toString();
+            sb.append("\nError:\n\t").append(message.replaceAll("\n", "\n\t"));
             throw new AssertionError(sb.toString(), e);
         }
     }
