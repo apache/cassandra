@@ -191,12 +191,12 @@ public class AutoRepairV2
                 AutoRepairUtilsV2.updateStartAutoRepairHistory(repairType, myId, timeFunc.get(), turn);
 
                 repairState.setRepairKeyspaceCount(0);
-                repairState.setRepairTableSuccessCount(0);
-                repairState.setRepairFailedTablesCount(0);
                 repairState.setRepairSkippedTablesCount(0);
                 repairState.setRepairInProgress(true);
                 repairState.setTotalTablesConsideredForRepair(0);
                 repairState.setTotalMVTablesConsideredForRepair(0);
+                int failedTokenRanges = 0;
+                int succeededTokenRanges = 0;
 
                 List<Keyspace> keyspaces = new ArrayList<>();
                 Keyspace.all().forEach(keyspaces::add);
@@ -266,7 +266,6 @@ public class AutoRepairV2
                                 // if we need to repair non-primary token ranges, then change the tokens accrodingly
                                 tokens = StorageService.instance.getLocalReplicas(keyspaceName).ranges();
                             }
-                            boolean repairSuccess = true;
                             Set<Range<Token>> ranges = new HashSet<>();
                             int numberOfSubranges = config.getRepairSubRangeNum(repairType);
                             int totalSubRanges = tokens.size() * numberOfSubranges;
@@ -362,27 +361,19 @@ public class AutoRepairV2
                                             logger.info("Repair completed for range {}-{} for {}.{}, total subranges: {}," +
                                                         "processed subranges: {}", childStartToken.toString(), childEndToken.toString(),
                                                         keyspaceName, config.getRepairByKeyspace(repairType) ? tablesToBeRepaired : tableName, totalSubRanges, totalProcessedSubRanges);
+                                            succeededTokenRanges += ranges.size();
                                         }
                                         else
                                         {
-                                            repairSuccess = false;
                                             //in future we can add retry, etc.
                                             logger.info("Repair failed for range {}-{} for {}.{} total subranges: {}," +
                                                         "processed subranges: {}", childStartToken.toString(), childEndToken.toString(),
                                                         keyspaceName, config.getRepairByKeyspace(repairType) ? tablesToBeRepaired : tableName, totalSubRanges, totalProcessedSubRanges);
+                                            failedTokenRanges += ranges.size();
                                         }
                                         ranges.clear();
                                     }
                                 }
-                            }
-                            int touchedTables = config.getRepairByKeyspace(repairType) ? tablesToBeRepaired.size() : 1;
-                            if (repairSuccess)
-                            {
-                                repairState.setRepairTableSuccessCount(repairState.getRepairTableSuccessCount() + touchedTables);
-                            }
-                            else
-                            {
-                                repairState.setRepairFailedTablesCount(repairState.getRepairFailedTablesCount() + touchedTables);
                             }
                             if (config.getRepairByKeyspace(repairType))
                             {
@@ -408,12 +399,14 @@ public class AutoRepairV2
                     AutoRepairUtilsV2.removePriorityStatus(repairType, myId);
                 }
 
+                repairState.setFailedTokenRangesCount(failedTokenRanges);
+                repairState.setSucceededTokenRangesCount(succeededTokenRanges);
                 repairState.setNodeRepairTimeInSec((int) TimeUnit.MILLISECONDS.toSeconds(timeFunc.get() - startTime));
                 long timeInHours = TimeUnit.SECONDS.toHours(repairState.getNodeRepairTimeInSec());
                 logger.info("Local {} repair time {} hour(s), stats: repairKeyspaceCount {}, " +
-                            "repairTableSuccessCount {}, repairTableFailureCount {}, " +
+                            "repairTokenRangesSuccessCount {}, repairTokenRangesFailureCount {}, " +
                             "repairTableSkipCount {}", repairType, timeInHours, repairState.getRepairKeyspaceCount(),
-                            repairState.getRepairTableSuccessCount(), repairState.getRepairFailedTablesCount(),
+                            repairState.getSucceededTokenRangesCount(), repairState.getFailedTokenRangesCount(),
                             repairState.getRepairSkippedTablesCount());
                 if (repairState.getLastRepairTime() != 0)
                 {

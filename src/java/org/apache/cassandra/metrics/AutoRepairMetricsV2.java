@@ -37,7 +37,8 @@ public class AutoRepairMetricsV2
     public Gauge<Integer> clusterRepairTimeInSec;
     public Gauge<Integer> skippedTablesCount;
     public Gauge<Integer> longestUnrepairedSec;
-    public Gauge<Integer> failedTablesCount;
+    public Gauge<Integer> succeededTokenRangesCount;
+    public Gauge<Integer> failedTokenRangesCount;
     public Counter repairTurnMyTurn;
     public Counter repairTurnMyTurnDueToPriority;
     public Counter repairTurnMyTurnForceRepair;
@@ -71,6 +72,22 @@ public class AutoRepairMetricsV2
             }
         });
 
+        succeededTokenRangesCount = Metrics.register(factory.createMetricName("SucceededTokenRangesCount"), new Gauge<Integer>()
+        {
+            public Integer getValue()
+            {
+                return AutoRepairV2.instance.getRepairState(repairType).getSucceededTokenRangesCount();
+            }
+        });
+
+        failedTokenRangesCount = Metrics.register(factory.createMetricName("FailedTokenRangesCount"), new Gauge<Integer>()
+        {
+            public Integer getValue()
+            {
+                return AutoRepairV2.instance.getRepairState(repairType).getFailedTokenRangesCount();
+            }
+        });
+
         skippedTablesCount = Metrics.register(factory.createMetricName("SkippedTablesCount"), new Gauge<Integer>()
         {
             public Integer getValue()
@@ -87,13 +104,6 @@ public class AutoRepairMetricsV2
             }
         });
 
-        failedTablesCount = Metrics.register(factory.createMetricName("FailedTablesCount"), new Gauge<Integer>()
-        {
-            public Integer getValue()
-            {
-                return AutoRepairV2.instance.getRepairState(repairType).getRepairFailedTablesCount();
-            }
-        });
 
         repairTurnMyTurn = Metrics.counter(factory.createMetricName("RepairTurnMyTurn"));
         repairTurnMyTurnDueToPriority = Metrics.counter(factory.createMetricName("RepairTurnMyTurnDueToPriority"));

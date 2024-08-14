@@ -76,13 +76,13 @@ public abstract class AutoRepairState implements ProgressListener
     @VisibleForTesting
     protected int repairKeyspaceCount = 0;
     @VisibleForTesting
-    protected int repairTableSuccessCount = 0;
-    @VisibleForTesting
     protected int repairTableSkipCount = 0;
     @VisibleForTesting
-    protected int repairTableFailureCount = 0;
-    @VisibleForTesting
     protected int totalMVTablesConsideredForRepair = 0;
+    @VisibleForTesting
+    protected int failedTokenRangesCount = 0;
+    @VisibleForTesting
+    protected int succeededTokenRangesCount = 0;
     @VisibleForTesting
     protected AutoRepairUtilsV2.AutoRepairHistory longestUnrepairedNode;
     @VisibleForTesting
@@ -200,16 +200,6 @@ public abstract class AutoRepairState implements ProgressListener
         return (int) TimeUnit.MILLISECONDS.toSeconds(timeFunc.get() - longestUnrepairedNode.getLastRepairFinishTime());
     }
 
-    public void setRepairFailedTablesCount(int count)
-    {
-        repairTableFailureCount = count;
-    }
-
-    public int getRepairFailedTablesCount()
-    {
-        return repairTableFailureCount;
-    }
-
     public void setTotalMVTablesConsideredForRepair(int count)
     {
         totalMVTablesConsideredForRepair = count;
@@ -235,24 +225,34 @@ public abstract class AutoRepairState implements ProgressListener
         repairKeyspaceCount = count;
     }
 
-    public void setRepairTableSuccessCount(int count)
-    {
-        repairTableSuccessCount = count;
-    }
-
     public int getRepairKeyspaceCount()
     {
         return repairKeyspaceCount;
     }
 
-    public int getRepairTableSuccessCount()
-    {
-        return repairTableSuccessCount;
-    }
-
     public void setLongestUnrepairedNode(AutoRepairHistory longestUnrepairedNode)
     {
         this.longestUnrepairedNode = longestUnrepairedNode;
+    }
+
+    public void setFailedTokenRangesCount(int count)
+    {
+        failedTokenRangesCount = count;
+    }
+
+    public int getFailedTokenRangesCount()
+    {
+        return failedTokenRangesCount;
+    }
+
+    public void setSucceededTokenRangesCount(int count)
+    {
+        succeededTokenRangesCount = count;
+    }
+
+    public int getSucceededTokenRangesCount()
+    {
+        return succeededTokenRangesCount;
     }
 
     public boolean isSuccess()
