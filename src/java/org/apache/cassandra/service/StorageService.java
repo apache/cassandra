@@ -3477,7 +3477,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public DecoratedKey getKeyFromPartition(String keyspaceName, String table, String partitionKey)
     {
-        return ClusterMetadata.current().partitioner.decorateKey(partitionKeyToBytes(keyspaceName, table, partitionKey));
+        IPartitioner partitioner = Keyspace.open(keyspaceName).getColumnFamilyStore(table).getPartitioner();
+        return partitioner.decorateKey(partitionKeyToBytes(keyspaceName, table, partitionKey));
     }
 
     private static ByteBuffer partitionKeyToBytes(String keyspaceName, String cf, String key)
@@ -3496,14 +3497,19 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @Override
     public String getToken(String keyspaceName, String table, String key)
     {
-        return ClusterMetadata.current().partitioner.getToken(partitionKeyToBytes(keyspaceName, table, key)).toString();
+        ColumnFamilyStore cfs = Keyspace.open(keyspaceName).getColumnFamilyStore(table);
+        return cfs.getPartitioner().getToken(partitionKeyToBytes(keyspaceName, table, key)).toString();
     }
 
     public EndpointsForToken getNaturalReplicasForToken(String keyspaceName, ByteBuffer key)
     {
         ClusterMetadata metadata = ClusterMetadata.current();
-        Token token = metadata.partitioner.getToken(key);
-        KeyspaceMetadata keyspaceMetadata = metadata.schema.getKeyspaces().getNullable(keyspaceName);
+        KeyspaceMetadata keyspaceMetadata = Keyspace.open(keyspaceName).getMetadata();
+        Token token;
+        if (keyspaceMetadata.params.replication.isMeta())
+            token = MetaStrategy.partitioner.getToken(key);
+        else
+            token = metadata.partitioner.getToken(key);
         return metadata.placements.get(keyspaceMetadata.params.replication).reads.forToken(token).get();
     }
 

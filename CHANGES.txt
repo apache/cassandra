@@ -1,4 +1,5 @@
 5.1
+ * Allow getendpoints for system tables and make sure getNaturalReplicas work for MetaStrategy (CASSANDRA-19846)
  * On upgrade, handle pre-existing tables with unexpected table ids (CASSANDRA-19845)
  * Reconfigure CMS before assassinate (CASSANDRA-19768)
  * Warn about unqualified prepared statement only if it is select or modification statement (CASSANDRA-18322)
