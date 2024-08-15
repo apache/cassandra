@@ -52,6 +52,7 @@ import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableBiCons
 import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableConsumer;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableRunnable;
 import org.apache.cassandra.distributed.impl.DirectStreamingConnectionFactory;
+import org.apache.cassandra.distributed.impl.InstanceConfig;
 import org.apache.cassandra.distributed.impl.InstanceIDDefiner;
 import org.apache.cassandra.distributed.impl.IsolatedExecutor;
 import org.apache.cassandra.io.compress.LZ4Compressor;
@@ -710,21 +711,32 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
         cluster = snitch.setup(Cluster.build(numOfNodes)
                          .withRoot(fs.getPath("/cassandra"))
                          .withSharedClasses(sharedClassPredicate)
-                         .withConfig(config -> configUpdater.accept(threadAllocator.update(config
-                             .with(Feature.BLANK_GOSSIP)
-                             .set(Constants.KEY_DTEST_JOIN_RING, false)
-                             .set("read_request_timeout", String.format("%dms", NANOSECONDS.toMillis(builder.readTimeoutNanos)))
-                             .set("write_request_timeout", String.format("%dms", NANOSECONDS.toMillis(builder.writeTimeoutNanos)))
-                             .set("cas_contention_timeout", String.format("%dms", NANOSECONDS.toMillis(builder.contentionTimeoutNanos)))
-                             .set("request_timeout", String.format("%dms", NANOSECONDS.toMillis(builder.requestTimeoutNanos)))
-                             .set("memtable_heap_space", "1MiB")
-                             .set("memtable_allocation_type", builder.memoryListener != null ? "unslabbed_heap_buffers_logged" : "heap_buffers")
-                             .set("file_cache_size", "16MiB")
-                             .set("use_deterministic_table_id", true)
-                             .set("disk_access_mode", "standard")
-                             .set("failure_detector", SimulatedFailureDetector.Instance.class.getName())
-                             .set("commitlog_compression", new ParameterizedClass(LZ4Compressor.class.getName(), emptyMap()))
-                         )))
+                         .withConfig(config -> {
+                             config.with(Feature.BLANK_GOSSIP)
+                                   .set(Constants.KEY_DTEST_JOIN_RING, false)
+                                   .set("read_request_timeout", String.format("%dms", NANOSECONDS.toMillis(builder.readTimeoutNanos)))
+                                   .set("write_request_timeout", String.format("%dms", NANOSECONDS.toMillis(builder.writeTimeoutNanos)))
+                                   .set("cas_contention_timeout", String.format("%dms", NANOSECONDS.toMillis(builder.contentionTimeoutNanos)))
+                                   .set("request_timeout", String.format("%dms", NANOSECONDS.toMillis(builder.requestTimeoutNanos)))
+                                   .set("memtable_heap_space", "1MiB")
+                                   .set("memtable_allocation_type", builder.memoryListener != null ? "unslabbed_heap_buffers_logged" : "heap_buffers")
+                                   .set("file_cache_size", "16MiB")
+                                   .set("use_deterministic_table_id", true)
+                                   .set("disk_access_mode", "standard")
+                                   .set("failure_detector", SimulatedFailureDetector.Instance.class.getName())
+                                   .set("commitlog_compression", new ParameterizedClass(LZ4Compressor.class.getName(), emptyMap()))
+                                   .set("commitlog_sync", "batch");
+
+                             // TODO: Add remove() to IInstanceConfig
+                             if (config instanceof InstanceConfig)
+                             {
+                                 InstanceConfig instanceConfig = (InstanceConfig) config;
+                                 instanceConfig.remove("commitlog_sync_period_in_ms");
+                                 instanceConfig.remove("commitlog_sync_period");
+                             }
+
+                             configUpdater.accept(threadAllocator.update(config));
+                         })
                          .withInstanceInitializer(new IInstanceInitializer()
                          {
                              @Override
