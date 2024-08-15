@@ -1,6 +1,14 @@
 = Storage Engine
 
-{cassandra} processes data at several stages on the write path, starting with the immediate logging of a write and ending in with a write of data to disk:
+The {Cassandra} storage engine is optimized for high performance, write-oriented workloads.  The  architecture is based on Log Structured Merge (LSM) trees, which utilize an append-only approach instead of the traditional relational database design with B-trees. This creates a write path free of read lookups and bottlenecks.
+
+While the write path is highly optimized, it comes with tradeoffs in terms of read performance and write amplification. To enhance read operations, Cassandra uses Bloom filters when accessing data from stables. Bloom filters are remarkably efficient, leading to generally well-balanced performance for both  reads and writes.
+
+Compaction is a necessary background activity required by the ‘merge’ phase of Log Structured Merge trees. Compaction creates write amplification when several small SSTables on disk are read, merged, updates and deletes processed, and a new ssstable is re-written. Every write of data in Cassandra is re-written multiple times, known as write amplification, and this adds background I/O to the database workload.
+
+The core storage engine consists of memtables for in-memory data and immutable SSTables (Sorted String Tables) on disk. Data in SSTables is stored sorted to enable efficent merge sort during compaction. Additionally, a write-ahead log (WAL), referred to as the commit log, ensures  resiliency for crash and transaction recovery.
+
+The sequence of the steps in the write path:
 
 * Logging data in the commit log
 * Writing data to the memtable
