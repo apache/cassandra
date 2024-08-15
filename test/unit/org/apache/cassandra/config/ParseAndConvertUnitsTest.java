@@ -53,7 +53,7 @@ public class ParseAndConvertUnitsTest
         assertEquals(new DurationSpec.IntMillisecondsBound(2000), config.internode_tcp_connect_timeout);
         assertEquals(new DurationSpec.IntMillisecondsBound(30000), config.internode_tcp_user_timeout);
         assertEquals(new DurationSpec.IntMillisecondsBound(0), config.commitlog_sync_group_window);
-        assertEquals(new DurationSpec.IntMillisecondsBound(0), config.commitlog_sync_period);
+        assertEquals(new DurationSpec.IntMillisecondsBound(10000), config.commitlog_sync_period);
         assertNull(config.periodic_commitlog_sync_lag_block);
         assertEquals(new DurationSpec.IntMillisecondsBound(250), config.cdc_free_space_check_interval);
         assertEquals(new DurationSpec.IntMillisecondsBound(100), config.dynamic_snitch_update_interval);

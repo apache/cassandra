@@ -80,7 +80,7 @@ public class LoadOldYAMLBackwardCompatibilityTest
         assertEquals(new DataRateSpec.LongBytesPerSecondBound(24L  * 1024L * 1024L), config.inter_dc_stream_throughput_outbound);
         assertNull(config.commitlog_total_space);
         assertEquals(new DurationSpec.IntMillisecondsBound(0.0, TimeUnit.MILLISECONDS), config.commitlog_sync_group_window);
-        assertEquals(new DurationSpec.IntMillisecondsBound(0), config.commitlog_sync_period);
+        assertEquals(new DurationSpec.IntMillisecondsBound(10000), config.commitlog_sync_period);
         assertEquals(new DataStorageSpec.IntMebibytesBound(5), config.commitlog_segment_size);
         assertNull(config.periodic_commitlog_sync_lag_block);  //Integer
         assertNull(config.max_mutation_size);
