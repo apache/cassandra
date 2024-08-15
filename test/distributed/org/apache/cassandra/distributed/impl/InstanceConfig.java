@@ -100,7 +100,8 @@ public class InstanceConfig implements IInstanceConfig
                 .set("memtable_flush_writers", 1)
                 .set("concurrent_compactors", 1)
                 .set("memtable_heap_space", "10MiB")
-                .set("commitlog_sync", "batch")
+                .set("commitlog_sync", "periodic")
+                .set("commitlog_sync_period_in_ms", 10000)
                 .set("storage_port", storage_port)
                 .set("native_transport_port", native_transport_port)
                 .set("endpoint_snitch", DistributedTestSnitch.class.getName())
@@ -112,9 +113,7 @@ public class InstanceConfig implements IInstanceConfig
                 // capacities that are based on `totalMemory` that should be fixed size
                 .set("index_summary_capacity", "50MiB")
                 .set("counter_cache_size", "50MiB")
-                .set("key_cache_size", "50MiB")
-                // legacy parameters
-                .forceSet("commitlog_sync_batch_window_in_ms", "1");
+                .set("key_cache_size", "50MiB");
         this.featureFlags = EnumSet.noneOf(Feature.class);
         this.jmxPort = jmx_port;
     }

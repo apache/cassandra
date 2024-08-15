@@ -317,14 +317,19 @@ public abstract class CQLTester
     @BeforeClass
     public static void setUpClass()
     {
+        prePrepareServer();
+
+        // Once per-JVM is enough
+        prepareServer();
+    }
+
+    protected static void prePrepareServer()
+    {
         System.setProperty("cassandra.superuser_setup_delay_ms", "0");
 
         if (ROW_CACHE_SIZE_IN_MIB > 0)
             DatabaseDescriptor.setRowCacheSizeInMiB(ROW_CACHE_SIZE_IN_MIB);
         StorageService.instance.setPartitionerUnsafe(Murmur3Partitioner.instance);
-
-        // Once per-JVM is enough
-        prepareServer();
     }
 
     @AfterClass
