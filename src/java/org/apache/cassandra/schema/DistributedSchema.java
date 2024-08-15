@@ -130,13 +130,15 @@ public class DistributedSchema implements MetadataValue<DistributedSchema>
 
     /**
      * merges any tables in `mergeFrom` to `mergeTo` unless they already exist there.
+     *
+     * This method is only called when creating the initial cluster metadata on upgrade
      */
     private static KeyspaceMetadata merged(KeyspaceMetadata mergeTo, KeyspaceMetadata mergeFrom)
     {
         Tables newTables = mergeTo.tables;
         for (TableMetadata metadata : mergeFrom.tables)
         {
-            if (!newTables.containsTable(metadata.id))
+            if (!newTables.containsTable(metadata.id) && newTables.stream().noneMatch(tmd -> tmd.name.equals(metadata.name)))
                 newTables = newTables.with(metadata);
         }
         return mergeTo.withSwapped(newTables);

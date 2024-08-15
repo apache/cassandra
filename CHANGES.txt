@@ -1,4 +1,5 @@
 5.1
+ * On upgrade, handle pre-existing tables with unexpected table ids (CASSANDRA-19845)
  * Reconfigure CMS before assassinate (CASSANDRA-19768)
  * Warn about unqualified prepared statement only if it is select or modification statement (CASSANDRA-18322)
  * Update legacy peers tables during node replacement (CASSANDRA-19782)
