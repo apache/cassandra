@@ -44,10 +44,17 @@ import org.apache.cassandra.utils.KillerForTests;
 public class CommitLogReaderTest extends CQLTester
 {
     @BeforeClass
-    public static void beforeClass()
+    public static void setUpClass()
     {
+        prePrepareServer();
+
         DatabaseDescriptor.setCommitFailurePolicy(Config.CommitFailurePolicy.ignore);
         JVMStabilityInspector.replaceKiller(new KillerForTests(false));
+
+        DatabaseDescriptor.setCommitLogSync(Config.CommitLogSync.batch);
+
+        // Once per-JVM is enough
+        prepareServer();
     }
 
     @Before
