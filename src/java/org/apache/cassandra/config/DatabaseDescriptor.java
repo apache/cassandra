@@ -977,6 +977,15 @@ public class DatabaseDescriptor
             badQueryReporter = FBUtilities.newBadQueryReporter(conf.bad_query_reporter);
         else
             badQueryReporter = new BadQueriesInSystemLog();
+
+        if (conf.native_transport_min_backoff_on_queue_overload.toMilliseconds() <= 0)
+            throw new IllegalArgumentException("native_transport_min_backoff_on_queue_overload should be positive");
+
+        if (conf.native_transport_min_backoff_on_queue_overload.toMilliseconds() >= conf.native_transport_max_backoff_on_queue_overload.toMilliseconds())
+            throw new IllegalArgumentException(String.format("native_transport_min_backoff_on_queue_overload should be strictly less than native_transport_max_backoff_on_queue_overload, but %s >= %s",
+                                                             conf.native_transport_min_backoff_on_queue_overload,
+                                                             conf.native_transport_max_backoff_on_queue_overload));
+
     }
 
     @VisibleForTesting

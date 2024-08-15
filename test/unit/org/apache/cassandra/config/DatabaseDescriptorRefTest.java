@@ -83,6 +83,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.config.Config$CommitFailurePolicy",
     "org.apache.cassandra.config.Config$CQLStartTime",
     "org.apache.cassandra.config.Config$CorruptSSTablePolicy",
+    "org.apache.cassandra.config.Config$CQLStartTime",
     "org.apache.cassandra.config.Config$DiskAccessMode",
     "org.apache.cassandra.config.Config$DiskFailurePolicy",
     "org.apache.cassandra.config.Config$DiskOptimizationStrategy",

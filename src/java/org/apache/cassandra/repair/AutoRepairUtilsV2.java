@@ -382,7 +382,7 @@ public class AutoRepairUtilsV2
                                                                                                               ByteBufferUtil.bytes(repairType.toString()),
                                                                                                               ByteBufferUtil.bytes(getLocalDCGroup(repairType).hashCode()),
                                                                                                               ByteBufferUtil.bytes(hostId))),
-                                                                                System.nanoTime());
+                                                                      Dispatcher.RequestTime.forImmediateExecution());
 
         UntypedResultSet repairTime = UntypedResultSet.create(rows.result);
 

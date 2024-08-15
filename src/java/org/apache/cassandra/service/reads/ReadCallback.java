@@ -131,12 +131,16 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         }
     }
 
-    public boolean awaitSpeculativeReadDueToThrottling(long timePastStart, TimeUnit unit)
+    public boolean awaitSpeculativeReadDueToThrottling(long commandTimeout, TimeUnit unit)
     {
-        long time = unit.toNanos(timePastStart) - (System.nanoTime() - requestTime.startedAtNanos());
+        return awaitUntilSpeculativeReadDueToThrottling(requestTime.computeDeadline(unit.toNanos(commandTimeout)));
+    }
+
+    public boolean awaitUntilSpeculativeReadDueToThrottling(long deadline)
+    {
         try
         {
-            return conditionSpeculativeReadDueToThrottling.await(time, TimeUnit.NANOSECONDS);
+            return conditionSpeculativeReadDueToThrottling.awaitUntil(deadline);
         }
         catch (InterruptedException ex)
         {

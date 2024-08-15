@@ -1480,7 +1480,7 @@ public class Config
     public DurationSpec.LongMillisecondsBound native_transport_min_backoff_on_queue_overload = new DurationSpec.LongMillisecondsBound("10ms");
     public DurationSpec.LongMillisecondsBound native_transport_max_backoff_on_queue_overload = new DurationSpec.LongMillisecondsBound("200ms");
 
-    public boolean enforce_native_deadline_for_hints = false;
+    public boolean enforce_native_deadline_for_hints = true;
 
     public boolean paxos_repair_race_wait = true;
 
