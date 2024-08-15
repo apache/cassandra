@@ -165,20 +165,24 @@ public class AutoRepairV2
                 // When doing force repair, we want to repair without -pr.
                 boolean primaryRangeOnly = config.getRepairPrimaryTokenRangeOnly(repairType)
                                            && turn != MY_TURN_FORCE_REPAIR;
-                repairState.setTotalTablesConsideredForRepair(0);
-                if (repairState.getLastRepairTime() != 0)
+
+                if (repairState.getLastRepairTime() == 0)
                 {
-                    /** check if it is too soon to run repair. one of the reason we
-                     * should not run frequent repair is because repair triggers
-                     * memtable flush
-                     */
-                    long timeElapsedSinceLastRepairInHours = TimeUnit.MILLISECONDS.toHours(timeFunc.get() - repairState.getLastRepairTime());
-                    if (timeElapsedSinceLastRepairInHours < config.getRepairMinIntervalInHours(repairType))
-                    {
-                        logger.info("Too soon to run repair, last repair was done {} hour(s) ago",
-                                    timeElapsedSinceLastRepairInHours);
-                        return;
-                    }
+                    // the node has either just boooted or has not run repair before,
+                    // we should check for the node's repair history in the DB
+                    repairState.setLastRepairTime(AutoRepairUtilsV2.getLastRepairTimeForNode(repairType, myId));
+                }
+
+                /** check if it is too soon to run repair. one of the reason we
+                 * should not run frequent repair is because repair triggers
+                 * memtable flush
+                 */
+                long timeElapsedSinceLastRepairInHours = TimeUnit.MILLISECONDS.toHours(timeFunc.get() - repairState.getLastRepairTime());
+                if (timeElapsedSinceLastRepairInHours < config.getRepairMinIntervalInHours(repairType))
+                {
+                    logger.info("Too soon to run repair, last repair was done {} hour(s) ago",
+                                timeElapsedSinceLastRepairInHours);
+                    return;
                 }
 
                 long startTime = timeFunc.get();
@@ -191,6 +195,7 @@ public class AutoRepairV2
                 repairState.setRepairFailedTablesCount(0);
                 repairState.setRepairSkippedTablesCount(0);
                 repairState.setRepairInProgress(true);
+                repairState.setTotalTablesConsideredForRepair(0);
                 repairState.setTotalMVTablesConsideredForRepair(0);
 
                 List<Keyspace> keyspaces = new ArrayList<>();

@@ -544,4 +544,24 @@ public class AutoRepairUtilsV2Test extends CQLTester
 
         assertEquals(AutoRepairUtilsV2.RepairTurn.MY_TURN, AutoRepairUtilsV2.myTurnToRunRepair(repairType, myID));
     }
+
+    @Test
+    public void testGetLastRepairTimeForNode()
+    {
+        UUID myID = UUID.randomUUID();
+        UUID otherID = UUID.randomUUID();
+        long currentMillis = System.currentTimeMillis();
+        AutoRepairUtilsV2.insertNewRepairHistory(repairType, myID, currentMillis, currentMillis - 100);
+        AutoRepairUtilsV2.insertNewRepairHistory(repairType, otherID, currentMillis, currentMillis + 100);
+
+        assertEquals(currentMillis - 100, AutoRepairUtilsV2.getLastRepairTimeForNode(repairType, myID));
+    }
+
+    @Test
+    public void testGetLastRepairTimeForNodeWhenHistoryIsEmpty()
+    {
+        UUID myID = UUID.randomUUID();
+
+        assertEquals(0, AutoRepairUtilsV2.getLastRepairTimeForNode(repairType, myID));
+    }
 }

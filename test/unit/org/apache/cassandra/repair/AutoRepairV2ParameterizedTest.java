@@ -125,14 +125,8 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
         QueryProcessor.executeInternal(String.format("CREATE MATERIALIZED VIEW %s.%s AS SELECT i, k from %s.%s " +
                                                      "WHERE k IS NOT null AND i IS NOT null PRIMARY KEY (i, k)", KEYSPACE, MV, KEYSPACE, TABLE));
 
-        defaultConfig = new AutoRepairConfig(true);
         DatabaseDescriptor.setMaterializedViewsEnabled(false);
         DatabaseDescriptor.setCDCEnabled(false);
-        for (AutoRepairConfig.RepairType repairType : AutoRepairConfig.RepairType.values())
-        {
-            defaultConfig.setAutoRepairEnabled(repairType, true);
-            defaultConfig.setMVRepairEnabled(repairType, false);
-        }
     }
 
     @Before
@@ -170,6 +164,15 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
 
     private void resetConfig()
     {
+        // prepare a fresh default config
+        defaultConfig = new AutoRepairConfig(true);
+        for (AutoRepairConfig.RepairType repairType : AutoRepairConfig.RepairType.values())
+        {
+            defaultConfig.setAutoRepairEnabled(repairType, true);
+            defaultConfig.setMVRepairEnabled(repairType, false);
+        }
+
+        // reset the AutoRepairService config to default
         AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
         config.repair_type_overrides = defaultConfig.repair_type_overrides;
         config.global_settings = defaultConfig.global_settings;
@@ -234,9 +237,6 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
         long lastRepairTime2 = AutoRepairV2.instance.repairStates.get(repairType).getLastRepairTime();
         Assert.assertEquals(String.format("Expected repair time to be same, actual value lastRepairTime1 %d, " +
                                           "lastRepairTime2 %d", lastRepairTime1, lastRepairTime2), lastRepairTime1, lastRepairTime2);
-        consideredTables = AutoRepairV2.instance.repairStates.get(repairType).getTotalTablesConsideredForRepair();
-        Assert.assertEquals("Expected total repaired tables = 0, actual value: " + consideredTables,
-                            consideredTables, 0);
         assertEquals(0, AutoRepairV2.instance.repairStates.get(repairType).getTotalMVTablesConsideredForRepair());
         assertEquals(0, AutoRepairMetricsManager.getMetrics(repairType).totalMVTablesConsideredForRepair.getValue().intValue());
     }
@@ -338,24 +338,23 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
     {
         AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
         config.setMVRepairEnabled(repairType, true);
-        AutoRepairV2.instance.repairStates.get(repairType).setLastRepairTime(0);
+        config.setRepairMinIntervalInHours(repairType, -1);
+        AutoRepairV2.instance.repairStates.get(repairType).setLastRepairTime(System.currentTimeMillis());
         AutoRepairV2.instance.repair(repairType, 0);
         assertEquals(1, AutoRepairV2.instance.repairStates.get(repairType).getTotalMVTablesConsideredForRepair());
         assertEquals(1, AutoRepairMetricsManager.getMetrics(repairType).totalMVTablesConsideredForRepair.getValue().intValue());
 
         config.setMVRepairEnabled(repairType, false);
-        AutoRepairV2.instance.repairStates.get(repairType).setLastRepairTime(0);
+        AutoRepairV2.instance.repairStates.get(repairType).setLastRepairTime(System.currentTimeMillis());
         AutoRepairV2.instance.repair(repairType, 0);
         assertEquals(0, AutoRepairV2.instance.repairStates.get(repairType).getTotalMVTablesConsideredForRepair());
         assertEquals(0, AutoRepairMetricsManager.getMetrics(repairType).totalMVTablesConsideredForRepair.getValue().intValue());
 
         config.setMVRepairEnabled(repairType, true);
-        AutoRepairV2.instance.repairStates.get(repairType).setLastRepairTime(0);
+        AutoRepairV2.instance.repairStates.get(repairType).setLastRepairTime(System.currentTimeMillis());
         AutoRepairV2.instance.repair(repairType, 0);
         assertEquals(1, AutoRepairV2.instance.repairStates.get(repairType).getTotalMVTablesConsideredForRepair());
         assertEquals(1, AutoRepairMetricsManager.getMetrics(repairType).totalMVTablesConsideredForRepair.getValue().intValue());
-
-        config.setMVRepairEnabled(repairType, false);
     }
 
     @Test
@@ -367,6 +366,7 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
         ColumnFamilyStore cfsMVTable = Keyspace.open(KEYSPACE).getColumnFamilyStore(MV);
         Set<SSTableReader> preBaseTable = cfsBaseTable.getLiveSSTables();
         Set<SSTableReader> preMVTable = cfsBaseTable.getLiveSSTables();
+        config.setRepairMinIntervalInHours(repairType, -1);
 
         for (int i = 0; i < 10; i++)
         {
@@ -407,9 +407,6 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
         assertEquals(0, state.getRepairSkippedTablesCount());
         assertEquals(1, AutoRepairMetricsManager.getMetrics(repairType).totalMVTablesConsideredForRepair.getValue().intValue());
         assertEquals(0, AutoRepairMetricsManager.getMetrics(repairType).skippedTablesCount.getValue().intValue());
-
-        config.setMVRepairEnabled(repairType, false);
-        config.setRepairSSTableCountHigherThreshold(repairType, beforeCount);
     }
 
     @Test
@@ -491,6 +488,7 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
     public void testRepairDCGroups()
     {
         AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
+        config.setRepairMinIntervalInHours(repairType, -1);
         config.setDCGroups(repairType, Sets.newHashSet(DatabaseDescriptor.getLocalDataCenter(), "dc2"));
         AutoRepairService.instance.getAutoRepairConfig().setRepairMinIntervalInHours(repairType, -1);
         AutoRepairV2.instance.repair(repairType, 0);
@@ -519,10 +517,30 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
                 shuffleTablesCall.getAndIncrement();
             }
         };
+        AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
+        config.setRepairMinIntervalInHours(repairType, -1);
 
         AutoRepairV2.instance.repair(repairType, 0);
 
         assertEquals(1, shuffleKeyspacesCall.get());
         assertEquals(4, shuffleTablesCall.get());
+    }
+
+    @Test
+    public void testRepairTakesLastRepairTimeFromDB()
+    {
+        AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
+        config.setMVRepairEnabled(repairType, true);
+        long lastRepairTime = System.currentTimeMillis() - 1000;
+        AutoRepairUtilsV2.insertNewRepairHistory(repairType, 0, lastRepairTime);
+        AutoRepairV2.instance.repairStates.get(repairType).setLastRepairTime(0);
+        config.setRepairMinIntervalInHours(repairType, 1);
+
+        AutoRepairV2.instance.repair(repairType, 0);
+
+        // repair scheduler should not attempt to run repair as last repair time in DB is current time - 1s
+        assertEquals(0, AutoRepairV2.instance.repairStates.get(repairType).getTotalTablesConsideredForRepair());
+        // repair scheduler should load the repair time from the DB
+        assertEquals(lastRepairTime, AutoRepairV2.instance.repairStates.get(repairType).getLastRepairTime());
     }
 }
