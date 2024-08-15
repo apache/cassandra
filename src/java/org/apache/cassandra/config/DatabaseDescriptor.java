@@ -1509,7 +1509,7 @@ public class DatabaseDescriptor
 
         if (!accessModeDirectIoPair.right && accessModeDirectIoPair.left == DiskAccessMode.direct)
         {
-            throw new ConfigurationException("commitlog_disk_access_mode can not be set to direct when direct IO is not supported now.");
+            throw new ConfigurationException("commitlog_disk_access_mode can not be set to direct when direct IO is not supported by the file system.");
         }
         else if (compressOrEncrypt && accessModeDirectIoPair.left != DiskAccessMode.standard)
         {

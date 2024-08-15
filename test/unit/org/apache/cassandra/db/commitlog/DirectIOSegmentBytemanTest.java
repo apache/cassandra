@@ -60,6 +60,6 @@ public class DirectIOSegmentBytemanTest
     {
         DatabaseDescriptor.setCommitLogWriteDiskAccessMode(Config.DiskAccessMode.direct);
         assertThatExceptionOfType(ConfigurationException.class).isThrownBy(DatabaseDescriptor::initializeCommitLogDiskAccessMode)
-                                                               .withMessage("commitlog_disk_access_mode can not be set to direct when direct IO is not supported now.");
+                                                               .withMessage("commitlog_disk_access_mode can not be set to direct when direct IO is not supported by the file system.");
     }
 }
