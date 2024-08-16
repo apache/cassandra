@@ -18,29 +18,39 @@
 
 package org.apache.cassandra.db.virtual;
 
+import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.local.CommandStores;
+import accord.local.Status;
 import accord.primitives.TxnId;
+import accord.utils.Invariants;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.FieldIdentifier;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -51,12 +61,15 @@ import org.apache.cassandra.service.accord.AccordCommandStore;
 import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.AccordStateCache;
+import org.apache.cassandra.service.accord.CommandStoreTxnBlockedGraph;
+import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
 import org.apache.cassandra.service.consensus.migration.TableMigrationState;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.Clock;
 
 import static com.google.common.collect.ImmutableList.toImmutableList;
+import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
 public class AccordVirtualTables
 {
@@ -70,7 +83,8 @@ public class AccordVirtualTables
         return List.of(
             new CommandStoreCache(keyspace),
             new MigrationState(keyspace),
-            new CoordinationStatus(keyspace)
+            new CoordinationStatus(keyspace),
+            new TxnBlockedByTable(keyspace)
         );
     }
 
@@ -243,6 +257,108 @@ public class AccordVirtualTables
             }
 
             return result;
+        }
+    }
+
+    public static class TxnBlockedByTable extends AbstractVirtualTable
+    {
+        enum Reason { Self, Txn, Key }
+        private final UserType partitionKeyType;
+
+        protected TxnBlockedByTable(String keyspace)
+        {
+            super(TableMetadata.builder(keyspace, "txn_blocked_by")
+                               .kind(TableMetadata.Kind.VIRTUAL)
+                               .addPartitionKeyColumn("txn_id", UTF8Type.instance)
+                               .addClusteringColumn("store_id", Int32Type.instance)
+                               .addClusteringColumn("depth", Int32Type.instance)
+                               .addClusteringColumn("blocked_by", UTF8Type.instance)
+                               .addClusteringColumn("reason", UTF8Type.instance)
+                               .addRegularColumn("save_status", UTF8Type.instance)
+                               .addRegularColumn("execute_at", UTF8Type.instance)
+                               .addRegularColumn("key", pkType(keyspace))
+                               .build());
+            partitionKeyType = pkType(keyspace);
+        }
+
+        private static UserType pkType(String keyspace)
+        {
+            return new UserType(keyspace, bytes("partition_key"),
+                                Arrays.asList(FieldIdentifier.forQuoted("table"), FieldIdentifier.forQuoted("token")),
+                                Arrays.asList(UTF8Type.instance, UTF8Type.instance), false);
+        }
+
+        private ByteBuffer pk(PartitionKey pk)
+        {
+            var tm = Schema.instance.getTableMetadata(pk.table());
+            return partitionKeyType.pack(UTF8Type.instance.decompose(tm.toString()),
+                                         UTF8Type.instance.decompose(pk.token().toString()));
+        }
+
+        @Override
+        public Iterable<UserType> userTypes()
+        {
+            return Arrays.asList(partitionKeyType);
+        }
+
+        @Override
+        public DataSet data(DecoratedKey partitionKey)
+        {
+            TxnId id = TxnId.parse(UTF8Type.instance.compose(partitionKey.getKey()));
+            List<CommandStoreTxnBlockedGraph> shards = AccordService.instance().debugTxnBlockedGraph(id);
+
+            SimpleDataSet ds = new SimpleDataSet(metadata());
+            for (CommandStoreTxnBlockedGraph shard : shards)
+            {
+                Set<TxnId> processed = new HashSet<>();
+                process(ds, shard, processed, id, 0, id, Reason.Self, null);
+                // everything was processed right?
+                if (!shard.txns.isEmpty() && !shard.txns.keySet().containsAll(processed))
+                    throw new IllegalStateException("Skipped txns: " + Sets.difference(shard.txns.keySet(), processed));
+            }
+
+            return ds;
+        }
+
+        private void process(SimpleDataSet ds, CommandStoreTxnBlockedGraph shard, Set<TxnId> processed, TxnId userTxn, int depth, TxnId txnId, Reason reason, Runnable onDone)
+        {
+            if (!processed.add(txnId))
+                throw new IllegalStateException("Double processed " + txnId);
+            CommandStoreTxnBlockedGraph.TxnState txn = shard.txns.get(txnId);
+            if (txn == null)
+            {
+                Invariants.checkState(reason == Reason.Self, "Txn %s unknown for reason %s", txnId, reason);
+                return;
+            }
+            // was it applied?  If so ignore it
+            if (reason != Reason.Self && txn.saveStatus.hasBeen(Status.Applied))
+                return;
+            ds.row(userTxn.toString(), shard.storeId, depth, reason == Reason.Self ? "" : txn.txnId.toString(), reason.name());
+            ds.column("save_status", txn.saveStatus.name());
+            if (txn.executeAt != null)
+                ds.column("execute_at", txn.executeAt.toString());
+            if (onDone != null)
+                onDone.run();
+            if (txn.isBlocked())
+            {
+                for (TxnId blockedBy : txn.blockedBy)
+                {
+                    if (processed.contains(blockedBy)) continue; // already listed
+                    process(ds, shard, processed, userTxn, depth + 1, blockedBy, Reason.Txn, null);
+                }
+                for (PartitionKey blockedBy : txn.blockedByKey)
+                {
+                    TxnId blocking = shard.keys.get(blockedBy);
+                    if (processed.contains(blocking)) continue; // already listed
+                    process(ds, shard, processed, userTxn, depth + 1, blocking, Reason.Key, () -> ds.column("key", pk(blockedBy)));
+                }
+            }
+        }
+
+        @Override
+        public DataSet data()
+        {
+            throw new InvalidRequestException("Must select a single txn_id");
         }
     }
 

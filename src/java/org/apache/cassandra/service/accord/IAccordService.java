@@ -54,6 +54,7 @@ import org.apache.cassandra.utils.concurrent.Future;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
+
 public interface IAccordService
 {
     Set<ConsistencyLevel> SUPPORTED_COMMIT_CONSISTENCY_LEVELS = ImmutableSet.of(ConsistencyLevel.ANY, ConsistencyLevel.ONE, ConsistencyLevel.LOCAL_ONE, ConsistencyLevel.QUORUM, ConsistencyLevel.SERIAL, ConsistencyLevel.ALL);
@@ -143,4 +144,6 @@ public interface IAccordService
     CompactionInfo getCompactionInfo();
 
     default Id nodeId() { throw new UnsupportedOperationException(); }
+
+    List<CommandStoreTxnBlockedGraph> debugTxnBlockedGraph(TxnId txnId);
 }
