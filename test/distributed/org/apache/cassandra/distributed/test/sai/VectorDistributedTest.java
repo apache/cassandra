@@ -59,6 +59,11 @@ import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/**
+ * This class relies on a static random source so needs to control the test order to make sure any failures could be
+ * reproduced.  This means that if an error is detected then running a single test is not enough to reproduce,
+ * you must run the whole class...
+ */
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 public class VectorDistributedTest extends TestBaseImpl
 {
