@@ -17,11 +17,14 @@
  */
 package org.apache.cassandra.db.virtual;
 
+import java.util.Collections;
+
 import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.filter.RowFilter;
+import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.schema.TableMetadata;
@@ -89,5 +92,10 @@ public interface VirtualTable
     default boolean allowFilteringImplicitly()
     {
         return true;
+    }
+
+    default Iterable<UserType> userTypes()
+    {
+        return Collections.emptyList();
     }
 }

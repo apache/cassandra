@@ -26,6 +26,7 @@ import java.util.function.Supplier;
 
 import org.junit.Test;
 
+import accord.api.BarrierType;
 import accord.coordinate.Exhausted;
 import accord.coordinate.Preempted;
 import accord.coordinate.Timeout;
@@ -64,19 +65,19 @@ public class AccordServiceTest
                         throw new Timeout(null, null);
                     case 1:
                         attempts++;
-                        throw AccordService.newBarrierTimeout(TxnId.NONE, true);
+                        throw AccordService.newBarrierTimeout(TxnId.NONE, BarrierType.local, true, Ranges.EMPTY);
                     case 2:
                         attempts++;
                         throw new Preempted(null, null);
                     case 3:
                         attempts++;
-                        throw AccordService.newBarrierPreempted(TxnId.NONE, true);
+                        throw AccordService.newBarrierPreempted(TxnId.NONE, BarrierType.local, true, Ranges.EMPTY);
                     case 4:
                         attempts++;
                         throw new Exhausted(null, null);
                     case 5:
                         attempts++;
-                        throw AccordService.newBarrierExhausted(TxnId.NONE, true);
+                        throw AccordService.newBarrierExhausted(TxnId.NONE, BarrierType.local, true, Ranges.EMPTY);
                     default:
                         return Ranges.of(IntKey.range(1, 2));
                 }
@@ -98,9 +99,9 @@ public class AccordServiceTest
         qt().check(rs -> {
             List<Runnable> timeoutFailures = new ArrayList<>(4);
             timeoutFailures.add(() -> {throw new Timeout(null, null);});
-            timeoutFailures.add(() -> {throw AccordService.newBarrierTimeout(TxnId.NONE, true);});
+            timeoutFailures.add(() -> {throw AccordService.newBarrierTimeout(TxnId.NONE, BarrierType.local, true, Ranges.EMPTY);});
             timeoutFailures.add(() -> {throw new Preempted(null, null);});
-            timeoutFailures.add(() -> {throw AccordService.newBarrierPreempted(TxnId.NONE, true);});
+            timeoutFailures.add(() -> {throw AccordService.newBarrierPreempted(TxnId.NONE, BarrierType.local, true, Ranges.EMPTY);});
             Collections.shuffle(timeoutFailures, rs.asJdkRandom());
             Iterator<Runnable> it = timeoutFailures.iterator();
             Supplier<Seekables> failing = () -> {
@@ -120,9 +121,9 @@ public class AccordServiceTest
         qt().check(rs -> {
             List<Runnable> timeoutFailures = new ArrayList<>(5);
             timeoutFailures.add(() -> {throw new Timeout(null, null);});
-            timeoutFailures.add(() -> {throw AccordService.newBarrierTimeout(TxnId.NONE, true);});
+            timeoutFailures.add(() -> {throw AccordService.newBarrierTimeout(TxnId.NONE, BarrierType.local, true, Ranges.EMPTY);});
             timeoutFailures.add(() -> {throw new Preempted(null, null);});
-            timeoutFailures.add(() -> {throw AccordService.newBarrierPreempted(TxnId.NONE, true);});
+            timeoutFailures.add(() -> {throw AccordService.newBarrierPreempted(TxnId.NONE, BarrierType.local, true, Ranges.EMPTY);});
             timeoutFailures.add(() -> {throw new Exhausted(null, null);});
             Collections.shuffle(timeoutFailures, rs.asJdkRandom());
             Iterator<Runnable> it = timeoutFailures.iterator();
@@ -158,9 +159,9 @@ public class AccordServiceTest
         qt().check(rs -> {
             List<Runnable> failures = new ArrayList<>(6);
             failures.add(() -> {throw new Timeout(null, null);});
-            failures.add(() -> {throw AccordService.newBarrierTimeout(TxnId.NONE, true);});
+            failures.add(() -> {throw AccordService.newBarrierTimeout(TxnId.NONE, BarrierType.local, true, Ranges.EMPTY);});
             failures.add(() -> {throw new Preempted(null, null);});
-            failures.add(() -> {throw AccordService.newBarrierPreempted(TxnId.NONE, true);});
+            failures.add(() -> {throw AccordService.newBarrierPreempted(TxnId.NONE, BarrierType.local, true, Ranges.EMPTY);});
             failures.add(() -> {throw new Exhausted(null, null);});
             boolean isError = rs.nextBoolean();
             failures.add(new Unexpected(isError));
