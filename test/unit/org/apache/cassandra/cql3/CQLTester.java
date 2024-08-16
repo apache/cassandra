@@ -69,6 +69,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
+import org.apache.cassandra.db.virtual.SystemViewsKeyspace;
 import org.assertj.core.api.Assertions;
 import org.awaitility.Awaitility;
 import org.apache.commons.lang3.ArrayUtils;
@@ -513,6 +514,11 @@ public abstract class CQLTester
     protected static void addMetricsKeyspace()
     {
         VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(VIRTUAL_METRICS, createMetricsKeyspaceTables()));
+    }
+
+    protected static void addVirtualKeyspace()
+    {
+        VirtualKeyspaceRegistry.instance.register(SystemViewsKeyspace.instance);
     }
 
     protected void resetSchema() throws Throwable
@@ -1959,6 +1965,133 @@ public abstract class CQLTester
         Assert.assertEquals(String.format("expected %d rows but received %d", expectedCount, actualRowCount), expectedCount, actualRowCount);
     }
 
+    public abstract static class CellValidator
+    {
+        public abstract ByteBuffer expected();
+        public abstract boolean equals(ByteBuffer bb);
+
+        @Override
+        public boolean equals(Object obj)
+        {
+            if (obj instanceof ByteBuffer)
+                return equals((ByteBuffer) obj);
+            return false;
+        }
+
+        public abstract String describe();
+    }
+
+    protected static CellValidator any()
+    {
+        return new CellValidator()
+        {
+            @Override
+            public ByteBuffer expected()
+            {
+                return ByteBufferUtil.EMPTY_BYTE_BUFFER;
+            }
+
+            @Override
+            public boolean equals(ByteBuffer bb)
+            {
+                return true;
+            }
+
+            @Override
+            public String describe()
+            {
+                return "any";
+            }
+        };
+    }
+
+    protected static CellValidator anyNonNull()
+    {
+        return new CellValidator()
+        {
+            @Override
+            public ByteBuffer expected()
+            {
+                return ByteBufferUtil.EMPTY_BYTE_BUFFER;
+            }
+
+            @Override
+            public boolean equals(ByteBuffer bb)
+            {
+                return !(bb == null || !bb.hasRemaining());
+            }
+
+            @Override
+            public String describe()
+            {
+                return "any non-null";
+            }
+        };
+    }
+
+    protected static CellValidator anyInt()
+    {
+        return new CellValidator()
+        {
+            @Override
+            public ByteBuffer expected()
+            {
+                return ByteBufferUtil.bytes(0);
+            }
+
+            @Override
+            public boolean equals(ByteBuffer bb)
+            {
+                if (bb == null) return false;
+                Int32Type.instance.validate(bb);
+                return bb.hasRemaining();
+            }
+
+            @Override
+            public String describe()
+            {
+                return "any non-null int";
+            }
+        };
+    }
+
+    protected static CellValidator anyOf(String... values)
+    {
+        return anyOf(UTF8Type.instance, values);
+    }
+
+    protected static <T> CellValidator anyOf(AbstractType<T> type, T... values)
+    {
+        assert values.length > 0;
+        ByteBuffer[] bbs = new ByteBuffer[values.length];
+        for (int i = 0; i < values.length; i++)
+            bbs[i] = type.decompose(values[i]);
+        return new CellValidator()
+        {
+            @Override
+            public ByteBuffer expected()
+            {
+                return bbs[0];
+            }
+
+            @Override
+            public boolean equals(ByteBuffer bb)
+            {
+                for (int i = 0; i < bbs.length; i++)
+                {
+                    if (Objects.equal(bbs[i], bb)) return true;
+                }
+                return false;
+            }
+
+            @Override
+            public String describe()
+            {
+                return formatValue(bbs[0], type);
+            }
+        };
+    }
+
     public static void assertRows(UntypedResultSet result, Object[]... rows)
     {
         if (result == null)
@@ -1982,24 +2115,22 @@ public abstract class CQLTester
             for (int j = 0; j < meta.size(); j++)
             {
                 ColumnSpecification column = meta.get(j);
-                ByteBuffer expectedByteValue = makeByteBuffer(expected == null ? null : expected[j], column.type);
+                CellValidator cellValidator = makeCellValidator(expected == null ? null : expected[j], column.type);
                 ByteBuffer actualValue = actual.getBytes(column.name.toString());
 
-                if (expectedByteValue != null)
-                    expectedByteValue = expectedByteValue.duplicate();
-                if (!Objects.equal(expectedByteValue, actualValue))
+                if (!((cellValidator == null && actualValue == null) || (cellValidator != null && cellValidator.equals(actualValue))))
                 {
                     Object actualValueDecoded = actualValue == null ? null : column.type.getSerializer().deserialize(actualValue);
                     if (!Objects.equal(expected != null ? expected[j] : null, actualValueDecoded))
                     {
-                        if (isEmptyContainerNull(column.type, expectedByteValue, actualValue))
+                        if (isEmptyContainerNull(column.type, cellValidator != null ? cellValidator.expected() : null, actualValue))
                             continue;
                         error.append(String.format("Invalid value for row %d column %d (%s of type %s), expected <%s> but got <%s>",
                                                    i,
                                                    j,
                                                    column.name,
                                                    column.type.asCQL3Type(),
-                                                   formatValue(expectedByteValue != null ? expectedByteValue.duplicate() : null, column.type),
+                                                   cellValidator != null ? cellValidator.describe() : "null",
                                                    formatValue(actualValue, column.type))).append("\n");
                     }
                 }
@@ -2023,12 +2154,28 @@ public abstract class CQLTester
                     ByteBuffer actualValue = actual.getBytes(column.name.toString());
                     str.append(String.format("%s=%s ", column.name, formatValue(actualValue, column.type)));
                 }
-                logger.info("Extra row num {}: {}", i, str.toString());
+                logger.info("Extra row num {}: {}", i, str);
             }
-            Assert.fail(String.format("Got more rows than expected. Expected %d but got %d.", rows.length, i));
+            Assert.fail(String.format("Got more rows than expected. Expected %d but got %d.\nExpected: %s\nActual: %s", rows.length, i, toString(rows), result.toStringUnsafe()));
         }
 
         Assert.assertTrue(String.format("Got %s rows than expected. Expected %d but got %d", rows.length>i ? "less" : "more", rows.length, i), i == rows.length);
+    }
+
+    private static String toString(Object o)
+    {
+        if (o == null)
+            return "null";
+        if (o instanceof CellValidator)
+            return ((CellValidator) o).describe();
+        if (o instanceof Object[])
+            return toString((Object[]) o);
+        return o.toString();
+    }
+
+    private static String toString(Object[] array)
+    {
+        return Stream.of(array).map(CQLTester::toString).collect(Collectors.joining(", ", "[", "]"));
     }
 
     /**
@@ -2637,9 +2784,40 @@ public abstract class CQLTester
             return ((TupleValue)value).toByteBuffer();
 
         if (value instanceof ByteBuffer)
-            return (ByteBuffer)value;
+            return ((ByteBuffer)value);
 
         return type.decomposeUntyped(serializeTuples(value));
+    }
+
+    public static CellValidator makeCellValidator(Object value, AbstractType<?> type)
+    {
+        if (value == null)
+            return null;
+        if (value instanceof CellValidator)
+            return (CellValidator) value;
+
+        ByteBuffer byteBuffer = makeByteBuffer(value, type);
+        return new CellValidator()
+        {
+            @Override
+            public ByteBuffer expected()
+            {
+                return byteBuffer;
+            }
+
+            @Override
+            public boolean equals(ByteBuffer bb)
+            {
+                if (bb == null) return false;
+                return byteBuffer.equals(bb);
+            }
+
+            @Override
+            public String describe()
+            {
+                return formatValue(byteBuffer, type);
+            }
+        };
     }
 
     private static String formatValue(ByteBuffer bb, AbstractType<?> type)

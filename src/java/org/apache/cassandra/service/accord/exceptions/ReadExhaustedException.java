@@ -18,22 +18,15 @@
 
 package org.apache.cassandra.service.accord.exceptions;
 
-import java.util.Map;
+import com.google.common.collect.ImmutableMap;
 
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.exceptions.ReadFailureException;
-import org.apache.cassandra.exceptions.RequestFailureReason;
-import org.apache.cassandra.locator.InetAddressAndPort;
 
 public class ReadExhaustedException extends ReadFailureException
 {
-    public ReadExhaustedException(ConsistencyLevel consistency, int received, int blockFor, boolean dataPresent, Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint)
+    public ReadExhaustedException(ConsistencyLevel consistency, int received, int blockFor, boolean dataPresent, String msg)
     {
-        super(consistency, received, blockFor, dataPresent, failureReasonByEndpoint);
-    }
-
-    protected ReadExhaustedException(String msg, ConsistencyLevel consistency, int received, int blockFor, boolean dataPresent, Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint)
-    {
-        super(msg, consistency, received, blockFor, dataPresent, failureReasonByEndpoint);
+        super(msg, consistency, received, blockFor, dataPresent, ImmutableMap.of());
     }
 }
