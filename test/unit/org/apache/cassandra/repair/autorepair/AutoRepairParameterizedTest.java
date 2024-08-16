@@ -182,6 +182,8 @@ public class AutoRepairParameterizedTest extends CQLTester
         AutoRepair.timeFunc = System::currentTimeMillis;
         resetCounters();
         resetConfig();
+
+        AutoRepair.shuffleFunc = java.util.Collections::shuffle;
     }
 
 
@@ -576,5 +578,29 @@ public class AutoRepairParameterizedTest extends CQLTester
         Assert.assertTrue(cfm.params.automatedRepair.get(AutoRepairConfig.RepairType.incremental).repairEnabled());
         Assert.assertFalse(cfmDisabledAutoRepair.params.automatedRepair.get(AutoRepairConfig.RepairType.full).repairEnabled());
         Assert.assertFalse(cfmDisabledAutoRepair.params.automatedRepair.get(AutoRepairConfig.RepairType.incremental).repairEnabled());
+    }
+
+    @Test
+    public void testRepairShufflesKeyspacesAndTables()
+    {
+        AtomicInteger shuffleKeyspacesCall = new AtomicInteger();
+        AtomicInteger shuffleTablesCall = new AtomicInteger();
+        AutoRepair.shuffleFunc = (List<?> list) -> {
+            assertTrue(list.get(0) instanceof Keyspace || list.get(0) instanceof String);
+            if (list.get(0) instanceof Keyspace)
+            {
+                shuffleKeyspacesCall.getAndIncrement();
+                assertFalse(list.isEmpty());
+            }
+            else if (list.get(0) instanceof String)
+            {
+                shuffleTablesCall.getAndIncrement();
+            }
+        };
+
+        AutoRepair.instance.repair(repairType, 0);
+
+        assertEquals(1, shuffleKeyspacesCall.get());
+        assertEquals(4, shuffleTablesCall.get());
     }
 }
