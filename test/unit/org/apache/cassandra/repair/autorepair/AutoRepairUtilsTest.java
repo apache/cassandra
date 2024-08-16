@@ -60,6 +60,7 @@ import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.COL_REPAIR_
 import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.COL_REPAIR_START_TS;
 import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.COL_REPAIR_TURN;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -76,7 +77,6 @@ public class AutoRepairUtilsTest extends CQLTester
     static IEndpointSnitch snitchMock;
 
     static IEndpointSnitch defaultSnitch;
-
 
     @BeforeClass
     public static void setupClass() throws Exception
@@ -472,5 +472,12 @@ public class AutoRepairUtilsTest extends CQLTester
         AutoRepairUtils.insertNewRepairHistory(repairType, otherID, currentMillis, currentMillis + 100);
 
         assertEquals(AutoRepairUtils.RepairTurn.MY_TURN, AutoRepairUtils.myTurnToRunRepair(repairType, myID));
+    }
+
+    @Test
+    public void testLocalStrategyAndNetworkKeyspace()
+    {
+        assertFalse(AutoRepairUtils.checkNodeContainsKeyspaceReplica(Keyspace.open("system")));
+        assertTrue(AutoRepairUtils.checkNodeContainsKeyspaceReplica(Keyspace.open(KEYSPACE)));
     }
 }
