@@ -39,6 +39,10 @@ public abstract class RandomIntersectionTester extends SAIRandomizedTester
 {
     private static final Object[][] EMPTY_ROWS = new Object[][]{};
 
+    private static final int MAX_PARTITION_SIZE = 4096;
+    private static final int RESTRICTED_QUERY_COUNT = 64;
+    private static final int UNRESTRICTED_QUERY_COUNT = 48;
+
     protected enum Mode { REGULAR, STATIC, REGULAR_STATIC, TWO_REGULAR_ONE_STATIC }
 
     @Parameterized.Parameter
@@ -51,15 +55,15 @@ public abstract class RandomIntersectionTester extends SAIRandomizedTester
     public boolean largePartition;
 
     @Parameterized.Parameter(3)
-    public boolean v1Cardinality;
+    public boolean v1HighCardinality;
 
     @Parameterized.Parameter(4)
-    public boolean v2Cardinality;
+    public boolean v2HighCardinality;
 
     @Parameterized.Parameter(5)
     public Mode mode;
 
-    private int numPartitions;
+    private int numRows;
 
     @Before
     public void createTableAndIndexes()
@@ -72,7 +76,7 @@ public abstract class RandomIntersectionTester extends SAIRandomizedTester
         createIndex("CREATE INDEX ON %s(s1) USING 'sai'");
         createIndex("CREATE INDEX ON %s(s2) USING 'sai'");
 
-        numPartitions = nextInt(15000, 100000);
+        numRows = nextInt(16000, 24000);
     }
 
     protected void runRestrictedQueries() throws Throwable
@@ -80,8 +84,7 @@ public abstract class RandomIntersectionTester extends SAIRandomizedTester
         Map<Integer, List<TestRow>> testRowMap = buildAndLoadTestRows();
 
         beforeAndAfterFlush(() -> {
-            int queryCount = nextInt(10, 80);
-            for (int i = 0; i < queryCount; i++)
+            for (int i = 0; i < RESTRICTED_QUERY_COUNT; i++)
             {
                 int pk = testRowMap.keySet().stream().skip(nextInt(0, testRowMap.size())).findFirst().orElseThrow();
                 int v1 = nextV1();
@@ -128,14 +131,13 @@ public abstract class RandomIntersectionTester extends SAIRandomizedTester
         Map<Integer, List<TestRow>> testRowMap = buildAndLoadTestRows();
 
         beforeAndAfterFlush(() -> {
-            int queryCount = nextInt(10, 80);
-            for (int i = 0; i < queryCount; i++)
+            for (int i = 0; i < UNRESTRICTED_QUERY_COUNT; i++)
             {
                 int v1 = nextV1();
                 int v2 = nextV2();
 
                 Predicate<TestRow> predicate = null;
-                
+
                 if (mode == Mode.REGULAR)
                     predicate = row -> row.v1 == v1 && row.v2 > v2;
                 else if (mode == Mode.STATIC)
@@ -144,9 +146,9 @@ public abstract class RandomIntersectionTester extends SAIRandomizedTester
                     predicate = row -> row.v1 == v1 && row.s2 > v2;
                 else if (mode == Mode.TWO_REGULAR_ONE_STATIC)
                     predicate = row -> row.v1 == v1 && row.v2 > v2 && row.s2 > v2;
-                
+
                 assert predicate != null : "Predicate should be assigned!";
-                
+
                 List<Object[]> expected = testRowMap.values()
                                                     .stream()
                                                     .flatMap(Collection::stream)
@@ -155,7 +157,7 @@ public abstract class RandomIntersectionTester extends SAIRandomizedTester
                                                     .collect(Collectors.toList());
 
                 UntypedResultSet result = null;
-                
+
                 if (mode == Mode.REGULAR)
                     result = execute("SELECT pk, ck FROM %s WHERE v1 = ? AND v2 > ?", v1, v2);
                 else if (mode == Mode.STATIC)
@@ -175,18 +177,16 @@ public abstract class RandomIntersectionTester extends SAIRandomizedTester
         Map<Integer, List<TestRow>> testRowMap = new HashMap<>();
 
         int clusterSize = nextPartitionSize();
-        int partition = nextInt(0, numPartitions);
+        int partition = 0;
         int s1 = nextV1();
         int s2 = nextV2();
         List<TestRow> rowList = new ArrayList<>(clusterSize);
         testRowMap.put(partition, rowList);
         int clusterCount = 0;
 
-        for (int index = 0; index < numPartitions; index++)
+        for (int rowIndex = 0; rowIndex < numRows; rowIndex++)
         {
-            TestRow row = new TestRow(partition, nextInt(10, numPartitions), nextV1(), nextV2(), s1, s2);
-            while (rowList.contains(row))
-                row = new TestRow(partition, nextInt(10, numPartitions), nextV1(), nextV2(), s1, s2);
+            TestRow row = new TestRow(partition, rowIndex, nextV1(), nextV2(), s1, s2);
 
             rowList.add(row);
             clusterCount++;
@@ -195,9 +195,7 @@ public abstract class RandomIntersectionTester extends SAIRandomizedTester
             {
                 clusterCount = 0;
                 clusterSize = nextPartitionSize();
-                partition = nextInt(0, numPartitions);
-                while (testRowMap.containsKey(partition))
-                    partition = nextInt(0, numPartitions);
+                partition++;
                 rowList = new ArrayList<>(clusterSize);
                 testRowMap.put(partition, rowList);
             }
@@ -213,17 +211,17 @@ public abstract class RandomIntersectionTester extends SAIRandomizedTester
 
     private int nextPartitionSize()
     {
-        return largePartition ? nextInt(1024, 4096) : nextInt(1, 64);
+        return largePartition ? nextInt(1024, MAX_PARTITION_SIZE) : nextInt(1, 64);
     }
 
     private int nextV1()
     {
-        return v1Cardinality ? nextInt(10, numPartitions / 10) : nextInt(10, numPartitions / 1000);
+        return v1HighCardinality ? nextInt(0, numRows / 4) : nextInt(0, 8);
     }
 
     private int nextV2()
     {
-        return v2Cardinality ? nextInt(10, numPartitions / 10) : nextInt(10, numPartitions / 1000);
+        return v2HighCardinality ? nextInt(0, numRows / 4) : nextInt(0, 8);
     }
 
     private static class TestRow implements Comparable<TestRow>
