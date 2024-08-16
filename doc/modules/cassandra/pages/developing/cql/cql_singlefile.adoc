@@ -1669,7 +1669,6 @@ FROM  +
 ::=  +
 |  +
 | WRITETIME `(' `)' +
-| MAXWRITETIME `(' `)' +
 | COUNT `(' `*' `)' +
 | TTL `(' `)' +
 | CAST `(' AS `)' +
@@ -1731,7 +1730,7 @@ be stable between Cassandra versions.
 A `<selector>` is either a column name to retrieve or a `<function>` of
 one or more `<term>`s. The function allowed are the same as for `<term>`
 and are described in the link:#functions[function section]. In addition
-to these generic functions, the `WRITETIME` and `MAXWRITETIME` (resp. `TTL`)
+to these generic functions, the `WRITETIME` (resp. `TTL`)
 function allows to select the timestamp of when the column was inserted (resp.
 the time to live (in seconds) for the column (or null if the column has
 no expiration set)) and the link:#castFun[`CAST`] function can be used
@@ -3250,7 +3249,7 @@ is `0x0000000000000003` and `blob_as_bigint(0x0000000000000003)` is `3`.
 
 Aggregate functions work on a set of rows. They receive values for each
 row and returns one value for the whole set. +
-If `normal` columns, `scalar functions`, `UDT` fields, `writetime`, `maxwritetime`
+If `normal` columns, `scalar functions`, `UDT` fields, `writetime`
 or `ttl` are selected together with aggregate functions, the values
 returned for them will be the ones of the first row matching the query.
 
