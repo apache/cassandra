@@ -3003,9 +3003,7 @@ public abstract class CQLTester
 
     /**
      * Enhances {@link CQLTester} to make it easier for tests to leverage randomness.  This class is not the best way to
-     * leverage randomness as it won't run the tests against multiple seeds (so could take a long time to find faults), and also
-     * forces a test ordering to simplify the seed management (rather than each test having its own seed, the class has a
-     * single seed, so tests must be run in a deterministic order that doesn't change from host or JVM).
+     * leverage randomness as it won't run the tests against multiple seeds (so could take a long time to find faults)
      *
      * The main use case for this class is to take existing tests or tests patterns people wish to write, and make it easy
      * and safe to add randomness.  One main advantage is that the node spun up has non-static configs, meaning that each
@@ -3013,7 +3011,6 @@ public abstract class CQLTester
      *
      * When possible {@link Property#qt()} should be leveraged as it will rerun the test many times with different seeds.
      */
-    @FixMethodOrder(MethodSorters.NAME_ASCENDING)
     public static abstract class Fuzzed extends CQLTester
     {
         private static RandomSource RANDOM;
@@ -3059,6 +3056,12 @@ public abstract class CQLTester
             if (RANDOM != null) return;
             SEED = TEST_RANDOM_SEED.getLong(new DefaultRandom().nextLong());
             RANDOM = new DefaultRandom(SEED);
+        }
+
+        @Before
+        public void resetSeed()
+        {
+            RANDOM.setSeed(SEED);
         }
 
         protected static void updateConfigs()
