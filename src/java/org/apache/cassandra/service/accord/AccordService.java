@@ -18,7 +18,9 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
@@ -27,6 +29,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
@@ -37,7 +40,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Stopwatch;
 import com.google.common.base.Throwables;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.primitives.Ints;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,13 +59,20 @@ import accord.impl.AbstractConfigurationService;
 import accord.impl.CoordinateDurabilityScheduling;
 import accord.impl.SimpleProgressLog;
 import accord.impl.SizeOfIntersectionSorter;
+import accord.local.Command;
+import accord.local.CommandStore;
 import accord.local.CommandStores;
 import accord.local.DurableBefore;
+import accord.local.KeyHistory;
 import accord.local.Node;
 import accord.local.Node.Id;
 import accord.local.NodeTimeService;
+import accord.local.PreLoadContext;
 import accord.local.RedundantBefore;
+import accord.local.SaveStatus;
 import accord.local.ShardDistributor.EvenSplit;
+import accord.local.Status;
+import accord.local.cfk.CommandsForKey;
 import accord.messages.LocalRequest;
 import accord.messages.Request;
 import accord.primitives.Keys;
@@ -147,10 +156,8 @@ public class AccordService implements IAccordService, Shutdownable
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordService.class);
 
-    private enum State { INIT, STARTED, SHUTDOWN}
+    private enum State {INIT, STARTED, SHUTDOWN}
 
-    public static final AccordClientRequestMetrics readMetrics = new AccordClientRequestMetrics("AccordRead");
-    public static final AccordClientRequestMetrics writeMetrics = new AccordClientRequestMetrics("AccordWrite");
     private static final Future<Void> BOOTSTRAP_SUCCESS = ImmediateFuture.success(null);
 
     private final Node node;
@@ -261,6 +268,12 @@ public class AccordService implements IAccordService, Shutdownable
         public CompactionInfo getCompactionInfo()
         {
             return new CompactionInfo(new Int2ObjectHashMap<>(), new Int2ObjectHashMap<>(), DurableBefore.EMPTY);
+        }
+
+        @Override
+        public List<CommandStoreTxnBlockedGraph> debugTxnBlockedGraph(TxnId txnId)
+        {
+            return Collections.emptyList();
         }
     };
 
@@ -379,7 +392,7 @@ public class AccordService implements IAccordService, Shutdownable
             return;
         journal.start(node);
         configService.start();
-        ClusterMetadataService.instance().log().addListener(configService);
+
         fastPathCoordinator.start();
         ClusterMetadataService.instance().log().addListener(fastPathCoordinator);
         durabilityScheduling.setGlobalCycleTime(Ints.checkedCast(DatabaseDescriptor.getAccordGlobalDurabilityCycle(SECONDS)), SECONDS);
@@ -399,7 +412,7 @@ public class AccordService implements IAccordService, Shutdownable
     private <S extends Seekables<?, ?>> Seekables barrier(@Nonnull S keysOrRanges, long epoch, long queryStartNanos, long timeoutNanos, BarrierType barrierType, boolean isForWrite, BiFunction<Node, S, AsyncResult<SyncPoint<S>>> syncPoint)
     {
         Stopwatch sw = Stopwatch.createStarted();
-        keysOrRanges = (S)intersectionWithAccordManagedRanges(keysOrRanges);
+        keysOrRanges = (S) intersectionWithAccordManagedRanges(keysOrRanges);
         // It's possible none of them were Accord managed and we aren't going to treat that as an error
         if (keysOrRanges.isEmpty())
         {
@@ -408,14 +421,12 @@ public class AccordService implements IAccordService, Shutdownable
         }
 
         AccordClientRequestMetrics metrics = isForWrite ? accordWriteMetrics : accordReadMetrics;
-        TxnId txnId = null;
         try
         {
             logger.debug("Starting barrier key: {} epoch: {} barrierType: {} isForWrite {}", keysOrRanges, epoch, barrierType, isForWrite);
-            txnId = node.nextTxnId(Kind.SyncPoint, keysOrRanges.domain());
             AsyncResult<TxnId> asyncResult = syncPoint == null
-                                                 ? Barrier.barrier(node, keysOrRanges, epoch, barrierType)
-                                                 : Barrier.barrier(node, keysOrRanges, epoch, barrierType, syncPoint);
+                                             ? Barrier.barrier(node, keysOrRanges, epoch, barrierType)
+                                             : Barrier.barrier(node, keysOrRanges, epoch, barrierType, syncPoint);
             long deadlineNanos = queryStartNanos + timeoutNanos;
             Timestamp barrierExecuteAt = AsyncChains.getBlocking(asyncResult, deadlineNanos - nanoTime(), NANOSECONDS);
             logger.debug("Completed barrier attempt in {}ms, {}ms since attempts start, barrier key: {} epoch: {} barrierType: {} isForWrite {}",
@@ -429,21 +440,24 @@ public class AccordService implements IAccordService, Shutdownable
             Throwable cause = Throwables.getRootCause(e);
             if (cause instanceof Timeout)
             {
+                TxnId txnId = ((Timeout) cause).txnId();
                 metrics.timeouts.mark();
-                throw newBarrierTimeout(txnId, barrierType.global);
+                throw newBarrierTimeout(txnId, barrierType, isForWrite, keysOrRanges);
             }
             if (cause instanceof Preempted)
             {
+                TxnId txnId = ((Preempted) cause).txnId();
                 //TODO need to improve
                 // Coordinator "could" query the accord state to see whats going on but that doesn't exist yet.
                 // Protocol also doesn't have a way to denote "unknown" outcome, so using a timeout as the closest match
-                throw newBarrierPreempted(txnId, barrierType.global);
+                throw newBarrierPreempted(txnId, barrierType, isForWrite, keysOrRanges);
             }
             if (cause instanceof Exhausted)
             {
+                TxnId txnId = ((Exhausted) cause).txnId();
                 // this case happens when a non-timeout exception is seen, and we are unable to move forward
                 metrics.failures.mark();
-                throw newBarrierExhausted(txnId, barrierType.global);
+                throw newBarrierExhausted(txnId, barrierType, isForWrite, keysOrRanges);
             }
             // unknown error
             metrics.failures.mark();
@@ -457,7 +471,7 @@ public class AccordService implements IAccordService, Shutdownable
         catch (TimeoutException e)
         {
             metrics.timeouts.mark();
-            throw newBarrierTimeout(txnId, barrierType.global);
+            throw newBarrierTimeout(null, barrierType, isForWrite, keysOrRanges);
         }
         finally
         {
@@ -484,16 +498,16 @@ public class AccordService implements IAccordService, Shutdownable
         return barrier(keysOrRanges, epoch, queryStartNanos, timeoutNanos, barrierType, isForWrite, repairSyncPoint(allNodes));
     }
 
-    private static <S extends Seekables<?,?>> Seekables intersectionWithAccordManagedRanges(Seekables<?, ?> keysOrRanges)
+    private static <S extends Seekables<?, ?>> Seekables intersectionWithAccordManagedRanges(Seekables<?, ?> keysOrRanges)
     {
         TableId tableId = null;
         for (Seekable seekable : keysOrRanges)
         {
             TableId newTableId;
             if (keysOrRanges.domain() == Key)
-                newTableId = ((PartitionKey)seekable).table();
+                newTableId = ((PartitionKey) seekable).table();
             else if (keysOrRanges.domain() == Range)
-                newTableId = ((TokenRange)seekable).table();
+                newTableId = ((TokenRange) seekable).table();
             else
                 throw new IllegalStateException("Unexpected domain " + keysOrRanges.domain());
 
@@ -532,22 +546,21 @@ public class AccordService implements IAccordService, Shutdownable
     }
 
     @VisibleForTesting
-    static ReadTimeoutException newBarrierTimeout(TxnId txnId, boolean global)
+    static ReadTimeoutException newBarrierTimeout(TxnId txnId, BarrierType barrierType, boolean isForWrite, Seekables<?, ?> keysOrRanges)
     {
-        return new ReadTimeoutException(global ? ConsistencyLevel.ANY : ConsistencyLevel.QUORUM, 0, 0, false, txnId.toString());
+        return new ReadTimeoutException(barrierType.global ? ConsistencyLevel.ANY : ConsistencyLevel.QUORUM, 0, 0, false, String.format("Timeout waiting on barrier %s / %s / %s; impacted ranges %s", txnId, barrierType, isForWrite ? "write" : "not write", keysOrRanges));
     }
 
     @VisibleForTesting
-    static ReadTimeoutException newBarrierPreempted(TxnId txnId, boolean global)
+    static ReadTimeoutException newBarrierPreempted(TxnId txnId, BarrierType barrierType, boolean isForWrite, Seekables<?, ?> keysOrRanges)
     {
-        return new ReadPreemptedException(global ? ConsistencyLevel.ANY : ConsistencyLevel.QUORUM, 0, 0, false, txnId.toString());
+        return new ReadPreemptedException(barrierType.global ? ConsistencyLevel.ANY : ConsistencyLevel.QUORUM, 0, 0, false, String.format("Preempted waiting on barrier %s / %s / %s; impacted ranges %s", txnId, barrierType, isForWrite ? "write" : "not write", keysOrRanges));
     }
 
     @VisibleForTesting
-    static ReadExhaustedException newBarrierExhausted(TxnId txnId, boolean global)
+    static ReadExhaustedException newBarrierExhausted(TxnId txnId, BarrierType barrierType, boolean isForWrite, Seekables<?, ?> keysOrRanges)
     {
-        //TODO (usability): not being able to show the txn is a bad UX, this becomes harder to trace back in logs
-        return new ReadExhaustedException(global ? ConsistencyLevel.ANY : ConsistencyLevel.QUORUM, 0, 0, false, ImmutableMap.of());
+        return new ReadExhaustedException(barrierType.global ? ConsistencyLevel.ANY : ConsistencyLevel.QUORUM, 0, 0, false, String.format("Exhausted (too many failures from peers) waiting on barrier %s / %s / %s; impacted ranges %s", txnId, barrierType, isForWrite ? "write" : "not write", keysOrRanges));
     }
 
     @VisibleForTesting
@@ -615,9 +628,9 @@ public class AccordService implements IAccordService, Shutdownable
     public Seekables barrierWithRetries(Seekables keysOrRanges, long minEpoch, BarrierType barrierType, boolean isForWrite) throws InterruptedException
     {
         return doWithRetries(Blocking.Default.instance, () -> AccordService.instance().barrier(keysOrRanges, minEpoch, Clock.Global.nanoTime(), DatabaseDescriptor.getAccordRangeBarrierTimeoutNanos(), barrierType, isForWrite),
-                      DatabaseDescriptor.getAccordBarrierRetryAttempts(),
-                      DatabaseDescriptor.getAccordBarrierRetryInitialBackoffMillis(),
-                      DatabaseDescriptor.getAccordBarrierRetryMaxBackoffMillis());
+                             DatabaseDescriptor.getAccordBarrierRetryAttempts(),
+                             DatabaseDescriptor.getAccordBarrierRetryInitialBackoffMillis(),
+                             DatabaseDescriptor.getAccordBarrierRetryMaxBackoffMillis());
     }
 
     @Override
@@ -666,12 +679,12 @@ public class AccordService implements IAccordService, Shutdownable
             Throwable cause = failure != null ? Throwables.getRootCause(failure) : null;
             if (success != null)
             {
-                if (((TxnResult)success).kind() == TxnResult.Kind.retry_new_protocol)
+                if (((TxnResult) success).kind() == TxnResult.Kind.retry_new_protocol)
                 {
                     metrics.retryDifferentSystem.mark();
                     Tracing.trace("Got retry different system error from Accord, will retry");
                 }
-                asyncTxnResult.trySuccess((TxnResult)success);
+                asyncTxnResult.trySuccess((TxnResult) success);
                 return;
             }
 
@@ -725,7 +738,7 @@ public class AccordService implements IAccordService, Shutdownable
                 throw (RequestTimeoutException) cause;
             }
             else if (cause instanceof RuntimeException)
-                throw (RuntimeException)cause;
+                throw (RuntimeException) cause;
             else
                 throw new RuntimeException(cause);
         }
@@ -754,7 +767,7 @@ public class AccordService implements IAccordService, Shutdownable
         if (consistencyLevel == null)
             consistencyLevel = ConsistencyLevel.ANY;
         return isWrite ? new WriteTimeoutException(WriteType.CAS, consistencyLevel, 0, 0, txnId.toString())
-                            : new ReadTimeoutException(consistencyLevel, 0, 0, false, txnId.toString());
+                       : new ReadTimeoutException(consistencyLevel, 0, 0, false, txnId.toString());
     }
 
     private static RuntimeException newPreempted(TxnId txnId, boolean isWrite, ConsistencyLevel consistencyLevel)
@@ -762,7 +775,7 @@ public class AccordService implements IAccordService, Shutdownable
         if (consistencyLevel == null)
             consistencyLevel = ConsistencyLevel.ANY;
         return isWrite ? new WritePreemptedException(WriteType.CAS, consistencyLevel, 0, 0, txnId.toString())
-                            : new ReadPreemptedException(consistencyLevel, 0, 0, false, txnId.toString());
+                       : new ReadPreemptedException(consistencyLevel, 0, 0, false, txnId.toString());
     }
 
     @Override
@@ -831,6 +844,143 @@ public class AccordService implements IAccordService, Shutdownable
     public Id nodeId()
     {
         return node.id();
+    }
+
+    @Override
+    public List<CommandStoreTxnBlockedGraph> debugTxnBlockedGraph(TxnId txnId)
+    {
+        AsyncChain<List<CommandStoreTxnBlockedGraph>> states = loadDebug(txnId);
+        try
+        {
+            return AsyncChains.getBlocking(states);
+        }
+        catch (InterruptedException e)
+        {
+            throw new UncheckedInterruptedException(e);
+        }
+        catch (ExecutionException e)
+        {
+            throw new RuntimeException(e.getCause());
+        }
+    }
+
+    public AsyncChain<List<CommandStoreTxnBlockedGraph>> loadDebug(TxnId original)
+    {
+        CommandStores commandStores = node.commandStores();
+        if (commandStores.count() == 0)
+            return AsyncChains.success(Collections.emptyList());
+        int[] ids = commandStores.ids();
+        List<AsyncChain<CommandStoreTxnBlockedGraph>> chains = new ArrayList<>(ids.length);
+        for (int id : ids)
+            chains.add(loadDebug(original, commandStores.forId(id)));
+        return AsyncChains.all(chains);
+    }
+
+    private AsyncChain<CommandStoreTxnBlockedGraph> loadDebug(TxnId txnId, CommandStore store)
+    {
+        CommandStoreTxnBlockedGraph.Builder state = new CommandStoreTxnBlockedGraph.Builder(store.id());
+        return populate(state, store, txnId).map(ignore -> state.build());
+    }
+
+    private static AsyncChain<Void> populate(CommandStoreTxnBlockedGraph.Builder state, CommandStore store, TxnId txnId)
+    {
+        AsyncChain<AsyncChain<Void>> submit = store.submit(PreLoadContext.contextFor(txnId), in -> {
+            AsyncChain<Void> chain = populate(state, (AccordSafeCommandStore) in, txnId);
+            return chain == null ? AsyncChains.success(null) : chain;
+        });
+        return submit.flatMap(Function.identity());
+    }
+
+    private static AsyncChain<Void> populate(CommandStoreTxnBlockedGraph.Builder state, CommandStore commandStore, PartitionKey blockedBy, TxnId txnId, Timestamp executeAt)
+    {
+        AsyncChain<AsyncChain<Void>> submit = commandStore.submit(PreLoadContext.contextFor(txnId, Keys.of(blockedBy), KeyHistory.COMMANDS), in -> {
+            AsyncChain<Void> chain = populate(state, (AccordSafeCommandStore) in, blockedBy, txnId, executeAt);
+            return chain == null ? AsyncChains.success(null) : chain;
+        });
+        return submit.flatMap(Function.identity());
+    }
+
+    @Nullable
+    private static AsyncChain<Void> populate(CommandStoreTxnBlockedGraph.Builder state, AccordSafeCommandStore safeStore, TxnId txnId)
+    {
+        AccordSafeCommand safeCommand = safeStore.getIfLoaded(txnId);
+        Invariants.nonNull(safeCommand, "Txn %s is not in the cache", txnId);
+        if (safeCommand.current() == null || safeCommand.current().saveStatus() == SaveStatus.Uninitialised)
+            return null;
+        CommandStoreTxnBlockedGraph.TxnState cmdTxnState = populate(state, safeCommand.current());
+        if (cmdTxnState.notBlocked())
+            return null;
+        //TODO (safety): check depth
+        List<AsyncChain<Void>> chains = new ArrayList<>();
+        for (TxnId blockedBy : cmdTxnState.blockedBy)
+        {
+            if (state.knows(blockedBy)) continue;
+            // need to fetch the state
+            if (safeStore.getIfLoaded(blockedBy) != null)
+            {
+                AsyncChain<Void> chain = populate(state, safeStore, blockedBy);
+                if (chain != null)
+                    chains.add(chain);
+            }
+            else
+            {
+                // go fetch it
+                chains.add(populate(state, safeStore.commandStore(), blockedBy));
+            }
+        }
+        for (PartitionKey blockedBy : cmdTxnState.blockedByKey)
+        {
+            if (state.keys.containsKey(blockedBy)) continue;
+            if (safeStore.getCommandsForKeyIfLoaded(blockedBy) != null)
+            {
+                AsyncChain<Void> chain = populate(state, safeStore, blockedBy, txnId, safeCommand.current().executeAt());
+                if (chain != null)
+                    chains.add(chain);
+            }
+            else
+            {
+                // go fetch it
+                chains.add(populate(state, safeStore.commandStore(), blockedBy, txnId, safeCommand.current().executeAt()));
+            }
+        }
+        if (chains.isEmpty())
+            return null;
+        return AsyncChains.all(chains).map(ignore -> null);
+    }
+
+    private static AsyncChain<Void> populate(CommandStoreTxnBlockedGraph.Builder state, AccordSafeCommandStore safeStore, PartitionKey pk, TxnId txnId, Timestamp executeAt)
+    {
+        AccordSafeCommandsForKey commandsForKey = safeStore.getCommandsForKeyIfLoaded(pk);
+        TxnId blocking = commandsForKey.current().blockedOnTxnId(txnId, executeAt);
+        if (blocking instanceof CommandsForKey.TxnInfo)
+            blocking = ((CommandsForKey.TxnInfo) blocking).plainTxnId();
+        state.keys.put(pk, blocking);
+        if (state.txns.containsKey(blocking)) return null;
+        if (safeStore.getIfLoaded(blocking) != null) return populate(state, safeStore, blocking);
+        return populate(state, safeStore.commandStore(), blocking);
+    }
+
+    private static CommandStoreTxnBlockedGraph.TxnState populate(CommandStoreTxnBlockedGraph.Builder state, Command cmd)
+    {
+        CommandStoreTxnBlockedGraph.Builder.TxnBuilder cmdTxnState = state.txn(cmd.txnId(), cmd.executeAt(), cmd.saveStatus());
+        if (!cmd.hasBeen(Status.Applied) && cmd.isCommitted())
+        {
+            // check blocking state
+            Command.WaitingOn waitingOn = cmd.asCommitted().waitingOn();
+            waitingOn.waitingOn.reverseForEach(null, null, null, null, (i1, i2, i3, i4, i) -> {
+                if (i < waitingOn.txnIdCount())
+                {
+                    // blocked on txn
+                    cmdTxnState.blockedBy.add(waitingOn.txnId(i));
+                }
+                else
+                {
+                    // blocked on key
+                    cmdTxnState.blockedByKey.add((PartitionKey) waitingOn.keys.get(i - waitingOn.txnIdCount()));
+                }
+            });
+        }
+        return cmdTxnState.build();
     }
 
     public Node node()
@@ -921,7 +1071,7 @@ public class AccordService implements IAccordService, Shutdownable
     public CompactionInfo getCompactionInfo()
     {
         Int2ObjectHashMap<RedundantBefore> redundantBefores = new Int2ObjectHashMap<>();
-        Int2ObjectHashMap<CommandStores.RangesForEpoch>ranges = new Int2ObjectHashMap<>();
+        Int2ObjectHashMap<CommandStores.RangesForEpoch> ranges = new Int2ObjectHashMap<>();
         AtomicReference<DurableBefore> durableBefore = new AtomicReference<>(DurableBefore.EMPTY);
         AsyncChains.getBlockingAndRethrow(node.commandStores().forEach(safeStore -> {
             synchronized (redundantBefores)

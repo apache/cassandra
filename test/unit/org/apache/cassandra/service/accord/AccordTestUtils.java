@@ -287,6 +287,11 @@ public class AccordTestUtils
         return createTxn(query, QueryOptions.DEFAULT);
     }
 
+    public static Txn createTxn(String query, Object... binds)
+    {
+        return createTxn(query, Arrays.asList(binds));
+    }
+
     public static Txn createTxn(String query, List<Object> binds)
     {
         TransactionStatement statement = parse(query);
