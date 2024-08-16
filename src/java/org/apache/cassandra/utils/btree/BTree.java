@@ -3312,27 +3312,51 @@ public class BTree
         public void close()
         {
             reset();
-            pool.offer(this);
-            pool = null;
+            if (pool != null)
+            {
+                pool.offer(this);
+                pool = null;
+            }
         }
 
         @Override
         void reset()
         {
-            // we clear precisely to leaf().count and branch.count because, in the case of a builder,
-            // if we ever fill the buffer we will consume it entirely for the tree we are building
-            // so the last count should match the number of non-null entries
-            Arrays.fill(leaf().buffer, 0, leaf().count, null);
+            Arrays.fill(leaf().buffer, null);
             leaf().count = 0;
             BranchBuilder branch = leaf().parent;
             while (branch != null && branch.inUse)
             {
-                Arrays.fill(branch.buffer, 0, branch.count, null);
-                Arrays.fill(branch.buffer, MAX_KEYS, MAX_KEYS + 1 + branch.count, null);
+                Arrays.fill(branch.buffer, null);
                 branch.count = 0;
                 branch.inUse = false;
                 branch = branch.parent;
             }
+        }
+
+        public boolean validateEmpty()
+        {
+            LeafOrBranchBuilder cur = leaf();
+            boolean hasOnlyNulls = true;
+            while (hasOnlyNulls && cur != null)
+            {
+                hasOnlyNulls = hasOnlyNulls(cur.buffer) && hasOnlyNulls(cur.savedBuffer) && cur.savedNextKey == null;
+                cur = cur.parent;
+            }
+            return hasOnlyNulls;
+        }
+
+        private static boolean hasOnlyNulls(Object[] buffer)
+        {
+            if (buffer == null)
+                return true;
+
+            for (int i = 0 ; i < buffer.length ; ++i)
+            {
+                if (buffer[i] != null)
+                    return false;
+            }
+            return true;
         }
     }
 

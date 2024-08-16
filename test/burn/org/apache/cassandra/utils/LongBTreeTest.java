@@ -728,6 +728,9 @@ public class LongBTreeTest
                 Object[] btree = builder.build();
                 assertEquals(i + 1, BTree.size(btree));
                 assertTrue(""+i, BTree.<Integer>isWellFormed(btree, naturalOrder()));
+                assertTrue(""+i, BTree.<Integer>isWellFormed(btree, naturalOrder()));
+                builder.close();
+                assertTrue(builder.validateEmpty());
             }
         }
     }
