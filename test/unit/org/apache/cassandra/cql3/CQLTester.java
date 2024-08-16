@@ -434,6 +434,7 @@ public abstract class CQLTester
     public static void setUpClass()
     {
         prePrepareServer();
+
         // Once per-JVM is enough
         prepareServer();
     }
