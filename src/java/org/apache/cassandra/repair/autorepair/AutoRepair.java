@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -78,6 +79,9 @@ public class AutoRepair
 
     @VisibleForTesting
     protected final Map<AutoRepairConfig.RepairType, AutoRepairState> repairStates;
+
+    @VisibleForTesting
+    protected static Consumer<List<?>> shuffleFunc = java.util.Collections::shuffle;
 
     protected final Map<AutoRepairConfig.RepairType, IAutoRepairTokenRangeSplitter> tokenRangeSplitters = new EnumMap<>(AutoRepairConfig.RepairType.class);
 
@@ -182,7 +186,14 @@ public class AutoRepair
                 repairState.setRepairSkippedTablesCount(0);
                 repairState.setRepairInProgress(true);
                 repairState.setTotalMVTablesConsideredForRepair(0);
-                for (Keyspace keyspace : Keyspace.all())
+
+                List<Keyspace> keyspaces = new ArrayList<>();
+                Keyspace.all().forEach(keyspaces::add);
+                // Auto-repair is likely to be run on multiple nodes independently, we want to avoid running multiple repair
+                // sessions on overlapping datasets at the same time. Shuffling keyspaces reduces the likelihood of this happening.
+                shuffleFunc.accept(keyspaces);
+
+                for (Keyspace keyspace : keyspaces)
                 {
                     if (!AutoRepairUtils.checkNodeContainsKeyspaceReplica(keyspace))
                     {
@@ -191,6 +202,7 @@ public class AutoRepair
 
                     repairState.setRepairKeyspaceCount(repairState.getRepairKeyspaceCount() + 1);
                     List<String> tablesToBeRepaired = retrieveTablesToBeRepaired(keyspace, repairType, repairState);
+                    shuffleFunc.accept(tablesToBeRepaired);
                     for (String tableName : tablesToBeRepaired)
                     {
                         String keyspaceName = keyspace.getName();
