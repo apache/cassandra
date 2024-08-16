@@ -481,6 +481,24 @@ public class AutoRepairConfigTest extends CQLTester
     }
 
     @Test
+    public void testSetInitialSchedulerDelayInSeconds()
+    {
+        config.setInitialSchedulerDelayInSec(repairType, 5);
+
+        assert config.repair_type_overrides.get(repairType).intial_scheduler_delay_in_sec == 5;
+    }
+
+    @Test
+    public void testGetInitialSchedulerDelayInSeconds()
+    {
+        config.global_settings.intial_scheduler_delay_in_sec = 5;
+
+        int result = config.getInitialSchedulerDelayInSec(repairType);
+
+        assertEquals(5, result);
+    }
+
+    @Test
     public void testApplyOverridesUsesDefaultOptions()
     {
         config.repair_type_overrides = new EnumMap<>(AutoRepairConfig.RepairType.class);

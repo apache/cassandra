@@ -65,9 +65,6 @@ import static org.apache.cassandra.repair.AutoRepairUtilsV2.RepairTurn.MY_TURN_F
 // TODO: add class documentation (SO-28898)
 public class AutoRepairV2
 {
-    // Initial delay for repair session to start after setup
-    final static long INITIAL_REPAIR_DELAY_SEC = 30;
-
     private static final Logger logger = LoggerFactory.getLogger(AutoRepairV2.class);
 
     @VisibleForTesting
@@ -107,7 +104,7 @@ public class AutoRepairV2
         {
             repairExecutors.get(repairType).scheduleWithFixedDelay(
             () -> repair(repairType, 60000),
-            INITIAL_REPAIR_DELAY_SEC,
+            config.getInitialSchedulerDelayInSec(repairType),
             config.getRepairCheckIntervalInSec(),
             TimeUnit.SECONDS);
         }

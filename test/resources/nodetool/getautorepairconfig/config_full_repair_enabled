@@ -19,6 +19,7 @@ configuration for repair type: full
 	number of parallel repairs within group: 1
 	percentage of parallel repairs within group: 0
 	mv repair enabled: true
+	initial scheduler delay in seconds: 900
 configuration for repair type: incremental
 	enabled: false
 	minimum repair interval in hours: 24
@@ -35,3 +36,4 @@ configuration for repair type: incremental
 	number of parallel repairs within group: 1
 	percentage of parallel repairs within group: 0
 	mv repair enabled: true
+	initial scheduler delay in seconds: 900

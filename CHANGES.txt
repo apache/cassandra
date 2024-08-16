@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * [SO-33506] Add intial_scheduler_delay_in_seconds option to AutoRepairConfig
  * Unbounded queues in native transport requests lead to node instability (CASSANDRA-19534)
  * [SO-32834] Make rate limiter reach 100% throttling percentage much faster
  * [SO-33261] Implement SucceededTokenRangesCount and FailedTokenRangesCount metrics for auto-repair

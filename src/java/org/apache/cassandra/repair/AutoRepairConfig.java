@@ -266,6 +266,17 @@ public class AutoRepairConfig implements Serializable
         return applyOverrides(repairType, opt -> opt.force_repair_new_node);
     }
 
+    public void setInitialSchedulerDelayInSec(RepairType repairType, int initialSchedulerDelayInSeconds)
+    {
+        ensureOverrides(repairType);
+        repair_type_overrides.get(repairType).intial_scheduler_delay_in_sec = initialSchedulerDelayInSeconds;
+    }
+
+    public int getInitialSchedulerDelayInSec(RepairType repairType)
+    {
+        return applyOverrides(repairType, opt -> opt.intial_scheduler_delay_in_sec);
+    }
+
     // Options configures auto-repair behavior for a given repair type.
     // The function of each of these fields is described here: https://docs.google.com/document/d/1Z1d27moU9yPT-r_1JhpcO_3ws-aQkUww5JA0abwK9dE/edit#heading=h.izpcb3d6hq4n
     // All fields can be modified dynamically.
@@ -303,6 +314,7 @@ public class AutoRepairConfig implements Serializable
             opts.force_repair_new_node = false;
             opts.table_max_repair_time_in_sec = 6 * 60 * 60L; // six hours
             opts.mv_repair_enabled = true;
+            opts.intial_scheduler_delay_in_sec = 900; // 15 minutes
 
             return opts;
         }
@@ -350,6 +362,8 @@ public class AutoRepairConfig implements Serializable
          * This flag determines whether we need to run anti-entropy, a.k.a, repair on the MV table or not.
          */
         public volatile Boolean mv_repair_enabled;
+        // the minimum delay in seconds after a node starts before the scheduler starts running repair
+        public volatile Integer intial_scheduler_delay_in_sec;
     }
 
     @VisibleForTesting
