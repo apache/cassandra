@@ -60,7 +60,7 @@ appender reference in the root level section below.
       <totalSizeCap>5GB</totalSizeCap>
     </rollingPolicy>
     <encoder>
-      <pattern>%-5level [%thread] %date{ISO8601} %F:%L - %msg%n</pattern>
+      <pattern>%highlight(%-5level) [%thread] %date{ISO8601} %boldWhite(%F:%L) - %msg%n</pattern>
     </encoder>
   </appender>
 
@@ -80,7 +80,7 @@ appender reference in the root level section below.
       <level>INFO</level>
     </filter>
     <encoder>
-      <pattern>%-5level [%thread] %date{ISO8601} %F:%L - %msg%n</pattern>
+      <pattern>%highlight(%-5level) [%thread] %date{ISO8601} %boldWhite(%F:%L) - %msg%n</pattern>
     </encoder>
   </appender>
 

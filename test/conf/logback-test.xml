@@ -45,7 +45,7 @@
 
   <appender name="STDOUT" target="System.out" class="org.apache.cassandra.ConsoleAppender">
     <encoder>
-      <pattern>%-5level [%thread] %date{ISO8601} %F:%L - %msg%n</pattern>
+      <pattern>%highlight(%-5level) [%thread] %date{ISO8601} %boldWhite(%F:%L) - %msg%n</pattern>
     </encoder>
     <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
       <level>DEBUG</level>
