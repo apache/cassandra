@@ -41,7 +41,12 @@ public class DropRecreateAndRestoreTest extends CQLTester
         execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 0, 0, 0);
         execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 0, 1, 1);
 
-
+        // These 2 INSERTS may be finished within one millisecond, so if we don't sleep here,
+        // our RestorePointInTime may end up being the same millisecond level with the 2 INSERTS,
+        // but because c* 's timestamp is in microseconds level. The INSERT's timestamp of the second
+        // one will be 1 microsecond longer than the first one, causing the final test to fail. So we sleep\
+        // one millisecond here.
+        Thread.sleep(1);
         long time = System.currentTimeMillis();
         TableId id = currentTableMetadata().id;
         assertRows(execute("SELECT * FROM %s"), row(0, 0, 0), row(0, 1, 1));
