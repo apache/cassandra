@@ -21,6 +21,8 @@ package org.apache.cassandra.service;
 
 import java.io.IOException;
 import java.net.UnknownHostException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -36,6 +38,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.audit.AuditLogManager;
+import org.apache.cassandra.audit.AuditLogOptions;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
@@ -582,6 +585,9 @@ public class StorageServiceServerTest
     @Test
     public void testAuditLogEnableLoggerNotFound() throws Exception
     {
+        AuditLogOptions options = getBaseAuditLogOptions();
+        DatabaseDescriptor.setAuditLoggingOptions(options);
+
         StorageService.instance.enableAuditLog(null, null, null, null, null, null, null, null);
         assertTrue(AuditLogManager.instance.isEnabled());
         try
@@ -598,6 +604,9 @@ public class StorageServiceServerTest
     @Test
     public void testAuditLogEnableLoggerTransitions() throws Exception
     {
+        AuditLogOptions options = getBaseAuditLogOptions();
+        DatabaseDescriptor.setAuditLoggingOptions(options);
+
         StorageService.instance.enableAuditLog(null, null, null, null, null, null, null, null);
         assertTrue(AuditLogManager.instance.isEnabled());
 
@@ -613,5 +622,19 @@ public class StorageServiceServerTest
         StorageService.instance.enableAuditLog(null, null, null, null, null, null, null, null);
         assertTrue(AuditLogManager.instance.isEnabled());
         StorageService.instance.disableAuditLog();
+    }
+
+    /**
+     Create a new AuditLogOptions instance with the log dir set appropriately to a temp dir for unit testing.
+     */
+    private static AuditLogOptions getBaseAuditLogOptions() throws IOException
+    {
+        AuditLogOptions options = new AuditLogOptions();
+
+        // Ensure that we create a new audit log directory to separate outputs
+        Path tmpDir = Files.createTempDirectory("StorageServiceServerTestForAuditLog");
+        options.audit_logs_dir = tmpDir.toString();
+
+        return options;
     }
 }
