@@ -143,10 +143,15 @@ public class AutoRepairUtils
     , SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, AutoRepairKeyspace.AUTO_REPAIR_HISTORY, COL_FORCE_REPAIR,
     COL_REPAIR_TYPE, COL_HOST_ID);
 
+    final static String SELECT_LAST_REPAIR_TIME_FOR_NODE = String.format(
+    "SELECT %s FROM %s.%s WHERE %s = ? AND %s = ?", COL_REPAIR_FINISH_TS, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
+    AutoRepairKeyspace.AUTO_REPAIR_HISTORY, COL_REPAIR_TYPE, COL_HOST_ID);
+
     static ModificationStatement delStatementRepairHistory;
     static SelectStatement selectStatementRepairHistory;
     static ModificationStatement delStatementPriorityStatus;
     static SelectStatement selectStatementRepairPriority;
+    static SelectStatement selectLastRepairTimeForNode;
     static ModificationStatement addPriorityHost;
     static ModificationStatement insertNewRepairHistoryStatement;
     static ModificationStatement recordStartRepairHistoryStatement;
@@ -170,6 +175,10 @@ public class AutoRepairUtils
                                                                                                             .forInternalCalls());
         selectStatementRepairPriority = (SelectStatement) QueryProcessor.getStatement(SELECT_REPAIR_PRIORITY, ClientState
                                                                                                               .forInternalCalls());
+
+        selectLastRepairTimeForNode = (SelectStatement) QueryProcessor.getStatement(SELECT_LAST_REPAIR_TIME_FOR_NODE, ClientState
+                                                                                                                      .forInternalCalls());
+
         delStatementPriorityStatus = (ModificationStatement) QueryProcessor.getStatement(DEL_REPAIR_PRIORITY, ClientState
                                                                                                               .forInternalCalls());
         addPriorityHost = (ModificationStatement) QueryProcessor.getStatement(ADD_PRIORITY_HOST, ClientState
@@ -368,6 +377,25 @@ public class AutoRepairUtils
     {
         List<AutoRepairHistory> autoRepairHistories = getAutoRepairHistoryForLocalGroup(repairType);
         return getCurrentRepairStatus(repairType, autoRepairHistories);
+    }
+
+    public static long getLastRepairTimeForNode(RepairType repairType, UUID hostId)
+    {
+        ResultMessage.Rows rows = selectLastRepairTimeForNode.execute(QueryState.forInternalCalls(),
+                                                                      QueryOptions.forInternalCalls(internalQueryCL,
+                                                                                                    Lists.newArrayList(
+                                                                                                    ByteBufferUtil.bytes(repairType.toString()),
+                                                                                                    ByteBufferUtil.bytes(hostId))),
+                                                                      Dispatcher.RequestTime.forImmediateExecution());
+
+        UntypedResultSet repairTime = UntypedResultSet.create(rows.result);
+
+        if (repairTime.isEmpty())
+        {
+            return 0;
+        }
+
+        return repairTime.one().getLong(COL_REPAIR_FINISH_TS);
     }
 
     public static CurrentRepairStatus getCurrentRepairStatus(RepairType repairType, List<AutoRepairHistory> autoRepairHistories)
