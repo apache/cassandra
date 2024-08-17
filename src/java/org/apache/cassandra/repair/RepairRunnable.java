@@ -30,6 +30,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -102,7 +103,9 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier, RepairNo
     private final String tag;
 
     private final List<ProgressListener> listeners = new ArrayList<>();
-    private final AtomicReference<Throwable> firstError = new AtomicReference<>(null);
+
+    @VisibleForTesting
+    protected final AtomicReference<Throwable> firstError = new AtomicReference<>(null);
     final Scheduler validationScheduler;
 
     private TraceState traceState;
@@ -195,12 +198,12 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier, RepairNo
         complete(null);
     }
 
-    private void fail(String reason)
+    protected void fail(String reason)
     {
         if (reason == null)
         {
             Throwable error = firstError.get();
-            reason = error != null ? error.getMessage() : "Some repair failed";
+            reason = (error != null && error.getMessage() != null) ? error.getMessage() : "Some repair failed";
         }
         state.phase.fail(reason);
         ParticipateState p = ActiveRepairService.instance.participate(state.id);
