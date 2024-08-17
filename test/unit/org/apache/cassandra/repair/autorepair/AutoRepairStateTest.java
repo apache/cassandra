@@ -248,23 +248,6 @@ public class AutoRepairStateTest extends CQLTester
     }
 
     @Test
-    public void testSetRepairFailedTablesCount() {
-        AutoRepairState state = RepairType.getAutoRepairState(repairType);
-
-        state.setRepairFailedTablesCount(1);
-
-        assertEquals(1, state.repairTableFailureCount);
-    }
-
-    @Test
-    public void testGetRepairFailedTablesCount() {
-        AutoRepairState state = RepairType.getAutoRepairState(repairType);
-        state.repairTableFailureCount = 1;
-
-        assertEquals(1, state.getRepairFailedTablesCount());
-    }
-
-    @Test
     public void testSetTotalMVTablesConsideredForRepair() {
         AutoRepairState state = RepairType.getAutoRepairState(repairType);
 
@@ -307,30 +290,12 @@ public class AutoRepairStateTest extends CQLTester
 
         assertEquals(1, state.repairKeyspaceCount);
     }
-
-    @Test
-    public void testSetRepairTableSuccessCount() {
-        AutoRepairState state = RepairType.getAutoRepairState(repairType);
-
-        state.setRepairTableSuccessCount(1);
-
-        assertEquals(1, state.repairTableSuccessCount);
-    }
-
     @Test
     public void testGetRepairKeyspaceCount() {
         AutoRepairState state = RepairType.getAutoRepairState(repairType);
         state.repairKeyspaceCount = 1;
 
         assertEquals(1, state.getRepairKeyspaceCount());
-    }
-
-    @Test
-    public void testGetRepairTableSuccessCount() {
-        AutoRepairState state = RepairType.getAutoRepairState(repairType);
-        state.repairTableSuccessCount = 1;
-
-        assertEquals(1, state.getRepairTableSuccessCount());
     }
 
     @Test
@@ -341,6 +306,40 @@ public class AutoRepairStateTest extends CQLTester
         state.setLongestUnrepairedNode(history);
 
         assertEquals(history, state.longestUnrepairedNode);
+    }
+
+    @Test
+    public void testSetSucceededTokenRangesCount() {
+        AutoRepairState state = RepairType.getAutoRepairState(repairType);
+
+        state.setSucceededTokenRangesCount(1);
+
+        assertEquals(1, state.succeededTokenRangesCount);
+    }
+
+    @Test
+    public void testGetSucceededTokenRangesCount() {
+        AutoRepairState state = RepairType.getAutoRepairState(repairType);
+        state.succeededTokenRangesCount = 1;
+
+        assertEquals(1, state.getSucceededTokenRangesCount());
+    }
+
+    @Test
+    public void testSetFailedTokenRangesCount() {
+        AutoRepairState state = RepairType.getAutoRepairState(repairType);
+
+        state.setFailedTokenRangesCount(1);
+
+        assertEquals(1, state.failedTokenRangesCount);
+    }
+
+    @Test
+    public void testGetFailedTokenRangesCount() {
+        AutoRepairState state = RepairType.getAutoRepairState(repairType);
+        state.failedTokenRangesCount = 1;
+
+        assertEquals(1, state.getFailedTokenRangesCount());
     }
 
     @Test
