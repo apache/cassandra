@@ -475,12 +475,14 @@ public class AutoRepairParameterizedTest extends CQLTester
         AutoRepair.instance.repairStates.put(repairType, autoRepairState);
         when(autoRepairState.getRepairRunnable(any(), any(), any(), anyBoolean()))
         .thenReturn(repairRunnable);
-        when(autoRepairState.getRepairFailedTablesCount()).thenReturn(10);
+        when(autoRepairState.getFailedTokenRangesCount()).thenReturn(10);
+        when(autoRepairState.getSucceededTokenRangesCount()).thenReturn(11);
         when(autoRepairState.getLongestUnrepairedSec()).thenReturn(10);
 
         AutoRepair.instance.repair(repairType, 0);
         assertEquals(0, AutoRepairMetricsManager.getMetrics(repairType).skippedTablesCount.getValue().intValue());
-        assertTrue(AutoRepairMetricsManager.getMetrics(repairType).failedTablesCount.getValue() > 0);
+        assertTrue(AutoRepairMetricsManager.getMetrics(repairType).failedTokenRangesCount.getValue() > 0);
+        assertTrue(AutoRepairMetricsManager.getMetrics(repairType).succeededTokenRangesCount.getValue() > 0);
         assertTrue(AutoRepairMetricsManager.getMetrics(repairType).longestUnrepairedSec.getValue() > 0);
     }
 

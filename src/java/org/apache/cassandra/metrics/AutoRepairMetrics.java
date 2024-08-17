@@ -36,7 +36,8 @@ public class AutoRepairMetrics
     public Gauge<Integer> clusterRepairTimeInSec;
     public Gauge<Integer> skippedTablesCount;
     public Gauge<Integer> longestUnrepairedSec;
-    public Gauge<Integer> failedTablesCount;
+    public Gauge<Integer> succeededTokenRangesCount;
+    public Gauge<Integer> failedTokenRangesCount;
     public Counter repairTurnMyTurn;
     public Counter repairTurnMyTurnDueToPriority;
     public Counter repairTurnMyTurnForceRepair;
@@ -87,11 +88,19 @@ public class AutoRepairMetrics
             }
         });
 
-        failedTablesCount = Metrics.register(factory.createMetricName("FailedTablesCount"), new Gauge<Integer>()
+        succeededTokenRangesCount = Metrics.register(factory.createMetricName("SucceededTokenRangesCount"), new Gauge<Integer>()
         {
             public Integer getValue()
             {
-                return AutoRepair.instance.getRepairState(repairType).getRepairFailedTablesCount();
+                return AutoRepair.instance.getRepairState(repairType).getSucceededTokenRangesCount();
+            }
+        });
+
+        failedTokenRangesCount = Metrics.register(factory.createMetricName("FailedTokenRangesCount"), new Gauge<Integer>()
+        {
+            public Integer getValue()
+            {
+                return AutoRepair.instance.getRepairState(repairType).getFailedTokenRangesCount();
             }
         });
 
