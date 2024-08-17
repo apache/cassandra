@@ -254,6 +254,17 @@ public class AutoRepairConfig implements Serializable
         return applyOverrides(repairType, opt -> opt.token_range_splitter);
     }
 
+    public void setInitialSchedulerDelay(RepairType repairType, String initialSchedulerDelay)
+    {
+        ensureOverrides(repairType);
+        repair_type_overrides.get(repairType).intial_scheduler_delay = new DurationSpec.IntSecondsBound(initialSchedulerDelay);
+    }
+
+    public DurationSpec.IntSecondsBound getInitialSchedulerDelay(RepairType repairType)
+    {
+        return applyOverrides(repairType, opt -> opt.intial_scheduler_delay);
+    }
+
     // Options configures auto-repair behavior for a given repair type.
     // All fields can be modified dynamically.
     public static class Options implements Serializable
@@ -288,6 +299,7 @@ public class AutoRepairConfig implements Serializable
             opts.table_max_repair_time = new DurationSpec.IntSecondsBound("6h");
             opts.mv_repair_enabled = true;
             opts.token_range_splitter = DefaultAutoRepairTokenSplitter.class.getName();
+            opts.intial_scheduler_delay = new DurationSpec.IntSecondsBound("15m"); // 15 minutes
 
             return opts;
         }
@@ -353,6 +365,8 @@ public class AutoRepairConfig implements Serializable
         // the default is DefaultAutoRepairTokenSplitter.class.getName(). The class should implement IAutoRepairTokenRangeSplitter.
         // The default implementation splits the tokens based on the token ranges owned by this node divided by the number of 'number_of_subranges'
         public volatile String token_range_splitter;
+        // the minimum delay in seconds after a node starts before the scheduler starts running repair
+        public volatile DurationSpec.IntSecondsBound intial_scheduler_delay;
 
         public String toString()
         {
@@ -371,6 +385,7 @@ public class AutoRepairConfig implements Serializable
                    ", table_max_repair_time=" + table_max_repair_time +
                    ", mv_repair_enabled=" + mv_repair_enabled +
                    ", token_range_splitter=" + token_range_splitter +
+                   ", intial_scheduler_delay=" + intial_scheduler_delay +
                    '}';
         }
     }

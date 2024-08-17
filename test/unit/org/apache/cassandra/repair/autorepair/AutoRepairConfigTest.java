@@ -450,4 +450,22 @@ public class AutoRepairConfigTest extends CQLTester
         assertEquals(DefaultAutoRepairTokenSplitter.class.getName(), FBUtilities.newAutoRepairTokenRangeSplitter("invalid-class").getClass().getName());
     }
 
+    @Test
+    public void testSetInitialSchedulerDelay()
+    {
+        config.setInitialSchedulerDelay(repairType, "5s");
+
+        assert config.repair_type_overrides.get(repairType).intial_scheduler_delay.toSeconds() == 5;
+    }
+
+    @Test
+    public void testGetInitialSchedulerDelay()
+    {
+        config.global_settings.intial_scheduler_delay = new DurationSpec.IntSecondsBound("5s");
+
+        int result = config.getInitialSchedulerDelay(repairType).toSeconds();
+
+        assertEquals(5, result);
+    }
+
 }
