@@ -482,4 +482,24 @@ public class AutoRepairUtilsTest extends CQLTester
         assertFalse(AutoRepairUtils.checkNodeContainsKeyspaceReplica(Keyspace.open("system")));
         assertTrue(AutoRepairUtils.checkNodeContainsKeyspaceReplica(Keyspace.open(KEYSPACE)));
     }
+
+    @Test
+    public void testGetLastRepairTimeForNode()
+    {
+        UUID myID = UUID.randomUUID();
+        UUID otherID = UUID.randomUUID();
+        long currentMillis = System.currentTimeMillis();
+        AutoRepairUtils.insertNewRepairHistory(repairType, myID, currentMillis, currentMillis - 100);
+        AutoRepairUtils.insertNewRepairHistory(repairType, otherID, currentMillis, currentMillis + 100);
+
+        assertEquals(currentMillis - 100, AutoRepairUtils.getLastRepairTimeForNode(repairType, myID));
+    }
+
+    @Test
+    public void testGetLastRepairTimeForNodeWhenHistoryIsEmpty()
+    {
+        UUID myID = UUID.randomUUID();
+
+        assertEquals(0, AutoRepairUtils.getLastRepairTimeForNode(repairType, myID));
+    }
 }
