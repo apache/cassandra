@@ -38,22 +38,17 @@ public class DropRecreateAndRestoreTest extends CQLTester
     {
         createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY(a, b))");
 
-        execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 0, 0, 0);
-        execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 0, 1, 1);
+        long time1 = System.currentTimeMillis();
+        execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?) USING TIMESTAMP ? ", 0, 0, 0, time1 * 1000);
+        execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?) USING TIMESTAMP ?", 0, 1, 1, time1 * 1000);
 
-        // These 2 INSERTS may be finished within one millisecond, so if we don't sleep here,
-        // our RestorePointInTime may end up being the same millisecond level with the 2 INSERTS,
-        // but because c* 's timestamp is in microseconds level. The INSERT's timestamp of the second
-        // one will be 1 microsecond longer than the first one, causing the final test to fail. So we sleep\
-        // one millisecond here.
-        Thread.sleep(1);
-        long time = System.currentTimeMillis();
         TableId id = currentTableMetadata().id;
         assertRows(execute("SELECT * FROM %s"), row(0, 0, 0), row(0, 1, 1));
         Thread.sleep(5);
 
-        execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 1, 0, 2);
-        execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 1, 1, 3);
+        long time2 = System.currentTimeMillis();
+        execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?) USING TIMESTAMP ? ", 1, 0, 2, time2 * 1000);
+        execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?) USING TIMESTAMP ? ", 1, 1, 3, time2 * 1000);
         assertRows(execute("SELECT * FROM %s"), row(1, 0, 2), row(1, 1, 3), row(0, 0, 0), row(0, 1, 1));
 
         // Drop will flush and clean segments. Hard-link them so that they can be restored later.
@@ -74,7 +69,7 @@ public class DropRecreateAndRestoreTest extends CQLTester
         try
         {
             // Restore to point in time (microseconds granularity)
-            CommitLog.instance.archiver.setRestorePointInTime(time * 1000);
+            CommitLog.instance.archiver.setRestorePointInTime(time1 * 1000);
             CommitLog.instance.resetUnsafe(false);
         }
         finally
