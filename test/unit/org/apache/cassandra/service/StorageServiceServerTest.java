@@ -21,6 +21,7 @@ package org.apache.cassandra.service;
 
 import java.io.IOException;
 import java.net.UnknownHostException;
+
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -29,6 +30,17 @@ import java.util.Map;
 import java.util.UUID;
 
 import com.google.common.collect.Sets;
+import java.util.*;
+import java.util.stream.Collectors;
+
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Multimap;
+
+import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.SystemKeyspace;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -46,6 +58,11 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.AbstractNetworkTopologySnitch;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.gms.ApplicationState;
+import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.WithPartitioner;
@@ -66,10 +83,17 @@ import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.GOSSIP_DISABLE_THREAD_VALIDATION;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+
 
 public class StorageServiceServerTest
 {
+    public static final String keyspace = "test_keyspace";
+    public static ColumnFamilyStore table1;
+    public static ColumnFamilyStore table2;
+
     static final String DC1 = "DC1";
     static final String DC2 = "DC2";
     static final String RACK = "rack1";
@@ -119,6 +143,21 @@ public class StorageServiceServerTest
         id5 = InetAddressAndPort.getByName("127.0.0.5");
         registerNodes();
         ServerTestUtils.markCMS();
+
+        SchemaLoader.createKeyspace(keyspace, KeyspaceParams.simple(1),
+                                    SchemaLoader.standardCFMD(keyspace, "table1").build(),
+                                    SchemaLoader.standardCFMD(keyspace, "table2").build());
+        table1 = Keyspace.open(keyspace).getColumnFamilyStore("table1");
+        assert table1 != null;
+        table2 = Keyspace.open(keyspace).getColumnFamilyStore("table2");
+        assert table2 != null;
+    }
+
+    @Before
+    public void clearData()
+    {
+        table1.truncateBlocking();
+        table2.truncateBlocking();
     }
 
     private static void registerNodes()
@@ -613,5 +652,98 @@ public class StorageServiceServerTest
         StorageService.instance.enableAuditLog(null, null, null, null, null, null, null, null);
         assertTrue(AuditLogManager.instance.isEnabled());
         StorageService.instance.disableAuditLog();
+    }
+
+    @Test
+    public void testGetTablesForKeyspace()
+    {
+        List<String> result = StorageService.instance.getTablesForKeyspace(keyspace);
+
+        assertEquals(Arrays.asList(table1.name, table2.name), result.stream().sorted().collect(Collectors.toList()));
+    }
+
+    @Test
+    public void testGetTablesForKeyspaceNotFound()
+    {
+        String missingKeyspace = "MISSING_KEYSPACE";
+        try
+        {
+            StorageService.instance.getTablesForKeyspace(missingKeyspace);
+            fail("Expected an AssertionError to be thrown");
+        }
+        catch (AssertionError e)
+        {
+            assertEquals("Unknown keyspace " + missingKeyspace, e.getMessage());
+        }
+    }
+
+    @Test
+    public void testMutateSSTableRepairedStateTableNotFound()
+    {
+        try
+        {
+            StorageService.instance.mutateSSTableRepairedState(true, false, keyspace, Arrays.asList("MISSING_TABLE"));
+            fail("Expected an InvalidRequestException to be thrown");
+        }
+        catch (InvalidRequestException e)
+        {
+            // Test passed
+        }
+    }
+
+    @Test
+    public void testMutateSSTableRepairedStateTablePreview()
+    {
+        SchemaLoader.insertData(keyspace, table1.name, 0, 1);
+        table1.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+        assertEquals(1, table1.getLiveSSTables().size());
+
+        List<String> result = StorageService.instance.mutateSSTableRepairedState(true, true, keyspace, Arrays.asList(table1.name));
+
+        assertEquals(1, result.size());
+        table1.getLiveSSTables().forEach(sstable -> {
+            assertFalse(sstable.isRepaired());
+            assertTrue(result.contains(sstable.descriptor.baseFilename()));
+        });
+    }
+
+    @Test
+    public void testMutateSSTableRepairedStateTableRepaired()
+    {
+        SchemaLoader.insertData(keyspace, table1.name, 0, 1);
+        table1.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+        SchemaLoader.insertData(keyspace, table1.name, 0, 1);
+        table1.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+        assertEquals(2, table1.getLiveSSTables().size());
+        table1.getLiveSSTables().forEach(sstable -> {
+            assertFalse(sstable.isRepaired());
+        });
+
+        List<String> result = StorageService.instance.mutateSSTableRepairedState(true, false, keyspace, Arrays.asList(table1.name));
+
+        assertEquals(2, result.size());
+        table1.getLiveSSTables().forEach(sstable -> {
+            assertTrue(sstable.isRepaired());
+            assertTrue(result.contains(sstable.descriptor.baseFilename()));
+        });
+    }
+
+    @Test
+    public void testMutateSSTableRepairedStateTableUnrepaired() throws Exception
+    {
+        SchemaLoader.insertData(keyspace, table1.name, 0, 1);
+        table1.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+        SchemaLoader.insertData(keyspace, table1.name, 0, 1);
+        table1.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+        table1.getCompactionStrategyManager().mutateRepaired(table1.getLiveSSTables(), 1, null, false);
+        assertEquals(2, table1.getLiveSSTables().stream().filter(SSTableReader::isRepaired).count());
+
+        List<String> result = StorageService.instance.mutateSSTableRepairedState(false, false, keyspace, Arrays.asList(table1.name));
+
+        assertEquals(2, result.size());
+        table1.getLiveSSTables().forEach(sstable -> {
+            assertFalse(sstable.isRepaired());
+            assertTrue(result.contains(sstable.descriptor.baseFilename()));
+        });
     }
 }
