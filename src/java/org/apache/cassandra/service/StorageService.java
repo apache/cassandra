@@ -74,6 +74,8 @@ import com.google.common.collect.Ordering;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.RateLimiter;
 import com.google.common.util.concurrent.Uninterruptibles;
+
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.repair.autorepair.AutoRepairKeyspace;
 import org.apache.cassandra.repair.autorepair.AutoRepair;
 import org.apache.commons.lang3.StringUtils;
@@ -5655,4 +5657,35 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         DatabaseDescriptor.setEnforceNativeDeadlineForHints(value);
     }
 
+    public List<String> getTablesForKeyspace(String keyspace) {
+        return Keyspace.open(keyspace).getColumnFamilyStores().stream().map(cfs -> cfs.name).collect(Collectors.toList());
+    }
+
+    public List<String> mutateSSTableRepairedState(boolean repaired, boolean preview, String keyspace, List<String> tableNames) throws InvalidRequestException
+    {
+        Map<String, ColumnFamilyStore> tables =  Keyspace.open(keyspace).getColumnFamilyStores()
+                                                         .stream().collect(Collectors.toMap(c -> c.name, c -> c));
+        for (String tableName : tableNames) {
+            if (!tables.containsKey(tableName))
+                throw new InvalidRequestException("Table " + tableName + " does not exist in keyspace " + keyspace);
+        }
+
+        // only select SSTables that are unrepaired when repaired is true and vice versa
+        Predicate<SSTableReader> predicate = sst -> repaired != sst.isRepaired();
+
+        // mutate SSTables
+        long repairedAt = !repaired ? 0 : currentTimeMillis();
+        List<String> sstablesTouched = new ArrayList<>();
+        for (String tableName : tableNames) {
+            ColumnFamilyStore table = tables.get(tableName);
+            Set<SSTableReader> result = table.runWithCompactionsDisabled(() -> {
+                Set<SSTableReader> sstables = table.getLiveSSTables().stream().filter(predicate).collect(Collectors.toSet());
+                if (!preview)
+                    table.getCompactionStrategyManager().mutateRepaired(sstables, repairedAt, null, false);
+                return sstables;
+            }, predicate, true, false, true);
+            sstablesTouched.addAll(result.stream().map(sst -> sst.descriptor.baseFilename()).collect(Collectors.toList()));
+        }
+        return sstablesTouched;
+    }
 }
