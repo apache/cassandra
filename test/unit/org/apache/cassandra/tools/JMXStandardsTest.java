@@ -50,6 +50,7 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.utils.BreaksJMX;
 import org.assertj.core.api.Assertions;
 import org.reflections.Reflections;
@@ -98,6 +99,7 @@ public class JMXStandardsTest
                                                        .add(IllegalStateException.class)
                                                        .add(ClassNotFoundException.class)
                                                        .add(OpenDataException.class)
+                                                       .add(InvalidRequestException.class)
                                                        .build();
     /**
      * This list is a set of types under java.* and javax.*, but are too vague that could cause issues; this does not
