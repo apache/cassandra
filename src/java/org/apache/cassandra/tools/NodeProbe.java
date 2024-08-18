@@ -75,6 +75,7 @@ import org.apache.cassandra.batchlog.BatchlogManagerMBean;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.CompactionManagerMBean;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.fql.FullQueryLoggerOptionsCompositeData;
 import org.apache.cassandra.gms.FailureDetector;
@@ -2220,6 +2221,15 @@ public class NodeProbe implements AutoCloseable
     public void setMVRepairEnabled(AutoRepairConfig.RepairType repairType, boolean enabled)
     {
         autoRepairProxy.setMVRepairEnabled(repairType, enabled);
+    }
+
+    public List<String> mutateSSTableRepairedState(boolean repair, boolean preview, String keyspace, List<String> tables) throws InvalidRequestException
+    {
+        return ssProxy.mutateSSTableRepairedState(repair, preview, keyspace, tables);
+    }
+
+    public List<String> getTablesForKeyspace(String keyspace) {
+        return ssProxy.getTablesForKeyspace(keyspace);
     }
 }
 

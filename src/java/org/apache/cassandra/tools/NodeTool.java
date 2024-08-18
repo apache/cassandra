@@ -211,6 +211,7 @@ public class NodeTool
                 SetTraceProbability.class,
                 Sjk.class,
                 Snapshot.class,
+                SSTableRepairedSet.class,
                 Status.class,
                 StatusAutoCompaction.class,
                 StatusBackup.class,
