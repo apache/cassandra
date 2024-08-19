@@ -113,7 +113,7 @@ public class AllPartitionsValidator implements Visitor
                                                                                                  {
                                                                                                      for (boolean reverse : new boolean[]{ true, false })
                                                                                                      {
-                                                                                                         Query query = Query.selectPartition(schema, pdSelector.pd(pdSelector.minLtsAt(pos), schema), reverse);
+                                                                                                         Query query = Query.selectAllColumns(schema, pdSelector.pd(pdSelector.minLtsAt(pos), schema), reverse);
                                                                                                          model.validate(query);
                                                                                                          queryLogger.logSelectQuery((int)pos, query);
                                                                                                      }

@@ -141,7 +141,7 @@ public class QueryGenerator
 
     public Query singlePartition(long pd, boolean reverse)
     {
-        return Query.selectPartition(schema, pd, reverse);
+        return Query.selectAllColumns(schema, pd, reverse);
     }
 
     public Query singleClustering(long pd, long cd, boolean reverse)
