@@ -67,7 +67,6 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.shared.DistributedTestBase;
 import org.apache.cassandra.service.accord.AccordStateCache;
-import org.assertj.core.api.Fail;
 
 import static java.lang.System.currentTimeMillis;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;

@@ -91,7 +91,6 @@ import org.apache.cassandra.utils.concurrent.Promise;
 import org.eclipse.jetty.util.ConcurrentHashSet;
 
 import static java.lang.String.format;
-import static junit.framework.TestCase.assertEquals;
 import static org.apache.cassandra.Util.expectException;
 import static org.apache.cassandra.Util.spinAssertEquals;
 import static org.apache.cassandra.config.CassandraRelevantProperties.HINT_DISPATCH_INTERVAL_MS;
@@ -108,6 +107,7 @@ import static org.apache.cassandra.distributed.test.accord.AccordMigrationRaceTe
 import static org.apache.cassandra.distributed.util.QueryResultUtil.assertThat;
 import static org.apache.cassandra.exceptions.RequestFailureReason.RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM;
 import static org.apache.cassandra.utils.Throwables.runUnchecked;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 

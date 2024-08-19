@@ -48,11 +48,11 @@ import org.apache.cassandra.service.consensus.migration.ConsensusKeyMigrationSta
 import org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter;
 
 import static java.lang.String.format;
-import static junit.framework.TestCase.assertEquals;
-import static junit.framework.TestCase.fail;
 import static org.apache.cassandra.Util.spinAssertEquals;
 import static org.apache.cassandra.config.CassandraRelevantProperties.HINT_DISPATCH_INTERVAL_MS;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ALL;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 
 /*
  * Test that non-transactional updates have their timestamps preserved when written through Accord so that
