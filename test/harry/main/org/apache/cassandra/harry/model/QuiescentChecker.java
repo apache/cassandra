@@ -140,7 +140,7 @@ public class QuiescentChecker implements Model
 
             for (int i = 0; i < actualRowState.vds.length; i++)
             {
-                if (actualRowState.vds[i] != NIL_DESCR || actualRowState.lts[i] != NO_TIMESTAMP)
+                if (actualRowState.vds[i] != NIL_DESCR || actualRowState.lts[i] != TIMESTAMP_UNSET)
                     throw new ValidationException(trackerState,
                                                   partitionState.toString(schema),
                                                   toString(actualRows),

@@ -30,7 +30,6 @@ import org.apache.cassandra.harry.ddl.SchemaSpec;
 import org.apache.cassandra.harry.dsl.BatchVisitBuilder;
 import org.apache.cassandra.harry.dsl.HistoryBuilder;
 import org.apache.cassandra.harry.dsl.SingleOperationBuilder;
-import org.apache.cassandra.harry.gen.EntropySource;
 import org.apache.cassandra.harry.gen.rng.JdkRandomEntropySource;
 import org.apache.cassandra.harry.model.Model;
 import org.apache.cassandra.harry.operations.Query;
@@ -113,7 +112,7 @@ public class HistoryBuilderIntegrationTest extends IntegrationTestBase
                             Model model = historyBuilder.quiescentChecker(tracker, sut);
 
                             for (Long pd : historyBuilder.visitedPds())
-                                model.validate(Query.selectPartition(historyBuilder.schema(), pd, false));
+                                model.validate(Query.selectAllColumns(historyBuilder.schema(), pd, false));
 
                             return true;
                         })
@@ -138,46 +137,18 @@ public class HistoryBuilderIntegrationTest extends IntegrationTestBase
 
             int maxPartitionSize = 10;
             modelChecker.init(new HistoryBuilder(SEED, maxPartitionSize, 10, schema, rf))
-                        .beforeAll(new ModelChecker.ThrowingBiConsumer<HistoryBuilder, EntropySource>()
-                        {
-                            public void accept(HistoryBuilder history, EntropySource rng) throws Throwable
-                            {
-                                for (int i = 0; i < MAX_PARTITIONS; i++)
-                                    history.forPartition(i).ensureClustering(schema.ckGenerator.inflate(rng.next()));
-                            }
+                        .beforeAll((history, rng) -> {
+                            for (int i = 0; i < MAX_PARTITIONS; i++)
+                                history.forPartition(i).ensureClustering(schema.ckGenerator.inflate(rng.next()));
                         })
-                        .step((history, rng) -> {
-                            history.visitPartition(rng.nextInt(MAX_PARTITIONS))
-                                   .insert();
-                        })
-                        .step((history, rng) -> {
-                            history.visitPartition(rng.nextInt(MAX_PARTITIONS))
-                                   .insert(rng.nextInt(maxPartitionSize));
-                        })
-                        .step((history, rng) -> {
-                            history.visitPartition(rng.nextInt(MAX_PARTITIONS))
-                                   .deleteRow();
-                        })
-                        .step((history, rng) -> {
-                            history.visitPartition(rng.nextInt(MAX_PARTITIONS))
-                                   .deleteRow(rng.nextInt(maxPartitionSize));
-                        })
-                        .step((history, rng) -> {
-                            history.visitPartition(rng.nextInt(MAX_PARTITIONS))
-                                   .deletePartition();
-                        })
-                        .step((history, rng) -> {
-                            history.visitPartition(rng.nextInt(MAX_PARTITIONS))
-                                   .deleteColumns();
-                        })
-                        .step((history, rng) -> {
-                            history.visitPartition(rng.nextInt(MAX_PARTITIONS))
-                                   .deleteRowRange();
-                        })
-                        .step((history, rng) -> {
-                            history.visitPartition(rng.nextInt(MAX_PARTITIONS))
-                                   .deleteRowSlice();
-                        })
+                        .step((history, rng) -> history.visitPartition(rng.nextInt(MAX_PARTITIONS)).insert())
+                        .step((history, rng) -> history.visitPartition(rng.nextInt(MAX_PARTITIONS)).insert(rng.nextInt(maxPartitionSize)))
+                        .step((history, rng) -> history.visitPartition(rng.nextInt(MAX_PARTITIONS)).deleteRow())
+                        .step((history, rng) -> history.visitPartition(rng.nextInt(MAX_PARTITIONS)).deleteRow(rng.nextInt(maxPartitionSize)))
+                        .step((history, rng) -> history.visitPartition(rng.nextInt(MAX_PARTITIONS)).deletePartition())
+                        .step((history, rng) -> history.visitPartition(rng.nextInt(MAX_PARTITIONS)).deleteColumns())
+                        .step((history, rng) -> history.visitPartition(rng.nextInt(MAX_PARTITIONS)).deleteRowRange())
+                        .step((history, rng) -> history.visitPartition(rng.nextInt(MAX_PARTITIONS)).deleteRowSlice())
                         .exitCondition((history) -> {
                             ReplayingVisitor visitor = history.visitor(tracker, sut, SystemUnderTest.ConsistencyLevel.ALL);
                             visitor.replayAll();
@@ -188,7 +159,11 @@ public class HistoryBuilderIntegrationTest extends IntegrationTestBase
                             Model model = history.quiescentChecker(tracker, sut);
 
                             for (Long pd : history.visitedPds())
-                                model.validate(Query.selectPartition(history.schema(), pd, false));
+                            {
+                                model.validate(Query.selectAllColumns(history.schema(), pd, false));
+                                model.validate(Query.selectAllColumnsWildcard(history.schema(), pd, false));
+                            }
+
 
                             return true;
                         })

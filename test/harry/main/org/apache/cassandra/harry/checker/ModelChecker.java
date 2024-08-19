@@ -55,7 +55,6 @@ public class ModelChecker<STATE, SUT>
 
     public void run(int minSteps, long maxSteps, EntropySource entropySource) throws Throwable
     {
-        assert exitCondition != null : "Exit condition is not specified";
         assert init != null : "Initial condition is not specified";
 
         Ref<Pair<STATE, SUT>> state = new Ref<>(init, Pair.unchanged());
@@ -226,7 +225,7 @@ public class ModelChecker<STATE, SUT>
         O apply(I1 t1, I2 t2) throws Throwable;
     }
 
-    public static class Ref<T>
+    private static class Ref<T>
     {
         public T ref;
         private final T unchanged;
@@ -251,7 +250,7 @@ public class ModelChecker<STATE, SUT>
 
         public void map(ThrowingFunction<T, T> fn) throws Throwable
         {
-            this.ref = fn.apply(ref);
+            set(fn.apply(ref));
         }
     }
 

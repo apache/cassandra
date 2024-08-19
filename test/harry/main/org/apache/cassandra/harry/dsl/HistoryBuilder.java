@@ -522,8 +522,8 @@ public class HistoryBuilder implements Iterable<ReplayingVisitor.Visit>, SingleO
             long pd = presetSelector.pdAtPosition(partitionIdx);
             if (presetSelector.minLtsFor(pd) < 0)
                 continue;
-            model.validate(Query.selectPartition(schema, pd, false));
-            model.validate(Query.selectPartition(schema, pd, true));
+            model.validate(Query.selectAllColumns(schema, pd, false));
+            model.validate(Query.selectAllColumns(schema, pd, true));
         }
     }
 
@@ -536,8 +536,8 @@ public class HistoryBuilder implements Iterable<ReplayingVisitor.Visit>, SingleO
     {
         for (Long pd : partitionStates.keySet())
         {
-            model.validate(Query.selectPartition(schema, pd, false));
-            model.validate(Query.selectPartition(schema, pd, true));
+            model.validate(Query.selectAllColumns(schema, pd, false));
+            model.validate(Query.selectAllColumns(schema, pd, true));
         }
     }
 

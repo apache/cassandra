@@ -273,14 +273,14 @@ public abstract class Query
 
     public abstract DescriptorRanges.DescriptorRange toRange(long ts);
 
-    public static Query selectPartition(SchemaSpec schemaSpec, long pd, boolean reverse)
+    public static Query selectAllColumns(SchemaSpec schemaSpec, long pd, boolean reverse)
     {
-        return new Query.SinglePartitionQuery(Query.QueryKind.SINGLE_PARTITION,
-                                              pd,
-                                              reverse,
-                                              Collections.emptyList(),
-                                              schemaSpec,
-                                              new Columns(schemaSpec.allColumnsSet, true));
+        return selectPartition(schemaSpec, pd, reverse, new Columns(schemaSpec.allColumnsSet, true));
+    }
+
+    public static Query selectAllColumnsWildcard(SchemaSpec schemaSpec, long pd, boolean reverse)
+    {
+        return selectPartition(schemaSpec, pd, reverse, Wildcard.instance);
     }
 
     public static Query selectPartition(SchemaSpec schemaSpec, long pd, boolean reverse, Selection selection)
@@ -520,6 +520,8 @@ public abstract class Query
 
     public static class Wildcard implements Selection
     {
+        public static final Wildcard instance = new Wildcard();
+
         public Set<ColumnSpec<?>> columns()
         {
             return null;
@@ -544,12 +546,12 @@ public abstract class Query
 
         public Set<ColumnSpec<?>> columns()
         {
-            return Set.of();
+            return columns;
         }
 
         public boolean includeTimestamp()
         {
-            return false;
+            return includeTimestamp;
         }
     }
 }

@@ -128,7 +128,7 @@ public class RepairBurnTest extends IntegrationTestBase
                         Model model = history.quiescentLocalChecker(tracker, sut);
 
                         for (Long pd : history.visitedPds())
-                            model.validate(Query.selectPartition(history.schema(), pd, false));
+                            model.validate(Query.selectAllColumns(history.schema(), pd, false));
 
                         return true;
                     })
