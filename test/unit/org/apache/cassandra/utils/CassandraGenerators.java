@@ -659,21 +659,7 @@ public final class CassandraGenerators
 
     public static Gen<Token> token()
     {
-        return SourceDSL.arbitrary().enumValues(SupportedPartitioners.class)
-                        .flatMap(CassandraGenerators::token);
-    }
-
-    private static Gen<Token> token(SupportedPartitioners p)
-    {
-        switch (p)
-        {
-            case Murmur: return murmurToken();
-            case Local: return localPartitionerToken();
-            case Random: return randomPartitionerToken();
-            case ByteOrdered: return byteOrderToken();
-            case OrderPreserving: return orderPreservingToken();
-            default: throw new AssertionError("Unknown partitioner: " + p);
-        }
+        return partitioners().flatMap(CassandraGenerators::token);
     }
 
     public static Gen<Token> token(IPartitioner partitioner)
