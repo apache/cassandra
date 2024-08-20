@@ -38,7 +38,6 @@ public class ConfigGenBuilderTest
     static
     {
         File.unsafeSetFilesystem(Jimfs.newFileSystem("testing"));
-        DatabaseDescriptor.daemonInitialization();
     }
 
     private static final Gen<Map<String, Object>> GEN = new ConfigGenBuilder().build();

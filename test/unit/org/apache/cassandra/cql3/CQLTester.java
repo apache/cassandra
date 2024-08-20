@@ -3026,8 +3026,8 @@ public abstract class CQLTester
             setupSeed();
             try
             {
-                prePrepareServer();
                 updateConfigs();
+                prePrepareServer();
 
                 // Once per-JVM is enough
                 prepareServer();
@@ -3050,7 +3050,7 @@ public abstract class CQLTester
             return SEED;
         }
 
-        private static void setupSeed()
+        protected static void setupSeed()
         {
             if (RANDOM != null) return;
             SEED = TEST_RANDOM_SEED.getLong(new DefaultRandom().nextLong());

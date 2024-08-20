@@ -30,7 +30,6 @@ import accord.utils.RandomSource;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.io.sstable.format.SSTableFormat;
 
 public class ConfigGenBuilder
 {
@@ -42,7 +41,7 @@ public class ConfigGenBuilder
                                                                              && m != Config.DiskAccessMode.mmap_index_only
                                                                              && m != Config.DiskAccessMode.direct); // don't allow direct as not every filesystem supports it, making the config environment specific
     Gen<Config.DiskAccessMode> diskAccessModeGen = Gens.enums().all(Config.DiskAccessMode.class).filter(m -> m != Config.DiskAccessMode.direct);
-    Gen<String> sstableFormatGen = Generators.toGen(CassandraGenerators.sstableFormat()).map(SSTableFormat::name);
+    Gen<String> sstableFormatGen = Generators.toGen(CassandraGenerators.sstableFormatNames());
     Gen<Config.MemtableAllocationType> memtableAllocationTypeGen = Gens.enums().all(Config.MemtableAllocationType.class);
     Gen<Memtable> memtableGen = Gens.enums().all(Memtable.class);
     Gen<Config.CommitLogSync> commitLogSyncGen = Gens.enums().all(Config.CommitLogSync.class);

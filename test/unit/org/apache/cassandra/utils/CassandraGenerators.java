@@ -27,9 +27,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.NavigableMap;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -69,7 +67,6 @@ import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.HeartBeatState;
 import org.apache.cassandra.gms.VersionedValue;
-import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.ConnectionType;
 import org.apache.cassandra.net.Message;
@@ -181,11 +178,9 @@ public final class CassandraGenerators
         return new TableMetadataBuilder().withKeyspaceName(ks).build(rnd);
     }
 
-    public static Gen<SSTableFormat<?, ?>> sstableFormat()
+    public static Gen<String> sstableFormatNames()
     {
-        // make sure ordering is determanstic, else repeatability breaks
-        NavigableMap<String, SSTableFormat<?, ?>> formats = new TreeMap<>(DatabaseDescriptor.getSSTableFormats());
-        return SourceDSL.arbitrary().pick(new ArrayList<>(formats.values()));
+        return SourceDSL.arbitrary().pick("big", "bti");
     }
 
     public static class TableMetadataBuilder

@@ -156,7 +156,6 @@ public abstract class SAITester extends CQLTester.Fuzzed
     @BeforeClass
     public static void setUpClass()
     {
-        DatabaseDescriptor.daemonInitialization();
         CONFIG_GEN = new ConfigGenBuilder()
                      .withPartitioner(Murmur3Partitioner.instance)
                      // some tests timeout in CI with batch, so rely only on perioid
