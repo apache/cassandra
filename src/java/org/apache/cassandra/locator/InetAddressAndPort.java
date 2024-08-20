@@ -25,8 +25,8 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
-import java.util.regex.Pattern;
 import java.util.List;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -37,11 +37,12 @@ import com.google.common.net.HostAndPort;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.FastByteOperations;
+import org.apache.cassandra.utils.ObjectSizes;
 
 /**
  * A class to replace the usage of InetAddress to identify hosts in the cluster.
@@ -59,6 +60,22 @@ import org.apache.cassandra.utils.FastByteOperations;
 public final class InetAddressAndPort extends InetSocketAddress implements Comparable<InetAddressAndPort>, Serializable
 {
     private static final long serialVersionUID = 0;
+    private static final long EMPTY_IPV4_ADDRESS_SIZE;
+    private static final long EMPTY_IPV6_ADDRESS_SIZE;
+
+    static
+    {
+        try
+        {
+            EMPTY_IPV4_ADDRESS_SIZE = ObjectSizes.measureDeep(InetAddressAndPort.getByNameOverrideDefaults("127.0.0.1", 7000));
+            EMPTY_IPV6_ADDRESS_SIZE = ObjectSizes.measureDeep(InetAddressAndPort.getByNameOverrideDefaults("FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF", 7000));
+        }
+        catch (UnknownHostException e)
+        {
+            throw new Error(e);
+        }
+    }
+
 
     //Store these here to avoid requiring DatabaseDescriptor to be loaded. DatabaseDescriptor will set
     //these when it loads the config. A lot of unit tests won't end up loading DatabaseDescriptor.
@@ -328,6 +345,17 @@ public final class InetAddressAndPort extends InetSocketAddress implements Compa
         return defaultPort;
     }
 
+    public long estimatedSizeOnHeap()
+    {
+        // Not trivial to get the hostname string without triggering reverse DNS to check
+        // the memory footprint, and also can't tell if it was actually just returning the IP converted to string
+        if (getAddress() instanceof Inet6Address)
+            return EMPTY_IPV6_ADDRESS_SIZE;
+        else
+            return EMPTY_IPV4_ADDRESS_SIZE;
+    }
+
+    // Also used in CommandSerializers.java to get access to the hard coded 4.0 serialization
     public static final class MetadataSerializer implements org.apache.cassandra.tcm.serialization.MetadataSerializer<InetAddressAndPort>
     {
         public static final MetadataSerializer serializer = new MetadataSerializer();
@@ -486,6 +514,5 @@ public final class InetAddressAndPort extends InetSocketAddress implements Compa
                     throw new AssertionError("Unexpected size " + size);
             }
         }
-
     }
 }

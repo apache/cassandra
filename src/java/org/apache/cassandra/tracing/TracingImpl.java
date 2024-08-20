@@ -35,11 +35,12 @@ import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
  * A trace session context. Able to track and store trace sessions. A session is usually a user initiated query, and may
  * have multiple local and remote events before it is completed. All events and sessions are stored at keyspace.
  */
+
 class TracingImpl extends Tracing
 {
     public void stopSessionImpl()
     {
-        final TraceStateImpl state = getStateImpl();
+        final TraceStateImpl state = (TraceStateImpl) get();
         if (state == null)
             return;
 
@@ -54,7 +55,7 @@ class TracingImpl extends Tracing
     {
         assert isTracing();
 
-        final TraceStateImpl state = getStateImpl();
+        final TraceStateImpl state = (TraceStateImpl) get();
         assert state != null;
 
         final long startedAt = currentTimeMillis();
@@ -66,44 +67,16 @@ class TracingImpl extends Tracing
         return state;
     }
 
-    /**
-     * Convert the abstract tracing state to its implementation.
-     *
-     * Expired states are not put in the sessions but the check is for extra safety.
-     *
-     * @return the state converted to its implementation, or null
-     */
-    private TraceStateImpl getStateImpl()
-    {
-        TraceState state = get();
-        if (state == null)
-            return null;
-
-        if (state instanceof ExpiredTraceState)
-        {
-            ExpiredTraceState expiredTraceState = (ExpiredTraceState) state;
-            state = expiredTraceState.getDelegate();
-        }
-
-        if (state instanceof TraceStateImpl)
-        {
-            return (TraceStateImpl)state;
-        }
-
-        assert false : "TracingImpl states should be of type TraceStateImpl";
-        return null;
-    }
-
     @Override
-    protected TraceState newTraceState(InetAddressAndPort coordinator, TimeUUID sessionId, TraceType traceType)
+    protected TraceState newTraceState(InetAddressAndPort coordinator, TimeUUID sessionId, TraceType traceType, boolean expired, boolean trackElapsed)
     {
-        return new TraceStateImpl(coordinator, sessionId, traceType);
+        return new TraceStateImpl(coordinator, sessionId, traceType, expired, trackElapsed);
     }
 
     /**
      * Called for non-local traces (traces that are not initiated by local node == coordinator).
      */
-    public void trace(final ByteBuffer sessionId, final String message, final int ttl)
+    public void trace(final TimeUUID sessionId, final ByteBuffer sessionIdBuffer, final String message, final int ttl)
     {
         final String threadName = Thread.currentThread().getName();
 
@@ -111,7 +84,7 @@ class TracingImpl extends Tracing
         {
             public void runMayThrow()
             {
-                TraceStateImpl.mutateWithCatch(TraceKeyspace.makeEventMutation(sessionId, message, -1, threadName, ttl));
+                TraceStateImpl.mutateWithCatch(TraceKeyspace.makeEventMutation(sessionId, sessionIdBuffer, message, -1, threadName, ttl));
             }
         });
     }

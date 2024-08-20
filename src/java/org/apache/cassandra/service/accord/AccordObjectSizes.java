@@ -67,6 +67,7 @@ import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.service.accord.txn.TxnWrite;
+import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.utils.ObjectSizes;
 
 import static accord.local.cfk.CommandsForKey.NO_TXNIDS;
@@ -191,7 +192,7 @@ public class AccordObjectSizes
         }
     }
 
-    private static final long EMPTY_TXN = measure(new PartialTxn.InMemory(null, null, null, null, null));
+    private static final long EMPTY_TXN = measure(new PartialTxn.InMemory(null, null, null, null, null, null));
     public static long txn(PartialTxn txn)
     {
         long size = EMPTY_TXN;
@@ -201,6 +202,8 @@ public class AccordObjectSizes
             size += ((AccordUpdate) txn.update()).estimatedSizeOnHeap();
         if (txn.query() != null)
             size += ((TxnQuery) txn.query()).estimatedSizeOnHeap();
+        if (txn.tracer() != null)
+            size += ((TraceState)txn.tracer()).estimatedSizeOnHeap();
         return size;
     }
 
@@ -287,7 +290,7 @@ public class AccordObjectSizes
                 attrs.partialDeps(PartialDeps.NONE);
 
             if (hasTxn)
-                attrs.partialTxn(new PartialTxn.InMemory(null, null, null, null, null));
+                attrs.partialTxn(new PartialTxn.InMemory(null, null, null, null, null, null));
 
             return attrs;
         }

@@ -30,6 +30,9 @@ import java.util.concurrent.ConcurrentMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.api.Propagatable;
+import accord.api.Tracer;
+import accord.api.Traces.TraceLocal;
 import org.apache.cassandra.concurrent.ExecutorLocals;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -49,7 +52,7 @@ import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
  * A trace session context. Able to track and store trace sessions. A session is usually a user initiated query, and may
  * have multiple local and remote events before it is completed.
  */
-public abstract class Tracing extends ExecutorLocals.Impl
+public abstract class Tracing extends ExecutorLocals.Impl implements TraceLocal
 {
     public static final IVersionedSerializer<TraceType> traceTypeSerializer = new IVersionedSerializer<TraceType>()
     {
@@ -181,7 +184,7 @@ public abstract class Tracing extends ExecutorLocals.Impl
     {
         assert get() == null;
 
-        TraceState ts = newTraceState(localAddress, sessionId, traceType);
+        TraceState ts = newTraceState(localAddress, sessionId, traceType, false, true);
         set(ts);
         sessions.put(sessionId, ts);
 
@@ -230,7 +233,15 @@ public abstract class Tracing extends ExecutorLocals.Impl
     public void set(TraceState tls)
     {
         ExecutorLocals current = ExecutorLocals.current();
+        if (current.traceState == tls)
+            return;
         ExecutorLocals.Impl.set(tls, current.clientWarnState);
+    }
+
+    @Override
+    public Tracer getTracer()
+    {
+        return ExecutorLocals.current().traceState;
     }
 
     public TraceState begin(final String request, final Map<String, String> parameters)
@@ -251,6 +262,9 @@ public abstract class Tracing extends ExecutorLocals.Impl
         if (sessionId == null)
             return null;
 
+        if (header.verb.name().startsWith("ACCORD"))
+            return newTraceState(header.from, sessionId, header.traceType(), false, false);
+
         TraceState ts = get(sessionId);
         if (ts != null && ts.acquireReference())
             return ts;
@@ -260,14 +274,34 @@ public abstract class Tracing extends ExecutorLocals.Impl
         if (header.verb.isResponse())
         {
             // received a message for a session we've already closed out.  see CASSANDRA-5668
-            return new ExpiredTraceState(newTraceState(header.from, sessionId, traceType));
+            return newTraceState(header.from, sessionId, traceType, true, true);
         }
         else
         {
-            ts = newTraceState(header.from, sessionId, traceType);
+            ts = newTraceState(header.from, sessionId, traceType, false, true);
             sessions.put(sessionId, ts);
             return ts;
         }
+    }
+
+    /*
+     * This is a bit tricky because Accord doesn't want reading from the cache or reading transaction definition
+     * to create a new trace state and increment the ref count.
+     *
+     * The ref count is managed by InboundMessageHandler which creates the per request trace state
+     * and OutboundConnection.(EventLoopDeliver | LargeMessageDelivery) which decrements it upon seeing a response message.
+     *
+     * Where this is tricky is that Accord message flows are not always request response so refcounting
+     * correctly is problematic and that could cause the session to remain in the map forever.
+     *
+     * The entire thing looks like it would leak trace states in error scenarios where request flows don't complete even
+     * before mixing in Accord's issues. The only safe play seems to be not populating the global map which mostly
+     * only served to allow elapsed to be calculated, but the new wall time millisecond precision field is close enough
+     * for most usage.
+     */
+    public TraceState initializeForAccordDeserialization(InetAddressAndPort coordinator, TimeUUID sessionId, TraceType traceType)
+    {
+        return newTraceState(coordinator, sessionId, traceType, false, false);
     }
 
     /**
@@ -288,7 +322,7 @@ public abstract class Tracing extends ExecutorLocals.Impl
             if (state == null) // session may have already finished; see CASSANDRA-5668
             {
                 TraceType traceType = message.traceType();
-                trace(sessionId.toBytes(), logMessage, traceType.getTTL());
+                trace(sessionId, sessionId.toBytes(), logMessage, traceType.getTTL());
             }
             else
             {
@@ -312,7 +346,7 @@ public abstract class Tracing extends ExecutorLocals.Impl
         return addToMutable;
     }
 
-    protected abstract TraceState newTraceState(InetAddressAndPort coordinator, TimeUUID sessionId, Tracing.TraceType traceType);
+    protected abstract TraceState newTraceState(InetAddressAndPort coordinator, TimeUUID sessionId, Tracing.TraceType traceType, boolean expired, boolean trackElapsed);
 
     // repair just gets a varargs method since it's so heavyweight anyway
     public static void traceRepair(String format, Object... args)
@@ -364,5 +398,17 @@ public abstract class Tracing extends ExecutorLocals.Impl
     /**
      * Called for non-local traces (traces that are not initiated by local node == coordinator).
      */
-    public abstract void trace(ByteBuffer sessionId, String message, int ttl);
+    public abstract void trace(TimeUUID sessionId, ByteBuffer sessionIdBuffer, String message, int ttl);
+
+    @Override
+    public Propagatable propagatable()
+    {
+        return ExecutorLocals.current();
+    }
+
+    @Override
+    public accord.api.Closeable propagate(Tracer tracer)
+    {
+        return ExecutorLocals.create(tracer).doPropagate();
+    }
 }

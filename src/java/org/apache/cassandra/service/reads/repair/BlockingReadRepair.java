@@ -29,6 +29,7 @@ import com.google.common.util.concurrent.UncheckedExecutionException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.api.Traces;
 import accord.primitives.Keys;
 import accord.primitives.Txn;
 import com.codahale.metrics.Meter;
@@ -217,7 +218,7 @@ public class BlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
         Future<TxnResult> repairFuture;
         try
         {
-            Txn txn = new Txn.InMemory(Txn.Kind.Read, key, TxnRead.createNoOpRead(key), TxnQuery.NONE, repairUpdate);
+            Txn txn = new Txn.InMemory(Txn.Kind.Read, key, TxnRead.createNoOpRead(key), TxnQuery.NONE, repairUpdate, Traces.tracer());
             repairFuture = Stage.ACCORD_MIGRATION.submit(() -> {
                 try
                 {

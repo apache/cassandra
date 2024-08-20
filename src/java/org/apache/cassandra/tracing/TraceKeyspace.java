@@ -19,13 +19,16 @@ package org.apache.cassandra.tracing;
 
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.Date;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.ImmutableSet;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
-import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.Row;
@@ -36,8 +39,10 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.TimeUUID;
 
 import static java.lang.String.format;
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 public final class TraceKeyspace
@@ -86,6 +91,8 @@ public final class TraceKeyspace
     public static final String EVENTS_CQL = "CREATE TABLE IF NOT EXISTS %s ("
                                             + "session_id uuid,"
                                             + "event_id timeuuid,"
+                                            + "elapsed_wall_ms bigint,"
+                                            + "elapsed_wall text,"
                                             + "activity text,"
                                             + "source inet,"
                                             + "source_port int,"
@@ -140,13 +147,16 @@ public final class TraceKeyspace
         return builder.buildAsMutation();
     }
 
-    static Mutation makeEventMutation(ByteBuffer sessionId, String message, int elapsed, String threadName, int ttl)
+    static Mutation makeEventMutation(TimeUUID sessionId, ByteBuffer sessionIdBuffer, String message, int elapsed, String threadName, int ttl)
     {
-        PartitionUpdate.SimpleBuilder builder = PartitionUpdate.simpleBuilder(Events, sessionId);
+        PartitionUpdate.SimpleBuilder builder = PartitionUpdate.simpleBuilder(Events, sessionIdBuffer);
         Row.SimpleBuilder rowBuilder = builder.row(nextTimeUUID())
                                               .ttl(ttl);
 
-        rowBuilder.add("activity", message)
+        long elapsed_wall_ms = Math.max(0, currentTimeMillis() - sessionId.unix(TimeUnit.MILLISECONDS));
+        rowBuilder.add("elapsed_wall_ms", elapsed_wall_ms)
+                  .add("elapsed_wall", FBUtilities.humanReadableDuration(elapsed_wall_ms, TimeUnit.MILLISECONDS))
+                  .add("activity", message)
                   .add("source", FBUtilities.getBroadcastAddressAndPort().getAddress())
                   .add("source_port", FBUtilities.getBroadcastAddressAndPort().getPort())
                   .add("thread", threadName);

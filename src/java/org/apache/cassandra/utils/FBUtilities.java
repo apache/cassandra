@@ -65,11 +65,11 @@ import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
-import com.vdurmont.semver4j.Semver;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.vdurmont.semver4j.Semver;
 import org.apache.cassandra.audit.IAuditLogger;
 import org.apache.cassandra.auth.AllowAllNetworkAuthorizer;
 import org.apache.cassandra.auth.IAuthenticator;
@@ -1480,5 +1480,61 @@ public class FBUtilities
         if (rc < 0) return Order.LT;
         if (rc == 0) return Order.EQ;
         return Order.GT;
+    }
+
+    public static String timeUnitToAbbreviation(TimeUnit unit)
+    {
+        switch (unit)
+        {
+            case NANOSECONDS:
+                return "ns";
+            case MICROSECONDS:
+                return "us";
+            case MILLISECONDS:
+                return "ms";
+            case SECONDS:
+                return "s";
+            case MINUTES:
+                return "m";
+            case HOURS:
+                return "h";
+            case DAYS:
+                return "d";
+            default:
+                throw new IllegalStateException("Unexpected unit " + unit);
+        }
+    }
+
+    /**
+     * Format in the largest possible unit with 3 additional digits of precision if division is performed to pick
+     * a less granular unit
+     */
+    public static String humanReadableDuration(long duration, TimeUnit unit)
+    {
+        if (duration == 0)
+            return "0.000" + timeUnitToAbbreviation(unit);
+
+        long durationNanos = unit.toNanos(duration);
+        TimeUnit targetUnit;
+        if (durationNanos < TimeUnit.MICROSECONDS.toNanos(1))
+            targetUnit = TimeUnit.NANOSECONDS;
+        else if (durationNanos < TimeUnit.MILLISECONDS.toNanos(1))
+            targetUnit = TimeUnit.MICROSECONDS;
+        else if (durationNanos < TimeUnit.SECONDS.toNanos(1))
+            targetUnit = TimeUnit.MILLISECONDS;
+        else if (durationNanos < TimeUnit.MINUTES.toNanos(1))
+            targetUnit = TimeUnit.SECONDS;
+        else if (durationNanos < TimeUnit.HOURS.toNanos(1))
+            targetUnit = TimeUnit.MINUTES;
+        else if (durationNanos < TimeUnit.DAYS.toNanos(1))
+            targetUnit = TimeUnit.HOURS;
+        else
+            targetUnit = TimeUnit.DAYS;
+
+        String abbreviation = timeUnitToAbbreviation(targetUnit);
+        if (targetUnit == unit)
+            return duration + abbreviation;
+        else
+            return String.format("%.3f" + abbreviation, durationNanos / (double)targetUnit.toNanos(1));
     }
 }

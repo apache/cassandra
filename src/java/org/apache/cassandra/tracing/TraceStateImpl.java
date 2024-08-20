@@ -34,6 +34,7 @@ import org.apache.cassandra.exceptions.OverloadedException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
@@ -55,17 +56,22 @@ public class TraceStateImpl extends TraceState
 
     private final Set<Future<?>> pendingFutures = ConcurrentHashMap.newKeySet();
 
-    public TraceStateImpl(InetAddressAndPort coordinator, TimeUUID sessionId, Tracing.TraceType traceType)
+    public TraceStateImpl(InetAddressAndPort coordinator, TimeUUID sessionId, Tracing.TraceType traceType, boolean expired, boolean trackElapsed)
     {
-        super(coordinator, sessionId, traceType);
+        super(coordinator, sessionId, traceType, expired, trackElapsed);
+    }
+
+    private TraceStateImpl()
+    {
+        super();
     }
 
     protected void traceImpl(String message)
     {
         final String threadName = Thread.currentThread().getName();
-        final int elapsed = elapsed();
+        int elapsed = elapsed();
 
-        executeMutation(TraceKeyspace.makeEventMutation(sessionIdBytes, message, elapsed, threadName, ttl));
+        executeMutation(TraceKeyspace.makeEventMutation(sessionId, sessionIdBytes, message, elapsed, threadName, ttl));
         if (logger.isTraceEnabled())
             logger.trace("Adding <{}> to trace events", message);
     }
@@ -121,4 +127,11 @@ public class TraceStateImpl extends TraceState
         }
     }
 
+    private static long EMPTY_SIZE = ObjectSizes.measure(new TraceStateImpl());
+    @Override
+    public long estimatedSizeOnHeap()
+    {
+        // TODO (soon): Not including pendingFutures
+        return EMPTY_SIZE + super.estimatedSizeOnHeap();
+    }
 }

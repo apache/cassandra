@@ -139,7 +139,7 @@ public class AccordAgent implements Agent
     @Override
     public Txn emptySystemTxn(Kind kind, Seekables<?, ?> seekables)
     {
-        return new Txn.InMemory(kind, seekables, TxnRead.EMPTY, TxnQuery.UNSAFE_EMPTY, null);
+        return new Txn.InMemory(kind, seekables, TxnRead.EMPTY, TxnQuery.UNSAFE_EMPTY, null, null);
     }
 
     @Override

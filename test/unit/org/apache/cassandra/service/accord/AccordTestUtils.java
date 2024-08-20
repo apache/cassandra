@@ -331,7 +331,7 @@ public class AccordTestUtils
 
     public static Txn createTxn(Txn.Kind kind, Seekables<?, ?> seekables)
     {
-        return new Txn.InMemory(kind, seekables, TxnRead.EMPTY, TxnQuery.NONE, null);
+        return new Txn.InMemory(kind, seekables, TxnRead.EMPTY, TxnQuery.NONE, null, null);
     }
 
     public static Ranges fullRange(Txn txn)
@@ -349,7 +349,7 @@ public class AccordTestUtils
     {
         Txn txn = createTxn(key, key);
         Ranges ranges = fullRange(txn);
-        return new PartialTxn.InMemory(txn.kind(), txn.keys(), txn.read(), txn.query(), txn.update());
+        return new PartialTxn.InMemory(txn.kind(), txn.keys(), txn.read(), txn.query(), txn.update(), null);
     }
 
     private static class SingleEpochRanges extends CommandStore.EpochUpdateHolder
