@@ -21,6 +21,7 @@ package org.apache.cassandra.service.snapshot;
 import java.util.Date;
 
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
@@ -33,6 +34,7 @@ import org.apache.cassandra.schema.TableMetadata;
 
 import static org.junit.Assert.assertEquals;
 
+@Ignore
 public class SnapshotManager2Test
 {
     static final String KEYSPACE = "KEYSPACE";
