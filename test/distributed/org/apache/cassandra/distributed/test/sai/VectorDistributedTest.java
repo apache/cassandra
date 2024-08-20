@@ -33,8 +33,12 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.FixMethodOrder;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TestWatcher;
+import org.junit.runner.Description;
+import org.junit.runners.MethodSorters;
 
 import io.github.jbellis.jvector.vector.VectorSimilarityFunction;
 import org.apache.cassandra.config.Config;
@@ -49,15 +53,22 @@ import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.disk.v1.IndexWriterConfig;
 import org.apache.cassandra.index.sai.utils.Glove;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_RANDOM_SEED;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/**
+ * This class relies on a static random source so needs to control the test order to make sure any failures could be
+ * reproduced.  This means that if an error is detected then running a single test is not enough to reproduce,
+ * you must run the whole class...
+ */
+@FixMethodOrder(MethodSorters.NAME_ASCENDING)
 public class VectorDistributedTest extends TestBaseImpl
 {
     @Rule
-    public SAITester.FailureWatcher failureRule = new SAITester.FailureWatcher();
+    public FailureWatcher failureRule = new FailureWatcher();
 
     private static final String CREATE_KEYSPACE = "CREATE KEYSPACE %%s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': %d}";
     private static final String CREATE_TABLE = "CREATE TABLE %%s (pk int primary key, val vector<float, %d>)";
@@ -435,5 +446,23 @@ public class VectorDistributedTest extends TestBaseImpl
     private static String formatQuery(String query)
     {
         return String.format(query, KEYSPACE + '.' + table);
+    }
+
+    public static class FailureWatcher extends TestWatcher
+    {
+        @Override
+        protected void failed(Throwable e, Description description)
+        {
+            SAITester.Randomization rand = SAITester.getRandomOrNull();
+            if (rand == null) return;
+
+            String seedProp = TEST_RANDOM_SEED.getKey();
+            StringBuilder sb = new StringBuilder();
+            sb.append("Property error detected:");
+            sb.append("\nSeed: ").append(rand.seed()).append(" -- To rerun do -D").append(seedProp).append('=').append(rand.seed());
+            String message = e.toString();
+            sb.append("\nError:\n\t").append(message.replaceAll("\n", "\n\t"));
+            throw new AssertionError(sb.toString(), e);
+        }
     }
 }

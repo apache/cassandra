@@ -50,6 +50,8 @@ import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
+import javax.management.MalformedObjectNameException;
+import javax.management.ObjectName;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
@@ -113,6 +115,7 @@ import org.apache.cassandra.service.CacheService.CacheType;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.paxos.Paxos;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.StorageCompatibilityMode;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOCATE_TOKENS_FOR_KEYSPACE;
@@ -256,10 +259,8 @@ public class DatabaseDescriptor
 
     public static void daemonInitialization(Supplier<Config> config) throws ConfigurationException
     {
-        if (toolInitialized)
-            throw new AssertionError("toolInitialization() already called");
-        if (clientInitialized)
-            throw new AssertionError("clientInitialization() already called");
+        assertNotToolInitialized();
+        assertNotClientInitialized();
 
         // Some unit tests require this :(
         if (daemonInitialized)
@@ -269,6 +270,40 @@ public class DatabaseDescriptor
         setConfig(config.get());
         applyAll();
         AuthConfig.applyAuth();
+    }
+
+    public static void unsafeDaemonInitialization(Supplier<Config> config) throws ConfigurationException
+    {
+        assertNotToolInitialized();
+        assertNotClientInitialized();
+
+        daemonInitialized = true;
+
+        setConfig(config.get());
+        clear();
+        applyAll();
+        AuthConfig.applyAuth();
+    }
+
+    private static void clear()
+    {
+        sstableFormats = null;
+        clearMBean("org.apache.cassandra.db:type=DynamicEndpointSnitch");
+        clearMBean("org.apache.cassandra.db:type=EndpointSnitchInfo");
+    }
+
+    private static void clearMBean(String name)
+    {
+        try
+        {
+            ObjectName mbeanName = new ObjectName(name);
+            if (MBeanWrapper.instance.isRegistered(mbeanName))
+                MBeanWrapper.instance.unregisterMBean(mbeanName);
+        }
+        catch (MalformedObjectNameException e)
+        {
+            throw new AssertionError(e);
+        }
     }
 
     /**
@@ -295,10 +330,8 @@ public class DatabaseDescriptor
         }
         else
         {
-            if (daemonInitialized)
-                throw new AssertionError("daemonInitialization() already called");
-            if (clientInitialized)
-                throw new AssertionError("clientInitialization() already called");
+            assertNotDaemonInitialized();
+            assertNotClientInitialized();
         }
 
         if (toolInitialized)
@@ -352,10 +385,8 @@ public class DatabaseDescriptor
         }
         else
         {
-            if (daemonInitialized)
-                throw new AssertionError("daemonInitialization() already called");
-            if (toolInitialized)
-                throw new AssertionError("toolInitialization() already called");
+            assertNotDaemonInitialized();
+            assertNotToolInitialized();
         }
 
         if (clientInitialized)
@@ -367,6 +398,24 @@ public class DatabaseDescriptor
         applyCompatibilityMode();
         diskOptimizationStrategy = new SpinningDiskOptimizationStrategy();
         applySSTableFormats();
+    }
+
+    private static void assertNotDaemonInitialized()
+    {
+        if (daemonInitialized)
+            throw new AssertionError("daemonInitialization() already called");
+    }
+
+    private static void assertNotClientInitialized()
+    {
+        if (clientInitialized)
+            throw new AssertionError("clientInitialization() already called");
+    }
+
+    private static void assertNotToolInitialized()
+    {
+        if (toolInitialized)
+            throw new AssertionError("toolInitialization() already called");
     }
 
     public static boolean isClientInitialized()

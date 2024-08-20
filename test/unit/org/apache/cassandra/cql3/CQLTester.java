@@ -76,9 +76,15 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.rules.TestName;
+import org.junit.rules.TestWatcher;
+import org.junit.runner.Description;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.utils.DefaultRandom;
+import accord.utils.Gen;
+import accord.utils.Property;
+import accord.utils.RandomSource;
 import com.codahale.metrics.Gauge;
 import com.datastax.driver.core.CloseFuture;
 import com.datastax.driver.core.Cluster;
@@ -106,9 +112,11 @@ import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.auth.IRoleManager;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
+import org.apache.cassandra.config.YamlConfigurationLoader;
 import org.apache.cassandra.cql3.functions.FunctionName;
 import org.apache.cassandra.cql3.functions.types.ParseUtils;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -174,6 +182,7 @@ import org.apache.cassandra.transport.SimpleClient;
 import org.apache.cassandra.transport.TlsTestUtils;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.ConfigGenBuilder;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JMXServerUtils;
 import org.apache.cassandra.utils.Pair;
@@ -184,6 +193,7 @@ import org.awaitility.Awaitility;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_JMX_LOCAL_PORT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_DRIVER_CONNECTION_TIMEOUT_MS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_DRIVER_READ_TIMEOUT_MS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_RANDOM_SEED;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_REUSE_PREPARED;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_ROW_CACHE_SIZE;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_USE_PREPARED;
@@ -2987,6 +2997,105 @@ public abstract class CQLTester
 
             return Objects.equal(username, u.username)
                 && Objects.equal(password, u.password);
+        }
+    }
+
+    /**
+     * Enhances {@link CQLTester} to make it easier for tests to leverage randomness.  This class is not the best way to
+     * leverage randomness as it won't run the tests against multiple seeds (so could take a long time to find faults)
+     *
+     * The main use case for this class is to take existing tests or tests patterns people wish to write, and make it easy
+     * and safe to add randomness.  One main advantage is that the node spun up has non-static configs, meaning that each
+     * test run can explore different spaces and avoid having to create a new yaml/CI pipeline to test different configs.
+     *
+     * When possible {@link Property#qt()} should be leveraged as it will rerun the test many times with different seeds.
+     */
+    public static abstract class Fuzzed extends CQLTester
+    {
+        private static RandomSource RANDOM;
+        private static long SEED;
+        private static String CONFIG = null;
+        protected static Gen<Map<String, Object>> CONFIG_GEN = null;
+
+        @Rule
+        public FailureWatcher failureRule = new FailureWatcher();
+
+        @BeforeClass
+        public static void setUpClass()
+        {
+            setupSeed();
+            try
+            {
+                updateConfigs();
+                prePrepareServer();
+
+                // Once per-JVM is enough
+                prepareServer();
+            }
+            catch (Throwable t)
+            {
+                throwPropertyError(t);
+            }
+        }
+
+        protected static RandomSource random()
+        {
+            if (RANDOM == null)
+                setupSeed();
+            return RANDOM;
+        }
+
+        protected static long seed()
+        {
+            return SEED;
+        }
+
+        protected static void setupSeed()
+        {
+            if (RANDOM != null) return;
+            SEED = TEST_RANDOM_SEED.getLong(new DefaultRandom().nextLong());
+            RANDOM = new DefaultRandom(SEED);
+        }
+
+        @Before
+        public void resetSeed()
+        {
+            RANDOM.setSeed(SEED);
+        }
+
+        protected static void updateConfigs()
+        {
+            if (CONFIG_GEN == null)
+                CONFIG_GEN = new ConfigGenBuilder().build();
+            Map<String, Object> config = CONFIG_GEN.next(RANDOM);
+            CONFIG = YamlConfigurationLoader.toYaml(config);
+
+            Config c = ConfigGenBuilder.santize(DatabaseDescriptor.loadConfig());
+            YamlConfigurationLoader.updateFromMap(config, true, c);
+
+            DatabaseDescriptor.unsafeDaemonInitialization(() -> c);
+        }
+
+        public static class FailureWatcher extends TestWatcher
+        {
+            @Override
+            protected void failed(Throwable e, Description description)
+            {
+                throwPropertyError(e);
+            }
+        }
+
+        private static AssertionError throwPropertyError(Throwable e)
+        {
+            String seedProp = TEST_RANDOM_SEED.getKey();
+            StringBuilder sb = new StringBuilder();
+            sb.append("Property error detected:");
+            sb.append("\nSeed: ").append(SEED).append(" -- To rerun do -D").append(seedProp).append('=').append(SEED);
+            if (CONFIG != null)
+                sb.append("\nConfig:\n\t").append(CONFIG.replaceAll("\n", "\n\t"));
+            String message = e.toString();
+            sb.append("\nError:\n\t").append(message.replaceAll("\n", "\n\t"));
+            throw new AssertionError(sb.toString(), e);
         }
     }
 

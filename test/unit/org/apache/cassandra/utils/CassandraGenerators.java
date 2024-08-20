@@ -53,7 +53,6 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.EmptyType;
-import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
@@ -111,12 +110,6 @@ public final class CassandraGenerators
         InetAddress address = Generators.INET_ADDRESS_GEN.generate(rnd);
         return InetAddressAndPort.getByAddressOverrideDefaults(address, NETWORK_PORT_GEN.generate(rnd));
     };
-
-    private static final Gen<IPartitioner> PARTITIONER_GEN = SourceDSL.arbitrary().pick(Murmur3Partitioner.instance,
-                                                                                        ByteOrderedPartitioner.instance,
-                                                                                        new LocalPartitioner(TimeUUIDType.instance),
-                                                                                        OrderPreservingPartitioner.instance,
-                                                                                        RandomPartitioner.instance);
 
 
     public static final Gen<TableId> TABLE_ID_GEN = Generators.UUID_RANDOM_GEN.map(TableId::fromUUID);
@@ -183,6 +176,11 @@ public final class CassandraGenerators
     public static TableMetadata createTableMetadata(String ks, RandomnessSource rnd)
     {
         return new TableMetadataBuilder().withKeyspaceName(ks).build(rnd);
+    }
+
+    public static Gen<String> sstableFormatNames()
+    {
+        return SourceDSL.arbitrary().pick("big", "bti");
     }
 
     public static class TableMetadataBuilder
@@ -354,7 +352,7 @@ public final class CassandraGenerators
             if (memtableKeyGen != null)
                 params.memtable(MemtableParams.get(memtableKeyGen.generate(rnd)));
             TableMetadata.Builder builder = TableMetadata.builder(ks, tableName, tableIdGen.generate(rnd))
-                                                         .partitioner(PARTITIONER_GEN.generate(rnd))
+                                                         .partitioner(partitioners().generate(rnd))
                                                          .kind(tableKindGen.generate(rnd))
                                                          .isCounter(BOOLEAN_GEN.generate(rnd))
                                                          .params(params.build());
@@ -597,6 +595,21 @@ public final class CassandraGenerators
         return rs -> partitioner.getToken(bytes.generate(rs));
     }
 
+    public static Gen<IPartitioner> localPartitioner()
+    {
+        return AbstractTypeGenerators.safeTypeGen().map(LocalPartitioner::new);
+    }
+
+    public static Gen<Token> localPartitionerToken()
+    {
+        var lpGen = localPartitioner();
+        return rs -> {
+            var lp = lpGen.generate(rs);
+            var bytes = AbstractTypeGenerators.getTypeSupport(lp.getTokenValidator()).bytesGen();
+            return lp.getToken(bytes.generate(rs));
+        };
+    }
+
     public static Gen<Token> orderPreservingToken()
     {
         Gen<String> string = Generators.utf8(0, 10);
@@ -608,6 +621,45 @@ public final class CassandraGenerators
         IPartitioner partitioner = range.left.getPartitioner();
         if (partitioner instanceof Murmur3Partitioner) return murmurTokenIn(range);
         throw new UnsupportedOperationException("Unsupported partitioner: " + partitioner.getClass());
+    }
+
+    private enum SupportedPartitioners
+    {
+        Murmur(ignore -> Murmur3Partitioner.instance),
+        ByteOrdered(ignore -> ByteOrderedPartitioner.instance),
+        Random(ignore -> RandomPartitioner.instance),
+        Local(localPartitioner()),
+        OrderPreserving(ignore -> OrderPreservingPartitioner.instance);
+
+        private final Gen<IPartitioner> partitioner;
+
+        SupportedPartitioners(Gen<IPartitioner> partitionerGen)
+        {
+            partitioner = partitionerGen;
+        }
+
+        public Gen<IPartitioner> partitioner()
+        {
+            return partitioner;
+        }
+    }
+
+    public static Gen<IPartitioner> partitioners()
+    {
+        return SourceDSL.arbitrary().enumValues(SupportedPartitioners.class)
+                        .flatMap(SupportedPartitioners::partitioner);
+    }
+
+    public static Gen<IPartitioner> nonLocalPartitioners()
+    {
+        return SourceDSL.arbitrary().enumValues(SupportedPartitioners.class)
+                        .assuming(p -> p != SupportedPartitioners.Local)
+                        .flatMap(SupportedPartitioners::partitioner);
+    }
+
+    public static Gen<Token> token()
+    {
+        return partitioners().flatMap(CassandraGenerators::token);
     }
 
     public static Gen<Token> token(IPartitioner partitioner)

@@ -96,11 +96,16 @@ public class VectorMemoryIndexTest extends SAITester
     @BeforeClass
     public static void setUpClass()
     {
+        setupSeed();
         // Because this test wants to explicitly set tokens for the local node, we override SAITester::setUpClass, as
         // that calls CQLTester::setUpClass, which is opinionated about the locally owned tokens.
         MEMTABLE_SHARD_COUNT.setInt(8);
         ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION.setBoolean(true);
+
+        updateConfigs();
+
         ServerTestUtils.prepareServerNoRegister();
+        //TODO (repeatability): this uses ThreadLocalRandom which doesn't let you control the seed, so this class can not be repeated...
         ServerTestUtils.registerLocal(BootStrapper.getRandomTokens(ClusterMetadata.current(), 10));
         ServerTestUtils.markCMS();
         // Ensure that the on-disk format statics are loaded before the test run
