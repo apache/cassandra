@@ -66,6 +66,18 @@ public class ConfigGenBuilder
     // for this reason the period must be "short"
     Gen<DurationSpec.IntMillisecondsBound> commitlogSyncGroupWindowGen = Gens.longs().between(1, 20).map(l -> new DurationSpec.IntMillisecondsBound(l));
 
+    /**
+     * When loading the {@link Config} from a yaml its possible that some configs set will conflict with the configs that get generated here, to avoid that set them to a good default
+     */
+    public static Config santize(Config config)
+    {
+        Config defaults = new Config();
+        config.commitlog_sync = defaults.commitlog_sync;
+        config.commitlog_sync_group_window = defaults.commitlog_sync_group_window;
+        config.commitlog_sync_period = defaults.commitlog_sync_period;
+        return config;
+    }
+
     public ConfigGenBuilder withPartitioner(IPartitioner instance)
     {
         this.partitionerGen = ignore -> instance;

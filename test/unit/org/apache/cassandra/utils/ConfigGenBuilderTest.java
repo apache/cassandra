@@ -63,7 +63,7 @@ public class ConfigGenBuilderTest
 
     private static Config defaultConfig()
     {
-        return DatabaseDescriptor.loadConfig();
+        return ConfigGenBuilder.santize(DatabaseDescriptor.loadConfig());
     }
 
     private static Config simpleConfig()
