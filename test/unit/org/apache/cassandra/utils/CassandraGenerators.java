@@ -628,37 +628,37 @@ public final class CassandraGenerators
         throw new UnsupportedOperationException("Unsupported partitioner: " + partitioner.getClass());
     }
 
-    private enum SupportedPartitioners { Murmur, ByteOrdered, Random, Local, OrderPreserving}
+    private enum SupportedPartitioners
+    {
+        Murmur(ignore -> Murmur3Partitioner.instance),
+        ByteOrdered(ignore -> ByteOrderedPartitioner.instance),
+        Random(ignore -> RandomPartitioner.instance),
+        Local(localPartitioner()),
+        OrderPreserving(ignore -> OrderPreservingPartitioner.instance);
+
+        private final Gen<IPartitioner> partitioner;
+
+        SupportedPartitioners(Gen<IPartitioner> partitionerGen)
+        {
+            partitioner = partitionerGen;
+        }
+
+        public Gen<IPartitioner> partitioner()
+        {
+            return partitioner;
+        }
+    }
 
     public static Gen<IPartitioner> partitioners()
     {
         var pGen = SourceDSL.arbitrary().enumValues(SupportedPartitioners.class);
-        return pGen.flatMap(p -> {
-            switch (p)
-            {
-                case Murmur: return ignore -> Murmur3Partitioner.instance;
-                case ByteOrdered: return ignore -> ByteOrderedPartitioner.instance;
-                case Random: return ignore -> RandomPartitioner.instance;
-                case OrderPreserving: return ignore -> OrderPreservingPartitioner.instance;
-                case Local: return localPartitioner();
-                default: throw new AssertionError("Unknown partition: " + p);
-            }
-        });
+        return pGen.flatMap(p -> p.partitioner());
     }
 
     public static Gen<IPartitioner> nonLocalPartitioners()
     {
         var pGen = SourceDSL.arbitrary().enumValues(SupportedPartitioners.class);
-        return pGen.assuming(p -> p != SupportedPartitioners.Local).flatMap(p -> {
-            switch (p)
-            {
-                case Murmur: return ignore -> Murmur3Partitioner.instance;
-                case ByteOrdered: return ignore -> ByteOrderedPartitioner.instance;
-                case Random: return ignore -> RandomPartitioner.instance;
-                case OrderPreserving: return ignore -> OrderPreservingPartitioner.instance;
-                default: throw new AssertionError("Unknown partition: " + p);
-            }
-        });
+        return pGen.assuming(p -> p != SupportedPartitioners.Local).flatMap(p -> p.partitioner());
     }
 
     public static Gen<Token> token()
