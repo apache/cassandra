@@ -651,14 +651,15 @@ public final class CassandraGenerators
 
     public static Gen<IPartitioner> partitioners()
     {
-        var pGen = SourceDSL.arbitrary().enumValues(SupportedPartitioners.class);
-        return pGen.flatMap(p -> p.partitioner());
+        return SourceDSL.arbitrary().enumValues(SupportedPartitioners.class)
+                        .flatMap(SupportedPartitioners::partitioner);
     }
 
     public static Gen<IPartitioner> nonLocalPartitioners()
     {
-        var pGen = SourceDSL.arbitrary().enumValues(SupportedPartitioners.class);
-        return pGen.assuming(p -> p != SupportedPartitioners.Local).flatMap(p -> p.partitioner());
+        return SourceDSL.arbitrary().enumValues(SupportedPartitioners.class)
+                        .assuming(p -> p != SupportedPartitioners.Local)
+                        .flatMap(SupportedPartitioners::partitioner);
     }
 
     public static Gen<Token> token()
