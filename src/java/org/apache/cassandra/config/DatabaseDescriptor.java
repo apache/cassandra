@@ -259,10 +259,8 @@ public class DatabaseDescriptor
 
     public static void daemonInitialization(Supplier<Config> config) throws ConfigurationException
     {
-        if (toolInitialized)
-            throw new AssertionError("toolInitialization() already called");
-        if (clientInitialized)
-            throw new AssertionError("clientInitialization() already called");
+        assertNotToolInitialized();
+        assertNotClientInitialized();
 
         // Some unit tests require this :(
         if (daemonInitialized)
@@ -276,10 +274,8 @@ public class DatabaseDescriptor
 
     public static void unsafeDaemonInitialization(Supplier<Config> config) throws ConfigurationException
     {
-        if (toolInitialized)
-            throw new AssertionError("toolInitialization() already called");
-        if (clientInitialized)
-            throw new AssertionError("clientInitialization() already called");
+        assertNotToolInitialized();
+        assertNotClientInitialized();
 
         daemonInitialized = true;
 
@@ -334,10 +330,8 @@ public class DatabaseDescriptor
         }
         else
         {
-            if (daemonInitialized)
-                throw new AssertionError("daemonInitialization() already called");
-            if (clientInitialized)
-                throw new AssertionError("clientInitialization() already called");
+            assertNotDaemonInitialized();
+            assertNotClientInitialized();
         }
 
         if (toolInitialized)
@@ -391,10 +385,8 @@ public class DatabaseDescriptor
         }
         else
         {
-            if (daemonInitialized)
-                throw new AssertionError("daemonInitialization() already called");
-            if (toolInitialized)
-                throw new AssertionError("toolInitialization() already called");
+            assertNotDaemonInitialized();
+            assertNotToolInitialized();
         }
 
         if (clientInitialized)
@@ -406,6 +398,24 @@ public class DatabaseDescriptor
         applyCompatibilityMode();
         diskOptimizationStrategy = new SpinningDiskOptimizationStrategy();
         applySSTableFormats();
+    }
+
+    private static void assertNotDaemonInitialized()
+    {
+        if (daemonInitialized)
+            throw new AssertionError("daemonInitialization() already called");
+    }
+
+    private static void assertNotClientInitialized()
+    {
+        if (clientInitialized)
+            throw new AssertionError("clientInitialization() already called");
+    }
+
+    private static void assertNotToolInitialized()
+    {
+        if (toolInitialized)
+            throw new AssertionError("toolInitialization() already called");
     }
 
     public static boolean isClientInitialized()
