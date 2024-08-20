@@ -38,7 +38,9 @@ public class ConfigGenBuilder
 
     Gen<IPartitioner> partitionerGen = Generators.toGen(CassandraGenerators.nonLocalPartitioners());
     Gen<Config.DiskAccessMode> commitLogDiskAccessModeGen = Gens.enums().all(Config.DiskAccessMode.class)
-                                                                .filter(m -> m != Config.DiskAccessMode.standard && m != Config.DiskAccessMode.mmap_index_only);
+                                                                .filter(m -> m != Config.DiskAccessMode.standard
+                                                                             && m != Config.DiskAccessMode.mmap_index_only
+                                                                             && m != Config.DiskAccessMode.direct); // don't allow direct as not every filesystem supports it, making the config environment specific
     Gen<Config.DiskAccessMode> diskAccessModeGen = Gens.enums().all(Config.DiskAccessMode.class).filter(m -> m != Config.DiskAccessMode.direct);
     Gen<String> sstableFormatGen = Generators.toGen(CassandraGenerators.sstableFormat()).map(SSTableFormat::name);
     Gen<Config.MemtableAllocationType> memtableAllocationTypeGen = Gens.enums().all(Config.MemtableAllocationType.class);
