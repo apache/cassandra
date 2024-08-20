@@ -133,7 +133,7 @@ public class ConfigGenBuilder
     private void updateConfigMemtable(RandomSource rs, Map<String, Object> config)
     {
         config.put("memtable_allocation_type", memtableAllocationTypeGen.next(rs));
-        //TODO (usability, operability): rather than defining each config, we should have common configs and let you override... this is what we did with sstables...
+        //TODO (usability, operability): CASSANDRA-19841 rather than defining each config, we should have common configs and let you override... this is what we did with sstables...
         Memtable defaultMemtable = memtableGen.next(rs);
         Map<String, Map<String, Object>> memtables = new LinkedHashMap<>();
         if (rs.nextBoolean())
