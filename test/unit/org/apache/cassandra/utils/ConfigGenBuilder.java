@@ -20,6 +20,7 @@ package org.apache.cassandra.utils;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.ImmutableMap;
@@ -33,7 +34,8 @@ import org.apache.cassandra.dht.IPartitioner;
 
 public class ConfigGenBuilder
 {
-    public enum Memtable {SkipListMemtable, TrieMemtable, ShardedSkipListMemtable}
+    public enum Memtable
+    {SkipListMemtable, TrieMemtable, ShardedSkipListMemtable}
 
     Gen<IPartitioner> partitionerGen = Generators.toGen(CassandraGenerators.nonLocalPartitioners());
     Gen<Config.DiskAccessMode> commitLogDiskAccessModeGen = Gens.enums().all(Config.DiskAccessMode.class)
@@ -86,6 +88,13 @@ public class ConfigGenBuilder
     public ConfigGenBuilder withCommitLogSync(Config.CommitLogSync commitLogSync)
     {
         this.commitLogSyncGen = ignore -> commitLogSync;
+        return this;
+    }
+
+    public ConfigGenBuilder withCommitLogSyncPeriod(DurationSpec.IntMillisecondsBound value)
+    {
+        Objects.requireNonNull(value);
+        commitLogSyncPeriodGen = ignore -> value;
         return this;
     }
 

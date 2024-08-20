@@ -62,6 +62,7 @@ import com.datastax.driver.core.Session;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -159,6 +160,7 @@ public abstract class SAITester extends CQLTester.Fuzzed
                      .withPartitioner(Murmur3Partitioner.instance)
                      // some tests timeout in CI with batch, so rely only on perioid
                      .withCommitLogSync(Config.CommitLogSync.periodic)
+                     .withCommitLogSyncPeriod(new DurationSpec.IntMillisecondsBound(10, TimeUnit.SECONDS))
                      .build();
         CQLTester.Fuzzed.setUpClass();
 
