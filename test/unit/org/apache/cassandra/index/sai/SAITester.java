@@ -41,6 +41,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import javax.annotation.Nullable;
 import javax.management.AttributeNotFoundException;
 import javax.management.ObjectName;
 
@@ -50,8 +51,6 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.rules.TestRule;
-import org.junit.rules.TestWatcher;
-import org.junit.runner.Description;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -62,6 +61,8 @@ import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Session;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -102,12 +103,12 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.snapshot.TableSnapshot;
+import org.apache.cassandra.utils.ConfigGenBuilder;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.lucene.codecs.CodecUtil;
 
-import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_RANDOM_SEED;
 import static org.apache.cassandra.inject.ActionBuilder.newActionBuilder;
 import static org.apache.cassandra.inject.Expression.quote;
 import static org.apache.cassandra.inject.InvokePointBuilder.newInvokePoint;
@@ -115,7 +116,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-public abstract class SAITester extends CQLTester
+public abstract class SAITester extends CQLTester.Fuzzed
 {
     protected static final Logger logger = LoggerFactory.getLogger(SAITester.class);
 
@@ -155,7 +156,13 @@ public abstract class SAITester extends CQLTester
     @BeforeClass
     public static void setUpClass()
     {
-        CQLTester.setUpClass();
+        CONFIG_GEN = new ConfigGenBuilder()
+                     .withPartitioner(Murmur3Partitioner.instance)
+                     // some tests timeout in CI with batch, so rely only on perioid
+                     .withCommitLogSync(Config.CommitLogSync.periodic)
+                     .withCommitLogSyncPeriod(new DurationSpec.IntMillisecondsBound(10, TimeUnit.SECONDS))
+                     .build();
+        CQLTester.Fuzzed.setUpClass();
 
         // Ensure that the on-disk format statics are loaded before the test run
         Version.LATEST.onDiskFormat();
@@ -163,9 +170,6 @@ public abstract class SAITester extends CQLTester
 
     @Rule
     public TestRule testRules = new ResourceLeakDetector();
-
-    @Rule
-    public FailureWatcher failureRule = new FailureWatcher();
 
     @After
     public void removeAllInjections()
@@ -180,6 +184,12 @@ public abstract class SAITester extends CQLTester
     {
         if (random == null)
             random = new Randomization();
+        return random;
+    }
+
+    @Nullable
+    public static Randomization getRandomOrNull()
+    {
         return random;
     }
 
@@ -826,18 +836,16 @@ public abstract class SAITester extends CQLTester
 
     public static class Randomization
     {
-        private final long seed;
         private final Random random;
 
         Randomization()
         {
-            seed = TEST_RANDOM_SEED.getLong(System.nanoTime());
-            random = new Random(seed);
+            random = random().asJdkRandom();
         }
 
-        public void printSeedOnFailure()
+        public long seed()
         {
-            logger.error("Randomized test failed. To rerun test use -D{}={}", TEST_RANDOM_SEED.getKey(), seed);
+            return Fuzzed.seed();
         }
 
         public int nextInt()
@@ -917,15 +925,6 @@ public abstract class SAITester extends CQLTester
         }
     }
 
-    public static class FailureWatcher extends TestWatcher
-    {
-        @Override
-        protected void failed(Throwable e, Description description)
-        {
-            if (random != null)
-                random.printSeedOnFailure();
-        }
-    }
     /**
      * Run repeated verification task concurrently with target test
      */

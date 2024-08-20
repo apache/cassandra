@@ -301,7 +301,7 @@ public interface RandomSource
 
     default Random asJdkRandom()
     {
-        return new Random()
+        return new Random(nextLong())
         {
             @Override
             public void setSeed(long seed)
