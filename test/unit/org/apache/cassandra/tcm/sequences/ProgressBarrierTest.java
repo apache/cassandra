@@ -114,7 +114,9 @@ public class ProgressBarrierTest extends CMSTestBase
             {
                 List<TokenPlacementModel.Node> allNodes = new ArrayList<>();
                 TokenPlacementModel.Node node = null;
-                int nodesInCluster = Math.max(rf.total(), nodes.get());
+                // + 1 since one of the nodes will not be joined yet by the time we create progress barrier, which will fail
+                // a check with ALL.
+                int nodesInCluster = Math.max(rf.total(), nodes.get()) + 1;
                 for (int i = 1; i <= nodesInCluster; i++)
                 {
                     node = nodeFactory.make(i, (i % rf.dcs()) + 1, 1);
@@ -176,7 +178,7 @@ public class ProgressBarrierTest extends CMSTestBase
                             Assert.assertTrue(String.format("Should have collected at least %d nodes but got %d." +
                                                             "\nRF: %s" +
                                                             "\nReplicas: %s" +
-                                                            "\nNodes: %s", expected, collected.size(), rf, replicas, collected),
+                                                            "\nNodes:    %s", expected, collected.size(), rf, replicas, collected),
                                               collected.size() >= expected);
 
                             break;
