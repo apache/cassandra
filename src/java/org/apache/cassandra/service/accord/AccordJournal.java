@@ -724,6 +724,10 @@ public class AccordJournal implements IJournal, Shutdownable
                     logger.info("Delayed request processor thread interrupted. Shutting down.");
                     return;
                 }
+                catch (OutOfMemoryError e)
+                {
+                    throw e;
+                }
                 catch (Throwable t)
                 {
                     logger.error("Caught an exception in delayed processor", t);
