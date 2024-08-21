@@ -431,10 +431,10 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
                                  .withConfig(c -> {
                                      c.with(Feature.values())
                                       .set("write_request_timeout", "10s");
-                                     for (Map.Entry<String, Object> e : yamlConfigOverrides.entrySet())
-                                         c.set(e.getKey(), e.getValue());
                                      //TODO (mainatiance): where to put this?  Anything touching ConfigGenBuilder with jvm-dtest needs this...
                                      ((InstanceConfig) c).remove("commitlog_sync_period_in_ms");
+                                     for (Map.Entry<String, Object> e : yamlConfigOverrides.entrySet())
+                                         c.set(e.getKey(), e.getValue());
                                      onConfigure(c);
                                  })
                                  //TODO (maintance): should TopologyHistory also be a INodeProvisionStrategy.Factory so address information is stored in the Node?
