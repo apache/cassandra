@@ -351,11 +351,11 @@ public class DirectoriesTest
 
         // Create snapshot with and without manifest
         FakeSnapshot snapshot1 = createFakeSnapshot(fakeTable, SNAPSHOT1, true, false);
-        FakeSnapshot snapshot2 = createFakeSnapshot(fakeTable, SNAPSHOT2, false, false);
-        // ephemeral without manifst
-        FakeSnapshot snapshot3 = createFakeSnapshot(fakeTable, SNAPSHOT3, false, true);
+        FakeSnapshot snapshot2 = createFakeSnapshot(fakeTable, SNAPSHOT2, true, false);
+        // ephemeral without manifest
+        FakeSnapshot snapshot3 = createFakeSnapshot(fakeTable, SNAPSHOT3, true, true);
 
-        // Both snapshots should be present
+        // All snapshots should be present
         Map<String, TableSnapshot> snapshots = listSnapshots(directories);
         assertThat(snapshots.keySet()).isEqualTo(Sets.newHashSet(SNAPSHOT1, SNAPSHOT2, SNAPSHOT3));
         assertThat(snapshots.get(SNAPSHOT1)).isEqualTo(snapshot1.asTableSnapshot());
@@ -459,7 +459,7 @@ public class DirectoriesTest
             }
         });
         // CASSANDRA-17357: include indexes when computing true size of parent table
-        assertEquals(70L, parentSnapshotDetail.get("test").computeTrueSizeBytes(files));
+        assertEquals(70L, parentSnapshotDetail.get("test").computeTrueSizeBytes(files) - parentSnapshotDetail.get("test").getManifestsSize());
 
         // check backup directory
         File parentBackupDirectory = Directories.getBackupsDirectory(parentDesc);
