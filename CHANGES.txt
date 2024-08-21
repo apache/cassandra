@@ -5,6 +5,7 @@
  * Prioritize built indexes in IndexStatusManager (CASSANDRA-19400)
  * Add java.base/java.lang.reflect among opens for jvm11-client.options (CASSANDRA-19780)
 Merged from 4.0:
+ * Fix latency reported by ideal consistency level monitoring (CASSANDRA-19651)
  * Do not spam log with SSLExceptions (CASSANDRA-18839)
 
 
