@@ -70,7 +70,7 @@ public class ConfigGenBuilder
     /**
      * When loading the {@link Config} from a yaml its possible that some configs set will conflict with the configs that get generated here, to avoid that set them to a good default
      */
-    public static Config santize(Config config)
+    public static Config sanitize(Config config)
     {
         Config defaults = new Config();
         config.commitlog_sync = defaults.commitlog_sync;

@@ -163,7 +163,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
     // mutated by user-facing API
     private final MessageFilters filters;
-    private final INodeProvisionStrategy.Strategy nodeProvisionStrategy;
+    private final INodeProvisionStrategy.Factory nodeProvisionStrategy;
     private final IInstanceInitializer instanceInitializer;
     private final int datadirCount;
     private volatile Thread.UncaughtExceptionHandler previousHandler = null;
@@ -181,7 +181,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
     public static abstract class AbstractBuilder<I extends IInstance, C extends ICluster, B extends AbstractBuilder<I, C, B>>
         extends org.apache.cassandra.distributed.shared.AbstractBuilder<I, C, B>
     {
-        private INodeProvisionStrategy.Strategy nodeProvisionStrategy = INodeProvisionStrategy.Strategy.MultipleNetworkInterfaces;
+        private INodeProvisionStrategy.Factory nodeProvisionStrategy = INodeProvisionStrategy.Strategy.MultipleNetworkInterfaces;
         private ShutdownExecutor shutdownExecutor = DEFAULT_SHUTDOWN_EXECUTOR;
         private boolean dynamicPortAllocation = false;
 
@@ -206,7 +206,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
             return (B) this;
         }
 
-        public B withNodeProvisionStrategy(INodeProvisionStrategy.Strategy nodeProvisionStrategy)
+        public B withNodeProvisionStrategy(INodeProvisionStrategy.Factory nodeProvisionStrategy)
         {
             this.nodeProvisionStrategy = nodeProvisionStrategy;
             return self();
