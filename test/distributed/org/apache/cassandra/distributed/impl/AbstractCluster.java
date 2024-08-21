@@ -51,6 +51,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -1101,14 +1102,11 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         }
         catch (Throwable t)
         {
-            try
+            IllegalStateException leak = checkForThreadLeaks();
+            if (leak != null)
             {
-                checkForThreadLeaks();
-            }
-            catch (Throwable leek)
-            {
-                leek.initCause(t);
-                throw leek;
+                leak.initCause(t);
+                throw leak;
             }
             throw t;
         }
@@ -1144,7 +1142,8 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         }
     }
 
-    private void checkForThreadLeaks()
+    @Nullable
+    private IllegalStateException checkForThreadLeaks()
     {
         //This is an alternate version of the thread leak check that just checks to see if any threads are still alive
         // with the context classloader.
@@ -1159,8 +1158,9 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
             for (StackTraceElement s : e.getValue())
                 sb.append("\t").append(s).append("\n");
         }
-        if (sb.length() > 0)
-            throw new IllegalStateException("Unterminated threads detected; active threads:\n" + sb);
+        return sb.length() > 0
+               ? new IllegalStateException("Unterminated threads detected; active threads:\n" + sb)
+               : null;
     }
 
     public List<Token> tokens()
