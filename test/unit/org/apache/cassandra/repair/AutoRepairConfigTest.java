@@ -485,13 +485,13 @@ public class AutoRepairConfigTest extends CQLTester
     {
         config.setInitialSchedulerDelayInSec(repairType, 5);
 
-        assert config.repair_type_overrides.get(repairType).intial_scheduler_delay_in_sec == 5;
+        assert config.repair_type_overrides.get(repairType).initial_scheduler_delay_in_sec == 5;
     }
 
     @Test
     public void testGetInitialSchedulerDelayInSeconds()
     {
-        config.global_settings.intial_scheduler_delay_in_sec = 5;
+        config.global_settings.initial_scheduler_delay_in_sec = 5;
 
         int result = config.getInitialSchedulerDelayInSec(repairType);
 

@@ -269,12 +269,12 @@ public class AutoRepairConfig implements Serializable
     public void setInitialSchedulerDelayInSec(RepairType repairType, int initialSchedulerDelayInSeconds)
     {
         ensureOverrides(repairType);
-        repair_type_overrides.get(repairType).intial_scheduler_delay_in_sec = initialSchedulerDelayInSeconds;
+        repair_type_overrides.get(repairType).initial_scheduler_delay_in_sec = initialSchedulerDelayInSeconds;
     }
 
     public int getInitialSchedulerDelayInSec(RepairType repairType)
     {
-        return applyOverrides(repairType, opt -> opt.intial_scheduler_delay_in_sec);
+        return applyOverrides(repairType, opt -> opt.initial_scheduler_delay_in_sec);
     }
 
     // Options configures auto-repair behavior for a given repair type.
@@ -314,7 +314,7 @@ public class AutoRepairConfig implements Serializable
             opts.force_repair_new_node = false;
             opts.table_max_repair_time_in_sec = 6 * 60 * 60L; // six hours
             opts.mv_repair_enabled = true;
-            opts.intial_scheduler_delay_in_sec = 900; // 15 minutes
+            opts.initial_scheduler_delay_in_sec = 900; // 15 minutes
 
             return opts;
         }
@@ -363,7 +363,7 @@ public class AutoRepairConfig implements Serializable
          */
         public volatile Boolean mv_repair_enabled;
         // the minimum delay in seconds after a node starts before the scheduler starts running repair
-        public volatile Integer intial_scheduler_delay_in_sec;
+        public volatile Integer initial_scheduler_delay_in_sec;
     }
 
     @VisibleForTesting
