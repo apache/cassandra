@@ -79,7 +79,13 @@ public class InJvmSutBase<NODE extends IInstance, CLUSTER extends ICluster<NODE>
 
             public Integer get()
             {
-                return (int) (cnt.getAndIncrement() % cluster.size() + 1);
+                for (int i = 0; i < 42; i++)
+                {
+                    int selected = (int) (cnt.getAndIncrement() % cluster.size() + 1);
+                    if (!cluster.get(selected).isShutdown())
+                        return selected;
+                }
+                throw new IllegalStateException("Unable to find an alive instance");
             }
         };
     }
@@ -127,6 +133,11 @@ public class InJvmSutBase<NODE extends IInstance, CLUSTER extends ICluster<NODE>
     public void schemaChange(String statement)
     {
         cluster.schemaChange(statement);
+    }
+
+    public IInstance firstAlive()
+    {
+        return cluster.stream().filter(i -> !i.isShutdown()).findFirst().get();
     }
 
     public Object[][] execute(String statement, ConsistencyLevel cl, int pageSize, Object... bindings)

@@ -22,8 +22,10 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.IntPredicate;
 import java.util.function.IntSupplier;
+import java.util.function.IntUnaryOperator;
 import java.util.function.LongPredicate;
 import java.util.function.LongSupplier;
+import java.util.function.LongUnaryOperator;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.ToIntFunction;
@@ -87,6 +89,22 @@ public interface Gen<A> {
         };
     }
 
+    default Gen<A> filter(int maxAttempts, A defaultValue, Predicate<A> fn)
+    {
+        Invariants.checkArgument(maxAttempts > 0, "Max attempts must be positive; given %d", maxAttempts);
+        Gen<A> self = this;
+        return r -> {
+            for (int i = 0; i < maxAttempts; i++)
+            {
+                A v = self.next(r);
+                if (fn.test(v))
+                    return v;
+
+            }
+            return defaultValue;
+        };
+    }
+
     default Supplier<A> asSupplier(RandomSource rs)
     {
         return () -> next(rs);
@@ -95,6 +113,21 @@ public interface Gen<A> {
     default Stream<A> asStream(RandomSource rs)
     {
         return Stream.generate(() -> next(rs));
+    }
+
+    interface Int2IntMapFunction
+    {
+        int applyAsInt(RandomSource rs, int value);
+    }
+
+    interface Int2LongMapFunction
+    {
+        long applyAsLong(RandomSource rs, int value);
+    }
+
+    interface Long2LongMapFunction
+    {
+        long applyAsLong(RandomSource rs, long value);
     }
 
     interface IntGen extends Gen<Integer>
@@ -107,7 +140,22 @@ public interface Gen<A> {
             return nextInt(random);
         }
 
-        default Gen.IntGen filterInt(IntPredicate fn)
+        default IntGen mapAsInt(IntUnaryOperator fn)
+        {
+            return r -> fn.applyAsInt(nextInt(r));
+        }
+
+        default IntGen mapAsInt(Int2IntMapFunction fn)
+        {
+            return r -> fn.applyAsInt(r, nextInt(r));
+        }
+
+        default LongGen mapAsLong(Int2LongMapFunction fn)
+        {
+            return r -> fn.applyAsLong(r, nextInt(r));
+        }
+
+        default Gen.IntGen filterAsInt(IntPredicate fn)
         {
             return rs -> {
                 int value;
@@ -123,7 +171,7 @@ public interface Gen<A> {
         @Override
         default Gen.IntGen filter(Predicate<Integer> fn)
         {
-            return filterInt(i -> fn.test(i));
+            return filterAsInt(i -> fn.test(i));
         }
 
         default IntSupplier asIntSupplier(RandomSource rs)
@@ -147,7 +195,17 @@ public interface Gen<A> {
             return nextLong(random);
         }
 
-        default Gen.LongGen filterLong(LongPredicate fn)
+        default LongGen mapAsLong(LongUnaryOperator fn)
+        {
+            return r -> fn.applyAsLong(nextLong(r));
+        }
+
+        default LongGen mapAsLong(Long2LongMapFunction fn)
+        {
+            return r -> fn.applyAsLong(r, nextLong(r));
+        }
+
+        default Gen.LongGen filterAsLong(LongPredicate fn)
         {
             return rs -> {
                 long value;
@@ -163,7 +221,7 @@ public interface Gen<A> {
         @Override
         default Gen.LongGen filter(Predicate<Long> fn)
         {
-            return filterLong(i -> fn.test(i));
+            return filterAsLong(i -> fn.test(i));
         }
 
         default LongSupplier asLongSupplier(RandomSource rs)
