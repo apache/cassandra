@@ -117,7 +117,7 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
     // common commands
     private Command<State<S>, Void, ?> repairCommand(State<S> state, int toCoordinate)
     {
-        return new SimpleCommand<>("nodetool repair " + state.schemaSpec.keyspaceName() + ' ' + state.schemaSpec.name() + " from node" + toCoordinate + "; epoch=" + state.currentEpoch.get(),
+        return new SimpleCommand<>("nodetool repair " + state.schemaSpec.keyspaceName() + ' ' + state.schemaSpec.name() + " from node" + toCoordinate + state.commandNamePostfix(),
                                    s2 -> s2.cluster.get(toCoordinate).nodetoolResult("repair", state.schemaSpec.keyspaceName(), s2.schemaSpec.name()).asserts().success());
     }
 
@@ -128,7 +128,7 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
             @Override
             public String detailed(State<S> state)
             {
-                return "Waiting for CMS to Quiesce; starting epoch=" + state.currentEpoch.get();
+                return "Waiting for CMS to Quiesce" + state.commandNamePostfix();
             }
 
             @Override
@@ -141,7 +141,7 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
 
     private Command<State<S>, Void, ?> stopInstance(State<S> state, int toRemove)
     {
-        return new SimpleCommand<>("Stop Node" + toRemove + " for Assassinate; starting epoch=" + state.currentEpoch.get(), s2 -> {
+        return new SimpleCommand<>("Stop Node" + toRemove + " for Assassinate" + state.commandNamePostfix(), s2 -> {
             IInvokableInstance inst = s2.cluster.get(toRemove);
             TopologyHistory.Node node = s2.topologyHistory.node(toRemove);
             ClusterUtils.stopUnchecked(inst);
@@ -152,7 +152,7 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
     private Command<State<S>, Void, ?> addNode(State<S> state)
     {
         int nodeId = state.topologyHistory.uniqueInstances + 1;
-        return new SimpleCommand<>("Add Node" + nodeId + "; starting epoch=" + state.currentEpoch.get(),
+        return new SimpleCommand<>("Add Node" + nodeId + state.commandNamePostfix(),
                                    s2 -> {
                                        TopologyHistory.Node n = s2.topologyHistory.addNode();
                                        IInvokableInstance newInstance = ClusterUtils.addInstance(s2.cluster, n.dc, n.rack, c -> c.set("auto_bootstrap", true));
@@ -164,7 +164,7 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
     private Command<State<S>, Void, ?> removeNodeDecommission(RandomSource rs, State<S> state)
     {
         int toRemove = rs.pickInt(state.topologyHistory.up());
-        return new SimpleCommand<>("nodetool decommission node" + toRemove + "; starting epoch=" + state.currentEpoch.get(), s2 -> {
+        return new SimpleCommand<>("nodetool decommission node" + toRemove + state.commandNamePostfix(), s2 -> {
             IInvokableInstance inst = s2.cluster.get(toRemove);
             TopologyHistory.Node node = s2.topologyHistory.node(toRemove);
             node.status = TopologyHistory.Node.Status.BeingDecommissioned;
@@ -189,7 +189,7 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
             toCoordinate = picked;
         }
         return multistep(stopInstance(state, toRemove),
-                         new SimpleCommand<>("nodetool removenode node" + toRemove + " from node" + toCoordinate + "; starting epoch=" + state.currentEpoch.get(), s2 -> {
+                         new SimpleCommand<>("nodetool removenode node" + toRemove + " from node" + toCoordinate + state.commandNamePostfix(), s2 -> {
                              TopologyHistory.Node node = s2.topologyHistory.node(toRemove);
                              node.status = TopologyHistory.Node.Status.BeingRemoved;
                              IInvokableInstance coordinator = s2.cluster.get(toCoordinate);
@@ -222,7 +222,7 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
             toCoordinate = picked;
         }
         return multistep(stopInstance(state, toRemove),
-                         new SimpleCommand<>("nodetool assassinate node" + toRemove + " from node" + toCoordinate + "; starting epoch=" + state.currentEpoch.get(), s2 -> {
+                         new SimpleCommand<>("nodetool assassinate node" + toRemove + " from node" + toCoordinate + state.commandNamePostfix(), s2 -> {
                              TopologyHistory.Node node = s2.topologyHistory.node(toRemove);
                              node.status = TopologyHistory.Node.Status.BeingAssassinated;
                              IInvokableInstance coordinator = s2.cluster.get(toCoordinate);
@@ -258,11 +258,11 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
         TopologyHistory.Node adding = state.topologyHistory.replace(nodeToReplace);
         TopologyHistory.Node removing = state.topologyHistory.nodes.get(nodeToReplace);
 
-        return multistep(new SimpleCommand<>("Stop Node" + nodeToReplace + " for HostReplace; Node" + adding.id + "; starting epoch=" + state.currentEpoch.get(), s2 -> {
+        return multistep(new SimpleCommand<>("Stop Node" + nodeToReplace + " for HostReplace; Node" + adding.id + state.commandNamePostfix(), s2 -> {
                              ClusterUtils.stopUnchecked(toReplace);
                              removing.down();
                          }),
-                         new SimpleCommand<>("Host Replace Node" + nodeToReplace + "; Node" + adding.id + "; starting epoch=" + state.currentEpoch.get(), s2 -> {
+                         new SimpleCommand<>("Host Replace Node" + nodeToReplace + "; Node" + adding.id + state.commandNamePostfix(), s2 -> {
                              logger.info("node{} starting host replacement; epoch={}", adding.id, HackSerialization.tcmEpochAndSync(s2.cluster.getFirstRunningInstance()));
                              removing.status = TopologyHistory.Node.Status.BeingReplaced;
                              IInvokableInstance inst = ClusterUtils.replaceHostAndStart(s2.cluster, toReplace);
@@ -272,7 +272,7 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
                              logger.info("{} completed host replacement in epoch={}", inst, epoch);
                          }),
                          //TODO (remove after rebase to trunk): https://issues.apache.org/jira/browse/CASSANDRA-19705  After the rebase to trunk this is not needed.  The issue is that the CMS placement removes the node, it does not promote another node, this cases rf=3 to become rf=2
-                         new SimpleCommand<>("CMS reconfigure on Node" + adding.id + "; starting epoch=" + state.currentEpoch.get(), s2 -> s2.cluster.get(adding.id).nodetoolResult("cms", "reconfigure", Integer.toString(TARGET_RF)).asserts().success())
+                         new SimpleCommand<>("CMS reconfigure on Node" + adding.id + state.commandNamePostfix(), s2 -> s2.cluster.get(adding.id).nodetoolResult("cms", "reconfigure", Integer.toString(TARGET_RF)).asserts().success())
         );
     }
 
@@ -506,6 +506,11 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
         protected void onConfigure(IInstanceConfig config)
         {
 
+        }
+
+        protected String commandNamePostfix()
+        {
+            return "; epoch=" + currentEpoch.get() + ", cms=" + Arrays.toString(cmsGroup);
         }
 
         @Override
