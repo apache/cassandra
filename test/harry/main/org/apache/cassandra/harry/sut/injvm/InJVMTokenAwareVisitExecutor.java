@@ -30,6 +30,7 @@ import org.slf4j.LoggerFactory;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
+import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.harry.core.Run;
 import org.apache.cassandra.harry.ddl.SchemaSpec;
 import org.apache.cassandra.harry.sut.SystemUnderTest;
@@ -118,8 +119,9 @@ public class InJVMTokenAwareVisitExecutor extends LoggingVisitor.LoggingVisitorE
 
     protected TokenPlacementModel.ReplicatedRanges getRing()
     {
-        List<TokenPlacementModel.Node> other = peerStateToNodes(sut.cluster.coordinator(1).execute("select peer, tokens, data_center, rack from system.peers", ConsistencyLevel.ONE));
-        List<TokenPlacementModel.Node> self = peerStateToNodes(sut.cluster.coordinator(1).execute("select broadcast_address, tokens, data_center, rack from system.local", ConsistencyLevel.ONE));
+        ICoordinator coordinator = sut.firstAlive().coordinator();
+        List<TokenPlacementModel.Node> other = peerStateToNodes(coordinator.execute("select peer, tokens, data_center, rack from system.peers", ConsistencyLevel.ONE));
+        List<TokenPlacementModel.Node> self = peerStateToNodes(coordinator.execute("select broadcast_address, tokens, data_center, rack from system.local", ConsistencyLevel.ONE));
         List<TokenPlacementModel.Node> all = new ArrayList<>();
         all.addAll(self);
         all.addAll(other);

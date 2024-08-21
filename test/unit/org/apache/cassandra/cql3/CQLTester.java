@@ -3070,7 +3070,7 @@ public abstract class CQLTester
             Map<String, Object> config = CONFIG_GEN.next(RANDOM);
             CONFIG = YamlConfigurationLoader.toYaml(config);
 
-            Config c = ConfigGenBuilder.santize(DatabaseDescriptor.loadConfig());
+            Config c = ConfigGenBuilder.sanitize(DatabaseDescriptor.loadConfig());
             YamlConfigurationLoader.updateFromMap(config, true, c);
 
             DatabaseDescriptor.unsafeDaemonInitialization(() -> c);

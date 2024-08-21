@@ -21,6 +21,7 @@ package org.apache.cassandra.harry.sut.injvm;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.harry.core.Run;
 import org.apache.cassandra.harry.ddl.SchemaSpec;
 import org.apache.cassandra.harry.model.OpSelectors;
@@ -60,8 +61,10 @@ public class QuiescentLocalStateChecker extends QuiescentLocalStateCheckerBase
     @Override
     protected TokenPlacementModel.ReplicatedRanges getRing()
     {
-        List<TokenPlacementModel.Node> other = TokenPlacementModel.peerStateToNodes(((InJvmSutBase<?, ?>) sut).cluster.coordinator(1).execute("select peer, tokens, data_center, rack from system.peers", ConsistencyLevel.ONE));
-        List<TokenPlacementModel.Node> self = TokenPlacementModel.peerStateToNodes(((InJvmSutBase<?, ?>) sut).cluster.coordinator(1).execute("select broadcast_address, tokens, data_center, rack from system.local", ConsistencyLevel.ONE));
+        IInstance node = ((InJvmSutBase<?, ?>) sut).firstAlive();
+        ICoordinator coordinator = node.coordinator();
+        List<TokenPlacementModel.Node> other = TokenPlacementModel.peerStateToNodes(coordinator.execute("select peer, tokens, data_center, rack from system.peers", ConsistencyLevel.ONE));
+        List<TokenPlacementModel.Node> self = TokenPlacementModel.peerStateToNodes(coordinator.execute("select broadcast_address, tokens, data_center, rack from system.local", ConsistencyLevel.ONE));
         List<TokenPlacementModel.Node> all = new ArrayList<>();
         all.addAll(self);
         all.addAll(other);

@@ -29,62 +29,51 @@ import static org.apache.cassandra.utils.Shared.Recursive.INTERFACES;
 @Shared(inner = INTERFACES)
 public interface INodeProvisionStrategy
 {
-    enum Strategy
+    @FunctionalInterface
+    interface Factory
+    {
+        INodeProvisionStrategy create(int subnet, @Nullable Map<String, Integer> portMap);
+    }
+
+    enum Strategy implements Factory
     {
         OneNetworkInterface
         {
             @Override
-            INodeProvisionStrategy create(int subnet, @Nullable Map<String, Integer> portMap)
+            public INodeProvisionStrategy create(int subnet, @Nullable Map<String, Integer> portMap)
             {
                 String ipAdress = "127.0." + subnet + ".1";
-                return new INodeProvisionStrategy()
+                return new AbstractNodeProvisionStrategy(portMap)
                 {
+
                     @Override
-                    public String seedIp()
+                    protected int computeStoragePort(int nodeNum)
                     {
-                        return ipAdress;
+                        return 7011 + nodeNum;
                     }
 
                     @Override
-                    public int seedPort()
+                    protected int computeNativeTransportPort(int nodeNum)
                     {
-                        return storagePort(1);
+                        return 9041 + nodeNum;
+                    }
+
+                    @Override
+                    protected int computeJmxPort(int nodeNum)
+                    {
+                        return 7199 + nodeNum;
+                    }
+
+                    @Override
+                    public int seedNodeNum()
+                    {
+                        return 1;
                     }
 
                     @Override
                     public String ipAddress(int nodeNum)
                     {
                         return ipAdress;
-                    }
-
-                    @Override
-                    public int storagePort(int nodeNum)
-                    {
-                        if (portMap != null)
-                        {
-                            return portMap.computeIfAbsent("storagePort@node" + nodeNum, key -> SocketUtils.findAvailablePort(seedIp(), 7011 + nodeNum));
-                        }
-                        return 7011 + nodeNum;
-                    }
-
-                    @Override
-                    public int nativeTransportPort(int nodeNum)
-                    {
-                        if (portMap != null)
-                        {
-                            return portMap.computeIfAbsent("nativeTransportPort@node" + nodeNum, key -> SocketUtils.findAvailablePort(seedIp(), 9041 + nodeNum));
-                        }
-                        return 9041 + nodeNum;
-                    }
-
-                    @Override
-                    public int jmxPort(int nodeNum)
-                    {
-                        if (portMap != null)
-                        {
-                            return portMap.computeIfAbsent("jmxPort@node" + nodeNum, key -> SocketUtils.findAvailablePort(seedIp(), 7199 + nodeNum));
-                        }
-                        return 7199 + nodeNum;
                     }
                 };
             }
@@ -92,22 +81,15 @@ public interface INodeProvisionStrategy
         MultipleNetworkInterfaces
         {
             @Override
-            INodeProvisionStrategy create(int subnet, @Nullable Map<String, Integer> portMap)
+            public INodeProvisionStrategy create(int subnet, @Nullable Map<String, Integer> portMap)
             {
                 String ipPrefix = "127.0." + subnet + '.';
-                return new INodeProvisionStrategy()
+                return new AbstractNodeProvisionStrategy(portMap)
                 {
-
                     @Override
-                    public String seedIp()
+                    public int seedNodeNum()
                     {
-                        return ipPrefix + '1';
-                    }
-
-                    @Override
-                    public int seedPort()
-                    {
-                        return storagePort(1);
+                        return 1;
                     }
 
                     @Override
@@ -115,51 +97,12 @@ public interface INodeProvisionStrategy
                     {
                         return ipPrefix + nodeNum;
                     }
-
-                    @Override
-                    public int storagePort(int nodeNum)
-                    {
-                        if (portMap != null)
-                        {
-                            return portMap.computeIfAbsent("storagePort@node" + nodeNum, key -> SocketUtils.findAvailablePort(ipAddress(nodeNum), 7012));
-                        }
-                        return 7012;
-                    }
-
-                    @Override
-                    public int nativeTransportPort(int nodeNum)
-                    {
-                        if (portMap != null)
-                        {
-                            return portMap.computeIfAbsent("nativeTransportPort@node" + nodeNum, key -> SocketUtils.findAvailablePort(ipAddress(nodeNum), 9042));
-                        }
-                        return 9042;
-                    }
-
-                    @Override
-                    public int jmxPort(int nodeNum)
-                    {
-                        if (portMap != null)
-                        {
-                            return portMap.computeIfAbsent("jmxPort@node" + nodeNum, key -> SocketUtils.findAvailablePort(ipAddress(nodeNum), 7199));
-                        }
-                        return 7199;
-                    }
                 };
             }
         };
-
-        INodeProvisionStrategy create(int subnet)
-        {
-            return create(subnet, null);
-        }
-
-        abstract INodeProvisionStrategy create(int subnet, @Nullable Map<String, Integer> portMap);
     }
 
-    String seedIp();
-
-    int seedPort();
+    int seedNodeNum();
 
     String ipAddress(int nodeNum);
 
@@ -168,4 +111,60 @@ public interface INodeProvisionStrategy
     int nativeTransportPort(int nodeNum);
 
     int jmxPort(int nodeNum);
+
+    abstract class AbstractNodeProvisionStrategy implements INodeProvisionStrategy
+    {
+        @Nullable
+        private final Map<String, Integer> portMap;
+
+        protected AbstractNodeProvisionStrategy(@Nullable Map<String, Integer> portMap)
+        {
+            this.portMap = portMap;
+        }
+
+        protected int computeStoragePort(int nodeNum)
+        {
+            return 7012;
+        }
+
+        protected int computeNativeTransportPort(int nodeNum)
+        {
+            return 9042;
+        }
+
+        protected int computeJmxPort(int nodeNum)
+        {
+            return 7199;
+        }
+
+        @Override
+        public int storagePort(int nodeNum)
+        {
+            if (portMap != null)
+            {
+                return portMap.computeIfAbsent("storagePort@node" + nodeNum, key -> SocketUtils.findAvailablePort(ipAddress(nodeNum), computeStoragePort(nodeNum)));
+            }
+            return computeStoragePort(nodeNum);
+        }
+
+        @Override
+        public int nativeTransportPort(int nodeNum)
+        {
+            if (portMap != null)
+            {
+                return portMap.computeIfAbsent("nativeTransportPort@node" + nodeNum, key -> SocketUtils.findAvailablePort(ipAddress(nodeNum), computeNativeTransportPort(nodeNum)));
+            }
+            return computeNativeTransportPort(nodeNum);
+        }
+
+        @Override
+        public int jmxPort(int nodeNum)
+        {
+            if (portMap != null)
+            {
+                return portMap.computeIfAbsent("jmxPort@node" + nodeNum, key -> SocketUtils.findAvailablePort(ipAddress(nodeNum), computeJmxPort(nodeNum)));
+            }
+            return computeJmxPort(nodeNum);
+        }
+    }
 }

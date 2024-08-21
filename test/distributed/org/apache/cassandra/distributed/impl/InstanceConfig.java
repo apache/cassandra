@@ -305,14 +305,15 @@ public class InstanceConfig implements IInstanceConfig
                                           Collection<String> tokens,
                                           int datadirCount)
     {
+        int seedNode = provisionStrategy.seedNodeNum();
         return new InstanceConfig(nodeNum,
                                   networkTopology,
                                   provisionStrategy.ipAddress(nodeNum),
                                   provisionStrategy.ipAddress(nodeNum),
                                   provisionStrategy.ipAddress(nodeNum),
                                   provisionStrategy.ipAddress(nodeNum),
-                                  provisionStrategy.seedIp(),
-                                  provisionStrategy.seedPort(),
+                                  provisionStrategy.ipAddress(seedNode),
+                                  provisionStrategy.storagePort(seedNode),
                                   String.format("%s/node%d/saved_caches", root, nodeNum),
                                   datadirs(datadirCount, root, nodeNum),
                                   String.format("%s/node%d/commitlog", root, nodeNum),

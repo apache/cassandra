@@ -23,6 +23,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
+import javax.annotation.Nullable;
+
 import com.google.common.collect.ImmutableMap;
 
 import accord.utils.Gen;
@@ -37,6 +39,7 @@ public class ConfigGenBuilder
     public enum Memtable
     {SkipListMemtable, TrieMemtable, ShardedSkipListMemtable}
 
+    @Nullable
     Gen<IPartitioner> partitionerGen = Generators.toGen(CassandraGenerators.nonLocalPartitioners());
     Gen<Config.DiskAccessMode> commitLogDiskAccessModeGen = Gens.enums().all(Config.DiskAccessMode.class)
                                                                 .filter(m -> m != Config.DiskAccessMode.standard
@@ -70,7 +73,7 @@ public class ConfigGenBuilder
     /**
      * When loading the {@link Config} from a yaml its possible that some configs set will conflict with the configs that get generated here, to avoid that set them to a good default
      */
-    public static Config santize(Config config)
+    public static Config sanitize(Config config)
     {
         Config defaults = new Config();
         config.commitlog_sync = defaults.commitlog_sync;
@@ -82,6 +85,12 @@ public class ConfigGenBuilder
     public ConfigGenBuilder withPartitioner(IPartitioner instance)
     {
         this.partitionerGen = ignore -> instance;
+        return this;
+    }
+
+    public ConfigGenBuilder withPartitionerGen(@Nullable Gen<IPartitioner> gen)
+    {
+        this.partitionerGen = gen;
         return this;
     }
 
@@ -114,6 +123,7 @@ public class ConfigGenBuilder
 
     private void updateConfigPartitioner(RandomSource rs, Map<String, Object> config)
     {
+        if (partitionerGen == null) return;;
         IPartitioner partitioner = partitionerGen.next(rs);
         config.put("partitioner", partitioner.getClass().getSimpleName());
     }
