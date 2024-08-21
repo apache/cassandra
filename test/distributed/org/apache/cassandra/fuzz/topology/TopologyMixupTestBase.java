@@ -79,6 +79,11 @@ import org.apache.cassandra.utils.ConfigGenBuilder;
 import static accord.utils.Property.multistep;
 import static accord.utils.Property.stateful;
 
+/**
+ * These tests can create many instances, so mac users may need to run the following to avoid address bind failures
+ *
+ * {@code for id in $(seq 0 15); do sudo ifconfig lo0 alias "127.0.0.$id"; done;}
+ */
 public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.SchemaSpec> extends TestBaseImpl
 {
     private static final Logger logger = LoggerFactory.getLogger(TopologyMixupTestBase.class);
