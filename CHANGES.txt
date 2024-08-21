@@ -6,6 +6,7 @@
  * Reduce info logging from automatic paxos repair (CASSANDRA-19445)
  * Support legacy plain_text_auth section in credentials file removed unintentionally (CASSANDRA-19498)
 Merged from 4.0:
+ * Fix latency reported by ideal consistency level monitoring (CASSANDRA-19651)
  * Use default commitlog settings in test YAMLs (CASSANDRA-19830)
  * Do not spam log with SSLExceptions (CASSANDRA-18839)
  * Fix schema.cql created by a snapshot after dropping more than one column (CASSANDRA-19747)
