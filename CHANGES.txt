@@ -127,6 +127,7 @@ Merged from 4.1:
  * Fix StackOverflowError on ALTER after many previous schema changes (CASSANDRA-19166)
  * Memoize Cassandra verion (CASSANDRA-18902)
 Merged from 4.0:
+ * Fix latency reported by ideal consistency level monitoring (CASSANDRA-19651)
  * Use default commitlog settings in test YAMLs (CASSANDRA-19830)
  * Do not spam log with SSLExceptions (CASSANDRA-18839)
  * Fix schema.cql created by a snapshot after dropping more than one column (CASSANDRA-19747)
