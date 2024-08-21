@@ -280,7 +280,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         protected IInvokableInstance delegate()
         {
             if (delegate == null)
-                throw new IllegalStateException("Can't use shutdown instances, delegate is null");
+                throw new IllegalStateException("Can't use shutdown node" + config.num() + ", delegate is null");
             return delegate;
         }
 
@@ -1101,7 +1101,15 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         }
         catch (Throwable t)
         {
-            checkForThreadLeaks();
+            try
+            {
+                checkForThreadLeaks();
+            }
+            catch (Throwable leek)
+            {
+                leek.initCause(t);
+                throw leek;
+            }
             throw t;
         }
         instances.clear();
@@ -1128,36 +1136,31 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
             return true;
         });
         if (!drain.isEmpty())
-            throw new ShutdownException(drain);
+        {
+            ShutdownException shutdownException = new ShutdownException(drain);
+            // also log as java will truncate log lists
+            logger.error("Unexpected errors", shutdownException);
+            throw shutdownException;
+        }
     }
 
     private void checkForThreadLeaks()
     {
         //This is an alternate version of the thread leak check that just checks to see if any threads are still alive
         // with the context classloader.
-        Set<Thread> threadSet = Thread.getAllStackTraces().keySet();
-        threadSet.stream().filter(t->t.getContextClassLoader() instanceof InstanceClassLoader).forEach(t->{
-            t.setContextClassLoader(null);
-            throw new RuntimeException("Unterminated thread detected " + t.getName() + " in group " + t.getThreadGroup().getName());
-        });
-    }
-
-    // We do not want this check to run every time until we fix problems with tread stops
-    private void withThreadLeakCheck(List<Future<?>> futures)
-    {
-        FBUtilities.waitOnFutures(futures);
-
-        Set<Thread> threadSet = Thread.getAllStackTraces().keySet();
-        threadSet = Sets.difference(threadSet, Collections.singletonMap(Thread.currentThread(), null).keySet());
-        if (!threadSet.isEmpty())
+        Map<Thread, StackTraceElement[]> allThreads = Thread.getAllStackTraces();
+        StringBuilder sb = new StringBuilder();
+        for (Map.Entry<Thread, StackTraceElement[]> e : allThreads.entrySet())
         {
-            for (Thread thread : threadSet)
-            {
-                System.out.println(thread);
-                System.out.println(Arrays.toString(thread.getStackTrace()));
-            }
-            throw new RuntimeException(String.format("Not all threads have shut down. %d threads are still running: %s", threadSet.size(), threadSet));
+
+            if (!(e.getKey().getContextClassLoader() instanceof InstanceClassLoader)) continue;
+            e.getKey().setContextClassLoader(null);
+            sb.append(e.getKey().getName()).append(":\n");
+            for (StackTraceElement s : e.getValue())
+                sb.append("\t").append(s).append("\n");
         }
+        if (sb.length() > 0)
+            throw new IllegalStateException("Unterminated threads detected; active threads:\n" + sb);
     }
 
     public List<Token> tokens()
