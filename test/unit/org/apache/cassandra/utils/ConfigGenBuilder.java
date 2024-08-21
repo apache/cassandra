@@ -23,6 +23,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
+import javax.annotation.Nullable;
+
 import com.google.common.collect.ImmutableMap;
 
 import accord.utils.Gen;
@@ -37,6 +39,7 @@ public class ConfigGenBuilder
     public enum Memtable
     {SkipListMemtable, TrieMemtable, ShardedSkipListMemtable}
 
+    @Nullable
     Gen<IPartitioner> partitionerGen = Generators.toGen(CassandraGenerators.nonLocalPartitioners());
     Gen<Config.DiskAccessMode> commitLogDiskAccessModeGen = Gens.enums().all(Config.DiskAccessMode.class)
                                                                 .filter(m -> m != Config.DiskAccessMode.standard
@@ -85,6 +88,12 @@ public class ConfigGenBuilder
         return this;
     }
 
+    public ConfigGenBuilder withPartitionerGen(@Nullable Gen<IPartitioner> gen)
+    {
+        this.partitionerGen = gen;
+        return this;
+    }
+
     public ConfigGenBuilder withCommitLogSync(Config.CommitLogSync commitLogSync)
     {
         this.commitLogSyncGen = ignore -> commitLogSync;
@@ -114,6 +123,7 @@ public class ConfigGenBuilder
 
     private void updateConfigPartitioner(RandomSource rs, Map<String, Object> config)
     {
+        if (partitionerGen == null) return;;
         IPartitioner partitioner = partitionerGen.next(rs);
         config.put("partitioner", partitioner.getClass().getSimpleName());
     }

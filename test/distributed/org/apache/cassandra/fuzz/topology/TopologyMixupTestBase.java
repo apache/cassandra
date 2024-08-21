@@ -60,7 +60,6 @@ import org.agrona.collections.IntArrayList;
 import org.agrona.collections.IntHashSet;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.YamlConfigurationLoader;
-import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
@@ -111,7 +110,7 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
     private static final Gen<Gen<RemoveType>> REMOVE_TYPE_DISTRIBUTION = Gens.enums().allMixedDistribution(RemoveType.class);
     private static final Gen<Map<String, Object>> CONF_GEN = new ConfigGenBuilder()
                                                              // jvm-dtest hard codes this partitioner in its APIs, so overriding will break the test
-                                                             .withPartitioner(Murmur3Partitioner.instance)
+                                                             .withPartitionerGen(null)
                                                              .build();
 
     // common commands
