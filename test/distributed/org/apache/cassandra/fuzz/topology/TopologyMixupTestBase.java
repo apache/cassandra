@@ -283,6 +283,11 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
 
     }
 
+    protected void destroyState(State<S> state, @Nullable Throwable cause) throws Throwable
+    {
+
+    }
+
     @Test
     public void test()
     {
@@ -376,6 +381,7 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
                         }
                     }
                 }
+                TopologyMixupTestBase.this.destroyState(state, cause);
                 state.close();
             }
         });

@@ -20,6 +20,8 @@ package org.apache.cassandra.fuzz.topology;
 
 import java.util.function.BiFunction;
 
+import javax.annotation.Nullable;
+
 import accord.utils.Gen;
 import accord.utils.Property;
 import accord.utils.Property.Command;
@@ -49,6 +51,18 @@ public class HarryTopologyMixupTest extends TopologyMixupTestBase<HarryTopologyM
     {
         // if a failing seed is detected, populate here
         // Example: builder.withSeed(42L);
+    }
+
+    @Override
+    protected void destroyState(State<Spec> state, @Nullable Throwable cause)
+    {
+        if (cause != null) return;
+        if (((HarryState) state).numInserts > 0)
+        {
+            // do one last read just to make sure we validate the data...
+            var harry = state.schemaSpec.harry;
+            harry.validateAll(harry.quiescentLocalChecker());
+        }
     }
 
     private static Spec createSchemaSpec(RandomSource rs, Cluster cluster)
