@@ -490,6 +490,12 @@ public enum CassandraRelevantProperties
     SNAPSHOT_CLEANUP_INITIAL_DELAY_SECONDS("cassandra.snapshot.ttl_cleanup_initial_delay_seconds", "5"),
     /** snapshots ttl cleanup period in seconds */
     SNAPSHOT_CLEANUP_PERIOD_SECONDS("cassandra.snapshot.ttl_cleanup_period_seconds", "60"),
+    /**
+     * When there is a snapshot with old / basic format (basically pre-CASSANDRA-16789),
+     * it will enrich it with more metadata upon snapshot's loading at startup.
+     * Defaults to true, when set to false, no enriching will be done.
+     * */
+    SNAPSHOT_MANIFEST_ENRICH_ENABLED("cassandra.snapshot.enrich.enabled", "true"),
     /** minimum allowed TTL for snapshots */
     SNAPSHOT_MIN_ALLOWED_TTL_SECONDS("cassandra.snapshot.min_allowed_ttl_seconds", "60"),
     SSL_ENABLE("ssl.enable"),
