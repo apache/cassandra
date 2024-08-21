@@ -21,6 +21,7 @@ package org.apache.cassandra.distributed.test;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Pattern;
@@ -359,10 +360,53 @@ public class SnapshotsTest extends TestBaseImpl
         assertEquals(1, distinctTimestamps);
     }
 
+    @Test
+    public void testListingOfSnapshotsByKeyspaceAndTable()
+    {
+        IInvokableInstance instance = cluster.get(1);
+        cluster.schemaChange("CREATE KEYSPACE IF NOT EXISTS ks1 WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};");
+        cluster.schemaChange("CREATE KEYSPACE IF NOT EXISTS ks2 WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};");
+        cluster.schemaChange("CREATE TABLE IF NOT EXISTS ks1.tbl (key int, value text, PRIMARY KEY (key))");
+        cluster.schemaChange("CREATE TABLE IF NOT EXISTS ks1.tbl2 (key int, value text, PRIMARY KEY (key))");
+        cluster.schemaChange("CREATE TABLE IF NOT EXISTS ks2.tbl (key int, value text, PRIMARY KEY (key))");
+        cluster.schemaChange("CREATE TABLE IF NOT EXISTS ks2.tbl2 (key int, value text, PRIMARY KEY (key))");
+
+        populate(cluster, "ks1", "tbl");
+        populate(cluster, "ks1", "tbl2");
+        populate(cluster, "ks2", "tbl");
+        populate(cluster, "ks2", "tbl2");
+
+        instance.nodetoolResult("snapshot", "-t", "tagks1tbl", "-kt", "ks1.tbl").asserts().success();
+        instance.nodetoolResult("snapshot", "-t", "tagks1tbl2", "-kt", "ks1.tbl2").asserts().success();
+        instance.nodetoolResult("snapshot", "-t", "tagks2tbl", "-kt", "ks2.tbl").asserts().success();
+        instance.nodetoolResult("snapshot", "-t", "tagks2tbl2", "-kt", "ks2.tbl2").asserts().success();
+
+        waitForSnapshot("ks1", null, "tagks1tbl", true, false);
+        waitForSnapshot("ks1", null, "tagks1tbl2", true, false);
+        waitForSnapshot("ks1", null, "tagks2tbl", false, false);
+        waitForSnapshot("ks1", null, "tagks2tbl2", false, false);
+
+        waitForSnapshot("ks1", "tbl", "tagks1tbl", true, false);
+        waitForSnapshot("ks1", "tbl", "tagks1tbl2", false, false);
+        waitForSnapshot("ks1", "tbl", "tagks2tbl", false, false);
+        waitForSnapshot("ks1", "tbl", "tagks2tbl2", false, false);
+
+        waitForSnapshot(null, "tbl", "tagks1tbl", true, false);
+        waitForSnapshot(null, "tbl", "tagks1tbl2", false, false);
+        waitForSnapshot(null, "tbl", "tagks2tbl", true, false);
+        waitForSnapshot(null, "tbl", "tagks2tbl2", false, false);
+    }
+
     private void populate(Cluster cluster)
     {
         for (int i = 0; i < 100; i++)
             cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.tbl (key, value) VALUES (?, 'txt')"), ConsistencyLevel.ONE, i);
+    }
+
+    private void populate(Cluster cluster, String keyspace, String table)
+    {
+        for (int i = 0; i < 100; i++)
+            cluster.coordinator(1).execute(format("INSERT INTO %s.%s (key, value) VALUES (?, 'txt')", keyspace, table), ConsistencyLevel.ONE, i);
     }
 
     private void waitForSnapshotPresent(String snapshotName)
@@ -375,21 +419,40 @@ public class SnapshotsTest extends TestBaseImpl
         waitForSnapshot(snapshotName, false, false);
     }
 
-    private void waitForSnapshot(String snapshotName, boolean expectPresent, boolean noTTL)
+    private void waitForSnapshot(String keyspaceName, String tableName, String snapshotName, boolean expectPresent, boolean noTTL)
     {
         await().timeout(20, SECONDS)
                .pollDelay(0, SECONDS)
                .pollInterval(1, SECONDS)
-               .until(() -> waitForSnapshotInternal(snapshotName, expectPresent, noTTL));
+               .until(() -> waitForSnapshotInternal(keyspaceName, tableName, snapshotName, expectPresent, noTTL));
     }
 
-    private boolean waitForSnapshotInternal(String snapshotName, boolean expectPresent, boolean noTTL)
+    private void waitForSnapshot(String snapshotName, boolean expectPresent, boolean noTTL)
     {
+        waitForSnapshot(null, null, snapshotName, expectPresent, noTTL);
+    }
+
+    private boolean waitForSnapshotInternal(String keyspaceName, String tableName, String snapshotName, boolean expectPresent, boolean noTTL)
+    {
+        List<String> args = new ArrayList<>();
+        args.add("listsnapshots");
         NodeToolResult listsnapshots;
         if (noTTL)
-            listsnapshots = cluster.get(1).nodetoolResult("listsnapshots", "-nt");
-        else
-            listsnapshots = cluster.get(1).nodetoolResult("listsnapshots");
+            args.add("-nt");
+
+        if (keyspaceName != null)
+        {
+            args.add("-k");
+            args.add(keyspaceName);
+        }
+
+        if (tableName != null)
+        {
+            args.add("-t");
+            args.add(tableName);
+        }
+
+        listsnapshots = cluster.get(1).nodetoolResult(args.toArray(new String[0]));
 
         List<String> lines = Arrays.stream(listsnapshots.getStdout().split("\n"))
                                    .filter(line -> !line.isEmpty())

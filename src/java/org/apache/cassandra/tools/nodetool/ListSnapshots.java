@@ -44,6 +44,16 @@ public class ListSnapshots extends NodeToolCmd
     description = "Include ephememeral snapshots")
     private boolean includeEphemeral = false;
 
+    @Option(title = "keyspace",
+    name = { "-k", "--keyspace" },
+    description = "Include snapshots of specified keyspace name")
+    private String keyspace = null;
+
+    @Option(title = "table",
+    name = { "-t", "--table" },
+    description = "Include snapshots of specified table name")
+    private String table = null;
+
     @Override
     public void execute(NodeProbe probe)
     {
@@ -55,6 +65,8 @@ public class ListSnapshots extends NodeToolCmd
             Map<String, String> options = new HashMap<>();
             options.put("no_ttl", Boolean.toString(noTTL));
             options.put("include_ephemeral", Boolean.toString(includeEphemeral));
+            options.put("keyspace", keyspace);
+            options.put("table", table);
 
             final Map<String, TabularData> snapshotDetails = probe.getSnapshotDetails(options);
             if (snapshotDetails.isEmpty())
