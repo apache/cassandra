@@ -28,14 +28,18 @@ public class ThrottlingOptionsTest
     {
         ThrottlingOptions throttlingOptions = new ThrottlingOptions();
         Assert.assertFalse(throttlingOptions.isEnabled());
-        Assert.assertEquals(35, throttlingOptions.getCpuThresholdCur());
+
+        // for checking CPU signals
         Assert.assertEquals(80, throttlingOptions.getCpuThresholdOneMinute());
-        Assert.assertEquals(1, throttlingOptions.getPendingReadsThresholdCur());
         Assert.assertEquals(10, throttlingOptions.getPendingReadsThresholdOneMinute());
-        Assert.assertEquals(1, throttlingOptions.getPendingMutationsThresholdCur());
         Assert.assertEquals(10, throttlingOptions.getPendingMutationsThresholdOneMinute());
-        Assert.assertEquals(1, throttlingOptions.getPendingNativeTransportThresholdCur());
         Assert.assertEquals(10, throttlingOptions.getPendingNativeTransportThresholdOneMinute());
+
+        // for checking threadpool signals
+        Assert.assertEquals(100000, throttlingOptions.getThreadpoolThresholdReads());
+        Assert.assertEquals(100000, throttlingOptions.getThreadpoolThresholdWrites());
+        Assert.assertEquals(100000, throttlingOptions.getThreadpoolThresholdNativeTransport());
+
         Assert.assertEquals(0.1, throttlingOptions.getPercentageOfTrafficToThrottling(), 0.0);
         Assert.assertEquals(60, throttlingOptions.getMoreAggressiveThrottlingAfterInSec());
         Assert.assertEquals(15 * 60, throttlingOptions.getResetAfterNoThrottlingSeenInSec());

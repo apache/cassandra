@@ -68,6 +68,8 @@ public class CassandraResourceUtilizationTest extends CQLTester
     private static final String TABLE = "tbl";
     private static final Collection SINGLETON_TABLE = Collections.singleton(TABLE);
 
+    private static final long VERY_LARGE_THREADPOOL_PENDING_TASKS = Long.MAX_VALUE;
+
     private static final AtomicBoolean hasDoneSetup = new AtomicBoolean(false);
 
     private static TableMetadata cfm;
@@ -351,18 +353,13 @@ public class CassandraResourceUtilizationTest extends CQLTester
     }
 
     @Test
-    public void testYesThrottling()
+    public void testYesThrottlingDueToCpuSignal()
     {
         CassandraResourceUtilization cassandraResourceUtilization = CassandraResourceUtilization.instance;
         Assert.assertEquals(0, cassandraResourceUtilization.throttlingMetrics.needsThrottling.getCount());
 
         Assert.assertFalse(cassandraResourceUtilization.shouldThrottle);
         cassandraResourceUtilization.throttlingOptions.setCpuThresholdOneMinute(0);
-        ResourcesStats resourcesStats = cassandraResourceUtilization.resourcesStats;
-        resourcesStats.setCpuUtil1(cassandraResourceUtilization.throttlingOptions.getCpuThresholdCur() + 1);
-        resourcesStats.setCpuUtil2(cassandraResourceUtilization.throttlingOptions.getCpuThresholdCur() + 1);
-        resourcesStats.setPendingReads(cassandraResourceUtilization.throttlingOptions.getPendingReadsThresholdCur() + 1);
-        resourcesStats.setPendingMutations(cassandraResourceUtilization.throttlingOptions.getPendingMutationsThresholdCur() + 1);
         cassandraResourceUtilization.checkSignals();
         Assert.assertTrue(cassandraResourceUtilization.shouldThrottle);
 
@@ -371,6 +368,50 @@ public class CassandraResourceUtilizationTest extends CQLTester
         Assert.assertEquals(0, cassandraResourceUtilization.throttlingMetrics.resetThrottling.getCount());
         Assert.assertEquals(0, cassandraResourceUtilization.throttlingMetrics.increaseThrottling.getCount());
         Assert.assertEquals(0.1, cassandraResourceUtilization.throttlingMetrics.currentThrottlingPercentage.getValue());
+    }
+
+    @Test
+    public void testYesThrottlingDueToThreadpoolSignal()
+    {
+        CassandraResourceUtilization cassandraResourceUtilization = CassandraResourceUtilization.instance;
+        ResourcesStats resourcesStats = cassandraResourceUtilization.resourcesStats;
+
+        // make sure no CPU signal
+        cassandraResourceUtilization.throttlingOptions.setCpuThresholdOneMinute(99);
+
+        // before reduce the threedpool singal threshold
+        cassandraResourceUtilization.checkSignals();
+        Assert.assertFalse(cassandraResourceUtilization.shouldThrottle);
+
+        // reduce the threshold for threedpool singal, for reads
+        cassandraResourceUtilization.throttlingOptions.setThreadpoolThresholdReads(0);
+        cassandraResourceUtilization.checkSignals();
+        Assert.assertTrue(cassandraResourceUtilization.shouldThrottle);
+
+        // set back the threshold for threedpool singal
+        cassandraResourceUtilization.throttlingOptions.setThreadpoolThresholdReads(VERY_LARGE_THREADPOOL_PENDING_TASKS);
+        cassandraResourceUtilization.checkSignals();
+        Assert.assertFalse(cassandraResourceUtilization.shouldThrottle);
+
+        // reduce the threshold for threedpool singal, for writes
+        cassandraResourceUtilization.throttlingOptions.setThreadpoolThresholdWrites(0);
+        cassandraResourceUtilization.checkSignals();
+        Assert.assertTrue(cassandraResourceUtilization.shouldThrottle);
+
+        // set back the threshold for threedpool singal
+        cassandraResourceUtilization.throttlingOptions.setThreadpoolThresholdWrites(VERY_LARGE_THREADPOOL_PENDING_TASKS);
+        cassandraResourceUtilization.checkSignals();
+        Assert.assertFalse(cassandraResourceUtilization.shouldThrottle);
+
+        // reduce the threshold for threedpool singal, for native transport
+        cassandraResourceUtilization.throttlingOptions.setThreadpoolThresholdNativeTransport(0);
+        cassandraResourceUtilization.checkSignals();
+        Assert.assertTrue(cassandraResourceUtilization.shouldThrottle);
+
+        // set back the threshold for threedpool singal
+        cassandraResourceUtilization.throttlingOptions.setThreadpoolThresholdNativeTransport(VERY_LARGE_THREADPOOL_PENDING_TASKS);
+        cassandraResourceUtilization.checkSignals();
+        Assert.assertFalse(cassandraResourceUtilization.shouldThrottle);
     }
 
     @Test
@@ -861,11 +902,6 @@ public class CassandraResourceUtilizationTest extends CQLTester
         Assert.assertEquals(0, cassandraResourceUtilization.throttlingMetrics.needsThrottling.getCount());
         Assert.assertFalse(cassandraResourceUtilization.shouldThrottle);
         cassandraResourceUtilization.throttlingOptions.setCpuThresholdOneMinute(0);
-        ResourcesStats resourcesStats = cassandraResourceUtilization.resourcesStats;
-        resourcesStats.setCpuUtil1(cassandraResourceUtilization.throttlingOptions.getCpuThresholdCur() + 1);
-        resourcesStats.setCpuUtil2(cassandraResourceUtilization.throttlingOptions.getCpuThresholdCur() + 1);
-        resourcesStats.setPendingReads(cassandraResourceUtilization.throttlingOptions.getPendingReadsThresholdCur() + 1);
-        resourcesStats.setPendingMutations(cassandraResourceUtilization.throttlingOptions.getPendingMutationsThresholdCur() + 1);
         cassandraResourceUtilization.checkSignals();
         Assert.assertTrue(cassandraResourceUtilization.shouldThrottle);
 
@@ -1041,13 +1077,9 @@ public class CassandraResourceUtilizationTest extends CQLTester
         Assert.assertEquals(0, cassandraResourceUtilization.throttlingMetrics.needsThrottling.getCount());
         Assert.assertFalse(cassandraResourceUtilization.shouldThrottle);
         cassandraResourceUtilization.throttlingOptions.setCpuThresholdOneMinute(0);
-        ResourcesStats resourcesStats = cassandraResourceUtilization.resourcesStats;
-        resourcesStats.setCpuUtil1(cassandraResourceUtilization.throttlingOptions.getCpuThresholdCur() + 1);
-        resourcesStats.setCpuUtil2(cassandraResourceUtilization.throttlingOptions.getCpuThresholdCur() + 1);
-        cassandraResourceUtilization.throttlingOptions.setPendingReadsThresholdCur(10);
-        cassandraResourceUtilization.throttlingOptions.setPendingMutationsThresholdCur(10);
-        cassandraResourceUtilization.throttlingOptions.setPendingNativeTransportThresholdCur(10);
-        resourcesStats.setPendingReads(cassandraResourceUtilization.throttlingOptions.getPendingReadsThresholdCur() + 1);
+        cassandraResourceUtilization.throttlingOptions.setPendingReadsThresholdOneMinute(0);
+        cassandraResourceUtilization.throttlingOptions.setPendingMutationsThresholdOneMinute(10);
+        cassandraResourceUtilization.throttlingOptions.setPendingNativeTransportThresholdOneMinute(10);
         cassandraResourceUtilization.checkSignals();
         Assert.assertTrue(cassandraResourceUtilization.shouldThrottle);
     }
@@ -1060,13 +1092,9 @@ public class CassandraResourceUtilizationTest extends CQLTester
         Assert.assertEquals(0, cassandraResourceUtilization.throttlingMetrics.needsThrottling.getCount());
         Assert.assertFalse(cassandraResourceUtilization.shouldThrottle);
         cassandraResourceUtilization.throttlingOptions.setCpuThresholdOneMinute(0);
-        ResourcesStats resourcesStats = cassandraResourceUtilization.resourcesStats;
-        resourcesStats.setCpuUtil1(cassandraResourceUtilization.throttlingOptions.getCpuThresholdCur() + 1);
-        resourcesStats.setCpuUtil2(cassandraResourceUtilization.throttlingOptions.getCpuThresholdCur() + 1);
-        cassandraResourceUtilization.throttlingOptions.setPendingReadsThresholdCur(10);
-        cassandraResourceUtilization.throttlingOptions.setPendingMutationsThresholdCur(10);
-        cassandraResourceUtilization.throttlingOptions.setPendingNativeTransportThresholdCur(10);
-        resourcesStats.setPendingMutations(cassandraResourceUtilization.throttlingOptions.getPendingMutationsThresholdCur() + 1);
+        cassandraResourceUtilization.throttlingOptions.setPendingReadsThresholdOneMinute(10);
+        cassandraResourceUtilization.throttlingOptions.setPendingMutationsThresholdOneMinute(0);
+        cassandraResourceUtilization.throttlingOptions.setPendingNativeTransportThresholdOneMinute(10);
         cassandraResourceUtilization.checkSignals();
         Assert.assertTrue(cassandraResourceUtilization.shouldThrottle);
     }
@@ -1079,13 +1107,9 @@ public class CassandraResourceUtilizationTest extends CQLTester
         Assert.assertEquals(0, cassandraResourceUtilization.throttlingMetrics.needsThrottling.getCount());
         Assert.assertFalse(cassandraResourceUtilization.shouldThrottle);
         cassandraResourceUtilization.throttlingOptions.setCpuThresholdOneMinute(0);
-        ResourcesStats resourcesStats = cassandraResourceUtilization.resourcesStats;
-        resourcesStats.setCpuUtil1(cassandraResourceUtilization.throttlingOptions.getCpuThresholdCur() + 1);
-        resourcesStats.setCpuUtil2(cassandraResourceUtilization.throttlingOptions.getCpuThresholdCur() + 1);
-        cassandraResourceUtilization.throttlingOptions.setPendingReadsThresholdCur(10);
-        cassandraResourceUtilization.throttlingOptions.setPendingMutationsThresholdCur(10);
-        cassandraResourceUtilization.throttlingOptions.setPendingNativeTransportThresholdCur(10);
-        resourcesStats.setPendingNativeTransport(cassandraResourceUtilization.throttlingOptions.getPendingNativeTransportThresholdCur() + 1);
+        cassandraResourceUtilization.throttlingOptions.setPendingReadsThresholdOneMinute(10);
+        cassandraResourceUtilization.throttlingOptions.setPendingMutationsThresholdOneMinute(10);
+        cassandraResourceUtilization.throttlingOptions.setPendingNativeTransportThresholdOneMinute(0);
         cassandraResourceUtilization.checkSignals();
         Assert.assertTrue(cassandraResourceUtilization.shouldThrottle);
     }
@@ -1294,11 +1318,6 @@ public class CassandraResourceUtilizationTest extends CQLTester
         Assert.assertEquals(0, cassandraResourceUtilization.throttlingMetrics.needsThrottling.getCount());
         Assert.assertFalse(cassandraResourceUtilization.shouldThrottle);
         cassandraResourceUtilization.throttlingOptions.setCpuThresholdOneMinute(0);
-        ResourcesStats resourcesStats = cassandraResourceUtilization.resourcesStats;
-        resourcesStats.setCpuUtil1(cassandraResourceUtilization.throttlingOptions.getCpuThresholdCur() + 1);
-        resourcesStats.setCpuUtil2(cassandraResourceUtilization.throttlingOptions.getCpuThresholdCur() + 1);
-        resourcesStats.setPendingReads(cassandraResourceUtilization.throttlingOptions.getPendingReadsThresholdCur() + 1);
-        resourcesStats.setPendingMutations(cassandraResourceUtilization.throttlingOptions.getPendingMutationsThresholdCur() + 1);
         cassandraResourceUtilization.checkSignals();
         Assert.assertTrue(cassandraResourceUtilization.shouldThrottle);
         cassandraResourceUtilization.currentThrottlingPercentage = 1.0;
@@ -1367,12 +1386,6 @@ public class CassandraResourceUtilizationTest extends CQLTester
         resetCounter(cassandraResourceUtilization.throttlingMetrics.disableReadReplicaTrafficThrottling);
         resetCounter(cassandraResourceUtilization.throttlingMetrics.disableMutationReplicaTrafficThrottling);
 
-        resetCounter(cassandraResourceUtilization.throttlingMetrics.needsThrottling);
-        resetCounter(cassandraResourceUtilization.throttlingMetrics.doesNotNeedThrottling);
-        resetCounter(cassandraResourceUtilization.throttlingMetrics.resetThrottling);
-        resetCounter(cassandraResourceUtilization.throttlingMetrics.increaseThrottling);
-        resetCounter(cassandraResourceUtilization.throttlingMetrics.disableThrottling);
-
         KeyspaceThrottlingMetrics userKSMetrics = KeyspaceThrottlingMetricsManager.getMetrics(KEYSPACE_THROTTLE);
         resetCounter(userKSMetrics.addKSForReadThrottling);
         resetCounter(userKSMetrics.addKSForRangeThrottling);
@@ -1427,14 +1440,18 @@ public class CassandraResourceUtilizationTest extends CQLTester
 
     private void resetThrottlingOption(ThrottlingOptions throttlingOptions) {
         throttlingOptions.enabled = true;
-        throttlingOptions.cpu_threshold_cur = 35;
+
+        // for checking CPU signals
         throttlingOptions.cpu_threshold_one_minute = 80;
-        throttlingOptions.pending_reads_threshold_cur = 0;
         throttlingOptions.pending_reads_threshold_one_minute = 0;
-        throttlingOptions.pending_mutations_threshold_cur = 0;
         throttlingOptions.pending_mutations_threshold_one_minute = 0;
-        throttlingOptions.pending_native_transport_threshold_cur = 0;
         throttlingOptions.pending_native_transport_threshold_one_minute = 0;
+
+        // for checking threadpool signals
+        throttlingOptions.threadpool_threshold_reads = VERY_LARGE_THREADPOOL_PENDING_TASKS;
+        throttlingOptions.threadpool_threshold_writes = VERY_LARGE_THREADPOOL_PENDING_TASKS;
+        throttlingOptions.threadpool_threshold_native_transport = VERY_LARGE_THREADPOOL_PENDING_TASKS;
+
         throttlingOptions.percentage_of_traffic_to_throttling = 0.1;
         throttlingOptions.more_aggressive_throttling_after_in_sec = 1 * 60; // 1 minutes
         throttlingOptions.reset_after_no_throttling_seen_in_sec = 15 * 60; // 15 minutes

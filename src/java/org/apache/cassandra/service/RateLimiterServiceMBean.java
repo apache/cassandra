@@ -30,19 +30,9 @@ public interface RateLimiterServiceMBean
     public void setEnabled(boolean enabled);
 
     /**
-     * Set cpu_threshold_cur
-     */
-    public void setCpuThresholdCur(long cpuThresholdCur);
-
-    /**
      * Set cpu_threshold_one_minute
      */
     public void setCpuThresholdOneMinute(long cpuThresholdOneMinute);
-
-    /**
-     * Set pending_reads_threshold_cur
-     */
-    public void setPendingReadsThresholdCur(int pendingReadsThresholdCur);
 
     /**
      * Set pending_reads_threshold_one_minute
@@ -50,24 +40,29 @@ public interface RateLimiterServiceMBean
     public void setPendingReadsThresholdOneMinute(int pendingReadsThresholdOneMinute);
 
     /**
-     * Set pending_mutations_threshold_cur
-     */
-    public void setPendingMutationsThresholdCur(int pendingMutationsThresholdCur);
-
-    /**
      * Set pending_mutations_threshold_one_minute
      */
     public void setPendingMutationsThresholdOneMinute(int pendingMutationsThresholdOneMinute);
 
     /**
-     * Set pending_native_transport_threshold_cur
-     */
-    public void setPendingNativeTransportThresholdCur(int pendingNativeTransportThresholdCur);
-
-    /**
      * Set pending_native_transport_threshold_one_minute
      */
     public void setPendingNativeTransportThresholdOneMinute(int pendingNativeTransportThresholdOneMinute);
+
+    /**
+     * Set threadpool_threshold_reads
+     */
+    public void setThreadpoolThresholdReads(long threadpoolThresholdReads);
+
+    /**
+     * Set threadpool_threshold_writes
+     */
+    public void setThreadpoolThresholdWrites(long threadpoolThresholdWrites);
+
+    /**
+     * Set threadpool_threshold_native_transport
+     */
+    public void setThreadpoolThresholdNativeTransport(long threadpoolThresholdNativeTransport);
 
     /**
      * Set percentage_of_traffic_to_throttling

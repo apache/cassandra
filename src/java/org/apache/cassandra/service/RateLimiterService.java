@@ -69,21 +69,9 @@ public class RateLimiterService implements RateLimiterServiceMBean {
     }
 
     @Override
-    public void setCpuThresholdCur(long cpuThresholdCur)
-    {
-        this.throttlingOptions.setCpuThresholdCur(cpuThresholdCur);
-    }
-
-    @Override
     public void setCpuThresholdOneMinute(long cpuThresholdOneMinute)
     {
         this.throttlingOptions.setCpuThresholdOneMinute(cpuThresholdOneMinute);
-    }
-
-    @Override
-    public void setPendingReadsThresholdCur(int pendingReadsThresholdCur)
-    {
-        this.throttlingOptions.setPendingReadsThresholdCur(pendingReadsThresholdCur);
     }
 
     @Override
@@ -93,27 +81,33 @@ public class RateLimiterService implements RateLimiterServiceMBean {
     }
 
     @Override
-    public void setPendingMutationsThresholdCur(int pendingMutationsThresholdCur)
-    {
-        this.throttlingOptions.setPendingMutationsThresholdCur(pendingMutationsThresholdCur);
-    }
-
-    @Override
     public void setPendingMutationsThresholdOneMinute(int pendingMutationsThresholdOneMinute)
     {
         this.throttlingOptions.setPendingMutationsThresholdOneMinute(pendingMutationsThresholdOneMinute);
     }
 
     @Override
-    public void setPendingNativeTransportThresholdCur(int pendingNativeTransportThresholdCur)
-    {
-        this.throttlingOptions.setPendingNativeTransportThresholdCur(pendingNativeTransportThresholdCur);
-    }
-
-    @Override
     public void setPendingNativeTransportThresholdOneMinute(int pendingNativeTransportThresholdOneMinute)
     {
         this.throttlingOptions.setPendingNativeTransportThresholdOneMinute(pendingNativeTransportThresholdOneMinute);
+    }
+
+    @Override
+    public void setThreadpoolThresholdReads(long threadpoolThresholdReads)
+    {
+        this.throttlingOptions.setThreadpoolThresholdReads(threadpoolThresholdReads);
+    }
+
+    @Override
+    public void setThreadpoolThresholdWrites(long threadpoolThresholdWrites)
+    {
+        this.throttlingOptions.setThreadpoolThresholdWrites(threadpoolThresholdWrites);
+    }
+
+    @Override
+    public void setThreadpoolThresholdNativeTransport(long threadpoolThresholdNativeTransport)
+    {
+        this.throttlingOptions.setThreadpoolThresholdNativeTransport(threadpoolThresholdNativeTransport);
     }
 
     @Override

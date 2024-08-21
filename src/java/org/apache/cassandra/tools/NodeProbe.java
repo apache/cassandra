@@ -2401,20 +2401,10 @@ public class NodeProbe implements AutoCloseable
     {
         rateLimiterProxy.setEnabled(enabled);
     }
-    
-    public void setThrottlingOptionsCpuThresholdCur(long cpuThresholdCur)
-    {
-        rateLimiterProxy.setCpuThresholdCur(cpuThresholdCur);
-    }
 
     public void setThrottlingOptionsCpuThresholdOneMinute(long cpuThresholdOneMinute)
     {
         rateLimiterProxy.setCpuThresholdOneMinute(cpuThresholdOneMinute);
-    }
-
-    public void setThrottlingOptionsPendingReadsThresholdCur(int pendingReadsThresholdCur)
-    {
-        rateLimiterProxy.setPendingReadsThresholdCur(pendingReadsThresholdCur);
     }
 
     public void setThrottlingOptionsPendingReadsThresholdOneMinute(int pendingReadsThresholdOneMinute)
@@ -2422,19 +2412,24 @@ public class NodeProbe implements AutoCloseable
         rateLimiterProxy.setPendingReadsThresholdOneMinute(pendingReadsThresholdOneMinute);
     }
 
-    public void setThrottlingOptionsPendingMutationsThresholdCur(int pendingMutationsThresholdCur)
-    {
-        rateLimiterProxy.setPendingMutationsThresholdCur(pendingMutationsThresholdCur);
-    }
-
     public void setThrottlingOptionsPendingMutationsThresholdOneMinute(int pendingMutationsThresholdOneMinute)
     {
         rateLimiterProxy.setPendingMutationsThresholdOneMinute(pendingMutationsThresholdOneMinute);
     }
 
-    public void setThrottlingOptionsPendingNativeTransportThresholdCur(int pendingNativeTransportThresholdCur)
+    public void setThreadpoolThresholdReads(long threadpoolThresholdReads)
     {
-        rateLimiterProxy.setPendingNativeTransportThresholdCur(pendingNativeTransportThresholdCur);
+        rateLimiterProxy.setThreadpoolThresholdReads(threadpoolThresholdReads);
+    }
+
+    public void setThreadpoolThresholdWrites(long threadpoolThresholdWrites)
+    {
+        rateLimiterProxy.setThreadpoolThresholdWrites(threadpoolThresholdWrites);
+    }
+
+    public void setThreadpoolThresholdNativeTransport(long threadpoolThresholdNativeTransport)
+    {
+        rateLimiterProxy.setThreadpoolThresholdNativeTransport(threadpoolThresholdNativeTransport);
     }
 
     public void setThrottlingOptionsPendingNativeTransportThresholdOneMinute(int pendingNativeTransportThresholdOneMinute)

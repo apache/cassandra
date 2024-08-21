@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * [SO-33400] Add a new throttling signal check, threadpool based
  * Coordinator read latency metrics are inflated for some queries (CASSANDRA-19755)
  * [SO-33506] Add intial_scheduler_delay_in_seconds option to AutoRepairConfig
  * Unbounded queues in native transport requests lead to node instability (CASSANDRA-19534)

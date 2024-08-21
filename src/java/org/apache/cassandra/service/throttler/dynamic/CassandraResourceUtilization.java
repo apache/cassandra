@@ -214,58 +214,88 @@ public class CassandraResourceUtilization
 
     public void checkSignals()
     {
-        boolean cpuUtilSignal1 = false;
-        if (resourcesStats.getCpuUtil1OneMinute() >= throttlingOptions.getCpuThresholdOneMinute())
-        {
-            cpuUtilSignal1 = true;
-        }
-        boolean cpuUtilSignal2 = false;
-        if (resourcesStats.getCpuUtil2Cur() == -1 || (resourcesStats.getCpuUtil2OneMinute() >= throttlingOptions.getCpuThresholdOneMinute()))
-        {
-            cpuUtilSignal2 = true;
-        }
-        boolean pendingReadsSignal = false;
-        if (resourcesStats.getPendingReadsCur() >= throttlingOptions.getPendingReadsThresholdCur() && resourcesStats.getPendingReadsOneMinute() >= throttlingOptions.getPendingReadsThresholdOneMinute())
-        {
-            pendingReadsSignal = true;
-        }
-        boolean pendingMutationsSignal = false;
-        if (resourcesStats.getPendingMutationsCur() >= throttlingOptions.getPendingMutationsThresholdCur() && resourcesStats.getPendingMutationsOneMinute() >= throttlingOptions.getPendingMutationsThresholdOneMinute())
-        {
-            pendingMutationsSignal = true;
-        }
-        boolean pendingNativeTransportSignal = false;
-        if (resourcesStats.getPendingNativeTransportCur() >= throttlingOptions.getPendingNativeTransportThresholdCur() && resourcesStats.getPendingNativeTransportOneMinute() >= throttlingOptions.getPendingNativeTransportThresholdOneMinute())
-        {
-            pendingNativeTransportSignal = true;
-        }
-        if (cpuUtilSignal1 && cpuUtilSignal2 && (pendingReadsSignal || pendingMutationsSignal || pendingNativeTransportSignal))
+        long cpu1Cur = resourcesStats.getCpuUtil1Cur();
+        long cpu1OneMin = resourcesStats.getCpuUtil1OneMinute();
+        long cpu2Cur = resourcesStats.getCpuUtil2Cur();
+        long cpu2OneMin = resourcesStats.getCpuUtil2OneMinute();
+        int pendingReadsCur = resourcesStats.getPendingReadsCur();
+        long pendingReadsOneMin = resourcesStats.getPendingReadsOneMinute();
+        int pendingWritesCur = resourcesStats.getPendingMutationsCur();
+        long pendingWritesOneMin = resourcesStats.getPendingMutationsOneMinute();
+        int pendingNativeCur = resourcesStats.getPendingNativeTransportCur();
+        long pendingNativeOneMin = resourcesStats.getPendingNativeTransportOneMinute();
+
+        boolean cpuSignals = checkCPUSignals(cpu1OneMin, cpu2Cur, cpu2OneMin, pendingReadsOneMin, pendingWritesOneMin, pendingNativeOneMin);
+        boolean threadPoolSignals = checkThreadpoolSignals(pendingReadsOneMin, pendingWritesOneMin, pendingNativeOneMin);
+
+        if (cpuSignals || threadPoolSignals)
         {
             shouldThrottle = true;
             lastThrottlingIndicatorTimeInMS = System.currentTimeMillis();
             throttlingMetrics.needsThrottling.inc();
-            noSpam1m.info("Enforcing throttling CpuUtil1: {}-{}, CpuUtil2: {}-{}, PendingReads: {}-{}, PendingMutations: {}-{}, PendingNativeTransportSignal: {}-{}, " +
+            noSpam1m.info("Enforcing throttling. CpuSignals: {}, threadPoolSignals: {}, CpuUtil1: {}-{}, CpuUtil2: {}-{}, PendingReads: {}-{}, PendingMutations: {}-{}, PendingNativeTransport: {}-{}, " +
                             "LastThrottlingCheckPointTimeInMS: {}, LastThrottlingIndicatorTimeInMS: {}, CurrentThrottlingPercentage: {}",
-                    resourcesStats.getCpuUtil1Cur(), resourcesStats.getCpuUtil1OneMinute(),
-                    resourcesStats.getCpuUtil2Cur(), resourcesStats.getCpuUtil2OneMinute(),
-                    resourcesStats.getPendingReadsCur(), resourcesStats.getPendingReadsOneMinute(),
-                    resourcesStats.getPendingMutationsCur(), resourcesStats.getPendingMutationsOneMinute(),
-                    resourcesStats.getPendingNativeTransportCur(), resourcesStats.getPendingNativeTransportOneMinute(),
+                    cpuSignals, threadPoolSignals,
+                    cpu1Cur, cpu1OneMin,
+                    cpu2Cur, cpu2OneMin,
+                    pendingReadsCur, pendingReadsOneMin,
+                    pendingWritesCur, pendingWritesOneMin,
+                    pendingNativeCur, pendingNativeOneMin,
                     convertEpochTimeToUTC(lastThrottlingCheckPointTimeInMS), convertEpochTimeToUTC(lastThrottlingIndicatorTimeInMS), currentThrottlingPercentage);
         }
         else
         {
             shouldThrottle = false;
             throttlingMetrics.doesNotNeedThrottling.inc();
-            noSpam1m.info("DO NOT Enforce throttling CpuUtil1: {}-{}-{}, CpuUtil2: {}-{}-{}, PendingReads: {}-{}-{}, PendingMutations: {}-{}-{}, PendingNativeTransportSignal: {}-{}, " +
+            noSpam1m.info("DO NOT enforce throttling. CpuUtil1: {}-{}, CpuUtil2: {}-{}, PendingReads: {}-{}, PendingMutations: {}-{}, PendingNativeTransport: {}-{}, " +
                             "LastThrottlingCheckPointTimeInMS: {}, LastThrottlingIndicatorTimeInMS: {}, CurrentThrottlingPercentage: {}",
-                    cpuUtilSignal1, resourcesStats.getCpuUtil1Cur(), resourcesStats.getCpuUtil1OneMinute(),
-                    cpuUtilSignal2, resourcesStats.getCpuUtil2Cur(), resourcesStats.getCpuUtil2OneMinute(),
-                    pendingReadsSignal, resourcesStats.getPendingReadsCur(), resourcesStats.getPendingReadsOneMinute(),
-                    pendingMutationsSignal, resourcesStats.getPendingMutationsCur(), resourcesStats.getPendingMutationsOneMinute(),
-                    resourcesStats.getPendingNativeTransportCur(), resourcesStats.getPendingNativeTransportOneMinute(),
+                    cpu1Cur, cpu1OneMin,
+                    cpu2Cur, cpu2OneMin,
+                    pendingReadsCur, pendingReadsOneMin,
+                    pendingWritesCur, pendingWritesOneMin,
+                    pendingNativeCur, pendingNativeOneMin,
                     convertEpochTimeToUTC(lastThrottlingCheckPointTimeInMS), convertEpochTimeToUTC(lastThrottlingIndicatorTimeInMS), currentThrottlingPercentage);
         }
+    }
+
+    public boolean checkCPUSignals(long cpu1OneMin, long cpu2Cur, long cpu2OneMin,
+                                   long pendingReadsOneMin, long pendingWritesOneMin, long pendingNativeOneMin)
+    {
+        boolean cpuUtilSignal1 = false;
+        if (cpu1OneMin >= throttlingOptions.getCpuThresholdOneMinute())
+        {
+            cpuUtilSignal1 = true;
+        }
+        boolean cpuUtilSignal2 = false;
+        if (cpu2Cur == -1 || (cpu2OneMin >= throttlingOptions.getCpuThresholdOneMinute()))
+        {
+            cpuUtilSignal2 = true;
+        }
+
+        boolean pendingReadsSignal = false;
+        if (pendingReadsOneMin >= throttlingOptions.getPendingReadsThresholdOneMinute())
+        {
+            pendingReadsSignal = true;
+        }
+        boolean pendingMutationsSignal = false;
+        if (pendingWritesOneMin >= throttlingOptions.getPendingMutationsThresholdOneMinute())
+        {
+            pendingMutationsSignal = true;
+        }
+        boolean pendingNativeTransportSignal = false;
+        if (pendingNativeOneMin >= throttlingOptions.getPendingNativeTransportThresholdOneMinute())
+        {
+            pendingNativeTransportSignal = true;
+        }
+
+        return cpuUtilSignal1 && cpuUtilSignal2 && (pendingReadsSignal || pendingMutationsSignal || pendingNativeTransportSignal);
+    }
+
+    public boolean checkThreadpoolSignals(long pendingReadsOneMin, long pendingWritesOneMin, long pendingNativeOneMin)
+    {
+        return (pendingReadsOneMin >= throttlingOptions.getThreadpoolThresholdReads() ||
+            pendingWritesOneMin >= throttlingOptions.getThreadpoolThresholdWrites() ||
+            pendingNativeOneMin >= throttlingOptions.getThreadpoolThresholdNativeTransport());
     }
 
     public void resetThrottlingParams()

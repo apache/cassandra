@@ -24,16 +24,19 @@ public class ThrottlingOptions
     // TODO: think of the need to declare the following variables a vilotale, given they can be modified by nodetool at runtime
     public boolean enabled = false;
 
-    public long cpu_threshold_cur = 35; //TODO: deprecate it, as it is not at all participating in the throttling algo
+    // for checking CPU signals
     public long cpu_threshold_one_minute = 80;
-    public int pending_reads_threshold_cur = 1;
-    public int pending_reads_threshold_one_minute = 10;
-    public int pending_mutations_threshold_cur = 1;
-    public int pending_mutations_threshold_one_minute = 10;
-    public int pending_native_transport_threshold_cur = 1;
-    public int pending_native_transport_threshold_one_minute = 10;
+    public long pending_reads_threshold_one_minute = 10;
+    public long pending_mutations_threshold_one_minute = 10;
+    public long pending_native_transport_threshold_one_minute = 10;
+
+    // for checking threadpool signals
+    public long threadpool_threshold_reads = 100000; // 100K
+    public long threadpool_threshold_writes = 100000; // 100K
+    public long threadpool_threshold_native_transport = 100000; // 100K
+
     public double percentage_of_traffic_to_throttling = 0.1;
-    public int more_aggressive_throttling_after_in_sec = 1 * 60; // 2 minutes
+    public int more_aggressive_throttling_after_in_sec = 1 * 60; // 1 minutes
     public int reset_after_no_throttling_seen_in_sec = 15 * 60; // 15 minutes
     public double aggressive_throttling_qps_ratio = 5;
     public double aggressive_throttling_latency_ratio = 5;
@@ -64,16 +67,6 @@ public class ThrottlingOptions
         this.enabled = enabled;
     }
 
-    public long getCpuThresholdCur()
-    {
-        return cpu_threshold_cur;
-    }
-
-    public void setCpuThresholdCur(long cpu_threshold_cur)
-    {
-        this.cpu_threshold_cur = cpu_threshold_cur;
-    }
-
     public long getCpuThresholdOneMinute()
     {
         return cpu_threshold_one_minute;
@@ -84,17 +77,7 @@ public class ThrottlingOptions
         this.cpu_threshold_one_minute = cpu_threshold_one_minute;
     }
 
-    public int getPendingReadsThresholdCur()
-    {
-        return pending_reads_threshold_cur;
-    }
-
-    public void setPendingReadsThresholdCur(int pending_reads_threshold_cur)
-    {
-        this.pending_reads_threshold_cur = pending_reads_threshold_cur;
-    }
-
-    public int getPendingReadsThresholdOneMinute()
+    public long getPendingReadsThresholdOneMinute()
     {
         return pending_reads_threshold_one_minute;
     }
@@ -104,17 +87,7 @@ public class ThrottlingOptions
         this.pending_reads_threshold_one_minute = pending_reads_threshold_one_minute;
     }
 
-    public int getPendingMutationsThresholdCur()
-    {
-        return pending_mutations_threshold_cur;
-    }
-
-    public void setPendingMutationsThresholdCur(int pending_mutations_threshold_cur)
-    {
-        this.pending_mutations_threshold_cur = pending_mutations_threshold_cur;
-    }
-
-    public int getPendingMutationsThresholdOneMinute()
+    public long getPendingMutationsThresholdOneMinute()
     {
         return pending_mutations_threshold_one_minute;
     }
@@ -124,17 +97,7 @@ public class ThrottlingOptions
         this.pending_mutations_threshold_one_minute = pending_mutations_threshold_one_minute;
     }
 
-    public int getPendingNativeTransportThresholdCur()
-    {
-        return pending_native_transport_threshold_cur;
-    }
-
-    public void setPendingNativeTransportThresholdCur(int pending_native_transport_threshold_cur)
-    {
-        this.pending_native_transport_threshold_cur = pending_native_transport_threshold_cur;
-    }
-
-    public int getPendingNativeTransportThresholdOneMinute()
+    public long getPendingNativeTransportThresholdOneMinute()
     {
         return pending_native_transport_threshold_one_minute;
     }
@@ -142,6 +105,30 @@ public class ThrottlingOptions
     public void setPendingNativeTransportThresholdOneMinute(int pending_native_transport_threshold_one_minute)
     {
         this.pending_native_transport_threshold_one_minute = pending_native_transport_threshold_one_minute;
+    }
+
+    public long getThreadpoolThresholdReads() {
+        return threadpool_threshold_reads;
+    }
+
+    public void setThreadpoolThresholdReads(long threadpoolThresholdReads) {
+        threadpool_threshold_reads = threadpoolThresholdReads;
+    }
+
+    public long getThreadpoolThresholdWrites() {
+        return threadpool_threshold_writes;
+    }
+
+    public void setThreadpoolThresholdWrites(long threadpoolThresholdWrites) {
+        threadpool_threshold_writes = threadpoolThresholdWrites;
+    }
+
+    public long getThreadpoolThresholdNativeTransport() {
+        return threadpool_threshold_native_transport;
+    }
+
+    public void setThreadpoolThresholdNativeTransport(long threadpoolThresholdNativeTransport) {
+        threadpool_threshold_native_transport = threadpoolThresholdNativeTransport;
     }
 
     public double getPercentageOfTrafficToThrottling()
@@ -308,14 +295,13 @@ public class ThrottlingOptions
     public String toString()
     {
         return "enabled: " + enabled + '\n' +
-               "current CPU threshold: " + cpu_threshold_cur + '\n' +
                "one minute CPU threshold: " + cpu_threshold_one_minute + '\n' +
-               "current pending reads threshold: " + pending_reads_threshold_cur + '\n' +
                "one minute pending reads threshold: " + pending_reads_threshold_one_minute + '\n' +
-               "current pending mutations threshold: " + pending_mutations_threshold_cur + '\n' +
                "one minute pending mutations threshold: " + pending_mutations_threshold_one_minute + '\n' +
-               "current pending native transport threshold: " + pending_native_transport_threshold_cur + '\n' +
                "one minute pending native transport threshold: " + pending_native_transport_threshold_one_minute + '\n' +
+               "threadpool pending task threshold for reads: " + threadpool_threshold_reads + '\n' +
+               "threadpool pending task threshold for writes: " + threadpool_threshold_writes + '\n' +
+               "threadpool pending task threshold for native transport: " + threadpool_threshold_native_transport + '\n' +
                "percentage of traffic to throttle: " + percentage_of_traffic_to_throttling + '\n' +
                "more aggressive throttling after in seconds: " + more_aggressive_throttling_after_in_sec + '\n' +
                "reset after no throttling seen in seconds: " + reset_after_no_throttling_seen_in_sec + '\n' +

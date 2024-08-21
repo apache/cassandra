@@ -32,10 +32,9 @@ public class SetRateLimiterConfig extends NodeTool.NodeToolCmd
 {
     @Arguments(title = "<ratelimiterparam> <value>", usage = "<ratelimiterparam> <value>",
             description = "ratelimiter param and value.\nPossible ratelimiter parameters are as following: " +
-                    "[enabled|cputhresholdcur|cputhresholdoneminute|" +
-                    "pendingreadsthresholdcur|pendingreadsthresholdoneminute|" +
-                    "pendingmutationsthresholdcur|pendingmutationsthresholdoneminute|" +
-                    "pendingnativetransportthresholdcur|pendingnativetransportthresholdoneminute|" +
+                    "[enabled|" +
+                    "cputhresholdoneminute|pendingreadsthresholdoneminute|pendingmutationsthresholdoneminute|pendingnativetransportthresholdoneminute|" +
+                    "threadpoolthresholdreads|threadpoolthresholdwrites|threadpoolthresholdnativetransport|" +
                     "percentageoftraffictothrottling|moreaggressivethrottlingafterinsec|" +
                     "resetafternothrottlingseeninsec|aggressivethrottlingqpsratio|aggressivethrottlinglatencyratio|" +
                     "ignoretablesregex|throttlereadreplicatraffic|throttlemutationreplicatraffic|" +
@@ -64,37 +63,33 @@ public class SetRateLimiterConfig extends NodeTool.NodeToolCmd
 
             probe.setThrottlingOptionsEnabled(enabled);
         }
-        else if (paramType.equals("cputhresholdcur"))
-        {
-            probe.setThrottlingOptionsCpuThresholdCur(Long.parseLong(paramVal));
-        }
         else if (paramType.equals("cputhresholdoneminute"))
         {
             probe.setThrottlingOptionsCpuThresholdOneMinute(Long.parseLong(paramVal));
-        }
-        else if (paramType.equals("pendingreadsthresholdcur"))
-        {
-            probe.setThrottlingOptionsPendingReadsThresholdCur(Integer.parseInt(paramVal));
         }
         else if (paramType.equals("pendingreadsthresholdoneminute"))
         {
             probe.setThrottlingOptionsPendingReadsThresholdOneMinute(Integer.parseInt(paramVal));
         }
-        else if (paramType.equals("pendingmutationsthresholdcur"))
-        {
-            probe.setThrottlingOptionsPendingMutationsThresholdCur(Integer.parseInt(paramVal));
-        }
         else if (paramType.equals("pendingmutationsthresholdoneminute"))
         {
             probe.setThrottlingOptionsPendingMutationsThresholdOneMinute(Integer.parseInt(paramVal));
         }
-        else if (paramType.equals("pendingnativetransportthresholdcur"))
-        {
-            probe.setThrottlingOptionsPendingNativeTransportThresholdCur(Integer.parseInt(paramVal));
-        }
         else if (paramType.equals("pendingnativetransportthresholdoneminute"))
         {
             probe.setThrottlingOptionsPendingNativeTransportThresholdOneMinute(Integer.parseInt(paramVal));
+        }
+        else if (paramType.equals("threadpoolthresholdreads"))
+        {
+            probe.setThreadpoolThresholdReads(Long.parseLong(paramVal));
+        }
+        else if (paramType.equals("threadpoolthresholdwrites"))
+        {
+            probe.setThreadpoolThresholdWrites(Long.parseLong(paramVal));
+        }
+        else if (paramType.equals("threadpoolthresholdnativetransport"))
+        {
+            probe.setThreadpoolThresholdNativeTransport(Long.parseLong(paramVal));
         }
         else if (paramType.equals("percentageoftraffictothrottling"))
         {
