@@ -688,12 +688,28 @@ public class SnapshotManager implements SnapshotManagerMBean, AutoCloseable
     {
         boolean skipExpiring = options != null && Boolean.parseBoolean(options.getOrDefault("no_ttl", "false"));
         boolean includeEphemeral = options != null && Boolean.parseBoolean(options.getOrDefault("include_ephemeral", "false"));
+        String selectedKeyspace = options != null ? options.get("keyspace") : null;
+        String selectedTable = options != null ? options.get("table") : null;
 
         Map<String, TabularData> snapshotMap = new HashMap<>();
 
         Set<String> tags = new HashSet<>();
 
-        List<TableSnapshot> snapshots = SnapshotManager.instance.getSnapshots(skipExpiring, includeEphemeral);
+        List<TableSnapshot> snapshots = SnapshotManager.instance.getSnapshots(s -> {
+            if (skipExpiring && s.isExpiring())
+                return false;
+
+            if (!includeEphemeral && s.isEphemeral())
+                return false;
+
+            if (selectedKeyspace != null && !s.getKeyspaceName().equals(selectedKeyspace))
+                return false;
+
+            if (selectedTable != null && !s.getTableName().equals(selectedTable))
+                return false;
+
+            return true;
+        });
 
         for (TableSnapshot t : snapshots)
             tags.add(t.getTag());
