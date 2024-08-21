@@ -453,6 +453,16 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
                                      }
                                  })
                                  .start();
+                cluster.setUncaughtExceptionsFilter((nodeId, cause) -> {
+                    if (cause.getMessage() != null)
+                    {
+                        // Node /127.0.0.1:7012 is not a member of CMS anymore in Epoch{epoch=47}; members=[/127.0.0.2:7012, /127.0.0.3:7012, /127.0.0.4:7012]
+                        // if a snapshot is scheduled while the node is a CMS member, but it looses membership *before* the commit can happen, then this error happens...
+                        // This error blocks a non-member from voting, so is correct behavior and shouldn't fail the test
+                        if (cause.getMessage().contains("is not a member of CMS anymore in Epoch")) return true;
+                    }
+                    return false;
+                });
             }
             catch (IOException e)
             {
