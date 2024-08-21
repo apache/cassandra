@@ -189,7 +189,7 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
         }
     }
 
-    public final void expired()
+    protected final void logFailureOrTimeoutToIdealCLDelegate()
     {
         //Tracking ideal CL was not configured
         if (idealCLDelegate == null)
@@ -207,6 +207,11 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
             //Have the delegate track the expired response
             idealCLDelegate.decrementResponseOrExpired();
         }
+    }
+
+    public final void expired()
+    {
+        logFailureOrTimeoutToIdealCLDelegate();
     }
 
     /**
@@ -259,9 +264,13 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
     {
         //The ideal CL should only count as a strike if the requested CL was achieved.
         //If the requested CL is not achieved it's fine for the ideal CL to also not be achieved.
-        if (idealCLDelegate != null)
+        if (idealCLDelegate != null && blockFor() + failures <= candidateReplicaCount())
         {
             idealCLDelegate.requestedCLAchieved = true;
+            if (idealCLDelegate == this)
+            {
+                replicaPlan.keyspace().metric.idealCLWriteLatency.addNano(nanoTime() - requestTime.startedAtNanos());
+            }
         }
 
         condition.signalAll();
@@ -279,6 +288,8 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
                 : failures;
 
         failureReasonByEndpoint.put(from, failureReason);
+
+        logFailureOrTimeoutToIdealCLDelegate();
 
         if (blockFor() + n > candidateReplicaCount())
             signal();
@@ -308,10 +319,6 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
             if (!condition.isSignalled() && requestedCLAchieved)
             {
                 replicaPlan.keyspace().metric.writeFailedIdealCL.inc();
-            }
-            else
-            {
-                replicaPlan.keyspace().metric.idealCLWriteLatency.addNano(nanoTime() - requestTime.startedAtNanos());
             }
         }
     }
