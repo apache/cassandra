@@ -1,4 +1,5 @@
 4.0.14
+ * Fix latency reported by ideal consistency level monitoring (CASSANDRA-19651)
  * Use default commitlog settings in test YAMLs (CASSANDRA-19830)
  * Do not spam log with SSLExceptions (CASSANDRA-18839)
  * Fix schema.cql created by a snapshot after dropping more than one column (CASSANDRA-19747)
