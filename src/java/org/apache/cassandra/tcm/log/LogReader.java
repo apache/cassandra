@@ -61,6 +61,11 @@ public interface LogReader
      */
     default LogState getLogState(Epoch startEpoch)
     {
+        return getLogState(startEpoch, true);
+    }
+
+    default LogState getLogState(Epoch startEpoch, boolean allowSnapshots)
+    {
         try
         {
             EntryHolder entries = null;
@@ -69,11 +74,13 @@ public interface LogReader
 
             // If there is at most 1 snapshot with an epoch > startEpoch, we prefer to skip that snapshot and just build a
             // list of consecutive entries
-            if (snapshotEpochs.size() <= 1)
+            if (snapshotEpochs.size() <= 1 || !allowSnapshots)
             {
                 entries = getEntries(startEpoch);
                 if (entries.isContinuous())
                     return new LogState(null, entries.immutable());
+                else if (!allowSnapshots)
+                    throw new IllegalStateException("Can't construct a continious log since " + startEpoch + " and we don't allow snapshots");
                 // Gaps in a persisted log are never expected, but we have not been able to construct a continuous
                 // sequence of all entries between startEpoch and the current epoch, so fall back to the general case.
             }
