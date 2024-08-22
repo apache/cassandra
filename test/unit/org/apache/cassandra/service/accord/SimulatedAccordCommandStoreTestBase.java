@@ -145,18 +145,6 @@ public abstract class SimulatedAccordCommandStoreTestBase extends CQLTester
         }
     }
 
-    protected static void safeBlock(List<AsyncResult<?>> asyncs, List<?> details) throws InterruptedException, ExecutionException
-    {
-        int counter = 0;
-        for (var chain : asyncs)
-        {
-            Assertions.assertThat(chain.isDone())
-                      .describedAs("The %dth async task %s is blocked!", counter, details.get(counter++))
-                      .isTrue();
-            AsyncChains.getBlocking(chain);
-        }
-    }
-
     protected static TokenRange fullRange(TableId id)
     {
         return new TokenRange(AccordRoutingKey.SentinelKey.min(id), AccordRoutingKey.SentinelKey.max(id));
@@ -209,14 +197,6 @@ public abstract class SimulatedAccordCommandStoreTestBase extends CQLTester
         AsyncChains.getBlocking(pair.right);
 
         return pair.left;
-    }
-
-    protected static Pair<TxnId, AsyncResult<?>> assertDepsMessageAsync(SimulatedAccordCommandStore instance,
-                                                                        DepsMessage messageType,
-                                                                        Txn txn, FullRoute<?> route,
-                                                                        Map<Key, List<TxnId>> keyConflicts)
-    {
-        return assertDepsMessageAsync(instance, messageType, txn, route, keyConflicts, Collections.emptyMap());
     }
 
     protected static Pair<TxnId, AsyncResult<?>> assertDepsMessageAsync(SimulatedAccordCommandStore instance,
