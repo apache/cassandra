@@ -56,7 +56,12 @@ public abstract class AbstractLocalProcessor implements Processor
         {
             ClusterMetadata previous = log.waitForHighestConsecutive();
             if (!previous.fullCMSMembers().contains(FBUtilities.getBroadcastAddressAndPort()))
-                throw new IllegalStateException("Node is not a member of CMS anymore");
+            {
+                String msg = String.format("Node %s is not a member of CMS anymore in %s members=%s", FBUtilities.getBroadcastAddressAndPort(), previous.epoch, previous.fullCMSMembers());
+                logger.warn(msg);
+                throw new NotCMSException(msg);
+            }
+
             Transformation.Result result;
             if (!CassandraRelevantProperties.TCM_ALLOW_TRANSFORMATIONS_DURING_UPGRADES.getBoolean() &&
                 !transform.allowDuringUpgrades() &&
