@@ -66,20 +66,20 @@ public final class Descriptor implements Comparable<Descriptor>
     static final int CURRENT_JOURNAL_VERSION = JOURNAL_VERSION_1;
 
     final File directory;
-    final long timestamp;
-    final int generation;
+    public final long timestamp;
+    public final int generation;
 
     /**
      * Serialization version for journal components; bumped as journal
      * implementation evolves over time.
      */
-    final int journalVersion;
+    public final int journalVersion;
 
     /**
      * Serialization version for user content - specifically journal keys
      * and journal values; bumped when user logic evolves.
      */
-    final int userVersion;
+    public final int userVersion;
 
     Descriptor(File directory, long timestamp, int generation, int journalVersion, int userVersion)
     {
@@ -112,11 +112,6 @@ public final class Descriptor implements Comparable<Descriptor>
     static Descriptor fromFile(File file)
     {
         return fromName(file.parent(), file.name());
-    }
-
-    Descriptor withIncrementedGeneration()
-    {
-        return new Descriptor(directory, timestamp, generation + 1, journalVersion, userVersion);
     }
 
     File fileFor(Component component)

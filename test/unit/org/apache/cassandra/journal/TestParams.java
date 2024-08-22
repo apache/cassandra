@@ -42,6 +42,18 @@ public class TestParams implements Params
     }
 
     @Override
+    public boolean enableCompaction()
+    {
+        return false;
+    }
+
+    @Override
+    public int compactionPeriodMillis()
+    {
+        return 60_000;
+    }
+
+    @Override
     public int flushPeriodMillis()
     {
         return 1000;

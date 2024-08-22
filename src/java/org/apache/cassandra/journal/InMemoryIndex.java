@@ -131,14 +131,14 @@ final class InMemoryIndex<K> extends Index<K>
     {
         InMemoryIndex<K> index = new InMemoryIndex<>(keySupport, new TreeMap<>(keySupport));
 
-        try (StaticSegment.SequentialReader<K> reader = StaticSegment.reader(descriptor, keySupport, fsyncedLimit))
+        try (StaticSegment.SequentialReader<K> reader = StaticSegment.sequentialReader(descriptor, keySupport, fsyncedLimit))
         {
             int last = -1;
             while (reader.advance())
             {
                 int current = reader.offset();
                 if (last >= 0)
-                    index.update(reader.id(), last, current);
+                    index.update(reader.key(), last, current);
                 last = current;
             }
 

@@ -31,7 +31,7 @@ import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
 
-public class AccordJournalTest extends TestBaseImpl
+public class AccordJournalIntegrationTest extends TestBaseImpl
 {
     @Test
     public void saveLoadSanityCheck() throws Throwable

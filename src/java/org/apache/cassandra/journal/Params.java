@@ -38,6 +38,10 @@ public interface Params
      */
     FlushMode flushMode();
 
+    boolean enableCompaction();
+
+    int compactionPeriodMillis();
+
     /**
      * @return milliseconds between journal flushes
      */

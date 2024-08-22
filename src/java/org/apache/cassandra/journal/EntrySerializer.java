@@ -35,7 +35,7 @@ import static org.apache.cassandra.utils.FBUtilities.updateChecksum;
 import static org.apache.cassandra.utils.FBUtilities.updateChecksumInt;
 import static org.apache.cassandra.utils.FBUtilities.updateChecksumShort;
 
-final class EntrySerializer
+public final class EntrySerializer
 {
     static <K> void write(K key,
                           ByteBuffer record,
@@ -73,14 +73,14 @@ final class EntrySerializer
 
     static <K> void read(EntryHolder<K> into,
                          KeySupport<K> keySupport,
-                         ByteBuffer buffer,
+                         ByteBuffer from,
                          int userVersion)
     throws IOException
     {
         CRC32 crc = Crc.crc32();
         into.clear();
 
-        try (DataInputBuffer in = new DataInputBuffer(buffer, false))
+        try (DataInputBuffer in = new DataInputBuffer(from, false))
         {
             K key = keySupport.deserialize(in, userVersion);
             keySupport.updateChecksum(crc, key, userVersion);
@@ -101,9 +101,11 @@ final class EntrySerializer
                 into.hosts.add(hostId);
             }
 
+            // TODO: try to avoid allocating another buffer here
             ByteBuffer entry = ByteBufferUtil.read(in, entrySize);
             updateChecksum(crc, entry);
             into.value = entry;
+            into.userVersion = userVersion;
 
             validateCRC(crc, in.readInt());
         }
@@ -111,7 +113,7 @@ final class EntrySerializer
 
     static <K> boolean tryRead(EntryHolder<K> into,
                                KeySupport<K> keySupport,
-                               ByteBuffer buffer,
+                               ByteBuffer from,
                                DataInputBuffer in,
                                int syncedOffset,
                                int userVersion)
@@ -121,11 +123,11 @@ final class EntrySerializer
         into.clear();
 
         int fixedSize = EntrySerializer.fixedEntrySize(keySupport, userVersion);
-        if (buffer.remaining() < fixedSize)
-            return handleReadException(new EOFException(), buffer.limit(), syncedOffset);
+        if (from.remaining() < fixedSize)
+            return handleReadException(new EOFException(), from.limit(), syncedOffset);
 
-        updateChecksum(crc, buffer, buffer.position(), fixedSize - TypeSizes.INT_SIZE);
-        int fixedCrc = buffer.getInt(buffer.position() + fixedSize - TypeSizes.INT_SIZE);
+        updateChecksum(crc, from, from.position(), fixedSize - TypeSizes.INT_SIZE);
+        int fixedCrc = from.getInt(from.position() + fixedSize - TypeSizes.INT_SIZE);
 
         try
         {
@@ -133,7 +135,7 @@ final class EntrySerializer
         }
         catch (IOException e)
         {
-            return handleReadException(e, buffer.position() + fixedSize, syncedOffset);
+            return handleReadException(e, from.position() + fixedSize, syncedOffset);
         }
 
         int hostCount, recordSize;
@@ -150,11 +152,11 @@ final class EntrySerializer
         }
 
         int variableSize = EntrySerializer.variableEntrySize(hostCount, recordSize);
-        if (buffer.remaining() < variableSize)
-            return handleReadException(new EOFException(), buffer.limit(), syncedOffset);
+        if (from.remaining() < variableSize)
+            return handleReadException(new EOFException(), from.limit(), syncedOffset);
 
-        updateChecksum(crc, buffer, buffer.position(), variableSize - TypeSizes.INT_SIZE);
-        int variableCrc = buffer.getInt(buffer.position() + variableSize - TypeSizes.INT_SIZE);
+        updateChecksum(crc, from, from.position(), variableSize - TypeSizes.INT_SIZE);
+        int variableCrc = from.getInt(from.position() + variableSize - TypeSizes.INT_SIZE);
 
         try
         {
@@ -162,7 +164,7 @@ final class EntrySerializer
         }
         catch (IOException e)
         {
-            return handleReadException(e, buffer.position() + variableSize, syncedOffset);
+            return handleReadException(e, from.position() + variableSize, syncedOffset);
         }
 
         for (int i = 0; i < hostCount; i++)
@@ -179,9 +181,10 @@ final class EntrySerializer
             throw new AssertionError(); // can't happen
         }
 
-        into.value = buffer.duplicate()
-                           .position(buffer.position() - recordSize)
-                           .limit(buffer.position());
+        into.value = from.duplicate()
+                         .position(from.position() - recordSize)
+                         .limit(from.position());
+        into.userVersion = userVersion;
 
         in.skipBytesFully(TypeSizes.INT_SIZE);
         return true;
@@ -210,13 +213,15 @@ final class EntrySerializer
              + TypeSizes.INT_SIZE;            // CRC
     }
 
-    static final class EntryHolder<K>
+    public static final class EntryHolder<K>
     {
-        K key;
-        ByteBuffer value;
-        IntHashSet hosts = new IntHashSet();
+        public K key;
+        public ByteBuffer value;
+        public IntHashSet hosts = new IntHashSet();
 
-        void clear()
+        public int userVersion;
+
+        public void clear()
         {
             key = null;
             value = null;

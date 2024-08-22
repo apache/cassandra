@@ -22,6 +22,7 @@ import javax.annotation.Nullable;
 import org.apache.cassandra.utils.Closeable;
 
 import static com.google.common.collect.Iterables.any;
+
 /**
  * Mapping of client supplied ids to in-segment offsets
  */
@@ -85,15 +86,6 @@ abstract class Index<K> implements Closeable
         return any(ids, this::mayContainId);
     }
 
-    interface IndexIterator<K>
-    {
-        boolean hasNext();
-        K currentKey();
-        int currentOffset();
-        int currentSize();
-        void next();
-    }
-
     /**
      * Helper methods
      */
@@ -118,7 +110,7 @@ abstract class Index<K> implements Closeable
     public static long writeSize(long record, int size)
     {
         record &= 0xffffffff00000000L; // unset all lower bits
-        record |= (long) size;
+        record |= size;
         return record;
     }
 
@@ -126,5 +118,4 @@ abstract class Index<K> implements Closeable
     {
         return writeSize(writeOffset(0, offset), size);
     }
-
 }

@@ -18,12 +18,11 @@
 package org.apache.cassandra.journal;
 
 import java.io.IOException;
+import java.nio.channels.ClosedByInterruptException;
 import java.nio.file.FileStore;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -53,7 +52,6 @@ import org.apache.cassandra.io.util.PathUtils;
 import org.apache.cassandra.journal.Segments.ReferencedSegment;
 import org.apache.cassandra.journal.Segments.ReferencedSegments;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.service.accord.SavedCommand;
 import org.apache.cassandra.utils.Crc;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Simulate;
@@ -100,8 +98,7 @@ public class Journal<K, V> implements Shutdownable
 
     final Metrics<K, V> metrics;
     final Flusher<K, V> flusher;
-    //final Invalidator<K, V> invalidator;
-    //final Compactor<K, V> compactor;
+    final Compactor<K, V> compactor;
 
     volatile long replayLimit;
     final AtomicLong nextSegmentId = new AtomicLong();
@@ -120,7 +117,6 @@ public class Journal<K, V> implements Shutdownable
     private final FlusherCallbacks flusherCallbacks;
 
     SequentialExecutorPlus closer;
-    //private final Set<Descriptor> invalidations = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
     private class FlusherCallbacks implements Flusher.Callbacks
     {
@@ -180,7 +176,8 @@ public class Journal<K, V> implements Shutdownable
                    File directory,
                    Params params,
                    KeySupport<K> keySupport,
-                   ValueSerializer<K, V> valueSerializer)
+                   ValueSerializer<K, V> valueSerializer,
+                   SegmentCompactor<K, V> segmentCompactor)
     {
         this.name = name;
         this.directory = directory;
@@ -192,8 +189,7 @@ public class Journal<K, V> implements Shutdownable
         this.metrics = new Metrics<>(name);
         this.flusherCallbacks = new FlusherCallbacks();
         this.flusher = new Flusher<>(this, flusherCallbacks);
-        //this.invalidator = new Invalidator<>(this);
-        //this.compactor = new Compactor<>(this);
+        this.compactor = new Compactor<>(this, segmentCompactor);
     }
 
     public boolean isFlushed(RecordPointer recordPointer)
@@ -229,8 +225,13 @@ public class Journal<K, V> implements Shutdownable
         allocator = executorFactory().infiniteLoop(name + "-allocator", new AllocateRunnable(), SAFE, NON_DAEMON, SYNCHRONIZED);
         advanceSegment(null);
         flusher.start();
-        //invalidator.start();
-        //compactor.start();
+        compactor.start();
+    }
+
+    @VisibleForTesting
+    void runCompactorForTesting()
+    {
+        compactor.run();
     }
 
     /**
@@ -254,8 +255,8 @@ public class Journal<K, V> implements Shutdownable
         {
             allocator.shutdown();
             allocator.awaitTermination(1, TimeUnit.MINUTES);
-            //compactor.stop();
-            //invalidator.stop();
+            compactor.shutdown();
+            compactor.awaitTermination(1, TimeUnit.MINUTES);
             flusher.shutdown();
             closer.shutdown();
             closer.awaitTermination(1, TimeUnit.MINUTES);
@@ -285,34 +286,6 @@ public class Journal<K, V> implements Shutdownable
     }
 
     /**
-     * Read an entry by its address (segment timestamp + offest)
-     *
-     * @return deserialized record if present, null otherwise
-     */
-    public V read(long segmentTimestamp, int offset, int size)
-    {
-        try (ReferencedSegment<K, V> referenced = selectAndReference(segmentTimestamp))
-        {
-            Segment<K, V> segment = referenced.segment();
-            if (null == segment)
-                return null;
-
-            EntrySerializer.EntryHolder<K> holder = new EntrySerializer.EntryHolder<>();
-            segment.read(offset, size, holder);
-
-            try (DataInputBuffer in = new DataInputBuffer(holder.value, false))
-            {
-                return valueSerializer.deserialize(holder.key, in, segment.descriptor.userVersion);
-            }
-            catch (IOException e)
-            {
-                // can only throw if serializer is buggy
-                throw new RuntimeException(e);
-            }
-        }
-    }
-
-    /**
      * Looks up a record by the provided id.
      * <p/>
      * Looking up an invalidated record may or may not return a record, depending on
@@ -324,19 +297,20 @@ public class Journal<K, V> implements Shutdownable
      * @param id user-provided record id, expected to roughly correlate with time and go up
      * @return deserialized record if found, null otherwise
      */
+    @SuppressWarnings("unused")
     public V readFirst(K id)
     {
         EntrySerializer.EntryHolder<K> holder = new EntrySerializer.EntryHolder<>();
 
         try (ReferencedSegments<K, V> segments = selectAndReference(id))
         {
-            for (Segment<K, V> segment : segments.all())
+            for (Segment<K, V> segment : segments.allSorted())
             {
                 if (segment.readFirst(id, holder))
                 {
                     try (DataInputBuffer in = new DataInputBuffer(holder.value, false))
                     {
-                        return valueSerializer.deserialize(holder.key, in, segment.descriptor.userVersion);
+                        return valueSerializer.deserialize(holder.key, in, holder.userVersion);
                     }
                     catch (IOException e)
                     {
@@ -349,36 +323,34 @@ public class Journal<K, V> implements Shutdownable
         return null;
     }
 
-    public List<V> readAll(K id)
-    {
-        List<V> res = new ArrayList<>(2);
-        readAll(id, (in, userVersion) -> res.add(valueSerializer.deserialize(id, in, userVersion)));
-        return res;
-    }
-
-    public void readAll(K id, Reader reader)
+    public void readAll(K id, RecordConsumer<K> consumer)
     {
         EntrySerializer.EntryHolder<K> holder = new EntrySerializer.EntryHolder<>();
         try (ReferencedSegments<K, V> segments = selectAndReference(id))
         {
-            for (Segment<K, V> segment : segments.all())
-            {
-                segment.readAll(id, holder, () -> {
-                    try (DataInputBuffer in = new DataInputBuffer(holder.value, false))
-                    {
-                        Invariants.checkState(Objects.equals(holder.key, id),
-                                              "%s != %s", holder.key, id);
-                        reader.read(in, segment.descriptor.userVersion);
-                        holder.clear();
-                    }
-                    catch (IOException e)
-                    {
-                        // can only throw if serializer is buggy
-                        throw new RuntimeException(e);
-                    }
-                });
-            }
+            consumer.init();
+
+            for (Segment<K, V> segment : segments.allSorted())
+                segment.readAll(id, holder, consumer);
         }
+    }
+
+    @SuppressWarnings("unused")
+    public List<V> readAll(K id)
+    {
+        List<V> res = new ArrayList<>(2);
+        readAll(id, (segment, position, key, buffer, hosts, userVersion) -> {
+            try (DataInputBuffer in = new DataInputBuffer(buffer, false))
+            {
+                res.add(valueSerializer.deserialize(key, in, userVersion));
+            }
+            catch (IOException e)
+            {
+                // can only throw if serializer is buggy
+                throw new RuntimeException(e);
+            }
+        });
+        return res;
     }
 
     /**
@@ -394,6 +366,7 @@ public class Journal<K, V> implements Shutdownable
      * @param condition predicate to test the record against
      * @return deserialized record if found, null otherwise
      */
+    @SuppressWarnings("unused")
     public V readFirstMatching(K id, Predicate<V> condition)
     {
         EntrySerializer.EntryHolder<K> holder = new EntrySerializer.EntryHolder<>();
@@ -441,6 +414,7 @@ public class Journal<K, V> implements Shutdownable
      * @param consumer function to consume the raw record (bytes and invalidation set) if found
      * @return true if the record was found, false otherwise
      */
+    @SuppressWarnings("unused")
     public boolean readFirst(K id, RecordConsumer<K> consumer)
     {
         try (ReferencedSegments<K, V> segments = selectAndReference(id))
@@ -457,6 +431,7 @@ public class Journal<K, V> implements Shutdownable
      *
      * @return subset of ids to test that have been found in the journal
      */
+    @SuppressWarnings("unused")
     public Set<K> test(Set<K> test)
     {
         Set<K> present = new ObjectHashSet<>(test.size() + 1, 0.9f);
@@ -515,19 +490,7 @@ public class Journal<K, V> implements Shutdownable
      */
     public RecordPointer asyncWrite(K id, V record, Set<Integer> hosts)
     {
-        return asyncWrite(id, new SavedCommand.Writer<>()
-                          {
-                              public void write(DataOutputPlus out, int userVersion) throws IOException
-                              {
-                                  valueSerializer.serialize(id, record, out, params.userVersion());
-                              }
-
-                              public K key()
-                              {
-                                  return id;
-                              }
-                          },
-                          hosts);
+        return asyncWrite(id, (out, userVersion) -> valueSerializer.serialize(id, record, out, userVersion), hosts);
     }
 
     public RecordPointer asyncWrite(K id, Writer writer, Set<Integer> hosts)
@@ -547,7 +510,6 @@ public class Journal<K, V> implements Shutdownable
         }
         return recordPointer;
     }
-
 
     private ActiveSegment<K, V>.Allocation allocate(int entrySize, Set<Integer> hosts)
     {
@@ -658,6 +620,11 @@ public class Journal<K, V> implements Shutdownable
                     Thread.yield();
                 }
             }
+            catch (JournalWriteError e)
+            {
+                if (!(e.getCause() instanceof ClosedByInterruptException))
+                    throw e;
+            }
             catch (Throwable t)
             {
                 if (!handleError("Failed allocating journal segments", t))
@@ -727,6 +694,22 @@ public class Journal<K, V> implements Shutdownable
     }
 
     /**
+     * Select segments that could potentially have any entry with the specified id and
+     * attempt to grab references to them all.
+     *
+     * @return a subset of segments with references to them
+     */
+    ReferencedSegments<K, V> selectAndReference(K id)
+    {
+        while (true)
+        {
+            ReferencedSegments<K, V> referenced = segments().selectAndReference(s -> s.index().mayContainId(id));
+            if (null != referenced)
+                return referenced;
+        }
+    }
+
+    /**
      * Select segments that could potentially have any entry with the specified ids and
      * attempt to grab references to them all.
      *
@@ -736,17 +719,13 @@ public class Journal<K, V> implements Shutdownable
     {
         while (true)
         {
-            ReferencedSegments<K, V> referenced = segments().selectAndReference(ids);
+            ReferencedSegments<K, V> referenced = segments().selectAndReference(s -> s.index().mayContainIds(ids));
             if (null != referenced)
                 return referenced;
         }
     }
 
-    ReferencedSegments<K, V> selectAndReference(K id)
-    {
-        return selectAndReference(Collections.singleton(id));
-    }
-
+    @SuppressWarnings("unused")
     ReferencedSegment<K, V> selectAndReference(long segmentTimestamp)
     {
         while (true)
@@ -757,7 +736,7 @@ public class Journal<K, V> implements Shutdownable
         }
     }
 
-    private Segments<K, V> segments()
+    Segments<K, V> segments()
     {
         return segments.get();
     }
@@ -784,9 +763,9 @@ public class Journal<K, V> implements Shutdownable
         swapSegments(current -> current.withCompletedSegment(activeSegment, staticSegment));
     }
 
-    private void replaceCompactedSegment(StaticSegment<K, V> oldSegment, StaticSegment<K, V> newSegment)
+    void replaceCompactedSegments(Collection<StaticSegment<K, V>> oldSegments, Collection<StaticSegment<K, V>> compactedSegments)
     {
-        swapSegments(current -> current.withCompactedSegment(oldSegment, newSegment));
+        swapSegments(current -> current.withCompactedSegments(oldSegments, compactedSegments));
     }
 
     void selectSegmentToFlush(Collection<ActiveSegment<K, V>> into)
@@ -836,7 +815,7 @@ public class Journal<K, V> implements Shutdownable
             if (segment == null)
                 throw new IllegalArgumentException("Request the active segment " + timestamp + " but this segment does not exist");
             if (!segment.isActive())
-                throw new IllegalArgumentException("Request the active segment " + timestamp + " but this segment is not active");
+                throw new IllegalArgumentException(String.format("Request the active segment %d but this segment is not active: %s", timestamp, segment));
             return segment.asActive();
         }
     }
@@ -974,10 +953,5 @@ public class Journal<K, V> implements Shutdownable
     public interface Writer
     {
         void write(DataOutputPlus out, int userVersion) throws IOException;
-    }
-
-    public interface Reader
-    {
-        void read(DataInputBuffer in, int userVersion) throws IOException;
     }
 }

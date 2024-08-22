@@ -203,26 +203,26 @@ public class SegmentTest
 
         activeSegment.close();
 
-        StaticSegment.SequentialReader<TimeUUID> reader = StaticSegment.reader(descriptor, TimeUUIDKeySupport.INSTANCE, 0);
+        StaticSegment.SequentialReader<TimeUUID> reader = StaticSegment.sequentialReader(descriptor, TimeUUIDKeySupport.INSTANCE, 0);
 
         // read all 4 entries sequentially and compare with originals
         assertTrue(reader.advance());
-        assertEquals(id1, reader.id());
+        assertEquals(id1, reader.key());
         assertEquals(hosts1, reader.hosts());
         assertEquals(record1, reader.record());
 
         assertTrue(reader.advance());
-        assertEquals(id2, reader.id());
+        assertEquals(id2, reader.key());
         assertEquals(hosts2, reader.hosts());
         assertEquals(record2, reader.record());
 
         assertTrue(reader.advance());
-        assertEquals(id3, reader.id());
+        assertEquals(id3, reader.key());
         assertEquals(hosts3, reader.hosts());
         assertEquals(record3, reader.record());
 
         assertTrue(reader.advance());
-        assertEquals(id4, reader.id());
+        assertEquals(id4, reader.key());
         assertEquals(hosts4, reader.hosts());
         assertEquals(record4, reader.record());
 

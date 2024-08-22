@@ -197,6 +197,7 @@ final class ActiveSegment<K, V> extends Segment<K, V>
         descriptor.fileFor(Component.SYNCED_OFFSETS).deleteIfExists();
     }
 
+    @Override
     void release()
     {
         selfRef.release();

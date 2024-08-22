@@ -28,6 +28,8 @@ public class AccordSpec
 
     public volatile String journal_directory;
 
+    public volatile boolean enable_journal_compaction = true;
+
     public volatile OptionaldPositiveInt shard_count = OptionaldPositiveInt.UNDEFINED;
 
     public volatile DurationSpec.IntMillisecondsBound recover_delay = new DurationSpec.IntMillisecondsBound(1000);
@@ -99,6 +101,18 @@ public class AccordSpec
         public FlushMode flushMode()
         {
             return flushMode;
+        }
+
+        @Override
+        public boolean enableCompaction()
+        {
+            return DatabaseDescriptor.getAccord().enable_journal_compaction;
+        }
+
+        @Override
+        public int compactionPeriodMillis()
+        {
+            return 60_000;
         }
 
         @JsonIgnore

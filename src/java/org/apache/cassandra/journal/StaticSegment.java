@@ -23,7 +23,10 @@ import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.StandardOpenOption;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.concurrent.locks.LockSupport;
 
 import org.agrona.collections.IntHashSet;
 import org.apache.cassandra.io.util.DataInputBuffer;
@@ -38,7 +41,7 @@ import org.apache.cassandra.utils.concurrent.Ref;
  * Can be compacted with input from {@code PersistedInvalidations} into a new smaller segment,
  * with invalidated entries removed.
  */
-final class StaticSegment<K, V> extends Segment<K, V>
+public final class StaticSegment<K, V> extends Segment<K, V>
 {
     final FileChannel channel;
 
@@ -111,7 +114,6 @@ final class StaticSegment<K, V> extends Segment<K, V>
         }
     }
 
-    @SuppressWarnings("resource")
     private static <K, V> StaticSegment<K, V> internalOpen(
         Descriptor descriptor, SyncedOffsets syncedOffsets, OnDiskIndex<K> index, Metadata metadata, KeySupport<K> keySupport)
     throws IOException
@@ -125,7 +127,43 @@ final class StaticSegment<K, V> extends Segment<K, V>
     @Override
     public void close()
     {
-        selfRef.release();
+        try
+        {
+            channel.close();
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException("Could not close static segment " + descriptor, e);
+        }
+
+        release();
+    }
+
+    /**
+     * Waits until this segment is unreferenced, closes it, and deltes all files associated with it.
+     */
+    void discard()
+    {
+        // TODO: consider moving deletion logic to Tidier instead of busy-looping here
+        waitUntilUnreferenced();
+        close();
+        for (Component component : Component.values())
+        {
+            File file = descriptor.fileFor(component);
+            if (file.exists())
+                file.delete();
+        }
+    }
+
+    public void waitUntilUnreferenced()
+    {
+        while (true)
+        {
+            if (selfRef.globalCount() == 1)
+                return;
+
+            LockSupport.parkNanos(100);
+        }
     }
 
     @Override
@@ -138,6 +176,18 @@ final class StaticSegment<K, V> extends Segment<K, V>
     public Ref<Segment<K, V>> ref()
     {
         return selfRef.ref();
+    }
+
+    @Override
+    void release()
+    {
+        selfRef.release();
+    }
+
+    @Override
+    public String toString()
+    {
+        return "StaticSegment{" + descriptor + '}';
     }
 
     private static final class Tidier<K> implements Tidy
@@ -223,57 +273,38 @@ final class StaticSegment<K, V> extends Segment<K, V>
      */
     void forEachRecord(RecordConsumer<K> consumer)
     {
-        try (SequentialReader<K> reader = reader(descriptor, keySupport, syncedOffsets.syncedOffset()))
+        try (SequentialReader<K> reader = sequentialReader(descriptor, keySupport, syncedOffsets.syncedOffset()))
         {
             while (reader.advance())
             {
-                consumer.accept(descriptor.timestamp, reader.offset(), reader.id(), reader.record(), reader.hosts(), descriptor.userVersion);
+                consumer.accept(descriptor.timestamp, reader.offset(), reader.key(), reader.record(), reader.hosts(), descriptor.userVersion);
             }
         }
     }
 
     /*
-     * Sequential reading (replay and components rebuild)
+     * Sequential and in-key order reading (replay and components rebuild)
      */
 
-    static <K> SequentialReader<K> reader(Descriptor descriptor, KeySupport<K> keySupport, int fsyncedLimit)
+    static abstract class Reader<K> implements Closeable
     {
-        return SequentialReader.open(descriptor, keySupport, fsyncedLimit);
-    }
+        enum State { RESET, ADVANCED, EOF }
 
-    /**
-     * A sequential data segment reader to use for journal replay and rebuilding
-     * missing auxilirary components (index and metadata).
-     * </p>
-     * Unexpected EOF and CRC mismatches in synced portions of segments are treated
-     * strictly, throwing {@link JournalReadError}. Errors encountered in unsynced portions
-     * of segments are treated as segment EOF.
-     */
-    static final class SequentialReader<K> implements Closeable
-    {
-        private final Descriptor descriptor;
-        private final KeySupport<K> keySupport;
-        private final int fsyncedLimit; // exclusive
+        public final Descriptor descriptor;
+        protected final KeySupport<K> keySupport;
 
-        private final File file;
-        private final FileChannel channel;
-        private final MappedByteBuffer buffer;
-        private final DataInputBuffer in;
+        protected final File file;
+        protected final FileChannel channel;
+        protected final MappedByteBuffer buffer;
 
-        private int offset = -1;
-        private final EntrySerializer.EntryHolder<K> holder = new EntrySerializer.EntryHolder<>();
-        private State state = State.RESET;
+        protected final EntrySerializer.EntryHolder<K> holder = new EntrySerializer.EntryHolder<>();
+        protected int offset = -1;
+        protected State state = State.RESET;
 
-        static <K> SequentialReader<K> open(Descriptor descriptor, KeySupport<K> keySupport, int fsyncedLimit)
-        {
-            return new SequentialReader<>(descriptor, keySupport, fsyncedLimit);
-        }
-
-        SequentialReader(Descriptor descriptor, KeySupport<K> keySupport, int fsyncedLimit)
+        Reader(Descriptor descriptor, KeySupport<K> keySupport)
         {
             this.descriptor = descriptor;
             this.keySupport = keySupport;
-            this.fsyncedLimit = fsyncedLimit;
 
             file = descriptor.fileFor(Component.DATA);
             try
@@ -289,7 +320,6 @@ final class StaticSegment<K, V> extends Segment<K, V>
             {
                 throw new JournalReadError(descriptor, file, e);
             }
-            in = new DataInputBuffer(buffer, false);
         }
 
         @Override
@@ -299,37 +329,72 @@ final class StaticSegment<K, V> extends Segment<K, V>
             FileUtils.clean(buffer);
         }
 
-        int offset()
+        public abstract boolean advance();
+
+        public int offset()
         {
             ensureHasAdvanced();
             return offset;
         }
 
-        K id()
+        public K key()
         {
             ensureHasAdvanced();
             return holder.key;
         }
 
-        IntHashSet hosts()
+        public IntHashSet hosts()
         {
             ensureHasAdvanced();
             return holder.hosts;
         }
 
-        ByteBuffer record()
+        public ByteBuffer record()
         {
             ensureHasAdvanced();
             return holder.value;
         }
 
-        private void ensureHasAdvanced()
+        protected void ensureHasAdvanced()
         {
             if (state != State.ADVANCED)
                 throw new IllegalStateException("Must call advance() before accessing entry content");
         }
 
-        boolean advance()
+        protected boolean eof()
+        {
+            state = State.EOF;
+            return false;
+        }
+    }
+
+    static <K> SequentialReader<K> sequentialReader(Descriptor descriptor, KeySupport<K> keySupport, int fsyncedLimit)
+    {
+        return new SequentialReader<>(descriptor, keySupport, fsyncedLimit);
+    }
+
+    /**
+     * A sequential data segment reader to use for journal replay and rebuilding
+     * missing auxilirary components (index and metadata).
+     * </p>
+     * Unexpected EOF and CRC mismatches in synced portions of segments are treated
+     * strictly, throwing {@link JournalReadError}. Errors encountered in unsynced portions
+     * of segments are treated as segment EOF.
+     */
+    static final class SequentialReader<K> extends Reader<K>
+    {
+        private final int fsyncedLimit; // exclusive
+        private final DataInputBuffer in;
+
+        SequentialReader(Descriptor descriptor, KeySupport<K> keySupport, int fsyncedLimit)
+        {
+            super(descriptor, keySupport);
+            this.fsyncedLimit = fsyncedLimit;
+            in = new DataInputBuffer(buffer, false);
+        }
+
+        @Override
+        public boolean advance()
         {
             if (state == State.EOF)
                 return false;
@@ -361,13 +426,56 @@ final class StaticSegment<K, V> extends Segment<K, V>
             holder.clear();
             state = State.RESET;
         }
+    }
 
-        private boolean eof()
+    public StaticSegment.KeyOrderReader<K> keyOrderReader()
+    {
+        return new StaticSegment.KeyOrderReader<>(descriptor, keySupport, index.reader());
+    }
+
+    public static final class KeyOrderReader<K> extends Reader<K> implements Comparable<KeyOrderReader<K>>
+    {
+        private final OnDiskIndex<K>.IndexReader indexReader;
+
+        KeyOrderReader(Descriptor descriptor, KeySupport<K> keySupport, OnDiskIndex<K>.IndexReader indexReader)
         {
-            state = State.EOF;
-            return false;
+            super(descriptor, keySupport);
+            this.indexReader = indexReader;
         }
 
-        enum State { RESET, ADVANCED, EOF }
+        @Override
+        public boolean advance()
+        {
+            if (!indexReader.advance())
+                return eof();
+
+            offset = indexReader.offset();
+
+            buffer.limit(offset + indexReader.recordSize())
+                  .position(offset);
+            try
+            {
+                EntrySerializer.read(holder, keySupport, buffer, descriptor.userVersion);
+            }
+            catch (IOException e)
+            {
+                throw new JournalReadError(descriptor, file, e);
+            }
+
+            state = State.ADVANCED;
+            return true;
+        }
+
+        @Override
+        public int compareTo(KeyOrderReader<K> that)
+        {
+            this.ensureHasAdvanced();
+            that.ensureHasAdvanced();
+
+            int cmp = keySupport.compare(this.key(), that.key());
+            return cmp != 0
+                 ? cmp
+                 : this.descriptor.compareTo(that.descriptor);
+        }
     }
 }

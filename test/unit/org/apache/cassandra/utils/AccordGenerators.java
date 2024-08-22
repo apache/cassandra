@@ -228,8 +228,10 @@ public class AccordGenerators
                     return Command.SerializerSupport.notDefined(attributes(saveStatus), Ballot.ZERO);
                 case PreAccepted:
                     return Command.SerializerSupport.preaccepted(attributes(saveStatus), executeAt, Ballot.ZERO);
-                case Accepted:
                 case AcceptedInvalidate:
+                    return Command.AcceptedInvalidateWithoutDefinition.acceptedInvalidate(attributes(saveStatus), promised, Ballot.ZERO);
+
+                case Accepted:
                 case AcceptedWithDefinition:
                 case AcceptedInvalidateWithDefinition:
                 case PreCommittedWithDefinition:

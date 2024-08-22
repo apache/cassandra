@@ -19,7 +19,6 @@ package org.apache.cassandra.service.accord;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -78,7 +77,8 @@ public class AccordJournal implements IJournal, Shutdownable
 
     static final ThreadLocal<byte[]> keyCRCBytes = ThreadLocal.withInitial(() -> new byte[22]);
 
-    public final Journal<JournalKey, Object> journal;
+    private final Journal<JournalKey, Object> journal;
+    private final AccordJournalTable<JournalKey, Object> journalTable;
     private final AccordEndpointMapper endpointMapper;
 
     private final DelayedRequestProcessor delayedRequestProcessor = new DelayedRequestProcessor();
@@ -94,24 +94,26 @@ public class AccordJournal implements IJournal, Shutdownable
         File directory = new File(DatabaseDescriptor.getAccordJournalDirectory());
         this.journal = new Journal<>("AccordJournal", directory, params, JournalKey.SUPPORT,
                                      // In Accord, we are using streaming serialization, i.e. Reader/Writer interfaces instead of materializing objects
-                                     new ValueSerializer<JournalKey, Object>()
+                                     new ValueSerializer<>()
                                      {
                                          public int serializedSize(JournalKey key, Object value, int userVersion)
                                          {
                                              throw new UnsupportedOperationException();
                                          }
 
-                                         public void serialize(JournalKey key, Object value, DataOutputPlus out, int userVersion) throws IOException
+                                         public void serialize(JournalKey key, Object value, DataOutputPlus out, int userVersion)
                                          {
                                              throw new UnsupportedOperationException();
                                          }
 
-                                         public Object deserialize(JournalKey key, DataInputPlus in, int userVersion) throws IOException
+                                         public Object deserialize(JournalKey key, DataInputPlus in, int userVersion)
                                          {
                                              throw new UnsupportedOperationException();
                                          }
-                                     });
+                                     },
+                                     new AccordSegmentCompactor<>());
         this.endpointMapper = endpointMapper;
+        this.journalTable = new AccordJournalTable<>(journal, JournalKey.SUPPORT, params.userVersion());
     }
 
     public AccordJournal start(Node node)
@@ -153,7 +155,7 @@ public class AccordJournal implements IJournal, Shutdownable
     {
         try
         {
-            ExecutorUtils.awaitTermination(timeout, units, Arrays.asList(journal));
+            ExecutorUtils.awaitTermination(timeout, units, Collections.singletonList(journal));
             return true;
         }
         catch (TimeoutException e)
@@ -191,9 +193,9 @@ public class AccordJournal implements IJournal, Shutdownable
     @VisibleForTesting
     public SavedCommand.Builder loadDiffs(int commandStoreId, TxnId txnId)
     {
+        JournalKey key = new JournalKey(txnId, commandStoreId);
         SavedCommand.Builder builder = new SavedCommand.Builder();
-        journal.readAll(new JournalKey(txnId, commandStoreId),
-                        builder::deserializeNext);
+        journalTable.readAll(key, (ignore, in, userVersion) -> builder.deserializeNext(in, userVersion));
         return builder;
     }
 
@@ -240,7 +242,7 @@ public class AccordJournal implements IJournal, Shutdownable
             // We can only use strict equality if we supply result.
             Command reconstructed = diffs.construct();
             Invariants.checkState(orig.equals(reconstructed),
-                                  "\n" +
+                                  '\n' +
                                   "Original:      %s\n" +
                                   "Reconstructed: %s\n" +
                                   "Diffs:         %s", orig, reconstructed, diffs);
@@ -255,6 +257,7 @@ public class AccordJournal implements IJournal, Shutdownable
     /*
      * Context necessary to process log records
      */
+
     static abstract class RequestContext implements ReplyContext
     {
         final long waitForEpoch;
@@ -351,7 +354,7 @@ public class AccordJournal implements IJournal, Shutdownable
 
         public void start()
         {
-             executor = executorFactory().infiniteLoop("AccordJournal-delayed-request-processor", this::run, SAFE, InfiniteLoopExecutor.Daemon.NON_DAEMON, InfiniteLoopExecutor.Interrupts.SYNCHRONIZED);
+             executor = executorFactory().infiniteLoop("AccordJournal-delayed-request-processor", this, SAFE, InfiniteLoopExecutor.Daemon.NON_DAEMON, InfiniteLoopExecutor.Interrupts.SYNCHRONIZED);
         }
 
         private void delay(RequestContext requestContext)
@@ -457,9 +460,9 @@ public class AccordJournal implements IJournal, Shutdownable
         }
     }
 
-    public boolean isRunnable(Status status)
+    private boolean isRunnable(Status status)
     {
-        return status != Status.TERMINATING && status != status.TERMINATED;
+        return status != Status.TERMINATING && status != Status.TERMINATED;
     }
 
     @VisibleForTesting

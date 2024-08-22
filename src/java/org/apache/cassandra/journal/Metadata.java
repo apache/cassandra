@@ -191,7 +191,7 @@ final class Metadata
         Int2IntHashMap recordsPerHost = new Int2IntHashMap(Integer.MIN_VALUE);
         int recordsCount = 0;
 
-        try (StaticSegment.SequentialReader<K> reader = StaticSegment.reader(descriptor, keySupport, fsyncedLimit))
+        try (StaticSegment.SequentialReader<K> reader = StaticSegment.sequentialReader(descriptor, keySupport, fsyncedLimit))
         {
             while (reader.advance())
             {

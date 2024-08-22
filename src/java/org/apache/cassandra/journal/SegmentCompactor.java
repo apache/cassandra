@@ -17,13 +17,18 @@
  */
 package org.apache.cassandra.journal;
 
-import java.nio.ByteBuffer;
+import java.io.IOException;
+import java.util.Collection;
 
-import org.agrona.collections.IntHashSet;
-
-@FunctionalInterface
-public interface RecordConsumer<K>
+public interface SegmentCompactor<K, V>
 {
-    default void init() {}
-    void accept(long segment, int position, K key, ByteBuffer buffer, IntHashSet hosts, int userVersion);
+    SegmentCompactor<?, ?> NOOP = (SegmentCompactor<Object, Object>) (segments, keySupport) -> segments;
+
+    static <K, V> SegmentCompactor<K, V> noop()
+    {
+        //noinspection unchecked
+        return (SegmentCompactor<K, V>) NOOP;
+    }
+
+    Collection<StaticSegment<K, V>> compact(Collection<StaticSegment<K, V>> segments, KeySupport<K> keySupport) throws IOException;
 }
