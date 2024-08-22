@@ -40,6 +40,7 @@ import accord.local.Status;
 import accord.primitives.Range;
 import accord.primitives.Ranges;
 import accord.primitives.Routable;
+import accord.primitives.Routables;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.async.AsyncChains;
@@ -261,6 +262,11 @@ public class CommandsForRangesLoader
             this.saveStatus = saveStatus;
             this.ranges = ranges;
             this.depsIds = depsIds;
+        }
+
+        public Summary slice(Ranges slice)
+        {
+            return new Summary(txnId, executeAt, saveStatus, ranges.slice(slice, Routables.Slice.Minimal), depsIds);
         }
 
         @Override

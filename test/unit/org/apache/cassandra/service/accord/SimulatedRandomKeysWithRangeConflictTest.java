@@ -73,13 +73,15 @@ public class SimulatedRandomKeysWithRangeConflictTest extends SimulatedAccordCom
 
                     instance.maybeCacheEvict((Keys) keyTxn.keys(), wholeRange);
 
+                    // the full range is (-Inf, +Inf] but the store could be [(-Inf, Number], (Number, +Inf]], so need to slice to the store to get a matching range
+                    Ranges wholeRangeSlicedShard = instance.slice(wholeRange);
                     if (concurrent)
                     {
                         var k = assertDepsMessageAsync(instance, rs.pick(DepsMessage.values()), keyTxn, keyRoute, Map.of(key, keyConflicts.computeIfAbsent(key, ignore -> new ArrayList<>())), Collections.emptyMap());
                         keyConflicts.get(key).add(k.left);
                         asyncs.add(k.right);
 
-                        var r = assertDepsMessageAsync(instance, rs.pick(DepsMessage.values()), rangeTxn, rangeRoute, keyConflicts, rangeConflicts(rangeConflicts, wholeRange));
+                        var r = assertDepsMessageAsync(instance, rs.pick(DepsMessage.values()), rangeTxn, rangeRoute, keyConflicts, rangeConflicts(rangeConflicts, wholeRangeSlicedShard));
                         rangeConflicts.add(r.left);
                         asyncs.add(r.right);
                     }
@@ -87,7 +89,7 @@ public class SimulatedRandomKeysWithRangeConflictTest extends SimulatedAccordCom
                     {
                         var k = assertDepsMessage(instance, rs.pick(DepsMessage.values()), keyTxn, keyRoute, Map.of(key, keyConflicts.computeIfAbsent(key, ignore -> new ArrayList<>())), Collections.emptyMap());
                         keyConflicts.get(key).add(k);
-                        rangeConflicts.add(assertDepsMessage(instance, rs.pick(DepsMessage.values()), rangeTxn, rangeRoute, keyConflicts, rangeConflicts(rangeConflicts, wholeRange)));
+                        rangeConflicts.add(assertDepsMessage(instance, rs.pick(DepsMessage.values()), rangeTxn, rangeRoute, keyConflicts, rangeConflicts(rangeConflicts, wholeRangeSlicedShard)));
                     }
                 }
                 if (concurrent)

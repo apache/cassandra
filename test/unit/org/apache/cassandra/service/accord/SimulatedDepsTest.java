@@ -104,6 +104,7 @@ public class SimulatedDepsTest extends SimulatedAccordCommandStoreTestBase
             {
                 long token = rs.nextLong(Long.MIN_VALUE  + 1, Long.MAX_VALUE);
                 Ranges partialRange = Ranges.of(tokenRange(tbl.id, token - 1, token));
+                Ranges partialRangeSliced = instance.slice(partialRange);
                 long outOfRangeToken = token - 10;
                 if (outOfRangeToken == Long.MIN_VALUE) // if this wraps around that is fine, just can't be min
                     outOfRangeToken++;
@@ -146,7 +147,7 @@ public class SimulatedDepsTest extends SimulatedAccordCommandStoreTestBase
                     asyncs.add(k.right);
                     asyncIds.add(k.left);
 
-                    var r = assertDepsMessageAsync(instance, rs.pick(DepsMessage.values()), rangeTxn, rangeRoute, Map.of(key, keyConflicts), rangeConflicts(rangeConflicts, partialRange));
+                    var r = assertDepsMessageAsync(instance, rs.pick(DepsMessage.values()), rangeTxn, rangeRoute, Map.of(key, keyConflicts), rangeConflicts(rangeConflicts, partialRangeSliced));
                     rangeConflicts.add(r.left);
                     asyncs.add(r.right);
                     asyncIds.add(r.left);
@@ -193,14 +194,14 @@ public class SimulatedDepsTest extends SimulatedAccordCommandStoreTestBase
                         var k = assertDepsMessageAsync(instance, rs.pick(DepsMessage.values()), keyTxn, keyRoute, keyConflicts(keyConflicts, keys));
                         keyConflicts.add(k.left);
                         asyncs.add(k.right);
-                        var r = assertDepsMessageAsync(instance, rs.pick(DepsMessage.values()), rangeTxn, rangeRoute, keyConflicts(keyConflicts, keys), rangeConflicts(rangeConflicts, ranges));
+                        var r = assertDepsMessageAsync(instance, rs.pick(DepsMessage.values()), rangeTxn, rangeRoute, keyConflicts(keyConflicts, keys), rangeConflicts(rangeConflicts, instance.slice(ranges)));
                         rangeConflicts.add(r.left);
                         asyncs.add(r.right);
                     }
                     else
                     {
                         keyConflicts.add(assertDepsMessage(instance, rs.pick(DepsMessage.values()), keyTxn, keyRoute, keyConflicts(keyConflicts, keys)));
-                        rangeConflicts.add(assertDepsMessage(instance, rs.pick(DepsMessage.values()), rangeTxn, rangeRoute, keyConflicts(keyConflicts, keys), rangeConflicts(rangeConflicts, ranges)));
+                        rangeConflicts.add(assertDepsMessage(instance, rs.pick(DepsMessage.values()), rangeTxn, rangeRoute, keyConflicts(keyConflicts, keys), rangeConflicts(rangeConflicts, instance.slice(ranges))));
                     }
                 }
                 if (concurrent)

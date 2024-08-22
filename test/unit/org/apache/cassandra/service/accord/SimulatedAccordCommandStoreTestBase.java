@@ -174,25 +174,19 @@ public abstract class SimulatedAccordCommandStoreTestBase extends CQLTester
 
     protected static Map<Key, List<TxnId>> keyConflicts(List<TxnId> list, Keys keys)
     {
+        if (list.isEmpty()) return Collections.emptyMap();
         Map<Key, List<TxnId>> kc = Maps.newHashMapWithExpectedSize(keys.size());
         for (Key key : keys)
-        {
-            if (list.isEmpty())
-                continue;
             kc.put(key, list);
-        }
         return kc;
     }
 
     protected static Map<Range, List<TxnId>> rangeConflicts(List<TxnId> list, Ranges ranges)
     {
+        if (list.isEmpty()) return Collections.emptyMap();
         Map<Range, List<TxnId>> kc = Maps.newHashMapWithExpectedSize(ranges.size());
         for (Range range : ranges)
-        {
-            if (list.isEmpty())
-                continue;
             kc.put(range, list);
-        }
         return kc;
     }
 
