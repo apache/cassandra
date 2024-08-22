@@ -141,6 +141,11 @@ public interface MessageDelivery
                                                             RetryErrorMessage errorMessage,
                                                             int attempt)
     {
+        if (Thread.currentThread().isInterrupted())
+        {
+            promise.tryFailure(new InterruptedException(errorMessage.apply(attempt, ResponseFailureReason.Interrupted, null, null)));
+            return;
+        }
         if (!candidates.hasNext())
         {
             promise.tryFailure(new NoMoreCandidatesException(errorMessage.apply(attempt, ResponseFailureReason.NoMoreCandidates, null, null)));
@@ -168,14 +173,21 @@ public interface MessageDelivery
                     return;
                 }
                 if (promise.isDone() || promise.isCancelled()) return;
-                retryThreads.schedule(() -> sendWithRetries(messaging, promise, msgToRsp, backoff, retryThreads, verb, request, candidates, shouldRetry, errorMessage, attempt + 1),
-                                      backoff.computeWaitTime(attempt), backoff.unit());
+                try
+                {
+                    retryThreads.schedule(() -> sendWithRetries(messaging, promise, msgToRsp, backoff, retryThreads, verb, request, candidates, shouldRetry, errorMessage, attempt + 1),
+                                          backoff.computeWaitTime(attempt), backoff.unit());
+                }
+                catch (Throwable t)
+                {
+                    promise.tryFailure(new FailedScheduleException(errorMessage.apply(attempt, ResponseFailureReason.FailedSchedule, from, failure), t));
+                }
             }
         }
         messaging.sendWithCallback(Message.outWithFlag(verb, request, CALL_BACK_ON_FAILURE), candidates.next(), new Request());
     }
 
-    enum ResponseFailureReason { MaxRetries, Rejected, NoMoreCandidates }
+    enum ResponseFailureReason { MaxRetries, Rejected, NoMoreCandidates, Interrupted, FailedSchedule }
 
     interface RetryScheduler
     {
@@ -221,6 +233,14 @@ public interface MessageDelivery
         {
             super(message);
             this.attempts = attempts;
+        }
+    }
+
+    class FailedScheduleException extends IllegalStateException
+    {
+        public FailedScheduleException(String message, Throwable cause)
+        {
+            super(message, cause);
         }
     }
 }

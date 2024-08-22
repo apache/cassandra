@@ -230,7 +230,9 @@ public abstract class RepairMessage
                                                     maybeRecordRetry.accept(attempt, failure);
                                                     finalCallback.onFailure(from, failure);
                                                     return null;
+                                                case Interrupted:
                                                 case Rejected:
+                                                case FailedSchedule:
                                                     return null;
                                                 default:
                                                     throw new UnsupportedOperationException(retryReason.name());
