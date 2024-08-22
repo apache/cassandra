@@ -133,18 +133,6 @@ public abstract class SimulatedAccordCommandStoreTestBase extends CQLTester
         ServerTestUtils.markCMS();
     }
 
-    protected static void safeBlock(List<AsyncResult<?>> asyncs) throws InterruptedException, ExecutionException
-    {
-        int counter = 0;
-        for (var chain : asyncs)
-        {
-            Assertions.assertThat(chain.isDone())
-                      .describedAs("The %dth async task is blocked!", counter++)
-                      .isTrue();
-            AsyncChains.getBlocking(chain);
-        }
-    }
-
     protected static TokenRange fullRange(TableId id)
     {
         return new TokenRange(AccordRoutingKey.SentinelKey.min(id), AccordRoutingKey.SentinelKey.max(id));
