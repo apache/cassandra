@@ -216,18 +216,11 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
         if (node.status() == LOADED && VALIDATE_LOAD_ON_EVICT)
             instance.validateLoadEvicted(node);
 
-        if (!node.hasListeners())
-        {
-            AccordCachingState<?, ?> self = instances.get(node.index).cache.remove(node.key());
-            Invariants.checkState(self.references == 0);
-            checkState(self == node, "Leaked node detected; was attempting to remove %s but cache had %s", node, self);
-            if (instance.listeners != null)
-                instance.listeners.forEach(l -> l.onEvict((AccordCachingState) node));
-        }
-        else
-        {
-            node.markEvicted(); // keep the node in the cache to prevent transient listeners from being GCd
-        }
+        AccordCachingState<?, ?> self = instances.get(node.index).cache.remove(node.key());
+        Invariants.checkState(self.references == 0);
+        checkState(self == node, "Leaked node detected; was attempting to remove %s but cache had %s", node, self);
+        if (instance.listeners != null)
+            instance.listeners.forEach(l -> l.onEvict((AccordCachingState) node));
     }
 
     public ImmutableStats stats()

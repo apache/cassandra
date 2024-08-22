@@ -22,7 +22,7 @@ import java.util.function.BiConsumer;
 
 import accord.api.Result;
 import accord.coordinate.Persist;
-import accord.coordinate.tracking.AppliedTracker;
+import accord.coordinate.tracking.AllTracker;
 import accord.coordinate.tracking.QuorumTracker;
 import accord.coordinate.tracking.RequestStatus;
 import accord.coordinate.tracking.ResponseTracker;
@@ -110,7 +110,7 @@ public class AccordInteropPersist extends Persist
                 callback = new CallbackHolder(new QuorumTracker(topologies), result, clientCallback);
                 break;
             case ALL:
-                callback = new CallbackHolder(new AppliedTracker(topologies), result, clientCallback);
+                callback = new CallbackHolder(new AllTracker(topologies), result, clientCallback);
                 break;
             default:
                 throw new IllegalArgumentException("Unhandled consistency level: " + consistencyLevel);

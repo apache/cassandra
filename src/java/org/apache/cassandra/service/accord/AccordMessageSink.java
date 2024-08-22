@@ -122,8 +122,8 @@ public class AccordMessageSink implements MessageSink
             builder.put(MessageType.ACCEPT_REQ,                               Verb.ACCORD_ACCEPT_REQ);
             builder.put(MessageType.ACCEPT_RSP,                               Verb.ACCORD_ACCEPT_RSP);
             builder.put(MessageType.ACCEPT_INVALIDATE_REQ,                    Verb.ACCORD_ACCEPT_INVALIDATE_REQ);
-            builder.put(MessageType.GET_DEPS_REQ,                             Verb.ACCORD_GET_DEPS_REQ);
-            builder.put(MessageType.GET_DEPS_RSP,                             Verb.ACCORD_GET_DEPS_RSP);
+            builder.put(MessageType.CALCULATE_DEPS_REQ,                       Verb.ACCORD_CALCULATE_DEPS_REQ);
+            builder.put(MessageType.CALCULATE_DEPS_RSP,                       Verb.ACCORD_CALCULATE_DEPS_RSP);
             builder.put(MessageType.GET_EPHEMERAL_READ_DEPS_REQ,              Verb.ACCORD_GET_EPHMRL_READ_DEPS_REQ);
             builder.put(MessageType.GET_EPHEMERAL_READ_DEPS_RSP,              Verb.ACCORD_GET_EPHMRL_READ_DEPS_RSP);
             builder.put(MessageType.GET_MAX_CONFLICT_REQ,                     Verb.ACCORD_GET_MAX_CONFLICT_REQ);
@@ -144,13 +144,12 @@ public class AccordMessageSink implements MessageSink
             builder.put(MessageType.BEGIN_RECOVER_RSP,                        Verb.ACCORD_BEGIN_RECOVER_RSP);
             builder.put(MessageType.BEGIN_INVALIDATE_REQ,                     Verb.ACCORD_BEGIN_INVALIDATE_REQ);
             builder.put(MessageType.BEGIN_INVALIDATE_RSP,                     Verb.ACCORD_BEGIN_INVALIDATE_RSP);
-            builder.put(MessageType.WAIT_ON_COMMIT_REQ,                       Verb.ACCORD_WAIT_ON_COMMIT_REQ);
-            builder.put(MessageType.WAIT_ON_COMMIT_RSP,                       Verb.ACCORD_WAIT_ON_COMMIT_RSP);
+            builder.put(MessageType.AWAIT_REQ,                                Verb.ACCORD_AWAIT_REQ);
+            builder.put(MessageType.AWAIT_RSP,                                Verb.ACCORD_AWAIT_RSP);
+            builder.put(MessageType.ASYNC_AWAIT_COMPLETE_REQ,                 Verb.ACCORD_AWAIT_ASYNC_RSP_REQ);
             builder.put(MessageType.WAIT_UNTIL_APPLIED_REQ,                   Verb.ACCORD_WAIT_UNTIL_APPLIED_REQ);
             builder.put(MessageType.APPLY_THEN_WAIT_UNTIL_APPLIED_REQ,        Verb.ACCORD_APPLY_AND_WAIT_REQ);
-            builder.put(MessageType.INFORM_OF_TXN_REQ,                        Verb.ACCORD_INFORM_OF_TXN_REQ);
             builder.put(MessageType.INFORM_DURABLE_REQ,                       Verb.ACCORD_INFORM_DURABLE_REQ);
-            builder.put(MessageType.INFORM_HOME_DURABLE_REQ,                  Verb.ACCORD_INFORM_HOME_DURABLE_REQ);
             builder.put(MessageType.CHECK_STATUS_REQ,                         Verb.ACCORD_CHECK_STATUS_REQ);
             builder.put(MessageType.CHECK_STATUS_RSP,                         Verb.ACCORD_CHECK_STATUS_RSP);
             builder.put(MessageType.FETCH_DATA_REQ,                           Verb.ACCORD_FETCH_DATA_REQ);

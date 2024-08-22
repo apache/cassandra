@@ -21,29 +21,45 @@ package org.apache.cassandra.service.accord.api;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.api.Agent;
 import accord.api.EventsListener;
+import accord.api.ProgressLog.BlockedUntil;
 import accord.api.Result;
+import accord.api.RoutingKey;
 import accord.local.Command;
 import accord.local.Node;
+import accord.local.SafeCommand;
+import accord.local.SafeCommandStore;
+import accord.messages.ReplyContext;
 import accord.primitives.Ranges;
 import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.Txn.Kind;
 import accord.primitives.TxnId;
+import accord.topology.Shard;
+import accord.utils.DefaultRandom;
+import accord.utils.Invariants;
+import accord.utils.RandomSource;
+import accord.utils.SortedList;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.metrics.AccordMetrics;
+import org.apache.cassandra.net.ResponseContext;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
 import static accord.primitives.Routable.Domain.Key;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.config.DatabaseDescriptor.getReadRpcTimeout;
 import static org.apache.cassandra.service.consensus.migration.ConsensusKeyMigrationState.maybeSaveAccordKeyMigrationLocally;
@@ -55,6 +71,7 @@ public class AccordAgent implements Agent
 
     // TODO (required): this should be configurable and have exponential back-off, escaping to operator input past a certain number of retries
     private long retryBootstrapDelayMicros = SECONDS.toMicros(1L);
+    private final RandomSource random = new DefaultRandom();
 
     public void setRetryBootstrapDelay(long delay, TimeUnit units)
     {
@@ -146,5 +163,77 @@ public class AccordAgent implements Agent
     public EventsListener metricsEventsListener()
     {
         return AccordMetrics.Listener.instance;
+    }
+
+    @Override
+    public long replyTimeout(ReplyContext replyContext, TimeUnit units)
+    {
+        return Math.max(1, units.convert(((ResponseContext)replyContext).expiresAtNanos() - Clock.Global.nanoTime(), NANOSECONDS));
+    }
+
+    @Override
+    public long attemptCoordinationDelay(Node node, SafeCommandStore safeStore, TxnId txnId, TimeUnit units, int retryCount)
+    {
+        SafeCommand safeCommand = safeStore.ifInitialised(txnId);
+        Invariants.nonNull(safeCommand);
+
+        Command command = safeCommand.current();
+        Invariants.nonNull(command);
+
+        Timestamp mostRecentAttempt = Timestamp.max(command.txnId(), command.promised());
+        RoutingKey homeKey = command.route().homeKey();
+        Shard shard = node.topology().forEpochIfKnown(homeKey, command.txnId().epoch());
+
+        // TODO (expected): make this a configurable calculation on normal request latencies (like ContentionStrategy)
+        long oneSecond = SECONDS.toMicros(1L);
+        long startTime = mostRecentAttempt.hlc() + DatabaseDescriptor.getAccord().recover_delay.to(MICROSECONDS)
+                         + (retryCount == 0 ? 0 : random.nextLong(oneSecond << Math.min(retryCount, 4)));
+
+        startTime = nonClashingStartTime(startTime, shard == null ? null : shard.nodes, node.id(), oneSecond, random);
+        long nowMicros = MILLISECONDS.toMicros(Clock.Global.currentTimeMillis());
+        return units.convert(Math.max(1, startTime - nowMicros), MICROSECONDS);
+    }
+
+    @VisibleForTesting
+    public static long nonClashingStartTime(long startTime, SortedList<Node.Id> nodes, Node.Id id, long granularity, RandomSource random)
+    {
+        long perSecondStartTime;
+        if (nodes != null)
+        {
+            int position = nodes.indexOf(id);
+            perSecondStartTime = position * (SECONDS.toMicros(1) / nodes.size());
+        }
+        else
+        {
+            // we've raced with topology update, this should be rare so just pick a random start time
+            perSecondStartTime = random.nextLong(granularity);
+        }
+
+        // TODO (expected): make this a configurable calculation on normal request latencies (like ContentionStrategy)
+        long subSecondRemainder = startTime % granularity;
+        long newStartTime = startTime - subSecondRemainder + perSecondStartTime;
+        if (newStartTime < startTime)
+            newStartTime += granularity;
+        return newStartTime;
+    }
+
+    @Override
+    public long seekProgressDelay(Node node, SafeCommandStore safeStore, TxnId txnId, int retryCount, BlockedUntil blockedUntil, TimeUnit units)
+    {
+        // TODO (required): make this configurable and dependent upon normal request latencies, and perhaps offset from txnId.hlc()
+        if (retryCount == 0)
+            return units.convert(100, MILLISECONDS);
+
+        return units.convert((1L << Math.min(retryCount, 4)), SECONDS);
+    }
+
+    @Override
+    public long retryAwaitTimeout(Node node, SafeCommandStore safeStore, TxnId txnId, int retryCount, BlockedUntil retrying, TimeUnit units)
+    {
+        // TODO (expected): integrate with contention backoff
+        if (retryCount == 0)
+            return units.convert(100, MILLISECONDS);
+
+        return units.convert((1L << Math.min(retryCount, 4)), SECONDS);
     }
 }

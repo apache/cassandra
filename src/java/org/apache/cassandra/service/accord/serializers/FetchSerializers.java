@@ -21,25 +21,11 @@ package org.apache.cassandra.service.accord.serializers;
 import java.io.IOException;
 
 import accord.api.Data;
-import accord.api.Result;
-import accord.api.RoutingKey;
 import accord.impl.AbstractFetchCoordinator.FetchRequest;
 import accord.impl.AbstractFetchCoordinator.FetchResponse;
-import accord.local.SaveStatus;
-import accord.local.Status.Durability;
-import accord.local.Status.Known;
-import accord.messages.CheckStatus;
-import accord.messages.Propagate;
 import accord.messages.ReadData.CommitOrReadNack;
 import accord.messages.ReadData.ReadReply;
-import accord.primitives.Ballot;
-import accord.primitives.PartialDeps;
-import accord.primitives.PartialTxn;
 import accord.primitives.Ranges;
-import accord.primitives.Route;
-import accord.primitives.Timestamp;
-import accord.primitives.TxnId;
-import accord.primitives.Writes;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -134,92 +120,4 @@ public class FetchSerializers
         }
     };
 
-    public static final IVersionedSerializer<Propagate> propagate = new IVersionedSerializer<Propagate>()
-    {
-        @Override
-        public void serialize(Propagate p, DataOutputPlus out, int version) throws IOException
-        {
-            CommandSerializers.txnId.serialize(p.txnId, out, version);
-            KeySerializers.route.serialize(p.route, out, version);
-            CommandSerializers.saveStatus.serialize(p.maxKnowledgeSaveStatus, out, version);
-            CommandSerializers.saveStatus.serialize(p.maxSaveStatus, out, version);
-            CommandSerializers.ballot.serialize(p.ballot, out, version);
-            CommandSerializers.durability.serialize(p.durability, out, version);
-            KeySerializers.nullableRoutingKey.serialize(p.homeKey, out, version);
-            KeySerializers.nullableRoutingKey.serialize(p.progressKey, out, version);
-            CommandSerializers.known.serialize(p.achieved, out, version);
-            CheckStatusSerializers.foundKnownMap.serialize(p.known, out, version);
-            out.writeBoolean(p.isShardTruncated);
-            CommandSerializers.nullablePartialTxn.serialize(p.partialTxn, out, version);
-            DepsSerializer.nullablePartialDeps.serialize(p.stableDeps, out, version);
-            out.writeLong(p.toEpoch);
-            CommandSerializers.nullableTimestamp.serialize(p.committedExecuteAt, out, version);
-            CommandSerializers.nullableWrites.serialize(p.writes, out, version);
-        }
-
-        @Override
-        public Propagate deserialize(DataInputPlus in, int version) throws IOException
-        {
-            TxnId txnId = CommandSerializers.txnId.deserialize(in, version);
-            Route<?> route = KeySerializers.route.deserialize(in, version);
-            SaveStatus maxKnowledgeSaveStatus = CommandSerializers.saveStatus.deserialize(in, version);
-            SaveStatus maxSaveStatus = CommandSerializers.saveStatus.deserialize(in, version);
-            Ballot ballot = CommandSerializers.ballot.deserialize(in, version);
-            Durability durability = CommandSerializers.durability.deserialize(in, version);
-            RoutingKey homeKey = KeySerializers.nullableRoutingKey.deserialize(in, version);
-            RoutingKey progressKey = KeySerializers.nullableRoutingKey.deserialize(in, version);
-            Known achieved = CommandSerializers.known.deserialize(in, version);
-            CheckStatus.FoundKnownMap known = CheckStatusSerializers.foundKnownMap.deserialize(in, version);
-            boolean isTruncated = in.readBoolean();
-            PartialTxn partialTxn = CommandSerializers.nullablePartialTxn.deserialize(in, version);
-            PartialDeps committedDeps = DepsSerializer.nullablePartialDeps.deserialize(in, version);
-            long toEpoch = in.readLong();
-            Timestamp committedExecuteAt = CommandSerializers.nullableTimestamp.deserialize(in, version);
-            Writes writes = CommandSerializers.nullableWrites.deserialize(in, version);
-
-            Result result = null;
-            if (achieved.outcome.isOrWasApply())
-                result = CommandSerializers.APPLIED;
-
-            return Propagate.SerializerSupport.create(txnId,
-                                                      route,
-                                                      maxKnowledgeSaveStatus,
-                                                      maxSaveStatus,
-                                                      ballot,
-                                                      durability,
-                                                      homeKey,
-                                                      progressKey,
-                                                      achieved,
-                                                      known,
-                                                      isTruncated,
-                                                      partialTxn,
-                                                      committedDeps,
-                                                      toEpoch,
-                                                      committedExecuteAt,
-                                                      writes,
-                                                      result);
-        }
-
-        @Override
-        public long serializedSize(Propagate p, int version)
-        {
-            return CommandSerializers.txnId.serializedSize(p.txnId, version)
-                 + KeySerializers.route.serializedSize(p.route, version)
-                 + CommandSerializers.saveStatus.serializedSize(p.maxKnowledgeSaveStatus, version)
-                 + CommandSerializers.saveStatus.serializedSize(p.maxSaveStatus, version)
-                 + CommandSerializers.ballot.serializedSize(p.ballot, version)
-                 + CommandSerializers.durability.serializedSize(p.durability, version)
-                 + KeySerializers.nullableRoutingKey.serializedSize(p.homeKey, version)
-                 + KeySerializers.nullableRoutingKey.serializedSize(p.progressKey, version)
-                 + CommandSerializers.known.serializedSize(p.achieved, version)
-                 + CheckStatusSerializers.foundKnownMap.serializedSize(p.known, version)
-                 + TypeSizes.BOOL_SIZE
-                 + CommandSerializers.nullablePartialTxn.serializedSize(p.partialTxn, version)
-                 + DepsSerializer.nullablePartialDeps.serializedSize(p.stableDeps, version)
-                 + TypeSizes.sizeof(p.toEpoch)
-                 + CommandSerializers.nullableTimestamp.serializedSize(p.committedExecuteAt, version)
-                 + CommandSerializers.nullableWrites.serializedSize(p.writes, version)
-            ;
-        }
-    };
 }
