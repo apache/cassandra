@@ -178,6 +178,7 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     @Override
     public void registerHistoricalTransactions(Deps deps)
     {
+        if (deps.isEmpty()) return;
         // used in places such as accord.local.CommandStore.fetchMajorityDeps
         // We find a set of dependencies for a range then update CommandsFor to know about them
         Ranges allRanges = ranges.all();
