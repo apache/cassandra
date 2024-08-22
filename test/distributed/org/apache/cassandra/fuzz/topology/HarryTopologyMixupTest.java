@@ -113,7 +113,8 @@ public class HarryTopologyMixupTest extends TopologyMixupTestBase<HarryTopologyM
                 harryState.generation = history.generation();
                 return validateAll;
             }
-            if (harryState.numInserts > 500)
+            if (harryState.numInserts > 500
+                || (harryState.numInserts > 0 && rs.decide(0.2))) // 20% of the time do reads
                 return validateAll;
             return insert;
         };
