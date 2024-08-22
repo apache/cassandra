@@ -256,7 +256,7 @@ final class OnDiskIndex<K> extends Index<K>
     public long[] lookUpAll(K id)
     {
         if (!mayContainId(id))
-            return new long[0];
+            return EMPTY;
 
         int start = binarySearch(id);
         int firstKeyIndex = start;
@@ -265,7 +265,7 @@ final class OnDiskIndex<K> extends Index<K>
             firstKeyIndex = i;
 
         if (firstKeyIndex < 0)
-            return new long[0];
+            return EMPTY;
 
         int lastKeyIndex = start;
 
@@ -282,56 +282,61 @@ final class OnDiskIndex<K> extends Index<K>
         return all;
     }
 
-    public IndexIterator<K> iterator()
+    IndexReader reader()
     {
-        return new IndexIteratorImpl();
+        return new IndexReader();
     }
 
-    private class IndexIteratorImpl implements IndexIterator<K>
+    public class IndexReader
     {
-        int currentIdx;
-        K currentKey;
-        int currentOffset;
-        int currentSize;
+        int idx;
+        K key;
+        int offset;
+        int size;
 
-        IndexIteratorImpl()
+        IndexReader()
         {
-            currentIdx = -1;
+            idx = -1;
         }
 
-        @Override
-        public boolean hasNext()
+        public K key()
         {
-            return currentIdx < (entryCount - 1);
+            ensureAdvanced();
+            return key;
         }
 
-        @Override
-        public K currentKey()
+        public int offset()
         {
-            return currentKey;
+            ensureAdvanced();
+            return offset;
         }
 
-        @Override
-        public int currentOffset()
+        public int recordSize()
         {
-            return currentOffset;
+            ensureAdvanced();
+            return size;
         }
 
-        @Override
-        public int currentSize()
+        public boolean advance()
         {
-            return currentSize;
+            if (idx >= entryCount - 1)
+                return false;
+
+            idx++;
+            key = keyAtIndex(idx);
+            long record = recordAtIndex(idx);
+            offset = Index.readOffset(record);
+            size = Index.readSize(record);
+            return true;
         }
 
-        public void next()
+        private void ensureAdvanced()
         {
-            currentIdx++;
-            currentKey = keyAtIndex(currentIdx);
-            long record = recordAtIndex(currentIdx);
-            currentOffset = Index.readOffset(record);
-            currentSize = Index.readSize(record);
+            if (idx < 0)
+                throw new IllegalStateException("Must call advance() before accessing entry content");
         }
     }
+
     private K keyAtIndex(int index)
     {
         return keySupport.deserialize(buffer, FILE_PREFIX_SIZE + index * ENTRY_SIZE, descriptor.userVersion);

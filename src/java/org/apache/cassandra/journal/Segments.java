@@ -17,7 +17,11 @@
  */
 package org.apache.cassandra.journal;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
+import java.util.List;
+import java.util.function.Predicate;
 
 import accord.utils.Invariants;
 import org.agrona.collections.Long2ObjectHashMap;
@@ -68,27 +72,37 @@ class Segments<K, V>
         return new Segments<>(newSegments);
     }
 
-    Segments<K, V> withCompactedSegment(StaticSegment<K, V> oldSegment, StaticSegment<K, V> newSegment)
+    Segments<K, V> withCompactedSegments(Collection<StaticSegment<K, V>> oldSegments, Collection<StaticSegment<K, V>> compactedSegments)
     {
-        Invariants.checkArgument(oldSegment.descriptor.timestamp == newSegment.descriptor.timestamp);
-        Invariants.checkArgument(oldSegment.descriptor.generation < newSegment.descriptor.generation);
         Long2ObjectHashMap<Segment<K, V>> newSegments = new Long2ObjectHashMap<>(segments);
-        Segment<K, V> oldValue = newSegments.put(newSegment.descriptor.timestamp, newSegment);
-        Invariants.checkState(oldValue == oldSegment);
-        return new Segments<>(newSegments);
-    }
+        for (StaticSegment<K, V> oldSegment : oldSegments)
+        {
+            Segment<K, V> oldValue = newSegments.remove(oldSegment.descriptor.timestamp);
+            Invariants.checkState(oldValue == oldSegment);
+        }
 
-    Segments<K, V> withoutInvalidatedSegment(StaticSegment<K, V> staticSegment)
-    {
-        Long2ObjectHashMap<Segment<K, V>> newSegments = new Long2ObjectHashMap<>(segments);
-        if (!newSegments.remove(staticSegment.descriptor.timestamp, staticSegment))
-            throw new IllegalStateException();
+        for (StaticSegment<K, V> compactedSegment : compactedSegments)
+        {
+            Segment<K, V> oldValue = newSegments.put(compactedSegment.descriptor.timestamp, compactedSegment);
+            Invariants.checkState(oldValue == null);
+        }
+
         return new Segments<>(newSegments);
     }
 
     Iterable<Segment<K, V>> all()
     {
-        return segments.values();
+        return this.segments.values();
+    }
+
+    /**
+     * Returns segments in timestamp order. Will allocate and sort the segment collection.
+     */
+    List<Segment<K, V>> allSorted()
+    {
+        List<Segment<K, V>> segments = new ArrayList<>(this.segments.values());
+        segments.sort(Comparator.comparing(s -> s.descriptor));
+        return segments;
     }
 
     void selectActive(long maxTimestamp, Collection<ActiveSegment<K, V>> into)
@@ -136,12 +150,12 @@ class Segments<K, V>
      * @return a subset of segments with references to them, or {@code null} if failed to grab the refs
      */
     @SuppressWarnings("resource")
-    ReferencedSegments<K, V> selectAndReference(Iterable<K> ids)
+    ReferencedSegments<K, V> selectAndReference(Predicate<Segment<K, V>> test)
     {
         Long2ObjectHashMap<Segment<K, V>> selectedSegments = null;
         for (Segment<K, V> segment : segments.values())
         {
-            if (segment.index().mayContainIds(ids))
+            if (test.test(segment))
             {
                 if (null == selectedSegments)
                     selectedSegments = newMap(10);

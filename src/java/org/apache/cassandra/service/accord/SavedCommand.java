@@ -259,30 +259,128 @@ public class SavedCommand
         return oldFlags | (1 << field.ordinal());
     }
 
-
     public static class Builder
     {
-        TxnId txnId = null;
+        TxnId txnId;
 
-        Timestamp executeAt = null;
-        Timestamp executeAtLeast = null;
-        SaveStatus saveStatus = null;
-        Status.Durability durability = null;
+        Timestamp executeAt;
+        Timestamp executeAtLeast;
+        SaveStatus saveStatus;
+        Status.Durability durability;
 
-        Ballot acceptedOrCommitted = Ballot.ZERO;
-        Ballot promised = null;
+        Ballot acceptedOrCommitted;
+        Ballot promised;
 
-        Route<?> route = null;
-        PartialTxn partialTxn = null;
-        PartialDeps partialDeps = null;
-        Seekables<?, ?> additionalKeysOrRanges = null;
+        Route<?> route;
+        PartialTxn partialTxn;
+        PartialDeps partialDeps;
+        Seekables<?, ?> additionalKeysOrRanges;
 
-        SavedCommand.WaitingOnProvider waitingOn = (txn, deps) -> null;
-        Writes writes = null;
-        Result result = CommandSerializers.APPLIED;
+        SavedCommand.WaitingOnProvider waitingOn;
+        Writes writes;
+        Result result;
 
-        boolean nextCalled = false;
-        int count = 0;
+        boolean nextCalled;
+        int count;
+
+        public Builder()
+        {
+            clear();
+        }
+
+        public TxnId txnId()
+        {
+            return txnId;
+        }
+
+        public Timestamp executeAt()
+        {
+            return executeAt;
+        }
+
+        public SaveStatus saveStatus()
+        {
+            return saveStatus;
+        }
+
+        public Status.Durability durability()
+        {
+            return durability;
+        }
+
+        public Ballot acceptedOrCommitted()
+        {
+            return acceptedOrCommitted;
+        }
+
+        public Ballot promised()
+        {
+            return promised;
+        }
+
+        public Route<?> route()
+        {
+            return route;
+        }
+
+        public PartialTxn partialTxn()
+        {
+            return partialTxn;
+        }
+
+        public PartialDeps partialDeps()
+        {
+            return partialDeps;
+        }
+
+        public Seekables<?, ?> additionalKeysOrRanges()
+        {
+            return additionalKeysOrRanges;
+        }
+
+        public SavedCommand.WaitingOnProvider waitingOn()
+        {
+            return waitingOn;
+        }
+
+        public Writes writes()
+        {
+            return writes;
+        }
+
+        public Result result()
+        {
+            return result;
+        }
+
+        public void clear()
+        {
+            txnId = null;
+
+            executeAt = null;
+            saveStatus = null;
+            durability = null;
+
+            acceptedOrCommitted = Ballot.ZERO;
+            promised = null;
+
+            route = null;
+            partialTxn = null;
+            partialDeps = null;
+            additionalKeysOrRanges = null;
+
+            waitingOn = (txn, deps) -> null;
+            writes = null;
+            result = CommandSerializers.APPLIED;
+
+            nextCalled = false;
+            count = 0;
+        }
+
+        public boolean isEmpty()
+        {
+            return !nextCalled;
+        }
 
         public int count()
         {
@@ -455,6 +553,11 @@ public class SavedCommand
                 case PreAccepted:
                     return Command.PreAccepted.preAccepted(attrs, executeAt, promised);
                 case AcceptedInvalidate:
+                    if (saveStatus == SaveStatus.AcceptedInvalidateWithDefinition)
+                        return Command.Accepted.accepted(attrs, saveStatus, executeAt, promised, acceptedOrCommitted);
+                    else
+                        return Command.AcceptedInvalidateWithoutDefinition.acceptedInvalidate(attrs, promised, acceptedOrCommitted);
+
                 case Accepted:
                 case PreCommitted:
                     return Command.Accepted.accepted(attrs, saveStatus, executeAt, promised, acceptedOrCommitted);
