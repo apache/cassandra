@@ -26,6 +26,8 @@ import java.util.TreeMap;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import accord.impl.CommandsSummary;
 import accord.local.SafeCommandStore.CommandFunction;
 import accord.local.SafeCommandStore.TestDep;
@@ -60,6 +62,12 @@ public class CommandsForRanges implements CommandsSummary
     public static CommandsForRanges create(Ranges ranges, NavigableMap<TxnId, CommandsForRangesLoader.Summary> map)
     {
         return new CommandsForRanges(ranges, (NavigableMap<Timestamp, CommandsForRangesLoader.Summary>) (NavigableMap<?, ?>) map);
+    }
+
+    @VisibleForTesting
+    public int size()
+    {
+        return map.size();
     }
 
     @Override

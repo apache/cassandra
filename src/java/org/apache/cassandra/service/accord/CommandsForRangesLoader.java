@@ -31,6 +31,7 @@ import java.util.TreeMap;
 import java.util.function.BiFunction;
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 
 import accord.local.Command;
@@ -255,7 +256,8 @@ public class CommandsForRangesLoader
         public final Ranges ranges;
         public final List<TxnId> depsIds;
 
-        private Summary(TxnId txnId, @Nullable Timestamp executeAt, SaveStatus saveStatus, Ranges ranges, List<TxnId> depsIds)
+        @VisibleForTesting
+        Summary(TxnId txnId, @Nullable Timestamp executeAt, SaveStatus saveStatus, Ranges ranges, List<TxnId> depsIds)
         {
             this.txnId = txnId;
             this.executeAt = executeAt;
