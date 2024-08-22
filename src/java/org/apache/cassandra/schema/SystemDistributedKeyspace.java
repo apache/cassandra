@@ -164,6 +164,9 @@ public final class SystemDistributedKeyspace
                                    .comment(description);
     }
 
+    // You can't assume that this metadata will be the metadata in Schema/TCM
+    // On upgrade there can be a delay until the entire cluster is upgraded before it will be updated
+    // When gossip is gone this can be improved
     @VisibleForTesting
     public static KeyspaceMetadata metadata()
     {

@@ -18,17 +18,16 @@
 package org.apache.cassandra.schema;
 
 import java.io.IOException;
-import java.util.Optional;
 
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.tcm.serialization.MetadataSerializer;
-import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.serialization.MetadataSerializer;
+import org.apache.cassandra.tcm.serialization.Version;
 
 public interface SchemaTransformation
 {
@@ -86,16 +85,6 @@ public interface SchemaTransformation
     default String keyspace()
     {
         return null;
-    }
-
-    /**
-     * If the transformation should be applied with a certain timestamp, this method should be overriden. This is used
-     * by {@link SchemaTransformations#updateSystemKeyspace(KeyspaceMetadata, long)} when we need to set the fixed
-     * timestamp in order to preserve user settings.
-     */
-    default Optional<Long> fixedTimestampMicros()
-    {
-        return Optional.empty();
     }
 
     /**

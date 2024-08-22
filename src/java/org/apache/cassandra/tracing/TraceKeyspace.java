@@ -112,6 +112,9 @@ public final class TraceKeyspace
                                    .build();
     }
 
+    // You can't assume that this metadata will be the metadata in Schema/TCM
+    // On upgrade there can be a delay until the entire cluster is upgraded before it will be updated
+    // When gossip is gone this can be improved
     public static KeyspaceMetadata metadata()
     {
         return KeyspaceMetadata.create(SchemaConstants.TRACE_KEYSPACE_NAME, KeyspaceParams.simple(Math.max(DEFAULT_RF, DatabaseDescriptor.getDefaultKeyspaceRF())), Tables.of(Sessions, Events));

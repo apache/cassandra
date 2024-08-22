@@ -850,7 +850,6 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
         ClusterMetadataService.instance().processor().fetchLogAndWait();
 
-
         ActiveRepairService.instance().start();
         StreamManager.instance.start();
         PaxosState.startAutoRepairs();
