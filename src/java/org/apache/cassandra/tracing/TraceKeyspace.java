@@ -28,16 +28,19 @@ import com.google.common.collect.ImmutableSet;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Tables;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
 
@@ -151,19 +154,27 @@ public final class TraceKeyspace
         return builder.buildAsMutation();
     }
 
+    private static final ColumnIdentifier ELAPSE_WALL_MS_IDENITIFER = metadata().getTableNullable(EVENTS).columns().stream().map(ColumnMetadata::name).filter(name -> name.toString().equals("elapsed_wall_ms")).findFirst().get();
+
     static Mutation makeEventMutation(TimeUUID sessionId, ByteBuffer sessionIdBuffer, String message, int elapsed, String threadName, int ttl)
     {
         PartitionUpdate.SimpleBuilder builder = PartitionUpdate.simpleBuilder(Events, sessionIdBuffer);
         Row.SimpleBuilder rowBuilder = builder.row(nextTimeUUID())
                                               .ttl(ttl);
 
-        long elapsed_wall_ms = Math.max(0, currentTimeMillis() - sessionId.unix(TimeUnit.MILLISECONDS));
-        rowBuilder.add("elapsed_wall_ms", elapsed_wall_ms)
-                  .add("elapsed_wall", FBUtilities.humanReadableDuration(elapsed_wall_ms, TimeUnit.MILLISECONDS))
-                  .add("activity", message)
+        rowBuilder.add("activity", message)
                   .add("source", FBUtilities.getBroadcastAddressAndPort().getAddress())
                   .add("source_port", FBUtilities.getBroadcastAddressAndPort().getPort())
                   .add("thread", threadName);
+
+        // When upgrading to 5.0 there is a period where schema changes can't happen so the only way to know if we can
+        // use these columns is to check the schema
+        if (ClusterMetadata.current().schema.getKeyspaceMetadata(SchemaConstants.TRACE_KEYSPACE_NAME).getTableNullable(EVENTS).getColumn(ELAPSE_WALL_MS_IDENITIFER) != null)
+        {
+            long elapsed_wall_ms = Math.max(0, currentTimeMillis() - sessionId.unix(TimeUnit.MILLISECONDS));
+            rowBuilder.add("elapsed_wall_ms", elapsed_wall_ms)
+                      .add("elapsed_wall", FBUtilities.humanReadableDuration(elapsed_wall_ms, TimeUnit.MILLISECONDS));
+        }
 
         if (elapsed >= 0)
             rowBuilder.add("source_elapsed", elapsed);

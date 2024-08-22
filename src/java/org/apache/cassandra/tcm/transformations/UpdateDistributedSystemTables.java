@@ -47,10 +47,12 @@ import static com.google.common.base.Preconditions.checkState;
 import static org.apache.cassandra.exceptions.ExceptionCode.ALREADY_EXISTS;
 import static org.apache.cassandra.schema.SchemaConstants.AUTH_KEYSPACE_NAME;
 
+// Update distributed system tables after TCM is running on a fully upgraded cluster
 public class UpdateDistributedSystemTables implements ChangeListener.Async
 {
     private static final Logger logger = LoggerFactory.getLogger(UpdateDistributedSystemTables.class);
-    private static final CassandraVersion MIN_TO_UPDATE = new CassandraVersion("5.1");
+    // Can upgrade once all nodes support TCM
+    private static final CassandraVersion MIN_TO_UPDATE = new CassandraVersion("5.0");
 
     public void notifyPostCommit(ClusterMetadata prev, ClusterMetadata next, boolean fromSnapshot)
     {
@@ -81,9 +83,6 @@ public class UpdateDistributedSystemTables implements ChangeListener.Async
 
         logger.info("Maybe creating {}.{}", keyspace.name, table.name);
         CreateTableStatement stmt = (CreateTableStatement) QueryProcessor.getStatement(createCql, ClientState.forInternalCalls());
-//        CQLFragmentParser.parseAny(CqlParser::createTableStatement, createCql, "CREATE TABLE")
-//                                                                                                                      .prepare(ClientState.forInternalCalls());
-//        stmt.setCql(createCql);
         AlterSchema transform = new AlterSchema(stmt, Schema.instance);
         ClusterMetadataService.instance().commit(transform,
                                                  (m) -> m,
@@ -145,9 +144,6 @@ public class UpdateDistributedSystemTables implements ChangeListener.Async
 
         logger.info("Maybe altering {}.{}", keyspace.name, table.name);
         AlterTableStatement stmt = (AlterTableStatement) QueryProcessor.getStatement(alterCql, ClientState.forInternalCalls());
-//        CQLFragmentParser.parseAny(CqlParser::alterTableStatement, alterCql, "ALTER TABLE")
-//                                                    .prepare(ClientState.forInternalCalls());
-//        stmt.setCql(alterCql);
         AlterSchema transform = new AlterSchema(stmt, Schema.instance);
         ClusterMetadataService.instance().commit(transform,
                                                  (m) -> m,

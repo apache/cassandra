@@ -832,6 +832,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         Startup.maybeExecuteStartupTransformation(self);
 
+        maybeUpdateDistributedSystemTables();
+
         try
         {
             if (joinRing)
@@ -1117,6 +1119,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             Schema.instance.registerListener(new AuthSchemaChangeListener());
             authSetupComplete = true;
         }
+    }
+
+    @VisibleForTesting
+    public void maybeUpdateDistributedSystemTables()
+    {
+//        SchemaTransformations.maybeUpdateSystemKeyspace(TraceKeyspace.metadata());
+//        SchemaTransformations.maybeUpdateSystemKeyspace(SystemDistributedKeyspace.metadata());
+//        SchemaTransformations.maybeUpdateSystemKeyspace(AuthKeyspace.metadata());
     }
 
     public boolean isAuthSetupComplete()
