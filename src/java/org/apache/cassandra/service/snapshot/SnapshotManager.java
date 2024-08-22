@@ -690,12 +690,16 @@ public class SnapshotManager implements SnapshotManagerMBean, AutoCloseable
         boolean includeEphemeral = options != null && Boolean.parseBoolean(options.getOrDefault("include_ephemeral", "false"));
         String selectedKeyspace = options != null ? options.get("keyspace") : null;
         String selectedTable = options != null ? options.get("table") : null;
+        String selectedSnapshotName = options != null ? options.get("snapshot") : null;
 
         Map<String, TabularData> snapshotMap = new HashMap<>();
 
         Set<String> tags = new HashSet<>();
 
         List<TableSnapshot> snapshots = SnapshotManager.instance.getSnapshots(s -> {
+            if (selectedSnapshotName != null && !s.getTag().equals(selectedSnapshotName))
+                return false;
+
             if (skipExpiring && s.isExpiring())
                 return false;
 

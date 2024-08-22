@@ -54,6 +54,11 @@ public class ListSnapshots extends NodeToolCmd
     description = "Include snapshots of specified table name")
     private String table = null;
 
+    @Option(title = "snapshot",
+    name = { "-s", "--snapshot"},
+    description = "Include snapshots of specified name")
+    private String snapshotName = null;
+
     @Override
     public void execute(NodeProbe probe)
     {
@@ -67,6 +72,7 @@ public class ListSnapshots extends NodeToolCmd
             options.put("include_ephemeral", Boolean.toString(includeEphemeral));
             options.put("keyspace", keyspace);
             options.put("table", table);
+            options.put("snapshot", snapshotName);
 
             final Map<String, TabularData> snapshotDetails = probe.getSnapshotDetails(options);
             if (snapshotDetails.isEmpty())

@@ -46,7 +46,17 @@ public interface SnapshotManagerMBean
     void clearSnapshot(String tag, Map<String, Object> options, String... keyspaceNames) throws IOException;
 
     /**
-     * Get the details of all the snapshots
+     * Get the details of all the snapshots. Options might be:
+     *
+     * <pre>
+     * no_ttl: "true" or "false"
+     * include_ephemeral: "true" or "false"
+     * keyspace: name of keyspace to get snapshots of
+     * table: name of table to get tables of
+     * snapshot: name of snapshot to list
+     * </pre>
+     *
+     * There is no requirement as what option has to be specified.
      *
      * @param options map of options used for filtering of snapshots
      * @return A map of snapshotName to all its details in Tabular form.
