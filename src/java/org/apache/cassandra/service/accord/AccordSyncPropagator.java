@@ -113,7 +113,7 @@ public class AccordSyncPropagator
             if (closed.containsAll(addClosed))
                 return null;
 
-            addClosed = addClosed.subtract(closed);
+            addClosed = addClosed.without(closed);
             closed = closed.with(addClosed);
             return new Notification(epoch, Collections.emptySet(), addClosed, Ranges.EMPTY);
         }
@@ -123,7 +123,7 @@ public class AccordSyncPropagator
             if (redundant.containsAll(addRedundant))
                 return null;
 
-            addRedundant = addRedundant.subtract(redundant);
+            addRedundant = addRedundant.without(redundant);
             redundant = redundant.with(addRedundant);
             return new Notification(epoch, Collections.emptySet(), Ranges.EMPTY, addRedundant);
         }
@@ -140,8 +140,8 @@ public class AccordSyncPropagator
                 if (notification.syncComplete.containsAll(syncComplete)) syncComplete = ImmutableSet.of();
                 else syncComplete = ImmutableSet.copyOf(Iterables.filter(syncComplete, v -> !notification.syncComplete.contains(v)));
             }
-            closed = closed.subtract(notification.closed);
-            redundant = redundant.subtract(notification.redundant);
+            closed = closed.without(notification.closed);
+            redundant = redundant.without(notification.redundant);
             return syncComplete.isEmpty() && closed.isEmpty() && redundant.isEmpty();
         }
 

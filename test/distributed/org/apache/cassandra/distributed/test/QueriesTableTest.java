@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CyclicBarrier;
 
+import accord.impl.progresslog.DefaultProgressLogs;
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
@@ -31,7 +32,6 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import accord.impl.SimpleProgressLog;
 import com.datastax.driver.core.Session;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
@@ -177,7 +177,7 @@ public class QueriesTableTest extends TestBaseImpl
 
         // Disable recovery to make sure only one local read occurs:
         for (IInvokableInstance instance : SHARED_CLUSTER)
-            instance.runOnInstance(() -> SimpleProgressLog.PAUSE_FOR_TEST = true);
+            instance.runOnInstance(() -> DefaultProgressLogs.unsafePauseForTesting(true));
 
         String update = "BEGIN TRANSACTION\n" +
                         "  LET row1 = (SELECT * FROM " + KEYSPACE + ".accord_tbl WHERE k = 0);\n" +

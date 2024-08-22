@@ -42,8 +42,8 @@ import org.slf4j.LoggerFactory;
 import accord.api.RoutingKey;
 import accord.messages.PreAccept;
 import accord.primitives.PartialKeyRoute;
-import accord.primitives.PartialRoute;
 import accord.primitives.Routable.Domain;
+import accord.primitives.Route;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.batchlog.BatchlogManager;
@@ -458,7 +458,7 @@ public abstract class AccordMigrationRaceTestBase extends AccordTestBase
                          {
                                  boolean drop = cluster.get(to).callsOnInstance(() -> {
                                      PreAccept preAccept = (PreAccept)Instance.deserializeMessage(message).payload;
-                                     PartialRoute<?> route = preAccept.scope;
+                                     Route<?> route = preAccept.scope;
                                      if (route.domain() == Domain.Key)
                                          for (RoutingKey key : (PartialKeyRoute)route)
                                          {

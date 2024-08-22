@@ -41,7 +41,7 @@ import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
 import static accord.local.cfk.CommandsForKey.NO_PENDING_UNMANAGED;
-import static accord.local.cfk.CommandsForKey.NO_TXNIDS;
+import static accord.primitives.TxnId.NO_TXNIDS;
 import static accord.primitives.Txn.Kind.Read;
 import static accord.primitives.Txn.Kind.SyncPoint;
 import static accord.primitives.Txn.Kind.Write;
@@ -117,19 +117,21 @@ public class CommandsForKeySerializer
         if (commandCount == 0)
             return ByteBuffer.allocate(1);
 
-        int[] nodeIds = cachedInts().getInts(Math.min(64, commandCount));
+        int[] nodeIds = cachedInts().getInts(Math.min(64, Math.max(4, commandCount)));
         try
         {
             // first compute the unique Node Ids and some basic characteristics of the data, such as
             // whether we have any missing transactions to encode, any executeAt that are not equal to their TxnId
             // and whether there are any non-standard flag bits to encode
             boolean hasNonStandardFlags = false;
-            int nodeIdCount = 0, missingIdCount = 0, executeAtCount = 0, ballotCount = 0;
+            int nodeIdCount, missingIdCount = 0, executeAtCount = 0, ballotCount = 0;
             int bitsPerExecuteAtEpoch = 0, bitsPerExecuteAtFlags = 0, bitsPerExecuteAtHlc = 1; // to permit us to use full 64 bits and encode in 5 bits we force at least one hlc bit
             {
+                nodeIds[0] = cfk.redundantBefore().node.id;
+                nodeIdCount = 1;
                 for (int i = 0 ; i < commandCount ; ++i)
                 {
-                    if (nodeIdCount + 2 >= nodeIds.length)
+                    if (nodeIdCount + 3 >= nodeIds.length)
                     {
                         nodeIdCount = compact(nodeIds);
                         if (nodeIdCount > nodeIds.length/2 || nodeIdCount + 2 >= nodeIds.length)
@@ -176,10 +178,10 @@ public class CommandsForKeySerializer
             int maxHeaderBits = minHeaderBits;
             int totalBytes = 0;
 
-            long prevEpoch = cfk.get(0).epoch();
-            long prevHlc = cfk.get(0).hlc();
             int prunedBeforeIndex = cfk.prunedBefore().equals(TxnId.NONE) ? -1 : cfk.indexOf(cfk.prunedBefore());
 
+            long prevEpoch = cfk.redundantBefore().epoch();
+            long prevHlc = cfk.redundantBefore().hlc();
             int[] bytesHistogram = cachedInts().getInts(12);
             Arrays.fill(bytesHistogram, 0);
             for (int i = 0 ; i < commandCount ; ++i)
@@ -277,10 +279,12 @@ public class CommandsForKeySerializer
 
             cachedInts().forceDiscard(bytesHistogram);
 
-            prevEpoch = cfk.get(0).epoch();
-            prevHlc = cfk.get(0).hlc();
+            prevEpoch = cfk.redundantBefore().epoch();
+            prevHlc = cfk.redundantBefore().hlc();
             totalBytes += TypeSizes.sizeofUnsignedVInt(prevEpoch);
             totalBytes += TypeSizes.sizeofUnsignedVInt(prevHlc);
+            totalBytes += TypeSizes.sizeofUnsignedVInt(cfk.redundantBefore().flags());
+            totalBytes += TypeSizes.sizeofUnsignedVInt(Arrays.binarySearch(nodeIds, 0, nodeIdCount, cfk.redundantBefore().node.id));
             totalBytes += TypeSizes.sizeofUnsignedVInt(prunedBeforeIndex + 1);
 
             int bitsPerBallotEpoch = 0, bitsPerBallotHlc = 1, bitsPerBallotFlags = 0;
@@ -348,8 +352,11 @@ public class CommandsForKeySerializer
                 VIntCoding.writeUnsignedVInt32(nodeIds[i] - nodeIds[i-1], out);
             out.putShort((short)flags);
 
+
             VIntCoding.writeUnsignedVInt(prevEpoch, out);
             VIntCoding.writeUnsignedVInt(prevHlc, out);
+            VIntCoding.writeUnsignedVInt32(cfk.redundantBefore().flags(), out);
+            VIntCoding.writeUnsignedVInt32(Arrays.binarySearch(nodeIds, 0, nodeIdCount, cfk.redundantBefore().node.id), out);
             VIntCoding.writeUnsignedVInt32(prunedBeforeIndex + 1, out);
 
             int executeAtMask = executeAtCount > 0 ? 1 : 0;
@@ -372,7 +379,7 @@ public class CommandsForKeySerializer
                 bits |= hasExecuteAt << bitIndex;
                 bitIndex += statusHasInfo & executeAtMask;
 
-                long hasMissingIds = info.getClass() == TxnInfoExtra.class && ((TxnInfoExtra)info).missing != CommandsForKey.NO_TXNIDS ? 1 : 0;
+                long hasMissingIds = info.getClass() == TxnInfoExtra.class && ((TxnInfoExtra)info).missing != NO_TXNIDS ? 1 : 0;
                 bits |= hasMissingIds << bitIndex;
                 bitIndex += statusHasInfo & missingDepsMask;
 
@@ -639,6 +646,12 @@ public class CommandsForKeySerializer
 
         long prevEpoch = VIntCoding.readUnsignedVInt(in);
         long prevHlc = VIntCoding.readUnsignedVInt(in);
+        TxnId redundantBefore;
+        {
+            int flags = VIntCoding.readUnsignedVInt32(in);
+            Node.Id node = nodeIds[VIntCoding.readUnsignedVInt32(in)];
+            redundantBefore = TxnId.fromValues(prevEpoch, prevHlc, flags, node);
+        }
         int prunedBeforeIndex = VIntCoding.readUnsignedVInt32(in) - 1;
 
         for (int i = 0 ; i < commandCount ; ++i)
@@ -879,7 +892,7 @@ public class CommandsForKeySerializer
         }
         cachedTxnIds().forceDiscard(txnIds, commandCount);
 
-        return CommandsForKey.SerializerSupport.create(key, txns, unmanageds, prunedBeforeIndex == -1 ? TxnId.NONE : txns[prunedBeforeIndex]);
+        return CommandsForKey.SerializerSupport.create(key, txns, unmanageds, redundantBefore, prunedBeforeIndex == -1 ? TxnId.NONE : txns[prunedBeforeIndex]);
     }
 
     private static int getHlcBytes(int lookup, int index)

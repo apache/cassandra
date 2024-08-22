@@ -22,7 +22,7 @@ import java.io.IOException;
 
 import accord.local.Status;
 import accord.messages.InformDurable;
-import accord.primitives.PartialRoute;
+import accord.primitives.Route;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -36,14 +36,14 @@ public class InformDurableSerializers
         @Override
         public void serializeBody(InformDurable msg, DataOutputPlus out, int version) throws IOException
         {
-            CommandSerializers.timestamp.serialize(msg.executeAt, out, version);
+            CommandSerializers.nullableTimestamp.serialize(msg.executeAt, out, version);
             CommandSerializers.durability.serialize(msg.durability, out, version);
         }
 
         @Override
-        public InformDurable deserializeBody(DataInputPlus in, int version, TxnId txnId, PartialRoute scope, long waitForEpoch) throws IOException
+        public InformDurable deserializeBody(DataInputPlus in, int version, TxnId txnId, Route<?> scope, long waitForEpoch) throws IOException
         {
-            Timestamp executeAt = CommandSerializers.timestamp.deserialize(in, version);
+            Timestamp executeAt = CommandSerializers.nullableTimestamp.deserialize(in, version);
             Status.Durability durability = CommandSerializers.durability.deserialize(in, version);
             return InformDurable.SerializationSupport.create(txnId, scope, waitForEpoch, executeAt, durability);
         }
@@ -51,7 +51,7 @@ public class InformDurableSerializers
         @Override
         public long serializedBodySize(InformDurable msg, int version)
         {
-            return CommandSerializers.timestamp.serializedSize(msg.executeAt, version)
+            return CommandSerializers.nullableTimestamp.serializedSize(msg.executeAt, version)
             + CommandSerializers.durability.serializedSize(msg.durability, version);
         }
     };

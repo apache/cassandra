@@ -41,7 +41,6 @@ import accord.primitives.Ballot;
 import accord.primitives.FullRoute;
 import accord.primitives.Keys;
 import accord.primitives.PartialDeps;
-import accord.primitives.PartialRoute;
 import accord.primitives.PartialTxn;
 import accord.primitives.Route;
 import accord.primitives.Timestamp;
@@ -100,9 +99,9 @@ public class AccordCommandTest
         Key key = (Key)txn.keys().get(0);
         RoutingKey homeKey = key.toUnseekable();
         FullRoute<?> fullRoute = txn.keys().toRoute(homeKey);
-        PartialRoute<?> route = fullRoute.slice(fullRange(txn));
+        Route<?> route = fullRoute.slice(fullRange(txn));
         PartialTxn partialTxn = txn.intersecting(route, true);
-        PreAccept preAccept = PreAccept.SerializerSupport.create(txnId, route, 1, 1, false, 1, partialTxn, fullRoute);
+        PreAccept preAccept = PreAccept.SerializerSupport.create(txnId, route, 1, 1, 1, partialTxn, fullRoute);
 
         // Check preaccept
         getUninterruptibly(commandStore.execute(preAccept, safeStore -> {
@@ -141,7 +140,7 @@ public class AccordCommandTest
             builder.add(key, txnId2);
             deps = builder.build();
         }
-        Accept accept = Accept.SerializerSupport.create(txnId, route, 1, 1, false, Ballot.ZERO, executeAt, partialTxn.keys(), deps);
+        Accept accept = Accept.SerializerSupport.create(txnId, route, 1, 1, Ballot.ZERO, executeAt, partialTxn.keys(), deps);
 
         getUninterruptibly(commandStore.execute(accept, safeStore -> {
             Command before = safeStore.ifInitialised(txnId).current();
@@ -192,9 +191,9 @@ public class AccordCommandTest
         Key key = (Key)txn.keys().get(0);
         RoutingKey homeKey = key.toUnseekable();
         FullRoute<?> fullRoute = txn.keys().toRoute(homeKey);
-        PartialRoute<?> route = fullRoute.slice(fullRange(txn));
+        Route<?> route = fullRoute.slice(fullRange(txn));
         PartialTxn partialTxn = txn.intersecting(route, true);
-        PreAccept preAccept1 = PreAccept.SerializerSupport.create(txnId1, route, 1, 1, false, 1, partialTxn, fullRoute);
+        PreAccept preAccept1 = PreAccept.SerializerSupport.create(txnId1, route, 1, 1, 1, partialTxn, fullRoute);
 
         getUninterruptibly(commandStore.execute(preAccept1, safeStore -> {
             persistDiff(commandStore, safeStore, txnId1, route, () -> {
@@ -204,7 +203,7 @@ public class AccordCommandTest
 
         // second preaccept should identify txnId1 as a dependency
         TxnId txnId2 = txnId(1, clock.incrementAndGet(), 1);
-        PreAccept preAccept2 = PreAccept.SerializerSupport.create(txnId2, route, 1, 1, false, 1, partialTxn, fullRoute);
+        PreAccept preAccept2 = PreAccept.SerializerSupport.create(txnId2, route, 1, 1, 1, partialTxn, fullRoute);
         getUninterruptibly(commandStore.execute(preAccept2, safeStore -> {
             persistDiff(commandStore, safeStore, txnId2, route, () -> {
                 PreAccept.PreAcceptReply reply = preAccept2.apply(safeStore);

@@ -35,7 +35,6 @@ import org.slf4j.LoggerFactory;
 import accord.coordinate.Timeout;
 import accord.local.Command;
 import accord.local.Node;
-import accord.messages.LocalRequest;
 import accord.messages.ReplyContext;
 import accord.messages.Request;
 import accord.primitives.TxnId;
@@ -175,19 +174,6 @@ public class AccordJournal implements IJournal, Shutdownable
             delayedRequestProcessor.delay(requestContext);
     }
 
-    /**
-     * Accord protocol messages originating from local node, e.g. Propagate.
-     */
-    @SuppressWarnings("rawtypes, unchecked")
-    public <R> void processLocalRequest(LocalRequest request, BiConsumer<? super R, Throwable> callback)
-    {
-        LocalRequestContext requestContext = LocalRequestContext.create(request, callback);
-        if (node.topology().hasEpoch(request.waitForEpoch()))
-            request.process(node, requestContext.callback);
-        else
-            delayedRequestProcessor.delay(requestContext);
-    }
-
     @Override
     public Command loadCommand(int commandStoreId, TxnId txnId)
     {
@@ -279,29 +265,6 @@ public class AccordJournal implements IJournal, Shutdownable
         }
 
         public abstract void process(Node node, AccordEndpointMapper endpointMapper);
-    }
-
-    private static class LocalRequestContext<T> extends RequestContext
-    {
-        private final BiConsumer<T, Throwable> callback;
-        private final LocalRequest<T> request;
-
-        LocalRequestContext(long waitForEpoch, LocalRequest<T> request, BiConsumer<T, Throwable> callback)
-        {
-            super(waitForEpoch);
-            this.callback = callback;
-            this.request = request;
-        }
-
-        public void process(Node node, AccordEndpointMapper endpointMapper)
-        {
-            request.process(node, callback);
-        }
-
-        static <R> LocalRequestContext<R> create(LocalRequest<R> request, BiConsumer<R, Throwable> callback)
-        {
-            return new LocalRequestContext<>(request.waitForEpoch(), request, callback);
-        }
     }
 
     /**

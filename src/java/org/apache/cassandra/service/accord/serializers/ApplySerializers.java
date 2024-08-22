@@ -24,8 +24,8 @@ import accord.api.Result;
 import accord.messages.Apply;
 import accord.primitives.FullRoute;
 import accord.primitives.PartialDeps;
-import accord.primitives.PartialRoute;
 import accord.primitives.PartialTxn;
+import accord.primitives.Route;
 import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
@@ -58,7 +58,6 @@ public class ApplySerializers
         }
     };
 
-//    public static final IVersionedSerializer<Apply> request = new TxnRequestSerializer<Apply>()
     public abstract static class ApplySerializer<A extends Apply> extends TxnRequestSerializer<A>
     {
         @Override
@@ -73,11 +72,11 @@ public class ApplySerializers
             CommandSerializers.writes.serialize(apply.writes, out, version);
         }
 
-        protected abstract A deserializeApply(TxnId txnId, PartialRoute<?> scope, long waitForEpoch, Apply.Kind kind, Seekables<?, ?> keys,
+        protected abstract A deserializeApply(TxnId txnId, Route<?> scope, long waitForEpoch, Apply.Kind kind, Seekables<?, ?> keys,
                                               Timestamp executeAt, PartialDeps deps, PartialTxn txn, FullRoute<?> fullRoute, Writes writes, Result result);
 
         @Override
-        public A deserializeBody(DataInputPlus in, int version, TxnId txnId, PartialRoute<?> scope, long waitForEpoch) throws IOException
+        public A deserializeBody(DataInputPlus in, int version, TxnId txnId, Route<?> scope, long waitForEpoch) throws IOException
         {
             return deserializeApply(txnId, scope, waitForEpoch,
                                     kind.deserialize(in, version),
@@ -106,7 +105,7 @@ public class ApplySerializers
     public static final IVersionedSerializer<Apply> request = new ApplySerializer<Apply>()
     {
         @Override
-        protected Apply deserializeApply(TxnId txnId, PartialRoute<?> scope, long waitForEpoch, Apply.Kind kind, Seekables<?, ?> keys,
+        protected Apply deserializeApply(TxnId txnId, Route<?> scope, long waitForEpoch, Apply.Kind kind, Seekables<?, ?> keys,
                                Timestamp executeAt, PartialDeps deps, PartialTxn txn, FullRoute<?> fullRoute, Writes writes, Result result)
         {
             return Apply.SerializationSupport.create(txnId, scope, waitForEpoch, kind, keys, executeAt, deps, txn, fullRoute, writes, result);

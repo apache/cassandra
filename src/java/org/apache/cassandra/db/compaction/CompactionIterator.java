@@ -96,6 +96,7 @@ import static com.google.common.base.Preconditions.checkState;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
 import static org.apache.cassandra.config.Config.PaxosStatePurging.legacy;
 import static org.apache.cassandra.config.DatabaseDescriptor.paxosStatePurging;
+import static org.apache.cassandra.service.accord.AccordKeyspace.CommandRows.invalidated;
 import static org.apache.cassandra.service.accord.AccordKeyspace.CommandRows.maybeDropTruncatedCommandColumns;
 import static org.apache.cassandra.service.accord.AccordKeyspace.CommandRows.truncatedApply;
 import static org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeysAccessor;
@@ -848,6 +849,9 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                     // Eventually the tombstone can be dropped by `durableBefore.min(txnId) == Universal`
                     // We can still encounter sliced command state just because compaction inputs are random
                     return BTreeRow.emptyDeletedRow(row.clustering(), new Row.Deletion(DeletionTime.build(row.primaryKeyLivenessInfo().timestamp(), nowInSec), false));
+
+                case INVALIDATE:
+                    return invalidated(cleanup.appliesIfNot, row, nowInSec);
 
                 case TRUNCATE_WITH_OUTCOME:
                 case TRUNCATE:

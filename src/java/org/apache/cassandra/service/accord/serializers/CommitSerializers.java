@@ -26,8 +26,8 @@ import accord.messages.ReadData;
 import accord.primitives.Ballot;
 import accord.primitives.FullRoute;
 import accord.primitives.PartialDeps;
-import accord.primitives.PartialRoute;
 import accord.primitives.PartialTxn;
+import accord.primitives.Route;
 import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
@@ -68,13 +68,13 @@ public class CommitSerializers
             serializeNullable(msg.readData, out, version, read);
         }
 
-        protected abstract C deserializeCommit(TxnId txnId, PartialRoute<?> scope, long waitForEpoch, Commit.Kind kind,
+        protected abstract C deserializeCommit(TxnId txnId, Route<?> scope, long waitForEpoch, Commit.Kind kind,
                                                Ballot ballot, Timestamp executeAt,
                                                Seekables<?, ?> keys, @Nullable PartialTxn partialTxn, PartialDeps partialDeps,
                                                @Nullable FullRoute<?> fullRoute, @Nullable ReadData read);
 
         @Override
-        public C deserializeBody(DataInputPlus in, int version, TxnId txnId, PartialRoute<?> scope, long waitForEpoch) throws IOException
+        public C deserializeBody(DataInputPlus in, int version, TxnId txnId, Route<?> scope, long waitForEpoch) throws IOException
         {
             Commit.Kind kind = CommitSerializers.kind.deserialize(in, version);
             Ballot ballot = CommandSerializers.ballot.deserialize(in, version);
@@ -104,7 +104,7 @@ public class CommitSerializers
     public static final IVersionedSerializer<Commit> request = new CommitSerializer<Commit, ReadData>(ReadData.class, ReadDataSerializers.readData)
     {
         @Override
-        protected Commit deserializeCommit(TxnId txnId, PartialRoute<?> scope, long waitForEpoch, Commit.Kind kind, Ballot ballot, Timestamp executeAt, Seekables<?, ?> keys, @Nullable PartialTxn partialTxn, PartialDeps partialDeps, @Nullable FullRoute<?> fullRoute, @Nullable ReadData read)
+        protected Commit deserializeCommit(TxnId txnId, Route<?> scope, long waitForEpoch, Commit.Kind kind, Ballot ballot, Timestamp executeAt, Seekables<?, ?> keys, @Nullable PartialTxn partialTxn, PartialDeps partialDeps, @Nullable FullRoute<?> fullRoute, @Nullable ReadData read)
         {
             return Commit.SerializerSupport.create(txnId, scope, waitForEpoch, kind, ballot, executeAt, keys, partialTxn, partialDeps, fullRoute, read);
         }

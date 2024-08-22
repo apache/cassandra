@@ -20,9 +20,9 @@ package org.apache.cassandra.service.accord.serializers;
 
 import java.io.IOException;
 
-import accord.messages.GetDeps;
-import accord.messages.GetDeps.GetDepsOk;
-import accord.primitives.PartialRoute;
+import accord.messages.CalculateDeps;
+import accord.messages.CalculateDeps.CalculateDepsOk;
+import accord.primitives.Route;
 import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
@@ -30,49 +30,49 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
-public class GetDepsSerializers
+public class CalculateDepsSerializers
 {
-    public static final IVersionedSerializer<GetDeps> request = new TxnRequestSerializer.WithUnsyncedSerializer<GetDeps>()
+    public static final IVersionedSerializer<CalculateDeps> request = new TxnRequestSerializer.WithUnsyncedSerializer<CalculateDeps>()
     {
         @Override
-        public void serializeBody(GetDeps msg, DataOutputPlus out, int version) throws IOException
+        public void serializeBody(CalculateDeps msg, DataOutputPlus out, int version) throws IOException
         {
             KeySerializers.seekables.serialize(msg.keys, out, version);
             CommandSerializers.timestamp.serialize(msg.executeAt, out, version);
         }
 
         @Override
-        public GetDeps deserializeBody(DataInputPlus in, int version, TxnId txnId, PartialRoute<?> scope, long waitForEpoch, long minEpoch, boolean doNotComputeProgressKey) throws IOException
+        public CalculateDeps deserializeBody(DataInputPlus in, int version, TxnId txnId, Route<?> scope, long waitForEpoch, long minEpoch) throws IOException
         {
             Seekables<?, ?> keys = KeySerializers.seekables.deserialize(in, version);
             Timestamp executeAt = CommandSerializers.timestamp.deserialize(in, version);
-            return GetDeps.SerializationSupport.create(txnId, scope, waitForEpoch, minEpoch, doNotComputeProgressKey, keys, executeAt);
+            return CalculateDeps.SerializationSupport.create(txnId, scope, waitForEpoch, minEpoch, keys, executeAt);
         }
 
         @Override
-        public long serializedBodySize(GetDeps msg, int version)
+        public long serializedBodySize(CalculateDeps msg, int version)
         {
             return KeySerializers.seekables.serializedSize(msg.keys, version)
                    + CommandSerializers.timestamp.serializedSize(msg.executeAt, version);
         }
     };
 
-    public static final IVersionedSerializer<GetDepsOk> reply = new IVersionedSerializer<GetDepsOk>()
+    public static final IVersionedSerializer<CalculateDepsOk> reply = new IVersionedSerializer<CalculateDepsOk>()
     {
         @Override
-        public void serialize(GetDepsOk reply, DataOutputPlus out, int version) throws IOException
+        public void serialize(CalculateDepsOk reply, DataOutputPlus out, int version) throws IOException
         {
             DepsSerializer.partialDeps.serialize(reply.deps, out, version);
         }
 
         @Override
-        public GetDepsOk deserialize(DataInputPlus in, int version) throws IOException
+        public CalculateDepsOk deserialize(DataInputPlus in, int version) throws IOException
         {
-            return new GetDepsOk(DepsSerializer.partialDeps.deserialize(in, version));
+            return new CalculateDepsOk(DepsSerializer.partialDeps.deserialize(in, version));
         }
 
         @Override
-        public long serializedSize(GetDepsOk reply, int version)
+        public long serializedSize(CalculateDepsOk reply, int version)
         {
             return DepsSerializer.partialDeps.serializedSize(reply.deps, version);
         }

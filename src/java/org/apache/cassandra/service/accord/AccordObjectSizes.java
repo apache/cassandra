@@ -69,7 +69,7 @@ import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.service.accord.txn.TxnWrite;
 import org.apache.cassandra.utils.ObjectSizes;
 
-import static accord.local.cfk.CommandsForKey.NO_TXNIDS;
+import static accord.primitives.TxnId.NO_TXNIDS;
 import static org.apache.cassandra.utils.ObjectSizes.measure;
 
 public class AccordObjectSizes
@@ -266,14 +266,6 @@ public class AccordObjectSizes
         return ((TxnResult) result).estimatedSizeOnHeap();
     }
 
-    private static final long EMPTY_COMMAND_LISTENER = measure(new Command.ProxyListener(null));
-    public static long listener(Command.DurableAndIdempotentListener listener)
-    {
-        if (listener instanceof Command.ProxyListener)
-            return EMPTY_COMMAND_LISTENER + timestamp(((Command.ProxyListener) listener).txnId());
-        throw new IllegalArgumentException("Unhandled listener type: " + listener.getClass());
-    }
-
     private static class CommandEmptySizes
     {
         private final static TokenKey EMPTY_KEY = new TokenKey(EMPTY_ID, null);
@@ -301,7 +293,7 @@ public class AccordObjectSizes
         final static long COMMITTED = measure(Command.SerializerSupport.committed(attrs(true, true), SaveStatus.Committed, EMPTY_TXNID, Ballot.ZERO, Ballot.ZERO, null));
         final static long EXECUTED = measure(Command.SerializerSupport.executed(attrs(true, true), SaveStatus.Applied, EMPTY_TXNID, Ballot.ZERO, Ballot.ZERO, WaitingOn.empty(EMPTY_TXNID.domain()), EMPTY_WRITES, EMPTY_RESULT));
         final static long TRUNCATED = measure(Command.SerializerSupport.truncatedApply(attrs(false, false), SaveStatus.TruncatedApply,  EMPTY_TXNID, null, null));
-        final static long INVALIDATED = measure(Command.SerializerSupport.invalidated(EMPTY_TXNID, null));
+        final static long INVALIDATED = measure(Command.SerializerSupport.invalidated(EMPTY_TXNID));
 
         private static long emptySize(Command command)
         {
@@ -343,8 +335,6 @@ public class AccordObjectSizes
         long size = CommandEmptySizes.emptySize(command);
         size += sizeNullable(command.route(), AccordObjectSizes::route);
         size += sizeNullable(command.promised(), AccordObjectSizes::timestamp);
-        for (Command.DurableAndIdempotentListener listener : command.durableListeners())
-            size += listener(listener);
         size += sizeNullable(command.executeAt(), AccordObjectSizes::timestamp);
         size += sizeNullable(command.partialTxn(), AccordObjectSizes::txn);
         size += sizeNullable(command.partialDeps(), AccordObjectSizes::dependencies);

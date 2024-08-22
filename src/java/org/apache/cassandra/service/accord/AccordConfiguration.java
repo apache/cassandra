@@ -18,9 +18,7 @@
 
 package org.apache.cassandra.service.accord;
 
-import java.time.Duration;
-
-import accord.config.LocalConfig;
+import accord.api.LocalConfig;
 import org.apache.cassandra.config.Config;
 
 // TODO (expected): should this be merged with AccordSpec?
@@ -31,11 +29,5 @@ public class AccordConfiguration implements LocalConfig
     public AccordConfiguration(Config config)
     {
         this.config = config;
-    }
-
-    @Override
-    public Duration getProgressLogScheduleDelay()
-    {
-        return config.accord.progress_log_schedule_delay.toDuration();
     }
 }

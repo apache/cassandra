@@ -24,8 +24,6 @@ import java.util.function.Function;
 import com.google.common.annotations.VisibleForTesting;
 
 import accord.local.Command;
-import accord.local.Command.TransientListener;
-import accord.local.Listeners;
 import accord.local.SafeCommand;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
@@ -150,27 +148,6 @@ public class AccordSafeCommand extends SafeCommand implements AccordSafeState<Tx
     public boolean invalidated()
     {
         return invalidated;
-    }
-
-    @Override
-    public void addListener(TransientListener listener)
-    {
-        checkNotInvalidated();
-        global.addListener(listener);
-    }
-
-    @Override
-    public boolean removeListener(TransientListener listener)
-    {
-        checkNotInvalidated();
-        return global.removeListener(listener);
-    }
-
-    @Override
-    public Listeners<TransientListener> transientListeners()
-    {
-        checkNotInvalidated();
-        return global.listeners();
     }
 
     public static Function<AccordCachingState<TxnId, Command>, AccordSafeCommand> safeRefFactory()

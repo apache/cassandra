@@ -25,8 +25,6 @@ import java.util.function.ToLongFunction;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
 
-import accord.local.Command.TransientListener;
-import accord.local.Listeners;
 import accord.utils.IntrusiveLinkedListNode;
 import accord.utils.Invariants;
 import accord.utils.async.AsyncChain;
@@ -68,11 +66,6 @@ public class AccordCachingState<K, V> extends IntrusiveLinkedListNode
     int lastQueriedEstimatedSizeOnHeap = 0;
     final byte index;
     private boolean shouldUpdateSize;
-
-    /**
-     * Transient listeners aren't meant to survive process restart, but must survive cache eviction.
-     */
-    private Listeners<TransientListener> transientListeners;
 
     AccordCachingState(K key, int index)
     {
@@ -155,33 +148,6 @@ public class AccordCachingState<K, V> extends IntrusiveLinkedListNode
     public Status status()
     {
         return complete().status();
-    }
-
-    public void addListener(TransientListener listener)
-    {
-        if (transientListeners == null)
-            transientListeners = new Listeners<>();
-        transientListeners.add(listener);
-    }
-
-    public boolean removeListener(TransientListener listener)
-    {
-        return transientListeners != null && transientListeners.remove(listener);
-    }
-
-    public void listeners(Listeners<TransientListener> listeners)
-    {
-        transientListeners = listeners;
-    }
-
-    public Listeners<TransientListener> listeners()
-    {
-        return transientListeners == null ? Listeners.EMPTY : transientListeners;
-    }
-
-    public boolean hasListeners()
-    {
-        return !listeners().isEmpty();
     }
 
     State<K, V> complete()

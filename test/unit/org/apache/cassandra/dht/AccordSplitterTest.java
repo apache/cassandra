@@ -98,7 +98,7 @@ public class AccordSplitterTest
             Assertions.assertThat(ranges).describedAs("num splits not as expected for partitioner %s", partitioner).hasSizeBetween(numSplits, numSplits + 1);
 
             Ranges split = Ranges.of(ranges.toArray(new Range[0])).mergeTouching();
-            Ranges missing = Ranges.of(range).subtract(split);
+            Ranges missing = Ranges.of(range).without(split);
             Assertions.assertThat(missing).isEmpty();
 
             testEventSplit(partitioner, range, rs, numSplits);
@@ -115,7 +115,7 @@ public class AccordSplitterTest
         Assertions.assertThat(ranges).describedAs("num splits not as expected for partitioner %s", partitioner).hasSize(numSplits);
 
         Ranges split = ranges.stream().reduce(Ranges.EMPTY, Ranges::with).mergeTouching();
-        Ranges missing = topLevel.subtract(split);
+        Ranges missing = topLevel.without(split);
         Assertions.assertThat(missing).isEmpty();
     }
 

@@ -26,7 +26,7 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import accord.impl.SimpleProgressLog;
+import accord.impl.progresslog.DefaultProgressLogs;
 import accord.messages.Commit;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IMessageFilters;
@@ -131,6 +131,6 @@ public class AccordIntegrationTest extends AccordTestBase
     private void pauseSimpleProgressLog()
     {
         for (IInvokableInstance instance : SHARED_CLUSTER)
-            instance.runOnInstance(() -> SimpleProgressLog.PAUSE_FOR_TEST = true);
+            instance.runOnInstance(() -> DefaultProgressLogs.unsafePauseForTesting(true));
     }
 }

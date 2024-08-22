@@ -30,7 +30,7 @@ public class AccordSpec
 
     public volatile OptionaldPositiveInt shard_count = OptionaldPositiveInt.UNDEFINED;
 
-    public volatile DurationSpec.IntMillisecondsBound progress_log_schedule_delay = new DurationSpec.IntMillisecondsBound(100);
+    public volatile DurationSpec.IntMillisecondsBound recover_delay = new DurationSpec.IntMillisecondsBound(1000);
 
     /**
      * When a barrier transaction is requested how many times to repeat attempting the barrier before giving up
