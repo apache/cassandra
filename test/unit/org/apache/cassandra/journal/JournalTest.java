@@ -18,27 +18,33 @@
 package org.apache.cassandra.journal;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.util.Collections;
+import java.util.Set;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.TimeUUID;
 
-import static org.junit.Assert.assertEquals;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
+import static org.junit.Assert.assertEquals;
 
 public class JournalTest
 {
+    private static final Set<Integer> SENTINEL_HOSTS = Collections.singleton(0);
+
     @BeforeClass
     public static void setUp()
     {
         DatabaseDescriptor.daemonInitialization();
+        ServerTestUtils.prepareServer();
     }
 
     @Test
@@ -48,7 +54,8 @@ public class JournalTest
         directory.deleteRecursiveOnExit();
 
         Journal<TimeUUID, Long> journal =
-            new Journal<>("TestJournal", directory, TestParams.INSTANCE, TimeUUIDKeySupport.INSTANCE, LongSerializer.INSTANCE);
+        new Journal<>("TestJournal", directory, TestParams.INSTANCE, TimeUUIDKeySupport.INSTANCE, LongSerializer.INSTANCE, SegmentCompactor.noop());
+
 
         journal.start();
 
@@ -69,7 +76,7 @@ public class JournalTest
 
         journal.shutdown();
 
-        journal = new Journal<>("TestJournal", directory, TestParams.INSTANCE, TimeUUIDKeySupport.INSTANCE, LongSerializer.INSTANCE);
+        journal = new Journal<>("TestJournal", directory, TestParams.INSTANCE, TimeUUIDKeySupport.INSTANCE, LongSerializer.INSTANCE, SegmentCompactor.noop());
         journal.start();
 
         assertEquals(1L, (long) journal.readFirst(id1));
@@ -78,6 +85,29 @@ public class JournalTest
         assertEquals(4L, (long) journal.readFirst(id4));
 
         journal.shutdown();
+    }
+
+    static class ByteBufferSerializer implements ValueSerializer<TimeUUID, ByteBuffer>
+    {
+        static final ByteBufferSerializer INSTANCE = new ByteBufferSerializer();
+
+        public int serializedSize(TimeUUID key, ByteBuffer value, int userVersion)
+        {
+            return Integer.BYTES + value.capacity();
+        }
+
+        public void serialize(TimeUUID key, ByteBuffer value, DataOutputPlus out, int userVersion) throws IOException
+        {
+            out.writeInt(value.capacity());
+            out.write(value);
+        }
+
+        public ByteBuffer deserialize(TimeUUID key, DataInputPlus in, int userVersion) throws IOException
+        {
+            byte[] bytes = new byte[in.readInt()];
+            in.readFully(bytes);
+            return ByteBuffer.wrap(bytes);
+        }
     }
 
     static class LongSerializer implements ValueSerializer<TimeUUID, Long>

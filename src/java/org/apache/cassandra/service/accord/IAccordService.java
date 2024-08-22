@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Supplier;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
@@ -126,6 +127,8 @@ public interface IAccordService
 
     class CompactionInfo
     {
+        static final Supplier<CompactionInfo> NO_OP = () ->  new CompactionInfo(new Int2ObjectHashMap<>(), new Int2ObjectHashMap<>(), DurableBefore.EMPTY);
+
         public final Int2ObjectHashMap<RedundantBefore> redundantBefores;
         public final Int2ObjectHashMap<CommandStores.RangesForEpoch> ranges;
         public final DurableBefore durableBefore;
