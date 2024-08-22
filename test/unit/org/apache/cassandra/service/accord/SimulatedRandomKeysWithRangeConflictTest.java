@@ -35,14 +35,12 @@ import accord.primitives.Keys;
 import accord.primitives.Ranges;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
-import accord.utils.async.AsyncResult;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 
 import static accord.utils.Property.qt;
 import static org.apache.cassandra.dht.Murmur3Partitioner.LongToken.keyForToken;
 import static org.apache.cassandra.service.accord.AccordTestUtils.createTxn;
 
-@Ignore // TODO (required): This class relies on removed ExecutionOrder for correctness, and needs to be adjusted
 public class SimulatedRandomKeysWithRangeConflictTest extends SimulatedAccordCommandStoreTestBase
 {
     @Test
@@ -60,8 +58,6 @@ public class SimulatedRandomKeysWithRangeConflictTest extends SimulatedAccordCom
             {
                 Map<Key, List<TxnId>> keyConflicts = new HashMap<>();
                 List<TxnId> rangeConflicts = new ArrayList<>(numSamples);
-                boolean concurrent = rs.nextBoolean();
-                List<AsyncResult<?>> asyncs = !concurrent ? null : new ArrayList<>(numSamples * 2);
                 for (int i = 0; i < numSamples; i++)
                 {
                     long token = rs.nextLong(Long.MIN_VALUE  + 1, Long.MAX_VALUE);
@@ -75,27 +71,9 @@ public class SimulatedRandomKeysWithRangeConflictTest extends SimulatedAccordCom
 
                     // the full range is (-Inf, +Inf] but the store could be [(-Inf, Number], (Number, +Inf]], so need to slice to the store to get a matching range
                     Ranges wholeRangeSlicedShard = instance.slice(wholeRange);
-                    if (concurrent)
-                    {
-                        var k = assertDepsMessageAsync(instance, rs.pick(DepsMessage.values()), keyTxn, keyRoute, Map.of(key, keyConflicts.computeIfAbsent(key, ignore -> new ArrayList<>())), Collections.emptyMap());
-                        keyConflicts.get(key).add(k.left);
-                        asyncs.add(k.right);
-
-                        var r = assertDepsMessageAsync(instance, rs.pick(DepsMessage.values()), rangeTxn, rangeRoute, keyConflicts, rangeConflicts(rangeConflicts, wholeRangeSlicedShard));
-                        rangeConflicts.add(r.left);
-                        asyncs.add(r.right);
-                    }
-                    else
-                    {
-                        var k = assertDepsMessage(instance, rs.pick(DepsMessage.values()), keyTxn, keyRoute, Map.of(key, keyConflicts.computeIfAbsent(key, ignore -> new ArrayList<>())), Collections.emptyMap());
-                        keyConflicts.get(key).add(k);
-                        rangeConflicts.add(assertDepsMessage(instance, rs.pick(DepsMessage.values()), rangeTxn, rangeRoute, keyConflicts, rangeConflicts(rangeConflicts, wholeRangeSlicedShard)));
-                    }
-                }
-                if (concurrent)
-                {
-                    instance.processAll();
-                    safeBlock(asyncs);
+                    var k = assertDepsMessage(instance, rs.pick(DepsMessage.values()), keyTxn, keyRoute, Map.of(key, keyConflicts.computeIfAbsent(key, ignore -> new ArrayList<>())), Collections.emptyMap());
+                    keyConflicts.get(key).add(k);
+                    rangeConflicts.add(assertDepsMessage(instance, rs.pick(DepsMessage.values()), rangeTxn, rangeRoute, keyConflicts, rangeConflicts(rangeConflicts, wholeRangeSlicedShard)));
                 }
             }
         });
