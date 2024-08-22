@@ -86,6 +86,16 @@ public interface MessageDelivery
     public <REQ, RSP> void sendWithCallback(Message<REQ> message, InetAddressAndPort to, RequestCallback<RSP> cb, ConnectionType specifyConnection);
     public <REQ, RSP> Future<Message<RSP>> sendWithResult(Message<REQ> message, InetAddressAndPort to);
 
+    public default <REQ, RSP> Future<Message<RSP>> sendWithRetries(Backoff backoff,
+                                                                   RetryScheduler retryThreads,
+                                                                   Verb verb, REQ request,
+                                                                   InetAddressAndPort candidate,
+                                                                   TriFunction<Integer, InetAddressAndPort, RequestFailureReason, Boolean> shouldRetry,
+                                                                   RetryErrorMessage errorMessage)
+    {
+        return sendWithRetries(new AsyncPromise<>(), (Integer i, Message<RSP> msg) -> msg, backoff, retryThreads, verb, request, Iterators.cycle(candidate), shouldRetry, errorMessage);
+    }
+
     public default <REQ, MSG_RSP, RSP> Future<RSP> sendWithRetries(BiFunction<Integer, Message<MSG_RSP>, RSP> msgToRsp,
                                                                    Backoff backoff,
                                                                    RetryScheduler retryThreads,
