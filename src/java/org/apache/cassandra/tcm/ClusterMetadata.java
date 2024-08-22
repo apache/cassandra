@@ -74,6 +74,7 @@ import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
+import static com.google.common.collect.ImmutableSet.toImmutableSet;
 import static org.apache.cassandra.config.CassandraRelevantProperties.LINE_SEPARATOR;
 import static org.apache.cassandra.db.TypeSizes.sizeof;
 
@@ -95,9 +96,10 @@ public class ClusterMetadata
     public final InProgressSequences inProgressSequences;
     public final ImmutableMap<ExtensionKey<?,?>, ExtensionValue<?>> extensions;
 
-    // These two fields are lazy but only for the test purposes, since their computation requires initialization of the log ks
+    // These fields are lazy but only for the test purposes, since their computation requires initialization of the log ks
     private EndpointsForRange fullCMSReplicas;
     private Set<InetAddressAndPort> fullCMSEndpoints;
+    private Set<NodeId> fullCMSIds;
 
     public ClusterMetadata(IPartitioner partitioner)
     {
@@ -179,6 +181,13 @@ public class ClusterMetadata
         if (fullCMSEndpoints == null)
             this.fullCMSEndpoints = ImmutableSet.copyOf(placements.get(ReplicationParams.meta(this)).reads.byEndpoint().keySet());
         return fullCMSEndpoints;
+    }
+
+    public Set<NodeId> fullCMSMemberIds()
+    {
+        if (fullCMSIds == null)
+            this.fullCMSIds = placements.get(ReplicationParams.meta(this)).reads.byEndpoint().keySet().stream().map(directory::peerId).collect(toImmutableSet());
+        return fullCMSIds;
     }
 
     public EndpointsForRange fullCMSMembersAsReplicas()
