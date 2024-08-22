@@ -21,6 +21,7 @@ package org.apache.cassandra.tcm.log;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -60,15 +61,14 @@ import org.apache.cassandra.tcm.listeners.MetadataSnapshotListener;
 import org.apache.cassandra.tcm.listeners.PlacementsChangeListener;
 import org.apache.cassandra.tcm.listeners.SchemaListener;
 import org.apache.cassandra.tcm.listeners.UpgradeMigrationListener;
+import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.transformations.ForceSnapshot;
 import org.apache.cassandra.tcm.transformations.cms.PreInitialize;
 import org.apache.cassandra.utils.Closeable;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
-import static java.util.Comparator.comparing;
 import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.Daemon.NON_DAEMON;
 import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.Interrupts.UNSYNCHRONIZED;
 import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.SimulatorSafe.SAFE;
@@ -338,7 +338,7 @@ public abstract class LocalLog implements Closeable
 
     public LogState getCommittedEntries(Epoch since)
     {
-        return storage.getLogState(since);
+        return storage.getLogState(since, false);
     }
 
     public ClusterMetadata waitForHighestConsecutive()
@@ -894,9 +894,9 @@ public abstract class LocalLog implements Closeable
 
             if ((entry.epoch.getEpoch() % DatabaseDescriptor.getMetadataSnapshotFrequency()) == 0)
             {
-                List<InetAddressAndPort> list = new ArrayList<>(ClusterMetadata.current().fullCMSMembers());
-                list.sort(comparing(i -> i.addressBytes[i.addressBytes.length - 1]));
-                if (list.get(0).equals(FBUtilities.getBroadcastAddressAndPort()))
+                List<NodeId> list = new ArrayList<>(metadata.success().metadata.fullCMSMemberIds());
+                list.sort(Comparator.comparingInt(NodeId::id));
+                if (list.get(0).equals(metadata.success().metadata.myNodeId()))
                     ScheduledExecutors.nonPeriodicTasks.submit(() -> ClusterMetadataService.instance().triggerSnapshot());
             }
         };
