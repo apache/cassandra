@@ -29,6 +29,7 @@ import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
@@ -613,10 +614,16 @@ public class Property
 
     public static class SimpleCommand<State> implements StateOnlyCommand<State>
     {
-        private final String name;
+        private final Function<State, String> name;
         private final Consumer<State> fn;
 
         public SimpleCommand(String name, Consumer<State> fn)
+        {
+            this.name = ignore -> name;
+            this.fn = fn;
+        }
+
+        public SimpleCommand(Function<State, String> name, Consumer<State> fn)
         {
             this.name = name;
             this.fn = fn;
@@ -625,11 +632,11 @@ public class Property
         @Override
         public String detailed(State state)
         {
-            return name;
+            return name.apply(state);
         }
 
         @Override
-        public void applyUnit(State state) throws Throwable
+        public void applyUnit(State state)
         {
             fn.accept(state);
         }

@@ -19,6 +19,8 @@
 package org.apache.cassandra.fuzz.topology;
 
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
 import javax.annotation.Nullable;
 
@@ -80,30 +82,28 @@ public class HarryTopologyMixupTest extends TopologyMixupTestBase<HarryTopologyM
 
     private static BiFunction<RandomSource, State<Spec>, Command<State<Spec>, Void, ?>> cqlOperations(Spec spec)
     {
-        Command<State<Spec>, Void, ?> insert = new SimpleCommand<>("Harry Insert", s2 -> {
+        class HarryCommand extends SimpleCommand<State<Spec>>
+        {
+            HarryCommand(Function<State<Spec>, String> name, Consumer<State<Spec>> fn)
+            {
+                super(name, fn);
+            }
+
+            @Override
+            public PreCheckResult checkPreconditions(State<Spec> state)
+            {
+                int clusterSize = state.topologyHistory.up().length;
+                return clusterSize >= 3 ? PreCheckResult.Ok : PreCheckResult.Ignore;
+            }
+        }
+        Command<State<Spec>, Void, ?> insert = new HarryCommand(state -> "Harry Insert" + state.commandNamePostfix(), state -> {
             spec.harry.insert();
-            ((HarryState) s2).numInserts++;
-        })
-        {
-            @Override
-            public PreCheckResult checkPreconditions(State<Spec> state)
-            {
-                int clusterSize = state.topologyHistory.up().length;
-                return clusterSize >= 3 ? PreCheckResult.Ok : PreCheckResult.Ignore;
-            }
-        };
-        Command<State<Spec>, Void, ?> validateAll = new SimpleCommand<>("Harry Validate All", s2 -> {
+            ((HarryState) state).numInserts++;
+        });
+        Command<State<Spec>, Void, ?> validateAll = new HarryCommand(state -> "Harry Validate All" + state.commandNamePostfix(), state -> {
             spec.harry.validateAll(spec.harry.quiescentLocalChecker());
-            ((HarryState) s2).numInserts = 0;
-        })
-        {
-            @Override
-            public PreCheckResult checkPreconditions(State<Spec> state)
-            {
-                int clusterSize = state.topologyHistory.up().length;
-                return clusterSize >= 3 ? PreCheckResult.Ok : PreCheckResult.Ignore;
-            }
-        };
+            ((HarryState) state).numInserts = 0;
+        });
         return (rs, state) -> {
             HarryState harryState = (HarryState) state;
             TopologyHistory history = state.topologyHistory;
