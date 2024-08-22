@@ -263,7 +263,7 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
             if (!staticRow.isEmpty())
                 updateBuilder.add(staticRow);
 
-            Row existing = !baseUpdate.isEmpty() ? Iterables.getOnlyElement(baseUpdate) : null;
+            Row existing = baseUpdate.hasRows() ? Iterables.getOnlyElement(baseUpdate) : null;
             Row row = applyUpdates(existing, referenceOps.regulars, key, referenceOps.clustering, up, data);
             if (row != null)
                 updateBuilder.add(row);
