@@ -518,6 +518,12 @@ public class SnapshotsTest extends TestBaseImpl
         waitForSnapshot(null, "tbl", "tagks1tbl2", false, false);
         waitForSnapshot(null, "tbl", "tagks2tbl", true, false);
         waitForSnapshot(null, "tbl", "tagks2tbl2", false, false);
+
+        NodeToolResult nodeToolResult = instance.nodetoolResult("listsnapshots", "-s", "tagks1tbl");
+        nodeToolResult.asserts().success();
+        List<String> snapshots = extractSnapshots(nodeToolResult.getStdout());
+        assertEquals(1, snapshots.size());
+        assertTrue(snapshots.get(0).contains("tagks1tbl"));
     }
 
     private void populate(Cluster cluster)
@@ -575,14 +581,25 @@ public class SnapshotsTest extends TestBaseImpl
             args.add(tableName);
         }
 
+        if (snapshotName != null)
+        {
+            args.add("-s");
+            args.add(snapshotName);
+        }
+
         listsnapshots = cluster.get(1).nodetoolResult(args.toArray(new String[0]));
 
-        List<String> lines = Arrays.stream(listsnapshots.getStdout().split("\n"))
-                                   .filter(line -> !line.isEmpty())
-                                   .filter(line -> !line.startsWith("Snapshot Details:") && !line.startsWith("There are no snapshots"))
-                                   .filter(line -> !line.startsWith("Snapshot name") && !line.startsWith("Total TrueDiskSpaceUsed"))
-                                   .collect(toList());
+        List<String> lines = extractSnapshots(listsnapshots.getStdout());
 
         return expectPresent == lines.stream().anyMatch(line -> line.startsWith(snapshotName));
+    }
+
+    private List<String> extractSnapshots(String listSnapshotsStdOut)
+    {
+        return Arrays.stream(listSnapshotsStdOut.split("\n"))
+                     .filter(line -> !line.isEmpty())
+                     .filter(line -> !line.startsWith("Snapshot Details:") && !line.startsWith("There are no snapshots"))
+                     .filter(line -> !line.startsWith("Snapshot name") && !line.startsWith("Total TrueDiskSpaceUsed"))
+                     .collect(toList());
     }
 }

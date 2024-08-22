@@ -968,8 +968,6 @@ public class NodeProbe implements AutoCloseable
      * @param options options to use upon listing of snapshots
      * @return details of snapshots
      */
-    /** @deprecated See CASSANDRA-18111 */
-    @Deprecated(since = "5.1")
     public Map<String, TabularData> getSnapshotDetails(Map<String, String> options)
     {
         return snapshotProxy.listSnapshots(options);
