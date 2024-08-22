@@ -20,9 +20,11 @@ package org.apache.cassandra.tcm.transformations;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,6 +41,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.ClusterMetadataService.State;
 import org.apache.cassandra.tcm.listeners.ChangeListener;
 import org.apache.cassandra.tracing.TraceKeyspace;
 import org.apache.cassandra.utils.CassandraVersion;
@@ -51,15 +54,24 @@ import static org.apache.cassandra.schema.SchemaConstants.AUTH_KEYSPACE_NAME;
 public class UpdateDistributedSystemTables implements ChangeListener.Async
 {
     private static final Logger logger = LoggerFactory.getLogger(UpdateDistributedSystemTables.class);
-    // Can upgrade once all nodes support TCM
     private static final CassandraVersion MIN_TO_UPDATE = new CassandraVersion("5.0");
 
+    @Override
     public void notifyPostCommit(ClusterMetadata prev, ClusterMetadata next, boolean fromSnapshot)
+    {
+        maybeUpdateDistributedSystemTables(prev, next);
+    }
+
+    // This listener waits until TCM is activated and all nodes are upgraded to the minimum version before
+    // doing the schema change. A 4.X to 5.X upgrade is forced to wait for an entire cluster upgrade and TCM activation
+    // before it can change the schema, but 5.X to later versions can use maybeUpdateDistributedSystemTables
+    // to change the schema when the first node is upgraded.
+    private static void maybeUpdateDistributedSystemTables(@Nullable ClusterMetadata prev, ClusterMetadata next)
     {
         if (next.directory.clusterMinVersion.cassandraVersion.compareTo(MIN_TO_UPDATE) < 0)
             return;
         // Avoid expensive schema comparisons when nothing changes
-        if (next.directory.clusterMinVersion == prev.directory.clusterMinVersion)
+        if (prev != null && next.directory.clusterMinVersion == prev.directory.clusterMinVersion)
             return;
 
         for (KeyspaceMetadata keyspace : ImmutableList.of(TraceKeyspace.metadata(), SystemDistributedKeyspace.metadata(), AuthKeyspace.metadata()))
@@ -70,6 +82,15 @@ public class UpdateDistributedSystemTables implements ChangeListener.Async
                     maybeAlterTable(next, keyspace, table);
             }
         }
+    }
+
+    // Make it possible for 5.X upgrades to later versions to update system tables without waiting for the cluster to reach some minimum version
+    public static void maybeUpdateDistributedSystemTables()
+    {
+        State state = ClusterMetadataService.state();
+        Set<State> migratedStates = ImmutableSet.of(State.LOCAL, State.REMOTE);
+        if (!ClusterMetadataService.instance().isMigrating() && migratedStates.contains(state))
+            maybeUpdateDistributedSystemTables(null, ClusterMetadata.current());
     }
 
     private static boolean maybeCreateTable(ClusterMetadata metadata, KeyspaceMetadata keyspace, TableMetadata table)
@@ -104,7 +125,7 @@ public class UpdateDistributedSystemTables implements ChangeListener.Async
     // Add columns to a system table, won't alter or drop
     private static @Nullable String addColumnsCQL(TableMetadata existing, TableMetadata desired)
     {
-        checkState(existing.primaryKeyColumns().equals(desired.primaryKeyColumns()), "Can't change primary key columns");
+        checkState(existing.partitionKeyColumns().equals(desired.partitionKeyColumns()), "Can't change partition key columns");
         checkState(existing.clusteringColumns().equals(desired.clusteringColumns()), "Can't change clustering columns");
 
         List<ColumnMetadata> columnsToAdd = new ArrayList<>();
@@ -118,6 +139,9 @@ public class UpdateDistributedSystemTables implements ChangeListener.Async
                            && existingColumn.isStatic() == column.isStatic()
                            && existingColumn.isMasked() == column.isMasked(), "Can't alter existing column");
         }
+
+        if (columnsToAdd.isEmpty())
+            return null;
 
         CqlBuilder cqlBuilder = new CqlBuilder();
         cqlBuilder.append("ALTER TABLE ")
@@ -159,6 +183,5 @@ public class UpdateDistributedSystemTables implements ChangeListener.Async
 
                                                      return ClusterMetadata.current();
                                                  });
-        return;
     }
 }
