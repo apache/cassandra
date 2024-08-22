@@ -39,6 +39,7 @@ import org.slf4j.LoggerFactory;
 
 import accord.api.Agent;
 import accord.api.DataStore;
+import accord.api.LocalListeners;
 import accord.api.ProgressLog;
 import accord.local.cfk.CommandsForKey;
 import accord.impl.TimestampsForKey;
@@ -114,11 +115,12 @@ public class AccordCommandStore extends CommandStore implements CacheSize
                               Agent agent,
                               DataStore dataStore,
                               ProgressLog.Factory progressLogFactory,
+                              LocalListeners.Factory listenerFactory,
                               EpochUpdateHolder epochUpdateHolder,
                               IJournal journal,
                               AccordStateCacheMetrics cacheMetrics)
     {
-        this(id, time, agent, dataStore, progressLogFactory, epochUpdateHolder, journal, Stage.READ.executor(), Stage.MUTATION.executor(), cacheMetrics);
+        this(id, time, agent, dataStore, progressLogFactory, listenerFactory, epochUpdateHolder, journal, Stage.READ.executor(), Stage.MUTATION.executor(), cacheMetrics);
     }
 
     private static <K, V> void registerJfrListener(int id, AccordStateCache.Instance<K, V, ?> instance, String name)
@@ -194,13 +196,14 @@ public class AccordCommandStore extends CommandStore implements CacheSize
                               Agent agent,
                               DataStore dataStore,
                               ProgressLog.Factory progressLogFactory,
+                              LocalListeners.Factory listenerFactory,
                               EpochUpdateHolder epochUpdateHolder,
                               IJournal journal,
                               ExecutorPlus loadExecutor,
                               ExecutorPlus saveExecutor,
                               AccordStateCacheMetrics cacheMetrics)
     {
-        super(id, time, agent, dataStore, progressLogFactory, epochUpdateHolder);
+        super(id, time, agent, dataStore, progressLogFactory, listenerFactory, epochUpdateHolder);
         this.journal = journal;
         loggingId = String.format("[%s]", id);
         executor = executorFactory().sequential(CommandStore.class.getSimpleName() + '[' + id + ']');
@@ -257,8 +260,8 @@ public class AccordCommandStore extends CommandStore implements CacheSize
 
     static Factory factory(AccordJournal journal, AccordStateCacheMetrics cacheMetrics)
     {
-        return (id, time, agent, dataStore, progressLogFactory, rangesForEpoch) ->
-               new AccordCommandStore(id, time, agent, dataStore, progressLogFactory, rangesForEpoch, journal, cacheMetrics);
+        return (id, time, agent, dataStore, progressLogFactory, listenerFactory, rangesForEpoch) ->
+               new AccordCommandStore(id, time, agent, dataStore, progressLogFactory, listenerFactory, rangesForEpoch, journal, cacheMetrics);
     }
 
     public CommandsForRangesLoader diskCommandsForRanges()

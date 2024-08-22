@@ -25,8 +25,8 @@ import accord.messages.PreAccept;
 import accord.messages.PreAccept.PreAcceptOk;
 import accord.messages.PreAccept.PreAcceptReply;
 import accord.primitives.FullRoute;
-import accord.primitives.PartialRoute;
 import accord.primitives.PartialTxn;
+import accord.primitives.Route;
 import accord.primitives.TxnId;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -49,16 +49,16 @@ public class PreacceptSerializers
         {
             CommandSerializers.partialTxn.serialize(msg.partialTxn, out, version);
             serializeNullable(msg.route, out, version, KeySerializers.fullRoute);
-            out.writeUnsignedVInt(msg.maxEpoch - msg.minUnsyncedEpoch);
+            out.writeUnsignedVInt(msg.maxEpoch - msg.minEpoch);
         }
 
         @Override
-        public PreAccept deserializeBody(DataInputPlus in, int version, TxnId txnId, PartialRoute<?> scope, long waitForEpoch, long minEpoch, boolean doNotComputeProgressKey) throws IOException
+        public PreAccept deserializeBody(DataInputPlus in, int version, TxnId txnId, Route<?> scope, long waitForEpoch, long minEpoch) throws IOException
         {
             PartialTxn partialTxn = CommandSerializers.partialTxn.deserialize(in, version);
             @Nullable FullRoute<?> fullRoute = deserializeNullable(in, version, KeySerializers.fullRoute);
             long maxEpoch = in.readUnsignedVInt() + minEpoch;
-            return PreAccept.SerializerSupport.create(txnId, scope, waitForEpoch, minEpoch, doNotComputeProgressKey,
+            return PreAccept.SerializerSupport.create(txnId, scope, waitForEpoch, minEpoch,
                                                       maxEpoch, partialTxn, fullRoute);
         }
 
@@ -67,7 +67,7 @@ public class PreacceptSerializers
         {
             return CommandSerializers.partialTxn.serializedSize(msg.partialTxn, version)
                    + serializedNullableSize(msg.route, version, KeySerializers.fullRoute)
-                   + TypeSizes.sizeofUnsignedVInt(msg.maxEpoch - msg.minUnsyncedEpoch);
+                   + TypeSizes.sizeofUnsignedVInt(msg.maxEpoch - msg.minEpoch);
         }
     };
 

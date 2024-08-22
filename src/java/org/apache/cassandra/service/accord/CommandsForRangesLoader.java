@@ -231,7 +231,7 @@ public class CommandsForRangesLoader
                 accum.add(new TokenRange((AccordRoutingKey) start, (AccordRoutingKey) end));
                 return accum;
             }, new ArrayList<Range>(), ignore -> false).toArray(Range[]::new));
-            Ranges newRanges = ranges.subtract(durableAlready);
+            Ranges newRanges = ranges.without(durableAlready);
 
             if (newRanges.isEmpty())
                 return null;

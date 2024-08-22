@@ -99,7 +99,7 @@ public class InstanceConfig implements IInstanceConfig
                 .set("accord.enabled", accord.enabled)
                 .set("accord.journal_directory", accord.journal_directory)
                 .set("accord.shard_count", accord.shard_count.toString())
-                .set("accord.progress_log_schedule_delay", accord.progress_log_schedule_delay.toString())
+                .set("accord.recover_delay", accord.recover_delay.toString())
                 .set("partitioner", "org.apache.cassandra.dht.Murmur3Partitioner")
                 .set("start_native_transport", true)
                 .set("concurrent_writes", 2)

@@ -46,7 +46,6 @@ import accord.local.cfk.CommandsForKey.TxnInfo;
 import accord.local.cfk.CommandsForKey.Unmanaged;
 import accord.local.CommonAttributes;
 import accord.local.CommonAttributes.Mutable;
-import accord.local.Listeners;
 import accord.local.Node;
 import accord.local.SaveStatus;
 import accord.local.Status;
@@ -151,8 +150,9 @@ public class CommandsForKeySerializerTest
                     return Command.SerializerSupport.notDefined(attributes(), Ballot.ZERO);
                 case PreAccepted:
                     return Command.SerializerSupport.preaccepted(attributes(), executeAt, Ballot.ZERO);
-                case Accepted:
                 case AcceptedInvalidate:
+                    return Command.SerializerSupport.acceptedInvalidateWithoutDefinition(attributes(), ballot, ballot);
+                case Accepted:
                 case AcceptedWithDefinition:
                 case AcceptedInvalidateWithDefinition:
                 case PreCommittedWithDefinition:
@@ -185,7 +185,7 @@ public class CommandsForKeySerializerTest
                 case Erased:
                 case ErasedOrInvalidOrVestigial:
                 case Invalidated:
-                    return Command.SerializerSupport.invalidated(txnId, Listeners.Immutable.EMPTY);
+                    return Command.SerializerSupport.invalidated(txnId);
             }
         }
 
@@ -356,7 +356,7 @@ public class CommandsForKeySerializerTest
     @Test
     public void serde()
     {
-        testOne(-669467611022826851L);
+        testOne(-8928257345122888710L);
         Random random = new Random();
         for (int i = 0 ; i < 10000 ; ++i)
         {
@@ -508,7 +508,7 @@ public class CommandsForKeySerializerTest
             for (int i = 0; i < info.length; i++)
             {
                 InternalStatus status = rs.pick(InternalStatus.values());
-                info[i] = TxnInfo.create(ids[i], status, ids[i], CommandsForKey.NO_TXNIDS, Ballot.ZERO);
+                info[i] = TxnInfo.create(ids[i], status, ids[i], TxnId.NO_TXNIDS, Ballot.ZERO);
             }
 
             Gen<Unmanaged.Pending> pendingGen = Gens.enums().allMixedDistribution(Unmanaged.Pending.class).next(rs);
@@ -537,7 +537,7 @@ public class CommandsForKeySerializerTest
             }
             else unmanaged = CommandsForKey.NO_PENDING_UNMANAGED;
 
-            CommandsForKey expected = CommandsForKey.SerializerSupport.create(pk, info, unmanaged, TxnId.NONE);
+            CommandsForKey expected = CommandsForKey.SerializerSupport.create(pk, info, unmanaged, TxnId.NONE, TxnId.NONE);
 
             ByteBuffer buffer = CommandsForKeySerializer.toBytesWithoutKey(expected);
             CommandsForKey roundTrip = CommandsForKeySerializer.fromBytes(pk, buffer);
@@ -553,8 +553,8 @@ public class CommandsForKeySerializerTest
         PartitionKey pk = new PartitionKey(TableId.fromString("1b255f4d-ef25-40a6-0000-000000000009"), key);
         TxnId txnId = TxnId.fromValues(11,34052499,2,1);
         CommandsForKey expected = CommandsForKey.SerializerSupport.create(pk,
-                                                     new TxnInfo[] { TxnInfo.create(txnId, InternalStatus.PREACCEPTED_OR_ACCEPTED_INVALIDATE, txnId, CommandsForKey.NO_TXNIDS, Ballot.ZERO) },
-                                                                          CommandsForKey.NO_PENDING_UNMANAGED, TxnId.NONE);
+                                                     new TxnInfo[] { TxnInfo.create(txnId, InternalStatus.PREACCEPTED_OR_ACCEPTED_INVALIDATE, txnId, TxnId.NO_TXNIDS, Ballot.ZERO) },
+                                                                          CommandsForKey.NO_PENDING_UNMANAGED, TxnId.NONE, TxnId.NONE);
 
         ByteBuffer buffer = CommandsForKeySerializer.toBytesWithoutKey(expected);
         CommandsForKey roundTrip = CommandsForKeySerializer.fromBytes(pk, buffer);

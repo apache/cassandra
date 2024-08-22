@@ -44,11 +44,11 @@ import org.slf4j.LoggerFactory;
 
 import accord.api.RoutingKey;
 import accord.coordinate.Invalidated;
-import accord.impl.SimpleProgressLog;
+import accord.impl.progresslog.DefaultProgressLogs;
 import accord.messages.PreAccept;
 import accord.primitives.PartialKeyRoute;
-import accord.primitives.PartialRoute;
 import accord.primitives.Routable.Domain;
+import accord.primitives.Route;
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
@@ -142,7 +142,7 @@ public abstract class AccordTestBase extends TestBaseImpl
     public void tearDown() throws Exception
     {
         for (IInvokableInstance instance : SHARED_CLUSTER)
-            instance.runOnInstance(() -> SimpleProgressLog.PAUSE_FOR_TEST = false);
+            instance.runOnInstance(() -> DefaultProgressLogs.unsafePauseForTesting(false));
     }
 
     protected static void assertRowSerial(Cluster cluster, String query, int k, int c, int v, int s)
@@ -558,7 +558,7 @@ public abstract class AccordTestBase extends TestBaseImpl
             {
                 boolean drop = cluster.get(to).callsOnInstance(() -> {
                     PreAccept preAccept = (PreAccept)Instance.deserializeMessage(message).payload;
-                    PartialRoute<?> route = preAccept.scope;
+                    Route<?> route = preAccept.scope;
                     if (route.domain() == Domain.Key)
                         for (RoutingKey key : (PartialKeyRoute)route)
                         {

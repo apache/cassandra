@@ -29,7 +29,6 @@ import com.google.common.annotations.VisibleForTesting;
 import accord.api.Result;
 import accord.local.Command;
 import accord.local.CommonAttributes;
-import accord.local.Listeners;
 import accord.local.SaveStatus;
 import accord.local.Status;
 import accord.primitives.Ballot;
@@ -69,7 +68,6 @@ public class SavedCommand
         ADDITIONAL_KEYS,
         WAITING_ON,
         WRITES,
-        LISTENERS
     }
 
     public interface Writer<K> extends Journal.Writer
@@ -179,13 +177,6 @@ public class SavedCommand
 
         if (getFieldChanged(Fields.WRITES, flags) && after.writes() != null)
             CommandSerializers.writes.serialize(after.writes(), out, userVersion);
-
-        if (getFieldChanged(Fields.LISTENERS, flags) && after.durableListeners() != null)
-        {
-            out.writeByte(after.durableListeners().size());
-            for (Command.DurableAndIdempotentListener listener : after.durableListeners())
-                AccordKeyspace.LocalVersionedSerializers.listeners.serialize(listener, out);
-        }
     }
 
     @VisibleForTesting
@@ -210,7 +201,6 @@ public class SavedCommand
         flags = collectFlags(before, after, SavedCommand::getWaitingOn, false, Fields.WAITING_ON, flags);
 
         flags = collectFlags(before, after, Command::writes, false, Fields.WRITES, flags);
-        flags = collectFlags(before, after, c -> c.durableListeners().isEmpty() ? null : c.durableListeners(), true, Fields.LISTENERS, flags);
 
         return flags;
     }
@@ -289,7 +279,6 @@ public class SavedCommand
 
         SavedCommand.WaitingOnProvider waitingOn = (txn, deps) -> null;
         Writes writes = null;
-        Listeners.Immutable<?> listeners = null;
         Result result = CommandSerializers.APPLIED;
 
         boolean nextCalled = false;
@@ -427,22 +416,6 @@ public class SavedCommand
                 else
                     writes = CommandSerializers.writes.deserialize(in, userVersion);
             }
-
-            if (getFieldChanged(Fields.LISTENERS, flags))
-            {
-                if (getFieldIsNull(Fields.LISTENERS, flags))
-                {
-                    listeners = null;
-                }
-                else
-                {
-                    Listeners builder = Listeners.Immutable.EMPTY.mutable();
-                    int cnt = in.readByte();
-                    for (int i = 0; i < cnt; i++)
-                        builder.add(AccordKeyspace.LocalVersionedSerializers.listeners.deserialize(in));
-                    listeners = new Listeners.Immutable(builder);
-                }
-            }
         }
 
         public void forceResult(Result newValue)
@@ -469,8 +442,6 @@ public class SavedCommand
                 attrs.partialDeps(partialDeps);
             if (additionalKeysOrRanges != null)
                 attrs.additionalKeysOrRanges(additionalKeysOrRanges);
-            if (listeners != null && !listeners.isEmpty())
-                attrs.setListeners(listeners);
 
             Command.WaitingOn waitingOn = null;
             if (this.waitingOn != null)
@@ -518,7 +489,7 @@ public class SavedCommand
                 case Erased:
                     return Command.Truncated.erased(attrs.txnId(), attrs.durability(), attrs.route());
                 case Invalidated:
-                    return Command.Truncated.invalidated(attrs.txnId(), attrs.durableListeners());
+                    return Command.Truncated.invalidated(attrs.txnId());
             }
         }
 
@@ -537,7 +508,6 @@ public class SavedCommand
                    ", additionalKeysOrRanges=" + additionalKeysOrRanges +
                    ", waitingOn=" + waitingOn +
                    ", writes=" + writes +
-                   ", listeners=" + listeners +
                    '}';
         }
     }

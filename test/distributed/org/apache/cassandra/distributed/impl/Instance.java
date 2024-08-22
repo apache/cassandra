@@ -447,7 +447,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             byte[] bytes = out.toByteArray();
             if (messageOut.serializedSize(toVersion) != bytes.length)
                 throw new AssertionError(String.format("Message serializedSize(%s) does not match what was written with serialize(out, %s) for verb %s and serializer %s; " +
-                                                       "expected %s, actual %s ", toVersion, toVersion, messageOut.verb(), Message.serializer.getClass(),
+                                                       "expected %s, actual %s ", toVersion, toVersion, messageOut.verb(), messageOut.verb().serializer().getClass(),
                                                        messageOut.serializedSize(toVersion), bytes.length));
             return new MessageImpl(messageOut.verb().id, bytes, messageOut.id(), toVersion, messageOut.expiresAtNanos(), fromCassandraInetAddressAndPort(from));
         }

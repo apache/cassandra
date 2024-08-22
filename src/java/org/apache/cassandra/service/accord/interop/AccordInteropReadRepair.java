@@ -108,7 +108,7 @@ public class AccordInteropReadRepair extends ReadData
 
     private final Mutation mutation;
 
-    private static final IVersionedSerializer<Data> noop_data_serializer = new IVersionedSerializer<Data>()
+    private static final IVersionedSerializer<Data> noop_data_serializer = new IVersionedSerializer<>()
     {
         @Override
         public void serialize(Data t, DataOutputPlus out, int version) throws IOException {}

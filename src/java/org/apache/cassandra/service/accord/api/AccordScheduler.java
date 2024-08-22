@@ -46,6 +46,12 @@ public class AccordScheduler implements Scheduler, Shutdownable
         {
             future.cancel(false);
         }
+
+        @Override
+        public boolean isDone()
+        {
+            return future.isDone();
+        }
     }
 
     @Override

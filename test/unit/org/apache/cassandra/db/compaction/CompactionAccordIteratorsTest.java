@@ -32,8 +32,8 @@ import java.util.stream.Collectors;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterators;
 
-import accord.primitives.Routable;
 import accord.local.CommandStores;
+import accord.primitives.Route;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.service.accord.*;
@@ -58,7 +58,6 @@ import accord.primitives.Ballot;
 import accord.primitives.Deps;
 import accord.primitives.FullRoute;
 import accord.primitives.PartialDeps;
-import accord.primitives.PartialRoute;
 import accord.primitives.PartialTxn;
 import accord.primitives.Ranges;
 import accord.primitives.Seekable;
@@ -95,6 +94,7 @@ import org.assertj.core.api.Assertions;
 import static accord.impl.TimestampsForKey.NO_LAST_EXECUTED_HLC;
 import static accord.local.KeyHistory.COMMANDS;
 import static accord.local.PreLoadContext.contextFor;
+import static accord.primitives.Routable.Domain.Range;
 import static accord.utils.async.AsyncChains.getUninterruptibly;
 import static org.apache.cassandra.Util.spinAssertEquals;
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
@@ -118,7 +118,7 @@ public class CompactionAccordIteratorsTest
     private static final TxnId LT_TXN_ID = AccordTestUtils.txnId(EPOCH, HLC_START, NODE);
     private static final TxnId TXN_ID = AccordTestUtils.txnId(EPOCH, LT_TXN_ID.hlc() + 1, NODE);
     private static final TxnId SECOND_TXN_ID = AccordTestUtils.txnId(EPOCH, TXN_ID.hlc() + 1, NODE, Kind.Read);
-    private static final TxnId RANGE_TXN_ID = AccordTestUtils.txnId(EPOCH, TXN_ID.hlc() + 2, NODE, Kind.Read, Routable.Domain.Range);
+    private static final TxnId RANGE_TXN_ID = AccordTestUtils.txnId(EPOCH, TXN_ID.hlc() + 2, NODE, Kind.Read, Range);
     private static final TxnId GT_TXN_ID = SECOND_TXN_ID;
     // For CommandsForKey where we test with two commands
     private static final TxnId[] TXN_IDS = new TxnId[]{ TXN_ID, SECOND_TXN_ID };
@@ -383,8 +383,8 @@ public class CompactionAccordIteratorsTest
     private static RedundantBefore redundantBefore(TxnId txnId)
     {
         Ranges ranges = AccordTestUtils.fullRange(AccordTestUtils.keys(table, 42));
-        txnId = txnId.as(Kind.Read, Routable.Domain.Range);
-        return RedundantBefore.create(ranges, Long.MIN_VALUE, Long.MAX_VALUE, txnId, txnId, LT_TXN_ID);
+        txnId = txnId.as(Kind.Read, Range);
+        return RedundantBefore.create(ranges, Long.MIN_VALUE, Long.MAX_VALUE, txnId, txnId, LT_TXN_ID.as(Range));
     }
 
     enum DurableBeforeType
@@ -468,25 +468,22 @@ public class CompactionAccordIteratorsTest
             Txn txn = txnId.kind().isWrite() ? writeTxn : readTxn;
             PartialDeps partialDeps = Deps.NONE.intersecting(AccordTestUtils.fullRange(txn));
             PartialTxn partialTxn = txn.slice(commandStore.unsafeRangesForEpoch().currentRanges(), true);
-            PartialRoute<?> partialRoute = route.slice(commandStore.unsafeRangesForEpoch().currentRanges());
+            Route<?> partialRoute = route.slice(commandStore.unsafeRangesForEpoch().currentRanges());
             getUninterruptibly(commandStore.execute(contextFor(txnId, txn.keys(), COMMANDS), safe -> {
-                CheckedCommands.preaccept(safe, txnId, partialTxn, route, null, appendDiffToKeyspace(commandStore));
+                CheckedCommands.preaccept(safe, txnId, partialTxn, route, appendDiffToKeyspace(commandStore));
             }).beginAsResult());
             flush(commandStore);
             getUninterruptibly(commandStore.execute(contextFor(txnId, txn.keys(), COMMANDS), safe -> {
-                CheckedCommands.accept(safe, txnId, Ballot.ZERO, partialRoute, partialTxn.keys(), null, txnId, partialDeps, appendDiffToKeyspace(commandStore));
+                CheckedCommands.accept(safe, txnId, Ballot.ZERO, partialRoute, partialTxn.keys(), txnId, partialDeps, appendDiffToKeyspace(commandStore));
             }).beginAsResult());
             flush(commandStore);
             getUninterruptibly(commandStore.execute(contextFor(txnId, txn.keys(), COMMANDS), safe -> {
-                CheckedCommands.commit(safe, SaveStatus.Stable, Ballot.ZERO, txnId, route, null, partialTxn, txnId, partialDeps, appendDiffToKeyspace(commandStore));
+                CheckedCommands.commit(safe, SaveStatus.Stable, Ballot.ZERO, txnId, route, partialTxn, txnId, partialDeps, appendDiffToKeyspace(commandStore));
             }).beginAsResult());
             flush(commandStore);
             getUninterruptibly(commandStore.execute(contextFor(txnId, txn.keys(), COMMANDS), safe -> {
                 Pair<Writes, Result> result = AccordTestUtils.processTxnResultDirect(safe, txnId, partialTxn, txnId);
-                CheckedCommands.apply(safe, txnId, route, null, txnId, partialDeps, partialTxn, result.left, result.right, appendDiffToKeyspace(commandStore));
-            }).beginAsResult());
-            getUninterruptibly(commandStore.execute(contextFor(txnId, txn.keys(), COMMANDS), safe -> {
-                safe.get(txnId, txnId, route).addListener(new Command.ProxyListener(RANGE_TXN_ID)); // add a junk listener just to test it in compaction
+                CheckedCommands.apply(safe, txnId, route, txnId, partialDeps, partialTxn, result.left, result.right, appendDiffToKeyspace(commandStore));
             }).beginAsResult());
             flush(commandStore);
             // The apply chain is asychronous, so it is easiest to just spin until it is applied

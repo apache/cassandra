@@ -28,6 +28,10 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.ToLongFunction;
 
+import accord.api.LocalListeners;
+import accord.api.ProgressLog;
+import accord.api.RemoteListeners;
+import accord.impl.DefaultLocalListeners;
 import accord.impl.SizeOfIntersectionSorter;
 import accord.impl.TestAgent;
 import accord.local.Command;
@@ -36,6 +40,7 @@ import accord.local.CommandStores;
 import accord.local.Node;
 import accord.local.NodeTimeService;
 import accord.local.PreLoadContext;
+import accord.local.SafeCommand;
 import accord.local.SafeCommandStore;
 import accord.messages.BeginRecovery;
 import accord.messages.PreAccept;
@@ -164,7 +169,12 @@ public class SimulatedAccordCommandStore implements AutoCloseable
                                                 }
                                             },
                                             null,
-                                            ignore -> AccordTestUtils.NOOP_PROGRESS_LOG,
+                                            ignore -> new ProgressLog.NoOpProgressLog(),
+                                            cs -> new DefaultLocalListeners(new RemoteListeners.NoOpRemoteListeners(), new DefaultLocalListeners.NotifySink()
+                                            {
+                                                @Override public void notify(SafeCommandStore safeStore, SafeCommand safeCommand, TxnId listener) {}
+                                                @Override public boolean notify(SafeCommandStore safeStore, SafeCommand safeCommand, LocalListeners.ComplexListener listener) { return false; }
+                                            }),
                                             updateHolder,
                                             journal,
                                             new AccordStateCacheMetrics("test"));
