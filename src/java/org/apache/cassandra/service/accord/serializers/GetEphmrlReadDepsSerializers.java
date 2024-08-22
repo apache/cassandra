@@ -23,7 +23,7 @@ import java.io.IOException;
 import accord.messages.GetEphemeralReadDeps;
 import accord.messages.GetEphemeralReadDeps.GetEphemeralReadDepsOk;
 import accord.primitives.PartialDeps;
-import accord.primitives.PartialRoute;
+import accord.primitives.Route;
 import accord.primitives.Seekables;
 import accord.primitives.TxnId;
 import org.apache.cassandra.db.TypeSizes;
@@ -43,7 +43,7 @@ public class GetEphmrlReadDepsSerializers
         }
 
         @Override
-        public GetEphemeralReadDeps deserializeBody(DataInputPlus in, int version, TxnId txnId, PartialRoute<?> scope, long waitForEpoch, long minEpoch, boolean doNotComputeProgressKey) throws IOException
+        public GetEphemeralReadDeps deserializeBody(DataInputPlus in, int version, TxnId txnId, Route<?> scope, long waitForEpoch, long minEpoch) throws IOException
         {
             Seekables<?, ?> keys = KeySerializers.seekables.deserialize(in, version);
             long executionEpoch = in.readUnsignedVInt();

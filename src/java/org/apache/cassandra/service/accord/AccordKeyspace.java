@@ -53,7 +53,6 @@ import accord.impl.TimestampsForKey;
 import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.DurableBefore;
-import accord.local.Listeners;
 import accord.local.Node;
 import accord.local.RedundantBefore;
 import accord.local.SaveStatus;
@@ -146,7 +145,6 @@ import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import org.apache.cassandra.service.accord.serializers.CommandStoreSerializers;
 import org.apache.cassandra.service.accord.serializers.CommandsForKeySerializer;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
-import org.apache.cassandra.service.accord.serializers.ListenerSerializers;
 import org.apache.cassandra.service.accord.serializers.TopologySerializers;
 import org.apache.cassandra.utils.Clock.Global;
 import org.apache.cassandra.utils.btree.BTree;
@@ -249,7 +247,6 @@ public class AccordKeyspace
     public static class LocalVersionedSerializers
     {
         static final LocalVersionedSerializer<Route<?>> route = localSerializer(KeySerializers.route);
-        static final LocalVersionedSerializer<Command.DurableAndIdempotentListener> listeners = localSerializer(ListenerSerializers.listener);
         static final LocalVersionedSerializer<Topology> topology = localSerializer(TopologySerializers.topology);
         static final LocalVersionedSerializer<ReducingRangeMap<Timestamp>> rejectBefore = localSerializer(CommandStoreSerializers.rejectBefore);
         static final LocalVersionedSerializer<DurableBefore> durableBefore = localSerializer(CommandStoreSerializers.durableBefore);
@@ -283,6 +280,7 @@ public class AccordKeyspace
         public static final ColumnMetadata execute_at = getColumn(Commands, "execute_at");
 
         public static final ColumnMetadata[] TRUNCATE_FIELDS = new ColumnMetadata[] { durability, execute_at, route, status };
+        public static final ColumnMetadata[] INVALIDATE_FIELDS = new ColumnMetadata[] { status };
 
         static
         {
@@ -360,6 +358,31 @@ public class AccordKeyspace
             newLeaf[colIndex++] = updateTimestamps ? durabilityCell.withUpdatedTimestamp(newTimestamp) : durabilityCell;
             newLeaf[colIndex++] = updateTimestamps ? executeAtCell.withUpdatedTimestamp(newTimestamp) : executeAtCell;
             newLeaf[colIndex++] = updateTimestamps ? routeCell.withUpdatedTimestamp(newTimestamp) : routeCell;
+            // Status always needs to use the new timestamp since we are replacing the existing value
+            // All the other columns are being retained unmodified with at most updated timestamps to accomdate deletion
+            //noinspection UnusedAssignment
+            newLeaf[colIndex++] = BufferCell.live(status, newTimestamp, ByteBufferAccessor.instance.valueOf(newSaveStatus.ordinal()));
+            return newLeaf;
+        }
+
+        public static Row invalidated(SaveStatus newSaveStatus, Row row, long nowInSec)
+        {
+            long oldTimestamp = row.primaryKeyLivenessInfo().timestamp();
+            long newTimestamp = oldTimestamp + 1;
+
+            Object[] newLeaf = invalidatedLeaf(newTimestamp, newSaveStatus);
+
+            // Including a deletion allows future compactions to drop data before it gets to the purger
+            // but it is pretty optional because maybeDropTruncatedCommandColumns will drop the extra columns
+            // regardless
+            Row.Deletion deletion = new Row.Deletion(DeletionTime.build(oldTimestamp, nowInSec), false);
+            return BTreeRow.create(row.clustering(), LivenessInfo.create(newTimestamp, nowInSec), deletion, newLeaf);
+        }
+
+        private static Object[] invalidatedLeaf(long newTimestamp, SaveStatus newSaveStatus)
+        {
+            Object[] newLeaf = BTree.unsafeAllocateNonEmptyLeaf(INVALIDATE_FIELDS.length);
+            int colIndex = 0;
             // Status always needs to use the new timestamp since we are replacing the existing value
             // All the other columns are being retained unmodified with at most updated timestamps to accomdate deletion
             //noinspection UnusedAssignment
@@ -623,7 +646,7 @@ public class AccordKeyspace
             if (current == null)
                 return null;
 
-            CommandsForKey updated = current.withRedundantBeforeAtLeast(redundantBefore);
+            CommandsForKey updated = current.withRedundantBeforeAtLeast(redundantBefore.shardRedundantBefore());
             if (current == updated)
                 return row;
 
@@ -1135,18 +1158,6 @@ public class AccordKeyspace
         {
             throw new RuntimeException(e);
         }
-    }
-
-    private static Listeners.Immutable deserializeListeners(UntypedResultSet.Row row) throws IOException
-    {
-        Set<ByteBuffer> serialized = row.getSet("listeners", BytesType.instance);
-        if (serialized == null || serialized.isEmpty())
-            return Listeners.Immutable.EMPTY;
-
-        Listeners<Command.DurableAndIdempotentListener> result = new Listeners<>();
-        for (ByteBuffer bytes : serialized)
-            result.add(deserialize(bytes, LocalVersionedSerializers.listeners));
-        return new Listeners.Immutable(result);
     }
 
     public static PartitionKey deserializeKey(ByteBuffer buffer)

@@ -26,7 +26,6 @@ import com.google.common.annotations.VisibleForTesting;
 import accord.api.Result;
 import accord.local.Command;
 import accord.local.CommonAttributes;
-import accord.local.Listeners;
 import accord.local.SaveStatus;
 import accord.local.Status;
 import accord.primitives.Ballot;
@@ -97,8 +96,7 @@ public class MockJournal implements IJournal
                              ifNotEqual(before, after, Command::additionalKeysOrRanges, false),
 
                              new NewValue<>((k, deps) -> waitingOn),
-                             ifNotEqual(before, after, Command::writes, false),
-                             ifNotEqual(before, after, Command::durableListeners, true));
+                             ifNotEqual(before, after, Command::writes, false));
     }
 
     static Command reconstructFromDiff(List<LoadedDiff> diffs)
@@ -131,7 +129,6 @@ public class MockJournal implements IJournal
 
         SavedCommand.WaitingOnProvider waitingOnProvider = null;
         Writes writes = null;
-        Listeners.Immutable listeners = null;
 
         for (LoadedDiff diff : diffs)
         {
@@ -162,8 +159,6 @@ public class MockJournal implements IJournal
                 waitingOnProvider = diff.waitingOn.get();
             if (diff.writes != null)
                 writes = diff.writes.get();
-            if (diff.listeners != null)
-                listeners = diff.listeners.get();
         }
 
         CommonAttributes.Mutable attrs = new CommonAttributes.Mutable(txnId);
@@ -180,8 +175,6 @@ public class MockJournal implements IJournal
             attrs.partialDeps(partialDeps);
         if (additionalKeysOrRanges != null)
             attrs.additionalKeysOrRanges(additionalKeysOrRanges);
-        if (listeners != null && !listeners.isEmpty())
-            attrs.setListeners(listeners);
 
         Command.WaitingOn waitingOn = null;
         if (waitingOnProvider != null)
@@ -292,7 +285,6 @@ public class MockJournal implements IJournal
         public final NewValue<Seekables<?, ?>> additionalKeysOrRanges;
 
         public final NewValue<Writes> writes;
-        public final NewValue<Listeners.Immutable<Command.DurableAndIdempotentListener>> listeners;
         public final NewValue<WaitingOnProvider> waitingOn;
 
         public LoadedDiff(TxnId txnId,
@@ -309,8 +301,7 @@ public class MockJournal implements IJournal
                           NewValue<Seekables<?, ?>> additionalKeysOrRanges,
 
                           NewValue<SavedCommand.WaitingOnProvider> waitingOn,
-                          NewValue<Writes> writes,
-                          NewValue<Listeners.Immutable<Command.DurableAndIdempotentListener>> listeners)
+                          NewValue<Writes> writes)
         {
             this.txnId = txnId;
             this.executeAt = executeAt;
@@ -326,7 +317,6 @@ public class MockJournal implements IJournal
             this.additionalKeysOrRanges = additionalKeysOrRanges;
 
             this.writes = writes;
-            this.listeners = listeners;
 
             this.waitingOn = waitingOn;
         }

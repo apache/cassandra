@@ -21,7 +21,7 @@ package org.apache.cassandra.service.accord.serializers;
 import java.io.IOException;
 
 import accord.api.RoutingKey;
-import accord.local.Status;
+import accord.local.SaveStatus;
 import accord.messages.BeginInvalidation;
 import accord.messages.BeginInvalidation.InvalidateReply;
 import accord.primitives.Ballot;
@@ -67,7 +67,8 @@ public class BeginInvalidationSerializers
         {
             CommandSerializers.nullableBallot.serialize(reply.supersededBy, out, version);
             CommandSerializers.ballot.serialize(reply.accepted, out, version);
-            CommandSerializers.status.serialize(reply.status, out, version);
+            CommandSerializers.saveStatus.serialize(reply.maxStatus, out, version);
+            CommandSerializers.saveStatus.serialize(reply.maxKnowledgeStatus, out, version);
             out.writeBoolean(reply.acceptedFastPath);
             KeySerializers.nullableRoute.serialize(reply.route, out, version);
             KeySerializers.nullableRoutingKey.serialize(reply.homeKey, out, version);
@@ -78,11 +79,12 @@ public class BeginInvalidationSerializers
         {
             Ballot supersededBy = CommandSerializers.nullableBallot.deserialize(in, version);
             Ballot accepted = CommandSerializers.ballot.deserialize(in, version);
-            Status status = CommandSerializers.status.deserialize(in, version);
+            SaveStatus maxStatus = CommandSerializers.saveStatus.deserialize(in, version);
+            SaveStatus maxKnowledgeStatus = CommandSerializers.saveStatus.deserialize(in, version);
             boolean acceptedFastPath = in.readBoolean();
             Route<?> route = KeySerializers.nullableRoute.deserialize(in, version);
             RoutingKey homeKey = KeySerializers.nullableRoutingKey.deserialize(in, version);
-            return new InvalidateReply(supersededBy, accepted, status, acceptedFastPath, route, homeKey);
+            return new InvalidateReply(supersededBy, accepted, maxStatus, maxKnowledgeStatus, acceptedFastPath, route, homeKey);
         }
 
         @Override
@@ -90,7 +92,8 @@ public class BeginInvalidationSerializers
         {
             return CommandSerializers.nullableBallot.serializedSize(reply.supersededBy, version)
                  + CommandSerializers.ballot.serializedSize(reply.accepted, version)
-                 + CommandSerializers.status.serializedSize(reply.status, version)
+                 + CommandSerializers.saveStatus.serializedSize(reply.maxStatus, version)
+                 + CommandSerializers.saveStatus.serializedSize(reply.maxKnowledgeStatus, version)
                  + TypeSizes.BOOL_SIZE
                  + KeySerializers.nullableRoute.serializedSize(reply.route, version)
                  + KeySerializers.nullableRoutingKey.serializedSize(reply.homeKey, version);

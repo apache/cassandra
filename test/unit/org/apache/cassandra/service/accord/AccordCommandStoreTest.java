@@ -135,7 +135,6 @@ public class AccordCommandStoreTest
         SimpleBitSet waitingOnApply = new SimpleBitSet(3);
         waitingOnApply.set(1);
         Command.WaitingOn waitingOn = new Command.WaitingOn(dependencies.keyDeps.keys(), dependencies.rangeDeps, dependencies.directKeyDeps, new ImmutableBitSet(waitingOnApply), new ImmutableBitSet(2));
-        attrs.addListener(new Command.ProxyListener(oldTxnId1));
         Pair<Writes, Result> result = AccordTestUtils.processTxnResult(commandStore, txnId, txn, executeAt);
 
         Command expected = Command.SerializerSupport.executed(attrs, SaveStatus.Applied, executeAt, promised, accepted,

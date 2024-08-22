@@ -206,7 +206,7 @@ public class AccordMetrics
         @Override
         public void onStable(Command cmd)
         {
-            long now = AccordService.uniqueNow();
+            long now = AccordService.now();
             AccordMetrics metrics = forTransaction(cmd.txnId());
             if (metrics != null)
             {
@@ -218,7 +218,7 @@ public class AccordMetrics
         @Override
         public void onExecuted(Command cmd)
         {
-            long now = AccordService.uniqueNow();
+            long now = AccordService.now();
             AccordMetrics metrics = forTransaction(cmd.txnId());
             if (metrics != null)
             {
@@ -232,7 +232,7 @@ public class AccordMetrics
         @Override
         public void onApplied(Command cmd, long applyStartTimestamp)
         {
-            long now = AccordService.uniqueNow();
+            long now = AccordService.now();
             AccordMetrics metrics = forTransaction(cmd.txnId());
             if (metrics != null)
             {
@@ -270,7 +270,7 @@ public class AccordMetrics
             AccordMetrics metrics = forTransaction(txnId);
             if (metrics != null)
             {
-                long now = AccordService.uniqueNow();
+                long now = AccordService.now();
 
                 metrics.recoveryDuration.update(now - recoveryTimestamp.hlc(), MICROSECONDS);
                 metrics.recoveryDelay.update(recoveryTimestamp.hlc() - txnId.hlc(), MICROSECONDS);

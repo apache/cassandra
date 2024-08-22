@@ -30,10 +30,13 @@ import java.util.function.LongSupplier;
 import java.util.function.ToLongFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import javax.annotation.Nullable;
 
 import com.google.common.collect.Sets;
 
+import accord.api.LocalListeners;
+import accord.api.ProgressLog.NoOpProgressLog;
+import accord.api.RemoteListeners;
+import accord.impl.DefaultLocalListeners;
 import accord.utils.SortedArrays.SortedArrayList;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -41,7 +44,6 @@ import org.apache.cassandra.io.util.File;
 import org.junit.Assert;
 
 import accord.api.Data;
-import accord.api.ProgressLog;
 import accord.api.Result;
 import accord.api.RoutingKey;
 import accord.impl.InMemoryCommandStore;
@@ -56,17 +58,14 @@ import accord.local.PreLoadContext;
 import accord.local.SafeCommand;
 import accord.local.SafeCommandStore;
 import accord.local.SaveStatus;
-import accord.local.SaveStatus.LocalExecution;
 import accord.primitives.Ballot;
 import accord.primitives.FullKeyRoute;
 import accord.primitives.FullRoute;
 import accord.primitives.Keys;
 import accord.primitives.PartialDeps;
 import accord.primitives.PartialTxn;
-import accord.primitives.Participants;
 import accord.primitives.Ranges;
 import accord.primitives.Routable;
-import accord.primitives.Route;
 import accord.primitives.Seekable;
 import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
@@ -201,21 +200,6 @@ public class AccordTestUtils
         safeState.preExecute();
         Assert.assertEquals(val, safeState.current());
     }
-
-    public static final ProgressLog NOOP_PROGRESS_LOG = new ProgressLog()
-    {
-        @Override public void unwitnessed(TxnId txnId, ProgressShard progressShard) {}
-        @Override public void preaccepted(Command command, ProgressShard progressShard) {}
-        @Override public void accepted(Command command, ProgressShard progressShard) {}
-        @Override public void precommitted(Command command) {}
-        @Override public void stable(Command command, ProgressShard progressShard) {}
-        @Override public void readyToExecute(Command command) {}
-        @Override public void executed(Command command, ProgressShard progressShard) {}
-        @Override public void clear(TxnId txnId) {}
-        @Override public void durable(Command command) {}
-        @Override public void waiting(SafeCommand blockedBy, LocalExecution blockedUntil, Route<?> blockedOnRoute, Participants<?> blockedOnParticipants) {}
-        @Override public void waiting(TxnId blockedBy, LocalExecution blockedUntil, @Nullable Route<?> blockedOnRoute, @Nullable Participants<?> blockedOnParticipants) {}
-    };
 
     public static TxnId txnId(long epoch, long hlc, int node)
     {
@@ -390,11 +374,8 @@ public class AccordTestUtils
         };
 
         SingleEpochRanges holder = new SingleEpochRanges(Ranges.of(range));
-        InMemoryCommandStore.Synchronized result = new InMemoryCommandStore.Synchronized(0,
-                                                     time,
-                                                     new AccordAgent(),
-                                                     null,
-                                                     cs -> null, holder);
+        InMemoryCommandStore.Synchronized result = new InMemoryCommandStore.Synchronized(0, time, new AccordAgent(),
+                                                     null, null, cs -> null, holder);
         holder.set(result);
         return result;
     }
@@ -425,7 +406,12 @@ public class AccordTestUtils
                                                            time,
                                                            new AccordAgent(),
                                                            null,
-                                                           cs -> NOOP_PROGRESS_LOG,
+                                                           cs -> new NoOpProgressLog(),
+                                                           cs -> new DefaultLocalListeners(new RemoteListeners.NoOpRemoteListeners(), new DefaultLocalListeners.NotifySink()
+                                                           {
+                                                               @Override public void notify(SafeCommandStore safeStore, SafeCommand safeCommand, TxnId listener) {}
+                                                               @Override public boolean notify(SafeCommandStore safeStore, SafeCommand safeCommand, LocalListeners.ComplexListener listener) { return false; }
+                                                           }),
                                                            holder,
                                                            journal,
                                                            loadExecutor,

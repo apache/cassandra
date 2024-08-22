@@ -34,6 +34,7 @@ import org.slf4j.LoggerFactory;
 import accord.api.Agent;
 import accord.api.Data;
 import accord.api.Result;
+import accord.coordinate.CoordinationAdapter;
 import accord.local.AgentExecutor;
 import accord.local.CommandStore;
 import accord.local.Node;
@@ -93,7 +94,6 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.Clock;
 
 import static accord.coordinate.CoordinationAdapter.Factory.Step.Continue;
-import static accord.coordinate.CoordinationAdapter.Invoke.persist;
 import static accord.utils.Invariants.checkArgument;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordReadMetrics;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordWriteMetrics;
@@ -345,7 +345,7 @@ public class AccordInteropExecution implements ReadCoordinator, MaximalCommitSen
         CommandStore cs = node.commandStores().select(route.homeKey());
         result.beginAsResult().withExecutor(cs).begin((data, failure) -> {
             if (failure == null)
-                persist(node.coordinationAdapter(txnId, Continue), node, executes, route, txnId, txn, executeAt, deps, txn.execute(txnId, executeAt, data), txn.result(txnId, executeAt, data), callback);
+                ((CoordinationAdapter)node.coordinationAdapter(txnId, Continue)).persist(node, executes, route, txnId, txn, executeAt, deps, txn.execute(txnId, executeAt, data), txn.result(txnId, executeAt, data), callback);
             else
                 callback.accept(null, failure);
         });

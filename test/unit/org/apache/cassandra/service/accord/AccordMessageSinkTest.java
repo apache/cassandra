@@ -32,12 +32,9 @@ import accord.api.Agent;
 import accord.impl.AbstractFetchCoordinator;
 import accord.impl.IntKey;
 import accord.local.Node;
-import accord.messages.InformOfTxnId;
-import accord.messages.MessageType;
 import accord.messages.ReadTxnData;
 import accord.messages.Reply;
 import accord.messages.Request;
-import accord.messages.SimpleReply;
 import accord.primitives.Keys;
 import accord.primitives.PartialDeps;
 import accord.primitives.PartialTxn;
@@ -70,16 +67,6 @@ public class AccordMessageSinkTest
         DatabaseDescriptor.clientInitialization();
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
         ClusterMetadataService.initializeForClients();
-    }
-
-    @Test
-    public void informOfTxn()
-    {
-        // There was an issue where the reply was the wrong verb
-        // see CASSANDRA-18375
-        InformOfTxnId request = Mockito.mock(InformOfTxnId.class);
-        Mockito.when(request.type()).thenReturn(MessageType.INFORM_OF_TXN_REQ);
-        checkRequestReplies(request, SimpleReply.Ok);
     }
 
     @Test

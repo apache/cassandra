@@ -29,7 +29,6 @@ import java.util.stream.Stream;
 
 import accord.local.Command;
 import accord.local.CommonAttributes;
-import accord.local.Listeners;
 import accord.local.RedundantBefore;
 import accord.local.SaveStatus;
 import accord.primitives.Ballot;
@@ -262,7 +261,7 @@ public class AccordGenerators
                 case Erased:
                 case ErasedOrInvalidOrVestigial:
                 case Invalidated:
-                    return Command.SerializerSupport.invalidated(txnId, Listeners.Immutable.EMPTY);
+                    return Command.SerializerSupport.invalidated(txnId);
             }
         }
     }
