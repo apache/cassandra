@@ -36,9 +36,9 @@ import static org.apache.cassandra.db.TypeSizes.SHORT_SIZE;
 
 public final class JournalKey
 {
-    final Timestamp timestamp;
+    public final Timestamp timestamp;
     // TODO: command store id _before_ timestamp
-    final int commandStoreId;
+    public final int commandStoreId;
 
     JournalKey(Timestamp timestamp)
     {
@@ -60,7 +60,7 @@ public final class JournalKey
      * when ordering timestamps. This is done for more precise elimination of candidate
      * segments by min/max record key in segment.
      */
-    static final KeySupport<JournalKey> SUPPORT = new KeySupport<>()
+    public static final KeySupport<JournalKey> SUPPORT = new KeySupport<>()
     {
         private static final int HLC_OFFSET = 0;
         private static final int EPOCH_AND_FLAGS_OFFSET = HLC_OFFSET + LONG_SIZE;

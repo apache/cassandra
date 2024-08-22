@@ -38,6 +38,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.journal.Journal;
 import org.apache.cassandra.journal.KeySupport;
 import org.apache.cassandra.journal.RecordPointer;
+import org.apache.cassandra.journal.SegmentCompactor;
 import org.apache.cassandra.journal.ValueSerializer;
 
 import org.junit.Assert;
@@ -78,7 +79,8 @@ public class AccordJournalSimulationTest extends SimulationTestBase
                                                    new File("/journal"),
                                                    new AccordSpec.JournalSpec(),
                                                    new IdentityKeySerializer(),
-                                                   new IdentityValueSerializer());
+                                                   new IdentityValueSerializer(),
+                                                   SegmentCompactor.noop());
                  }),
                  () -> check());
     }
