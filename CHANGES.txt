@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * [SO-33493] Set jvm option cassandra.streaming.requires_cdc_replay to false (via uberRequiresCDCReplay) by default in jvm-server.options
  * [SO-33775] Tune the threshold for threadpool pending tasks that triggers rate limiter
  * [SO-33261] Change SkippedTablesCount metric to SkippedTokenRangesCount
  * [SO-33400] Add a new throttling signal check, threadpool based

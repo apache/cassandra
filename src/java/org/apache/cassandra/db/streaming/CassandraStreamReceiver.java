@@ -67,7 +67,7 @@ public class CassandraStreamReceiver implements StreamReceiver
     @VisibleForTesting
     protected static final String REQUIRES_CDC_REPLAY = "cassandra.streaming.requires_cdc_replay";
     // This is a parameter we use to disable replaying CDC events when streaming
-    private final boolean uberRequiresCDCReplay = Boolean.parseBoolean(System.getProperty(REQUIRES_CDC_REPLAY, "true"));
+    private final boolean uberRequiresCDCReplay = Boolean.parseBoolean(System.getProperty(REQUIRES_CDC_REPLAY, "false"));
 
     private final ColumnFamilyStore cfs;
     private final StreamSession session;

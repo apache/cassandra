@@ -97,26 +97,27 @@ public class CassandraSreamReceiverTest extends CQLTester
     }
 
     @Test
-    public void testRequiresWritePathRepairCDCOnly()
+    public void testRequiresWritePathRepairCDCWithSystemProp()
     {
+        System.setProperty(CassandraStreamReceiver.REQUIRES_CDC_REPLAY, "true");
+
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CDC_TABLE);
         when(session.streamOperation()).thenReturn(StreamOperation.REPAIR);
         CassandraStreamReceiver receiver = new CassandraStreamReceiver(cfs, session, 1);
 
         assertTrue(receiver.requiresWritePath(cfs));
+
+        System.clearProperty(CassandraStreamReceiver.REQUIRES_CDC_REPLAY);
     }
 
     @Test
-    public void testRequiresWritePathCDCWithSystemProp()
+    public void testDoesNotRequiresWritePathRepairCDCOnly()
     {
-        System.setProperty(CassandraStreamReceiver.REQUIRES_CDC_REPLAY, "false");
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CDC_TABLE);
         when(session.streamOperation()).thenReturn(StreamOperation.BULK_LOAD);
         CassandraStreamReceiver receiver = new CassandraStreamReceiver(cfs, session, 1);
 
         assertFalse(receiver.requiresWritePath(cfs));
-
-        System.clearProperty(CassandraStreamReceiver.REQUIRES_CDC_REPLAY);
     }
 
     @Test
