@@ -26,6 +26,8 @@ import java.util.TreeMap;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import accord.impl.CommandsSummary;
 import accord.local.SafeCommandStore.CommandFunction;
 import accord.local.SafeCommandStore.TestDep;
@@ -44,16 +46,28 @@ import static accord.local.SafeCommandStore.TestStartedAt.STARTED_BEFORE;
 import static accord.local.SafeCommandStore.TestStatus.ANY_STATUS;
 import static accord.local.Status.Stable;
 import static accord.local.Status.Truncated;
+import static accord.primitives.Routables.Slice.Minimal;
 
 public class CommandsForRanges implements CommandsSummary
 {
-    private final Ranges ranges;
+    public final Ranges ranges;
     private final NavigableMap<Timestamp, CommandsForRangesLoader.Summary> map;
 
-    public CommandsForRanges(Ranges ranges, NavigableMap<TxnId, CommandsForRangesLoader.Summary> map)
+    private CommandsForRanges(Ranges ranges, NavigableMap<Timestamp, CommandsForRangesLoader.Summary> map)
     {
         this.ranges = ranges;
-        this.map = (NavigableMap<Timestamp, CommandsForRangesLoader.Summary>) (NavigableMap<?, ?>) map;
+        this.map = map;
+    }
+
+    public static CommandsForRanges create(Ranges ranges, NavigableMap<TxnId, CommandsForRangesLoader.Summary> map)
+    {
+        return new CommandsForRanges(ranges, (NavigableMap<Timestamp, CommandsForRangesLoader.Summary>) (NavigableMap<?, ?>) map);
+    }
+
+    @VisibleForTesting
+    public int size()
+    {
+        return map.size();
     }
 
     @Override
@@ -159,5 +173,17 @@ public class CommandsForRanges implements CommandsSummary
         }
 
         return accumulate;
+    }
+
+    public CommandsForRanges slice(Ranges slice)
+    {
+        Ranges ranges = this.ranges.slice(slice, Minimal);
+        NavigableMap<Timestamp, CommandsForRangesLoader.Summary> copy = new TreeMap<>();
+        for (Map.Entry<Timestamp, CommandsForRangesLoader.Summary> e : map.entrySet())
+        {
+            if (!e.getValue().ranges.intersects(slice)) continue;
+            copy.put(e.getKey(), e.getValue().slice(slice));
+        }
+        return new CommandsForRanges(ranges, copy);
     }
 }
