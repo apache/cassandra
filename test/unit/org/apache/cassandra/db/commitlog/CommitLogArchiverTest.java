@@ -34,7 +34,9 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.Properties;
+import java.util.concurrent.Future;
 
 import static org.junit.Assert.assertTrue;
 
@@ -66,7 +68,6 @@ public class CommitLogArchiverTest extends CQLTester
     {
         File dir = new File(dirName);
         dir.deleteRecursive();
-        CommitLog.instance.setCommitlogArchiver(archiver);
     }
 
     @Test
@@ -97,5 +98,13 @@ public class CommitLogArchiverTest extends CQLTester
         // If the number of files that under backup dir is bigger than 1, that means the
         // arhiver for commitlog is effective.
         assertTrue(dir.isDirectory() && dir.tryList().length > 0);
+        // wait for all task to be executed
+        Map<String, Future<?>> archivePending = CommitLog.instance.archiver.archivePending;
+        CommitLogArchiver oldArchive = CommitLog.instance.archiver;
+        CommitLog.instance.setCommitlogArchiver(archiver);
+        for (String name : archivePending.keySet())
+        {
+            oldArchive.maybeWaitForArchiving(name);
+        }
     }
 }
