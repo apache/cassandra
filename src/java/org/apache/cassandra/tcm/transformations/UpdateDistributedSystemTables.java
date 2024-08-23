@@ -20,11 +20,9 @@ package org.apache.cassandra.tcm.transformations;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -41,7 +39,6 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
-import org.apache.cassandra.tcm.ClusterMetadataService.State;
 import org.apache.cassandra.tcm.listeners.ChangeListener;
 import org.apache.cassandra.tracing.TraceKeyspace;
 import org.apache.cassandra.utils.CassandraVersion;
@@ -87,9 +84,7 @@ public class UpdateDistributedSystemTables implements ChangeListener.Async
     // Make it possible for 5.X upgrades to later versions to update system tables without waiting for the cluster to reach some minimum version
     public static void maybeUpdateDistributedSystemTables()
     {
-        State state = ClusterMetadataService.state();
-        Set<State> migratedStates = ImmutableSet.of(State.LOCAL, State.REMOTE);
-        if (!ClusterMetadataService.instance().isMigrating() && migratedStates.contains(state))
+        if (ClusterMetadataService.state().fullyEnabled)
             maybeUpdateDistributedSystemTables(null, ClusterMetadata.current());
     }
 
