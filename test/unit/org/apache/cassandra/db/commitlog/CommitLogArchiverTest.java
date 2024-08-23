@@ -67,7 +67,6 @@ public class CommitLogArchiverTest extends CQLTester
     {
         File dir = new File(dirName);
         dir.deleteRecursive();
-        CommitLog.instance.setCommitlogArchiver(archiver);
     }
 
     @Test
