@@ -31,6 +31,7 @@ import java.util.TreeMap;
 import java.util.function.BiFunction;
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 
 import accord.local.Command;
@@ -41,6 +42,7 @@ import accord.primitives.PartialDeps;
 import accord.primitives.Range;
 import accord.primitives.Ranges;
 import accord.primitives.Routable;
+import accord.primitives.Routables;
 import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
@@ -256,13 +258,19 @@ public class CommandsForRangesLoader
         public final Ranges ranges;
         public final List<TxnId> depsIds;
 
-        private Summary(TxnId txnId, @Nullable Timestamp executeAt, SaveStatus saveStatus, Ranges ranges, List<TxnId> depsIds)
+        @VisibleForTesting
+        Summary(TxnId txnId, @Nullable Timestamp executeAt, SaveStatus saveStatus, Ranges ranges, List<TxnId> depsIds)
         {
             this.txnId = txnId;
             this.executeAt = executeAt;
             this.saveStatus = saveStatus;
             this.ranges = ranges;
             this.depsIds = depsIds;
+        }
+
+        public Summary slice(Ranges slice)
+        {
+            return new Summary(txnId, executeAt, saveStatus, ranges.slice(slice, Routables.Slice.Minimal), depsIds);
         }
 
         @Override

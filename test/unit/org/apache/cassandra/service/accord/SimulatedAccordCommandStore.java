@@ -46,6 +46,7 @@ import accord.primitives.Keys;
 import accord.primitives.Ranges;
 import accord.primitives.Routable;
 import accord.primitives.RoutableKey;
+import accord.primitives.Routables;
 import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
@@ -198,6 +199,11 @@ public class SimulatedAccordCommandStore implements AutoCloseable
         shouldEvict = boolSource(rs.fork());
         shouldFlush = boolSource(rs.fork());
         shouldCompact = boolSource(rs.fork());
+    }
+
+    public Ranges slice(Ranges ranges)
+    {
+        return ranges.slice(topology.ranges(), Routables.Slice.Minimal);
     }
 
     private static BooleanSupplier boolSource(RandomSource rs)

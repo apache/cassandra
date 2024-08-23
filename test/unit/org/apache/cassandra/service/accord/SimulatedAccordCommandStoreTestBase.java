@@ -133,30 +133,6 @@ public abstract class SimulatedAccordCommandStoreTestBase extends CQLTester
         ServerTestUtils.markCMS();
     }
 
-    protected static void safeBlock(List<AsyncResult<?>> asyncs) throws InterruptedException, ExecutionException
-    {
-        int counter = 0;
-        for (var chain : asyncs)
-        {
-            Assertions.assertThat(chain.isDone())
-                      .describedAs("The %dth async task is blocked!", counter++)
-                      .isTrue();
-            AsyncChains.getBlocking(chain);
-        }
-    }
-
-    protected static void safeBlock(List<AsyncResult<?>> asyncs, List<?> details) throws InterruptedException, ExecutionException
-    {
-        int counter = 0;
-        for (var chain : asyncs)
-        {
-            Assertions.assertThat(chain.isDone())
-                      .describedAs("The %dth async task %s is blocked!", counter, details.get(counter++))
-                      .isTrue();
-            AsyncChains.getBlocking(chain);
-        }
-    }
-
     protected static TokenRange fullRange(TableId id)
     {
         return new TokenRange(AccordRoutingKey.SentinelKey.min(id), AccordRoutingKey.SentinelKey.max(id));
@@ -174,25 +150,19 @@ public abstract class SimulatedAccordCommandStoreTestBase extends CQLTester
 
     protected static Map<Key, List<TxnId>> keyConflicts(List<TxnId> list, Keys keys)
     {
+        if (list.isEmpty()) return Collections.emptyMap();
         Map<Key, List<TxnId>> kc = Maps.newHashMapWithExpectedSize(keys.size());
         for (Key key : keys)
-        {
-            if (list.isEmpty())
-                continue;
             kc.put(key, list);
-        }
         return kc;
     }
 
     protected static Map<Range, List<TxnId>> rangeConflicts(List<TxnId> list, Ranges ranges)
     {
+        if (list.isEmpty()) return Collections.emptyMap();
         Map<Range, List<TxnId>> kc = Maps.newHashMapWithExpectedSize(ranges.size());
         for (Range range : ranges)
-        {
-            if (list.isEmpty())
-                continue;
             kc.put(range, list);
-        }
         return kc;
     }
 
@@ -215,14 +185,6 @@ public abstract class SimulatedAccordCommandStoreTestBase extends CQLTester
         AsyncChains.getBlocking(pair.right);
 
         return pair.left;
-    }
-
-    protected static Pair<TxnId, AsyncResult<?>> assertDepsMessageAsync(SimulatedAccordCommandStore instance,
-                                                                        DepsMessage messageType,
-                                                                        Txn txn, FullRoute<?> route,
-                                                                        Map<Key, List<TxnId>> keyConflicts)
-    {
-        return assertDepsMessageAsync(instance, messageType, txn, route, keyConflicts, Collections.emptyMap());
     }
 
     protected static Pair<TxnId, AsyncResult<?>> assertDepsMessageAsync(SimulatedAccordCommandStore instance,

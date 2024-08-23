@@ -350,7 +350,7 @@ public class AsyncOperationTest
         Gen<TxnId> txnIdGen = rs -> txnId(1, clock.incrementAndGet(), 1);
 
         qt().withPure(false)
-            .withSeed(-3537445084098883509L).withExamples(50)
+            .withExamples(50)
             .forAll(Gens.random(), Gens.lists(txnIdGen).ofSizeBetween(1, 10))
             .check((rs, ids) -> {
             before(); // truncate tables
@@ -413,7 +413,7 @@ public class AsyncOperationTest
         Gen<TxnId> txnIdGen = rs -> txnId(1, clock.incrementAndGet(), 1);
 
         AtomicInteger counter = new AtomicInteger();
-        qt().withPure(false).withSeed(3131884991952253478L).withExamples(100).forAll(Gens.random(), Gens.lists(txnIdGen).ofSizeBetween(1, 10)).check((rs, ids) -> {
+        qt().withPure(false).withExamples(100).forAll(Gens.random(), Gens.lists(txnIdGen).ofSizeBetween(1, 10)).check((rs, ids) -> {
             logger.info("Test #{}", counter.incrementAndGet());
             before(); // truncate tables
 

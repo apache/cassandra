@@ -29,7 +29,6 @@ import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import org.junit.Ignore;
 import org.junit.Test;
 
 import accord.api.Key;
@@ -44,7 +43,6 @@ import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.utils.Gen;
 import accord.utils.Gens;
-import accord.utils.async.AsyncResult;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.utils.RTree;
 import org.apache.cassandra.utils.RangeTree;
@@ -53,7 +51,6 @@ import static accord.utils.Property.qt;
 import static org.apache.cassandra.dht.Murmur3Partitioner.LongToken.keyForToken;
 import static org.apache.cassandra.service.accord.AccordTestUtils.createTxn;
 
-@Ignore // TODO (required): This class relies on removed ExecutionOrder for correctness, and needs to be adjusted
 public class SimulatedMultiKeyAndRangeTest extends SimulatedAccordCommandStoreTestBase
 {
     @Test
@@ -78,7 +75,6 @@ public class SimulatedMultiKeyAndRangeTest extends SimulatedAccordCommandStoreTe
                 Gen<DepsMessage> msgGen = msgDistribution.next(rs);
                 Map<Key, List<TxnId>> keyConflicts = new HashMap<>();
                 RangeTree<RoutingKey, Range, TxnId> rangeConflicts = RTree.create(RangeTreeRangeAccessor.instance);
-                List<AsyncResult<?>> asyncs = new ArrayList<>(numSamples);
 
                 Gen.IntGen keyCountGen = keyDistribution.next(rs);
                 Gen.IntGen rangeCountGen = rangeDistribution.next(rs);
@@ -106,9 +102,8 @@ public class SimulatedMultiKeyAndRangeTest extends SimulatedAccordCommandStoreTe
                             Map<Key, List<TxnId>> expectedConflicts = new HashMap<>();
                             keys.forEach(k -> expectedConflicts.put(k, keyConflicts.computeIfAbsent(k, ignore -> new ArrayList<>())));
 
-                            var p = assertDepsMessageAsync(instance, msgGen.next(rs), txn, route, expectedConflicts, Collections.emptyMap());
-                            keys.forEach(k -> keyConflicts.get(k).add(p.left));
-                            asyncs.add(p.right);
+                            TxnId id = assertDepsMessage(instance, msgGen.next(rs), txn, route, expectedConflicts, Collections.emptyMap());
+                            keys.forEach(k -> keyConflicts.get(k).add(id));
                         }
                         break;
                         case Range:
@@ -151,17 +146,14 @@ public class SimulatedMultiKeyAndRangeTest extends SimulatedAccordCommandStoreTe
                                 l.clear();
                                 l.addAll(sortedDedup);
                             });
-                            var p = assertDepsMessageAsync(instance, msgGen.next(rs), txn, route, expectedKeyConflicts, expectedRangeConflicts);
-                            asyncs.add(p.right);
-                            ranges.forEach(r -> rangeConflicts.add(r, p.left));
+                            TxnId id = assertDepsMessage(instance, msgGen.next(rs), txn, route, expectedKeyConflicts, expectedRangeConflicts);
+                            ranges.forEach(r -> rangeConflicts.add(r, id));
                         }
                         break;
                         default:
                             throw new AssertionError();
                     }
                 }
-                instance.processAll();
-                safeBlock(asyncs);
             }
         });
     }

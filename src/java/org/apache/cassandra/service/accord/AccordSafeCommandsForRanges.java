@@ -49,7 +49,7 @@ public class AccordSafeCommandsForRanges extends ImmutableAccordSafeState<Ranges
         Pair<CommandsForRangesLoader.Watcher, NavigableMap<TxnId, CommandsForRangesLoader.Summary>> pair = AsyncChains.getUnchecked(chain);
         pair.left.close();
         pair.left.get().entrySet().forEach(e -> pair.right.put(e.getKey(), e.getValue()));
-        original = new CommandsForRanges(key, pair.right);
+        original = CommandsForRanges.create(key, pair.right);
     }
 
     @Override
