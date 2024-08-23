@@ -157,6 +157,13 @@ public class SnapshotManager implements SnapshotManagerMBean, AutoCloseable
         liveSnapshots.clear();
     }
 
+    public synchronized void close(boolean shutdownExecutor) throws Exception
+    {
+        close();
+        if (shutdownExecutor)
+            shutdownAndWait(1, TimeUnit.MINUTES);
+    }
+
     public synchronized Set<TableSnapshot> loadSnapshots()
     {
         return snapshotLoader.loadSnapshots();
