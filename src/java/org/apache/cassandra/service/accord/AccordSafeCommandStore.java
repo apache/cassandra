@@ -178,6 +178,7 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     @Override
     public void registerHistoricalTransactions(Deps deps)
     {
+        if (deps.isEmpty()) return;
         // used in places such as accord.local.CommandStore.fetchMajorityDeps
         // We find a set of dependencies for a range then update CommandsFor to know about them
         Ranges allRanges = ranges.all();
@@ -220,28 +221,27 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     {
         if (commandsForRanges == null)
             return accumulate;
+        CommandsForRanges cfr = commandsForRanges.current().slice(slice);
         switch (keysOrRanges.domain())
         {
             case Key:
             {
                 AbstractKeys<Key> keys = (AbstractKeys<Key>) keysOrRanges.slice(slice, Routables.Slice.Minimal);
-                if (!commandsForRanges.ranges().intersects(keys))
+                if (!cfr.ranges.intersects(keys))
                     return accumulate;
-                accumulate = map.apply(commandsForRanges.current(), accumulate);
             }
             break;
             case Range:
             {
                 AbstractRanges ranges = (AbstractRanges) keysOrRanges.slice(slice, Routables.Slice.Minimal);
-                if (!commandsForRanges.ranges().intersects(ranges))
+                if (!cfr.ranges.intersects(ranges))
                     return accumulate;
-                accumulate = map.apply(commandsForRanges.current(), accumulate);
             }
             break;
             default:
                 throw new AssertionError("Unknown domain: " + keysOrRanges.domain());
         }
-        return accumulate;
+        return map.apply(cfr, accumulate);
     }
 
     private <O> O mapReduceForKey(Routables<?> keysOrRanges, Ranges slice, BiFunction<CommandsSummary, O, O> map, O accumulate)

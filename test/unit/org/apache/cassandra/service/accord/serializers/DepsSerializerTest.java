@@ -51,7 +51,7 @@ public class DepsSerializerTest
     public void serde()
     {
         DataOutputBuffer buffer = new DataOutputBuffer();
-        qt().withSeed(-4368731546033726179L).check(rs -> {
+        qt().check(rs -> {
             IPartitioner partitioner = AccordGenerators.partitioner().next(rs);
             Schema.instance = Mockito.mock(SchemaProvider.class);
             DatabaseDescriptor.setPartitionerUnsafe(partitioner);
