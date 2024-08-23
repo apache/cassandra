@@ -31,9 +31,9 @@ public class ThrottlingOptions
     public long pending_native_transport_threshold_one_minute = 10;
 
     // for checking threadpool signals
-    public long threadpool_threshold_reads = 100000; // 100K
-    public long threadpool_threshold_writes = 100000; // 100K
-    public long threadpool_threshold_native_transport = 100000; // 100K
+    public long threadpool_threshold_reads = 20000; // 20K
+    public long threadpool_threshold_writes = 25000; // 25K
+    public long threadpool_threshold_native_transport = 200000; // 200K
 
     public double percentage_of_traffic_to_throttling = 0.1;
     public int more_aggressive_throttling_after_in_sec = 1 * 60; // 1 minutes

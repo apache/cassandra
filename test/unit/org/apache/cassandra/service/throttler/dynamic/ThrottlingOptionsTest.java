@@ -36,9 +36,9 @@ public class ThrottlingOptionsTest
         Assert.assertEquals(10, throttlingOptions.getPendingNativeTransportThresholdOneMinute());
 
         // for checking threadpool signals
-        Assert.assertEquals(100000, throttlingOptions.getThreadpoolThresholdReads());
-        Assert.assertEquals(100000, throttlingOptions.getThreadpoolThresholdWrites());
-        Assert.assertEquals(100000, throttlingOptions.getThreadpoolThresholdNativeTransport());
+        Assert.assertEquals(20000, throttlingOptions.getThreadpoolThresholdReads());
+        Assert.assertEquals(25000, throttlingOptions.getThreadpoolThresholdWrites());
+        Assert.assertEquals(200000, throttlingOptions.getThreadpoolThresholdNativeTransport());
 
         Assert.assertEquals(0.1, throttlingOptions.getPercentageOfTrafficToThrottling(), 0.0);
         Assert.assertEquals(60, throttlingOptions.getMoreAggressiveThrottlingAfterInSec());
