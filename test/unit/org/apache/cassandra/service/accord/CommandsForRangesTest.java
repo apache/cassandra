@@ -34,7 +34,6 @@ import accord.primitives.TxnId;
 import accord.utils.AccordGens;
 import accord.utils.Gen;
 import accord.utils.Gens;
-import accord.utils.Invariants;
 
 import static accord.utils.Property.qt;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -65,11 +64,9 @@ public class CommandsForRangesTest
         qt().check(rs -> {
             CommandsForRanges cfr = CFK_GEN.next(rs);
 
-            Gen<Ranges> outside = outside(cfr.ranges).map(Ranges::single);
-
-            for (int i = 0; i < 10; i++)
+            for (Range range : allOutside(cfr.ranges))
             {
-                Ranges slice = outside.next(rs);
+                Ranges slice = Ranges.single(range);
                 CommandsForRanges subset = cfr.slice(slice);
                 assertThat(subset.ranges).isEmpty();
                 assertThat(subset.size()).isEqualTo(0);
@@ -88,13 +85,6 @@ public class CommandsForRangesTest
         });
     }
 
-    private static Gen<Range> outside(Ranges ranges)
-    {
-        List<Range> options = allOutside(ranges);
-        Invariants.checkArgument(!options.isEmpty());
-        return Gens.pick(options);
-    }
-
     private static List<Range> allOutside(Ranges ranges)
     {
         if (ranges.isEmpty()) return Collections.emptyList();
@@ -110,12 +100,14 @@ public class CommandsForRangesTest
         }
         if (ranges.size() > 1)
         {
-            Range last = ranges.get(ranges.size() - 1);
-            if (!last.end().equals(MAX))
             {
-                int start = key(last.end());
-                int end = Integer.MAX_VALUE;
-                matches.add(IntKey.range(start, end));
+                Range last = ranges.get(ranges.size() - 1);
+                if (!last.end().equals(MAX))
+                {
+                    int start = key(last.end());
+                    int end = Integer.MAX_VALUE;
+                    matches.add(IntKey.range(start, end));
+                }
             }
             for (int i = 1; i < ranges.size(); i++)
             {
