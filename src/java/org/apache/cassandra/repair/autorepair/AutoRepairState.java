@@ -76,8 +76,6 @@ public abstract class AutoRepairState implements ProgressListener
     @VisibleForTesting
     protected int repairKeyspaceCount = 0;
     @VisibleForTesting
-    protected int repairTableSkipCount = 0;
-    @VisibleForTesting
     protected int totalMVTablesConsideredForRepair = 0;
     @VisibleForTesting
     protected int totalDisabledTablesRepairCount = 0;
@@ -86,6 +84,8 @@ public abstract class AutoRepairState implements ProgressListener
     protected int failedTokenRangesCount = 0;
     @VisibleForTesting
     protected int succeededTokenRangesCount = 0;
+    @VisibleForTesting
+    protected int skippedTokenRangesCount = 0;
     @VisibleForTesting
     protected AutoRepairHistory longestUnrepairedNode;
     @VisibleForTesting
@@ -184,16 +184,6 @@ public abstract class AutoRepairState implements ProgressListener
         return repairInProgress;
     }
 
-    public void setRepairSkippedTablesCount(int count)
-    {
-        repairTableSkipCount = count;
-    }
-
-    public int getRepairSkippedTablesCount()
-    {
-        return repairTableSkipCount;
-    }
-
     public int getLongestUnrepairedSec()
     {
         if (longestUnrepairedNode == null)
@@ -256,6 +246,16 @@ public abstract class AutoRepairState implements ProgressListener
     public int getSucceededTokenRangesCount()
     {
         return succeededTokenRangesCount;
+    }
+
+    public void setSkippedTokenRangesCount(int count)
+    {
+        skippedTokenRangesCount = count;
+    }
+
+    public int getSkippedTokenRangesCount()
+    {
+        return skippedTokenRangesCount;
     }
 
     public boolean isSuccess()
