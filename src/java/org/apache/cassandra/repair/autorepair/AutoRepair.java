@@ -176,13 +176,13 @@ public class AutoRepair
                 AutoRepairUtils.updateStartAutoRepairHistory(repairType, myId, timeFunc.get(), turn);
 
                 repairState.setRepairKeyspaceCount(0);
-                repairState.setRepairSkippedTablesCount(0);
                 repairState.setRepairInProgress(true);
                 repairState.setTotalTablesConsideredForRepair(0);
                 repairState.setTotalMVTablesConsideredForRepair(0);
 
                 int failedTokenRanges = 0;
                 int succeededTokenRanges = 0;
+                int skippedTokenRanges = 0;
 
                 List<Keyspace> keyspaces = new ArrayList<>();
                 Keyspace.all().forEach(keyspaces::add);
@@ -205,6 +205,9 @@ public class AutoRepair
                         String keyspaceName = keyspace.getName();
                         try
                         {
+                            List<Pair<Token, Token>> subRangesToBeRepaired = tokenRangeSplitters.get(repairType).getRange(repairType, primaryRangeOnly, keyspaceName, tableName);
+                            int totalSubRanges = subRangesToBeRepaired.size();
+
                             ColumnFamilyStore columnFamilyStore = keyspace.getColumnFamilyStore(tableName);
                             if (!columnFamilyStore.metadata().params.automatedRepair.get(repairType).repairEnabled())
                             {
@@ -219,7 +222,7 @@ public class AutoRepair
                             {
                                 logger.info("Too many SSTables for repair, not doing repair on table {}.{} " +
                                             "totalSSTables {}", keyspaceName, tableName, columnFamilyStore.getLiveSSTables().size());
-                                repairState.setRepairSkippedTablesCount(repairState.getRepairSkippedTablesCount() + 1);
+                                skippedTokenRanges += totalSubRanges;
                                 continue;
                             }
 
@@ -233,8 +236,6 @@ public class AutoRepair
                             }
                             long tableStartTime = timeFunc.get();
                             Set<Range<Token>> ranges = new HashSet<>();
-                            List<Pair<Token, Token>> subRangesToBeRepaired = tokenRangeSplitters.get(repairType).getRange(repairType, primaryRangeOnly, keyspaceName, tableName);
-                            int totalSubRanges = subRangesToBeRepaired.size();
                             int totalProcessedSubRanges = 0;
                             for (Pair<Token, Token> token : subRangesToBeRepaired)
                             {
@@ -249,7 +250,7 @@ public class AutoRepair
                                 {
                                     if (AutoRepairUtils.keyspaceMaxRepairTimeExceeded(repairType, tableStartTime, tablesToBeRepaired.size()))
                                     {
-                                        repairState.setRepairSkippedTablesCount(repairState.getRepairSkippedTablesCount() + tablesToBeRepaired.size());
+                                        skippedTokenRanges += totalSubRanges - totalProcessedSubRanges;
                                         logger.info("Keyspace took too much time to repair hence skipping it {}",
                                                     keyspaceName);
                                         break;
@@ -259,7 +260,7 @@ public class AutoRepair
                                 {
                                     if (AutoRepairUtils.tableMaxRepairTimeExceeded(repairType, tableStartTime))
                                     {
-                                        repairState.setRepairSkippedTablesCount(repairState.getRepairSkippedTablesCount() + 1);
+                                        skippedTokenRanges += totalSubRanges - totalProcessedSubRanges;
                                         logger.info("Table took too much time to repair hence skipping it {}.{}",
                                                     keyspaceName, tableName);
                                         break;
@@ -325,7 +326,7 @@ public class AutoRepair
                         }
                     }
                 }
-                cleanupAndUpdateStats(turn, repairType, repairState, myId, startTime, millisToWait, failedTokenRanges, succeededTokenRanges);
+                cleanupAndUpdateStats(turn, repairType, repairState, myId, startTime, millisToWait, failedTokenRanges, succeededTokenRanges, skippedTokenRanges);
             }
             else
             {
@@ -384,7 +385,7 @@ public class AutoRepair
     }
 
     private void cleanupAndUpdateStats(RepairTurn turn, AutoRepairConfig.RepairType repairType, AutoRepairState repairState, UUID myId,
-                                       long startTime, long millisToWait, int failedTokenRanges, int succeededTokenRanges) throws InterruptedException
+                                       long startTime, long millisToWait, int failedTokenRanges, int succeededTokenRanges, int skippedTokenRanges) throws InterruptedException
     {
         //if it was due to priority then remove it now
         if (turn == MY_TURN_DUE_TO_PRIORITY)
@@ -395,13 +396,14 @@ public class AutoRepair
 
         repairState.setFailedTokenRangesCount(failedTokenRanges);
         repairState.setSucceededTokenRangesCount(succeededTokenRanges);
+        repairState.setSkippedTokenRangesCount(skippedTokenRanges);
         repairState.setNodeRepairTimeInSec((int) TimeUnit.MILLISECONDS.toSeconds(timeFunc.get() - startTime));
         long timeInHours = TimeUnit.SECONDS.toHours(repairState.getNodeRepairTimeInSec());
         logger.info("Local {} repair time {} hour(s), stats: repairKeyspaceCount {}, " +
                     "repairTokenRangesSuccessCount {}, repairTokenRangesFailureCount {}, " +
-                    "repairTableSkipCount {}", repairType, timeInHours, repairState.getRepairKeyspaceCount(),
+                    "repairTokenRangesSkipCount {}", repairType, timeInHours, repairState.getRepairKeyspaceCount(),
                     repairState.getSucceededTokenRangesCount(), repairState.getFailedTokenRangesCount(),
-                    repairState.getRepairSkippedTablesCount());
+                    repairState.getSkippedTokenRangesCount());
         if (repairState.getLastRepairTime() != 0)
         {
             repairState.setClusterRepairTimeInSec((int) TimeUnit.MILLISECONDS.toSeconds(timeFunc.get() -
