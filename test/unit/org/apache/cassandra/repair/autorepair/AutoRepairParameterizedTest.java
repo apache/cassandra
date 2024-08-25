@@ -65,7 +65,6 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.AutoRepairService;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.progress.ProgressEvent;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
@@ -96,8 +95,6 @@ public class AutoRepairParameterizedTest extends CQLTester
     private static int timeFuncCalls;
     @Mock
     ScheduledExecutorPlus mockExecutor;
-    @Mock
-    ProgressEvent progressEvent;
     @Mock
     AutoRepairState autoRepairState;
     @Mock
@@ -417,15 +414,15 @@ public class AutoRepairParameterizedTest extends CQLTester
         int beforeCount = config.getRepairSSTableCountHigherThreshold(repairType);
         config.setMVRepairEnabled(repairType, true);
         config.setRepairSSTableCountHigherThreshold(repairType, 9);
-        assertEquals(0, state.getRepairSkippedTablesCount());
-        assertEquals(0, AutoRepairMetricsManager.getMetrics(repairType).skippedTablesCount.getValue().intValue());
+        assertEquals(0, state.getSkippedTokenRangesCount());
+        assertEquals(0, AutoRepairMetricsManager.getMetrics(repairType).skippedTokenRangesCount.getValue().intValue());
         state.setLastRepairTime(0);
         AutoRepair.instance.repair(repairType, 0);
         assertEquals(1, state.getTotalMVTablesConsideredForRepair());
         assertEquals(1, AutoRepairMetricsManager.getMetrics(repairType).totalMVTablesConsideredForRepair.getValue().intValue());
         // skipping one time for the base table and another time for MV table
-        assertEquals(2, state.getRepairSkippedTablesCount());
-        assertEquals(2, AutoRepairMetricsManager.getMetrics(repairType).skippedTablesCount.getValue().intValue());
+        assertEquals(2, state.getSkippedTokenRangesCount());
+        assertEquals(2, AutoRepairMetricsManager.getMetrics(repairType).skippedTokenRangesCount.getValue().intValue());
 
         // set it to higher value, and this time, the tables should not be skipped
         config.setRepairSSTableCountHigherThreshold(repairType, 11);
@@ -433,9 +430,9 @@ public class AutoRepairParameterizedTest extends CQLTester
         state.setLastRepairTime(0);
         AutoRepair.instance.repair(repairType, 0);
         assertEquals(1, state.getTotalMVTablesConsideredForRepair());
-        assertEquals(0, state.getRepairSkippedTablesCount());
+        assertEquals(0, state.getSkippedTokenRangesCount());
         assertEquals(1, AutoRepairMetricsManager.getMetrics(repairType).totalMVTablesConsideredForRepair.getValue().intValue());
-        assertEquals(0, AutoRepairMetricsManager.getMetrics(repairType).skippedTablesCount.getValue().intValue());
+        assertEquals(0, AutoRepairMetricsManager.getMetrics(repairType).skippedTokenRangesCount.getValue().intValue());
     }
 
     @Test
@@ -468,7 +465,7 @@ public class AutoRepairParameterizedTest extends CQLTester
         assertTrue(AutoRepairMetricsManager.getMetrics(repairType).nodeRepairTimeInSec.getValue() > 0);
         assertTrue(AutoRepairMetricsManager.getMetrics(repairType).clusterRepairTimeInSec.getValue() > 0);
         assertEquals(1, AutoRepairMetricsManager.getMetrics(repairType).repairTurnMyTurn.getCount());
-        assertTrue(AutoRepairMetricsManager.getMetrics(repairType).skippedTablesCount.getValue() > 0);
+        assertTrue(AutoRepairMetricsManager.getMetrics(repairType).skippedTokenRangesCount.getValue() > 0);
         assertEquals(0, AutoRepairMetricsManager.getMetrics(repairType).longestUnrepairedSec.getValue().intValue());
 
         config.setAutoRepairTableMaxRepairTime(repairType, String.valueOf(Integer.MAX_VALUE-1) + 's');
@@ -480,7 +477,7 @@ public class AutoRepairParameterizedTest extends CQLTester
         when(autoRepairState.getLongestUnrepairedSec()).thenReturn(10);
 
         AutoRepair.instance.repair(repairType, 0);
-        assertEquals(0, AutoRepairMetricsManager.getMetrics(repairType).skippedTablesCount.getValue().intValue());
+        assertEquals(0, AutoRepairMetricsManager.getMetrics(repairType).skippedTokenRangesCount.getValue().intValue());
         assertTrue(AutoRepairMetricsManager.getMetrics(repairType).failedTokenRangesCount.getValue() > 0);
         assertTrue(AutoRepairMetricsManager.getMetrics(repairType).succeededTokenRangesCount.getValue() > 0);
         assertTrue(AutoRepairMetricsManager.getMetrics(repairType).longestUnrepairedSec.getValue() > 0);
