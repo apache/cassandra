@@ -203,20 +203,20 @@ public class AutoRepairStateTest extends CQLTester
     }
 
     @Test
-    public void testSetRepairSkippedTablesCount() {
+    public void testSetSkippedTokenRangesCount() {
         AutoRepairState state = RepairType.getAutoRepairState(repairType);
 
-        state.setRepairSkippedTablesCount(1);
+        state.setSkippedTokenRangesCount(1);
 
-        assertEquals(1, state.repairTableSkipCount);
+        assertEquals(1, state.skippedTokenRangesCount);
     }
 
     @Test
-    public void testGetRepairSkippedTablesCount() {
+    public void testGetSkippedTokenRangesCount() {
         AutoRepairState state = RepairType.getAutoRepairState(repairType);
-        state.repairTableSkipCount = 1;
+        state.skippedTokenRangesCount = 1;
 
-        assertEquals(1, state.getRepairSkippedTablesCount());
+        assertEquals(1, state.getSkippedTokenRangesCount());
     }
 
     @Test
