@@ -1085,9 +1085,9 @@ Metrics specifc to automated repair.
 Reported name format:
 
 *Metric Name*::
-`org.apache.cassandra.metrics.AutoRepairMetrics.<MetricName>`
+`org.apache.cassandra.metrics.AutoRepair.<MetricName>`
 *JMX MBean*::
-`org.apache.cassandra.metrics:type=AutoRepairMetrics name=<MetricName>`
+`org.apache.cassandra.metrics:type=AutoRepair name=<MetricName> repairType=<RepairType>`
 
 [cols=",,",options="header",]
 |===
@@ -1096,19 +1096,20 @@ Reported name format:
 on the node
 
 |NodeRepairTimeInSec |Gauge<Integer> |Time taken to repair
-the node
+the node in seconds
 
 |ClusterRepairTimeInSec |Gauge<Integer> |Time taken to repair
-the entire Cassandra cluster
-
-|SkippedTablesCount |Gauge<Integer> |Number of tables skipped
-on the node
+the entire Cassandra cluster in seconds
 
 |LongestUnrepairedSec |Gauge<Integer> |Time since the last repair
-ran on the node
+ran on the node in seconds
 
-|FailedTablesCount |Gauge<Integer> |Number of tables encountered
-failure during repair on the node
+|SucceededTokenRangesCount |Gauge<Integer> |Number of token ranges successfully repaired on the node
+
+|FailedTokenRangesCount |Gauge<Integer> |Number of token ranges failed to repair on the node
+
+|SkippedTokenRangesCount |Gauge<Integer> |Number of token ranges skipped
+on the node
 
 |TotalMVTablesConsideredForRepair |Gauge<Integer> |Number of materialized
 views considered on the node
