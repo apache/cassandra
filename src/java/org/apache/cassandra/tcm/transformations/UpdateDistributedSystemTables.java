@@ -51,7 +51,7 @@ import static org.apache.cassandra.schema.SchemaConstants.AUTH_KEYSPACE_NAME;
 public class UpdateDistributedSystemTables implements ChangeListener.Async
 {
     private static final Logger logger = LoggerFactory.getLogger(UpdateDistributedSystemTables.class);
-    private static final CassandraVersion MIN_TO_UPDATE = CassandraVersion.CASSANDRA_5_0;
+    public static final CassandraVersion MIN_VERSION_TO_UPDATE = CassandraVersion.CASSANDRA_5_0;
 
     @Override
     public void notifyPostCommit(ClusterMetadata prev, ClusterMetadata next, boolean fromSnapshot)
@@ -65,7 +65,7 @@ public class UpdateDistributedSystemTables implements ChangeListener.Async
     // to change the schema when the first node is upgraded.
     private static void maybeUpdateDistributedSystemTables(@Nullable ClusterMetadata prev, ClusterMetadata next)
     {
-        if (next.directory.clusterMinVersion.cassandraVersion.compareTo(MIN_TO_UPDATE) < 0)
+        if (next.directory.clusterMinVersion.cassandraVersion.compareTo(MIN_VERSION_TO_UPDATE) < 0)
             return;
         // Avoid expensive schema comparisons when nothing changes
         if (prev != null && next.directory.clusterMinVersion == prev.directory.clusterMinVersion)

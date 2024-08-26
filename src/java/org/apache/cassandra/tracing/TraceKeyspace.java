@@ -45,7 +45,7 @@ import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
-import org.apache.cassandra.utils.CassandraVersion;
+import org.apache.cassandra.tcm.transformations.UpdateDistributedSystemTables;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
 
@@ -175,7 +175,7 @@ public final class TraceKeyspace
                   .add("thread", threadName);
 
         ClusterMetadata cm = ClusterMetadata.current();
-        boolean clusterUpgraded = cm.directory.clusterMinVersion.cassandraVersion.compareTo(CassandraVersion.CASSANDRA_5_0) >= 0 && ClusterMetadataService.state().fullyEnabled;
+        boolean clusterUpgraded = cm.directory.clusterMinVersion.cassandraVersion.compareTo(UpdateDistributedSystemTables.MIN_VERSION_TO_UPDATE) >= 0 && ClusterMetadataService.state().fullyEnabled;
 
         logger.info("Ariel isClusteUpgraded {}, clusterMinVersion {}", clusterUpgraded, cm.directory.clusterMinVersion);
         ColumnMetadata columnMetadata = cm.schema.getKeyspaceMetadata(SchemaConstants.TRACE_KEYSPACE_NAME).getTableNullable(EVENTS).getColumn(ELAPSE_WALL_MS_IDENITIFER);
