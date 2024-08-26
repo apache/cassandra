@@ -232,12 +232,12 @@ public abstract class TraceState implements ProgressEventNotifier, Tracer
     private static long STOPWATCH_SIZE = ObjectSizes.measure(Stopwatch.createStarted());
     public long estimatedSizeOnHeap()
     {
-        // TODO (soon): This is missing InetAddressAndPort, and the contents of listeners, but they aren't populated for Accord where we use estimatedSizeOnHeap
-        // Derived class calculates empty size
+        // Implementation will calculate the empty size, listeners aren't used with regular Accord transactions
+        // so not calculating memory for the contents
         return sessionId.estimatedSizeOnHeap()
                + coordinator.estimatedSizeOnHeap()
+               + (watch != null ? STOPWATCH_SIZE : null)
                + ByteBufferUtil.estimatedSizeOnHeap(sessionIdBytes)
-               + STOPWATCH_SIZE
                + ObjectSizes.measure(tag);
     }
 }

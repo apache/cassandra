@@ -127,11 +127,11 @@ public class TraceStateImpl extends TraceState
         }
     }
 
-    private static long EMPTY_SIZE = ObjectSizes.measure(new TraceStateImpl());
+    private static long EMPTY_SIZE = ObjectSizes.measureDeep(new TraceStateImpl());
     @Override
     public long estimatedSizeOnHeap()
     {
-        // TODO (soon): Not including pendingFutures
+        // Accord doesn't use pendingFutures so not adding the contents here
         return EMPTY_SIZE + super.estimatedSizeOnHeap();
     }
 }

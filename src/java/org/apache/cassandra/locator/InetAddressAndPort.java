@@ -347,8 +347,9 @@ public final class InetAddressAndPort extends InetSocketAddress implements Compa
 
     public long estimatedSizeOnHeap()
     {
-        // Not trivial to get the hostname string without triggering reverse DNS to check
-        // the memory footprint, and also can't tell if it was actually just returning the IP converted to string
+        // Not trivial to get the hostname string in to calculate the memory footprint without triggering reverse DNS,
+        // and also can't tell if it was actually just returning the IP converted to string
+        // Punting on measuring that memory for now
         if (getAddress() instanceof Inet6Address)
             return EMPTY_IPV6_ADDRESS_SIZE;
         else

@@ -34,7 +34,7 @@ import org.apache.cassandra.utils.WithResources;
  */
 public class ExecutorLocals implements WithResources, Closeable, Propagatable, accord.api.Closeable
 {
-    public static final ExecutorLocals none = new ExecutorLocals(null, null);
+    private static final ExecutorLocals none = new ExecutorLocals(null, null);
     private static final FastThreadLocal<ExecutorLocals> locals = new FastThreadLocal<ExecutorLocals>()
     {
         @Override
