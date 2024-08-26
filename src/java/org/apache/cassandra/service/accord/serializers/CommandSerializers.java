@@ -26,6 +26,7 @@ import com.google.common.base.Preconditions;
 import accord.api.Query;
 import accord.api.Read;
 import accord.api.Result;
+import accord.api.Tracer;
 import accord.api.Update;
 import accord.coordinate.Infer;
 import accord.local.Node;
@@ -46,6 +47,8 @@ import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.InetAddressAndPort.MetadataSerializer;
 import org.apache.cassandra.service.accord.serializers.IVersionedWithKeysSerializer.AbstractWithKeysSerializer;
 import org.apache.cassandra.service.accord.serializers.IVersionedWithKeysSerializer.NullableWithKeysSerializer;
 import org.apache.cassandra.service.accord.serializers.SmallEnumSerializer.NullableSmallEnumSerializer;
@@ -53,8 +56,12 @@ import org.apache.cassandra.service.accord.txn.AccordUpdate;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.service.accord.txn.TxnWrite;
+import org.apache.cassandra.tracing.TraceState;
+import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.tracing.Tracing.TraceType;
 import org.apache.cassandra.utils.CastingSerializer;
 import org.apache.cassandra.utils.NullableSerializer;
+import org.apache.cassandra.utils.TimeUUID;
 
 public class CommandSerializers
 {
@@ -238,6 +245,7 @@ public class CommandSerializers
             out.writeBoolean(txn.update() != null);
             if (txn.update() != null)
                 updateSerializer.serialize(txn.update(), out, version);
+            traceStateSerializer.serialize((TraceState)txn.tracer(), out, version);
         }
 
         private PartialTxn deserializeWithoutKeys(Seekables<?, ?> keys, DataInputPlus in, int version) throws IOException
@@ -246,7 +254,8 @@ public class CommandSerializers
             Read read = readSerializer.deserialize(in, version);
             Query query = querySerializer.deserialize(in, version);
             Update update = in.readBoolean() ? updateSerializer.deserialize(in, version) : null;
-            return new PartialTxn.InMemory(kind, keys, read, query, update);
+            Tracer tracer = traceStateSerializer.deserialize(in, version);
+            return new PartialTxn.InMemory(kind, keys, read, query, update, tracer);
         }
 
 
@@ -258,6 +267,7 @@ public class CommandSerializers
             size += TypeSizes.sizeof(txn.update() != null);
             if (txn.update() != null)
                 size += updateSerializer.serializedSize(txn.update(), version);
+            size += traceStateSerializer.serializedSize((TraceState)txn.tracer(), version);
             return size;
         }
     }
@@ -350,6 +360,47 @@ public class CommandSerializers
                    + knownExecuteAt.serializedSize(known.executeAt, version)
                    + knownDeps.serializedSize(known.deps, version)
                    + outcome.serializedSize(known.outcome, version);
+        }
+    };
+
+    public static final IVersionedSerializer<TraceState> traceStateSerializer = new IVersionedSerializer<TraceState>()
+    {
+        @Override
+        public void serialize(TraceState t, DataOutputPlus out, int version) throws IOException
+        {
+            if (t == null)
+            {
+                out.write(0);
+                return;
+            }
+            out.write(1);
+            MetadataSerializer.serializer.serialize(t.coordinator, out, null);
+            t.sessionId.serialize(out);
+            out.write(TraceType.serialize(t.traceType));
+        }
+
+        @Override
+        public TraceState deserialize(DataInputPlus in, int version) throws IOException
+        {
+            byte isNull = in.readByte();
+            if (isNull == 0)
+                return null;
+            InetAddressAndPort coordinator = MetadataSerializer.serializer.deserialize(in, null);
+            TimeUUID sessionId = TimeUUID.deserialize(in);
+            TraceType traceType = TraceType.deserialize(in.readByte());
+            return Tracing.instance.initializeForAccordDeserialization(coordinator, sessionId, traceType);
+        }
+
+        @Override
+        public long serializedSize(TraceState t, int version)
+        {
+            if (t == null)
+                return 1;
+            long size = 1; // Null
+            size += MetadataSerializer.serializer.serializedSize(t.coordinator, null);
+            size += TimeUUID.SERIALIZED_SIZE;
+            size += 1; // TraceType
+            return size;
         }
     };
 }

@@ -387,7 +387,7 @@ public class AccordFetchCoordinator extends AbstractFetchCoordinator implements 
     protected PartialTxn rangeReadTxn(Ranges ranges)
     {
         StreamingRead read = new StreamingRead(FBUtilities.getBroadcastAddressAndPort(), ranges);
-        return new PartialTxn.InMemory(Txn.Kind.Read, ranges, read, noopQuery, null);
+        return new PartialTxn.InMemory(Txn.Kind.Read, ranges, read, noopQuery, null, null);
     }
 
     @Override

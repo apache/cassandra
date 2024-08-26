@@ -854,6 +854,14 @@ public class ClusterMetadataService
 
     public enum State
     {
-        LOCAL, REMOTE, GOSSIP, RESET
+        LOCAL(true), REMOTE(true), GOSSIP(false), RESET(false);
+
+        // Has activation of TCM fully completed
+        public final boolean fullyEnabled;
+
+        State(boolean fullyEnabled)
+        {
+            this.fullyEnabled = fullyEnabled;
+        }
     }
 }

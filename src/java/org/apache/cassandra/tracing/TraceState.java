@@ -22,11 +22,15 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import javax.annotation.Nullable;
 
 import com.google.common.base.Stopwatch;
 import org.slf4j.helpers.MessageFormatter;
 
+import accord.api.Tracer;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 import org.apache.cassandra.utils.progress.ProgressEvent;
@@ -37,13 +41,15 @@ import org.apache.cassandra.utils.progress.ProgressListener;
  * ThreadLocal state for a tracing session. The presence of an instance of this class as a ThreadLocal denotes that an
  * operation is being traced.
  */
-public abstract class TraceState implements ProgressEventNotifier
+public abstract class TraceState implements ProgressEventNotifier, Tracer
 {
     public final TimeUUID sessionId;
     public final InetAddressAndPort coordinator;
+    @Nullable
     public final Stopwatch watch;
     public final ByteBuffer sessionIdBytes;
     public final Tracing.TraceType traceType;
+    public final boolean expired;
     public final int ttl;
 
     private boolean notify;
@@ -63,7 +69,7 @@ public abstract class TraceState implements ProgressEventNotifier
     // See CASSANDRA-7626 for more details.
     private final AtomicInteger references = new AtomicInteger(1);
 
-    protected TraceState(InetAddressAndPort coordinator, TimeUUID sessionId, Tracing.TraceType traceType)
+    protected TraceState(InetAddressAndPort coordinator, TimeUUID sessionId, Tracing.TraceType traceType, boolean expired, boolean trackElapsed)
     {
         assert coordinator != null;
         assert sessionId != null;
@@ -72,9 +78,22 @@ public abstract class TraceState implements ProgressEventNotifier
         this.sessionId = sessionId;
         sessionIdBytes = sessionId.toBytes();
         this.traceType = traceType;
+        this.expired = expired;
         this.ttl = traceType.getTTL();
-        watch = Stopwatch.createStarted();
+        watch = trackElapsed ? Stopwatch.createStarted() : null;
         this.status = Status.IDLE;
+    }
+
+    // For measuring empty size
+    protected TraceState()
+    {
+        sessionId = null;
+        coordinator = null;
+        watch = null;
+        sessionIdBytes = null;
+        traceType = null;
+        ttl = 0;
+        expired = false;
     }
 
     /**
@@ -105,6 +124,8 @@ public abstract class TraceState implements ProgressEventNotifier
 
     public int elapsed()
     {
+        if (watch == null)
+            return -1;
         long elapsed = watch.elapsed(TimeUnit.MICROSECONDS);
         return elapsed < Integer.MAX_VALUE ? (int) elapsed : Integer.MAX_VALUE;
     }
@@ -151,21 +172,25 @@ public abstract class TraceState implements ProgressEventNotifier
         notifyAll();
     }
 
+    @Override
     public void trace(String format, Object arg)
     {
         trace(MessageFormatter.format(format, arg).getMessage());
     }
 
+    @Override
     public void trace(String format, Object arg1, Object arg2)
     {
         trace(MessageFormatter.format(format, arg1, arg2).getMessage());
     }
 
+    @Override
     public void trace(String format, Object... args)
     {
         trace(MessageFormatter.arrayFormat(format, args).getMessage());
     }
 
+    @Override
     public void trace(String message)
     {
         if (notify)
@@ -202,5 +227,17 @@ public abstract class TraceState implements ProgressEventNotifier
     {
         waitForPendingEvents();
         return references.decrementAndGet();
+    }
+
+    private static long STOPWATCH_SIZE = ObjectSizes.measure(Stopwatch.createStarted());
+    public long estimatedSizeOnHeap()
+    {
+        // Implementation will calculate the empty size, listeners aren't used with regular Accord transactions
+        // so not calculating memory for the contents
+        return sessionId.estimatedSizeOnHeap()
+               + coordinator.estimatedSizeOnHeap()
+               + (watch != null ? STOPWATCH_SIZE : null)
+               + ByteBufferUtil.estimatedSizeOnHeap(sessionIdBytes)
+               + ObjectSizes.measure(tag);
     }
 }

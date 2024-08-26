@@ -30,15 +30,20 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 
+import accord.api.Closeable;
 import accord.api.Key;
+import accord.api.Propagatable;
+import accord.api.Traces;
 import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.PreLoadContext;
 import accord.local.SafeCommandStore;
+import accord.primitives.PartialTxn;
 import accord.primitives.Seekables;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
 import accord.utils.async.AsyncChains;
+import org.apache.cassandra.concurrent.ExecutorLocals;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.service.accord.AccordCommandStore;
 import org.apache.cassandra.service.accord.AccordSafeCommand;
@@ -113,6 +118,9 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
     private final Context context = new Context();
     private AccordSafeCommandStore safeStore;
     private final AsyncLoader loader;
+    // Thread local when the async operation was created, needed when processing the message that creates
+    // the command for the first time
+    private final Propagatable tracer = Traces.propagate();
     private R result;
     private final String loggingId;
     private BiConsumer<? super R, Throwable> callback;
@@ -235,7 +243,8 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
     {
         switch (state)
         {
-            default: throw new IllegalStateException("Unexpected state " + state);
+            default:
+                throw new IllegalStateException("Unexpected state " + state);
             case INITIALIZED:
                 state(LOADING);
             case LOADING:
@@ -248,8 +257,11 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
                 safeStore = commandStore.beginOperation(preLoadContext, context.commands, context.timestampsForKey, context.commandsForKey, context.commandsForRanges);
                 state(RUNNING);
             case RUNNING:
+                try (Closeable ignored = propagateTracing())
+                {
+                    result = apply(safeStore);
+                }
 
-                result = apply(safeStore);
                 // TODO (required): currently, we are not very efficient about ensuring that we persist the absolute minimum amount of state. Improve that.
                 List<SavedCommand.SavedDiff> diffs = null;
                 for (AccordSafeCommand commandState : context.commands.values())
@@ -287,6 +299,25 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
         }
 
         return false;
+    }
+
+    private Closeable propagateTracing()
+    {
+        TxnId primaryTxnId = preLoadContext.primaryTxnId();
+        if (primaryTxnId != null)
+        {
+            AccordSafeCommand command = context.commands.get(primaryTxnId);
+            Command current = command.current();
+            if (current != null)
+            {
+                PartialTxn partialTxn = current.partialTxn();
+                if (partialTxn != null)
+                    return ExecutorLocals.create(partialTxn.tracer()).doPropagate();
+            }
+        }
+        // When processing a message for a transaction where we haven't seen it before there
+        // will be no command state, but the ExecutorLocal will be set by InboundMessageHandler
+        return tracer.doPropagate();
     }
 
     @Override

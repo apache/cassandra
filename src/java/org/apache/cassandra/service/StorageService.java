@@ -207,6 +207,7 @@ import org.apache.cassandra.tcm.transformations.CancelInProgressSequence;
 import org.apache.cassandra.tcm.transformations.Register;
 import org.apache.cassandra.tcm.transformations.Startup;
 import org.apache.cassandra.tcm.transformations.Unregister;
+import org.apache.cassandra.tcm.transformations.UpdateDistributedSystemTables;
 import org.apache.cassandra.transport.ClientResourceLimits;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.Clock;
@@ -832,6 +833,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         Startup.maybeExecuteStartupTransformation(self);
 
+        maybeUpdateDistributedSystemTables();
+
         try
         {
             if (joinRing)
@@ -1117,6 +1120,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             Schema.instance.registerListener(new AuthSchemaChangeListener());
             authSetupComplete = true;
         }
+    }
+
+    @VisibleForTesting
+    public void maybeUpdateDistributedSystemTables()
+    {
+        UpdateDistributedSystemTables.maybeUpdateDistributedSystemTables();
     }
 
     public boolean isAuthSetupComplete()

@@ -36,6 +36,9 @@ import com.google.common.primitives.Ints;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.api.Closeable;
+import accord.api.Propagatable;
+import accord.api.Traces;
 import accord.coordinate.Timeout;
 import accord.local.Command;
 import accord.local.Node;
@@ -284,6 +287,7 @@ public class AccordJournal implements IJournal, Shutdownable
     static abstract class RequestContext implements ReplyContext
     {
         final long waitForEpoch;
+        protected final Propagatable tracing = Traces.propagate();
 
         RequestContext(long waitForEpoch)
         {
@@ -307,7 +311,10 @@ public class AccordJournal implements IJournal, Shutdownable
 
         public void process(Node node, AccordEndpointMapper endpointMapper)
         {
-            request.process(node, callback);
+            try (Closeable ignored = tracing.doPropagate())
+            {
+                request.process(node, callback);
+            }
         }
 
         static <R> LocalRequestContext<R> create(LocalRequest<R> request, BiConsumer<R, Throwable> callback)
@@ -337,7 +344,10 @@ public class AccordJournal implements IJournal, Shutdownable
         @Override
         public void process(Node node, AccordEndpointMapper endpointMapper)
         {
-            this.request.process(node, endpointMapper.mappedId(from()), this);
+            try (Closeable ignored = this.tracing.doPropagate())
+            {
+                this.request.process(node, endpointMapper.mappedId(from()), this);
+            }
         }
 
         @Override public abstract long id();
@@ -713,6 +723,10 @@ public class AccordJournal implements IJournal, Shutdownable
                 {
                     logger.info("Delayed request processor thread interrupted. Shutting down.");
                     return;
+                }
+                catch (OutOfMemoryError e)
+                {
+                    throw e;
                 }
                 catch (Throwable t)
                 {

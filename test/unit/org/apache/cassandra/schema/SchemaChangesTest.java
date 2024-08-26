@@ -41,7 +41,6 @@ import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.marshal.ByteType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
@@ -513,56 +512,6 @@ public class SchemaChangesTest
         thrown.expect(ConfigurationException.class);
         thrown.expectMessage(KEYSPACE1 + "." + TABLE1 + ": Table mismatch");
         table1.validateCompatibility(table2);
-    }
-
-    @Test
-    public void testEvolveSystemKeyspaceNew()
-    {
-        TableMetadata table = addTestTable("ks0", "t", "");
-        KeyspaceMetadata keyspace = KeyspaceMetadata.create("ks0", KeyspaceParams.simple(1), Tables.of(table));
-
-        SchemaTransformation transformation = SchemaTransformations.updateSystemKeyspace(keyspace, 0);
-        Keyspaces before = Keyspaces.none();
-        Keyspaces after = transformation.apply(ClusterMetadataTestHelper.minimalForTesting(before));
-        Keyspaces.KeyspacesDiff diff = Keyspaces.diff(before, after);
-
-        assertTrue(diff.altered.isEmpty());
-        assertTrue(diff.dropped.isEmpty());
-        assertEquals(keyspace, diff.created.getNullable("ks0"));
-    }
-
-    @Test
-    public void testEvolveSystemKeyspaceExistsUpToDate()
-    {
-        TableMetadata table = addTestTable("ks1", "t", "");
-        KeyspaceMetadata keyspace = KeyspaceMetadata.create("ks1", KeyspaceParams.simple(1), Tables.of(table));
-
-        SchemaTransformation transformation = SchemaTransformations.updateSystemKeyspace(keyspace, 0);
-        Keyspaces before = Keyspaces.of(keyspace);
-        Keyspaces after = transformation.apply(ClusterMetadataTestHelper.minimalForTesting(before));
-        Keyspaces.KeyspacesDiff diff = Keyspaces.diff(before, after);
-
-        assertTrue(diff.isEmpty());
-    }
-
-    @Test
-    public void testEvolveSystemKeyspaceChanged()
-    {
-        TableMetadata table0 = addTestTable("ks2", "t", "");
-        KeyspaceMetadata keyspace0 = KeyspaceMetadata.create("ks2", KeyspaceParams.simple(1), Tables.of(table0));
-
-        TableMetadata table1 = table0.unbuild().comment("comment").build();
-        KeyspaceMetadata keyspace1 = KeyspaceMetadata.create("ks2", KeyspaceParams.simple(1), Tables.of(table1));
-
-        SchemaTransformation transformation = SchemaTransformations.updateSystemKeyspace(keyspace1, 1);
-        Keyspaces before = Keyspaces.of(keyspace0);
-        Keyspaces after = transformation.apply(ClusterMetadataTestHelper.minimalForTesting(before));
-        Keyspaces.KeyspacesDiff diff = Keyspaces.diff(before, after);
-
-        assertTrue(diff.created.isEmpty());
-        assertTrue(diff.dropped.isEmpty());
-        assertEquals(1, diff.altered.size());
-        assertEquals(keyspace1, diff.altered.get(0).after);
     }
 
     private TableMetadata addTestTable(String ks, String cf, String comment)

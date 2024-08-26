@@ -41,6 +41,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.api.Key;
+import accord.api.Traces;
 import accord.primitives.Keys;
 import accord.primitives.Txn;
 import org.apache.cassandra.audit.AuditLogContext;
@@ -338,7 +339,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
                     && transactionalModeForSingleKey(txnKeys) == TransactionalMode.full
                     && DatabaseDescriptor.getAccordEphemeralReadEnabledEnabled()
                     ? EphemeralRead : Read;
-            return new Txn.InMemory(kind, txnKeys, read, TxnQuery.ALL, null);
+            return new Txn.InMemory(kind, txnKeys, read, TxnQuery.ALL, null, Traces.tracer());
         }
         else
         {

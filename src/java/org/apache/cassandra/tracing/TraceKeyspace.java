@@ -19,29 +19,44 @@ package org.apache.cassandra.tracing;
 
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.Date;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.ImmutableSet;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
-import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Tables;
+import org.apache.cassandra.service.accord.AccordService;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.transformations.UpdateDistributedSystemTables;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.TimeUUID;
 
 import static java.lang.String.format;
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 public final class TraceKeyspace
 {
+    private static final Logger logger = LoggerFactory.getLogger(AccordService.class);
+
     private TraceKeyspace()
     {
     }
@@ -58,12 +73,13 @@ public final class TraceKeyspace
      *                       removed default ttl, reduced bloom filter fp chance from 0.1 to 0.01.
      * gen 1577836800000001: (pre-)adds coordinator_port column to sessions and source_port column to events in 3.0, 3.11, 4.0
      * gen 1577836800000002: compression chunk length reduced to 16KiB, memtable_flush_period_in_ms now unset on all tables in 4.0
+     * gen 1577836800000003: 5.1 add elapsed_wall_ms and elapsed_wall to events table
      *
      * * Until CASSANDRA-6016 (Oct 13, 2.0.2) and in all of 1.2, we used to create system_traces keyspace and
      *   tables in the same way that we created the purely local 'system' keyspace - using current time on node bounce
      *   (+1). For new definitions to take, we need to bump the generation further than that.
      */
-    public static final long GENERATION = 1577836800000002L;
+    public static final long GENERATION = 1577836800000003L;
 
     public static final String SESSIONS = "sessions";
     public static final String EVENTS = "events";
@@ -86,6 +102,8 @@ public final class TraceKeyspace
     public static final String EVENTS_CQL = "CREATE TABLE IF NOT EXISTS %s ("
                                             + "session_id uuid,"
                                             + "event_id timeuuid,"
+                                            + "elapsed_wall_ms bigint,"
+                                            + "elapsed_wall text,"
                                             + "activity text,"
                                             + "source inet,"
                                             + "source_port int,"
@@ -104,6 +122,9 @@ public final class TraceKeyspace
                                    .build();
     }
 
+    // You can't assume that this metadata will be the metadata in Schema/TCM
+    // On upgrade there can be a delay until the entire cluster is upgraded before it will be updated
+    // When gossip is gone this can be improved
     public static KeyspaceMetadata metadata()
     {
         return KeyspaceMetadata.create(SchemaConstants.TRACE_KEYSPACE_NAME, KeyspaceParams.simple(Math.max(DEFAULT_RF, DatabaseDescriptor.getDefaultKeyspaceRF())), Tables.of(Sessions, Events));
@@ -140,9 +161,11 @@ public final class TraceKeyspace
         return builder.buildAsMutation();
     }
 
-    static Mutation makeEventMutation(ByteBuffer sessionId, String message, int elapsed, String threadName, int ttl)
+    private static final ColumnIdentifier ELAPSE_WALL_MS_IDENITIFER = metadata().getTableNullable(EVENTS).columns().stream().map(ColumnMetadata::name).filter(name -> name.toString().equals("elapsed_wall_ms")).findFirst().get();
+
+    static Mutation makeEventMutation(TimeUUID sessionId, ByteBuffer sessionIdBuffer, String message, int elapsed, String threadName, int ttl)
     {
-        PartitionUpdate.SimpleBuilder builder = PartitionUpdate.simpleBuilder(Events, sessionId);
+        PartitionUpdate.SimpleBuilder builder = PartitionUpdate.simpleBuilder(Events, sessionIdBuffer);
         Row.SimpleBuilder rowBuilder = builder.row(nextTimeUUID())
                                               .ttl(ttl);
 
@@ -150,6 +173,22 @@ public final class TraceKeyspace
                   .add("source", FBUtilities.getBroadcastAddressAndPort().getAddress())
                   .add("source_port", FBUtilities.getBroadcastAddressAndPort().getPort())
                   .add("thread", threadName);
+
+        ClusterMetadata cm = ClusterMetadata.current();
+        boolean clusterUpgraded = cm.directory.clusterMinVersion.cassandraVersion.compareTo(UpdateDistributedSystemTables.MIN_VERSION_TO_UPDATE) >= 0 && ClusterMetadataService.state().fullyEnabled;
+
+        logger.info("Ariel isClusteUpgraded {}, clusterMinVersion {}", clusterUpgraded, cm.directory.clusterMinVersion);
+        ColumnMetadata columnMetadata = cm.schema.getKeyspaceMetadata(SchemaConstants.TRACE_KEYSPACE_NAME).getTableNullable(EVENTS).getColumn(ELAPSE_WALL_MS_IDENITIFER);
+        logger.info("Ariel columnMetadata is {}", columnMetadata);
+        // When upgrading to 5.0 there is a period where schema changes can't happen so the only way to know if we can
+        // use these columns is to check the schema
+        if (clusterUpgraded &&
+            cm.schema.getKeyspaceMetadata(SchemaConstants.TRACE_KEYSPACE_NAME).getTableNullable(EVENTS).getColumn(ELAPSE_WALL_MS_IDENITIFER) != null)
+        {
+            long elapsed_wall_ms = Math.max(0, currentTimeMillis() - sessionId.unix(TimeUnit.MILLISECONDS));
+            rowBuilder.add("elapsed_wall_ms", elapsed_wall_ms)
+                      .add("elapsed_wall", FBUtilities.humanReadableDuration(elapsed_wall_ms, TimeUnit.MILLISECONDS));
+        }
 
         if (elapsed >= 0)
             rowBuilder.add("source_elapsed", elapsed);

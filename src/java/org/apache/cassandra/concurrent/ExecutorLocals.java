@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.concurrent;
 
+import accord.api.Propagatable;
+import accord.api.Tracer;
 import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.tracing.TraceState;
@@ -30,7 +32,7 @@ import org.apache.cassandra.utils.WithResources;
  *
  * We don't enumerate the ExecutorLocal.all array each time because it would be much slower.
  */
-public class ExecutorLocals implements WithResources, Closeable
+public class ExecutorLocals implements WithResources, Closeable, Propagatable, accord.api.Closeable
 {
     private static final ExecutorLocals none = new ExecutorLocals(null, null);
     private static final FastThreadLocal<ExecutorLocals> locals = new FastThreadLocal<ExecutorLocals>()
@@ -84,6 +86,11 @@ public class ExecutorLocals implements WithResources, Closeable
         return current.traceState == traceState ? current : new ExecutorLocals(traceState, current.clientWarnState);
     }
 
+    public static ExecutorLocals create(Tracer tracer)
+    {
+        return create((TraceState)tracer);
+    }
+
     public static void clear()
     {
         locals.set(none);
@@ -100,6 +107,19 @@ public class ExecutorLocals implements WithResources, Closeable
         return old;
     }
 
+    /**
+     * Overwrite current locals, and return the previous ones
+     */
+    @Override
+    public accord.api.Closeable doPropagate()
+    {
+        ExecutorLocals old = current();
+        if (old != this)
+            locals.set(this);
+        return old;
+    }
+
+    @Override
     public void close()
     {
         locals.set(this);

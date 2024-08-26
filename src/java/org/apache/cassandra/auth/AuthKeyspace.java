@@ -23,13 +23,13 @@ import java.util.concurrent.TimeUnit;
 import com.google.common.collect.ImmutableSet;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
-import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Tables;
 
 import static java.lang.String.format;
@@ -158,6 +158,9 @@ public final class AuthKeyspace
                                    .build();
     }
 
+    // You can't assume that this metadata will be the metadata in Schema/TCM
+    // On upgrade there can be a delay until the entire cluster is upgraded before it will be updated
+    // When gossip is gone this can be improved
     public static KeyspaceMetadata metadata()
     {
         return KeyspaceMetadata.create(SchemaConstants.AUTH_KEYSPACE_NAME,

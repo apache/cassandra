@@ -47,6 +47,7 @@ import com.google.common.util.concurrent.Uninterruptibles;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.api.Traces;
 import accord.primitives.Txn;
 import accord.utils.Invariants;
 import org.apache.cassandra.batchlog.Batch;
@@ -2146,7 +2147,8 @@ public class StorageProxy implements StorageProxyMBean
         consistencyLevel = transactionalMode.readCLForStrategy(consistencyLevel);
         TxnRead read = TxnRead.createSerialRead(readCommand, consistencyLevel);
         Invariants.checkState(read.keys().size() == 1, "Ephemeral reads are only strict-serializable for single partition reads");
-        Txn txn = new Txn.InMemory(transactionalMode == TransactionalMode.full && DatabaseDescriptor.getAccordEphemeralReadEnabledEnabled() ? EphemeralRead : Read, read.keys(), read, TxnQuery.ALL, null);
+        Txn.Kind kind = transactionalMode == TransactionalMode.full && DatabaseDescriptor.getAccordEphemeralReadEnabledEnabled() ? EphemeralRead : Read;
+        Txn txn = new Txn.InMemory(kind, read.keys(), read, TxnQuery.ALL, null, Traces.tracer());
         IAccordService accordService = AccordService.instance();
         TxnResult txnResult = accordService.coordinate(txn, consistencyLevel, queryStartNanoTime);
         if (txnResult.kind() == retry_new_protocol)

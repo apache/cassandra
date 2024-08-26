@@ -63,6 +63,7 @@ import static org.apache.cassandra.utils.Shared.Recursive.INTERFACES;
 public class TimeUUID implements Serializable, Comparable<TimeUUID>
 {
     public static final long serialVersionUID = 1L;
+    public static final long SERIALIZED_SIZE = 16;
 
     // A grand day! millis at 00:00:00.000 15 Oct 1582.
     public static final long UUID_EPOCH_UNIX_MILLIS = -12219292800000L;
@@ -371,7 +372,7 @@ public class TimeUUID implements Serializable, Comparable<TimeUUID>
         @Override
         public long serializedSize(TimeUUID t, int version)
         {
-            return 16;
+            return SERIALIZED_SIZE;
         }
     }
 
@@ -569,6 +570,11 @@ public class TimeUUID implements Serializable, Comparable<TimeUUID>
             }
             return localAddresses;
         }
+    }
+
+    public long estimatedSizeOnHeap()
+    {
+        return ObjectSizes.measure(new TimeUUID(0, 0));
     }
 }
 

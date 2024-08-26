@@ -832,6 +832,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                     peers.forEach(peer -> GossipHelper.unsafeStatusToNormal(this, (IInstance) peer));
             }
             Gossiper.instance.register(StorageService.instance);
+            StorageService.instance.maybeUpdateDistributedSystemTables();
             StorageService.instance.unsafeSetInitialized();
         }
 
@@ -849,7 +850,6 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             throw new IllegalStateException(String.format("%s != %s", FBUtilities.getBroadcastAddressAndPort(), broadcastAddress()));
 
         ClusterMetadataService.instance().processor().fetchLogAndWait();
-
 
         ActiveRepairService.instance().start();
         StreamManager.instance.start();

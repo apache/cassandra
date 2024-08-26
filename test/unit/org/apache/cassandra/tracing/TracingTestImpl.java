@@ -68,9 +68,9 @@ public final class TracingTestImpl extends Tracing
     }
 
     @Override
-    protected TraceState newTraceState(InetAddressAndPort ia, TimeUUID uuid, Tracing.TraceType tt)
+    protected TraceState newTraceState(InetAddressAndPort ia, TimeUUID uuid, Tracing.TraceType tt, boolean expired, boolean trackElapsed)
     {
-        return new TraceState(ia, uuid, tt)
+        return new TraceState(ia, uuid, tt, expired, trackElapsed)
         {
             protected void traceImpl(String string)
             {
@@ -84,7 +84,7 @@ public final class TracingTestImpl extends Tracing
     }
 
     @Override
-    public void trace(ByteBuffer bb, String message, int i)
+    public void trace(TimeUUID sessionId, ByteBuffer bb, String message, int i)
     {
         traces.add(message);
     }
