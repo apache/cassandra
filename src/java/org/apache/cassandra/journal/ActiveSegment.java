@@ -183,6 +183,7 @@ final class ActiveSegment<K, V> extends Segment<K, V>
     {
         index.persist(descriptor);
         metadata.persist(descriptor);
+        syncedOffsets.fsync();
         SyncUtil.trySyncDir(descriptor.directory);
     }
 
