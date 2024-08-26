@@ -26,10 +26,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import accord.messages.*;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.utils.Clock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,11 +40,6 @@ import accord.api.Agent;
 import accord.api.MessageSink;
 import accord.local.AgentExecutor;
 import accord.local.Node;
-import accord.messages.Callback;
-import accord.messages.MessageType;
-import accord.messages.Reply;
-import accord.messages.ReplyContext;
-import accord.messages.Request;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
@@ -227,12 +225,33 @@ public class AccordMessageSink implements MessageSink
         messaging.send(message, endpoint);
     }
 
+    private static boolean isRangeBarrier(Request request)
+    {
+        if (!(request instanceof TxnRequest))
+            return false;
+
+        TxnRequest<?> txnRequest = (TxnRequest<?>) request;
+        if (!txnRequest.txnId.kind().isSyncPoint())
+            return false;
+
+        return txnRequest.txnId.domain().isRange();
+    }
+
     @Override
     public void send(Node.Id to, Request request, AgentExecutor executor, Callback callback)
     {
         Verb verb = getVerb(request);
         Preconditions.checkNotNull(verb, "Verb is null for type %s", request.type());
-        Message<Request> message = Message.out(verb, request);
+        Message<Request> message;
+        if (isRangeBarrier(request))
+        {
+            long nowNanos = Clock.Global.nanoTime();
+            message = Message.out(verb, request, nowNanos + DatabaseDescriptor.getAccordRangeBarrierTimeoutNanos());
+        }
+        else
+        {
+            message = Message.out(verb, request);
+        }
         InetAddressAndPort endpoint = endpointMapper.mappedEndpoint(to);
         logger.trace("Sending {} {} to {}", verb, message.payload, endpoint);
         messaging.sendWithCallback(message, endpoint, new AccordCallback<>(executor, (Callback<Reply>) callback, endpointMapper));
