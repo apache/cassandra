@@ -41,6 +41,7 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
 
@@ -167,9 +168,12 @@ public final class TraceKeyspace
                   .add("source_port", FBUtilities.getBroadcastAddressAndPort().getPort())
                   .add("thread", threadName);
 
+        ClusterMetadata cm = ClusterMetadata.current();
+        boolean clusterUpgraded = cm.directory.clusterMinVersion.cassandraVersion.compareTo(CassandraVersion.CASSANDRA_5_0) >= 0;
         // When upgrading to 5.0 there is a period where schema changes can't happen so the only way to know if we can
         // use these columns is to check the schema
-        if (ClusterMetadata.current().schema.getKeyspaceMetadata(SchemaConstants.TRACE_KEYSPACE_NAME).getTableNullable(EVENTS).getColumn(ELAPSE_WALL_MS_IDENITIFER) != null)
+        if (clusterUpgraded &&
+            cm.schema.getKeyspaceMetadata(SchemaConstants.TRACE_KEYSPACE_NAME).getTableNullable(EVENTS).getColumn(ELAPSE_WALL_MS_IDENITIFER) != null)
         {
             long elapsed_wall_ms = Math.max(0, currentTimeMillis() - sessionId.unix(TimeUnit.MILLISECONDS));
             rowBuilder.add("elapsed_wall_ms", elapsed_wall_ms)

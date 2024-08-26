@@ -51,7 +51,7 @@ import static org.apache.cassandra.schema.SchemaConstants.AUTH_KEYSPACE_NAME;
 public class UpdateDistributedSystemTables implements ChangeListener.Async
 {
     private static final Logger logger = LoggerFactory.getLogger(UpdateDistributedSystemTables.class);
-    private static final CassandraVersion MIN_TO_UPDATE = new CassandraVersion("5.0");
+    private static final CassandraVersion MIN_TO_UPDATE = CassandraVersion.CASSANDRA_5_0;
 
     @Override
     public void notifyPostCommit(ClusterMetadata prev, ClusterMetadata next, boolean fromSnapshot)
