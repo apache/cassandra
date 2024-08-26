@@ -135,6 +135,7 @@ interface SyncedOffsets extends Closeable
             {
                 output.writeInt(offset);
                 output.writeInt((int) crc.getValue());
+                output.flush();
             }
             catch (IOException e)
             {
