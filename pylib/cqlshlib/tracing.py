@@ -42,10 +42,6 @@ def print_trace(shell, trace):
     temp_color = None
     if shell.shunted_query_out is not None:
             temp_query = shell.query_out
-            shell.writeresult('')
-            shell.writeresult('Tracing session: ', color=None, newline=False)
-            shell.writeresult(trace.trace_id)
-            shell.writeresult('')
             shell.query_out = shell.shunted_query_out
             temp_color = shell.color
             shell.color = shell.shunted_color
