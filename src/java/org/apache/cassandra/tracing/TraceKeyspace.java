@@ -25,6 +25,8 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.ImmutableSet;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -40,7 +42,9 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Tables;
+import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
@@ -51,6 +55,8 @@ import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 public final class TraceKeyspace
 {
+    private static final Logger logger = LoggerFactory.getLogger(AccordService.class);
+
     private TraceKeyspace()
     {
     }
@@ -169,7 +175,11 @@ public final class TraceKeyspace
                   .add("thread", threadName);
 
         ClusterMetadata cm = ClusterMetadata.current();
-        boolean clusterUpgraded = cm.directory.clusterMinVersion.cassandraVersion.compareTo(CassandraVersion.CASSANDRA_5_0) >= 0;
+        boolean clusterUpgraded = cm.directory.clusterMinVersion.cassandraVersion.compareTo(CassandraVersion.CASSANDRA_5_0) >= 0 && ClusterMetadataService.state().fullyEnabled;
+
+        logger.info("Ariel isClusteUpgraded {}, clusterMinVersion {}", clusterUpgraded, cm.directory.clusterMinVersion);
+        ColumnMetadata columnMetadata = cm.schema.getKeyspaceMetadata(SchemaConstants.TRACE_KEYSPACE_NAME).getTableNullable(EVENTS).getColumn(ELAPSE_WALL_MS_IDENITIFER);
+        logger.info("Ariel columnMetadata is {}", columnMetadata);
         // When upgrading to 5.0 there is a period where schema changes can't happen so the only way to know if we can
         // use these columns is to check the schema
         if (clusterUpgraded &&
