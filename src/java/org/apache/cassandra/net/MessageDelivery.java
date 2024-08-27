@@ -130,7 +130,10 @@ public interface MessageDelivery
     }
 
     private static <REQ, RSP> void sendWithRetries(MessageDelivery messaging,
-                                                   Backoff backoff, RetryScheduler retryThreads, Verb verb, REQ request, Iterator<InetAddressAndPort> candidates, OnResult<RSP> onResult,
+                                                   Backoff backoff, RetryScheduler retryThreads,
+                                                   Verb verb, REQ request,
+                                                   Iterator<InetAddressAndPort> candidates,
+                                                   OnResult<RSP> onResult,
                                                    RetryPredicate shouldRetry,
                                                    RetryErrorMessage errorMessage,
                                                    int attempt)
