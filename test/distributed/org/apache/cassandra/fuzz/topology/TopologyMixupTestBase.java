@@ -142,14 +142,13 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
                                    });
     }
 
-    private Command<State<S>, Void, ?> addNode(State<S> state)
+    private Command<State<S>, Void, ?> addNode()
     {
-        int nodeId = state.topologyHistory.uniqueInstances + 1;
-        return new SimpleCommand<>("Add Node" + nodeId + state.commandNamePostfix(),
-                                   s2 -> {
-                                       TopologyHistory.Node n = s2.topologyHistory.addNode();
-                                       IInvokableInstance newInstance = ClusterUtils.addInstance(s2.cluster, n.dc, n.rack, c -> c.set("auto_bootstrap", true));
-                                       newInstance.startup(s2.cluster);
+        return new SimpleCommand<>(state -> "Add Node" + (state.topologyHistory.uniqueInstances + 1) + state.commandNamePostfix(),
+                                   state -> {
+                                       TopologyHistory.Node n = state.topologyHistory.addNode();
+                                       IInvokableInstance newInstance = ClusterUtils.addInstance(state.cluster, n.dc, n.rack, c -> c.set("auto_bootstrap", true));
+                                       newInstance.startup(state.cluster);
                                        n.up();
                                    });
     }
@@ -329,7 +328,7 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
             switch (task)
             {
                 case AddNode:
-                    possible.put(ignore -> multistep(addNode(state), waitForCMSToQuiesce()), 1);
+                    possible.put(ignore -> multistep(addNode(), waitForCMSToQuiesce()), 1);
                     break;
                 case RemoveNode:
                     possible.put(rs -> multistep(removeNodeRandomizedDispatch(rs, state), waitForCMSToQuiesce()), 1);
