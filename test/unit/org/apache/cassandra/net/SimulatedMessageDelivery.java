@@ -19,16 +19,21 @@
 package org.apache.cassandra.net;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.LongSupplier;
 import javax.annotation.Nullable;
 
+import accord.utils.Gens;
+import accord.utils.RandomSource;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.repair.FuzzTestBase;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 
@@ -39,6 +44,67 @@ public class SimulatedMessageDelivery implements MessageDelivery
     public interface ActionSupplier
     {
         Action get(InetAddressAndPort self, Message<?> message, InetAddressAndPort to);
+    }
+
+    public interface NetworkDelaySupplier
+    {
+        @Nullable
+        Duration jitter(Message<?> message, InetAddressAndPort to);
+    }
+
+    public static NetworkDelaySupplier noDelay()
+    {
+        return (i1, i2) -> null;
+    }
+
+    public static NetworkDelaySupplier randomDelay(RandomSource rs)
+    {
+        class Connection
+        {
+            final InetAddressAndPort from, to;
+
+            private Connection(InetAddressAndPort from, InetAddressAndPort to)
+            {
+                this.from = from;
+                this.to = to;
+            }
+
+            @Override
+            public boolean equals(Object o)
+            {
+                if (this == o) return true;
+                if (o == null || getClass() != o.getClass()) return false;
+                Connection that = (Connection) o;
+                return from.equals(that.from) && to.equals(that.to);
+            }
+
+            @Override
+            public int hashCode()
+            {
+                return Objects.hash(from, to);
+            }
+
+            @Override
+            public String toString()
+            {
+                return "Connection{" + "from=" + from + ", to=" + to + '}';
+            }
+        }
+        final Map<Connection, LongSupplier> networkLatencies = new HashMap<>();
+        return (msg, to) -> {
+            InetAddressAndPort from = msg.from();
+            long delayNanos = networkLatencies.computeIfAbsent(new Connection(from, to), ignore -> {
+                long min = TimeUnit.MICROSECONDS.toNanos(500);
+                long maxSmall = TimeUnit.MILLISECONDS.toNanos(5);
+                long max = TimeUnit.SECONDS.toNanos(5);
+                LongSupplier small = () -> rs.nextLong(min, maxSmall);
+                LongSupplier large = () -> rs.nextLong(maxSmall, max);
+                return Gens.bools().runs(rs.nextInt(1, 11) / 100.0D, rs.nextInt(3, 15))
+                           .mapToLong(b -> b ? large.getAsLong() : small.getAsLong())
+                           .asLongSupplier(rs.fork());
+            }).getAsLong();
+            return Duration.ofNanos(delayNanos);
+        };
     }
 
     public interface Scheduler
@@ -53,16 +119,18 @@ public class SimulatedMessageDelivery implements MessageDelivery
 
     private final InetAddressAndPort self;
     private final ActionSupplier actions;
+    private final NetworkDelaySupplier networkDelay;
     private final BiConsumer<InetAddressAndPort, Message<?>> reciever;
     private final DropListener onDropped;
     private final Scheduler scheduler;
     private final Consumer<Throwable> onError;
     private final Map<CallbackKey, CallbackContext> callbacks = new HashMap<>();
-    private enum Status { Up, Down}
+    private enum Status { Up, Down }
     private Status status = Status.Up;
 
     public SimulatedMessageDelivery(InetAddressAndPort self,
                                     ActionSupplier actions,
+                                    NetworkDelaySupplier networkDelay,
                                     BiConsumer<InetAddressAndPort, Message<?>> reciever,
                                     DropListener onDropped,
                                     Scheduler scheduler,
@@ -70,6 +138,7 @@ public class SimulatedMessageDelivery implements MessageDelivery
     {
         this.self = self;
         this.actions = actions;
+        this.networkDelay = networkDelay;
         this.reciever = reciever;
         this.onDropped = onDropped;
         this.scheduler = scheduler;
@@ -157,14 +226,14 @@ public class SimulatedMessageDelivery implements MessageDelivery
         switch (action)
         {
             case DELIVER:
-                reciever.accept(to, message);
+                deliver(message, to);
                 break;
             case DROP:
             case DROP_PARTITIONED:
                 onDropped.onDrop(action, to, message);
                 break;
             case DELIVER_WITH_FAILURE:
-                reciever.accept(to, message);
+                deliver(message, to);
             case FAILURE:
                 if (action == Action.FAILURE)
                     onDropped.onDrop(action, to, message);
@@ -193,6 +262,13 @@ public class SimulatedMessageDelivery implements MessageDelivery
                 }
             }, message.verb().expiresAfterNanos(), TimeUnit.NANOSECONDS);
         }
+    }
+
+    private void deliver(Message<?> message, InetAddressAndPort to)
+    {
+        Duration delay = networkDelay.jitter(message, to);
+        if (delay == null) reciever.accept(to, message);
+        else               scheduler.schedule(() -> reciever.accept(to, message), delay.toNanos(), TimeUnit.NANOSECONDS);
     }
 
     @SuppressWarnings("rawtypes")

@@ -29,6 +29,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.Assert;
 import org.junit.Test;
 
+import accord.utils.RandomSource;
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.concurrent.SimulatedExecutorFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -42,7 +43,6 @@ import org.apache.cassandra.net.SimulatedMessageDelivery.SimulatedMessageReceive
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.StubClusterMetadataService;
 import org.apache.cassandra.utils.Backoff;
-import org.apache.cassandra.utils.TriFunction;
 import org.mockito.Mockito;
 
 import static accord.utils.Property.qt;
@@ -69,7 +69,7 @@ public class MessageDeliveryTest
             List<Throwable> failures = new ArrayList<>();
             SimulatedExecutorFactory factory = new SimulatedExecutorFactory(rs.fork(), failures::add);
             ScheduledExecutorPlus scheduler = factory.scheduled("ignored");
-            MessageDelivery messaging = simulatedMessages(scheduler, failures, (i1, i2, i3) -> Action.DROP);
+            MessageDelivery messaging = simulatedMessages(rs, scheduler, failures, (i1, i2, i3) -> Action.DROP);
 
             int expectedRetries = 3;
             Backoff backoff = new Backoff.ExponentialBackoff(expectedRetries, 200, 1000, rs.fork()::nextDouble);
@@ -95,7 +95,7 @@ public class MessageDeliveryTest
             List<Throwable> failures = new ArrayList<>();
             SimulatedExecutorFactory factory = new SimulatedExecutorFactory(rs.fork(), failures::add);
             ScheduledExecutorPlus scheduler = factory.scheduled("ignored");
-            MessageDelivery messaging = simulatedMessages(scheduler, failures, (i1, i2, i3) -> Action.DELIVER);
+            MessageDelivery messaging = simulatedMessages(rs, scheduler, failures, (i1, i2, i3) -> Action.DELIVER);
 
             Backoff backoff = Mockito.mock(Backoff.class);
 
@@ -126,7 +126,7 @@ public class MessageDeliveryTest
             int maxAttempts = 3;
             int expectedAttempts = 1;
             AtomicInteger attempts = new AtomicInteger(0);
-            MessageDelivery messaging = simulatedMessages(scheduler, failures, (i1, i2, i3) -> attempts.incrementAndGet() >= (expectedAttempts + 1) ? Action.DELIVER : Action.DROP);
+            MessageDelivery messaging = simulatedMessages(rs, scheduler, failures, (i1, i2, i3) -> attempts.incrementAndGet() >= (expectedAttempts + 1) ? Action.DELIVER : Action.DROP);
 
             Backoff backoff = Mockito.spy(new Backoff.ExponentialBackoff(maxAttempts, 200, 1000, rs.fork()::nextDouble));
 
@@ -154,7 +154,7 @@ public class MessageDeliveryTest
             SimulatedExecutorFactory factory = new SimulatedExecutorFactory(rs.fork(), failures::add);
             ScheduledExecutorPlus scheduler = factory.scheduled("ignored");
 
-            MessageDelivery messaging = simulatedMessages(scheduler, failures, (i1, i2, i3) -> Action.DROP);
+            MessageDelivery messaging = simulatedMessages(rs, scheduler, failures, (i1, i2, i3) -> Action.DROP);
 
             Backoff backoff = Mockito.spy(new Backoff.ExponentialBackoff(3, 200, 1000, rs.fork()::nextDouble));
 
@@ -176,11 +176,12 @@ public class MessageDeliveryTest
         });
     }
 
-    private static MessageDelivery simulatedMessages(ScheduledExecutorPlus scheduler, List<Throwable> failures, SimulatedMessageDelivery.ActionSupplier actionSupplier)
+    private static MessageDelivery simulatedMessages(RandomSource rs, ScheduledExecutorPlus scheduler, List<Throwable> failures, SimulatedMessageDelivery.ActionSupplier actionSupplier)
     {
         Map<InetAddressAndPort, SimulatedMessageReceiver> receivers = new HashMap<>();
         SimulatedMessageDelivery messaging = new SimulatedMessageDelivery(ID1,
                                                                           actionSupplier,
+                                                                          SimulatedMessageDelivery.randomDelay(rs),
                                                                           (to, message) -> scheduler.execute(() -> receivers.get(to).recieve(message)),
                                                                           (i1, i2, i3) -> {},
                                                                           scheduler::schedule,
