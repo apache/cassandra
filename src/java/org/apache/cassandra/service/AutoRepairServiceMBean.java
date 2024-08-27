@@ -132,10 +132,21 @@ public interface AutoRepairServiceMBean
 
 
     /**
-     * Set repair subranges
+     * Set auto repair history clear
      */
     public void setAutoRepairHistoryClearDeleteHostsBufferInSec(int seconds);
     public void setAutoRepairHistoryClearDeleteHostsBufferInSecV2(int seconds);
+
+    /**
+     * Set auto repair max retries count
+     */
+    public void setAutoRepairMaxRetriesCount(int retries);
+
+
+    /**
+     * Set auto repair retry backoff in seconds
+     */
+    public void setAutoRepairRetryBackoffInSec(long seconds);
 
     /**
      * Get repair sstable count higher threshold

@@ -40,6 +40,10 @@ public class AutoRepairConfig implements Serializable
     public final Boolean enabled;
     // the interval in seconds between checks for eligible repair operations. Cannot be modified dynamically.
     public final Integer repair_check_interval_in_sec = 300; // 5 minutes
+    // the maximum number of retries for a repair session.
+    public volatile Integer repair_max_retries = 3;
+    // the backoff time in seconds for retrying a repair session.
+    public volatile Long repair_retry_backoff_in_sec = 60L;
     // configures how long repair history is kept for a replaced node
     public volatile Integer history_clear_delete_hosts_buffer_in_sec = 60 * 60 * 2;  // two hours
     // global_settings overides Options.defaultOptions for all repair types
@@ -84,6 +88,26 @@ public class AutoRepairConfig implements Serializable
     public void setAutoRepairHistoryClearDeleteHostsBufferInSec(int seconds)
     {
         history_clear_delete_hosts_buffer_in_sec = seconds;
+    }
+
+    public int getRepairMaxRetries()
+    {
+        return repair_max_retries;
+    }
+
+    public void setRepairMaxRetries(int maxRetries)
+    {
+        repair_max_retries = maxRetries;
+    }
+
+    public long getRepairRetryBackoffInSec()
+    {
+        return repair_retry_backoff_in_sec;
+    }
+
+    public void setRepairRetryBackoffInSec(long backoff)
+    {
+        repair_retry_backoff_in_sec = backoff;
     }
 
     public boolean isAutoRepairEnabled(RepairType repairType)

@@ -271,6 +271,18 @@ public class AutoRepairService implements AutoRepairServiceMBean
     }
 
     @Override
+    public void setAutoRepairMaxRetriesCount(int retries)
+    {
+        config.setRepairMaxRetries(retries);
+    }
+
+    @Override
+    public void setAutoRepairRetryBackoffInSec(long seconds)
+    {
+        config.setRepairRetryBackoffInSec(seconds);
+    }
+
+    @Override
     public int getRepairSSTableCountHigherThreshold()
     {
         return sstableCountHigherThreshold;

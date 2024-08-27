@@ -92,6 +92,24 @@ public class AutoRepairServiceTest
 
             assertEquals(100, config.getAutoRepairHistoryClearDeleteHostsBufferInSec());
         }
+
+
+        @Test
+        public void testsetAutoRepairMaxRetriesCount()
+        {
+            autoRepairService.setAutoRepairMaxRetriesCount(101);
+
+            assertEquals(101, config.getRepairMaxRetries());
+        }
+
+
+        @Test
+        public void testsetAutoRepairRetryBackoffInSec()
+        {
+            autoRepairService.setAutoRepairRetryBackoffInSec(102);
+
+            assertEquals(102, config.getRepairRetryBackoffInSec());
+        }
     }
 
     @RunWith(Parameterized.class)

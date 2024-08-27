@@ -24,6 +24,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.collect.Sets;
@@ -539,5 +541,59 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
         assertEquals(0, AutoRepairV2.instance.repairStates.get(repairType).getTotalTablesConsideredForRepair());
         // repair scheduler should load the repair time from the DB
         assertEquals(lastRepairTime, AutoRepairV2.instance.repairStates.get(repairType).getLastRepairTime());
+    }
+
+    @Test
+    public void testRepairMaxRetries()
+    {
+        when(autoRepairState.getRepairRunnable(any(), any(), any(), anyBoolean(), any())).thenReturn(repairRunnable);
+        when(autoRepairState.isSuccess()).thenReturn(false);
+        AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
+        AtomicInteger sleepCalls = new AtomicInteger();
+        AutoRepairV2.sleepFunc = (Long duration, TimeUnit unit) -> {
+            sleepCalls.getAndIncrement();
+            assertEquals(TimeUnit.SECONDS, unit);
+            assertEquals(config.getRepairRetryBackoffInSec(), (long) duration);
+        };
+        config.setRepairMinIntervalInHours(repairType, -1);
+        config.setRepairOnlyKeyspaces(repairType, KEYSPACE);
+        AutoRepairV2.instance.repairStates.put(repairType, autoRepairState);
+
+        AutoRepairV2.instance.repair(repairType, 0);
+
+        assertEquals(config.getRepairMaxRetries(), sleepCalls.get());
+        verify(autoRepairState, Mockito.times(1)).setSucceededTokenRangesCount(0);
+        verify(autoRepairState, Mockito.times(1)).setSkippedTokenRangesCount(0);
+        verify(autoRepairState, Mockito.times(1)).setFailedTokenRangesCount(1);
+    }
+
+    @Test
+    public void testRepairSuccessAfterRetry()
+    {
+        when(autoRepairState.getRepairRunnable(any(), any(), any(), anyBoolean(), any())).thenReturn(repairRunnable);
+
+        AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
+        AtomicInteger sleepCalls = new AtomicInteger();
+        AutoRepairV2.sleepFunc = (Long duration, TimeUnit unit) -> {
+            sleepCalls.getAndIncrement();
+            assertEquals(TimeUnit.SECONDS, unit);
+            assertEquals(config.getRepairRetryBackoffInSec(), (long) duration);
+        };
+        when(autoRepairState.isSuccess()).then((invocationOnMock) -> {
+            if (sleepCalls.get() == 0) {
+                return false;
+            }
+            return true;
+        });
+        config.setRepairMinIntervalInHours(repairType, -1);
+        config.setRepairOnlyKeyspaces(repairType, KEYSPACE);
+        AutoRepairV2.instance.repairStates.put(repairType, autoRepairState);
+
+        AutoRepairV2.instance.repair(repairType, 0);
+
+        assertEquals(1, sleepCalls.get());
+        verify(autoRepairState, Mockito.times(1)).setSucceededTokenRangesCount(1);
+        verify(autoRepairState, Mockito.times(1)).setSkippedTokenRangesCount(0);
+        verify(autoRepairState, Mockito.times(1)).setFailedTokenRangesCount(0);
     }
 }

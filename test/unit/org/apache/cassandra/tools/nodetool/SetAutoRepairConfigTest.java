@@ -100,6 +100,29 @@ public class SetAutoRepairConfigTest
         }
 
         @Test
+        public void testRepairMaxRetries()
+        {
+            cmd.v2 = true;
+            cmd.args = ImmutableList.of("repairmaxretries", "2");
+
+            cmd.execute(probe);
+
+            verify(probe, times(1)).setAutoRepairMaxRetriesCount(2);
+        }
+
+
+        @Test
+        public void testRetryBackoffInSec()
+        {
+            cmd.v2 = true;
+            cmd.args = ImmutableList.of("retrybackoffinsec", "3");
+
+            cmd.execute(probe);
+
+            verify(probe, times(1)).setAutoRepairRetryBackoffInSec(3);
+        }
+
+        @Test
         public void testLegacy()
         {
             cmd.v2 = false;
