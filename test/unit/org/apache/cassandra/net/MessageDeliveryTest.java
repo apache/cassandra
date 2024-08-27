@@ -52,8 +52,8 @@ public class MessageDeliveryTest
 {
     private static final InetAddressAndPort ID1 = InetAddressAndPort.getByNameUnchecked("127.0.0.1");
     private static final MessageDelivery.RetryErrorMessage RETRY_ERROR_MESSAGE = (i1, i2, i3, i4) -> null;
-    private static final TriFunction<Integer, InetAddressAndPort, RequestFailureReason, Boolean> ALWAYS_RETRY = (i1, i2, i3) -> true;
-    private static final TriFunction<Integer, InetAddressAndPort, RequestFailureReason, Boolean> ALWAYS_REJECT = (i1, i2, i3) -> false;
+    private static final MessageDelivery.RetryPredicate ALWAYS_RETRY = (i1, i2, i3) -> true;
+    private static final MessageDelivery.RetryPredicate ALWAYS_REJECT = (i1, i2, i3) -> false;
 
     static
     {

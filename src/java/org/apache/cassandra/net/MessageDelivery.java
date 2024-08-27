@@ -35,7 +35,6 @@ import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.Backoff;
 import org.apache.cassandra.utils.Pair;
-import org.apache.cassandra.utils.TriFunction;
 import org.apache.cassandra.utils.concurrent.Accumulator;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
@@ -90,7 +89,7 @@ public interface MessageDelivery
                                                                    RetryScheduler retryThreads,
                                                                    Verb verb, REQ request,
                                                                    InetAddressAndPort candidate,
-                                                                   TriFunction<Integer, InetAddressAndPort, RequestFailureReason, Boolean> shouldRetry,
+                                                                   RetryPredicate shouldRetry,
                                                                    RetryErrorMessage errorMessage)
     {
         return sendWithRetries(new AsyncPromise<>(), (Integer i, Message<RSP> msg) -> msg, backoff, retryThreads, verb, request, Iterators.cycle(candidate), shouldRetry, errorMessage);
@@ -101,7 +100,7 @@ public interface MessageDelivery
                                                                    RetryScheduler retryThreads,
                                                                    Verb verb, REQ request,
                                                                    InetAddressAndPort candidate,
-                                                                   TriFunction<Integer, InetAddressAndPort, RequestFailureReason, Boolean> shouldRetry,
+                                                                   RetryPredicate shouldRetry,
                                                                    RetryErrorMessage errorMessage)
     {
         return sendWithRetries(new AsyncPromise<>(), msgToRsp, backoff, retryThreads, verb, request, Iterators.cycle(candidate), shouldRetry, errorMessage);
@@ -113,7 +112,7 @@ public interface MessageDelivery
                                                                    RetryScheduler retryThreads,
                                                                    Verb verb, REQ request,
                                                                    Iterator<InetAddressAndPort> candidates,
-                                                                   TriFunction<Integer, InetAddressAndPort, RequestFailureReason, Boolean> shouldRetry,
+                                                                   RetryPredicate shouldRetry,
                                                                    RetryErrorMessage errorMessage)
     {
         sendWithRetries(this, promise, msgToRsp, backoff, retryThreads, verb, request, candidates, shouldRetry, errorMessage, 0);
@@ -123,6 +122,11 @@ public interface MessageDelivery
     public default void respondWithFailure(RequestFailureReason reason, Message<?> message)
     {
         send(Message.failureResponse(message.id(), message.expiresAtNanos(), reason), message.respondTo());
+    }
+
+    interface RetryPredicate
+    {
+        boolean test(int attempt, InetAddressAndPort from, RequestFailureReason failure);
     }
 
     interface RetryErrorMessage
@@ -137,7 +141,7 @@ public interface MessageDelivery
                                                             RetryScheduler retryThreads,
                                                             Verb verb, REQ request,
                                                             Iterator<InetAddressAndPort> candidates,
-                                                            TriFunction<Integer, InetAddressAndPort, RequestFailureReason, Boolean> shouldRetry,
+                                                            RetryPredicate shouldRetry,
                                                             RetryErrorMessage errorMessage,
                                                             int attempt)
     {
@@ -168,7 +172,7 @@ public interface MessageDelivery
                     promise.tryFailure(new MaxRetriesException(attempt, errorMessage.apply(attempt, ResponseFailureReason.MaxRetries, from, failure)));
                     return;
                 }
-                if (!shouldRetry.apply(attempt, from, failure))
+                if (!shouldRetry.test(attempt, from, failure))
                 {
                     promise.tryFailure(new FailedResponseException(from, failure, errorMessage.apply(attempt, ResponseFailureReason.Rejected, from, failure)));
                     return;
