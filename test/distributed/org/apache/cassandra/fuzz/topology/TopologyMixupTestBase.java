@@ -51,7 +51,6 @@ import accord.utils.Gens;
 import accord.utils.Invariants;
 import accord.utils.Property;
 import accord.utils.Property.Command;
-import accord.utils.Property.Commands;
 import accord.utils.Property.SimpleCommand;
 import accord.utils.Property.StateOnlyCommand;
 import accord.utils.RandomSource;
@@ -76,12 +75,14 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.utils.ConfigGenBuilder;
 
+import static accord.utils.Property.commands;
+import static accord.utils.Property.ignoreCommand;
 import static accord.utils.Property.multistep;
 import static accord.utils.Property.stateful;
 
 /**
  * These tests can create many instances, so mac users may need to run the following to avoid address bind failures
- *
+ * <p>
  * {@code for id in $(seq 0 15); do sudo ifconfig lo0 alias "127.0.0.$id"; done;}
  */
 public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.SchemaSpec> extends TestBaseImpl
@@ -297,98 +298,60 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
     {
         Property.StatefulBuilder statefulBuilder = stateful().withSteps(50).withStepTimeout(Duration.ofMinutes(2)).withExamples(1);
         preCheck(statefulBuilder);
-        statefulBuilder.check(new Commands<State<S>, Void>()
+        statefulBuilder.check(commands(this::stateGen)
+                              .preCommands(state -> state.preActions.forEach(Runnable::run))
+                              .add(2, (rs, state) -> {
+                                  EnumSet<TopologyChange> possibleTopologyChanges = possibleTopologyChanges(state);
+                                  if (possibleTopologyChanges.isEmpty()) return ignoreCommand();
+                                  return topologyCommand(state, possibleTopologyChanges).next(rs);
+                              })
+                              .add(1, (rs, state) -> repairCommand(state, rs.pickInt(state.topologyHistory.up())))
+                              .add(7, (rs, state) -> state.statementGen.apply(rs, state))
+                              .destroyState((state, cause) -> {
+                                  TopologyMixupTestBase.this.destroyState(state, cause);
+                                  state.close();
+                              })
+                              .build());
+    }
+
+    private EnumSet<TopologyChange> possibleTopologyChanges(State<S> state)
+    {
+        EnumSet<TopologyChange> possibleTopologyChanges = EnumSet.noneOf(TopologyChange.class);
+        // up or down is logically more correct, but since this runs sequentially and after the topology changes are complete, we don't have downed nodes at this point
+        // so up is enough to know the topology size
+        int size = state.topologyHistory.up().length;
+        if (size < state.topologyHistory.maxNodes)
+            possibleTopologyChanges.add(TopologyChange.AddNode);
+        if (size > state.topologyHistory.quorum())
         {
-            @Override
-            public Gen<State<S>> genInitialState()
+            if (size > TARGET_RF)
+                possibleTopologyChanges.add(TopologyChange.RemoveNode);
+            possibleTopologyChanges.add(TopologyChange.HostReplace);
+        }
+        return possibleTopologyChanges;
+    }
+
+    private Gen<Command<State<S>, Void, ?>> topologyCommand(State<S> state, EnumSet<TopologyChange> possibleTopologyChanges)
+    {
+        Map<Gen<Command<State<S>, Void, ?>>, Integer> possible = new LinkedHashMap<>();
+        for (TopologyChange task : possibleTopologyChanges)
+        {
+            switch (task)
             {
-                return stateGen();
+                case AddNode:
+                    possible.put(ignore -> multistep(addNode(state), waitForCMSToQuiesce()), 1);
+                    break;
+                case RemoveNode:
+                    possible.put(rs -> multistep(removeNodeRandomizedDispatch(rs, state), waitForCMSToQuiesce()), 1);
+                    break;
+                case HostReplace:
+                    possible.put(rs -> multistep(hostReplace(rs, state), waitForCMSToQuiesce()), 1);
+                    break;
+                default:
+                    throw new UnsupportedOperationException(task.name());
             }
-
-            @Override
-            public Void createSut(State<S> state)
-            {
-                return null;
-            }
-
-            @Override
-            public Gen<Command<State<S>, Void, ?>> commands(State<S> state)
-            {
-                state.preActions.forEach(Runnable::run);
-
-                Map<Gen<Command<State<S>, Void, ?>>, Integer> possible = new LinkedHashMap<>();
-
-                // topology change
-                EnumSet<TopologyChange> possibleTopologyChanges = possibleTopologyChanges(state);
-                if (!possibleTopologyChanges.isEmpty())
-                    possible.put(topologyCommand(state, possibleTopologyChanges), 2);
-                possible.put(rs -> repairCommand(state, rs.pickInt(state.topologyHistory.up())), 1);
-                possible.put(rs -> state.statementGen.apply(rs, state), 7);
-
-                return Gens.oneOf(possible);
-            }
-
-            private EnumSet<TopologyChange> possibleTopologyChanges(State<S> state)
-            {
-                EnumSet<TopologyChange> possibleTopologyChanges = EnumSet.noneOf(TopologyChange.class);
-                // up or down is logically more correct, but since this runs sequentially and after the topology changes are complete, we don't have downed nodes at this point
-                // so up is enough to know the topology size
-                int size = state.topologyHistory.up().length;
-                if (size < state.topologyHistory.maxNodes)
-                    possibleTopologyChanges.add(TopologyChange.AddNode);
-                if (size > state.topologyHistory.quorum())
-                {
-                    if (size > TARGET_RF)
-                        possibleTopologyChanges.add(TopologyChange.RemoveNode);
-                    possibleTopologyChanges.add(TopologyChange.HostReplace);
-                }
-                return possibleTopologyChanges;
-            }
-
-            private Gen<Command<State<S>, Void, ?>> topologyCommand(State<S> state, EnumSet<TopologyChange> possibleTopologyChanges)
-            {
-                Map<Gen<Command<State<S>, Void, ?>>, Integer> possible = new LinkedHashMap<>();
-                for (TopologyChange task : possibleTopologyChanges)
-                {
-                    switch (task)
-                    {
-                        case AddNode:
-                            possible.put(ignore -> multistep(addNode(state), waitForCMSToQuiesce()), 1);
-                            break;
-                        case RemoveNode:
-                            possible.put(rs -> multistep(removeNodeRandomizedDispatch(rs, state), waitForCMSToQuiesce()), 1);
-                            break;
-                        case HostReplace:
-                            possible.put(rs -> multistep(hostReplace(rs, state), waitForCMSToQuiesce()), 1);
-                            break;
-                        default:
-                            throw new UnsupportedOperationException(task.name());
-                    }
-                }
-                return Gens.oneOf(possible);
-            }
-
-            @Override
-            public void destroyState(State<S> state, @Nullable Throwable cause) throws Throwable
-            {
-                if (cause != null)
-                {
-                    for (Runnable r : state.onError)
-                    {
-                        try
-                        {
-                            r.run();
-                        }
-                        catch (Throwable t)
-                        {
-                            cause.addSuppressed(t);
-                        }
-                    }
-                }
-                TopologyMixupTestBase.this.destroyState(state, cause);
-                state.close();
-            }
-        });
+        }
+        return Gens.oneOf(possible);
     }
 
     private static IntHashSet asSet(int[] array)
@@ -412,7 +375,6 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
         final Cluster cluster;
         final S schemaSpec;
         final List<Runnable> preActions = new CopyOnWriteArrayList<>();
-        final List<Runnable> onError = new CopyOnWriteArrayList<>();
         final AtomicLong currentEpoch = new AtomicLong();
         final BiFunction<RandomSource, State<S>, Command<State<S>, Void, ?>> statementGen;
         final Gen<RemoveType> removeTypeGen;

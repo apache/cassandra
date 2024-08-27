@@ -685,6 +685,16 @@ public class Property
         Gen<Command<State, SystemUnderTest, ?>> commands(State state) throws Throwable;
     }
 
+    public static <State, SystemUnderTest> CommandsBuilder<State, SystemUnderTest> commands(Supplier<Gen<State>> stateGen, Function<State, SystemUnderTest> sutFactory)
+    {
+        return new CommandsBuilder<>(stateGen, sutFactory);
+    }
+
+    public static <State> CommandsBuilder<State, Void> commands(Supplier<Gen<State>> stateGen)
+    {
+        return new CommandsBuilder<>(stateGen, ignore -> null);
+    }
+
     public static class CommandsBuilder<State, SystemUnderTest>
     {
         public interface Setup<State, SystemUnderTest>
@@ -695,9 +705,11 @@ public class Property
         private final Function<State, SystemUnderTest> sutFactory;
         private final Map<Setup<State, SystemUnderTest>, Integer> possible = new LinkedHashMap<>();
         @Nullable
-        private BiConsumer<State, Throwable> destroyState = null;
+        private FailingConsumer<State> preCommands = null;
         @Nullable
-        private BiConsumer<SystemUnderTest, Throwable> destroySut = null;
+        private FailingBiConsumer<State, Throwable> destroyState = null;
+        @Nullable
+        private FailingBiConsumer<SystemUnderTest, Throwable> destroySut = null;
 
         public CommandsBuilder(Supplier<Gen<State>> stateGen, Function<State, SystemUnderTest> sutFactory)
         {
@@ -705,7 +717,13 @@ public class Property
             this.sutFactory = sutFactory;
         }
 
-        public CommandsBuilder<State, SystemUnderTest> destroyState(Consumer<State> destroyState)
+        public CommandsBuilder<State, SystemUnderTest> preCommands(FailingConsumer<State> preCommands)
+        {
+            this.preCommands = preCommands;
+            return this;
+        }
+
+        public CommandsBuilder<State, SystemUnderTest> destroyState(FailingConsumer<State> destroyState)
         {
             return destroyState((success, failure) -> {
                 if (failure == null)
@@ -713,13 +731,13 @@ public class Property
             });
         }
 
-        public CommandsBuilder<State, SystemUnderTest> destroyState(BiConsumer<State, Throwable> destroyState)
+        public CommandsBuilder<State, SystemUnderTest> destroyState(FailingBiConsumer<State, Throwable> destroyState)
         {
             this.destroyState = destroyState;
             return this;
         }
 
-        public CommandsBuilder<State, SystemUnderTest> destroySut(Consumer<SystemUnderTest> destroySut)
+        public CommandsBuilder<State, SystemUnderTest> destroySut(FailingConsumer<SystemUnderTest> destroySut)
         {
             return destroySut((success, failure) -> {
                 if (failure == null)
@@ -727,7 +745,7 @@ public class Property
             });
         }
 
-        public CommandsBuilder<State, SystemUnderTest> destroySut(BiConsumer<SystemUnderTest, Throwable> destroySut)
+        public CommandsBuilder<State, SystemUnderTest> destroySut(FailingBiConsumer<SystemUnderTest, Throwable> destroySut)
         {
             this.destroySut = destroySut;
             return this;
@@ -751,8 +769,7 @@ public class Property
 
         public Commands<State, SystemUnderTest> build()
         {
-            Map<Setup<State, SystemUnderTest>, Integer> clone = new LinkedHashMap<>(possible);
-            Gen<Setup<State, SystemUnderTest>> gen = Gens.pick(clone);
+            Gen<Setup<State, SystemUnderTest>> gen = Gens.pick(new LinkedHashMap<>(possible));
             return new Commands<>()
             {
                 @Override
@@ -770,6 +787,8 @@ public class Property
                 @Override
                 public Gen<Command<State, SystemUnderTest, ?>> commands(State state) throws Throwable
                 {
+                    if (preCommands != null)
+                        preCommands.accept(state);
                     return gen.map((rs, setup) -> setup.setup(rs, state));
                 }
 
@@ -787,6 +806,16 @@ public class Property
                         destroySut.accept(sut, cause);
                 }
             };
+        }
+
+        public interface FailingConsumer<T>
+        {
+            void accept(T value) throws Throwable;
+        }
+
+        public interface FailingBiConsumer<A, B>
+        {
+            void accept(A a, B b) throws Throwable;
         }
     }
 }
