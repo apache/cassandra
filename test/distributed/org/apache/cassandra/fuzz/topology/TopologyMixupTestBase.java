@@ -478,7 +478,7 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
             }
             preActions.add(new Runnable()
             {
-                // in order to remove this action, an annonomus class is needed so "this" works, lambda "this" is the parent class
+                // in order to remove this action, an anonymous class is needed so "this" works, lambda "this" is the parent class
                 @Override
                 public void run()
                 {
