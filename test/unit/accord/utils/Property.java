@@ -24,12 +24,16 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
@@ -586,6 +590,36 @@ public class Property
         }
     }
 
+    public static <State, SystemUnderTest, Result> Command<State, SystemUnderTest, Result> ignoreCommand()
+    {
+        return new Command<>()
+        {
+            @Override
+            public PreCheckResult checkPreconditions(State state)
+            {
+                return PreCheckResult.Ignore;
+            }
+
+            @Override
+            public Result apply(State state) throws Throwable
+            {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Result run(SystemUnderTest sut) throws Throwable
+            {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public String detailed(State state)
+            {
+                throw new UnsupportedOperationException();
+            }
+        };
+    }
+
     public interface UnitCommand<State, SystemUnderTest> extends Command<State, SystemUnderTest, Void>
     {
         void applyUnit(State state) throws Throwable;
@@ -649,5 +683,110 @@ public class Property
         default void destroyState(State state, @Nullable Throwable cause) throws Throwable {}
         default void destroySut(SystemUnderTest sut, @Nullable Throwable cause) throws Throwable {}
         Gen<Command<State, SystemUnderTest, ?>> commands(State state) throws Throwable;
+    }
+
+    public static class CommandsBuilder<State, SystemUnderTest>
+    {
+        public interface Setup<State, SystemUnderTest>
+        {
+            Command<State, SystemUnderTest, ?> setup(RandomSource rs, State state);
+        }
+        private final Supplier<Gen<State>> stateGen;
+        private final Function<State, SystemUnderTest> sutFactory;
+        private final Map<Setup<State, SystemUnderTest>, Integer> possible = new LinkedHashMap<>();
+        @Nullable
+        private BiConsumer<State, Throwable> destroyState = null;
+        @Nullable
+        private BiConsumer<SystemUnderTest, Throwable> destroySut = null;
+
+        public CommandsBuilder(Supplier<Gen<State>> stateGen, Function<State, SystemUnderTest> sutFactory)
+        {
+            this.stateGen = stateGen;
+            this.sutFactory = sutFactory;
+        }
+
+        public CommandsBuilder<State, SystemUnderTest> destroyState(Consumer<State> destroyState)
+        {
+            return destroyState((success, failure) -> {
+                if (failure == null)
+                    destroyState.accept(success);
+            });
+        }
+
+        public CommandsBuilder<State, SystemUnderTest> destroyState(BiConsumer<State, Throwable> destroyState)
+        {
+            this.destroyState = destroyState;
+            return this;
+        }
+
+        public CommandsBuilder<State, SystemUnderTest> destroySut(Consumer<SystemUnderTest> destroySut)
+        {
+            return destroySut((success, failure) -> {
+                if (failure == null)
+                    destroySut.accept(success);
+            });
+        }
+
+        public CommandsBuilder<State, SystemUnderTest> destroySut(BiConsumer<SystemUnderTest, Throwable> destroySut)
+        {
+            this.destroySut = destroySut;
+            return this;
+        }
+
+        public CommandsBuilder<State, SystemUnderTest> add(int weight, Command<State, SystemUnderTest, ?> cmd)
+        {
+            return add(weight, (i1, i2) -> cmd);
+        }
+
+        public CommandsBuilder<State, SystemUnderTest> add(int weight, Gen<Command<State, SystemUnderTest, ?>> cmd)
+        {
+            return add(weight, (rs, state) -> cmd.next(rs));
+        }
+
+        public CommandsBuilder<State, SystemUnderTest> add(int weight, Setup<State, SystemUnderTest> cmd)
+        {
+            possible.put(cmd, weight);
+            return this;
+        }
+
+        public Commands<State, SystemUnderTest> build()
+        {
+            Map<Setup<State, SystemUnderTest>, Integer> clone = new LinkedHashMap<>(possible);
+            Gen<Setup<State, SystemUnderTest>> gen = Gens.pick(clone);
+            return new Commands<>()
+            {
+                @Override
+                public Gen<State> genInitialState() throws Throwable
+                {
+                    return stateGen.get();
+                }
+
+                @Override
+                public SystemUnderTest createSut(State state) throws Throwable
+                {
+                    return sutFactory.apply(state);
+                }
+
+                @Override
+                public Gen<Command<State, SystemUnderTest, ?>> commands(State state) throws Throwable
+                {
+                    return gen.map((rs, setup) -> setup.setup(rs, state));
+                }
+
+                @Override
+                public void destroyState(State state, @Nullable Throwable cause) throws Throwable
+                {
+                    if (destroyState != null)
+                        destroyState.accept(state, cause);
+                }
+
+                @Override
+                public void destroySut(SystemUnderTest sut, @Nullable Throwable cause) throws Throwable
+                {
+                    if (destroySut != null)
+                        destroySut.accept(sut, cause);
+                }
+            };
+        }
     }
 }
