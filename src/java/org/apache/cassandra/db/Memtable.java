@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.db;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -55,7 +56,6 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.IncludingExcludingBounds;
-import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.index.transactions.UpdateTransaction;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -65,7 +65,6 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.concurrent.OpOrder;
@@ -74,8 +73,10 @@ import org.apache.cassandra.utils.memory.HeapPool;
 import org.apache.cassandra.utils.memory.MemtableAllocator;
 import org.apache.cassandra.utils.memory.MemtableCleaner;
 import org.apache.cassandra.utils.memory.MemtablePool;
+import org.apache.cassandra.utils.memory.NativeAllocator;
 import org.apache.cassandra.utils.memory.NativePool;
 import org.apache.cassandra.utils.memory.SlabPool;
+import org.github.jamm.Unmetered;
 
 public class Memtable implements Comparable<Memtable>
 {
@@ -116,6 +117,7 @@ public class Memtable implements Comparable<Memtable>
 
     private static final int ROW_OVERHEAD_HEAP_SIZE = estimateRowOverhead(Integer.parseInt(System.getProperty("cassandra.memtable_row_overhead_computation_step", "100000")));
 
+    @Unmetered
     private final MemtableAllocator allocator;
     private final AtomicLong liveDataSize = new AtomicLong(0);
     private final AtomicLong currentOperations = new AtomicLong(0);
@@ -148,6 +150,7 @@ public class Memtable implements Comparable<Memtable>
     // to select key range using Token.KeyBound. However put() ensures that we
     // actually only store DecoratedKey.
     private final ConcurrentNavigableMap<PartitionPosition, AtomicBTreePartition> partitions = new ConcurrentSkipListMap<>();
+    @Unmetered
     public final ColumnFamilyStore cfs;
     private final long creationNano = System.nanoTime();
 
@@ -571,15 +574,32 @@ public class Memtable implements Comparable<Memtable>
             Cloner cloner = allocator.cloner(group);
             ConcurrentNavigableMap<PartitionPosition, Object> partitions = new ConcurrentSkipListMap<>();
             final Object val = new Object();
+            final int testBufferSize = 8;
+
             for (int i = 0 ; i < count ; i++)
-                partitions.put(cloner.clone(new BufferDecoratedKey(new LongToken(i), ByteBufferUtil.EMPTY_BYTE_BUFFER)), val);
+                partitions.put(cloner.clone(new BufferDecoratedKey(DatabaseDescriptor.getPartitioner().getRandomToken(), ByteBuffer.allocate(testBufferSize))), val);
             double avgSize = ObjectSizes.measureDeep(partitions) / (double) count;
             rowOverhead = (int) ((avgSize - Math.floor(avgSize)) < 0.05 ? Math.floor(avgSize) : Math.ceil(avgSize));
-            rowOverhead -= ObjectSizes.measureDeep(new LongToken(0));
+            rowOverhead -= DatabaseDescriptor.getPartitioner().getRandomToken().getHeapSize();
             rowOverhead += AtomicBTreePartition.EMPTY_SIZE;
             rowOverhead += AbstractBTreePartition.HOLDER_UNSHARED_HEAP_SIZE;
+            // omitSharedBufferOverhead includes the given number of bytes even for
+            // off-heap buffers, but not for direct memory.
+            if (!(allocator instanceof NativeAllocator))
+            {
+                rowOverhead -= testBufferSize;
+                DecoratedKey clonedKey = cloner.clone(new BufferDecoratedKey(DatabaseDescriptor.getPartitioner().getRandomToken(), ByteBuffer.allocate(testBufferSize)));
+                // if we use a slab allocator the adjustment is 0, if it is unslabbed type the adjustment is byte array heap size
+                long nonSlabAdjustment = ObjectSizes.sizeOnHeapExcludingData(clonedKey.getKey()) - ObjectSizes.measure(clonedKey.getKey());
+                rowOverhead += nonSlabAdjustment;
+            }
+
+
             allocator.setDiscarding();
             allocator.setDiscarded();
+
+            // Decorated key overhead with byte buffer (if needed) is included
+            logger.info("Estimated Memtable row overhead: {}", rowOverhead);
             return rowOverhead;
         }
     }
