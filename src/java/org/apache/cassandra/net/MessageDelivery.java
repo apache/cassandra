@@ -162,6 +162,7 @@ public interface MessageDelivery
             @Override
             public void onFailure(InetAddressAndPort from, RequestFailureReason failure)
             {
+                if (promise.isDone() || promise.isCancelled()) return;
                 if (!backoff.mayRetry(attempt))
                 {
                     promise.tryFailure(new MaxRetriesException(attempt, errorMessage.apply(attempt, ResponseFailureReason.MaxRetries, from, failure)));
@@ -172,7 +173,6 @@ public interface MessageDelivery
                     promise.tryFailure(new FailedResponseException(from, failure, errorMessage.apply(attempt, ResponseFailureReason.Rejected, from, failure)));
                     return;
                 }
-                if (promise.isDone() || promise.isCancelled()) return;
                 try
                 {
                     retryThreads.schedule(() -> sendWithRetries(messaging, promise, msgToRsp, backoff, retryThreads, verb, request, candidates, shouldRetry, errorMessage, attempt + 1),
