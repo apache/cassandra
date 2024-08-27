@@ -632,7 +632,7 @@ public class ClusterUtils
                 if (cluster.get(j).isShutdown())
                     continue;
                 Epoch version = getClusterMetadataVersion(cluster.get(j));
-                if (!awaitedEpoch.equals(version) && version.getEpoch() < awaitedEpoch.getEpoch())
+                if (version.getEpoch() < awaitedEpoch.getEpoch())
                     notMatching.add(new ClusterMetadataVersion(j, version));
             }
             if (notMatching.isEmpty())
