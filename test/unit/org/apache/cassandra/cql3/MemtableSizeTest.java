@@ -18,21 +18,26 @@
 
 package org.apache.cassandra.cql3;
 
-import com.google.common.base.Throwables;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.Util;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Memtable;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.ObjectSizes;
+import org.github.jamm.MemoryMeter;
 
 public class MemtableSizeTest extends CQLTester
 {
+    private static final Logger logger = LoggerFactory.getLogger(MemtableSizeTest.class);
+    private static final MemoryMeter meter = new MemoryMeter().omitSharedBufferOverhead()
+                                                              .withGuessing(MemoryMeter.Guess.FALLBACK_UNSAFE)
+                                                              .ignoreKnownSingletons();
     static String keyspace;
     String table;
     ColumnFamilyStore cfs;
@@ -43,8 +48,12 @@ public class MemtableSizeTest extends CQLTester
     int deletedPartitions = 10_000;
     int deletedRows = 5_000;
 
-    // must be within 50 bytes per partition of the actual size
-    final int MAX_DIFFERENCE = (partitions + deletedPartitions + deletedRows) * 50;
+    final int totalPartitions = partitions + deletedPartitions + deletedRows;
+
+    // Must be within 3% of the real usage. We are actually more precise than this,
+    // but the threshold is set higher to avoid flakes.
+    // the main contributor to the actual size floating is randomness in ConcurrentSkipListMap
+    final static int MAX_DIFFERENCE_PERCENT = 3;
 
     @BeforeClass
     public static void setUp()
@@ -56,12 +65,7 @@ public class MemtableSizeTest extends CQLTester
     }
 
     @Test
-    public void testTruncationReleasesLogSpace()
-    {
-        Util.flakyTest(this::testSize, 2, "Fails occasionally, see CASSANDRA-16684");
-    }
-
-    private void testSize()
+    public void testSize() throws Throwable
     {
         try
         {
@@ -75,19 +79,19 @@ public class MemtableSizeTest extends CQLTester
             cfs.disableAutoCompaction();
             cfs.forceBlockingFlush();
 
-            long deepSizeBefore = ObjectSizes.measureDeep(cfs.getTracker().getView().getCurrentMemtable());
-            System.out.printf("Memtable deep size before %s\n%n",
-                              FBUtilities.prettyPrintMemory(deepSizeBefore));
+            Memtable memtable = cfs.getTracker().getView().getCurrentMemtable();
+            long deepSizeBefore = meter.measureDeep(memtable);
+            logger.info("Memtable deep size before {}", FBUtilities.prettyPrintMemory(deepSizeBefore));
             long i;
             long limit = partitions;
-            System.out.println("Writing " + partitions + " partitions of " + rowsPerPartition + " rows");
+            logger.info("Writing {} partitions of {} rows", partitions, rowsPerPartition);
             for (i = 0; i < limit; ++i)
             {
                 for (long j = 0; j < rowsPerPartition; ++j)
                     execute(writeStatement, i, j, i + j);
             }
 
-            System.out.println("Deleting " + deletedPartitions + " partitions");
+            logger.info("Deleting {} partitions", deletedPartitions);
             limit += deletedPartitions;
             for (; i < limit; ++i)
             {
@@ -95,7 +99,7 @@ public class MemtableSizeTest extends CQLTester
                 execute("DELETE FROM " + table + " WHERE userid = ?", i);
             }
 
-            System.out.println("Deleting " + deletedRows + " rows");
+            logger.info("Deleting {} rows", deletedRows);
             limit += deletedRows;
             for (; i < limit; ++i)
             {
@@ -104,34 +108,36 @@ public class MemtableSizeTest extends CQLTester
             }
 
 
-            if (!cfs.getLiveSSTables().isEmpty())
-                System.out.println("Warning: " + cfs.getLiveSSTables().size() + " sstables created.");
+            Assert.assertSame("Memtable flushed during test. Test was not carried out correctly.",
+                              memtable,
+                              cfs.getTracker().getView().getCurrentMemtable());
 
-            Memtable memtable = cfs.getTracker().getView().getCurrentMemtable();
             long actualHeap = memtable.getAllocator().onHeap().owns();
-            System.out.printf("Memtable in %s mode: %d ops, %s serialized bytes, %s (%.0f%%) on heap, %s (%.0f%%) off-heap%n",
+            logger.info(String.format("Memtable in %s mode: %d ops, %s serialized bytes, %s (%.0f%%) on heap, %s (%.0f%%) off-heap",
                               DatabaseDescriptor.getMemtableAllocationType(),
                               memtable.getOperations(),
                               FBUtilities.prettyPrintMemory(memtable.getLiveDataSize()),
                               FBUtilities.prettyPrintMemory(actualHeap),
                               100 * memtable.getAllocator().onHeap().ownershipRatio(),
                               FBUtilities.prettyPrintMemory(memtable.getAllocator().offHeap().owns()),
-                              100 * memtable.getAllocator().offHeap().ownershipRatio());
+                              100 * memtable.getAllocator().offHeap().ownershipRatio()));
 
-            long deepSizeAfter = ObjectSizes.measureDeep(memtable);
-            System.out.printf("Memtable deep size %s\n%n",
-                              FBUtilities.prettyPrintMemory(deepSizeAfter));
+            long deepSizeAfter = meter.measureDeep(memtable);
+            logger.info("Memtable deep size {}", FBUtilities.prettyPrintMemory(deepSizeAfter));
 
             long expectedHeap = deepSizeAfter - deepSizeBefore;
-            String message = String.format("Expected heap usage close to %s, got %s.\n",
+            double deltaPerPartition = (actualHeap - expectedHeap) / (double) totalPartitions;
+            long maxDifference = MAX_DIFFERENCE_PERCENT * expectedHeap / 100;
+            String message = String.format("Expected heap usage close to %s, got %s. Delta per partition: %.2f bytes",
                                            FBUtilities.prettyPrintMemory(expectedHeap),
-                                           FBUtilities.prettyPrintMemory(actualHeap));
-            System.out.println(message);
-            Assert.assertTrue(message, Math.abs(actualHeap - expectedHeap) <= MAX_DIFFERENCE);
+                                           FBUtilities.prettyPrintMemory(actualHeap),
+                                           deltaPerPartition);
+            logger.info(message);
+            Assert.assertTrue(message, Math.abs(actualHeap - expectedHeap) <= maxDifference);
         }
-        catch (Throwable throwable)
+        finally
         {
-            Throwables.propagate(throwable);
+            execute(String.format("DROP KEYSPACE IF EXISTS %s", keyspace));
         }
     }
 }
