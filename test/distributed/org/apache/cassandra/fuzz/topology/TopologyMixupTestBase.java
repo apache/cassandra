@@ -598,16 +598,6 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
             return n.tokens;
         }
 
-        public int[] active()
-        {
-            int[] keys = new int[nodes.size()];
-            Int2ObjectHashMap<Node>.KeyIterator it = nodes.keySet().iterator();
-            for (int i = 0; it.hasNext(); i++)
-                keys[i] = it.nextInt();
-            Arrays.sort(keys);
-            return keys;
-        }
-
         public int[] up()
         {
             IntArrayList up = new IntArrayList(nodes.size(), -1);
