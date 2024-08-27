@@ -1,4 +1,5 @@
 5.1
+ * Fix BETWEEN filtering for reversed clustering columns (CASSANDRA-19878)
  * Retry if node leaves CMS while committing a transformation (CASSANDRA-19872)
  * Add support for NOT operators in WHERE clauses. Fixed Three Valued Logic (CASSANDRA-18584)
  * Allow getendpoints for system tables and make sure getNaturalReplicas work for MetaStrategy (CASSANDRA-19846)
