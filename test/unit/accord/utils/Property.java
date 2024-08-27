@@ -797,15 +797,14 @@ public class Property
 
         public Commands<State, SystemUnderTest> build()
         {
-            LinkedHashMap<Setup<State, SystemUnderTest>, Integer> clone = new LinkedHashMap<>(knownWeights);
             Gen<Setup<State, SystemUnderTest>> commandsGen;
             if (unknownWeights == null)
             {
-                commandsGen = Gens.pick(clone);
+                commandsGen = Gens.pick(new LinkedHashMap<>(knownWeights));
             }
             else
             {
-                commandsGen = new Gen<>()
+                class DynamicWeightsGen implements Gen<Setup<State, SystemUnderTest>>, Gens.Reset
                 {
                     Gen<Setup<State, SystemUnderTest>> gen;
                     @Override
@@ -814,13 +813,21 @@ public class Property
                         if (gen == null)
                         {
                             // create random weights
+                            LinkedHashMap<Setup<State, SystemUnderTest>, Integer> clone = new LinkedHashMap<>(knownWeights);
                             for (Setup<State, SystemUnderTest> s : unknownWeights)
                                 clone.put(s, unknownWeightGen.nextInt(rs));
                             gen = Gens.pick(clone);
                         }
                         return gen.next(rs);
                     }
-                };
+
+                    @Override
+                    public void reset()
+                    {
+                        gen = null;
+                    }
+                }
+                commandsGen = new DynamicWeightsGen();
             }
             return new Commands<>()
             {
@@ -847,6 +854,7 @@ public class Property
                 @Override
                 public void destroyState(State state, @Nullable Throwable cause) throws Throwable
                 {
+                    Gens.Reset.tryReset(commandsGen);
                     if (destroyState != null)
                         destroyState.accept(state, cause);
                 }

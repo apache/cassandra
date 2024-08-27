@@ -806,7 +806,7 @@ public class Gens {
         }
     }
 
-    private interface Reset {
+    protected interface Reset {
         static void tryReset(Object o)
         {
             if (o instanceof Reset)
