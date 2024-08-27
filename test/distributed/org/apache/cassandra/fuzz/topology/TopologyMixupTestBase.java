@@ -52,7 +52,6 @@ import accord.utils.Invariants;
 import accord.utils.Property;
 import accord.utils.Property.Command;
 import accord.utils.Property.SimpleCommand;
-import accord.utils.Property.StateOnlyCommand;
 import accord.utils.RandomSource;
 import org.agrona.collections.Int2ObjectHashMap;
 import org.agrona.collections.IntArrayList;
@@ -120,38 +119,27 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
                                                              .build();
 
     // common commands
-    private Command<State<S>, Void, ?> repairCommand(State<S> state, int toCoordinate)
+    private Command<State<S>, Void, ?> repairCommand(int toCoordinate)
     {
-        return new SimpleCommand<>("nodetool repair " + state.schemaSpec.keyspaceName() + ' ' + state.schemaSpec.name() + " from node" + toCoordinate + state.commandNamePostfix(),
-                                   s2 -> s2.cluster.get(toCoordinate).nodetoolResult("repair", state.schemaSpec.keyspaceName(), s2.schemaSpec.name()).asserts().success());
+        return new SimpleCommand<>(state -> "nodetool repair " + state.schemaSpec.keyspaceName() + ' ' + state.schemaSpec.name() + " from node" + toCoordinate + state.commandNamePostfix(),
+                                   state -> state.cluster.get(toCoordinate).nodetoolResult("repair", state.schemaSpec.keyspaceName(), state.schemaSpec.name()).asserts().success());
     }
 
     private Command<State<S>, Void, ?> waitForCMSToQuiesce()
     {
-        return new StateOnlyCommand<>()
-        {
-            @Override
-            public String detailed(State<S> state)
-            {
-                return "Waiting for CMS to Quiesce" + state.commandNamePostfix();
-            }
-
-            @Override
-            public void applyUnit(State<S> state)
-            {
-                ClusterUtils.waitForCMSToQuiesce(state.cluster, state.cmsGroup);
-            }
-        };
+        return new SimpleCommand<>(state -> "Waiting for CMS to Quiesce" + state.commandNamePostfix(),
+                                   state -> ClusterUtils.waitForCMSToQuiesce(state.cluster, state.cmsGroup));
     }
 
-    private Command<State<S>, Void, ?> stopInstance(State<S> state, int toRemove)
+    private Command<State<S>, Void, ?> stopInstance(int toRemove)
     {
-        return new SimpleCommand<>("Stop Node" + toRemove + " for Assassinate" + state.commandNamePostfix(), s2 -> {
-            IInvokableInstance inst = s2.cluster.get(toRemove);
-            TopologyHistory.Node node = s2.topologyHistory.node(toRemove);
-            ClusterUtils.stopUnchecked(inst);
-            node.down();
-        });
+        return new SimpleCommand<>(state -> "Stop Node" + toRemove + " for Assassinate" + state.commandNamePostfix(),
+                                   state -> {
+                                       IInvokableInstance inst = state.cluster.get(toRemove);
+                                       TopologyHistory.Node node = state.topologyHistory.node(toRemove);
+                                       ClusterUtils.stopUnchecked(inst);
+                                       node.down();
+                                   });
     }
 
     private Command<State<S>, Void, ?> addNode(State<S> state)
@@ -193,7 +181,7 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
             while (picked == toRemove);
             toCoordinate = picked;
         }
-        return multistep(stopInstance(state, toRemove),
+        return multistep(stopInstance(toRemove),
                          new SimpleCommand<>("nodetool removenode node" + toRemove + " from node" + toCoordinate + state.commandNamePostfix(), s2 -> {
                              TopologyHistory.Node node = s2.topologyHistory.node(toRemove);
                              node.status = TopologyHistory.Node.Status.BeingRemoved;
@@ -202,7 +190,7 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
                              node.removed();
                              s2.currentEpoch.set(HackSerialization.tcmEpoch(coordinator));
                          }),
-                         repairCommand(state, toCoordinate));
+                         repairCommand(toCoordinate));
     }
 
     private Command<State<S>, Void, ?> removeNodeAssassinate(RandomSource rs, State<S> state)
@@ -226,7 +214,7 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
             while (picked == toRemove);
             toCoordinate = picked;
         }
-        return multistep(stopInstance(state, toRemove),
+        return multistep(stopInstance(toRemove),
                          new SimpleCommand<>("nodetool assassinate node" + toRemove + " from node" + toCoordinate + state.commandNamePostfix(), s2 -> {
                              TopologyHistory.Node node = s2.topologyHistory.node(toRemove);
                              node.status = TopologyHistory.Node.Status.BeingAssassinated;
@@ -236,7 +224,7 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
                              node.removed();
                              s2.currentEpoch.set(HackSerialization.tcmEpoch(coordinator));
                          }),
-                         repairCommand(state, toCoordinate)
+                         repairCommand(toCoordinate)
         );
     }
 
@@ -305,7 +293,7 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
                                   if (possibleTopologyChanges.isEmpty()) return ignoreCommand();
                                   return topologyCommand(state, possibleTopologyChanges).next(rs);
                               })
-                              .add(1, (rs, state) -> repairCommand(state, rs.pickInt(state.topologyHistory.up())))
+                              .add(1, (rs, state) -> repairCommand(rs.pickInt(state.topologyHistory.up())))
                               .add(7, (rs, state) -> state.statementGen.apply(rs, state))
                               .destroyState((state, cause) -> {
                                   try (state)
