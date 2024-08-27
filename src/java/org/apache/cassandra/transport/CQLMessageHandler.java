@@ -193,7 +193,7 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
         int messageSize = Ints.checkedCast(header.bodySizeInBytes);
 
         Overload backpressure = Overload.NONE;
-        if (throwOnOverload || DatabaseDescriptor.getThrowOnOverload())
+        if (DatabaseDescriptor.getNativeTransportThrowOnOverload())
         {
             if (!acquireCapacity(header, endpointReserve, globalReserve))
             {
@@ -543,7 +543,7 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
                 // Mark as too big so that discard the message after consuming any subsequent frames
                 largeMessage.markTooBig();
             }
-            else if (throwOnOverload || DatabaseDescriptor.getThrowOnOverload())
+            else if (DatabaseDescriptor.getNativeTransportThrowOnOverload())
             {
                 if (!acquireCapacity(header, endpointReserve, globalReserve))
                 {

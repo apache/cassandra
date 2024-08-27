@@ -82,7 +82,7 @@ public class InflightRequestOverloadPreV5Test extends CQLTester
     @After
     public void resetServerSideThrowFlag()
     {
-        DatabaseDescriptor.setThrowOnOverload(false);
+        DatabaseDescriptor.setNativeTransportThrowOnOverload(false);
     }
 
     private SimpleClient client(boolean thrwoOnOverload) throws IOException
@@ -98,7 +98,7 @@ public class InflightRequestOverloadPreV5Test extends CQLTester
     @Test
     public void testOverloadedExceptionOnlyClientSideFlagEnabled() throws Throwable
     {
-        testScenario(true, false, true);
+        testScenario(true, false, false);
     }
 
     @Test
@@ -120,7 +120,7 @@ public class InflightRequestOverloadPreV5Test extends CQLTester
     }
 
     private void testScenario(boolean throwEnabledOnClient, boolean throwEnabledOnServer, boolean expectThrow) throws Throwable {
-        DatabaseDescriptor.setThrowOnOverload(throwEnabledOnServer);
+        DatabaseDescriptor.setNativeTransportThrowOnOverload(throwEnabledOnServer);
         try (SimpleClient client = client(throwEnabledOnClient))
         {
             QueryMessage queryMessage = new QueryMessage(String.format("CREATE TABLE %s.atable (pk int PRIMARY KEY, v text)", KEYSPACE),
@@ -152,7 +152,7 @@ public class InflightRequestOverloadPreV5Test extends CQLTester
     @Test
     public void testChangingServerSideFlagAtRuntime() throws Throwable
     {
-        DatabaseDescriptor.setThrowOnOverload(false);
+        DatabaseDescriptor.setNativeTransportThrowOnOverload(false);
         SimpleClient client = client(false);
         try {
             QueryMessage queryMessage = new QueryMessage(String.format("CREATE TABLE %s.atable (pk int PRIMARY KEY, v text)", KEYSPACE),
@@ -170,7 +170,7 @@ public class InflightRequestOverloadPreV5Test extends CQLTester
             }
 
             // change server side flag to enable throw_on_overload
-            DatabaseDescriptor.setThrowOnOverload(true);
+            DatabaseDescriptor.setNativeTransportThrowOnOverload(true);
             queryMessage = new QueryMessage(
                     String.format("INSERT INTO %s.atable (pk, v) VALUES (1, '%s')", KEYSPACE, generatePayload(LOW_LIMIT * 2)),
                     V4_DEFAULT_OPTIONS);

@@ -15,19 +15,34 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.cassandra.tools.nodetool;
 
+import io.airlift.airline.Arguments;
 import io.airlift.airline.Command;
-
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import org.apache.cassandra.tools.NodeTool;
 
-@Command(name = "getthrowonoverload", description = "Print the value of the throw_on_overload flag")
-public class GetThrowOnOverload extends NodeToolCmd
+@Command(name = "setnativetransportthrowonoverload", description =  "Set the native_transport_throw_on_overload flag to enable/disable memory-based throttler")
+public class SetNativeTransportThrowOnOverload extends NodeTool.NodeToolCmd
 {
+    @Arguments(title = "enabled", usage = "<true>|<false>", description = "Set the native_transport_throw_on_overload flag", required = true)
+    private String enabled;
+
     @Override
     public void execute(NodeProbe probe)
     {
-        probe.output().out.println("Current throw_on_overload: " + probe.getThrowOnOverload());
+        switch (enabled)
+        {
+            case "true":
+                probe.setNativeTransportThrowOnOverload(true);
+                break;
+            case "false":
+                probe.setNativeTransportThrowOnOverload(false);
+                break;
+            default:
+                System.out.println("Unknown native_transport_throw_on_overload flag: " + enabled);
+                break;
+        }
     }
 }

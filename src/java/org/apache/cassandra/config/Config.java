@@ -804,7 +804,8 @@ public class Config
     // was implemented in CASSANDRA-15013.
     // Either this flag is true or the client side counterpart is true will enable the throwing of
     // the overloaded exception.
-    public boolean throw_on_overload = false;
+    @Replaces(oldName = "throw_on_overload")
+    public boolean native_transport_throw_on_overload = true;
 
     /**
      * When a node first starts up it intially considers all other peers as DOWN and is disconnected from all of them.
@@ -1474,9 +1475,7 @@ public class Config
         QUEUE    // uses a timestamp that represents when the request was enqueued
     }
     public volatile CQLStartTime cql_start_time = CQLStartTime.REQUEST;
-
-    public boolean native_transport_throw_on_overload = false;
-    public double native_transport_queue_max_item_age_threshold = Double.MAX_VALUE;
+    public double native_transport_queue_max_item_age_threshold = 0.6;
     public DurationSpec.LongMillisecondsBound native_transport_min_backoff_on_queue_overload = new DurationSpec.LongMillisecondsBound("10ms");
     public DurationSpec.LongMillisecondsBound native_transport_max_backoff_on_queue_overload = new DurationSpec.LongMillisecondsBound("200ms");
 

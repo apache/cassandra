@@ -149,7 +149,7 @@ public class PreV5Handlers
         {
             long requestSize = request.getSource().header.bodySizeInBytes;
             
-            if (request.connection.isThrowOnOverload() || DatabaseDescriptor.getThrowOnOverload())
+            if (DatabaseDescriptor.getNativeTransportThrowOnOverload())
             {
                 if (endpointPayloadTracker.tryAllocate(requestSize) != ResourceLimits.Outcome.SUCCESS)
                 {

@@ -284,15 +284,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     private final JMXProgressSupport progressSupport = new JMXProgressSupport(this);
 
-    public void setThrowOnOverload(boolean throwOnOverload)
-    {
-        DatabaseDescriptor.setThrowOnOverload(throwOnOverload);
-    }
-
-    public boolean getThrowOnOverload()
-    {
-        return DatabaseDescriptor.getThrowOnOverload();
-    }
     public String setValueForConfig(String configName, Object value)
     {
         return DatabaseDescriptor.setValueForConfig(configName, value);
