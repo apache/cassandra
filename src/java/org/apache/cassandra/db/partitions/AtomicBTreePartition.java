@@ -39,6 +39,7 @@ import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.memory.Cloner;
 import org.apache.cassandra.utils.memory.HeapCloner;
 import org.apache.cassandra.utils.memory.MemtableAllocator;
+import org.github.jamm.Unmetered;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -82,6 +83,7 @@ public final class AtomicBTreePartition extends AbstractBTreePartition
      */
     private volatile int wasteTracker = TRACKER_NEVER_WASTED;
 
+    @Unmetered
     private final MemtableAllocator allocator;
     private volatile Holder ref;
 
