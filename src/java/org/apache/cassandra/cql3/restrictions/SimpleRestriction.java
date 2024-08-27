@@ -327,8 +327,11 @@ public final class SimpleRestriction implements SingleRestriction
         {
             case SINGLE_COLUMN:
                 List<ByteBuffer> buffers = bindAndGet(options);
-                if (operator == Operator.IN || operator == Operator.BETWEEN)
+                if (operator.kind() == Operator.Kind.TERNARY || operator.kind() == Operator.Kind.MULTI_VALUE)
                 {
+                    // For BETWEEN we support like in SQL reversed bounds
+                    if (operator.kind() == Operator.Kind.TERNARY)
+                        buffers.sort(column.type);
                     filter.add(column, operator, multiInputOperatorValues(column, buffers));
                 }
                 else if (operator == Operator.LIKE)

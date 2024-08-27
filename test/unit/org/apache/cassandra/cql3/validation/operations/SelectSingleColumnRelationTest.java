@@ -861,4 +861,42 @@ public class SelectSingleColumnRelationTest extends CQLTester
                    row(1, -2, -2),
                    row(1, -1, -1));
     }
+
+    @Test
+    public void testBetweenFilteringWithReversedOrdering() throws Throwable
+    {
+        createTable("CREATE TABLE %s(p int, c int, c2 int, abbreviation ascii, PRIMARY KEY (p, c, c2))");
+
+        beforeAndAfterFlush(() -> {
+            execute("INSERT INTO %s(p, c, c2, abbreviation) VALUES (0, 1, 1, 'CA')");
+            execute("INSERT INTO %s(p, c, c2, abbreviation) VALUES (0, 2, 2, 'MA')");
+            execute("INSERT INTO %s(p, c, c2, abbreviation) VALUES (0, 3, 3, 'MA')");
+            execute("INSERT INTO %s(p, c, c2, abbreviation) VALUES (0, 4, 4, 'TX')");
+
+            assertRows(execute("SELECT * FROM %s WHERE c2 BETWEEN 2 AND 3 ALLOW FILTERING"),
+                       row (0, 2, 2, "MA"),
+                       row (0, 3, 3, "MA"));
+
+            assertRows(execute("SELECT * FROM %s WHERE c2 BETWEEN 3 AND 2 ALLOW FILTERING"),
+                       row (0, 2, 2, "MA"),
+                       row (0, 3, 3, "MA"));
+        });
+
+        createTable("CREATE TABLE %s(p int, c int, c2 int, abbreviation ascii, PRIMARY KEY (p, c, c2)) WITH CLUSTERING ORDER BY (c DESC, c2 DESC)");
+
+        beforeAndAfterFlush(() -> {
+            execute("INSERT INTO %s(p, c, c2, abbreviation) VALUES (0, 1, 1, 'CA')");
+            execute("INSERT INTO %s(p, c, c2, abbreviation) VALUES (0, 2, 2, 'MA')");
+            execute("INSERT INTO %s(p, c, c2, abbreviation) VALUES (0, 3, 3, 'MA')");
+            execute("INSERT INTO %s(p, c, c2, abbreviation) VALUES (0, 4, 4, 'TX')");
+
+            assertRows(execute("SELECT * FROM %s WHERE c2 BETWEEN 2 AND 3 ALLOW FILTERING"),
+                       row(0, 3, 3, "MA"),
+                       row(0, 2, 2, "MA"));
+
+            assertRows(execute("SELECT * FROM %s WHERE c2 BETWEEN 3 AND 2 ALLOW FILTERING"),
+                       row(0, 3, 3, "MA"),
+                       row(0, 2, 2, "MA"));
+        });
+    }
 }
