@@ -32,6 +32,10 @@ public class ObjectSizes
     private static final MemoryMeter meter = new MemoryMeter().withGuessing(MemoryMeter.Guess.FALLBACK_UNSAFE)
                                                               .ignoreKnownSingletons();
 
+    private static final MemoryMeter omitSharedMeter = new MemoryMeter().omitSharedBufferOverhead()
+                                                              .withGuessing(MemoryMeter.Guess.FALLBACK_UNSAFE)
+                                                              .ignoreKnownSingletons();
+
     private static final long EMPTY_HEAP_BUFFER_SIZE = measure(ByteBufferUtil.EMPTY_BYTE_BUFFER);
     private static final long EMPTY_BYTE_ARRAY_SIZE = measure(new byte[0]);
     private static final long EMPTY_STRING_SIZE = measure("");
@@ -213,6 +217,11 @@ public class ObjectSizes
     public static long measureDeep(Object pojo)
     {
         return meter.measureDeep(pojo);
+    }
+
+    public static long measureDeepOmitShared(Object pojo)
+    {
+        return omitSharedMeter.measureDeep(pojo);
     }
 
     /**
