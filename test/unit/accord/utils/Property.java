@@ -25,9 +25,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
@@ -702,7 +704,10 @@ public class Property
         }
         private final Supplier<Gen<State>> stateGen;
         private final Function<State, SystemUnderTest> sutFactory;
-        private final Map<Setup<State, SystemUnderTest>, Integer> possible = new LinkedHashMap<>();
+        private final Map<Setup<State, SystemUnderTest>, Integer> knownWeights = new LinkedHashMap<>();
+        @Nullable
+        private Set<Setup<State, SystemUnderTest>> unknownWeights = null;
+        private Gen.IntGen unknownWeightGen = Gens.ints().between(1, 10);
         @Nullable
         private FailingConsumer<State> preCommands = null;
         @Nullable
@@ -762,13 +767,61 @@ public class Property
 
         public CommandsBuilder<State, SystemUnderTest> add(int weight, Setup<State, SystemUnderTest> cmd)
         {
-            possible.put(cmd, weight);
+            knownWeights.put(cmd, weight);
+            return this;
+        }
+
+        public CommandsBuilder<State, SystemUnderTest> add(Command<State, SystemUnderTest, ?> cmd)
+        {
+            return add((i1, i2) -> cmd);
+        }
+
+        public CommandsBuilder<State, SystemUnderTest> add(Gen<Command<State, SystemUnderTest, ?>> cmd)
+        {
+            return add((rs, state) -> cmd.next(rs));
+        }
+
+        public CommandsBuilder<State, SystemUnderTest> add(Setup<State, SystemUnderTest> cmd)
+        {
+            if (unknownWeights == null)
+                unknownWeights = new LinkedHashSet<>();
+            unknownWeights.add(cmd);
+            return this;
+        }
+
+        public CommandsBuilder<State, SystemUnderTest> unknownWeight(Gen.IntGen unknownWeightGen)
+        {
+            this.unknownWeightGen = Objects.requireNonNull(unknownWeightGen);
             return this;
         }
 
         public Commands<State, SystemUnderTest> build()
         {
-            Gen<Setup<State, SystemUnderTest>> gen = Gens.pick(new LinkedHashMap<>(possible));
+            LinkedHashMap<Setup<State, SystemUnderTest>, Integer> clone = new LinkedHashMap<>(knownWeights);
+            Gen<Setup<State, SystemUnderTest>> commandsGen;
+            if (unknownWeights == null)
+            {
+                commandsGen = Gens.pick(clone);
+            }
+            else
+            {
+                commandsGen = new Gen<>()
+                {
+                    Gen<Setup<State, SystemUnderTest>> gen;
+                    @Override
+                    public Setup<State, SystemUnderTest> next(RandomSource rs)
+                    {
+                        if (gen == null)
+                        {
+                            // create random weights
+                            for (Setup<State, SystemUnderTest> s : unknownWeights)
+                                clone.put(s, unknownWeightGen.nextInt(rs));
+                            gen = Gens.pick(clone);
+                        }
+                        return gen.next(rs);
+                    }
+                };
+            }
             return new Commands<>()
             {
                 @Override
@@ -788,7 +841,7 @@ public class Property
                 {
                     if (preCommands != null)
                         preCommands.accept(state);
-                    return gen.map((rs, setup) -> setup.setup(rs, state));
+                    return commandsGen.map((rs, setup) -> setup.setup(rs, state));
                 }
 
                 @Override
