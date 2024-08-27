@@ -308,8 +308,10 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
                               .add(1, (rs, state) -> repairCommand(state, rs.pickInt(state.topologyHistory.up())))
                               .add(7, (rs, state) -> state.statementGen.apply(rs, state))
                               .destroyState((state, cause) -> {
-                                  TopologyMixupTestBase.this.destroyState(state, cause);
-                                  state.close();
+                                  try (state)
+                                  {
+                                      TopologyMixupTestBase.this.destroyState(state, cause);
+                                  }
                               })
                               .build());
     }
