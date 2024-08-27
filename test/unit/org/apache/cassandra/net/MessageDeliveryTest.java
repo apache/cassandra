@@ -26,6 +26,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.google.common.collect.Iterators;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -77,7 +78,7 @@ public class MessageDeliveryTest
             Future<Message<Void>> result = messaging.sendWithRetries(backoff,
                                                                      scheduler::schedule,
                                                                      Verb.ECHO_REQ, NoPayload.noPayload,
-                                                                     ID1,
+                                                                     Iterators.cycle(ID1),
                                                                      ALWAYS_RETRY,
                                                                      RETRY_ERROR_MESSAGE);
             assertThat(result).isNotDone();
@@ -102,7 +103,7 @@ public class MessageDeliveryTest
             Future<Message<Void>> result = messaging.sendWithRetries(backoff,
                                                                      scheduler::schedule,
                                                                      Verb.ECHO_REQ, NoPayload.noPayload,
-                                                                     ID1,
+                                                                     Iterators.cycle(ID1),
                                                                      ALWAYS_RETRY,
                                                                      RETRY_ERROR_MESSAGE);
             assertThat(result).isNotDone();
@@ -133,7 +134,7 @@ public class MessageDeliveryTest
             Future<Message<Void>> result = messaging.sendWithRetries(backoff,
                                                                      scheduler::schedule,
                                                                      Verb.ECHO_REQ, NoPayload.noPayload,
-                                                                     ID1,
+                                                                     Iterators.cycle(ID1),
                                                                      ALWAYS_RETRY,
                                                                      RETRY_ERROR_MESSAGE);
             assertThat(result).isNotDone();
@@ -161,7 +162,7 @@ public class MessageDeliveryTest
             Future<Message<Void>> result = messaging.sendWithRetries(backoff,
                                                                      scheduler::schedule,
                                                                      Verb.ECHO_REQ, NoPayload.noPayload,
-                                                                     ID1,
+                                                                     Iterators.cycle(ID1),
                                                                      ALWAYS_REJECT,
                                                                      RETRY_ERROR_MESSAGE);
             assertThat(result).isNotDone();

@@ -33,7 +33,6 @@ import accord.utils.Gens;
 import accord.utils.RandomSource;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.repair.FuzzTestBase;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 

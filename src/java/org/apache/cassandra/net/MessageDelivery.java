@@ -22,11 +22,9 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.function.BiFunction;
 
 import javax.annotation.Nullable;
 
-import com.google.common.collect.Iterators;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -85,43 +83,40 @@ public interface MessageDelivery
     public <REQ, RSP> void sendWithCallback(Message<REQ> message, InetAddressAndPort to, RequestCallback<RSP> cb, ConnectionType specifyConnection);
     public <REQ, RSP> Future<Message<RSP>> sendWithResult(Message<REQ> message, InetAddressAndPort to);
 
-    public default <REQ, RSP> Future<Message<RSP>> sendWithRetries(Backoff backoff,
-                                                                   RetryScheduler retryThreads,
-                                                                   Verb verb, REQ request,
-                                                                   InetAddressAndPort candidate,
-                                                                   RetryPredicate shouldRetry,
-                                                                   RetryErrorMessage errorMessage)
-    {
-        return sendWithRetries(new AsyncPromise<>(), (Integer i, Message<RSP> msg) -> msg, backoff, retryThreads, verb, request, Iterators.cycle(candidate), shouldRetry, errorMessage);
-    }
-
-    public default <REQ, MSG_RSP, RSP> Future<RSP> sendWithRetries(BiFunction<Integer, Message<MSG_RSP>, RSP> msgToRsp,
-                                                                   Backoff backoff,
-                                                                   RetryScheduler retryThreads,
-                                                                   Verb verb, REQ request,
-                                                                   InetAddressAndPort candidate,
-                                                                   RetryPredicate shouldRetry,
-                                                                   RetryErrorMessage errorMessage)
-    {
-        return sendWithRetries(new AsyncPromise<>(), msgToRsp, backoff, retryThreads, verb, request, Iterators.cycle(candidate), shouldRetry, errorMessage);
-    }
-
-    public default <REQ, MSG_RSP, RSP> Future<RSP> sendWithRetries(Promise<RSP> promise,
-                                                                   BiFunction<Integer, Message<MSG_RSP>, RSP> msgToRsp,
-                                                                   Backoff backoff,
-                                                                   RetryScheduler retryThreads,
+    public default <REQ, RSP> Future<Message<RSP>> sendWithRetries(Backoff backoff, RetryScheduler retryThreads,
                                                                    Verb verb, REQ request,
                                                                    Iterator<InetAddressAndPort> candidates,
                                                                    RetryPredicate shouldRetry,
                                                                    RetryErrorMessage errorMessage)
     {
-        sendWithRetries(this, promise, msgToRsp, backoff, retryThreads, verb, request, candidates, shouldRetry, errorMessage, 0);
+        Promise<Message<RSP>> promise = new AsyncPromise<>();
+        this.<REQ, RSP>sendWithRetries(backoff, retryThreads, verb, request, candidates,
+                                       (attempt, success, failure) -> {
+                                           if (failure != null) promise.tryFailure(failure);
+                                           else promise.trySuccess(success);
+                                       },
+                                       shouldRetry, errorMessage);
         return promise;
+    }
+
+    public default <REQ, RSP> void sendWithRetries(Backoff backoff, RetryScheduler retryThreads,
+                                                   Verb verb, REQ request,
+                                                   Iterator<InetAddressAndPort> candidates,
+                                                   OnResult<RSP> onResult,
+                                                   RetryPredicate shouldRetry,
+                                                   RetryErrorMessage errorMessage)
+    {
+        sendWithRetries(this, backoff, retryThreads, verb, request, candidates, onResult, shouldRetry, errorMessage, 0);
     }
     public <V> void respond(V response, Message<?> message);
     public default void respondWithFailure(RequestFailureReason reason, Message<?> message)
     {
         send(Message.failureResponse(message.id(), message.expiresAtNanos(), reason), message.respondTo());
+    }
+
+    interface OnResult<T>
+    {
+        void result(int attempt, @Nullable Message<T> success, @Nullable Throwable failure);
     }
 
     interface RetryPredicate
@@ -134,57 +129,51 @@ public interface MessageDelivery
         String apply(int attempt, ResponseFailureReason retryFailure, @Nullable InetAddressAndPort from, @Nullable RequestFailureReason reason);
     }
 
-    private static <REQ, MSG_RSP, RSP> void sendWithRetries(MessageDelivery messaging,
-                                                            Promise<RSP> promise,
-                                                            BiFunction<Integer, Message<MSG_RSP>, RSP> msgToRsp,
-                                                            Backoff backoff,
-                                                            RetryScheduler retryThreads,
-                                                            Verb verb, REQ request,
-                                                            Iterator<InetAddressAndPort> candidates,
-                                                            RetryPredicate shouldRetry,
-                                                            RetryErrorMessage errorMessage,
-                                                            int attempt)
+    private static <REQ, RSP> void sendWithRetries(MessageDelivery messaging,
+                                                   Backoff backoff, RetryScheduler retryThreads, Verb verb, REQ request, Iterator<InetAddressAndPort> candidates, OnResult<RSP> onResult,
+                                                   RetryPredicate shouldRetry,
+                                                   RetryErrorMessage errorMessage,
+                                                   int attempt)
     {
         if (Thread.currentThread().isInterrupted())
         {
-            promise.tryFailure(new InterruptedException(errorMessage.apply(attempt, ResponseFailureReason.Interrupted, null, null)));
+            onResult.result(attempt, null, new InterruptedException(errorMessage.apply(attempt, ResponseFailureReason.Interrupted, null, null)));
             return;
         }
         if (!candidates.hasNext())
         {
-            promise.tryFailure(new NoMoreCandidatesException(errorMessage.apply(attempt, ResponseFailureReason.NoMoreCandidates, null, null)));
+            onResult.result(attempt, null, new NoMoreCandidatesException(errorMessage.apply(attempt, ResponseFailureReason.NoMoreCandidates, null, null)));
             return;
         }
-        class Request implements RequestCallbackWithFailure<MSG_RSP>
+        class Request implements RequestCallbackWithFailure<RSP>
         {
             @Override
-            public void onResponse(Message<MSG_RSP> msg)
+            public void onResponse(Message<RSP> msg)
             {
-                promise.trySuccess(msgToRsp.apply(attempt, msg));
+                onResult.result(attempt, msg, null);
             }
 
             @Override
             public void onFailure(InetAddressAndPort from, RequestFailureReason failure)
             {
-                if (promise.isDone() || promise.isCancelled()) return;
                 if (!backoff.mayRetry(attempt))
                 {
-                    promise.tryFailure(new MaxRetriesException(attempt, errorMessage.apply(attempt, ResponseFailureReason.MaxRetries, from, failure)));
+                    onResult.result(attempt, null, new MaxRetriesException(attempt, errorMessage.apply(attempt, ResponseFailureReason.MaxRetries, from, failure)));
                     return;
                 }
                 if (!shouldRetry.test(attempt, from, failure))
                 {
-                    promise.tryFailure(new FailedResponseException(from, failure, errorMessage.apply(attempt, ResponseFailureReason.Rejected, from, failure)));
+                    onResult.result(attempt, null, new FailedResponseException(from, failure, errorMessage.apply(attempt, ResponseFailureReason.Rejected, from, failure)));
                     return;
                 }
                 try
                 {
-                    retryThreads.schedule(() -> sendWithRetries(messaging, promise, msgToRsp, backoff, retryThreads, verb, request, candidates, shouldRetry, errorMessage, attempt + 1),
+                    retryThreads.schedule(() -> sendWithRetries(messaging, backoff, retryThreads, verb, request, candidates, onResult, shouldRetry, errorMessage, attempt + 1),
                                           backoff.computeWaitTime(attempt), backoff.unit());
                 }
                 catch (Throwable t)
                 {
-                    promise.tryFailure(new FailedScheduleException(errorMessage.apply(attempt, ResponseFailureReason.FailedSchedule, from, failure), t));
+                    onResult.result(attempt, null, new FailedScheduleException(errorMessage.apply(attempt, ResponseFailureReason.FailedSchedule, from, failure), t));
                 }
             }
         }

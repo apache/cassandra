@@ -29,6 +29,7 @@ import java.util.function.Supplier;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Iterators;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -196,13 +197,15 @@ public abstract class RepairMessage
                 RepairMetrics.retryFailure(verb);
             }
         };
-        ctx.messaging().sendWithRetries((Integer attempt, Message<T> msg) -> {
-                                            maybeRecordRetry.accept(attempt, null);
-                                            finalCallback.onResponse(msg);
-                                            return null;
+        ctx.messaging().sendWithRetries(backoff, ctx.optionalTasks()::schedule,
+                                        verb, request, Iterators.cycle(endpoint),
+                                        (int attempt, Message<T> msg, Throwable failure) -> {
+                                            if (failure == null)
+                                            {
+                                                maybeRecordRetry.accept(attempt, null);
+                                                finalCallback.onResponse(msg);
+                                            }
                                         },
-                                        backoff, ctx.optionalTasks()::schedule,
-                                        verb, request, endpoint,
                                         (attempt, from, failure) -> {
                                             ErrorHandling allowed = errorHandlingSupported(ctx, endpoint, verb, request.parentRepairSession());
                                             switch (allowed)

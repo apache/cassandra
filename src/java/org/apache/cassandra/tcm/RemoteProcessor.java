@@ -204,39 +204,44 @@ public final class RemoteProcessor implements Processor
     public static <REQ, RSP> void sendWithCallbackAsync(Promise<RSP> promise, Verb verb, REQ request, CandidateIterator candidates, Retry retryPolicy)
     {
         //TODO (now): the retry defines how long to wait for a retry, but the old behavior scheduled the message right away... should this be delayed as well?
-        MessagingService.instance().<REQ, RSP, RSP>sendWithRetries(promise, (i, msg) -> msg.payload,
-                                                                   Backoff.fromRetry(retryPolicy), MessageDelivery.ImmediateRetryScheduler.instance,
-                                                                   verb, request, candidates,
-                                                                   (attempt, from, failure) -> {
-                                                                       if (failure == RequestFailureReason.NOT_CMS)
-                                                                       {
-                                                                           logger.debug("{} is not a member of the CMS, querying it to discover current membership", from);
-                                                                           DiscoveredNodes cms = tryDiscover(from);
-                                                                           candidates.addCandidates(cms);
-                                                                           candidates.timeout(from);
-                                                                           logger.debug("Got CMS from {}: {}, retrying on: {}", from, cms, candidates);
-                                                                       }
-                                                                       else
-                                                                       {
-                                                                           candidates.timeout(from);
-                                                                           logger.warn("Got error from {}: {} when sending {}, retrying on {}", from, failure, verb, candidates);
-                                                                       }
-                                                                       return true;
-                                                                   },
-                                                                   (attempt, reason, from, failure) -> {
-                                                                       switch (reason)
-                                                                       {
-                                                                           case NoMoreCandidates:
-                                                                               return String.format("Ran out of candidates while sending %s: %s", verb, candidates);
-                                                                           case MaxRetries:
-                                                                               return String.format("Could not succeed sending %s to %s after %d tries", verb, candidates, retryPolicy.tries);
-                                                                           case Interrupted:
-                                                                           case FailedSchedule:
-                                                                               return null;
-                                                                           default:
-                                                                               throw new UnsupportedOperationException(reason.name());
-                                                                       }
-                                                                   });
+        MessagingService.instance().<REQ, RSP>sendWithRetries(Backoff.fromRetry(retryPolicy), MessageDelivery.ImmediateRetryScheduler.instance,
+                                                              verb, request, candidates,
+                                                              (attempt, success, failure) -> {
+                                                                  if (failure != null) promise.tryFailure(failure);
+                                                                  else promise.trySuccess(success.payload);
+                                                              },
+                                                              (attempt, from, failure) -> {
+                                                                  if (promise.isDone() || promise.isCancelled())
+                                                                      return false;
+                                                                  if (failure == RequestFailureReason.NOT_CMS)
+                                                                  {
+                                                                      logger.debug("{} is not a member of the CMS, querying it to discover current membership", from);
+                                                                      DiscoveredNodes cms = tryDiscover(from);
+                                                                      candidates.addCandidates(cms);
+                                                                      candidates.timeout(from);
+                                                                      logger.debug("Got CMS from {}: {}, retrying on: {}", from, cms, candidates);
+                                                                  }
+                                                                  else
+                                                                  {
+                                                                      candidates.timeout(from);
+                                                                      logger.warn("Got error from {}: {} when sending {}, retrying on {}", from, failure, verb, candidates);
+                                                                  }
+                                                                  return true;
+                                                              },
+                                                              (attempt, reason, from, failure) -> {
+                                                                  switch (reason)
+                                                                  {
+                                                                      case NoMoreCandidates:
+                                                                          return String.format("Ran out of candidates while sending %s: %s", verb, candidates);
+                                                                      case MaxRetries:
+                                                                          return String.format("Could not succeed sending %s to %s after %d tries", verb, candidates, retryPolicy.tries);
+                                                                      case Interrupted:
+                                                                      case FailedSchedule:
+                                                                          return null;
+                                                                      default:
+                                                                          throw new UnsupportedOperationException(reason.name());
+                                                                  }
+                                                              });
     }
 
     private static DiscoveredNodes tryDiscover(InetAddressAndPort ep)

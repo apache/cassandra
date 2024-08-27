@@ -157,7 +157,6 @@ public class RepairMessageTest
         MessageDelivery messaging = Mockito.mock(MessageDelivery.class, REJECT_ALL);
         // allow all retry methods and send with callback
         Mockito.doCallRealMethod().when(messaging).sendWithRetries(Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any());
-        Mockito.doCallRealMethod().when(messaging).sendWithRetries(Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any());
         Mockito.doNothing().when(messaging).sendWithCallback(Mockito.any(), Mockito.any(), Mockito.any());
         IGossiper gossiper = Mockito.mock(IGossiper.class, REJECT_ALL);
         Mockito.doReturn(RepairMessage.SUPPORTS_RETRY).when(gossiper).getReleaseVersion(Mockito.any());
