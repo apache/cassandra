@@ -105,7 +105,7 @@ final class Flusher<K, V>
         flushExecutor.awaitTermination(1, MINUTES);
         if (fsyncExecutor != null)
         {
-            fsyncExecutor.shutdown();
+            fsyncExecutor.shutdownNow(); // `now` to interrupt potentially parked runnable
             fsyncExecutor.awaitTermination(1, MINUTES);
         }
     }
