@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.db.commitlog;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
@@ -60,7 +59,6 @@ public class CommitLogArchiverTest extends CQLTester
                           put("restore_point_in_time", rpiTime);}});
         CommitLogArchiver commitLogArchiver = CommitLogArchiver.getArchiverFromProperty(properties);
         commitLog.setCommitlogArchiver(commitLogArchiver);
-        DatabaseDescriptor.setCommitLogSegmentSize(1);
     }
 
     @AfterClass
@@ -83,7 +81,7 @@ public class CommitLogArchiverTest extends CQLTester
         String value = "";
         // Make sure that new CommitLogSegment will be allocated as the CommitLogSegment size is 1M
         // and if new CommitLogSegment is allocated then the old CommitLogSegment will be archived.
-        for (int i = 0; i != 10000; ++i)
+        for (int i = 0; i != 50000; ++i)
         {
             value += i;
         }
