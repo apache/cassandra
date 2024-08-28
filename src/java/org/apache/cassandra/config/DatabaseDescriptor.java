@@ -128,8 +128,6 @@ public class DatabaseDescriptor
 
     private static long preparedStatementsCacheSizeInMB;
 
-    private static long keyCacheSizeInMB;
-    private static long counterCacheSizeInMB;
     private static long indexSummaryCapacityInMB;
 
     private static String localDC;
@@ -712,9 +710,9 @@ public class DatabaseDescriptor
         try
         {
             // if key_cache_size_in_mb option was set to "auto" then size of the cache should be "min(5% of Heap (in MB), 100MB)
-            keyCacheSizeInMB = (conf.key_cache_size_in_mb == null)
-                               ? Math.min(Math.max(1, (int) (Runtime.getRuntime().totalMemory() * 0.05 / 1024 / 1024)), 100)
-                               : conf.key_cache_size_in_mb;
+            long keyCacheSizeInMB = (conf.key_cache_size_in_mb == null)
+                                    ? Math.min(Math.max(1, (int) (Runtime.getRuntime().totalMemory() * 0.05 / 1024 / 1024)), 100)
+                                    : conf.key_cache_size_in_mb;
 
             if (keyCacheSizeInMB < 0)
                 throw new NumberFormatException(); // to escape duplicating error message
@@ -731,21 +729,21 @@ public class DatabaseDescriptor
         try
         {
             // if counter_cache_size_in_mb option was set to "auto" then size of the cache should be "min(2.5% of Heap (in MB), 50MB)
-            counterCacheSizeInMB = (conf.counter_cache_size_in_mb == null)
-                                   ? Math.min(Math.max(1, (int) (Runtime.getRuntime().totalMemory() * 0.025 / 1024 / 1024)), 50)
-                                   : conf.counter_cache_size_in_mb;
+            long counterCacheSizeInMB = (conf.counter_cache_size_in_mb == null)
+                                        ? Math.min(Math.max(1, (int) (Runtime.getRuntime().totalMemory() * 0.025 / 1024 / 1024)), 50)
+                                        : conf.counter_cache_size_in_mb;
 
             if (counterCacheSizeInMB < 0)
                 throw new NumberFormatException(); // to escape duplicating error message
+
+            // we need this assignment for the Settings virtual table - CASSANDRA-17735
+            conf.counter_cache_size_in_mb = counterCacheSizeInMB;
         }
         catch (NumberFormatException e)
         {
             throw new ConfigurationException("counter_cache_size_in_mb option was set incorrectly to '"
                                              + conf.counter_cache_size_in_mb + "', supported values are <integer> >= 0.", false);
         }
-
-        // we need this assignment for the Settings virtual table - CASSANDRA-17735
-        conf.counter_cache_size_in_mb = counterCacheSizeInMB;
 
         // if set to empty/"auto" then use 5% of Heap size
         indexSummaryCapacityInMB = (conf.index_summary_capacity_in_mb == null)
@@ -2702,7 +2700,12 @@ public class DatabaseDescriptor
 
     public static long getKeyCacheSizeInMB()
     {
-        return keyCacheSizeInMB;
+        return conf.key_cache_size_in_mb;
+    }
+
+    public static void setKeyCacheSizeInMB(long size)
+    {
+        conf.key_cache_size_in_mb = size;
     }
 
     public static long getIndexSummaryCapacityInMB()
@@ -2740,7 +2743,6 @@ public class DatabaseDescriptor
         return conf.row_cache_size_in_mb;
     }
 
-    @VisibleForTesting
     public static void setRowCacheSizeInMB(long val)
     {
         conf.row_cache_size_in_mb = val;
@@ -2763,7 +2765,12 @@ public class DatabaseDescriptor
 
     public static long getCounterCacheSizeInMB()
     {
-        return counterCacheSizeInMB;
+        return conf.counter_cache_size_in_mb;
+    }
+
+    public static void setCounterCacheSizeInMB(long val)
+    {
+        conf.counter_cache_size_in_mb = val;
     }
 
     public static void setRowCacheKeysToSave(int rowCacheKeysToSave)

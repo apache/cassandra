@@ -305,16 +305,16 @@ public class Config
     public volatile int sstable_preemptive_open_interval_in_mb = 50;
 
     public volatile boolean key_cache_migrate_during_compaction = true;
-    public Long key_cache_size_in_mb = null;
+    public volatile Long key_cache_size_in_mb = null;
     public volatile int key_cache_save_period = 14400;
     public volatile int key_cache_keys_to_save = Integer.MAX_VALUE;
 
     public String row_cache_class_name = "org.apache.cassandra.cache.OHCProvider";
-    public long row_cache_size_in_mb = 0;
+    public volatile long row_cache_size_in_mb = 0;
     public volatile int row_cache_save_period = 0;
     public volatile int row_cache_keys_to_save = Integer.MAX_VALUE;
 
-    public Long counter_cache_size_in_mb = null;
+    public volatile Long counter_cache_size_in_mb = null;
     public volatile int counter_cache_save_period = 7200;
     public volatile int counter_cache_keys_to_save = Integer.MAX_VALUE;
 
