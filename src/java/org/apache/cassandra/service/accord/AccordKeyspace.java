@@ -764,6 +764,9 @@ public class AccordKeyspace
 
     public static Mutation getCommandMutation(int storeId, Command original, Command command, long timestampMicros)
     {
+        if (command.saveStatus() == SaveStatus.Uninitialised)
+            return null;
+
         try
         {
             Invariants.checkArgument(original != command);
