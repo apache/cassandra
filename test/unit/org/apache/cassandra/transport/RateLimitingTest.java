@@ -152,6 +152,7 @@ public class RateLimitingTest extends NativeProtocolLimitsTestBase
         int emulatedConcurrentMessageSize = payloadSize * 3 / 2;
         try (SimpleClient client = client(true, LARGE_PAYLOAD_THRESHOLD_BYTES))
         {
+            // Set native_transport_throw_on_overload to true to match the client setting. Ensures test stability if the default changes to false in the future.
             DatabaseDescriptor.setNativeTransportThrowOnOverload(true);
             StorageService.instance.setNativeTransportRateLimitingEnabled(false);
             createTable(client);

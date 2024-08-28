@@ -280,6 +280,9 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
         OverloadedException exception = buildOverloadedException(endpointReserve, globalReserve, overload);
         handleError(exception, header);
 
+        // Increment the SLI metric if message is discarded
+        ServiceLevelIndicatorMetricsCollection.collectMetricsAndLog(exception);
+
         // Don't stop processing incoming messages, as we rely on the client to apply
         // backpressure when it receives OverloadedException, but discard this message 
         // as we're responding with the overloaded error.

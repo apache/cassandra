@@ -355,7 +355,6 @@ public class Dispatcher implements CQLMessageHandler.MessageConsumer<Message.Req
             ClientMetrics.instance.markTimedOutBeforeProcessing();
             Exception e = new OverloadedException("Query timed out before it could start");
             ServiceLevelIndicatorMetricsCollection.collectMetricsAndLog(e);
-            NoSpamLogger.log(logger, NoSpamLogger.Level.INFO, 5, TimeUnit.MINUTES, e.getMessage());
             return ErrorMessage.fromException(e);
         }
 

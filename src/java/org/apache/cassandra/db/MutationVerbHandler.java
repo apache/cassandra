@@ -23,6 +23,7 @@ import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.OverloadedException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -52,7 +53,8 @@ public class MutationVerbHandler extends AbstractMutationVerbHandler<Mutation>
     @Override
     public void doVerb(Message<Mutation> message) throws OverloadedException
     {
-        if (approxTime.now() > message.expiresAtNanos())
+        // Dropping the message on timeout is a new funtionality added by CASSANDRA-19534. throwOnOverload is a killswitch added to disable this functionality.
+        if (DatabaseDescriptor.getNativeTransportThrowOnOverload() && approxTime.now() > message.expiresAtNanos())
         {
             Tracing.trace("Discarding mutation from {} (timed out)", message.from());
             MessagingService.instance().metrics.recordDroppedMessage(message, message.elapsedSinceCreated(NANOSECONDS), NANOSECONDS);

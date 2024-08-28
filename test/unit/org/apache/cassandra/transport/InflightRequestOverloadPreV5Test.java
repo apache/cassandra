@@ -71,7 +71,7 @@ public class InflightRequestOverloadPreV5Test extends CQLTester
     {
         try
         {
-            QueryProcessor.executeOnceInternal("DROP TABLE " + KEYSPACE + ".atable");
+            QueryProcessor.executeOnceInternal("DROP TABLE IF EXISTS " + KEYSPACE + ".atable");
         }
         catch (Throwable t)
         {
@@ -96,27 +96,23 @@ public class InflightRequestOverloadPreV5Test extends CQLTester
     }
 
     @Test
-    public void testOverloadedExceptionOnlyClientSideFlagEnabled() throws Throwable
-    {
-        testScenario(true, false, false);
-    }
+    public void testOverloadedExceptionWithVariousConfigurations() throws Throwable {
+        /*
+         * The server-side flag (default: true) overrides the client-side flag entirely.
+         * Testing with client-side settings is unnecessary.
+         * If client-side behavior becomes relevant in the future, update tests to ensure they pass as expected.
+         */
+        boolean[][] scenarios = {
+        {true, false, false},  // Only client-side flag enabled, expect no exception
+        {false, true, true},   // Only server-side flag enabled, expect exception since client-side flag is disabled
+        {true, true, true},    // Both client and server-side flags enabled, expect exception since client-side flag is disabled
+        {false, false, false}, // Both client and server-side flags disabled, expect no exception since client-side flag is disabled
+        };
 
-    @Test
-    public void testOverloadedExceptionOnlyServerSideFlagEnabled() throws Throwable
-    {
-        testScenario(false, true, true);
-    }
-
-    @Test
-    public void testOverloadedExceptionBothClientServerSideFlagEnabled() throws Throwable
-    {
-        testScenario(true, true, true);
-    }
-
-    @Test
-    public void testOverloadedExceptionBothClientServerSideFlagDisabled() throws Throwable
-    {
-        testScenario(false, false, false);
+        for (boolean[] scenario : scenarios) {
+            testScenario(scenario[0], scenario[1], scenario[2]);
+            dropCreatedTable();
+        }
     }
 
     private void testScenario(boolean throwEnabledOnClient, boolean throwEnabledOnServer, boolean expectThrow) throws Throwable {

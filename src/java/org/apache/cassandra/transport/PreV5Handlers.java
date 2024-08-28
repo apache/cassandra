@@ -43,6 +43,7 @@ import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.net.ResourceLimits;
 import org.apache.cassandra.transport.messages.ErrorMessage;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.NoSpamLogger;
 
 import static org.apache.cassandra.transport.CQLMessageHandler.RATE_LIMITER_DELAY_UNIT;
 import static org.apache.cassandra.transport.ClientResourceLimits.GLOBAL_REQUEST_LIMITER;
@@ -244,7 +245,7 @@ public class PreV5Handlers
                          GLOBAL_REQUEST_LIMITER, request);
 
 
-            OverloadedException exception;
+            Exception exception;
             switch (overload)
             {
                 case REQUESTS:
@@ -264,8 +265,11 @@ public class PreV5Handlers
                                                                       DatabaseDescriptor.getNativeTransportTimeout(TimeUnit.MILLISECONDS)));
                     break;
                 default:
-                    throw new IllegalArgumentException(String.format("Can't create an exception from %s", overload));
+                    exception = new IllegalArgumentException(String.format("Can't create an exception from %s", overload));
             }
+
+            // Increment the SLI metric if message is discarded
+            ServiceLevelIndicatorMetricsCollection.collectMetricsAndLog(exception);
 
             throw ErrorMessage.wrap(exception, request.getSource().header.streamId);
         }
