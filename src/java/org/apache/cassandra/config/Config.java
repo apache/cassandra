@@ -1326,4 +1326,7 @@ public class Config
     }
 
     public TriggersPolicy triggers_policy = TriggersPolicy.enabled;
+
+    // TODO (required): this is only here to avoid test python dtest failures; remove after trunk rebase
+    public DurationSpec.LongMillisecondsBound native_transport_timeout = new DurationSpec.LongMillisecondsBound("12s");
 }
