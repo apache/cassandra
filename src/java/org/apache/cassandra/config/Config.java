@@ -436,19 +436,19 @@ public class Config
     public volatile boolean key_cache_migrate_during_compaction = true;
     public volatile int key_cache_keys_to_save = Integer.MAX_VALUE;
     @Replaces(oldName = "key_cache_size_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_LONG, deprecated = true)
-    public DataStorageSpec.LongMebibytesBound key_cache_size = null;
+    public volatile DataStorageSpec.LongMebibytesBound key_cache_size = null;
     @Replaces(oldName = "key_cache_save_period", converter = Converters.SECONDS_CUSTOM_DURATION)
     public volatile DurationSpec.IntSecondsBound key_cache_save_period = new DurationSpec.IntSecondsBound("4h");
 
     public String row_cache_class_name = "org.apache.cassandra.cache.OHCProvider";
     @Replaces(oldName = "row_cache_size_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_LONG, deprecated = true)
-    public DataStorageSpec.LongMebibytesBound row_cache_size = new DataStorageSpec.LongMebibytesBound("0MiB");
+    public volatile DataStorageSpec.LongMebibytesBound row_cache_size = new DataStorageSpec.LongMebibytesBound("0MiB");
     @Replaces(oldName = "row_cache_save_period", converter = Converters.SECONDS_CUSTOM_DURATION)
     public volatile DurationSpec.IntSecondsBound row_cache_save_period = new DurationSpec.IntSecondsBound("0s");
     public volatile int row_cache_keys_to_save = Integer.MAX_VALUE;
 
     @Replaces(oldName = "counter_cache_size_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_LONG, deprecated = true)
-    public DataStorageSpec.LongMebibytesBound counter_cache_size = null;
+    public volatile DataStorageSpec.LongMebibytesBound counter_cache_size = null;
     @Replaces(oldName = "counter_cache_save_period", converter = Converters.SECONDS_CUSTOM_DURATION)
     public volatile DurationSpec.IntSecondsBound counter_cache_save_period = new DurationSpec.IntSecondsBound("7200s");
     public volatile int counter_cache_keys_to_save = Integer.MAX_VALUE;
