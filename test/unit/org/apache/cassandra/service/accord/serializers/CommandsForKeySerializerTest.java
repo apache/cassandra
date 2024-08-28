@@ -166,12 +166,12 @@ public class CommandsForKeySerializerTest
 
                 case Stable:
                 case ReadyToExecute:
-                    return Command.SerializerSupport.committed(attributes(), saveStatus, executeAt, ballot, ballot, Command.WaitingOn.EMPTY);
+                    return Command.SerializerSupport.committed(attributes(), saveStatus, executeAt, ballot, ballot, Command.WaitingOn.empty(txnId.domain()));
 
                 case PreApplied:
                 case Applying:
                 case Applied:
-                    return Command.SerializerSupport.executed(attributes(), saveStatus, executeAt, ballot, ballot, Command.WaitingOn.EMPTY, new Writes(txnId, executeAt, txn.keys(), new TxnWrite(Collections.emptyList(), true)), new TxnData());
+                    return Command.SerializerSupport.executed(attributes(), saveStatus, executeAt, ballot, ballot, Command.WaitingOn.empty(txnId.domain()), new Writes(txnId, executeAt, txn.keys(), new TxnWrite(Collections.emptyList(), true)), new TxnData());
 
                 case TruncatedApplyWithDeps:
                 case TruncatedApply:

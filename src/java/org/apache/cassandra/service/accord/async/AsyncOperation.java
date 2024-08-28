@@ -251,34 +251,31 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
 
                 result = apply(safeStore);
                 // TODO (required): currently, we are not very efficient about ensuring that we persist the absolute minimum amount of state. Improve that.
-                List<SavedCommand.SavedDiff> diffs = null;
+                List<SavedCommand.Writer<TxnId>> diffs = null;
                 for (AccordSafeCommand commandState : context.commands.values())
                 {
-                    SavedCommand.SavedDiff diff = commandState.diff();
-                    if (diff != null)
+                    SavedCommand.Writer<TxnId> diff = commandState.diff();
+                    if (diff == null)
+                        continue;
+                    if (diffs == null)
+                        diffs = new ArrayList<>(context.commands.size());
+                    diffs.add(diff);
+                    if (CassandraRelevantProperties.DTEST_ACCORD_JOURNAL_SANITY_CHECK_ENABLED.getBoolean())
                     {
-                        if (diffs == null)
-                            diffs = new ArrayList<>(context.commands.size());
-                        diffs.add(diff);
-                        if (CassandraRelevantProperties.DTEST_ACCORD_JOURNAL_SANITY_CHECK_ENABLED.getBoolean())
-                        {
-                            if (sanityCheck == null)
-                                sanityCheck = new ArrayList<>(context.commands.size());
-                            sanityCheck.add(commandState.current());
-                        }
+                        if (sanityCheck == null)
+                            sanityCheck = new ArrayList<>(context.commands.size());
+                        sanityCheck.add(commandState.current());
                     }
                 }
 
                 commandStore.completeOperation(safeStore);
                 context.releaseResources(commandStore);
+                state(COMPLETING);
                 if (diffs != null)
                 {
-                    state(COMPLETING);
                     this.commandStore.appendCommands(diffs, sanityCheck, () -> finish(result, null));
                     return false;
                 }
-
-                state(COMPLETING);
             case COMPLETING:
                 finish(result, null);
             case FINISHED:

@@ -152,7 +152,7 @@ public class AccordTestUtils
                                                        executeAt,
                                                        Ballot.ZERO,
                                                        Ballot.ZERO,
-                                                       Command.WaitingOn.EMPTY);
+                                                       Command.WaitingOn.empty(txnId.domain()));
         }
 
         private static FullRoute<?> route(PartialTxn txn)
@@ -517,12 +517,10 @@ public class AccordTestUtils
 
     public static void appendCommandsBlocking(AccordCommandStore commandStore, Command before, Command after)
     {
-        SavedCommand.SavedDiff diff = SavedCommand.diff(before, after);
-        if (diff != null)
-        {
-            Condition condition = Condition.newOneTimeCondition();
-            commandStore.appendCommands(Collections.singletonList(diff), null, condition::signal);
-            condition.awaitUninterruptibly(30, TimeUnit.SECONDS);
-        }
+        SavedCommand.Writer<TxnId> diff = SavedCommand.diff(before, after);
+        if (diff == null) return;
+        Condition condition = Condition.newOneTimeCondition();
+        commandStore.appendCommands(Collections.singletonList(diff), null, condition::signal);
+        condition.awaitUninterruptibly(30, TimeUnit.SECONDS);
     }
 }

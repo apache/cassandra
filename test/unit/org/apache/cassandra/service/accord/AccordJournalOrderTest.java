@@ -20,7 +20,6 @@ package org.apache.cassandra.service.accord;
 
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
@@ -75,22 +74,10 @@ public class AccordJournalOrderTest
         for (int i = 0; i < 10_000; i++)
         {
             TxnId txnId = randomSource.nextBoolean() ? id1 : id2;
-            JournalKey key = new JournalKey(txnId, AccordJournal.Type.SAVED_COMMAND, randomSource.nextInt(5));
+            JournalKey key = new JournalKey(txnId, randomSource.nextInt(5));
             res.compute(key, (k, prev) -> prev == null ? 1 : prev + 1);
             accordJournal.appendCommand(key.commandStoreId,
-                                        Collections.singletonList(new SavedCommand.SavedDiff(txnId,
-                                                                                             AccordGens.timestamps().next(randomSource),
-                                                                                             null,
-                                                                                             null,
-                                                                                             null,
-                                                                                             null,
-                                                                                             null,
-                                                                                             null,
-                                                                                             null,
-                                                                                             null,
-                                                                                             null,
-                                                                                             null,
-                                                                                             null)),
+                                        Collections.singletonList(new SavedCommand.DiffWriter(txnId, null, null)),
                                         null,
                                         () -> {});
         }
@@ -98,8 +85,9 @@ public class AccordJournalOrderTest
         Runnable check = () -> {
             for (JournalKey key : res.keySet())
             {
-                List<SavedCommand.LoadedDiff> diffs = accordJournal.loadDiffs(key.commandStoreId, key.timestamp);
-                Assert.assertEquals(diffs.size(), res.get(key).intValue());
+                SavedCommand.Builder diffs = accordJournal.loadDiffs(key.commandStoreId, (TxnId) key.timestamp);
+                Assert.assertEquals(String.format("%d != %d for key %s", diffs.count(), res.get(key).intValue(), key),
+                                    diffs.count(), res.get(key).intValue());
             }
         };
 

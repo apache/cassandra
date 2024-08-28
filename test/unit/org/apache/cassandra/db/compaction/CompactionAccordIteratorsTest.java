@@ -118,7 +118,7 @@ public class CompactionAccordIteratorsTest
     private static final TxnId LT_TXN_ID = AccordTestUtils.txnId(EPOCH, HLC_START, NODE);
     private static final TxnId TXN_ID = AccordTestUtils.txnId(EPOCH, LT_TXN_ID.hlc() + 1, NODE);
     private static final TxnId SECOND_TXN_ID = AccordTestUtils.txnId(EPOCH, TXN_ID.hlc() + 1, NODE, Kind.Read);
-    private static final TxnId RANGE_TXN_ID = AccordTestUtils.txnId(EPOCH, TXN_ID.hlc() + 1, NODE, Kind.Read, Routable.Domain.Range);
+    private static final TxnId RANGE_TXN_ID = AccordTestUtils.txnId(EPOCH, TXN_ID.hlc() + 2, NODE, Kind.Read, Routable.Domain.Range);
     private static final TxnId GT_TXN_ID = SECOND_TXN_ID;
     // For CommandsForKey where we test with two commands
     private static final TxnId[] TXN_IDS = new TxnId[]{ TXN_ID, SECOND_TXN_ID };
@@ -380,10 +380,10 @@ public class CompactionAccordIteratorsTest
         };
     }
 
-
     private static RedundantBefore redundantBefore(TxnId txnId)
     {
         Ranges ranges = AccordTestUtils.fullRange(AccordTestUtils.keys(table, 42));
+        txnId = txnId.as(Kind.Read, Routable.Domain.Range);
         return RedundantBefore.create(ranges, Long.MIN_VALUE, Long.MAX_VALUE, txnId, txnId, LT_TXN_ID);
     }
 

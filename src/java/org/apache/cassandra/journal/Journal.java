@@ -47,11 +47,13 @@ import org.apache.cassandra.concurrent.SequentialExecutorPlus;
 import org.apache.cassandra.concurrent.Shutdownable;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.PathUtils;
 import org.apache.cassandra.journal.Segments.ReferencedSegment;
 import org.apache.cassandra.journal.Segments.ReferencedSegments;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.accord.SavedCommand;
 import org.apache.cassandra.utils.Crc;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Simulate;
@@ -343,11 +345,16 @@ public class Journal<K, V> implements Shutdownable
         return null;
     }
 
-    // TODO: This should be improved with new index that should take better care of handling multiple items
     public List<V> readAll(K id)
     {
-        EntrySerializer.EntryHolder<K> holder = new EntrySerializer.EntryHolder<>();
         List<V> res = new ArrayList<>(2);
+        readAll(id, (in, userVersion) -> res.add(valueSerializer.deserialize(id, in, userVersion)));
+        return res;
+    }
+
+    public void readAll(K id, Reader reader)
+    {
+        EntrySerializer.EntryHolder<K> holder = new EntrySerializer.EntryHolder<>();
         try (ReferencedSegments<K, V> segments = selectAndReference(id))
         {
             for (Segment<K, V> segment : segments.all())
@@ -357,7 +364,7 @@ public class Journal<K, V> implements Shutdownable
                     {
                         Invariants.checkState(Objects.equals(holder.key, id),
                                               "%s != %s", holder.key, id);
-                        res.add(valueSerializer.deserialize(holder.key, in, segment.descriptor.userVersion));
+                        reader.read(in, segment.descriptor.userVersion);
                         holder.clear();
                     }
                     catch (IOException e)
@@ -368,7 +375,6 @@ public class Journal<K, V> implements Shutdownable
                 });
             }
         }
-        return res;
     }
 
     /**
@@ -505,10 +511,27 @@ public class Journal<K, V> implements Shutdownable
      */
     public RecordPointer asyncWrite(K id, V record, Set<Integer> hosts)
     {
+        return asyncWrite(id, new SavedCommand.Writer<>()
+                          {
+                              public void write(DataOutputPlus out, int userVersion) throws IOException
+                              {
+                                  valueSerializer.serialize(id, record, out, params.userVersion());
+                              }
+
+                              public K key()
+                              {
+                                  return id;
+                              }
+                          },
+                          hosts);
+    }
+
+    public RecordPointer asyncWrite(K id, Writer writer, Set<Integer> hosts)
+    {
         RecordPointer recordPointer;
         try (DataOutputBuffer dob = DataOutputBuffer.scratchBuffer.get())
         {
-            valueSerializer.serialize(id, record, dob, params.userVersion());
+            writer.write(dob, params.userVersion());
             ActiveSegment<K, V>.Allocation alloc = allocate(dob.getLength(), hosts);
             recordPointer = alloc.write(id, dob.unsafeGetBufferAndFlip(), hosts);
             flusher.asyncFlush(alloc);
@@ -520,6 +543,7 @@ public class Journal<K, V> implements Shutdownable
         }
         return recordPointer;
     }
+
 
     private ActiveSegment<K, V>.Allocation allocate(int entrySize, Set<Integer> hosts)
     {
@@ -941,5 +965,15 @@ public class Journal<K, V> implements Shutdownable
     {
         advanceSegment(null);
         segments.set(Segments.none());
+    }
+
+    public interface Writer
+    {
+        void write(DataOutputPlus out, int userVersion) throws IOException;
+    }
+
+    public interface Reader
+    {
+        void read(DataInputBuffer in, int userVersion) throws IOException;
     }
 }

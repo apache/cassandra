@@ -20,6 +20,7 @@ package org.apache.cassandra.utils;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -27,22 +28,30 @@ import java.util.function.BiFunction;
 import java.util.stream.Stream;
 
 import accord.local.Command;
+import accord.local.CommonAttributes;
+import accord.local.Listeners;
 import accord.local.RedundantBefore;
+import accord.local.SaveStatus;
+import accord.primitives.Ballot;
 import accord.primitives.Deps;
 import accord.primitives.FullRoute;
 import accord.primitives.KeyDeps;
+import accord.primitives.PartialDeps;
 import accord.primitives.PartialTxn;
 import accord.primitives.Range;
 import accord.primitives.RangeDeps;
 import accord.primitives.Ranges;
 import accord.primitives.Routable;
+import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
+import accord.primitives.Writes;
 import accord.utils.AccordGens;
 import accord.utils.Gen;
 import accord.utils.Gens;
 import accord.utils.RandomSource;
+import accord.utils.TriFunction;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.dht.AccordSplitter;
 import org.apache.cassandra.dht.IPartitioner;
@@ -52,8 +61,11 @@ import org.apache.cassandra.service.accord.AccordTestUtils;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.service.accord.txn.TxnData;
+import org.apache.cassandra.service.accord.txn.TxnWrite;
 import org.quicktheories.impl.JavaRandom;
 
+import static accord.local.Status.Durability.NotDurable;
 import static org.apache.cassandra.service.accord.AccordTestUtils.TABLE_ID1;
 import static org.apache.cassandra.service.accord.AccordTestUtils.createPartialTxn;
 
@@ -71,7 +83,7 @@ public class AccordGenerators
     }
 
     private enum SupportedCommandTypes
-    {notDefined, preaccepted, committed}
+    {notDefined, preaccepted, committed, stable}
 
     public static Gen<Command> commands()
     {
@@ -81,13 +93,18 @@ public class AccordGenerators
         //TODO goes against fuzz testing, and also limits to a very specific table existing...
         // There is a branch that can generate random transactions, so maybe look into that?
         PartialTxn txn = createPartialTxn(0);
-        FullRoute<?> route = txn.keys().toRoute(txn.keys().get(0).someIntersectingRoutingKey(null));
 
         return rs -> {
             TxnId id = ids.next(rs);
-            Timestamp executeAt = id;
+            TxnId executeAt = id;
             if (rs.nextBoolean())
                 executeAt = ids.next(rs);
+            if (executeAt.compareTo(id) < 0)
+            {
+                TxnId tmp = id;
+                id = executeAt;
+                executeAt = tmp;
+            }
             SupportedCommandTypes targetType = supportedTypes.next(rs);
             switch (targetType)
             {
@@ -97,10 +114,157 @@ public class AccordGenerators
                     return AccordTestUtils.Commands.preaccepted(id, txn, executeAt);
                 case committed:
                     return AccordTestUtils.Commands.committed(id, txn, executeAt);
+                case stable:
+                    return AccordTestUtils.Commands.stable(id, txn, executeAt);
                 default:
                     throw new UnsupportedOperationException("Unexpected type: " + targetType);
             }
         };
+    }
+
+    public enum RecoveryStatus { None, Started, Complete }
+
+    public static Gen<CommandBuilder> commandsBuilder()
+    {
+        return commandsBuilder(AccordGens.txnIds(), Gens.bools().all(), Gens.enums().all(RecoveryStatus.class), (rs, txnId, txn) -> AccordGens.depsFor(txnId, txn).next(rs));
+    }
+
+    public static Gen<CommandBuilder> commandsBuilder(Gen<TxnId> txnIdGen, Gen<Boolean> fastPath, Gen<RecoveryStatus> recover, TriFunction<RandomSource, TxnId, Txn, Deps> depsGen)
+    {
+        return rs -> {
+            TxnId txnId = txnIdGen.next(rs);
+            Txn txn = AccordTestUtils.createTxn(0, 0);
+            Deps deps = depsGen.apply(rs, txnId, txn);
+            Timestamp executeAt = fastPath.next(rs) ? txnId
+                                                    : AccordGens.timestamps(AccordGens.epochs(txnId.epoch()),
+                                                                            AccordGens.hlcs(txnId.hlc()),
+                                                                            AccordGens.flags(),
+                                                                            RandomSource::nextInt).next(rs);
+            Ranges slice = AccordTestUtils.fullRange(txn);
+            PartialTxn partialTxn = txn.slice(slice, true); //TODO (correctness): find the case where includeQuery=false and replicate
+            PartialDeps partialDeps = deps.intersecting(slice);
+            Ballot promised;
+            Ballot accepted;
+            switch (recover.next(rs))
+            {
+                case None:
+                {
+                    promised = Ballot.ZERO;
+                    accepted = Ballot.ZERO;
+                }
+                break;
+                case Started:
+                {
+                    promised = AccordGens.ballot(AccordGens.epochs(executeAt.epoch()),
+                                                 AccordGens.hlcs(executeAt.hlc()),
+                                                 AccordGens.flags(),
+                                                 RandomSource::nextInt).next(rs);
+                    accepted = Ballot.ZERO;
+                }
+                break;
+                case Complete:
+                {
+                    promised = accepted = AccordGens.ballot(AccordGens.epochs(executeAt.epoch()),
+                                                            AccordGens.hlcs(executeAt.hlc()),
+                                                            AccordGens.flags(),
+                                                            RandomSource::nextInt).next(rs);
+                }
+                break;
+                default:
+                    throw new UnsupportedOperationException();
+            }
+
+            Command.WaitingOn waitingOn = Command.WaitingOn.none(txnId.domain(), deps);
+            return new CommandBuilder(txnId, txn, executeAt, partialTxn, partialDeps, promised, accepted, waitingOn);
+        };
+    }
+
+    public static class CommandBuilder
+    {
+        public final TxnId txnId;
+        public final FullRoute<?> route;
+        public final Seekables<?, ?> keysOrRanges;
+        private final Timestamp executeAt;
+        private final PartialTxn partialTxn;
+        private final PartialDeps partialDeps;
+        private final Ballot promised, accepted;
+        private final Command.WaitingOn waitingOn;
+
+        public CommandBuilder(TxnId txnId, Txn txn, Timestamp executeAt, PartialTxn partialTxn, PartialDeps partialDeps, Ballot promised, Ballot accepted, Command.WaitingOn waitingOn)
+        {
+            this.txnId = txnId;
+            this.executeAt = executeAt;
+            this.partialTxn = partialTxn;
+            this.partialDeps = partialDeps;
+            this.promised = promised;
+            this.accepted = accepted;
+            this.waitingOn = waitingOn;
+            this.route = txn.keys().toRoute(txn.keys().get(0).someIntersectingRoutingKey(null));
+            this.keysOrRanges = txn.keys();
+        }
+
+        private CommonAttributes attributes(SaveStatus saveStatus)
+        {
+            CommonAttributes.Mutable mutable = new CommonAttributes.Mutable(txnId);
+            if (saveStatus.known.isDefinitionKnown())
+                mutable.partialTxn(partialTxn);
+            if (saveStatus.known.deps.hasProposedOrDecidedDeps())
+                mutable.partialDeps(partialDeps);
+
+            mutable.route(route);
+            mutable.durability(NotDurable);
+
+            return mutable;
+        }
+
+        public Command build(SaveStatus saveStatus)
+        {
+            switch (saveStatus)
+            {
+                default: throw new AssertionError("Unhandled saveStatus: " + saveStatus);
+                case TruncatedApplyWithDeps:
+                    throw new IllegalArgumentException("TruncatedApplyWithDeps is not a valid state for a Command to be in, its for FetchData");
+                case Uninitialised:
+                case NotDefined:
+                    return Command.SerializerSupport.notDefined(attributes(saveStatus), Ballot.ZERO);
+                case PreAccepted:
+                    return Command.SerializerSupport.preaccepted(attributes(saveStatus), executeAt, Ballot.ZERO);
+                case Accepted:
+                case AcceptedInvalidate:
+                case AcceptedWithDefinition:
+                case AcceptedInvalidateWithDefinition:
+                case PreCommittedWithDefinition:
+                case PreCommittedWithDefinitionAndAcceptedDeps:
+                case PreCommittedWithAcceptedDeps:
+                case PreCommitted:
+                    return Command.SerializerSupport.accepted(attributes(saveStatus), saveStatus, executeAt, promised, accepted);
+
+                case Committed:
+                    return Command.SerializerSupport.committed(attributes(saveStatus), saveStatus, executeAt, promised, accepted, null);
+
+                case Stable:
+                case ReadyToExecute:
+                    return Command.SerializerSupport.committed(attributes(saveStatus), saveStatus, executeAt, promised, accepted, waitingOn);
+
+                case PreApplied:
+                case Applying:
+                case Applied:
+                    return Command.SerializerSupport.executed(attributes(saveStatus), saveStatus, executeAt, promised, accepted, waitingOn, new Writes(txnId, executeAt, keysOrRanges, new TxnWrite(Collections.emptyList(), true)), new TxnData());
+
+                case TruncatedApply:
+                    if (txnId.kind().awaitsOnlyDeps()) return Command.SerializerSupport.truncatedApply(attributes(saveStatus), saveStatus, executeAt, null, null, txnId);
+                    else return Command.SerializerSupport.truncatedApply(attributes(saveStatus), saveStatus, executeAt, null, null);
+
+                case TruncatedApplyWithOutcome:
+                    if (txnId.kind().awaitsOnlyDeps()) return Command.SerializerSupport.truncatedApply(attributes(saveStatus), saveStatus, executeAt, new Writes(txnId, executeAt, keysOrRanges, new TxnWrite(Collections.emptyList(), true)), new TxnData(), txnId);
+                    else return Command.SerializerSupport.truncatedApply(attributes(saveStatus), saveStatus, executeAt, new Writes(txnId, executeAt, keysOrRanges, new TxnWrite(Collections.emptyList(), true)), new TxnData());
+
+                case Erased:
+                case ErasedOrInvalidOrVestigial:
+                case Invalidated:
+                    return Command.SerializerSupport.invalidated(txnId, Listeners.Immutable.EMPTY);
+            }
+        }
     }
 
     public static Gen<PartitionKey> keys()
@@ -186,7 +350,7 @@ public class AccordGenerators
             while (offset.compareTo(size) < 0)
             {
                 BigInteger end = offset.add(update);
-                TokenRange r = (TokenRange) splitter.subRange(range, offset, end);
+                TokenRange r = splitter.subRange(range, offset, end);
                 for (TableId id : tables)
                 {
                     ranges.add(r.withTable(id));

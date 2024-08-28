@@ -92,7 +92,7 @@ public class WaitingOnSerializer
         int a = VIntCoding.readUnsignedVInt32(in, position);
         position += TypeSizes.sizeofUnsignedVInt(a);
         int b = VIntCoding.readUnsignedVInt32(in, position);
-        position += TypeSizes.sizeofUnsignedVInt(a);
+        position += TypeSizes.sizeofUnsignedVInt(b);
         ImmutableBitSet waitingOn = deserialize(position, waitingOnLength, in);
         ImmutableBitSet appliedOrInvalidated = null;
         if (txnId.domain() == Routable.Domain.Range)
@@ -110,7 +110,7 @@ public class WaitingOnSerializer
         for (int i = 0 ; i < length ; ++i)
         {
             bits[i] = in.getLong(position);
-            position += 8;
+            position += Long.BYTES;
         }
         return ImmutableBitSet.SerializationSupport.construct(bits);
     }
