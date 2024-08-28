@@ -30,6 +30,8 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
+import com.google.common.util.concurrent.Uninterruptibles;
+import org.apache.cassandra.utils.NoSpamLogger;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -78,6 +80,7 @@ import org.apache.cassandra.utils.TimeUUID;
 
 import static com.google.common.collect.Iterables.any;
 import static com.google.common.collect.Iterables.filter;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.db.partitions.UnfilteredPartitionIterators.MergeListener.NOOP;
 import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
@@ -489,6 +492,18 @@ public abstract class ReadCommand extends AbstractReadQuery
         finally
         {
             COMMAND.set(null);
+            maybeAddArtificialDelay();
+        }
+    }
+
+    void maybeAddArtificialDelay()
+    {
+        if (DatabaseDescriptor.getInjectArtificialDelayReadPath().toMilliseconds() > 0 && !SchemaConstants.isSystemKeyspace(ReadCommand.this.metadata().keyspace))
+        {
+            // Do this only for user keyspaces only because system keyspaces are queried by Cassandra client,
+            // and if we inject delays for system queries, then the client -> server test itself will not progress.
+            NoSpamLogger.log(logger, NoSpamLogger.Level.INFO, 5, TimeUnit.MINUTES, "Artificial delay of {} ms applied in read path" , DatabaseDescriptor.getInjectArtificialDelayReadPath().toMilliseconds());
+            Uninterruptibles.sleepUninterruptibly(DatabaseDescriptor.getInjectArtificialDelayReadPath().toMilliseconds(), MILLISECONDS);
         }
     }
 

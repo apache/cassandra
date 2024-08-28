@@ -3444,10 +3444,10 @@ public class StorageProxy implements StorageProxyMBean
     // this artifical delay is necessary to reproduce some corner cases which is not feasible in normal testing
     private static void maybeAddArtificialDelay() throws InterruptedException
     {
-        if (DatabaseDescriptor.getInjectArtificialDelay().toMilliseconds() > 0)
+        if (DatabaseDescriptor.getInjectArtificialDelayMutationPath().toMilliseconds() > 0)
         {
-            NoSpamLogger.log(logger, NoSpamLogger.Level.INFO, 5, TimeUnit.MINUTES, "Artificial delay of {} ms applied" , DatabaseDescriptor.getInjectArtificialDelay().toMilliseconds());
-            Uninterruptibles.sleepUninterruptibly(DatabaseDescriptor.getInjectArtificialDelay().toMilliseconds(), MILLISECONDS);
+            NoSpamLogger.log(logger, NoSpamLogger.Level.INFO, 5, TimeUnit.MINUTES, "Artificial delay of {} ms applied in mutation path" , DatabaseDescriptor.getInjectArtificialDelayMutationPath().toMilliseconds());
+            Uninterruptibles.sleepUninterruptibly(DatabaseDescriptor.getInjectArtificialDelayMutationPath().toMilliseconds(), MILLISECONDS);
         }
     }
 }

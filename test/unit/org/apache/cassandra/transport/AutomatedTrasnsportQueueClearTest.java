@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -66,6 +67,9 @@ public class AutomatedTrasnsportQueueClearTest extends CQLTester
                         "  c int,\n" +
                         " PRIMARY KEY(id)" +
                         ");");
+
+        // the default should be 0
+        Assert.assertEquals(0, DatabaseDescriptor.getInjectArtificialDelayMutationPath().toMilliseconds());
     }
 
     @AfterClass
@@ -73,6 +77,7 @@ public class AutomatedTrasnsportQueueClearTest extends CQLTester
     {
         try
         {
+            DatabaseDescriptor.setInjectArtificialDelayMutationPath("0s");
             System.out.println("Shutting down...");
             if (session != null)
                 session.close();
@@ -87,11 +92,17 @@ public class AutomatedTrasnsportQueueClearTest extends CQLTester
         }
     }
 
+    @After
+    public void reset()
+    {
+        DatabaseDescriptor.setInjectArtificialDelayMutationPath("0s");
+    }
+
     @Test
     public void testAutomatedQueueCleanup() throws InterruptedException
     {
         // simulate expensive query by injecting the artificial delay
-        DatabaseDescriptor.setInjectArtificialDelay("1s");
+        DatabaseDescriptor.setInjectArtificialDelayMutationPath("1s");
         DatabaseDescriptor.setNativeTransportTimeout(Integer.MAX_VALUE);
 
         ExecutorService executor = Executors.newFixedThreadPool(1000);
@@ -137,7 +148,7 @@ public class AutomatedTrasnsportQueueClearTest extends CQLTester
     public void testAutomatedQueueCleanupThroughNodetool() throws InterruptedException
     {
         // simulate expensive query by injecting the artificial delay
-        DatabaseDescriptor.setInjectArtificialDelay("1s");
+        DatabaseDescriptor.setInjectArtificialDelayMutationPath("1s");
         DatabaseDescriptor.setNativeTransportTimeout(Integer.MAX_VALUE);
 
         ExecutorService executor = Executors.newFixedThreadPool(1000);
@@ -180,6 +191,7 @@ public class AutomatedTrasnsportQueueClearTest extends CQLTester
     @Test
     public void testInternalQueue()
     {
+        DatabaseDescriptor.setInjectArtificialDelayMutationPath("1s");
         session.execute(String.format("INSERT INTO transport.tbl (id, a, b, c) VALUES (%d, %d, %d, %d);", 1, 2, 3, 4)); // insert a row to activate the Mutation thread pool
         session.execute("SELECT * FROM transport.tbl WHERE id = 1"); // read a row to activate the Read thread pool
         Assert.assertTrue(StorageService.instance.internalQueueCleanupEMERGENCYUSEONLY(NATIVE_TRANSPORT_THREAD_POOL));

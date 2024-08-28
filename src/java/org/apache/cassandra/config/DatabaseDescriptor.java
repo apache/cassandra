@@ -5133,14 +5133,24 @@ public class DatabaseDescriptor
         conf.native_transport_timeout = new DurationSpec.LongMillisecondsBound(deadlineMillis);
     }
 
-    public static DurationSpec.LongMillisecondsBound getInjectArtificialDelay()
+    public static DurationSpec.LongMillisecondsBound getInjectArtificialDelayMutationPath()
     {
-        return conf.inject_artificial_delay;
+        return conf.inject_artificial_delay_mutation_path;
     }
 
-    public static void setInjectArtificialDelay(String delay)
+    public static void setInjectArtificialDelayMutationPath(String delay)
     {
-        conf.inject_artificial_delay = new DurationSpec.LongMillisecondsBound(delay);
+        conf.inject_artificial_delay_mutation_path = new DurationSpec.LongMillisecondsBound(delay);
+    }
+
+    public static DurationSpec.LongMillisecondsBound getInjectArtificialDelayReadPath()
+    {
+        return conf.inject_artificial_delay_read_path;
+    }
+
+    public static void setInjectArtificialDelayReadPath(String delay)
+    {
+        conf.inject_artificial_delay_read_path = new DurationSpec.LongMillisecondsBound(delay);
     }
 
     public static boolean getEnableCustomPayloadLogging()

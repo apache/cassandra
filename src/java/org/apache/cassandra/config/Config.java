@@ -1469,6 +1469,14 @@ public class Config
         logger.info("Node configuration:[{}]", Joiner.on("; ").join(configMap.entrySet()));
     }
 
+    // WARNING!!! - DO NOT ENABLE THIS FOR PRODUCTION
+    // This parameter is for testing purposes only. It is used to simulate expensive mutation queries.
+    public volatile DurationSpec.LongMillisecondsBound inject_artificial_delay_mutation_path = new DurationSpec.LongMillisecondsBound("0ms");
+
+    // WARNING!!! - DO NOT ENABLE THIS FOR PRODUCTION
+    // This parameter is for testing purposes only. It is used to simulate expensive read queries.
+    public volatile DurationSpec.LongMillisecondsBound inject_artificial_delay_read_path = new DurationSpec.LongMillisecondsBound("0ms");
+
     public enum CQLStartTime
     {
         REQUEST, // uses a timestamp that represent the start of processing of the request
