@@ -29,9 +29,9 @@ public interface IJournal
 
     /**
      * Append outcomes to the log.
-     *
-     * Returns whether an async flush was requested. If it returns false, all commands are guaranteed to be flushed by that time.
-     * If it returns false, onFlush runnable will run whenever flush is done.
      */
-    void appendCommand(int commandStoreId, List<SavedCommand.SavedDiff> command, List<Command> sanityCheck, Runnable onFlush);
+    void appendCommand(int commandStoreId,
+                       List<SavedCommand.Writer<TxnId>> command,
+                       List<Command> sanityCheck,
+                       Runnable onFlush);
 }

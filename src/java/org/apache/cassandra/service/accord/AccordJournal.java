@@ -21,9 +21,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -31,23 +29,15 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.primitives.Ints;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.coordinate.Timeout;
 import accord.local.Command;
 import accord.local.Node;
-import accord.messages.AbstractEpochRequest;
-import accord.messages.Commit;
 import accord.messages.LocalRequest;
-import accord.messages.Message;
-import accord.messages.MessageType;
 import accord.messages.ReplyContext;
 import accord.messages.Request;
-import accord.messages.TxnRequest;
-import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
 import org.agrona.collections.Long2ObjectHashMap;
@@ -57,7 +47,6 @@ import org.apache.cassandra.concurrent.Interruptible;
 import org.apache.cassandra.concurrent.ManyToOneConcurrentLinkedQueue;
 import org.apache.cassandra.concurrent.Shutdownable;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.File;
@@ -69,52 +58,12 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.ResponseContext;
 import org.apache.cassandra.net.Verb;
-import org.apache.cassandra.service.accord.interop.AccordInteropApply;
-import org.apache.cassandra.service.accord.interop.AccordInteropCommit;
-import org.apache.cassandra.service.accord.serializers.AcceptSerializers;
-import org.apache.cassandra.service.accord.serializers.ApplySerializers;
-import org.apache.cassandra.service.accord.serializers.BeginInvalidationSerializers;
-import org.apache.cassandra.service.accord.serializers.CommitSerializers;
-import org.apache.cassandra.service.accord.serializers.EnumSerializer;
-import org.apache.cassandra.service.accord.serializers.FetchSerializers;
-import org.apache.cassandra.service.accord.serializers.InformDurableSerializers;
-import org.apache.cassandra.service.accord.serializers.InformOfTxnIdSerializers;
-import org.apache.cassandra.service.accord.serializers.PreacceptSerializers;
-import org.apache.cassandra.service.accord.serializers.RecoverySerializers;
-import org.apache.cassandra.service.accord.serializers.SetDurableSerializers;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.concurrent.Condition;
 
-import static accord.messages.MessageType.ACCEPT_INVALIDATE_REQ;
-import static accord.messages.MessageType.ACCEPT_REQ;
-import static accord.messages.MessageType.APPLY_MAXIMAL_REQ;
-import static accord.messages.MessageType.APPLY_MINIMAL_REQ;
-import static accord.messages.MessageType.APPLY_THEN_WAIT_UNTIL_APPLIED_REQ;
-import static accord.messages.MessageType.BEGIN_INVALIDATE_REQ;
-import static accord.messages.MessageType.BEGIN_RECOVER_REQ;
-import static accord.messages.MessageType.COMMIT_INVALIDATE_REQ;
-import static accord.messages.MessageType.COMMIT_MAXIMAL_REQ;
-import static accord.messages.MessageType.COMMIT_SLOW_PATH_REQ;
-import static accord.messages.MessageType.INFORM_DURABLE_REQ;
-import static accord.messages.MessageType.INFORM_OF_TXN_REQ;
-import static accord.messages.MessageType.PRE_ACCEPT_REQ;
-import static accord.messages.MessageType.PROPAGATE_APPLY_MSG;
-import static accord.messages.MessageType.PROPAGATE_OTHER_MSG;
-import static accord.messages.MessageType.PROPAGATE_PRE_ACCEPT_MSG;
-import static accord.messages.MessageType.PROPAGATE_STABLE_MSG;
-import static accord.messages.MessageType.SET_GLOBALLY_DURABLE_REQ;
-import static accord.messages.MessageType.SET_SHARD_DURABLE_REQ;
-import static accord.messages.MessageType.STABLE_FAST_PATH_REQ;
-import static accord.messages.MessageType.STABLE_MAXIMAL_REQ;
-import static accord.messages.MessageType.STABLE_SLOW_PATH_REQ;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.SimulatorSafe.SAFE;
 import static org.apache.cassandra.concurrent.Interruptible.State.NORMAL;
-import static org.apache.cassandra.service.accord.AccordMessageSink.AccordMessageType.INTEROP_APPLY_MAXIMAL_REQ;
-import static org.apache.cassandra.service.accord.AccordMessageSink.AccordMessageType.INTEROP_APPLY_MINIMAL_REQ;
-import static org.apache.cassandra.service.accord.AccordMessageSink.AccordMessageType.INTEROP_COMMIT_MAXIMAL_REQ;
-import static org.apache.cassandra.service.accord.AccordMessageSink.AccordMessageType.INTEROP_COMMIT_MINIMAL_REQ;
-import static org.apache.cassandra.service.accord.serializers.ReadDataSerializers.applyThenWaitUntilApplied;
 
 public class AccordJournal implements IJournal, Shutdownable
 {
@@ -128,7 +77,7 @@ public class AccordJournal implements IJournal, Shutdownable
 
     private static final Set<Integer> SENTINEL_HOSTS = Collections.singleton(0);
 
-    static final ThreadLocal<byte[]> keyCRCBytes = ThreadLocal.withInitial(() -> new byte[23]);
+    static final ThreadLocal<byte[]> keyCRCBytes = ThreadLocal.withInitial(() -> new byte[22]);
 
     public final Journal<JournalKey, Object> journal;
     private final AccordEndpointMapper endpointMapper;
@@ -144,7 +93,25 @@ public class AccordJournal implements IJournal, Shutdownable
     public AccordJournal(AccordEndpointMapper endpointMapper, Params params)
     {
         File directory = new File(DatabaseDescriptor.getAccordJournalDirectory());
-        this.journal = new Journal<>("AccordJournal", directory, params, JournalKey.SUPPORT, RECORD_SERIALIZER);
+        this.journal = new Journal<>("AccordJournal", directory, params, JournalKey.SUPPORT,
+                                     // In Accord, we are using streaming serialization, i.e. Reader/Writer interfaces instead of materializing objects
+                                     new ValueSerializer<JournalKey, Object>()
+                                     {
+                                         public int serializedSize(JournalKey key, Object value, int userVersion)
+                                         {
+                                             throw new UnsupportedOperationException();
+                                         }
+
+                                         public void serialize(JournalKey key, Object value, DataOutputPlus out, int userVersion) throws IOException
+                                         {
+                                             throw new UnsupportedOperationException();
+                                         }
+
+                                         public Object deserialize(JournalKey key, DataInputPlus in, int userVersion) throws IOException
+                                         {
+                                             throw new UnsupportedOperationException();
+                                         }
+                                     });
         this.endpointMapper = endpointMapper;
     }
 
@@ -224,26 +191,33 @@ public class AccordJournal implements IJournal, Shutdownable
     @Override
     public Command loadCommand(int commandStoreId, TxnId txnId)
     {
-        var diffs = loadDiffs(commandStoreId, txnId);
-        if (diffs.isEmpty())
-            return null;
-        return SavedCommand.reconstructFromDiff(diffs);
+        try
+        {
+            return loadDiffs(commandStoreId, txnId).construct();
+        }
+        catch (IOException e)
+        {
+            // can only throw if serializer is buggy
+            throw new RuntimeException(e);
+        }
     }
 
     @VisibleForTesting
-    public List<SavedCommand.LoadedDiff> loadDiffs(int commandStoreId, Timestamp txnId)
+    public SavedCommand.Builder loadDiffs(int commandStoreId, TxnId txnId)
     {
-        return (List<SavedCommand.LoadedDiff>)(List<?>) journal.readAll(new JournalKey(txnId, Type.SAVED_COMMAND, commandStoreId));
+        SavedCommand.Builder builder = new SavedCommand.Builder();
+        journal.readAll(new JournalKey(txnId, commandStoreId),
+                        builder::deserializeNext);
+        return builder;
     }
 
     @Override
-    public void appendCommand(int commandStoreId, List<SavedCommand.SavedDiff> outcomes, List<Command> sanityCheck, Runnable onFlush)
+    public void appendCommand(int commandStoreId, List<SavedCommand.Writer<TxnId>> outcomes, List<Command> sanityCheck, Runnable onFlush)
     {
         RecordPointer pointer = null;
-        for (int i = 0; i < outcomes.size(); i++)
+        for (SavedCommand.Writer<TxnId> outcome : outcomes)
         {
-            SavedCommand.SavedDiff outcome = outcomes.get(i);
-            JournalKey key = new JournalKey(outcome.txnId, Type.SAVED_COMMAND, commandStoreId);
+            JournalKey key = new JournalKey(outcome.key(), commandStoreId);
             pointer = journal.asyncWrite(key, outcome, SENTINEL_HOSTS);
         }
 
@@ -273,14 +247,23 @@ public class AccordJournal implements IJournal, Shutdownable
 
     public void sanityCheck(int commandStoreId, Command orig)
     {
-        List<SavedCommand.LoadedDiff> diffs = loadDiffs(commandStoreId, orig.txnId());
-        // We can only use strict equality if we supply result.
-        Command reconstructed = SavedCommand.reconstructFromDiff(diffs, orig.result());
-        Invariants.checkState(orig.equals(reconstructed),
-                              "\n" +
-                              "Original:      %s\n" +
-                              "Reconstructed: %s\n" +
-                              "Diffs:         %s", orig, reconstructed, diffs);
+        try
+        {
+            SavedCommand.Builder diffs = loadDiffs(commandStoreId, orig.txnId());
+            diffs.forceResult(orig.result());
+            // We can only use strict equality if we supply result.
+            Command reconstructed = diffs.construct();
+            Invariants.checkState(orig.equals(reconstructed),
+                                  "\n" +
+                                  "Original:      %s\n" +
+                                  "Reconstructed: %s\n" +
+                                  "Diffs:         %s", orig, reconstructed, diffs);
+        }
+        catch (IOException e)
+        {
+            // can only throw if serializer is buggy
+            throw new RuntimeException(e);
+        }
     }
 
     /*
@@ -388,241 +371,6 @@ public class AccordJournal implements IJournal, Shutdownable
         public long expiresAtNanos()
         {
             return expiresAtNanos;
-        }
-    }
-
-    /*
-     * Records ser/de in the Journal
-     */
-
-    private static final ValueSerializer<JournalKey, Object> RECORD_SERIALIZER = new ValueSerializer<>()
-    {
-        @Override
-        public int serializedSize(JournalKey key, Object record, int userVersion)
-        {
-            return Ints.checkedCast(key.type.serializedSize(key, record, userVersion));
-        }
-
-        @Override
-        public void serialize(JournalKey key, Object record, DataOutputPlus out, int userVersion) throws IOException
-        {
-            key.type.serialize(key, record, out, userVersion);
-        }
-
-        @Override
-        public Object deserialize(JournalKey key, DataInputPlus in, int userVersion) throws IOException
-        {
-            return key.type.deserialize(key, in, userVersion);
-        }
-    };
-
-    /* Adapts vanilla message serializers to journal-expected signatures; converts user version to MS version */
-    static final class MessageSerializer implements ValueSerializer<JournalKey, Object>
-    {
-        final IVersionedSerializer<Message> wrapped;
-
-        private MessageSerializer(IVersionedSerializer<Message> wrapped)
-        {
-            this.wrapped = wrapped;
-        }
-
-        static MessageSerializer wrap(IVersionedSerializer<Message> wrapped)
-        {
-            return new MessageSerializer(wrapped);
-        }
-
-        @Override
-        public int serializedSize(JournalKey key, Object message, int userVersion)
-        {
-            return Ints.checkedCast(wrapped.serializedSize((Message) message, msVersion(userVersion)));
-        }
-
-        @Override
-        public void serialize(JournalKey key, Object message, DataOutputPlus out, int userVersion) throws IOException
-        {
-            wrapped.serialize((Message) message, out, msVersion(userVersion));
-        }
-
-        @Override
-        public Object deserialize(JournalKey key, DataInputPlus in, int userVersion) throws IOException
-        {
-            return wrapped.deserialize(in, msVersion(userVersion));
-        }
-    }
-
-    @FunctionalInterface
-    interface TxnIdProvider
-    {
-        TxnId txnId(Message message);
-    }
-
-    private static final TxnIdProvider EPOCH = msg -> ((AbstractEpochRequest<?>) msg).txnId;
-    private static final TxnIdProvider TXN   = msg -> ((TxnRequest<?>) msg).txnId;
-    private static final TxnIdProvider LOCAL = msg -> ((LocalRequest<?>) msg).primaryTxnId();
-    private static final TxnIdProvider INVL  = msg -> ((Commit.Invalidate) msg).primaryTxnId();
-
-    /**
-     * Accord Message type - consequently the kind of persisted record.
-     * <p>
-     * Note: {@link EnumSerializer} is intentionally not being reused here, for two reasons:
-     *  1. This is an internal enum, fully under our control, not part of an external library
-     *  2. It's persisted in the record key, so has the additional constraint of being fixed size and
-     *     shouldn't be using varint encoding
-     */
-    public enum Type implements ValueSerializer<JournalKey, Object>
-    {
-        /* Auxiliary journal records */
-        SAVED_COMMAND                 (1, SavedCommand.serializer),
-
-        /* Accord protocol requests */
-        PRE_ACCEPT                    (64, PRE_ACCEPT_REQ,                    PreacceptSerializers.request, TXN  ),
-        ACCEPT                        (65, ACCEPT_REQ,                        AcceptSerializers.request,    TXN  ),
-        ACCEPT_INVALIDATE             (66, ACCEPT_INVALIDATE_REQ,             AcceptSerializers.invalidate, EPOCH),
-        COMMIT_SLOW_PATH              (67, COMMIT_SLOW_PATH_REQ,              CommitSerializers.request,    TXN  ),
-        COMMIT_MAXIMAL                (68, COMMIT_MAXIMAL_REQ,                CommitSerializers.request,    TXN  ),
-        STABLE_FAST_PATH              (87, STABLE_FAST_PATH_REQ,              CommitSerializers.request,    TXN  ),
-        STABLE_SLOW_PATH              (88, STABLE_SLOW_PATH_REQ,              CommitSerializers.request,    TXN  ),
-        STABLE_MAXIMAL                (89, STABLE_MAXIMAL_REQ,                CommitSerializers.request,    TXN  ),
-        COMMIT_INVALIDATE             (69, COMMIT_INVALIDATE_REQ,             CommitSerializers.invalidate, INVL ),
-        APPLY_MINIMAL                 (70, APPLY_MINIMAL_REQ,                 ApplySerializers.request,     TXN  ),
-        APPLY_MAXIMAL                 (71, APPLY_MAXIMAL_REQ,                 ApplySerializers.request,     TXN  ),
-        APPLY_THEN_WAIT_UNTIL_APPLIED (72, APPLY_THEN_WAIT_UNTIL_APPLIED_REQ, applyThenWaitUntilApplied,    EPOCH),
-
-        BEGIN_RECOVER                 (73, BEGIN_RECOVER_REQ,        RecoverySerializers.request,           TXN  ),
-        BEGIN_INVALIDATE              (74, BEGIN_INVALIDATE_REQ,     BeginInvalidationSerializers.request,  EPOCH),
-        INFORM_OF_TXN                 (75, INFORM_OF_TXN_REQ,        InformOfTxnIdSerializers.request,      EPOCH),
-        INFORM_DURABLE                (76, INFORM_DURABLE_REQ,       InformDurableSerializers.request,      TXN  ),
-        SET_SHARD_DURABLE             (77, SET_SHARD_DURABLE_REQ,    SetDurableSerializers.shardDurable,    EPOCH),
-        SET_GLOBALLY_DURABLE          (78, SET_GLOBALLY_DURABLE_REQ, SetDurableSerializers.globallyDurable, EPOCH),
-
-        /* Accord local messages */
-        PROPAGATE_PRE_ACCEPT          (79, PROPAGATE_PRE_ACCEPT_MSG, FetchSerializers.propagate, LOCAL),
-        PROPAGATE_STABLE              (80, PROPAGATE_STABLE_MSG,     FetchSerializers.propagate, LOCAL),
-        PROPAGATE_APPLY               (81, PROPAGATE_APPLY_MSG,      FetchSerializers.propagate, LOCAL),
-        PROPAGATE_OTHER               (82, PROPAGATE_OTHER_MSG,      FetchSerializers.propagate, LOCAL),
-
-        /* C* interop messages */
-        INTEROP_COMMIT                (83, INTEROP_COMMIT_MINIMAL_REQ,  STABLE_FAST_PATH_REQ, AccordInteropCommit.serializer, TXN),
-        INTEROP_COMMIT_MAXIMAL        (84, INTEROP_COMMIT_MAXIMAL_REQ, STABLE_MAXIMAL_REQ,   AccordInteropCommit.serializer, TXN),
-        INTEROP_APPLY_MINIMAL         (85, INTEROP_APPLY_MINIMAL_REQ,  APPLY_MINIMAL_REQ,    AccordInteropApply.serializer,  TXN),
-        INTEROP_APPLY_MAXIMAL         (86, INTEROP_APPLY_MAXIMAL_REQ,  APPLY_MAXIMAL_REQ,    AccordInteropApply.serializer,  TXN),
-        ;
-
-        final int id;
-
-        /**
-         * An incoming message of a given type from Accord's perspective might have multiple
-         * concrete implementations some of which are supplied by the Cassandra integration.
-         * The incoming type specifies the handling for writing out a message to the journal.
-         */
-        final MessageType incomingType;
-
-        /**
-         * The outgoing type is the type that will be returned to Accord; must be a subclass of the incoming type.
-         * <p>
-         * This type will always be from accord.messages.MessageType and never from the extended types in the integration.
-         */
-        final MessageType outgoingType;
-
-        final TxnIdProvider txnIdProvider;
-        final ValueSerializer<JournalKey, Object> serializer;
-
-        Type(int id,  ValueSerializer<JournalKey, Object> serializer)
-        {
-            this(id, null, null, serializer, null);
-        }
-
-
-        Type(int id, MessageType incomingType, MessageType outgoingType, IVersionedSerializer<?> serializer, TxnIdProvider txnIdProvider)
-        {
-            //noinspection unchecked
-            this(id, incomingType, outgoingType, MessageSerializer.wrap((IVersionedSerializer<Message>) serializer), txnIdProvider);
-        }
-
-        Type(int id, MessageType type, IVersionedSerializer<?> serializer, TxnIdProvider txnIdProvider)
-        {
-            //noinspection unchecked
-            this(id, type, type, MessageSerializer.wrap((IVersionedSerializer<Message>) serializer), txnIdProvider);
-        }
-
-        Type(int id, MessageType incomingType, MessageType outgoingType, ValueSerializer<JournalKey, ?> serializer, TxnIdProvider txnIdProvider)
-        {
-            if (id < 0)
-                throw new IllegalArgumentException("Negative Type id " + id);
-            if (id > Byte.MAX_VALUE)
-                throw new IllegalArgumentException("Type id doesn't fit in a single byte: " + id);
-
-            this.id = id;
-            this.incomingType = incomingType;
-            this.outgoingType = outgoingType;
-            //noinspection unchecked
-            this.serializer = (ValueSerializer<JournalKey, Object>) serializer;
-            this.txnIdProvider = txnIdProvider;
-        }
-
-        private static final Type[] idToTypeMapping;
-
-        static
-        {
-            Type[] types = values();
-
-            int maxId = -1;
-            for (Type type : types)
-                maxId = Math.max(type.id, maxId);
-
-            Type[] idToType = new Type[maxId + 1];
-            for (Type type : types)
-            {
-                if (null != idToType[type.id])
-                    throw new IllegalStateException("Duplicate Type id " + type.id);
-                idToType[type.id] = type;
-            }
-            idToTypeMapping = idToType;
-
-            Map<MessageType, Type> msgTypeToType = new HashMap<>();
-            for (Type type : types)
-            {
-                if (null != type.incomingType && null != msgTypeToType.put(type.incomingType, type))
-                    throw new IllegalStateException("Duplicate MessageType " + type.incomingType);
-            }
-            ImmutableMap.copyOf(msgTypeToType);
-        }
-
-        static Type fromId(int id)
-        {
-            if (id < 0 || id >= idToTypeMapping.length)
-                throw new IllegalArgumentException("Out or range Type id " + id);
-            Type type = idToTypeMapping[id];
-            if (null == type)
-                throw new IllegalArgumentException("Unknown Type id " + id);
-            return type;
-        }
-
-        @Override
-        public int serializedSize(JournalKey key, Object record, int userVersion)
-        {
-            return serializer.serializedSize(key, record, userVersion);
-        }
-
-        @Override
-        public void serialize(JournalKey key, Object record, DataOutputPlus out, int userVersion) throws IOException
-        {
-            serializer.serialize(key, record, out, userVersion);
-        }
-
-        @Override
-        public Object deserialize(JournalKey key, DataInputPlus in, int userVersion) throws IOException
-        {
-            return serializer.deserialize(key, in, userVersion);
-        }
-    }
-
-    private static int msVersion(int version)
-    {
-        switch (version)
-        {
-            default: throw new IllegalArgumentException();
-            case 1: return MessagingService.VERSION_51;
         }
     }
 
