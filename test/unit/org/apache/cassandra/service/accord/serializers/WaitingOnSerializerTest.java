@@ -73,7 +73,7 @@ public class WaitingOnSerializerTest
         Gen<WaitingOnSets> sets = Gens.enums().all(WaitingOnSets.class);
         return rs -> {
             Deps deps = depsGen.next(rs);
-            if (deps.isEmpty()) return Command.WaitingOn.EMPTY;
+            if (deps.isEmpty()) return Command.WaitingOn.empty(Routable.Domain.Key);
             int txnIdCount = deps.rangeDeps.txnIdCount() + deps.directKeyDeps.txnIdCount();
             int keyCount = deps.keyDeps.keys().size();
             int[] selected = Gens.arrays(Gens.ints().between(0, txnIdCount + keyCount - 1)).unique().ofSizeBetween(0, txnIdCount + keyCount).next(rs);

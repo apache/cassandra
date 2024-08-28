@@ -30,7 +30,6 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.journal.KeySupport;
 import org.apache.cassandra.utils.ByteArrayUtil;
 
-import static org.apache.cassandra.db.TypeSizes.BYTE_SIZE;
 import static org.apache.cassandra.db.TypeSizes.INT_SIZE;
 import static org.apache.cassandra.db.TypeSizes.LONG_SIZE;
 import static org.apache.cassandra.db.TypeSizes.SHORT_SIZE;
@@ -38,19 +37,18 @@ import static org.apache.cassandra.db.TypeSizes.SHORT_SIZE;
 public final class JournalKey
 {
     final Timestamp timestamp;
-    final AccordJournal.Type type; // TODO (desired): do we even need type here anymore?
+    // TODO: command store id _before_ timestamp
     final int commandStoreId;
 
-    JournalKey(Timestamp timestamp, AccordJournal.Type type)
+    JournalKey(Timestamp timestamp)
     {
-        this(timestamp, type, -1);
+        this(timestamp, -1);
     }
 
-    JournalKey(Timestamp timestamp, AccordJournal.Type type, int commandStoreId)
+    JournalKey(Timestamp timestamp, int commandStoreId)
     {
-        if (timestamp == null) throw new NullPointerException("Null timestamp for type " + type);
+        if (timestamp == null) throw new NullPointerException("Null timestamp");
         this.timestamp = timestamp;
-        this.type = type;
         this.commandStoreId = commandStoreId;
     }
 
@@ -67,8 +65,7 @@ public final class JournalKey
         private static final int HLC_OFFSET = 0;
         private static final int EPOCH_AND_FLAGS_OFFSET = HLC_OFFSET + LONG_SIZE;
         private static final int NODE_OFFSET = EPOCH_AND_FLAGS_OFFSET + LONG_SIZE;
-        private static final int TYPE_OFFSET = NODE_OFFSET + INT_SIZE;
-        private static final int CS_ID_OFFSET = TYPE_OFFSET + BYTE_SIZE;
+        private static final int CS_ID_OFFSET = NODE_OFFSET + INT_SIZE;
 
         @Override
         public int serializedSize(int userVersion)
@@ -77,7 +74,6 @@ public final class JournalKey
                    + 6           // timestamp.epoch()
                    + 2           // timestamp.flags()
                    + INT_SIZE    // timestamp.node
-                   + BYTE_SIZE   // type
                    + SHORT_SIZE; // commandStoreId
         }
 
@@ -85,33 +81,29 @@ public final class JournalKey
         public void serialize(JournalKey key, DataOutputPlus out, int userVersion) throws IOException
         {
             serializeTimestamp(key.timestamp, out);
-            out.writeByte(key.type.id);
             out.writeShort(key.commandStoreId);
         }
 
         private void serialize(JournalKey key, byte[] out)
         {
             serializeTimestamp(key.timestamp, out);
-            out[20] = (byte) (key.type.id & 0xFF);
-            ByteArrayUtil.putShort(out, 21, (short) key.commandStoreId);
+            ByteArrayUtil.putShort(out, 20, (short) key.commandStoreId);
         }
 
         @Override
         public JournalKey deserialize(DataInputPlus in, int userVersion) throws IOException
         {
             Timestamp timestamp = deserializeTimestamp(in);
-            int type = in.readByte();
             int commandStoreId = in.readShort();
-            return new JournalKey(timestamp, AccordJournal.Type.fromId(type), commandStoreId);
+            return new JournalKey(timestamp, commandStoreId);
         }
 
         @Override
         public JournalKey deserialize(ByteBuffer buffer, int position, int userVersion)
         {
             Timestamp timestamp = deserializeTimestamp(buffer, position);
-            int type = buffer.get(position + TYPE_OFFSET);
             int commandStoreId = buffer.getShort(position + CS_ID_OFFSET);
-            return new JournalKey(timestamp, AccordJournal.Type.fromId(type), commandStoreId);
+            return new JournalKey(timestamp, commandStoreId);
         }
 
         private void serializeTimestamp(Timestamp timestamp, DataOutputPlus out) throws IOException
@@ -158,10 +150,6 @@ public final class JournalKey
             int cmp = compareWithTimestampAt(k.timestamp, buffer, position);
             if (cmp != 0) return cmp;
 
-            byte type = buffer.get(position + TYPE_OFFSET);
-            cmp = Byte.compare((byte) k.type.id, type);
-            if (cmp != 0) return cmp;
-
             short commandStoreId = buffer.getShort(position + CS_ID_OFFSET);
             cmp = Short.compare((byte) k.commandStoreId, commandStoreId);
             return cmp;
@@ -186,7 +174,6 @@ public final class JournalKey
         public int compare(JournalKey k1, JournalKey k2)
         {
             int cmp = compare(k1.timestamp, k2.timestamp);
-            if (cmp == 0) cmp = Byte.compare((byte) k1.type.id, (byte) k2.type.id);
             if (cmp == 0) cmp = Short.compare((short) k1.commandStoreId, (short) k2.commandStoreId);
             return cmp;
         }
@@ -225,22 +212,20 @@ public final class JournalKey
 
     boolean equals(JournalKey other)
     {
-        return this.type == other.type &&
-               this.timestamp.equals(other.timestamp) &&
+        return this.timestamp.equals(other.timestamp) &&
                this.commandStoreId == other.commandStoreId;
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(timestamp, type, commandStoreId);
+        return Objects.hash(timestamp, commandStoreId);
     }
 
     public String toString()
     {
         return "Key{" +
                "timestamp=" + timestamp +
-               ", type=" + type +
                ", commandStoreId=" + commandStoreId +
                '}';
     }

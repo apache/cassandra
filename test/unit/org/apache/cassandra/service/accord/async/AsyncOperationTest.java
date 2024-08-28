@@ -144,6 +144,21 @@ public class AsyncOperationTest
     }
 
     @Test
+    public void touchUnknownTxn() throws Throwable
+    {
+        AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
+        TxnId txnId = txnId(1, clock.incrementAndGet(), 1);
+
+        getUninterruptibly(commandStore.execute(contextFor(txnId), safe -> {
+            SafeCommand command = safe.get(txnId, txnId, safe.ranges().currentRanges());
+            Assert.assertNotNull(command);
+        }));
+
+        UntypedResultSet result = AccordKeyspace.loadCommandRow(commandStore, txnId);
+        Assert.assertTrue(result.isEmpty());
+    }
+
+    @Test
     public void optionalCommandsForKeyTest() throws Throwable
     {
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
