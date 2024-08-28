@@ -244,13 +244,22 @@ public class Journal<K, V> implements Shutdownable
 
     public void shutdown()
     {
-        allocator.shutdown();
-        //compactor.stop();
-        //invalidator.stop();
-        flusher.shutdown();
-        closer.shutdown();
-        closeAllSegments();
-        metrics.deregister();
+        try
+        {
+            allocator.shutdown();
+            allocator.awaitTermination(1, TimeUnit.MINUTES);
+            //compactor.stop();
+            //invalidator.stop();
+            flusher.shutdown();
+            closer.shutdown();
+            closer.awaitTermination(1, TimeUnit.MINUTES);
+            closeAllSegments();
+            metrics.deregister();
+        }
+        catch (InterruptedException e)
+        {
+            logger.error("Could not shutdown journal", e);
+        }
     }
 
     @Override
