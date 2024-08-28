@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.db.commitlog;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
@@ -58,8 +57,6 @@ public class CommitLogArchiverTest extends CQLTester
         CommitLogArchiver commitLogArchiver = CommitLogArchiver.getArchiverFromProperty(properties);
         // set the archiver at the very beginning
         commitLog.setCommitlogArchiver(commitLogArchiver);
-        // set the CommitLogSegment size to 1M
-        DatabaseDescriptor.setCommitLogSegmentSize(1);
     }
 
     @AfterClass
@@ -82,7 +79,7 @@ public class CommitLogArchiverTest extends CQLTester
         String value = "";
         // Make sure that new CommitLogSegment will be allocated as the CommitLogSegment size is 1M
         // and if new CommitLogSegment is allocated then the old CommitLogSegment will be archived.
-        for (int i = 0; i != 10000; ++i)
+        for (int i = 0; i != 50000; ++i)
         {
             value += i;
         }
