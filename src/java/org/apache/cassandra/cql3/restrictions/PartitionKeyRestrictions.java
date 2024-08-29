@@ -110,7 +110,7 @@ final class PartitionKeyRestrictions extends RestrictionSetWrapper
      */
     public List<ByteBuffer> values(IPartitioner partitioner, QueryOptions options, ClientState state)
     {
-        // if we need to perform filtering its means that this query is a partition range query and that
+        // if we need to perform filtering it means that this query is a partition range query and that
         // this method should not be called
         if (isEmpty() || needFiltering())
             throw new IllegalStateException("the query is a partition range query and this method should not be called");

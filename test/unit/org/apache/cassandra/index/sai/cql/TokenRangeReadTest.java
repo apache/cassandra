@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.index.sai.cql;
 
+import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
 import org.junit.Test;
 
 import org.apache.cassandra.index.sai.SAITester;
@@ -39,6 +40,24 @@ public class TokenRangeReadTest extends SAITester
             assertRows(execute("SELECT * FROM %s WHERE v1 = '1'"), row(1, "1"));
             assertRows(execute("SELECT * FROM %s WHERE token(k1) >= token(1) AND token(k1) <= token(1)"), row(1, "1"));
             assertRows(execute("SELECT * FROM %s WHERE token(k1) >= token(1) AND token(k1) <= token(1) AND v1 = '1'"), row(1, "1"));
+        });
+    }
+
+    @Test
+    public void testTokenRangeWithNotContains() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k1 int, v1 set<text>, PRIMARY KEY (k1))");
+        createIndex(format("CREATE CUSTOM INDEX ON %%s(v1) USING '%s'", StorageAttachedIndex.class.getName()));
+
+        execute("INSERT INTO %S(k1, v1) values(1, {'a', 'b', 'c'})");
+        execute("INSERT INTO %S(k1, v1) values(2, {'a', 'd'})");
+
+        beforeAndAfterFlush(() -> {
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE, "SELECT k1 FROM %s WHERE v1 NOT CONTAINS 'd'");
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE, "SELECT k1 FROM %s WHERE token(k1) >= token(1) AND token(k1) <= token(1) AND v1 NOT CONTAINS 'z'");
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE, "SELECT k1 FROM %s WHERE token(k1) >= token(2) AND token(k1) <= token(2) AND v1 NOT CONTAINS 'z'");
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE, "SELECT k1 FROM %s WHERE token(k1) > token(2) AND token(k1) <= token(2) AND v1 NOT CONTAINS 'z'");
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE, "SELECT k1 FROM %s WHERE token(k1) >= token(2) AND token(k1) < token(2) AND v1 NOT CONTAINS 'z'");
         });
     }
 }

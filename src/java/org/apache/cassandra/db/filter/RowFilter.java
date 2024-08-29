@@ -783,7 +783,7 @@ public class RowFilter implements Iterable<RowFilter.Expression>
         public MapElementExpression(ColumnMetadata column, ByteBuffer key, Operator operator, ByteBuffer value)
         {
             super(column, operator, value);
-            assert column.type instanceof MapType && operator == Operator.EQ;
+            assert column.type instanceof MapType && (operator == Operator.EQ || operator == Operator.NEQ);
             this.key = key;
         }
 
@@ -836,8 +836,8 @@ public class RowFilter implements Iterable<RowFilter.Expression>
             AbstractType<?> nt = mt.nameComparator();
             AbstractType<?> vt = mt.valueComparator();
             return cql
-                 ? String.format("%s[%s] = %s", column.name.toCQLString(), nt.toCQLString(key), vt.toCQLString(value))
-                 : String.format("%s[%s] = %s", column.name.toString(), nt.getString(key), vt.getString(value));
+                    ? String.format("%s[%s] %s %s", column.name.toCQLString(), nt.toCQLString(key), operator, vt.toCQLString(value))
+                    : String.format("%s[%s] %s %s", column.name.toString(), nt.getString(key), operator, vt.getString(value));
         }
 
         @Override

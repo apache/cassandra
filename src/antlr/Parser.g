@@ -1756,7 +1756,7 @@ columnCondition returns [ColumnCondition.Raw condition]
     // Note: we'll reject duplicates later
     : column=cident
         ( op=relationType t=term       { $condition = ColumnCondition.Raw.simpleCondition(column, op, Terms.Raw.of(t)); }
-        | op=containsOperator t=term   { $condition = ColumnCondition.Raw.simpleCondition(column, op, Terms.Raw.of(t)); }
+        | K_CONTAINS (K_KEY)? t=term   { $condition = ColumnCondition.Raw.simpleCondition(column, $K_KEY != null ? Operator.CONTAINS_KEY : Operator.CONTAINS, Terms.Raw.of(t)); }
         | K_IN v=singleColumnInValues  { $condition = ColumnCondition.Raw.simpleCondition(column, Operator.IN, v); }
         | '[' element=term ']'
             ( op=relationType t=term      { $condition = ColumnCondition.Raw.collectionElementCondition(column, element, op, Terms.Raw.of(t)); }
@@ -1804,7 +1804,7 @@ relation[WhereClause.Builder clauses]
            | K_BETWEEN betweenValues=singleColumnBetweenValues { $clauses.add(Relation.singleColumn(name, Operator.BETWEEN, betweenValues)); }
            | K_LIKE t=term { $clauses.add(Relation.singleColumn(name, Operator.LIKE, t)); }
            | K_IS K_NOT K_NULL { $clauses.add(Relation.singleColumn(name, Operator.IS_NOT, Constants.NULL_LITERAL)); }
-           | K_IN inValue=singleColumnInValues { $clauses.add(Relation.singleColumn(name, Operator.IN, inValue)); }
+           | rt=inOperator inValue=singleColumnInValues { $clauses.add(Relation.singleColumn(name, rt, inValue)); }
            | rt=containsOperator t=term { $clauses.add(Relation.singleColumn(name, rt, t)); }
            )
     | K_TOKEN l=tupleOfIdentifiers
@@ -1813,7 +1813,7 @@ relation[WhereClause.Builder clauses]
         )
     | name=cident '[' key=term ']' type=relationType t=term { $clauses.add(Relation.mapElement(name, key, type, t)); }
     | ids=tupleOfIdentifiers
-        ( K_IN inValue=multiColumnInValues { $clauses.add(Relation.multiColumn(ids, Operator.IN, inValue)); }
+        ( rt=inOperator inValue=multiColumnInValues { $clauses.add(Relation.multiColumn(ids, rt, inValue)); }
         | type=relationType v=multiColumnValue {$clauses.add(Relation.multiColumn(ids, type, v)); }
         | K_BETWEEN t1=multiColumnValue K_AND t2=multiColumnValue { $clauses.add(Relation.multiColumn(ids, Operator.BETWEEN, Terms.Raw.of(List.of(t1, t2)))); }
         )
@@ -1822,6 +1822,12 @@ relation[WhereClause.Builder clauses]
 
 containsOperator returns [Operator o]
     : K_CONTAINS { o = Operator.CONTAINS; } (K_KEY { o = Operator.CONTAINS_KEY; })?
+    | K_NOT K_CONTAINS { o = Operator.NOT_CONTAINS; } (K_KEY { o = Operator.NOT_CONTAINS_KEY; })?
+    ;
+
+inOperator returns [Operator o]
+    : K_IN { o = Operator.IN; }
+    | K_NOT K_IN { o = Operator.NOT_IN; }
     ;
 
 inMarker returns [Terms.Raw marker]

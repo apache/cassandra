@@ -277,6 +277,11 @@ public class ClusteringElements extends ForwardingList<ByteBuffer> implements Co
         return buildRangeSet(endpoint, false, BoundType.OPEN);
     }
 
+    public static Range<ClusteringElements> notEqualTo(ClusteringElements endpoint)
+    {
+        return Range.closed(endpoint.bottom(), endpoint.top());
+    }
+
     private static RangeSet<ClusteringElements> buildRangeSet(ClusteringElements endpoint, boolean upperBound, BoundType boundType)
     {
         TreeRangeSet<ClusteringElements> rangeSet = TreeRangeSet.create();
