@@ -27,11 +27,13 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
+import com.google.common.util.concurrent.Uninterruptibles;
 
 import org.apache.cassandra.repair.RepairCoordinator;
 import org.apache.cassandra.service.StorageService;
@@ -79,6 +81,9 @@ public class AutoRepair
 
     @VisibleForTesting
     protected static Consumer<List<?>> shuffleFunc = java.util.Collections::shuffle;
+
+    @VisibleForTesting
+    protected static BiConsumer<Long, TimeUnit> sleepFunc = Uninterruptibles::sleepUninterruptibly;
 
     protected final Map<AutoRepairConfig.RepairType, IAutoRepairTokenRangeSplitter> tokenRangeSplitters = new EnumMap<>(AutoRepairConfig.RepairType.class);
 
@@ -277,20 +282,38 @@ public class AutoRepair
                                 if ((totalProcessedSubRanges % config.getRepairThreads(repairType) == 0) ||
                                     (totalProcessedSubRanges == totalSubRanges))
                                 {
-                                    RepairCoordinator task = repairState.getRepairRunnable(keyspaceName,
-                                                                                        config.getRepairByKeyspace(repairType) ? tablesToBeRepaired : ImmutableList.of(tableName),
-                                                                                           ranges, primaryRangeOnly);
-                                    repairState.resetWaitCondition();
-                                    Future<?> f = repairRunnableExecutors.get(repairType).submit(task);
-                                    try
+                                    int retryCount = 0;
+                                    Future<?> f = null;
+                                    while (retryCount <= config.getRepairMaxRetries())
                                     {
-                                        repairState.waitForRepairToComplete();
+                                        RepairCoordinator task = repairState.getRepairRunnable(keyspaceName,
+                                                                                            config.getRepairByKeyspace(repairType) ? tablesToBeRepaired : ImmutableList.of(tableName),
+                                                                                            ranges, primaryRangeOnly);
+                                        repairState.resetWaitCondition();
+                                        f = repairRunnableExecutors.get(repairType).submit(task);
+                                        try
+                                        {
+                                            repairState.waitForRepairToComplete();
+                                        }
+                                        catch (InterruptedException e)
+                                        {
+                                            logger.error("Exception in cond await:", e);
+                                        }
+                                        if (repairState.isSuccess())
+                                        {
+                                            break;
+                                        }
+                                        else if (retryCount < config.getRepairMaxRetries())
+                                        {
+                                            boolean cancellationStatus = f.cancel(true);
+                                            logger.warn("Repair failed for range {}-{} for {}.{} with cancellationStatus: {} retrying after {} seconds...",
+                                                        childStartToken, childEndToken,
+                                                        keyspaceName, config.getRepairByKeyspace(repairType) ? tablesToBeRepaired : tableName,
+                                                        cancellationStatus, config.getRepairRetryBackoff().toSeconds());
+                                            sleepFunc.accept(config.getRepairRetryBackoff().toSeconds(), TimeUnit.SECONDS);
+                                        }
+                                        retryCount++;
                                     }
-                                    catch (InterruptedException e)
-                                    {
-                                        logger.error("Exception in cond await:", e);
-                                    }
-
                                     //check repair status
                                     if (repairState.isSuccess())
                                     {
@@ -301,11 +324,15 @@ public class AutoRepair
                                     }
                                     else
                                     {
-                                        boolean cancellationStatus = f.cancel(true);
-                                        //in future we can add retry, etc.
-                                        logger.info("Repair failed for range {}-{} for {}.{} total subranges: {}," +
-                                                    "processed subranges: {}, cancellationStatus: {}", childStartToken, childEndToken,
-                                                    keyspaceName, config.getRepairByKeyspace(repairType) ? tablesToBeRepaired : tableName, totalSubRanges, totalProcessedSubRanges, cancellationStatus);
+                                        boolean cancellationStatus = true;
+                                        if (f != null)
+                                        {
+                                            cancellationStatus = f.cancel(true);
+                                        }
+                                        //in the future we can add retry, etc.
+                                        logger.error("Repair failed for range {}-{} for {}.{} after {} retries, total subranges: {}," +
+                                                     "processed subranges: {}, cancellationStatus: {}", childStartToken.toString(), childEndToken.toString(), keyspaceName,
+                                                     config.getRepairByKeyspace(repairType) ? tablesToBeRepaired : tableName, retryCount, totalSubRanges, totalProcessedSubRanges, cancellationStatus);
                                         failedTokenRanges += ranges.size();
                                     }
                                     ranges.clear();
@@ -395,6 +422,7 @@ public class AutoRepair
             AutoRepairUtils.removePriorityStatus(repairType, myId);
         }
 
+        logger.info("TEST123");
         repairState.setFailedTokenRangesCount(failedTokenRanges);
         repairState.setSucceededTokenRangesCount(succeededTokenRanges);
         repairState.setSkippedTokenRangesCount(skippedTokenRanges);

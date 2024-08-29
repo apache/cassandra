@@ -732,7 +732,7 @@ public class AutoRepairUtils
                 logger.info("Add host {} to the priority list", hostId);
             }
         }
-        if (hostIds.size() > 0)
+        if (!hostIds.isEmpty())
         {
             SetSerializer<UUID> serializer = SetSerializer.getInstance(UUIDSerializer.instance, UTF8Type.instance.comparatorSet);
             addPriorityHost.execute(QueryState.forInternalCalls(),

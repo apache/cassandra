@@ -703,7 +703,7 @@ public class StorageServiceServerTest
         assertEquals(1, result.size());
         table1.getLiveSSTables().forEach(sstable -> {
             assertFalse(sstable.isRepaired());
-            assertTrue(result.contains(sstable.descriptor.baseFilename()));
+            assertTrue(result.contains(sstable.descriptor.baseFile().name()));
         });
     }
 
@@ -724,7 +724,7 @@ public class StorageServiceServerTest
         assertEquals(2, result.size());
         table1.getLiveSSTables().forEach(sstable -> {
             assertTrue(sstable.isRepaired());
-            assertTrue(result.contains(sstable.descriptor.baseFilename()));
+            assertTrue(result.contains(sstable.descriptor.baseFile().name()));
         });
     }
 
@@ -743,7 +743,7 @@ public class StorageServiceServerTest
         assertEquals(2, result.size());
         table1.getLiveSSTables().forEach(sstable -> {
             assertFalse(sstable.isRepaired());
-            assertTrue(result.contains(sstable.descriptor.baseFilename()));
+            assertTrue(result.contains(sstable.descriptor.baseFile().name()));
         });
     }
 }
