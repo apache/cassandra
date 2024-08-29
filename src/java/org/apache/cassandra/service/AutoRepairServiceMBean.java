@@ -44,6 +44,8 @@ public interface AutoRepairServiceMBean
 
     public void setAutoRepairHistoryClearDeleteHostsBufferDuration(String duration);
 
+    public void setAutoRepairMaxRetriesCount(int retries);
+    public void setAutoRepairRetryBackoff(String interval);
     public void setRepairSSTableCountHigherThreshold(RepairType repairType, int ssTableHigherThreshold);
 
     public void setAutoRepairTableMaxRepairTime(RepairType repairType, String autoRepairTableMaxRepairTime);
