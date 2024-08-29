@@ -2607,6 +2607,16 @@ public class NodeProbe implements AutoCloseable
         autoRepairProxy.setAutoRepairHistoryClearDeleteHostsBufferDuration(duration);
     }
 
+    public void setAutoRepairMaxRetriesCount(int retries)
+    {
+        autoRepairProxy.setAutoRepairMaxRetriesCount(retries);
+    }
+
+    public void setAutoRepairRetryBackoff(String interval)
+    {
+        autoRepairProxy.setAutoRepairRetryBackoff(interval);
+    }
+
     public void setRepairSSTableCountHigherThreshold(AutoRepairConfig.RepairType repairType, int ssTableHigherThreshold)
     {
         autoRepairProxy.setRepairSSTableCountHigherThreshold(repairType, ssTableHigherThreshold);

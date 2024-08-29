@@ -44,7 +44,8 @@ public class SetAutoRepairConfig extends NodeToolCmd
     description = "autorepair param and value.\nPossible autorepair parameters are as following: " +
                   "[number_of_repair_threads|number_of_subranges|min_repair_interval|sstable_upper_threshold" +
                   "|enabled|table_max_repair_time|priority_hosts|forcerepair_hosts|ignore_dcs" +
-                  "|history_clear_delete_hosts_buffer_interval|repair_primary_token_range_only|parallel_repair_count_in_group|parallel_repair_percentage_in_group|mv_repair_enabled]",
+                  "|history_clear_delete_hosts_buffer_interval|repair_primary_token_range_only" +
+                  "|parallel_repair_count|parallel_repair_percentage|mv_repair_enabled|repair_max_retries|repair_retry_backoff]",
     required = true)
     protected List<String> args = new ArrayList<>();
 
@@ -58,7 +59,6 @@ public class SetAutoRepairConfig extends NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
-        checkArgument(repairType != null, "--repair-type is required.");
         checkArgument(args.size() == 2, "setautorepairconfig requires param-type, and value args.");
         String paramType = args.get(0);
         String paramVal = args.get(1);
@@ -69,10 +69,21 @@ public class SetAutoRepairConfig extends NodeToolCmd
             return;
         }
 
-        if (paramType.equals("history_clear_delete_hosts_buffer_interval"))
+        // options that do not require --repair-type option
+        switch (paramType)
         {
-            probe.setAutoRepairHistoryClearDeleteHostsBufferDuration(paramVal);
-            return;
+            case "history_clear_delete_hosts_buffer_interval":
+                probe.setAutoRepairHistoryClearDeleteHostsBufferDuration(paramVal);
+                return;
+            case "repair_max_retries":
+                probe.setAutoRepairMaxRetriesCount(Integer.parseInt(paramVal));
+                return;
+            case "repair_retry_backoff":
+                probe.setAutoRepairRetryBackoff(paramVal);
+                return;
+            default:
+                // proceed to options that require --repair-type option
+                break;
         }
 
         // options below require --repair-type option
@@ -99,14 +110,14 @@ public class SetAutoRepairConfig extends NodeToolCmd
                 probe.setAutoRepairTableMaxRepairTime(repairType, paramVal);
                 break;
             case "priority_hosts":
-                hosts = validateLocalGroupHosts(probe, repairType, paramVal);
+                hosts = validateLocalGroupHosts(paramVal);
                 if (!hosts.isEmpty())
                 {
                     probe.setRepairPriorityForHosts(repairType, hosts);
                 }
                 break;
             case "forcerepair_hosts":
-                hosts = validateLocalGroupHosts(probe, repairType, paramVal);
+                hosts = validateLocalGroupHosts(paramVal);
                 if (!hosts.isEmpty())
                 {
                     probe.setForceRepairForHosts(repairType, hosts);
@@ -123,10 +134,10 @@ public class SetAutoRepairConfig extends NodeToolCmd
             case "repair_primary_token_range_only":
                 probe.setPrimaryTokenRangeOnly(repairType, Boolean.parseBoolean(paramVal));
                 break;
-            case "parallel_repair_count_in_group":
+            case "parallel_repair_count":
                 probe.setParallelRepairCountInGroup(repairType, Integer.parseInt(paramVal));
                 break;
-            case "parallel_repair_percentage_in_group":
+            case "parallel_repair_percentage":
                 probe.setParallelRepairPercentageInGroup(repairType, Integer.parseInt(paramVal));
                 break;
             case "mv_repair_enabled":
@@ -137,7 +148,7 @@ public class SetAutoRepairConfig extends NodeToolCmd
         }
     }
 
-    private Set<InetAddressAndPort> validateLocalGroupHosts(NodeProbe probe, RepairType repairType, String paramVal) {
+    private Set<InetAddressAndPort> validateLocalGroupHosts(String paramVal) {
         Set<InetAddressAndPort> hosts = new HashSet<>();
         for (String host : Splitter.on(',').split(paramVal))
         {
