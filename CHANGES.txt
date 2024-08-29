@@ -1,4 +1,5 @@
 5.1
+ * txns that update a static row when the desired row doesn't exist leads to an error (CASSANDRA-19855)
  * CommandsForRanges does not support slice which cause over returned data being sent (CASSANDRA-19857)
  * Prohibit counter column access in Accord transactions (CASSANDRA-18987)
  * Add Accord configuration stub (CASSANDRA-18221)
