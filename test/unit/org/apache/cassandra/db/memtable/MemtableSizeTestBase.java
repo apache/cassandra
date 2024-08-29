@@ -16,36 +16,34 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.cql3;
+package org.apache.cassandra.db.memtable;
 
+import java.lang.reflect.Field;
 import java.util.List;
 
 import com.google.common.collect.ImmutableList;
 import org.junit.Assert;
-import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.utils.FBUtilities;
 import org.github.jamm.MemoryMeter;
 
 @RunWith(Parameterized.class)
-public class MemtableSizeTest extends CQLTester
+public abstract class MemtableSizeTestBase extends CQLTester
 {
-    static final Logger logger = LoggerFactory.getLogger(MemtableSizeTest.class);
 
-    private static final MemoryMeter meter = new MemoryMeter().omitSharedBufferOverhead()
-                                                              .withGuessing(MemoryMeter.Guess.FALLBACK_UNSAFE)
-                                                              .ignoreKnownSingletons();
+    static final Logger logger = LoggerFactory.getLogger(MemtableSizeTestBase.class);
 
     static final int partitions = 50_000;
     static final int rowsPerPartition = 4;
@@ -54,32 +52,68 @@ public class MemtableSizeTest extends CQLTester
     static final int deletedRows = 5_000;
 
     @Parameterized.Parameter(0)
-    public String memtableClass;
-
-    // Must be within 3% of the real usage. We are actually more precise than this,
-    // but the threshold is set higher to avoid flakes.
-    // the main contributor to the actual size floating is randomness in ConcurrentSkipListMap
-    final static int MAX_DIFFERENCE_PERCENT = 3;
+    public String memtableClass = "skiplist";
 
     @Parameterized.Parameters(name = "{0}")
-    public static List<Object[]> parameters()
+    public static List<Object> parameters()
     {
-        return ImmutableList.of(new Object[]{"skiplist"},
-                                new Object[]{"skiplist_sharded"});
+        return ImmutableList.of("skiplist",
+                                "skiplist_sharded");
     }
-    final long MAX_DIFFERENCE_PARTITIONS = (partitions + deletedPartitions + deletedRows);
 
-    @BeforeClass
-    public static void setUp()
+    static final int totalPartitions = partitions + deletedPartitions + deletedRows;
+
+    // Must be within 3% of the real usage. We are actually more precise than this, but the threshold is set higher to
+    // avoid flakes. For on-heap allocators we allow for extra overheads below.
+    // the main contributor to the actual size floating is randomness in ConcurrentSkipListMap
+    final int MAX_DIFFERENCE_PERCENT = 3;
+
+    public static void setup(Config.MemtableAllocationType allocationType)
     {
+        ServerTestUtils.daemonInitialization();
+        try
+        {
+            Field confField = DatabaseDescriptor.class.getDeclaredField("conf");
+            confField.setAccessible(true);
+            Config conf = (Config) confField.get(null);
+            conf.memtable_allocation_type = allocationType;
+            conf.memtable_cleanup_threshold = 0.8f; // give us more space to fit test data without flushing
+        }
+        catch (NoSuchFieldException | IllegalAccessException e)
+        {
+            throw new RuntimeException(e);
+        }
+
         CQLTester.setUpClass();
         CQLTester.prepareServer();
-        logger.info("setupClass done.");
+        logger.info("setupClass done, allocation type {}", allocationType);
+    }
+
+    void checkMemtablePool()
+    {
+        // overridden by instances
     }
 
     @Test
     public void testSize() throws Throwable
     {
+        // Note: To see a printout of the usage for each object, add .enableDebug() here (most useful with smaller number of
+        // partitions)
+        MemoryMeter meter = new MemoryMeter().withGuessing(MemoryMeter.Guess.FALLBACK_UNSAFE)
+//                                           .enableDebug(100)
+                                             .ignoreKnownSingletons();
+        if (DatabaseDescriptor.getMemtableAllocationType() == Config.MemtableAllocationType.heap_buffers) {
+            // jamm includes capacity for all ByteBuffer sub-clases (HeapByteBuffer and DirectByteBuffer)
+            // to deepMeasure result
+            // we need it only when we use HeapByteBuffer
+            // because we want to measure heap usage only
+            meter = meter.omitSharedBufferOverhead();
+        }
+
+        // Make sure memtables use the correct allocation type, i.e. that setup has worked.
+        // If this fails, make sure the test is not reusing an already-initialized JVM.
+        checkMemtablePool();
+
         // a prepared statement provides the same RegularAndStaticColumns object to store under AbstractBTreePartition$Holder
         // meter.mesureDeep counts such shared object only once but the current tracking logic within memtable cannot do it
         // so to not face the discrepancy we disable prepared statements
@@ -94,6 +128,7 @@ public class MemtableSizeTest extends CQLTester
             execute("use " + keyspace + ';');
 
             String writeStatement = "INSERT INTO " + table + "(userid,picid,commentid)VALUES(?,?,?)";
+            forcePreparedValues();
 
             ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
             cfs.disableAutoCompaction();
@@ -101,8 +136,7 @@ public class MemtableSizeTest extends CQLTester
 
             Memtable memtable = cfs.getTracker().getView().getCurrentMemtable();
             long deepSizeBefore = meter.measureDeep(memtable);
-            logger.info("Memtable deep size before {}\n",
-                        FBUtilities.prettyPrintMemory(deepSizeBefore));
+            logger.info("Memtable deep size before {}", FBUtilities.prettyPrintMemory(deepSizeBefore));
             long i;
             long limit = partitions;
             logger.info("Writing {} partitions of {} rows", partitions, rowsPerPartition);
@@ -134,24 +168,27 @@ public class MemtableSizeTest extends CQLTester
 
             Memtable.MemoryUsage usage = Memtable.getMemoryUsage(memtable);
             long actualHeap = usage.ownsOnHeap;
-            logger.info("Memtable in {} mode: {} ops, {} serialized bytes, {}\n",
-                        DatabaseDescriptor.getMemtableAllocationType(),
-                        memtable.operationCount(),
-                        FBUtilities.prettyPrintMemory(memtable.getLiveDataSize()),
-                        usage);
+            logger.info(String.format("Memtable in %s mode: %d ops, %s serialized bytes, %s",
+                                      DatabaseDescriptor.getMemtableAllocationType(),
+                                      memtable.operationCount(),
+                                      FBUtilities.prettyPrintMemory(memtable.getLiveDataSize()),
+                                      usage));
 
             long deepSizeAfter = meter.measureDeep(memtable);
-            logger.info("Memtable deep size {}\n",
-                        FBUtilities.prettyPrintMemory(deepSizeAfter));
+            logger.info("Memtable deep size {}", FBUtilities.prettyPrintMemory(deepSizeAfter));
 
             long expectedHeap = deepSizeAfter - deepSizeBefore;
-            double deltaPerPartition = (actualHeap - expectedHeap) / (double) MAX_DIFFERENCE_PARTITIONS;
             long maxDifference = MAX_DIFFERENCE_PERCENT * expectedHeap / 100;
-            String message = String.format("Expected heap usage close to %s, got %s. Delta per partition: %.2f bytes.\n",
+
+            double deltaPerPartition = (expectedHeap - actualHeap) / (double) totalPartitions;
+            String message = String.format("Expected heap usage close to %s, got %s, %s difference. " +
+                                           "Delta per partition: %.2f bytes",
                                            FBUtilities.prettyPrintMemory(expectedHeap),
                                            FBUtilities.prettyPrintMemory(actualHeap),
+                                           FBUtilities.prettyPrintMemory(expectedHeap - actualHeap),
                                            deltaPerPartition);
             logger.info(message);
+
             Assert.assertTrue(message, Math.abs(actualHeap - expectedHeap) <= maxDifference);
         }
         finally
