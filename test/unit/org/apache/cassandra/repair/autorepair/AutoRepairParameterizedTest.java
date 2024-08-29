@@ -25,6 +25,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.collect.ImmutableMap;
@@ -618,5 +619,61 @@ public class AutoRepairParameterizedTest extends CQLTester
         assertEquals(0, AutoRepair.instance.repairStates.get(repairType).getTotalTablesConsideredForRepair());
         // repair scheduler should load the repair time from the DB
         assertEquals(lastRepairTime, AutoRepair.instance.repairStates.get(repairType).getLastRepairTime());
+    }
+
+    @Test
+    public void testRepairMaxRetries()
+    {
+        when(autoRepairState.getRepairRunnable(any(), any(), any(), anyBoolean())).thenReturn(repairRunnable);
+        when(autoRepairState.isSuccess()).thenReturn(false);
+        AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
+        AtomicInteger sleepCalls = new AtomicInteger();
+        AutoRepair.sleepFunc = (Long duration, TimeUnit unit) -> {
+            sleepCalls.getAndIncrement();
+            assertEquals(TimeUnit.SECONDS, unit);
+            assertEquals(config.getRepairRetryBackoff().toSeconds(), (long) duration);
+        };
+        config.setRepairMinInterval(repairType, "0s");
+        AutoRepair.instance.repairStates.put(repairType, autoRepairState);
+
+        AutoRepair.instance.repair(repairType, 0);
+
+        //system_auth.role_permissions,system_auth.network_permissions,system_auth.role_members,system_auth.roles,
+        // system_auth.resource_role_permissons_index,system_traces.sessions,system_traces.events,ks.tbl,
+        // system_distributed.auto_repair_priority,system_distributed.repair_history,system_distributed.auto_repair_history,
+        // system_distributed.view_build_status,system_distributed.parent_repair_history,system_distributed.partition_denylist
+        int exptedTablesGoingThroughRepair = 14;
+        assertEquals(config.getRepairMaxRetries()*exptedTablesGoingThroughRepair, sleepCalls.get());
+        verify(autoRepairState, Mockito.times(1)).setSucceededTokenRangesCount(0);
+        verify(autoRepairState, Mockito.times(1)).setSkippedTokenRangesCount(0);
+        verify(autoRepairState, Mockito.times(1)).setFailedTokenRangesCount(exptedTablesGoingThroughRepair);
+    }
+
+    @Test
+    public void testRepairSuccessAfterRetry()
+    {
+        when(autoRepairState.getRepairRunnable(any(), any(), any(), anyBoolean())).thenReturn(repairRunnable);
+
+        AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
+        AtomicInteger sleepCalls = new AtomicInteger();
+        AutoRepair.sleepFunc = (Long duration, TimeUnit unit) -> {
+            sleepCalls.getAndIncrement();
+            assertEquals(TimeUnit.SECONDS, unit);
+            assertEquals(config.getRepairRetryBackoff().toSeconds(), (long) duration);
+        };
+        when(autoRepairState.isSuccess()).then((invocationOnMock) -> {
+            if (sleepCalls.get() == 0) {
+                return false;
+            }
+            return true;
+        });
+        config.setRepairMinInterval(repairType, "0s");
+        AutoRepair.instance.repairStates.put(repairType, autoRepairState);
+        AutoRepair.instance.repair(repairType, 0);
+
+        assertEquals(1, sleepCalls.get());
+        verify(autoRepairState, Mockito.times(1)).setSucceededTokenRangesCount(14);
+        verify(autoRepairState, Mockito.times(1)).setSkippedTokenRangesCount(0);
+        verify(autoRepairState, Mockito.times(1)).setFailedTokenRangesCount(0);
     }
 }
