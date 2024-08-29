@@ -586,7 +586,14 @@ public class Memtable implements Comparable<Memtable>
             // omitSharedBufferOverhead includes the given number of bytes even for
             // off-heap buffers, but not for direct memory.
             if (!(allocator instanceof NativeAllocator))
+            {
                 rowOverhead -= testBufferSize;
+                DecoratedKey clonedKey = cloner.clone(new BufferDecoratedKey(new LongToken(0), ByteBuffer.allocate(testBufferSize)));
+                // if we use a slab allocator the adjustment is 0, if it is unslabbed type the adjustment is byte array heap size
+                long nonSlabAdjustment = ObjectSizes.sizeOnHeapExcludingData(clonedKey.getKey()) - ObjectSizes.measure(clonedKey.getKey());
+                rowOverhead += nonSlabAdjustment;
+            }
+
 
             allocator.setDiscarding();
             allocator.setDiscarded();
