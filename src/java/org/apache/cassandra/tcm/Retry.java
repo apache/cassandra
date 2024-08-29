@@ -59,9 +59,14 @@ public abstract class Retry
 
     public void maybeSleep()
     {
+        sleepUninterruptibly(computeSleepFor(), TimeUnit.MILLISECONDS);
+    }
+
+    public long computeSleepFor()
+    {
         tries++;
         retryMeter.mark();
-        sleepUninterruptibly(sleepFor(), TimeUnit.MILLISECONDS);
+        return sleepFor();
     }
 
     protected abstract long sleepFor();

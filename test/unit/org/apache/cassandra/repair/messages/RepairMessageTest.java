@@ -155,7 +155,8 @@ public class RepairMessageTest
     {
         SharedContext ctx = Mockito.mock(SharedContext.class, REJECT_ALL);
         MessageDelivery messaging = Mockito.mock(MessageDelivery.class, REJECT_ALL);
-        // allow the single method under test
+        // allow all retry methods and send with callback
+        Mockito.doCallRealMethod().when(messaging).sendWithRetries(Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any());
         Mockito.doNothing().when(messaging).sendWithCallback(Mockito.any(), Mockito.any(), Mockito.any());
         IGossiper gossiper = Mockito.mock(IGossiper.class, REJECT_ALL);
         Mockito.doReturn(RepairMessage.SUPPORTS_RETRY).when(gossiper).getReleaseVersion(Mockito.any());
@@ -205,7 +206,7 @@ public class RepairMessageTest
         {
             before();
 
-            sendMessageWithRetries(ctx, backoff(maxAttempts), always(), PAYLOAD, VERB, ADDRESS, RepairMessage.NOOP_CALLBACK, 0);
+            sendMessageWithRetries(ctx, backoff(maxAttempts), always(), PAYLOAD, VERB, ADDRESS, RepairMessage.NOOP_CALLBACK);
             for (int i = 0; i < maxAttempts; i++)
                 callback(messaging).onFailure(ADDRESS, RequestFailureReason.TIMEOUT);
             fn.test(maxAttempts, callback(messaging));
