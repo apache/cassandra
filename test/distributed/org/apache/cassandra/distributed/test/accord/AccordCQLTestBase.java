@@ -59,6 +59,7 @@ import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.AccordTestUtils;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FailingConsumer;
 import org.assertj.core.api.Assertions;
 
 import static java.util.Collections.singletonList;
@@ -89,6 +90,27 @@ public abstract class AccordCQLTestBase extends AccordTestBase
     {
         AccordTestBase.setupCluster(builder -> builder, 2);
         SHARED_CLUSTER.schemaChange("CREATE TYPE " + KEYSPACE + ".person (height int, age int)");
+    }
+
+    @Override
+    protected void test(FailingConsumer<Cluster> fn) throws Exception
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int, c int, v int, primary key (k, c)) WITH " + transactionalMode.asCqlParam(), fn);
+    }
+
+    @Test
+    public void testNonExistingKeyWithStaticUpdate() throws Exception
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int, c int, s int static, v int, primary key (k, c)) WITH " + transactionalMode.asCqlParam(), cluster -> {
+            for (int i = 0; i < 10; i++)
+                cluster.coordinator(1).execute(wrapInTxn("UPDATE " + qualifiedAccordTableName + " SET v += ?, s=? WHERE k=? AND c=?"), ConsistencyLevel.ANY, 1, i, 0, i);
+
+            SimpleQueryResult result = cluster.coordinator(1).executeWithResult(wrapInTxn("SELECT * FROM " + qualifiedAccordTableName + " WHERE k=? LIMIT 1"), ConsistencyLevel.ANY, 0);
+            AssertUtils.assertRows(result, QueryResults.builder()
+                                                       .columns("k", "c", "s", "v")
+                                                       .row(0, null, 9, null)
+                                                       .build());
+        });
     }
 
     @Test

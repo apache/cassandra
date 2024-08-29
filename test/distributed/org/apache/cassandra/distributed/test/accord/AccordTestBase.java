@@ -439,12 +439,14 @@ public abstract class AccordTestBase extends TestBaseImpl
         });
     }
 
-    private static String wrapInTxn(String statement)
+    protected static String wrapInTxn(String statement)
     {
         if (!statement.trim().toUpperCase().startsWith("BEGIN TRANSACTION"))
         {
             statement = statement.trim();
-            statement = Arrays.stream(statement.split("\\n")).collect(Collectors.joining("\n  ", "BEGIN TRANSACTION\n  ", "\nCOMMIT TRANSACTION"));
+            statement = Arrays.stream(statement.split("\\n"))
+                              .map(line -> line.trim().endsWith(";") ? line : line + ';')
+                              .collect(Collectors.joining("\n  ", "BEGIN TRANSACTION\n  ", "\nCOMMIT TRANSACTION"));
         }
         return statement;
     }
