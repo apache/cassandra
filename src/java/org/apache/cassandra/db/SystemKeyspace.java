@@ -120,6 +120,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MD5Digest;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.TimeUUID;
+import org.apache.cassandra.utils.TriFunction;
 import org.apache.cassandra.utils.concurrent.Future;
 
 import static java.lang.String.format;
@@ -1938,8 +1939,8 @@ public final class SystemKeyspace
         int counter = 0;
         for (UntypedResultSet.Row row : resultSet)
         {
-            if (onLoaded.accept(MD5Digest.wrap(row.getByteArray("prepared_id")),
-                                row.getString("query_string"),
+            if (onLoaded.apply(MD5Digest.wrap(row.getByteArray("prepared_id")),
+                               row.getString("query_string"),
                                 row.has("logged_keyspace") ? row.getString("logged_keyspace") : null))
                 counter++;
         }
@@ -1953,16 +1954,12 @@ public final class SystemKeyspace
         int counter = 0;
         for (UntypedResultSet.Row row : resultSet)
         {
-            if (onLoaded.accept(MD5Digest.wrap(row.getByteArray("prepared_id")),
-                                row.getString("query_string"),
+            if (onLoaded.apply(MD5Digest.wrap(row.getByteArray("prepared_id")),
+                               row.getString("query_string"),
                                 row.has("logged_keyspace") ? row.getString("logged_keyspace") : null))
                 counter++;
         }
         return counter;
-    }
-
-    public static interface TriFunction<A, B, C, D> {
-        D accept(A var1, B var2, C var3);
     }
 
     public static void saveTopPartitions(TableMetadata metadata, String topType, Collection<TopPartitionTracker.TopPartition> topPartitions, long lastUpdate)
