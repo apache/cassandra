@@ -48,6 +48,11 @@ public class AutoRepairConfig implements Serializable
     // This information is useful so the scheduler is absolutely sure that the node is indeed removed from the ring, and then it can adjust the repair schedule accordingly.
     // So, the duration in this config determinses for how long deleted host's information is kept in the scheduler's metadata.
     public volatile DurationSpec.IntSecondsBound history_clear_delete_hosts_buffer_interval = new DurationSpec.IntSecondsBound("2h");
+    // the maximum number of retries for a repair session.
+    public volatile Integer repair_max_retries = 3;
+    // the backoff time in seconds for retrying a repair session.
+    public volatile DurationSpec.LongSecondsBound repair_retry_backoff = new DurationSpec.LongSecondsBound("60s");
+
     // global_settings overides Options.defaultOptions for all repair types
     public volatile Options global_settings;
 
@@ -106,6 +111,26 @@ public class AutoRepairConfig implements Serializable
     public void setAutoRepairHistoryClearDeleteHostsBufferInterval(String duration)
     {
         history_clear_delete_hosts_buffer_interval = new DurationSpec.IntSecondsBound(duration);
+    }
+
+    public int getRepairMaxRetries()
+    {
+        return repair_max_retries;
+    }
+
+    public void setRepairMaxRetries(int maxRetries)
+    {
+        repair_max_retries = maxRetries;
+    }
+
+    public DurationSpec.LongSecondsBound getRepairRetryBackoff()
+    {
+        return repair_retry_backoff;
+    }
+
+    public void setRepairRetryBackoff(String interval)
+    {
+        repair_retry_backoff = new DurationSpec.LongSecondsBound(interval);
     }
 
     public boolean isAutoRepairEnabled(RepairType repairType)

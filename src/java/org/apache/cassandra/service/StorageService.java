@@ -5683,8 +5683,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 if (!preview)
                     table.getCompactionStrategyManager().mutateRepaired(sstables, repairedAt, null, false);
                 return sstables;
-            }, predicate, true, false, true);
-            sstablesTouched.addAll(result.stream().map(sst -> sst.descriptor.baseFilename()).collect(Collectors.toList()));
+            }, predicate, OperationType.ANTICOMPACTION, true, false, true);
+            sstablesTouched.addAll(result.stream().map(sst -> sst.descriptor.baseFile().name()).collect(Collectors.toList()));
         }
         return sstablesTouched;
     }
