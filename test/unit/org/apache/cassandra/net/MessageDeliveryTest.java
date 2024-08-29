@@ -187,7 +187,7 @@ public class MessageDeliveryTest
                                                                           (i1, i2, i3) -> {},
                                                                           scheduler::schedule,
                                                                           failures::add);
-        receivers.put(ID1, messaging.reciver(m -> messaging.respond(NoPayload.noPayload, m)));
+        receivers.put(ID1, messaging.receiver(m -> messaging.respond(NoPayload.noPayload, m)));
         return messaging;
     }
 

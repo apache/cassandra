@@ -271,7 +271,7 @@ public class SimulatedMessageDelivery implements MessageDelivery
     }
 
     @SuppressWarnings("rawtypes")
-    public SimulatedMessageReceiver reciver(IVerbHandler onMessage)
+    public SimulatedMessageReceiver receiver(IVerbHandler onMessage)
     {
         return new SimulatedMessageReceiver(onMessage);
     }
