@@ -111,6 +111,8 @@ import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.Pair;
 import org.assertj.core.api.Assertions;
 
+import static accord.utils.Property.commands;
+import static accord.utils.Property.ignoreCommand;
 import static accord.utils.Property.stateful;
 
 public class EpochSyncTest
@@ -128,73 +130,60 @@ public class EpochSyncTest
     @Test
     public void test()
     {
-        stateful().withExamples(50).check(new Commands<Cluster, Void>()
-        {
-            @Override
-            public Gen<Cluster> genInitialState()
-            {
-                return Cluster::new;
-            }
+        stateful().withExamples(50).check(commands(() -> Cluster::new)
+                                          .destroyState(cluster -> {
+                                              cluster.processAll();
+                                              cluster.validate(true);
+                                          })
+                                          .add((rs, cluster) -> {
+                                              List<Node.Id> alive = cluster.alive();
+                                              if (alive.size() >= cluster.maxNodes) return ignoreCommand();
+                                              return addNode(rs, cluster);
+                                          })
+                                          .add((rs, cluster) -> {
+                                              List<Node.Id> alive = cluster.alive();
+                                              if (alive.size() <= cluster.minNodes) return ignoreCommand();
+                                              return removeNode(rs, cluster, alive);
+                                          })
+                                          .add((rs, cluster) -> {
+                                              if (!cluster.hasWork()) return ignoreCommand();
+                                              return processSome(rs);
+                                          })
+                                          .add(rs -> new SimpleCommand("Validate",
+                                                                       c -> c.validate(false)))
+                                          .add((rs, cluster) -> new SimpleCommand("Bump Epoch " + (cluster.current.epoch.getEpoch() + 1),
+                                                                                  Cluster::bumpEpoch))
+                                          .build());
+    }
 
-            @Override
-            public Void createSut(Cluster Cluster)
-            {
-                return null;
-            }
+    private static SimpleCommand addNode(RandomSource rs, Cluster cluster)
+    {
+        Node.Id id = new Node.Id(++cluster.nodeCounter);
+        long token = cluster.tokenGen.nextLong(rs);
+        while (cluster.tokens.contains(token))
+            token = cluster.tokenGen.nextLong(rs);
+        long epoch = cluster.current.epoch.getEpoch() + 1;
+        long finalToken = token;
+        return new SimpleCommand("Add Node " + id + "; token=" + token + ", epoch=" + epoch,
+                                 c -> c.addNode(id, finalToken));
+    }
 
-            @Override
-            public Gen<Command<Cluster, Void, ?>> commands(Cluster cluster)
-            {
-                List<Node.Id> alive = cluster.alive();
-                Map<Gen<Command<Cluster, Void, ?>>, Integer> possible = new LinkedHashMap<>();
-                if (alive.size() < cluster.maxNodes)
-                {
-                    // add node
-                    possible.put(rs -> {
-                        Node.Id id = new Node.Id(++cluster.nodeCounter);
-                        long token = cluster.tokenGen.nextLong(rs);
-                        while (cluster.tokens.contains(token))
-                            token = cluster.tokenGen.nextLong(rs);
-                        long epoch = cluster.current.epoch.getEpoch() + 1;
-                        long finalToken = token;
-                        return new SimpleCommand("Add Node " + id + "; token=" + token + ", epoch=" + epoch,
-                                                 c -> c.addNode(id, finalToken));
-                    }, 5);
-                }
-                if (alive.size() > cluster.minNodes)
-                {
-                    possible.put(rs -> {
-                        Node.Id pick = rs.pick(alive);
-                        long token = cluster.instances.get(pick).token;
-                        long epoch = cluster.current.epoch.getEpoch() + 1;
-                        return new SimpleCommand("Remove Node " + pick + "; token=" + token + "; epoch=" + epoch, c -> c.removeNode(pick));
-                    }, 3);
-                }
-                if (cluster.hasWork())
-                {
-                    possible.put(rs -> new SimpleCommand("Process Some",
-                                                         c -> {//noinspection StatementWithEmptyBody
-                                                             for (int i = 0, attempts = rs.nextInt(1, 100); i < attempts && c.processOne(); i++)
-                                                             {
-                                                             }
-                                                         }), 10);
-                }
+    private static SimpleCommand removeNode(RandomSource rs, Cluster cluster, List<Node.Id> alive)
+    {
+        Node.Id pick = rs.pick(alive);
+        long token = cluster.instances.get(pick).token;
+        long epoch = cluster.current.epoch.getEpoch() + 1;
+        return new SimpleCommand("Remove Node " + pick + "; token=" + token + "; epoch=" + epoch, c -> c.removeNode(pick));
+    }
 
-                possible.put(rs -> new SimpleCommand("Validate",
-                                                     c -> c.validate(false)), 1);
-                possible.put(rs -> new SimpleCommand("Bump Epoch " + (cluster.current.epoch.getEpoch() + 1),
-                                                     Cluster::bumpEpoch), 10);
-                return Gens.oneOf(possible);
-            }
-
-            @Override
-            public void destroyState(Cluster cluster, @Nullable Throwable t)
-            {
-                if (t != null) return;
-                cluster.processAll();
-                cluster.validate(true);
-            }
-        });
+    private static SimpleCommand processSome(RandomSource rs)
+    {
+        return new SimpleCommand("Process Some",
+                                 c -> {//noinspection StatementWithEmptyBody
+                                     for (int i = 0, attempts = rs.nextInt(1, 100); i < attempts && c.processOne(); i++)
+                                     {
+                                     }
+                                 });
     }
 
     private static class SimpleCommand implements UnitCommand<Cluster, Void>
