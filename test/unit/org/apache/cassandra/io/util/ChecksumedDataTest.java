@@ -24,6 +24,8 @@ import java.util.function.Supplier;
 import java.util.zip.CRC32C;
 import java.util.zip.Checksum;
 
+import javax.annotation.Nullable;
+
 import org.junit.Test;
 
 import accord.utils.Gen;
@@ -149,8 +151,9 @@ public class ChecksumedDataTest
             }
 
             @Override
-            public void destroySut(List<StatefulChecksumCommand<?>> sut) throws Throwable
+            public void destroySut(List<StatefulChecksumCommand<?>> sut, @Nullable Throwable t) throws Throwable
             {
+                if (t != null) return;
                 ChecksumedDataInputPlus in = new ChecksumedDataInputPlus(new DataInputBuffer(out.unsafeGetBufferAndFlip(), false), CHECKSUM_SUPPLIER);
                 for (StatefulChecksumCommand<?> cmd : sut)
                 {
