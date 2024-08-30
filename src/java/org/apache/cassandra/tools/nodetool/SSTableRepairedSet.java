@@ -33,7 +33,7 @@ import org.apache.cassandra.tools.NodeTool;
 @Command(name = "sstablerepairedset", description = "Set the repaired state of SSTables for given keyspace/tables")
 public class SSTableRepairedSet extends NodeTool.NodeToolCmd
 {
-    @Arguments(usage = "<keyspace> [<table...>]", description = "The keyspace optionally followed by one or more tables", required = true)
+    @Arguments(usage = "[<keyspace> <table...>]", description = "Optional keyspace followed by zero or more tables")
     protected List<String> args = new ArrayList<>();
 
     @Option(title = "really-set",
@@ -56,57 +56,49 @@ public class SSTableRepairedSet extends NodeTool.NodeToolCmd
     {
         PrintStream out = probe.output().out;
 
-        String message;
-        if (reallySet)
-        {
-            message = "Mutating repaired state of SSTables for";
-        }
-        else
-        {
-            message = "Previewing repaired state mutation of SSTables for";
-        }
-
-        if (args.isEmpty())
-        {
-            out.println("At least a keyspace name must be provided.");
-            return;
-        }
-        String keyspace = args.get(0);
-
-        List<String> tables;
-        if (args.size() > 1)
-        {
-            tables = args.subList(1, args.size());
-            message += " tables " + String.join(", ", tables) + " in";
-        }
-        else
-        {
-            tables = probe.getTablesForKeyspace(keyspace);
-            message += " all tables in";
-        }
-        message += " keyspace " + keyspace;
-
         if (isRepaired == isUnrepaired)
         {
             out.println("Exactly one of --is-repaired or --is-unrepaired must be provided.");
             return;
         }
+
+        String message;
+        if (reallySet)
+            message = "Mutating repaired state of SSTables for";
+        else
+            message = "Previewing repaired state mutation of SSTables for";
+
+        List<String> keyspaces = parseOptionalKeyspace(args, probe, KeyspaceSet.NON_LOCAL_STRATEGY);
+        List<String> tables = List.of(parseOptionalTables(args));
+
+        if (args.isEmpty())
+            message += " all keyspaces";
+        else
+            message += tables.isEmpty() ? " all tables" : " tables " + String.join(", ", tables)
+                                                          + " in keyspace " + keyspaces.get(0);
         message += " to " + (isRepaired ? "repaired" : "unrepaired");
         out.println(message);
 
-        try
+        List<String> sstableList = new ArrayList<>();
+        for (String keyspace : keyspaces)
         {
-            List<String> mutatedSSTables = probe.mutateSSTableRepairedState(isRepaired, !reallySet, keyspace, new ArrayList<>(tables));
-            if (!reallySet)
-                out.println("The following SSTables would be mutated:");
-            else
-                out.println("The following SSTables were mutated:");
-            for (String sstable : mutatedSSTables)
-                out.println(sstable);
+            try
+            {
+                sstableList.addAll(probe.mutateSSTableRepairedState(isRepaired, !reallySet, keyspace,
+                                                                    tables.isEmpty()
+                                                                    ? probe.getTablesForKeyspace(keyspace) // mutate all tables
+                                                                    : tables)); // mutate specific tables
+            }
+            catch (InvalidRequestException e)
+            {
+                out.println(e.getMessage());
+            }
         }
-        catch (InvalidRequestException e)
-        {
-            out.println(e.getMessage());
-        }
+        if (!reallySet)
+            out.println("The following SSTables would be mutated:");
+        else
+            out.println("The following SSTables were mutated:");
+        for (String sstable : sstableList)
+            out.println(sstable);
     }
 }
