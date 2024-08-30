@@ -19,19 +19,29 @@ package org.apache.cassandra.tools.nodetool;
 
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import org.apache.cassandra.tools.nodetool.stats.GcStatsHolder;
+import org.apache.cassandra.tools.nodetool.stats.GcStatsPrinter;
+import org.apache.cassandra.tools.nodetool.stats.StatsPrinter;
 
 import io.airlift.airline.Command;
+import io.airlift.airline.Option;
 
 @Command(name = "gcstats", description = "Print GC Statistics")
 public class GcStats extends NodeToolCmd
 {
+    @Option(title = "format",
+            name = {"-F", "--format"},
+            description = "Output format (json, yaml)")
+    private String outputFormat = "";
+
     @Override
     public void execute(NodeProbe probe)
     {
-        double[] stats = probe.getAndResetGCStats();
-        double mean = stats[2] / stats[5];
-        double stdev = Math.sqrt((stats[3] / stats[5]) - (mean * mean));
-        probe.output().out.printf("%20s%20s%20s%20s%20s%20s%25s%n", "Interval (ms)", "Max GC Elapsed (ms)", "Total GC Elapsed (ms)", "Stdev GC Elapsed (ms)", "GC Reclaimed (MB)", "Collections", "Direct Memory Bytes");
-        probe.output().out.printf("%20.0f%20.0f%20.0f%20.0f%20.0f%20.0f%25d%n", stats[0], stats[1], stats[2], stdev, stats[4], stats[5], (long)stats[6]);
+        if (!outputFormat.isEmpty() && !"json".equals(outputFormat) && !"yaml".equals(outputFormat))
+            throw new IllegalArgumentException("arguments for -F are json, yaml only.");
+
+        GcStatsHolder data = new GcStatsHolder(probe);
+        StatsPrinter<GcStatsHolder> printer = GcStatsPrinter.from(outputFormat);
+        printer.print(data, probe.output().out);
     }
 }
