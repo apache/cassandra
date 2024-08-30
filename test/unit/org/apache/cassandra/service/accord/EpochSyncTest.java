@@ -43,6 +43,8 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
+import javax.annotation.Nullable;
+
 import com.google.common.collect.Sets;
 import org.junit.Test;
 import org.slf4j.Logger;
@@ -186,8 +188,9 @@ public class EpochSyncTest
             }
 
             @Override
-            public void destroyState(Cluster cluster)
+            public void destroyState(Cluster cluster, @Nullable Throwable t)
             {
+                if (t != null) return;
                 cluster.processAll();
                 cluster.validate(true);
             }

@@ -31,6 +31,8 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import javax.annotation.Nullable;
+
 import com.google.common.collect.Iterables;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -183,7 +185,7 @@ public class RouteIndexTest extends CQLTester.InMemory
             }
 
             @Override
-            public void destroySut(ColumnFamilyStore sut)
+            public void destroySut(ColumnFamilyStore sut, @Nullable Throwable t)
             {
                 cfs().truncateBlocking();
             }
