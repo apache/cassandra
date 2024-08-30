@@ -20,6 +20,7 @@ package org.apache.cassandra.repair.autorepair;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.view.TableViews;
@@ -135,10 +136,10 @@ public abstract class AutoRepairState implements ProgressListener
         }
     }
 
-    public void waitForRepairToComplete() throws InterruptedException
+    public void waitForRepairToComplete(DurationSpec.IntSecondsBound repairSessionTimeout) throws InterruptedException
     {
         //if for some reason we don't hear back on repair progress for sometime
-        if (!condition.await(12, TimeUnit.HOURS))
+        if (!condition.await(repairSessionTimeout.toSeconds(), TimeUnit.SECONDS))
         {
             success = false;
         }
