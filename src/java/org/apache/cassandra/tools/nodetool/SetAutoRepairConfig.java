@@ -19,6 +19,7 @@ package org.apache.cassandra.tools.nodetool;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Splitter;
+
 import io.airlift.airline.Arguments;
 import io.airlift.airline.Command;
 import io.airlift.airline.Option;
@@ -45,7 +46,7 @@ public class SetAutoRepairConfig extends NodeToolCmd
                   "[number_of_repair_threads|number_of_subranges|min_repair_interval|sstable_upper_threshold" +
                   "|enabled|table_max_repair_time|priority_hosts|forcerepair_hosts|ignore_dcs" +
                   "|history_clear_delete_hosts_buffer_interval|repair_primary_token_range_only" +
-                  "|parallel_repair_count|parallel_repair_percentage|mv_repair_enabled|repair_max_retries|repair_retry_backoff]",
+                  "|parallel_repair_count|parallel_repair_percentage|mv_repair_enabled|repair_max_retries|repair_retry_backoff|repair_session_timeout]",
     required = true)
     protected List<String> args = new ArrayList<>();
 
@@ -143,12 +144,16 @@ public class SetAutoRepairConfig extends NodeToolCmd
             case "mv_repair_enabled":
                 probe.setMVRepairEnabled(repairType, Boolean.parseBoolean(paramVal));
                 break;
+            case "repair_session_timeout":
+                probe.setRepairSessionTimeout(repairType, paramVal);
+                break;
             default:
                 throw new IllegalArgumentException("Unknown parameter: " + paramType);
         }
     }
 
-    private Set<InetAddressAndPort> validateLocalGroupHosts(String paramVal) {
+    private Set<InetAddressAndPort> validateLocalGroupHosts(String paramVal)
+    {
         Set<InetAddressAndPort> hosts = new HashSet<>();
         for (String host : Splitter.on(',').split(paramVal))
         {

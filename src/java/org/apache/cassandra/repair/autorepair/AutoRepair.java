@@ -293,7 +293,7 @@ public class AutoRepair
                                         f = repairRunnableExecutors.get(repairType).submit(task);
                                         try
                                         {
-                                            repairState.waitForRepairToComplete();
+                                            repairState.waitForRepairToComplete(config.getRepairSessionTimeout(repairType));
                                         }
                                         catch (InterruptedException e)
                                         {
