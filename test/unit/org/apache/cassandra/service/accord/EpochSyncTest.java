@@ -59,10 +59,7 @@ import accord.primitives.Ranges;
 import accord.topology.Topology;
 import accord.topology.TopologyManager;
 import accord.utils.Gen;
-import accord.utils.Gens;
 import accord.utils.Invariants;
-import accord.utils.Property.Command;
-import accord.utils.Property.Commands;
 import accord.utils.Property.UnitCommand;
 import accord.utils.RandomSource;
 import accord.utils.async.AsyncChain;
@@ -109,7 +106,6 @@ import org.apache.cassandra.utils.Pair;
 import org.assertj.core.api.Assertions;
 
 import static accord.utils.Property.commands;
-import static accord.utils.Property.ignoreCommand;
 import static accord.utils.Property.stateful;
 
 public class EpochSyncTest
@@ -132,24 +128,11 @@ public class EpochSyncTest
                                               cluster.processAll();
                                               cluster.validate(true);
                                           })
-                                          .add((rs, cluster) -> {
-                                              List<Node.Id> alive = cluster.alive();
-                                              if (alive.size() >= cluster.maxNodes) return ignoreCommand();
-                                              return addNode(rs, cluster);
-                                          })
-                                          .add((rs, cluster) -> {
-                                              List<Node.Id> alive = cluster.alive();
-                                              if (alive.size() <= cluster.minNodes) return ignoreCommand();
-                                              return removeNode(rs, cluster, alive);
-                                          })
-                                          .add((rs, cluster) -> {
-                                              if (!cluster.hasWork()) return ignoreCommand();
-                                              return processSome(rs);
-                                          })
-                                          .add(rs -> new SimpleCommand("Validate",
-                                                                       c -> c.validate(false)))
-                                          .add((rs, cluster) -> new SimpleCommand("Bump Epoch " + (cluster.current.epoch.getEpoch() + 1),
-                                                                                  Cluster::bumpEpoch))
+                                          .addIf(cluster -> cluster.alive().size() <= cluster.maxNodes, EpochSyncTest::addNode)
+                                          .addIf(cluster -> cluster.alive().size() > cluster.minNodes, EpochSyncTest::removeNode)
+                                          .addIf(cluster -> cluster.hasWork(), EpochSyncTest::processSome)
+                                          .add(rs -> new SimpleCommand("Validate", c -> c.validate(false)))
+                                          .add((rs, cluster) -> new SimpleCommand("Bump Epoch " + (cluster.current.epoch.getEpoch() + 1), Cluster::bumpEpoch))
                                           .build());
     }
 
@@ -165,8 +148,9 @@ public class EpochSyncTest
                                  c -> c.addNode(id, finalToken));
     }
 
-    private static SimpleCommand removeNode(RandomSource rs, Cluster cluster, List<Node.Id> alive)
+    private static SimpleCommand removeNode(RandomSource rs, Cluster cluster)
     {
+        List<Node.Id> alive = cluster.alive();
         Node.Id pick = rs.pick(alive);
         long token = cluster.instances.get(pick).token;
         long epoch = cluster.current.epoch.getEpoch() + 1;

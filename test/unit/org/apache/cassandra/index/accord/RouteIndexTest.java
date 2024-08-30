@@ -72,7 +72,6 @@ import org.apache.cassandra.utils.RangeTree;
 import org.assertj.core.api.Assertions;
 
 import static accord.utils.Property.commands;
-import static accord.utils.Property.ignoreCommand;
 import static accord.utils.Property.stateful;
 
 public class RouteIndexTest extends CQLTester.InMemory
@@ -121,14 +120,11 @@ public class RouteIndexTest extends CQLTester.InMemory
                                               return new InsertTxn(storeId, txnId, SaveStatus.PreAccepted, Durability.NotDurable, route);
                                           })
                                           .add((rs, state) -> new RangeSearch(rs.nextInt(0, state.numStores), state.rangeGen.next(rs)))
-                                          .add((rs, state) -> {
-                                              if (state.storeToTableToRangesToTxns.isEmpty()) return ignoreCommand();
-                                              return rangeSearch(state, rs);
-                                          })
+                                          .addIf(state -> !state.storeToTableToRangesToTxns.isEmpty(), RouteIndexTest::rangeSearch)
                                           .build());
     }
 
-    private static RangeSearch rangeSearch(State state, RandomSource rs)
+    private static RangeSearch rangeSearch(RandomSource rs, State state)
     {
         int storeId = rs.pickUnorderedSet(state.storeToTableToRangesToTxns.keySet());
         var tables = state.storeToTableToRangesToTxns.get(storeId);
