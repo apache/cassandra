@@ -22,7 +22,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -30,8 +29,6 @@ import java.util.TreeSet;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-
-import javax.annotation.Nullable;
 
 import com.google.common.collect.Iterables;
 import org.junit.BeforeClass;
@@ -51,7 +48,6 @@ import accord.primitives.TxnId;
 import accord.utils.Gen;
 import accord.utils.Gens;
 import accord.utils.Property.Command;
-import accord.utils.Property.Commands;
 import accord.utils.Property.UnitCommand;
 import accord.utils.RandomSource;
 import org.agrona.collections.Int2ObjectHashMap;
@@ -75,6 +71,8 @@ import org.apache.cassandra.utils.RTree;
 import org.apache.cassandra.utils.RangeTree;
 import org.assertj.core.api.Assertions;
 
+import static accord.utils.Property.commands;
+import static accord.utils.Property.ignoreCommand;
 import static accord.utils.Property.stateful;
 
 public class RouteIndexTest extends CQLTester.InMemory
@@ -111,85 +109,64 @@ public class RouteIndexTest extends CQLTester.InMemory
         cfs().disableAutoCompaction(); // let the test control compaction
         //TODO (coverage): include with the ability to mark ranges as durable for compaction cleanup
         AccordService.unsafeSetNoop(); // disable accord service since compaction touches it.  It would be nice to include this for cleanup support....
-        stateful().withExamples(50).check(new Commands<State, ColumnFamilyStore>()
+        stateful().withExamples(50).check(commands(() -> State::new, i -> cfs())
+                                          .destroySut(sut -> sut.truncateBlocking())
+                                          .add(FLUSH)
+                                          .add(COMPACT)
+                                          .add((rs, state) -> {
+                                              int storeId = rs.nextInt(0, state.numStores);
+                                              Domain domain = state.domainGen.next(rs);
+                                              TxnId txnId = state.nextTxnId(domain);
+                                              Route<?> route = createRoute(state, rs, domain, rs.nextInt(1, 20));
+                                              return new InsertTxn(storeId, txnId, SaveStatus.PreAccepted, Durability.NotDurable, route);
+                                          })
+                                          .add((rs, state) -> new RangeSearch(rs.nextInt(0, state.numStores), state.rangeGen.next(rs)))
+                                          .add((rs, state) -> {
+                                              if (state.storeToTableToRangesToTxns.isEmpty()) return ignoreCommand();
+                                              return rangeSearch(state, rs);
+                                          })
+                                          .build());
+    }
+
+    private static RangeSearch rangeSearch(State state, RandomSource rs)
+    {
+        int storeId = rs.pickUnorderedSet(state.storeToTableToRangesToTxns.keySet());
+        var tables = state.storeToTableToRangesToTxns.get(storeId);
+        TableId tableId = rs.pickUnorderedSet(tables.keySet());
+        var ranges = tables.get(tableId);
+        TreeSet<TokenRange> distinctRanges = ranges.stream().map(Map.Entry::getKey).collect(Collectors.toCollection(() -> new TreeSet<>(TokenRange::compareTo)));
+        TokenRange range;
+        if (distinctRanges.size() == 1)
         {
-            @Override
-            public Gen<State> genInitialState()
+            range = Iterables.getFirst(distinctRanges, null);
+        }
+        else
+        {
+            switch (rs.nextInt(0, 2))
             {
-                return rs -> new State(rs);
-            }
-
-            @Override
-            public ColumnFamilyStore createSut(State state)
-            {
-                return cfs();
-            }
-
-            @Override
-            public Gen<Command<State, ColumnFamilyStore, ?>> commands(State state)
-            {
-                Map<Gen<Command<State, ColumnFamilyStore, ?>>, Integer> possible = new LinkedHashMap<>();
-                possible.put(ignore -> FLUSH, 1);
-                possible.put(ignore -> COMPACT, 1);
-                possible.put(rs -> {
-                    int storeId = rs.nextInt(0, state.numStores);
-                    Domain domain = state.domainGen.next(rs);
-                    TxnId txnId = state.nextTxnId(domain);
-                    Route<?> route = createRoute(state, rs, domain, rs.nextInt(1, 20));
-                    return new InsertTxn(storeId, txnId, SaveStatus.PreAccepted, Durability.NotDurable, route);
-                }, 10);
-                possible.put(rs -> new RangeSearch(rs.nextInt(0, state.numStores), state.rangeGen.next(rs)), 1);
-                if (!state.storeToTableToRangesToTxns.isEmpty())
+                case 0: // perfect match
+                    range = rs.pickOrderedSet(distinctRanges);
+                    break;
+                case 1: // mutli-match
                 {
-                    possible.put(rs -> {
-                        int storeId = rs.pickUnorderedSet(state.storeToTableToRangesToTxns.keySet());
-                        var tables = state.storeToTableToRangesToTxns.get(storeId);
-                        TableId tableId = rs.pickUnorderedSet(tables.keySet());
-                        var ranges = tables.get(tableId);
-                        TreeSet<TokenRange> distinctRanges = ranges.stream().map(Map.Entry::getKey).collect(Collectors.toCollection(() -> new TreeSet<>(TokenRange::compareTo)));
-                        TokenRange range;
-                        if (distinctRanges.size() == 1)
-                        {
-                            range = Iterables.getFirst(distinctRanges, null);
-                        }
-                        else
-                        {
-                            switch (rs.nextInt(0, 2))
-                            {
-                                case 0: // perfect match
-                                    range = rs.pickOrderedSet(distinctRanges);
-                                    break;
-                                case 1: // mutli-match
-                                {
-                                    TokenRange a = rs.pickOrderedSet(distinctRanges);
-                                    TokenRange b = rs.pickOrderedSet(distinctRanges);
-                                    while (a.equals(b))
-                                        b = rs.pickOrderedSet(distinctRanges);
-                                    if (b.compareTo(a) < 0)
-                                    {
-                                        TokenRange tmp = a;
-                                        a = b;
-                                        b = tmp;
-                                    }
-                                    range = new TokenRange((AccordRoutingKey) a.start(), (AccordRoutingKey) b.end());
-                                }
-                                break;
-                                default:
-                                    throw new AssertionError();
-                            }
-                        }
-                        return new RangeSearch(storeId, range);
-                    }, 5);
+                    TokenRange a = rs.pickOrderedSet(distinctRanges);
+                    TokenRange b = rs.pickOrderedSet(distinctRanges);
+                    while (a.equals(b))
+                        b = rs.pickOrderedSet(distinctRanges);
+                    if (b.compareTo(a) < 0)
+                    {
+                        TokenRange tmp = a;
+                        a = b;
+                        b = tmp;
+                    }
+                    range = new TokenRange((AccordRoutingKey) a.start(), (AccordRoutingKey) b.end());
                 }
-                return Gens.oneOf(possible);
+                break;
+                default:
+                    throw new AssertionError();
             }
-
-            @Override
-            public void destroySut(ColumnFamilyStore sut, @Nullable Throwable t)
-            {
-                cfs().truncateBlocking();
-            }
-        });
+        }
+        return new RangeSearch(storeId, range);
     }
 
     private static ColumnFamilyStore cfs()
@@ -345,7 +322,7 @@ public class RouteIndexTest extends CQLTester.InMemory
         }
     }
 
-    private class RangeSearch implements Command<State, ColumnFamilyStore, Set<TxnId>>
+    private static class RangeSearch implements Command<State, ColumnFamilyStore, Set<TxnId>>
     {
         private final int storeId;
         private final TokenRange range;
