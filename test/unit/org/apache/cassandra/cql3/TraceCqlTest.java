@@ -18,10 +18,16 @@
 
 package org.apache.cassandra.cql3;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import com.datastax.driver.core.BoundStatement;
 import com.datastax.driver.core.CodecRegistry;
 import com.datastax.driver.core.DataType;
 import com.datastax.driver.core.PreparedStatement;
@@ -140,6 +146,29 @@ public class TraceCqlTest extends CQLTester
             //when tracing is done, this boundValue will be surrounded by single quote, and first 1000 characters
             //will be filtered. Here we take into account single quotes by adding them to the expected output
             assertEquals("'" + boundValue.substring(0, 999) + "...'", trace.getParameters().get("bound_var_0_value(v3)"));
+
+            pstmt = session.prepare("INSERT INTO " + KEYSPACE + '.' + currentTable() + " (id, v1, v2, v3) values (?, ?, ?, ?)").enableTracing();
+            BoundStatement boundStatement = pstmt.bind(13, "lukasz", value, map(2024, "birthday", 40, "anniversary"));
+
+            boundStatement.unset(3); // test query tracing after UNSET collection type
+            trace = session.execute(boundStatement).getExecutionInfo().getQueryTrace();
+            Map<String, String> boundParameters = getBoundParameters(trace);
+            assertEquals(Arrays.asList("13", "'lukasz'", "(3, 'bar', 2.1)", "<unset>"), new ArrayList<>(boundParameters.values()));
+
+            boundStatement.unset(2); // test query tracing after UNSET tuple type
+            trace = session.execute(boundStatement).getExecutionInfo().getQueryTrace();
+            boundParameters = getBoundParameters(trace);
+            assertEquals(Arrays.asList("13", "'lukasz'", "<unset>", "<unset>"), new ArrayList<>(boundParameters.values()));
         }
+    }
+
+    private Map<String, String> getBoundParameters(QueryTrace trace) {
+        Map<String, String> boundParameters = new LinkedHashMap<>();
+        trace.getParameters().forEach((paramName, paramValue) -> {
+            if (paramName.startsWith("bound_")) {
+                boundParameters.put(paramName, paramValue);
+            }
+        });
+        return boundParameters;
     }
 }
