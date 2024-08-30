@@ -28,7 +28,6 @@ import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableSet;
@@ -42,8 +41,6 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
-
-import javax.annotation.Nullable;
 
 import com.google.common.collect.Sets;
 import org.junit.Test;
