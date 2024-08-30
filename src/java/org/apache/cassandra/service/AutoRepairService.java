@@ -156,4 +156,9 @@ public class AutoRepairService implements AutoRepairServiceMBean
     {
         config.setMVRepairEnabled(repairType, enabled);
     }
+
+    public void setRepairSessionTimeout(RepairType repairType, String timeout)
+    {
+        config.setRepairSessionTimeout(repairType, timeout);
+    }
 }

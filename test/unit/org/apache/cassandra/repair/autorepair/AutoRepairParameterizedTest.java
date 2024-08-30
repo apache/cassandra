@@ -31,6 +31,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
+import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.cql3.statements.schema.TableAttributes;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -489,6 +490,7 @@ public class AutoRepairParameterizedTest extends CQLTester
     {
         AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
         config.setMVRepairEnabled(repairType, false);
+        config.setRepairRetryBackoff("0s");
         when(autoRepairState.getRepairRunnable(any(), any(), any(), anyBoolean()))
         .thenReturn(repairRunnable);
         AutoRepair.instance.repairStates.put(repairType, autoRepairState);
@@ -506,7 +508,7 @@ public class AutoRepairParameterizedTest extends CQLTester
             assertEquals("resetWaitCondition was not called before waitForRepairToComplete",
                          resetWaitConditionCalls.get(), waitForRepairCompletedCalls.get());
             return null;
-        }).when(autoRepairState).waitForRepairToComplete();
+        }).when(autoRepairState).waitForRepairToComplete(config.getRepairSessionTimeout(repairType));
 
         AutoRepair.instance.repair(repairType, 0);
         AutoRepair.instance.repair(repairType, 0);
