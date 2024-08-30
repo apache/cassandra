@@ -34,6 +34,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
@@ -787,6 +788,41 @@ public class Property
                 unknownWeights = new LinkedHashSet<>();
             unknownWeights.add(cmd);
             return this;
+        }
+
+        public CommandsBuilder<State, SystemUnderTest> addIf(Predicate<State> predicate, Gen<Command<State, SystemUnderTest, ?>> cmd)
+        {
+            return add((rs, state) -> {
+                if (!predicate.test(state)) return ignoreCommand();
+                return cmd.next(rs);
+            });
+        }
+
+        public CommandsBuilder<State, SystemUnderTest> addIf(Predicate<State> predicate, Setup<State, SystemUnderTest> cmd)
+        {
+            return add((rs, state) -> {
+                if (!predicate.test(state)) return ignoreCommand();
+                return cmd.setup(rs, state);
+            });
+        }
+
+        public CommandsBuilder<State, SystemUnderTest> addAllIf(Predicate<State> predicate, Consumer<IfBuilder<State, SystemUnderTest>> sub)
+        {
+            sub.accept(new IfBuilder<>()
+            {
+                @Override
+                public IfBuilder<State, SystemUnderTest> add(Setup<State, SystemUnderTest> cmd)
+                {
+                    CommandsBuilder.this.addIf(predicate, cmd);
+                    return this;
+                }
+            });
+            return this;
+        }
+
+        public interface IfBuilder<State, SystemUnderTest>
+        {
+            IfBuilder<State, SystemUnderTest> add(Setup<State, SystemUnderTest> cmd);
         }
 
         public CommandsBuilder<State, SystemUnderTest> unknownWeight(Gen.IntGen unknownWeightGen)
