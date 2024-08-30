@@ -1,4 +1,5 @@
 5.1
+ * Add JSON and YAML output option to nodetool gcstats (CASSANDRA-19771)
  * Introduce metadata serialization version V4 (CASSANDRA-19970)
  * Allow CMS reconfiguration to work around DOWN nodes (CASSANDRA-19943)
  * Make TableParams.Serializer set allowAutoSnapshots and incrementalBackups (CASSANDRA-19954)
