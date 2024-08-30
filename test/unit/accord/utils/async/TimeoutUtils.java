@@ -34,7 +34,7 @@ public class TimeoutUtils
 
     public static void runBlocking(Duration timeout, String threadName, FailingRunnable fn) throws ExecutionException, InterruptedException, TimeoutException
     {
-        // MAINTAINCE: Once the accord branch merges to trunk this can be dropped and will be AsyncChain again, but since this is forked into C* (that doesn't have AsyncChain) need to use Futures
+        // MAINTENANCE: Once the accord branch merges to trunk this can be dropped and will be AsyncChain again, but since this is forked into C* (that doesn't have AsyncChain) need to use Futures
 //        AsyncResult.Settable<?> promise = AsyncResults.settable();
         AsyncPromise<?> promise = new AsyncPromise<>();
         Thread t = new Thread(() -> {
