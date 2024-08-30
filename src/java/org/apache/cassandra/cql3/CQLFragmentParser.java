@@ -69,6 +69,9 @@ public final class CQLFragmentParser
         lexer.addErrorListener(errorCollector);
 
         TokenStream tokenStream = new CommonTokenStream(lexer);
+        ((CommonTokenStream) tokenStream).fill();
+        errorCollector.throwFirstSyntaxError();
+
         CqlParser parser = new CqlParser(tokenStream);
         parser.addErrorListener(errorCollector);
 
