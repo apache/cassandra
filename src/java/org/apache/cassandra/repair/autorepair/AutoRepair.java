@@ -421,7 +421,6 @@ public class AutoRepair
             AutoRepairUtils.removePriorityStatus(repairType, myId);
         }
 
-        logger.info("TEST123");
         repairState.setFailedTokenRangesCount(failedTokenRanges);
         repairState.setSucceededTokenRangesCount(succeededTokenRanges);
         repairState.setSkippedTokenRangesCount(skippedTokenRanges);
