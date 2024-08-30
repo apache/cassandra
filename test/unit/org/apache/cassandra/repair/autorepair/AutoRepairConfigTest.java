@@ -468,4 +468,12 @@ public class AutoRepairConfigTest extends CQLTester
         assertEquals(5, result);
     }
 
+    @Test
+    public void testSetRepairSessionTimeout()
+    {
+        config.setRepairSessionTimeout(repairType, "1h");
+
+        assert config.repair_type_overrides.get(repairType).repair_session_timeout.toSeconds() == 3600;
+    }
+
 }
