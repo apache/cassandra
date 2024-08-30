@@ -388,8 +388,8 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
                                          c.set(e.getKey(), e.getValue());
                                      onConfigure(c);
                                  })
-                                 //TODO (maintance): should TopologyHistory also be a INodeProvisionStrategy.Factory so address information is stored in the Node?
-                                 //TODO (maintance): AbstractCluster's Map<Integer, NetworkTopology.DcAndRack> nodeIdTopology makes playing with dc/rack annoying, if this becomes an interface then TopologyHistory could own
+                                 //TODO (mainatiance): should TopologyHistory also be a INodeProvisionStrategy.Factory so address information is stored in the Node?
+                                 //TODO (mainatiance): AbstractCluster's Map<Integer, NetworkTopology.DcAndRack> nodeIdTopology makes playing with dc/rack annoying, if this becomes an interface then TopologyHistory could own
                                  .withNodeProvisionStrategy((subnet, portMap) -> new INodeProvisionStrategy.AbstractNodeProvisionStrategy(portMap)
                                  {
                                      {
