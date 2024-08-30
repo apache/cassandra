@@ -21,7 +21,6 @@ package org.apache.cassandra.utils;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeSet;
@@ -35,12 +34,12 @@ import accord.primitives.Range;
 import accord.utils.Gen;
 import accord.utils.Gens;
 import accord.utils.Property.Command;
-import accord.utils.Property.Commands;
 import accord.utils.Property.UnitCommand;
 import accord.utils.RandomSource;
 import org.apache.cassandra.service.accord.RangeTreeRangeAccessor;
 import org.assertj.core.api.Assertions;
 
+import static accord.utils.Property.commands;
 import static accord.utils.Property.stateful;
 
 public class StatefulRangeTreeTest
@@ -61,7 +60,7 @@ public class StatefulRangeTreeTest
 
     /**
      * Stateful test for RTree.
-     *
+     * <p>
      * This test is very similar to {@link RangeTreeTest#test} but is fully mutable, so can not
      * use the immutable search trees (else rebuidling becomes a large cost).  Both tests should exist as they use different
      * models, which helps build confidence that the RTree does the correct thing; that test also covers start and end
@@ -70,57 +69,25 @@ public class StatefulRangeTreeTest
     @Test
     public void test()
     {
-        stateful().check(new Commands<State, Sut>()
-        {
-            @Override
-            public Gen<State> genInitialState()
-            {
-                return rs -> {
-                    Gen<Range> rangeGen = rangeGen(rs);
-                    int numChildren = NUM_CHILDREN_GEN.nextInt(rs);
-                    int sizeTarget = SIZE_TARGET_DISTRIBUTION.next(rs).filter(s -> s > numChildren).nextInt(rs);
-                    int createWeight = rs.nextInt(1, 100);
-                    int updateWeight = rs.nextInt(1, 20);
-                    int deleteWeight = rs.nextInt(1, 20);
-                    int clearWeight = rs.nextInt(0, 2); // either disabled or enabled with weight=1
-                    int readWeight = rs.nextInt(1, 20);
-                    return new State(sizeTarget, numChildren,
-                                     TOKEN_DISTRIBUTION.next(rs), rangeGen,
-                                     createWeight, updateWeight, deleteWeight, clearWeight, readWeight);
-                };
-            }
-
-            @Override
-            public Sut createSut(State state)
-            {
-                return new Sut(state.sizeTarget, state.numChildren);
-            }
-
-            @Override
-            public Gen<Command<State, Sut, ?>> commands(State state)
-            {
-                Map<Gen<Command<State, Sut, ?>>, Integer> possible = new LinkedHashMap<>();
-                possible.put(rs -> new Create(state.newRange(rs), SMALL_INT_GEN.nextInt(rs)), state.createWeight);
-                possible.put(rs -> new Read(state.newRange(rs)), state.readWeight);
-                possible.put(rs -> new KeyRead(IntKey.routing(state.tokenGen.nextInt(rs))), state.readWeight);
-                possible.put(rs -> new RangeRead(state.rangeGen.next(rs)), state.readWeight);
-                possible.put(ignore -> Iterate.instance, state.readWeight);
-                possible.put(ignore -> Clear.instance, state.clearWeight);
-                if (!state.uniqRanges.isEmpty())
-                {
-                    possible.put(rs -> new Read(rs.pickOrderedSet(state.uniqRanges)), state.readWeight);
-                    possible.put(rs -> {
-                        Range range = rs.pickOrderedSet(state.uniqRanges);
-                        int token = rs.nextInt(((IntKey.Routing) range.start()).key, ((IntKey.Routing) range.end()).key) + 1;
-                        return new KeyRead(IntKey.routing(token));
-                    }, state.readWeight);
-                    possible.put(rs -> new RangeRead(rs.pickOrderedSet(state.uniqRanges)), state.readWeight);
-                    possible.put(rs -> new Update(rs.pickOrderedSet(state.uniqRanges), SMALL_INT_GEN.nextInt(rs)), state.updateWeight);
-                    possible.put(rs -> new Delete(rs.pickOrderedSet(state.uniqRanges)), state.deleteWeight);
-                }
-                return Gens.oneOf(possible);
-            }
-        });
+        stateful().check(commands(() -> State::new, state -> new Sut(state.sizeTarget, state.numChildren))
+                         .add((rs, state) -> new Create(state.newRange(rs), SMALL_INT_GEN.nextInt(rs)))
+                         .add((rs, state) -> new Read(state.newRange(rs)))
+                         .add((rs, state) -> new KeyRead(IntKey.routing(state.tokenGen.nextInt(rs))))
+                         .add((rs, state) -> new RangeRead(state.rangeGen.next(rs)))
+                         .add(Iterate.instance)
+                         .add(Clear.instance)
+                         .addAllIf(state -> !state.uniqRanges.isEmpty(),
+                                   b -> b.add((rs, state) -> new Read(rs.pickOrderedSet(state.uniqRanges)))
+                                         .add((rs, state) -> {
+                                             Range range = rs.pickOrderedSet(state.uniqRanges);
+                                             int token = rs.nextInt(((IntKey.Routing) range.start()).key, ((IntKey.Routing) range.end()).key) + 1;
+                                             return new KeyRead(IntKey.routing(token));
+                                         })
+                                         .add((rs, state) -> new RangeRead(rs.pickOrderedSet(state.uniqRanges)))
+                                         .add((rs, state) -> new Update(rs.pickOrderedSet(state.uniqRanges), SMALL_INT_GEN.nextInt(rs)))
+                                         .add((rs, state) -> new Delete(rs.pickOrderedSet(state.uniqRanges)))
+                         )
+                         .build());
     }
 
     private static Gen<Range> rangeGen(RandomSource rand)
@@ -401,6 +368,7 @@ public class StatefulRangeTreeTest
     static class Iterate extends AbstractRead<Map.Entry<Range, Integer>>
     {
         static final Iterate instance = new Iterate();
+
         public Iterate()
         {
             super(COMPARATOR);
@@ -432,27 +400,21 @@ public class StatefulRangeTreeTest
         private final int sizeTarget, numChildren;
         private final Gen.IntGen tokenGen;
         private final Gen<Range> rangeGen;
-        private final int createWeight, updateWeight, deleteWeight, clearWeight, readWeight;
 
-        private State(int sizeTarget, int numChildren,
-                      Gen.IntGen tokenGen, Gen<Range> rangeGen,
-                      int createWeight, int updateWeight, int deleteWeight, int clearWeight, int readWeight)
+        private State(RandomSource rs)
         {
-            this.sizeTarget = sizeTarget;
-            this.numChildren = numChildren;
-            this.tokenGen = tokenGen;
-            this.rangeGen = rangeGen;
-            this.createWeight = createWeight;
-            this.updateWeight = updateWeight;
-            this.deleteWeight = deleteWeight;
-            this.clearWeight = clearWeight;
-            this.readWeight = readWeight;
+            this.numChildren = NUM_CHILDREN_GEN.nextInt(rs);
+            this.sizeTarget = SIZE_TARGET_DISTRIBUTION.next(rs).filter(s -> s > numChildren).nextInt(rs);
+            this.tokenGen = TOKEN_DISTRIBUTION.next(rs);
+            this.rangeGen = rangeGen(rs);
         }
 
         public Range newRange(RandomSource rs)
         {
             Range range;
-            while ((uniqRanges.contains(range = rangeGen.next(rs)))) {}
+            while ((uniqRanges.contains(range = rangeGen.next(rs))))
+            {
+            }
             return range;
         }
 
