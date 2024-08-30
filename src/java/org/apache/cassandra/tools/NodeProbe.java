@@ -2500,6 +2500,11 @@ public class NodeProbe implements AutoCloseable
     public List<String> getTablesForKeyspace(String keyspace) {
         return ssProxy.getTablesForKeyspace(keyspace);
     }
+
+    public void setRepairSessionTimeout(AutoRepairConfig.RepairType repairType, String timeout)
+    {
+        autoRepairProxy.setRepairSessionTimeout(repairType, timeout);
+    }
 }
 
 class ColumnFamilyStoreMBeanIterator implements Iterator<Map.Entry<String, ColumnFamilyStoreMBean>>

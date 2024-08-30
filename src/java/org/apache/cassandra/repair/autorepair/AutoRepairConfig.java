@@ -296,6 +296,17 @@ public class AutoRepairConfig implements Serializable
         return applyOverrides(repairType, opt -> opt.initial_scheduler_delay);
     }
 
+    public DurationSpec.IntSecondsBound getRepairSessionTimeout(RepairType repairType)
+    {
+        return applyOverrides(repairType, opt -> opt.repair_session_timeout);
+    }
+
+    public void setRepairSessionTimeout(RepairType repairType, String repairSessionTimeout)
+    {
+        ensureOverrides(repairType);
+        repair_type_overrides.get(repairType).repair_session_timeout = new DurationSpec.IntSecondsBound(repairSessionTimeout);
+    }
+
     // Options configures auto-repair behavior for a given repair type.
     // All fields can be modified dynamically.
     public static class Options implements Serializable
@@ -331,6 +342,7 @@ public class AutoRepairConfig implements Serializable
             opts.mv_repair_enabled = true;
             opts.token_range_splitter = DefaultAutoRepairTokenSplitter.class.getName();
             opts.initial_scheduler_delay = new DurationSpec.IntSecondsBound("15m"); // 15 minutes
+            opts.repair_session_timeout = new DurationSpec.IntSecondsBound("3h"); // 3 hours
 
             return opts;
         }
@@ -398,6 +410,9 @@ public class AutoRepairConfig implements Serializable
         public volatile String token_range_splitter;
         // the minimum delay after a node starts before the scheduler starts running repair
         public volatile DurationSpec.IntSecondsBound initial_scheduler_delay;
+        // repair session timeout - this is applicable for each repair session
+        // the major issue with Repair is a session sometimes hangs; so this timeout is useful to unblock such problems
+        public volatile DurationSpec.IntSecondsBound repair_session_timeout;
 
         public String toString()
         {
@@ -417,6 +432,7 @@ public class AutoRepairConfig implements Serializable
                    ", mv_repair_enabled=" + mv_repair_enabled +
                    ", token_range_splitter=" + token_range_splitter +
                    ", intial_scheduler_delay=" + initial_scheduler_delay +
+                     ", repair_session_timeout=" + repair_session_timeout +
                    '}';
         }
     }
@@ -446,9 +462,6 @@ public class AutoRepairConfig implements Serializable
             repair_type_overrides = new EnumMap<>(RepairType.class);
         }
 
-        if (repair_type_overrides.get(repairType) == null)
-        {
-            repair_type_overrides.put(repairType, new Options());
-        }
+        repair_type_overrides.computeIfAbsent(repairType, k -> new Options());
     }
 }
