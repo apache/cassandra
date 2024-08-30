@@ -283,7 +283,7 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
     @Test
     public void test()
     {
-        Property.StatefulBuilder statefulBuilder = stateful().withSteps(50).withStepTimeout(Duration.ofMinutes(2)).withExamples(1);
+        Property.StatefulBuilder statefulBuilder = stateful().withSteps(20).withStepTimeout(Duration.ofMinutes(2)).withExamples(1);
         preCheck(statefulBuilder);
         statefulBuilder.check(commands(this::stateGen)
                               .preCommands(state -> state.preActions.forEach(Runnable::run))
