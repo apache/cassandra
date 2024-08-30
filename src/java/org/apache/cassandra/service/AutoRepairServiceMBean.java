@@ -59,4 +59,6 @@ public interface AutoRepairServiceMBean
     public void setMVRepairEnabled(RepairType repairType, boolean enabled);
 
     public AutoRepairConfig getAutoRepairConfig();
+
+    public void setRepairSessionTimeout(RepairType repairType, String timeout);
 }

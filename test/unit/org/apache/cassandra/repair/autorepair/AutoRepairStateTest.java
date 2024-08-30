@@ -31,6 +31,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.repair.autorepair.AutoRepairConfig.RepairType;
 import org.apache.cassandra.repair.autorepair.AutoRepairUtils.AutoRepairHistory;
@@ -125,7 +126,7 @@ public class AutoRepairStateTest extends CQLTester
         state.condition.signalAll();
         Condition finishedCondition = Condition.newOneTimeCondition();
         Callable<Void> waitForRepairToComplete = () -> {
-            state.waitForRepairToComplete();
+            state.waitForRepairToComplete(new DurationSpec.IntSecondsBound("12h"));
             finishedCondition.signalAll();
             return null;
         };
@@ -363,7 +364,7 @@ public class AutoRepairStateTest extends CQLTester
         state.progress("test", progressEvent);
         assertFalse(state.success);
 
-        state.waitForRepairToComplete();
+        state.waitForRepairToComplete(new DurationSpec.IntSecondsBound("12h"));
         assertFalse(state.success);
     }
 
