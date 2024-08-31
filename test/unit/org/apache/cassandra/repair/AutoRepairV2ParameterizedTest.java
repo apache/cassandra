@@ -25,10 +25,10 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.collect.Sets;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -45,6 +45,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.metrics.AutoRepairMetricsManager;
@@ -66,6 +67,7 @@ import static org.apache.cassandra.repair.AutoRepairUtilsV2.RepairTurn.NOT_MY_TU
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.doAnswer;
@@ -148,6 +150,13 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
         AutoRepairV2.timeFunc = System::currentTimeMillis;
         resetCounters();
         resetConfig();
+    }
+
+    @After
+    public void tearDown()
+    {
+        System.clearProperty("cassandra.streaming.requires_view_build_during_repair");
+        System.clearProperty("cassandra.streaming.requires_cdc_replay");
     }
 
     private void resetCounters()
@@ -595,5 +604,52 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
         verify(autoRepairState, Mockito.times(1)).setSucceededTokenRangesCount(1);
         verify(autoRepairState, Mockito.times(1)).setSkippedTokenRangesCount(0);
         verify(autoRepairState, Mockito.times(1)).setFailedTokenRangesCount(0);
+    }
+
+    @Test
+    public void testRepairThrowsForIRWithMVReplay()
+    {
+        AutoRepairV2.instance.setup();
+        System.setProperty("cassandra.streaming.requires_view_build_during_repair", "true");
+
+        if (repairType == AutoRepairConfig.RepairType.incremental)
+        {
+            try
+            {
+                AutoRepairV2.instance.repair(repairType, 0);
+                fail("Expected ConfigurationException");
+            }
+            catch (ConfigurationException ignored)
+            {
+            }
+        }
+        else
+        {
+            AutoRepairV2.instance.repair(repairType, 0);
+        }
+    }
+
+
+    @Test
+    public void testRepairThrowsForIRWithCDCReplay()
+    {
+        AutoRepairV2.instance.setup();
+        System.setProperty("cassandra.streaming.requires_cdc_replay", "true");
+
+        if (repairType == AutoRepairConfig.RepairType.incremental)
+        {
+            try
+            {
+                AutoRepairV2.instance.repair(repairType, 0);
+                fail("Expected ConfigurationException");
+            }
+            catch (ConfigurationException ignored)
+            {
+            }
+        }
+        else
+        {
+            AutoRepairV2.instance.repair(repairType, 0);
+        }
     }
 }

@@ -29,6 +29,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableSet;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -40,6 +41,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.AutoRepairConfig;
@@ -55,7 +57,7 @@ import static org.junit.Assert.assertEquals;
 @Suite.SuiteClasses({ AutoRepairServiceTest.BasicTests.class, AutoRepairServiceTest.SetterTests.class })
 public class AutoRepairServiceTest
 {
-    public static class BasicTests
+    public static class BasicTests extends CQLTester
     {
         private static AutoRepairService autoRepairService;
         private static AutoRepairConfig config;
@@ -63,9 +65,18 @@ public class AutoRepairServiceTest
         @Before
         public void setUp()
         {
+            DatabaseDescriptor.setMaterializedViewsEnabled(false);
+            DatabaseDescriptor.setCDCEnabled(false);
             config = new AutoRepairConfig();
             autoRepairService = new AutoRepairService();
             autoRepairService.config = config;
+        }
+
+        @After
+        public void tearDown()
+        {
+            System.clearProperty("cassandra.streaming.requires_view_build_during_repair");
+            System.clearProperty("cassandra.streaming.requires_cdc_replay");
         }
 
 
@@ -109,6 +120,52 @@ public class AutoRepairServiceTest
             autoRepairService.setAutoRepairRetryBackoffInSec(102);
 
             assertEquals(102, config.getRepairRetryBackoffInSec());
+        }
+
+        @Test(expected = ConfigurationException.class)
+        public void testSetAutoRepairEnabledThrowsWithSchedulerDisabled()
+        {
+            autoRepairService.config = new AutoRepairConfig(false);
+
+            autoRepairService.setAutoRepairEnabled(RepairType.incremental, true);
+        }
+
+        @Test(expected = ConfigurationException.class)
+        public void testSetAutoRepairEnabledThrowsForIRWithMVReplay()
+        {
+            autoRepairService.config = new AutoRepairConfig(true);
+            System.setProperty("cassandra.streaming.requires_view_build_during_repair", "true");
+
+            autoRepairService.setAutoRepairEnabled(RepairType.incremental, true);
+        }
+
+        @Test
+        public void testSetAutoRepairEnabledDoesNotThrowForIRWithMVReplayDisabled()
+        {
+            autoRepairService.config = new AutoRepairConfig(true);
+            DatabaseDescriptor.setMaterializedViewsEnabled(true);
+            System.setProperty("cassandra.streaming.requires_view_build_during_repair", "false");
+
+            autoRepairService.setAutoRepairEnabled(RepairType.incremental, true);
+        }
+
+        @Test(expected = ConfigurationException.class)
+        public void testSetAutoRepairEnabledThrowsForIRWithCDCReplay()
+        {
+            autoRepairService.config = new AutoRepairConfig(true);
+            System.setProperty("cassandra.streaming.requires_cdc_replay", "true");
+
+            autoRepairService.setAutoRepairEnabled(RepairType.incremental, true);
+        }
+
+        @Test
+        public void testSetAutoRepairEnabledDoesNotThrowForIRWithCDCReplayDisabled()
+        {
+            autoRepairService.config = new AutoRepairConfig(true);
+            DatabaseDescriptor.setCDCEnabled(true);
+            System.setProperty("cassandra.streaming.requires_cdc_replay", "false");
+
+            autoRepairService.setAutoRepairEnabled(RepairType.incremental, true);
         }
     }
 

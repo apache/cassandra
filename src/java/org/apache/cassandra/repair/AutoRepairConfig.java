@@ -30,10 +30,6 @@ import java.util.function.Function;
 
 import com.google.common.annotations.VisibleForTesting;
 
-
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.exceptions.ConfigurationException;
-
 public class AutoRepairConfig implements Serializable
 {
     // enable/disable auto repair globally, overrides all other settings. Cannot be modified dynamically.
@@ -117,10 +113,6 @@ public class AutoRepairConfig implements Serializable
 
     public void setAutoRepairEnabled(RepairType repairType, boolean enabled)
     {
-        if (enabled && repairType == RepairType.incremental &&
-            (DatabaseDescriptor.getMaterializedViewsEnabled() || DatabaseDescriptor.isCDCEnabled()))
-            throw new ConfigurationException("Cannot enable incremental repair with materialized views or CDC enabled");
-
         ensureOverrides(repairType);
         repair_type_overrides.get(repairType).enabled = enabled;
     }

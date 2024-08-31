@@ -119,62 +119,6 @@ public class AutoRepairConfigTest extends CQLTester
     }
 
     @Test
-    public void testSetAutoRepairEnabledWithMV()
-    {
-        DatabaseDescriptor.setCDCEnabled(false);
-        DatabaseDescriptor.setMaterializedViewsEnabled(true);
-
-        try
-        {
-            config.setAutoRepairEnabled(repairType, true);
-
-            if (repairType == AutoRepairConfig.RepairType.incremental)
-            {
-                assertFalse(config.repair_type_overrides.get(repairType).enabled); // IR should not be allowed with MV
-                assertNotEquals(AutoRepairConfig.RepairType.incremental, repairType); // should receive exception
-            }
-            else
-            {
-                assertTrue(config.repair_type_overrides.get(repairType).enabled);
-            }
-        }
-        catch (ConfigurationException e)
-        {
-            // should throw only if repairType is incremental
-            assertEquals(AutoRepairConfig.RepairType.incremental, repairType);
-        }
-    }
-
-    @Test
-    public void testSetAutoRepairEnabledWithCDC()
-    {
-        DatabaseDescriptor.setCDCEnabled(true);
-        DatabaseDescriptor.setMaterializedViewsEnabled(false);
-
-        try
-        {
-            config.setAutoRepairEnabled(repairType, true);
-
-
-            if (repairType == AutoRepairConfig.RepairType.incremental)
-            {
-                assertFalse(config.repair_type_overrides.get(repairType).enabled); // IR should not be allowed with CDC
-                assertNotEquals(AutoRepairConfig.RepairType.incremental, repairType); // should receive exception
-            }
-            else
-            {
-                assertTrue(config.repair_type_overrides.get(repairType).enabled);
-            }
-        }
-        catch (ConfigurationException e)
-        {
-            // should throw only if repairType is incremental
-            assertEquals(AutoRepairConfig.RepairType.incremental, repairType);
-        }
-    }
-
-
-    @Test
     public void testSetRepairByKeyspace()
     {
         config.setRepairByKeyspace(repairType, true);

@@ -355,7 +355,23 @@ public enum CassandraRelevantProperties
      * Do not try to calculate optimal streaming candidates. This can take a lot of time in some configs specially
      * with vnodes.
      */
-    SKIP_OPTIMAL_STREAMING_CANDIDATES_CALCULATION("cassandra.skip_optimal_streaming_candidates_calculation", "false");
+    SKIP_OPTIMAL_STREAMING_CANDIDATES_CALCULATION("cassandra.skip_optimal_streaming_candidates_calculation", "false"),
+
+    /**
+     * (Uber specific) If set to true, streamed mutations will be replayed via the regular write path for associated views.
+     */
+    STREAMING_REQUIRES_VIEW_BUILD("cassandra.streaming.requires_view_build", "true"),
+
+    /**
+     * (Uber specific) If set to true, mutations streamed during anti-entropy repair will be replayed via the regular write path for associated views.
+     */
+    STREAMING_REQUIRES_VIEW_BUILD_DURING_REPAIR("cassandra.streaming.requires_view_build_during_repair", "false"),
+
+    /**
+     * (Uber specific) If set to true, streamed mutations via the regular write path for CDC.
+     */
+    STREAMING_REQUIRES_CDC_REPLAY("cassandra.streaming.requires_cdc_replay", "false"),
+    ;
 
     CassandraRelevantProperties(String key, String defaultVal)
     {

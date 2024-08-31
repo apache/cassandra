@@ -21,6 +21,7 @@ package org.apache.cassandra.repair;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -48,6 +49,13 @@ public class AutoRepairV2Test extends CQLTester
         requireNetwork();
     }
 
+    @Before
+    public void setuo()
+    {
+        System.clearProperty("cassandra.streaming.requires_view_build_during_repair");
+        System.clearProperty("cassandra.streaming.requires_cdc_replay");
+    }
+
     @Test
     public void testSetup()
     {
@@ -65,9 +73,10 @@ public class AutoRepairV2Test extends CQLTester
     }
 
     @Test(expected = ConfigurationException.class)
-    public void testSetupFailsWhenIREnabledWithCDC()
+    public void testSetupFailsWhenIREnabledWithCDCReplay()
     {
         DatabaseDescriptor.getAutoRepairConfig().setAutoRepairEnabled(RepairType.incremental, true);
+        System.setProperty("cassandra.streaming.requires_cdc_replay", "true");
         DatabaseDescriptor.setCDCEnabled(true);
 
         AutoRepairV2 instance = new AutoRepairV2();
@@ -75,10 +84,10 @@ public class AutoRepairV2Test extends CQLTester
     }
 
     @Test(expected = ConfigurationException.class)
-    public void testSetupFailsWhenIREnabledWithMV()
+    public void testSetupFailsWhenIREnabledWithMVReplay()
     {
         DatabaseDescriptor.getAutoRepairConfig().setAutoRepairEnabled(RepairType.incremental, true);
-        DatabaseDescriptor.setMaterializedViewsEnabled(true);
+        System.setProperty("cassandra.streaming.requires_view_build_during_repair", "true");
 
         AutoRepairV2 instance = new AutoRepairV2();
         instance.setup();

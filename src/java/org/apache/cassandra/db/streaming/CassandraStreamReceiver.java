@@ -27,6 +27,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.io.sstable.SSTable;
 
@@ -60,14 +61,6 @@ public class CassandraStreamReceiver implements StreamReceiver
     private static final Logger logger = LoggerFactory.getLogger(CassandraStreamReceiver.class);
 
     private static final int MAX_ROWS_PER_BATCH = Integer.getInteger("cassandra.repair.mutation_repair_rows_per_batch", 100);
-    @VisibleForTesting
-    protected static final String REQUIRES_VIEW_BUILD = "cassandra.streaming.requires_view_build";
-    // This is a parameter we use to disable materialized view build
-    private final boolean uberRequiresViewBuild = Boolean.parseBoolean(System.getProperty(REQUIRES_VIEW_BUILD, "true"));
-    @VisibleForTesting
-    protected static final String REQUIRES_CDC_REPLAY = "cassandra.streaming.requires_cdc_replay";
-    // This is a parameter we use to disable replaying CDC events when streaming
-    private final boolean uberRequiresCDCReplay = Boolean.parseBoolean(System.getProperty(REQUIRES_CDC_REPLAY, "false"));
 
     private final ColumnFamilyStore cfs;
     private final StreamSession session;
@@ -194,8 +187,8 @@ public class CassandraStreamReceiver implements StreamReceiver
     protected boolean requiresWritePath(ColumnFamilyStore cfs)
     {
         return cfs.streamToMemtable()
-                || (session.streamOperation().requiresViewBuild() && hasViews(cfs) && uberRequiresViewBuild)
-                || (hasCDC(cfs) && uberRequiresCDCReplay && !hasViews(cfs));
+                || (session.streamOperation().requiresViewBuild() && hasViews(cfs) && CassandraRelevantProperties.STREAMING_REQUIRES_VIEW_BUILD.getBoolean())
+                || (hasCDC(cfs) && CassandraRelevantProperties.STREAMING_REQUIRES_CDC_REPLAY.getBoolean() && !hasViews(cfs));
     }
 
     private void sendThroughWritePath(ColumnFamilyStore cfs, Collection<SSTableReader> readers)
