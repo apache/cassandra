@@ -158,15 +158,6 @@ public final class Guardrails implements GuardrailsMBean
                    "GROUP BY functionality");
 
     /**
-     * Guardrail disabling ALTER TABLE column mutation access.
-     */
-    public static final EnableFlag alterTableEnabled =
-    new EnableFlag("alter_table",
-                   null,
-                   state -> CONFIG_PROVIDER.getOrCreate(state).getAlterTableEnabled(),
-                   "User access to ALTER TABLE statement for column mutation");
-
-    /**
      * Guardrail disabling DROP / TRUNCATE TABLE behavior
      */
     public static final EnableFlag dropTruncateTableEnabled =
@@ -183,6 +174,24 @@ public final class Guardrails implements GuardrailsMBean
                     null,
                     state -> CONFIG_PROVIDER.getOrCreate(state).getDropKeyspaceEnabled(),
                     "DROP KEYSPACE functionality");
+
+    /**
+     * Guardrail disabling DDL statements
+     */
+    public static final EnableFlag ddlEnabled =
+    new EnableFlag("ddl_enabled",
+                   null,
+                   state -> CONFIG_PROVIDER.getOrCreate(state).getDDLEnabled(),
+                   "DDL statement");
+
+    /**
+     * Guardrail disabling DCL statements
+     */
+    public static final EnableFlag dclEnabled =
+    new EnableFlag("dcl_enabled",
+                   null,
+                   state -> CONFIG_PROVIDER.getOrCreate(state).getDCLEnabled(),
+                   "DCL statement");
 
     /**
      * Guardrail disabling user's ability to turn off compression
@@ -750,18 +759,6 @@ public final class Guardrails implements GuardrailsMBean
     }
 
     @Override
-    public boolean getAlterTableEnabled()
-    {
-        return DEFAULT_CONFIG.getAlterTableEnabled();
-    }
-
-    @Override
-    public void setAlterTableEnabled(boolean enabled)
-    {
-        DEFAULT_CONFIG.setAlterTableEnabled(enabled);
-    }
-
-    @Override
     public boolean getAllowFilteringEnabled()
     {
         return DEFAULT_CONFIG.getAllowFilteringEnabled();
@@ -843,6 +840,30 @@ public final class Guardrails implements GuardrailsMBean
     public void setDropKeyspaceEnabled(boolean enabled)
     {
         DEFAULT_CONFIG.setDropKeyspaceEnabled(enabled);
+    }
+
+    @Override
+    public boolean getDDLEnabled()
+    {
+        return DEFAULT_CONFIG.getDDLEnabled();
+    }
+
+    @Override
+    public void setDDLEnabled(boolean enabled)
+    {
+        DEFAULT_CONFIG.setDDLEnabled(enabled);
+    }
+
+    @Override
+    public boolean getDCLEnabled()
+    {
+        return DEFAULT_CONFIG.getDCLEnabled();
+    }
+
+    @Override
+    public void setDCLEnabled(boolean enabled)
+    {
+        DEFAULT_CONFIG.setDCLEnabled(enabled);
     }
 
     @Override
