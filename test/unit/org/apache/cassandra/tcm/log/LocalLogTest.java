@@ -145,6 +145,11 @@ public class LocalLogTest
                 return new EntryHolder(since);
             }
 
+            public EntryHolder getEntries(Epoch since, Epoch until) throws IOException
+            {
+                return new EntryHolder(since);
+            }
+
             @Override
             public MetadataSnapshots snapshots()
             {

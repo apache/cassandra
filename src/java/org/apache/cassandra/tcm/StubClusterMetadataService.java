@@ -31,6 +31,7 @@ import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.tcm.Commit.Replicator;
 import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LocalLog;
+import org.apache.cassandra.tcm.log.LogState;
 import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.ownership.PlacementProvider;
@@ -142,6 +143,11 @@ public class StubClusterMetadataService extends ClusterMetadataService
 
         @Override
         public ClusterMetadata fetchLogAndWait(Epoch waitFor, Retry.Deadline retryPolicy)
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        public LogState reconstruct(Epoch lowEpoch, Epoch highEpoch, Retry.Deadline retryPolicy)
         {
             throw new UnsupportedOperationException();
         }
