@@ -131,14 +131,15 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
 
     private boolean usesReplicaFilteringProtection()
     {
-        if (command.rowFilter().isEmpty())
+        // Key columns are immutable and should never need to participate in replica filtering
+        if (!command.rowFilter().hasNonKeyExpressions())
             return false;
 
         if (command.isTopK())
             return false;
 
         Index.QueryPlan queryPlan = command.indexQueryPlan();
-        if (queryPlan == null )
+        if (queryPlan == null)
             return true;
 
         return queryPlan.supportsReplicaFilteringProtection(command.rowFilter());
