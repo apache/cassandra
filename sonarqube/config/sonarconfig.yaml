@@ -40,6 +40,8 @@ sonarqube:
   source_exclusions: # Overridable (extendable list)
     - "**/test/**/*"
     - "*.py"
+    - "**/tools/**"
+    - "**/hadoop/**"
   static_analysis: # Overridable (addition disallowed)
     # Each language has 2 options:
     #   (a) UberNone  - Disables static analysis and reports only code coverage
@@ -52,4 +54,6 @@ sonarqube:
       file_path_patterns:                   # Overridable (extendable list)
         - "**/test/**/*"
         - "*.py"
+        - "**/tools/**"
+        - "**/hadoop/**"
       file_content_patterns:
