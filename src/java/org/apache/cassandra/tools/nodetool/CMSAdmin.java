@@ -194,4 +194,16 @@ public abstract class CMSAdmin extends NodeTool.NodeToolCmd
             probe.getCMSOperationsProxy().unregisterLeftNodes(nodeIds);
         }
     }
+
+    @Command(name = "resumedropaccordtable", description = "Resume a drop accord table operation which has stalled")
+    public static class ResumeDropAccordTable extends NodeTool.NodeToolCmd
+    {
+        @Arguments(usage = "[tableId]", description = "Table id of the table being dropped")
+        private String tableId;
+        @Override
+        public void execute(NodeProbe probe)
+        {
+            probe.getCMSOperationsProxy().resumeDropAccordTable(tableId);
+        }
+    }
 }

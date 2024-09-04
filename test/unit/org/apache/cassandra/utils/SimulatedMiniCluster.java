@@ -86,6 +86,7 @@ import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
 import org.apache.cassandra.tcm.transformations.PrepareJoin;
 import org.mockito.Mockito;
@@ -231,9 +232,10 @@ public class SimulatedMiniCluster
         }
         else
         {
-            notifyMetadataChange(current.forceEpoch(current.epoch.nextEpoch())
-                                        .withDirectory(current.directory.with(new NodeAddresses(node.hostId, node.broadcastAddressAndPort, node.broadcastAddressAndPort, node.broadcastAddressAndPort),
-                                                                              new Location(node.dc, node.rack))));
+            notifyMetadataChange(current.transformer().register(new NodeAddresses(node.hostId, node.broadcastAddressAndPort, node.broadcastAddressAndPort, node.broadcastAddressAndPort),
+                                                                new Location(node.dc, node.rack),
+                                                                NodeVersion.CURRENT)
+                                        .build().metadata);
         }
     }
 

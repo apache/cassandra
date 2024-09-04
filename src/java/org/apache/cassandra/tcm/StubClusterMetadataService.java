@@ -76,7 +76,7 @@ public class StubClusterMetadataService extends ClusterMetadataService
 
     private ClusterMetadata metadata;
 
-    private StubClusterMetadataService(ClusterMetadata initial)
+    protected StubClusterMetadataService(ClusterMetadata initial)
     {
         super(new UniformRangePlacement(),
               MetadataSnapshots.NO_OP,
@@ -107,13 +107,18 @@ public class StubClusterMetadataService extends ClusterMetadataService
     @Override
     public <T1> T1 commit(Transformation transform, CommitSuccessHandler<T1> onSuccess, CommitFailureHandler<T1> onFailure)
     {
-        Transformation.Result result = transform.execute(metadata);
+        Transformation.Result result = execute(transform);
         if (result.isSuccess())
         {
-            metadata = result.success().metadata;
+            setMetadata(result.success().metadata);
             return  onSuccess.accept(result.success().metadata);
         }
         return onFailure.accept(result.rejected().code, result.rejected().reason);
+    }
+
+    protected Transformation.Result execute(Transformation transform)
+    {
+        return transform.execute(metadata());
     }
 
     @Override

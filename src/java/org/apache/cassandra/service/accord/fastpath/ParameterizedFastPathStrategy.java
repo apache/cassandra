@@ -50,8 +50,8 @@ import javax.annotation.Nonnull;
 
 public class ParameterizedFastPathStrategy implements FastPathStrategy
 {
-    static final String SIZE = "size";
-    static final String DCS = "dcs";
+    public static final String SIZE = "size";
+    public static final String DCS = "dcs";
     private static final Joiner DC_JOINER = Joiner.on(',');
     private static final Pattern COMMA_SEPARATOR = Pattern.compile(",");
     private static final Pattern COLON_SEPARATOR = Pattern.compile(":");
@@ -64,7 +64,7 @@ public class ParameterizedFastPathStrategy implements FastPathStrategy
             public void serialize(WeightedDc dc, DataOutputPlus out, Version version) throws IOException
             {
                 out.writeUTF(dc.name);
-                out.writeUnsignedVInt(dc.weight);
+                out.writeUnsignedVInt32(dc.weight);
                 out.writeBoolean(dc.autoWeight);
             }
 
@@ -237,7 +237,7 @@ public class ParameterizedFastPathStrategy implements FastPathStrategy
         return new ConfigurationException(String.format(fmt, args));
     }
 
-    static ParameterizedFastPathStrategy fromMap(Map<String, String> map)
+    public static ParameterizedFastPathStrategy fromMap(Map<String, String> map)
     {
         if (!map.containsKey(SIZE))
             throw cfe("fast_path must be set to 'keyspace' or 'default' or a map defining '%s' and optionally '%s'", SIZE, DCS);

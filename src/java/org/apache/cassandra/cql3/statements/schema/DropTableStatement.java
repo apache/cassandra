@@ -27,6 +27,10 @@ import org.apache.cassandra.schema.*;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.sequences.InProgressSequences;
+import org.apache.cassandra.tcm.transformations.PrepareDropAccordTable;
+import org.apache.cassandra.tcm.sequences.DropAccordTable.TableReference;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
 import org.apache.cassandra.transport.Event.SchemaChange.Target;
@@ -46,6 +50,26 @@ public final class DropTableStatement extends AlterSchemaStatement
         super(keyspaceName);
         this.tableName = tableName;
         this.ifExists = ifExists;
+    }
+
+    @Override
+    protected ClusterMetadata commit(ClusterMetadata metadata)
+    {
+        KeyspaceMetadata keyspace = metadata.schema.getKeyspaces().getNullable(keyspaceName);
+        TableMetadata table = null == keyspace
+                              ? null
+                              : keyspace.getTableOrViewNullable(tableName);
+        if (table == null // this can happen when ifExists=true... since its already been validated can skip
+            || !table.isAccordEnabled())
+            return super.commit(metadata);
+
+        // Multi-Step Operation
+        // 1) mark the table as pending delete
+        // 2) await for Accord to finish transactions
+        // 3) drop table
+        TableReference ref = TableReference.from(table);
+        ClusterMetadataService.instance().commit(new PrepareDropAccordTable(ref));
+        return InProgressSequences.finishInProgressSequences(ref);
     }
 
     public Keyspaces apply(ClusterMetadata metadata)
@@ -69,6 +93,9 @@ public final class DropTableStatement extends AlterSchemaStatement
 
         if (table.isView())
             throw ire("Cannot use DROP TABLE on a materialized view. Please use DROP MATERIALIZED VIEW instead.");
+
+        if (table.isAccordEnabled() && table.params.pendingDrop)
+            throw ire("Table '%s.%s' is already being dropped", keyspaceName, tableName);
 
         Iterable<ViewMetadata> views = keyspace.views.forTable(table.id);
         if (!isEmpty(views))

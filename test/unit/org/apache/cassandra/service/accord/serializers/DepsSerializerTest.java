@@ -24,18 +24,15 @@ import org.junit.Test;
 
 import accord.primitives.Deps;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.io.IVersionedSerializers;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaProvider;
-import org.apache.cassandra.utils.AbstractTypeGenerators;
 import org.apache.cassandra.utils.AccordGenerators;
+import org.apache.cassandra.utils.CassandraGenerators;
 import org.mockito.Mockito;
 
 import static accord.utils.Property.qt;
@@ -56,7 +53,7 @@ public class DepsSerializerTest
     {
         DataOutputBuffer buffer = new DataOutputBuffer();
         qt().check(rs -> {
-            IPartitioner partitioner = AccordGenerators.partitioner().map(DepsSerializerTest::normalize).next(rs);
+            IPartitioner partitioner = AccordGenerators.partitioner().map(CassandraGenerators::simplify).next(rs);
             Schema.instance = Mockito.mock(SchemaProvider.class);
             DatabaseDescriptor.setPartitionerUnsafe(partitioner);
             Mockito.when(Schema.instance.getExistingTablePartitioner(Mockito.any())).thenReturn(partitioner);
@@ -64,18 +61,5 @@ public class DepsSerializerTest
             for (MessagingService.Version version : SUPPORTED_VERSIONS)
                 IVersionedSerializers.testSerde(buffer, DepsSerializer.deps, deps, version.value);
         });
-    }
-
-    private static IPartitioner normalize(IPartitioner partitioner)
-    {
-        // serializers require tokens to fit within 1 << 16, but that makes the test flakey when LocalPartitioner with a nested type is found...
-        if (!(partitioner instanceof LocalPartitioner)) return partitioner;
-        if (!shouldSimplify(partitioner.getTokenValidator())) return partitioner;
-        return new LocalPartitioner(Int32Type.instance);
-    }
-
-    private static boolean shouldSimplify(AbstractType<?> type)
-    {
-        return AbstractTypeGenerators.contains(type, t -> t.isCollection());
     }
 }

@@ -135,7 +135,7 @@ public class AccordKeyspaceTest extends CQLTester.InMemory
     public void findOverlappingKeys()
     {
         var tableIdGen = fromQT(CassandraGenerators.TABLE_ID_GEN);
-        var partitionGen = fromQT(CassandraGenerators.partitioners());
+        var partitionGen = fromQT(CassandraGenerators.partitioners()).map(CassandraGenerators::simplify);
 
         var sstableFormats = DatabaseDescriptor.getSSTableFormats();
         List<String> sstableFormatNames = new ArrayList<>(sstableFormats.keySet());

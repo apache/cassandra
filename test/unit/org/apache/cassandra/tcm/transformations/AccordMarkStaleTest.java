@@ -35,7 +35,7 @@ public class AccordMarkStaleTest
     public void shouldSerializeEmpty() throws IOException
     {
         DataOutputBuffer buffer = new DataOutputBuffer();
-        AsymmetricMetadataSerializers.testSerde(buffer, AccordMarkStale.serializer, new AccordMarkStale(Collections.emptySet()), Version.V2);
+        AsymmetricMetadataSerializers.testSerde(buffer, AccordMarkStale.serializer, new AccordMarkStale(Collections.emptySet()), Version.MIN_ACCORD_VERSION);
     }
 
     @Test
@@ -43,7 +43,7 @@ public class AccordMarkStaleTest
     {
         DataOutputBuffer buffer = new DataOutputBuffer();
         AccordMarkStale markStale = new AccordMarkStale(Collections.singleton(NodeId.fromString("1")));
-        AsymmetricMetadataSerializers.testSerde(buffer, AccordMarkStale.serializer, markStale, Version.V2);
+        AsymmetricMetadataSerializers.testSerde(buffer, AccordMarkStale.serializer, markStale, Version.MIN_ACCORD_VERSION);
     }
 
     @Test
@@ -51,6 +51,6 @@ public class AccordMarkStaleTest
     {
         DataOutputBuffer buffer = new DataOutputBuffer();
         AccordMarkStale markStale = new AccordMarkStale(ImmutableSet.of(NodeId.fromString("1"), NodeId.fromString("2")));
-        AsymmetricMetadataSerializers.testSerde(buffer, AccordMarkStale.serializer, markStale, Version.V2);
+        AsymmetricMetadataSerializers.testSerde(buffer, AccordMarkStale.serializer, markStale, Version.MIN_ACCORD_VERSION);
     }
 }

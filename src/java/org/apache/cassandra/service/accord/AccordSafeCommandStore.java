@@ -20,8 +20,11 @@ package org.apache.cassandra.service.accord;
 
 import java.util.Map;
 import java.util.NavigableMap;
+import java.util.Set;
 import java.util.function.BiFunction;
 import javax.annotation.Nullable;
+
+import com.google.common.annotations.VisibleForTesting;
 
 import accord.api.Agent;
 import accord.api.DataStore;
@@ -76,6 +79,12 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
                                                 AccordCommandStore commandStore)
     {
         return new AccordSafeCommandStore(preLoadContext, commands, timestampsForKey, commandsForKey, commandsForRanges, commandStore);
+    }
+
+    @VisibleForTesting
+    public Set<Key> commandsForKeysKeys()
+    {
+        return commandsForKeys.keySet();
     }
 
     @Override

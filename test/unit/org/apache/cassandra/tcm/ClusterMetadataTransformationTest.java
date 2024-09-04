@@ -275,7 +275,7 @@ public class ClusterMetadataTransformationTest
         // anything modified by in this transformation, and therefore included in the modified keys,
         // should have the same epoch as the CM itself. Anything not modified now must have a strictly
         // earlier epoch
-        for (MetadataKey key : Iterables.concat(MetadataKeys.CORE_METADATA, transformed.metadata.extensions.keySet()))
+        for (MetadataKey key : Iterables.concat(MetadataKeys.CORE_METADATA.keySet(), transformed.metadata.extensions.keySet()))
         {
             MetadataValue<?> value = valueFor(key, transformed.metadata);
             if (transformed.modifiedKeys.contains(key))
@@ -287,7 +287,7 @@ public class ClusterMetadataTransformationTest
 
     private static MetadataValue<?> valueFor(MetadataKey key, ClusterMetadata metadata)
     {
-        if (!MetadataKeys.CORE_METADATA.contains(key))
+        if (!MetadataKeys.CORE_METADATA.containsKey(key))
         {
             assert key instanceof ExtensionKey<?,?>;
             return metadata.extensions.get((ExtensionKey<?, ?>)key);

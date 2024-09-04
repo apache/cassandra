@@ -47,7 +47,7 @@ public class CassandraGeneratorsTest
     @Test
     public void partitionerToToken()
     {
-        qt().forAll(Gens.random(), toGen(CassandraGenerators.partitioners()))
+        qt().forAll(Gens.random(), toGen(CassandraGenerators.partitioners().map(CassandraGenerators::simplify)))
             .check((rs, p) -> Assertions.assertThat(toGen(CassandraGenerators.token(p)).next(rs)).isNotNull());
     }
 

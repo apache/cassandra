@@ -17,13 +17,18 @@
  */
 package org.apache.cassandra.cql3.statements.schema;
 
+import java.util.List;
+import java.util.stream.Collectors;
+
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.db.guardrails.Guardrails;
+import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.transport.Event.SchemaChange;
@@ -45,8 +50,30 @@ public final class DropKeyspaceStatement extends AlterSchemaStatement
         Guardrails.dropKeyspaceEnabled.ensureEnabled(state);
 
         Keyspaces schema = metadata.schema.getKeyspaces();
-        if (schema.containsKeyspace(keyspaceName))
+        KeyspaceMetadata keyspace = schema.getNullable(keyspaceName);
+        if (keyspace != null)
+        {
+            // check that no accord tables in the keyspace are currently in the process of being dropped
+            List<TableMetadata> pendingDrop = keyspace.tables.stream()
+                                                             .filter(t -> t.params.pendingDrop)
+                                                             .collect(Collectors.toList());
+            if (!pendingDrop.isEmpty())
+                throw ire("Cannot drop keyspace '%s' as it contains accord tables which are currently being dropped. " +
+                          "Please wait for those operations to complete before dropping the keyspace. (%s)",
+                          keyspaceName, pendingDrop.stream()
+                                                   .map(Object::toString)
+                                                   .collect(Collectors.joining(",")));
+
+            List<TableMetadata> accordTables = keyspace.tables.stream()
+                                               .filter(TableMetadata::isAccordEnabled)
+                                               .collect(Collectors.toList());
+            if (!accordTables.isEmpty())
+                throw ire("Cannot drop keyspace '%s' as it contains accord tables. (%s)",
+                          keyspaceName, accordTables.stream()
+                                                   .map(Object::toString)
+                                                   .collect(Collectors.joining(",")));
             return schema.without(keyspaceName);
+        }
 
         if (ifExists)
             return schema;

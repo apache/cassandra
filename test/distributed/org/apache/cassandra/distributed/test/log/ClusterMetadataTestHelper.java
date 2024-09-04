@@ -59,6 +59,7 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SchemaTransformation;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.accord.AccordStaleReplicas;
+import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
 import org.apache.cassandra.tcm.AtomicLongBackedProcessor;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
@@ -157,41 +158,22 @@ public class ClusterMetadataTestHelper
                                    AccordFastPath.EMPTY,
                                    LockedRanges.EMPTY,
                                    InProgressSequences.EMPTY,
-                                   null,
+                                   ConsensusMigrationState.EMPTY,
                                    ImmutableMap.of(),
                                    AccordStaleReplicas.EMPTY);
     }
 
     public static ClusterMetadata minimalForTesting(IPartitioner partitioner)
     {
-        return new ClusterMetadata(Epoch.EMPTY,
-                                   partitioner,
-                                   null,
-                                   null,
-                                   null,
-                                   DataPlacements.empty(),
-                                   AccordFastPath.EMPTY,
-                                   null,
-                                   null,
-                                   null,
-                                   ImmutableMap.of(),
-                                   AccordStaleReplicas.EMPTY);
+        return minimalForTesting(Epoch.EMPTY, partitioner);
     }
 
     public static ClusterMetadata minimalForTesting(Keyspaces keyspaces)
     {
-        return new ClusterMetadata(Epoch.EMPTY,
-                                   Murmur3Partitioner.instance,
-                                   new DistributedSchema(keyspaces),
-                                   null,
-                                   null,
-                                   DataPlacements.empty(),
-                                   AccordFastPath.EMPTY,
-                                   null,
-                                   null,
-                                   null,
-                                   ImmutableMap.of(),
-                                   AccordStaleReplicas.EMPTY);
+        return minimalForTesting(Murmur3Partitioner.instance).transformer()
+                                                             .with(new DistributedSchema(keyspaces))
+                                                             .build()
+               .metadata.forceEpoch(Epoch.EMPTY);
     }
 
     public static ClusterMetadataService syncInstanceForTest()

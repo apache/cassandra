@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -80,13 +81,17 @@ import accord.api.Result;
 import accord.coordinate.CoordinationFailed;
 import accord.coordinate.Preempted;
 import accord.coordinate.Timeout;
+import accord.api.RoutingKey;
+import accord.coordinate.ExecuteSyncPoint;
+import accord.coordinate.tracking.AllTracker;
+import accord.coordinate.tracking.RequestStatus;
 import accord.impl.AbstractConfigurationService;
 import accord.impl.DefaultLocalListeners;
 import accord.impl.DefaultRemoteListeners;
 import accord.impl.DefaultRequestTimeouts;
 import accord.impl.SizeOfIntersectionSorter;
-import accord.local.CommandStore;
 import accord.impl.progresslog.DefaultProgressLogs;
+import accord.local.CommandStore;
 import accord.local.CommandStores;
 import accord.local.DurableBefore;
 import accord.local.KeyHistory;
@@ -98,7 +103,10 @@ import accord.local.SaveStatus;
 import accord.local.ShardDistributor.EvenSplit;
 import accord.local.Status;
 import accord.local.cfk.CommandsForKey;
+import accord.messages.Callback;
+import accord.messages.ReadData;
 import accord.messages.Request;
+import accord.messages.WaitUntilApplied;
 import accord.primitives.Keys;
 import accord.primitives.Seekable;
 import accord.primitives.Seekables;
@@ -106,18 +114,21 @@ import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.Txn.Kind;
 import accord.primitives.TxnId;
+import accord.topology.Topologies;
 import accord.topology.TopologyManager;
 import accord.utils.DefaultRandom;
 import accord.utils.Invariants;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
 import accord.utils.async.AsyncResult;
+import accord.utils.async.AsyncResults;
 import org.agrona.collections.Int2ObjectHashMap;
 import org.apache.cassandra.concurrent.Shutdownable;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.WriteType;
+import org.apache.cassandra.dht.AccordSplitter;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.RequestTimeoutException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
@@ -126,6 +137,7 @@ import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.AccordSyncPropagator.Notification;
 import org.apache.cassandra.service.accord.api.AccordAgent;
@@ -141,8 +153,8 @@ import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.service.consensus.migration.TableMigrationState;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.membership.NodeId;
-import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.Blocking;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.ExecutorUtils;
@@ -428,11 +440,14 @@ public class AccordService implements IAccordService, Shutdownable
         {
             List<ClusterMetadata> historic = ref.historic;
             long lastHistoric = ref.historic.get(historic.size() - 1).epoch.getEpoch();
-            // new epochs added while loading... load the deltas
-            for (ClusterMetadata metadata : tcmLoadRange(lastHistoric + 1, current.epoch.getEpoch()))
+            if (lastHistoric + 1 < current.epoch.getEpoch())
             {
-                historic.add(metadata);
-                configService.reportMetadataInternal(metadata);
+                // new epochs added while loading... load the deltas
+                for (ClusterMetadata metadata : tcmLoadRange(lastHistoric + 1, current.epoch.getEpoch()))
+                {
+                    historic.add(metadata);
+                    configService.reportMetadataInternal(metadata);
+                }
             }
 
             // sync doesn't happen when this node isn't in the epoch
@@ -506,7 +521,7 @@ public class AccordService implements IAccordService, Shutdownable
         List<ClusterMetadata> afterLoad = ClusterMetadataService.instance().processor().reconstructFull(Epoch.create(min - 1), Epoch.create(max));
         while (!afterLoad.isEmpty() && afterLoad.get(0).epoch.getEpoch() < min)
             afterLoad.remove(0);
-        assert !afterLoad.isEmpty() : "TCM was unable to return the needed epochs";
+        assert !afterLoad.isEmpty() : String.format("TCM was unable to return the needed epochs: %d -> %d", min, max);
         assert afterLoad.get(0).epoch.getEpoch() == min : String.format("Unexpected epoch: expected %d but given %d", min, afterLoad.get(0).epoch.getEpoch());
         assert afterLoad.get(afterLoad.size() - 1).epoch.getEpoch() == max : String.format("Unexpected epoch: expected %d but given %d", max, afterLoad.get(afterLoad.size() - 1).epoch.getEpoch());
         return afterLoad;
@@ -1230,5 +1245,228 @@ public class AccordService implements IAccordService, Shutdownable
             durableBefore.set(DurableBefore.merge(durableBefore.get(), safeStore.commandStore().durableBefore()));
         }));
         return new CompactionInfo(redundantBefores, ranges, durableBefore.get());
+    }
+
+    @Override
+    public void awaitTableDrop(TableId id)
+    {
+        // Need to make sure no existing txn are still being processed for this table... this is only used by DROP TABLE so NEW txn are expected to be blocked, so just need to "wait" for existing ones to complete
+        Topology topology = node.topology().current();
+        List<TokenRange> ranges = topology.reduce(new ArrayList<>(),
+                                                  s -> ((TokenRange) s.range).table().equals(id),
+                                                  (accum, s) -> {
+                                                      accum.add((TokenRange) s.range);
+                                                      return accum;
+                                                  });
+        if (ranges.isEmpty()) return; // nothing to see here
+
+        ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(id);
+        Invariants.checkState(cfs != null, "Unable to find table %s", id);
+        BigInteger targetSplitSize = BigInteger.valueOf(Math.max(1, cfs.estimateKeys() / 1_000_000));
+
+        List<AsyncChain<?>> syncs = new ArrayList<>(ranges.size());
+        for (TokenRange range : ranges)
+            syncs.add(awaitTableDrop(cfs, range, targetSplitSize));
+        AsyncChain<Object[]> all = AsyncChains.allOf(syncs);
+        try
+        {
+            AsyncChains.getBlocking(all);
+        }
+        catch (InterruptedException e)
+        {
+            Thread.currentThread().interrupt();
+            throw new UncheckedInterruptedException(e);
+        }
+        catch (ExecutionException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private AsyncChain<?> awaitTableDrop(ColumnFamilyStore cfs, TokenRange range, BigInteger targetSplitSize)
+    {
+        List<TokenRange> splits = split(cfs, range, targetSplitSize);
+        List<AsyncChain<?>> syncs = new ArrayList<>(splits.size());
+        for (TokenRange tr : splits)
+            syncs.add(awaitTableDropSubRange(tr));
+        return AsyncChains.allOf(syncs);
+    }
+
+    private List<TokenRange> split(ColumnFamilyStore cfs, TokenRange range, BigInteger targetSplitSize)
+    {
+        if (targetSplitSize.equals(BigInteger.ONE)) return Collections.singletonList(range);
+
+        AccordSplitter splitter = cfs.getPartitioner().accordSplitter().apply(Ranges.single(range));
+        RoutingKey remainingStart = range.start();
+
+        BigInteger rangeSize = splitter.sizeOf(range);
+        BigInteger divide = splitter.divide(rangeSize, targetSplitSize);
+        BigInteger rangeStep = divide.equals(BigInteger.ZERO) ? rangeSize : BigInteger.ONE.max(divide);
+        BigInteger offset = BigInteger.ZERO;
+        List<TokenRange> result = new ArrayList<>();
+
+        while (splitter.compare(offset, rangeSize) < 0)
+        {
+            BigInteger remaining = rangeSize.subtract(offset);
+            BigInteger length = remaining.min(rangeStep);
+
+            TokenRange next = splitter.subRange(range, offset, splitter.add(offset, length));
+            result.add(next);
+            remainingStart = next.end();
+            offset = offset.add(length);
+        }
+
+        if (!remainingStart.equals(range.end()))
+            result.add(range.newRange(remainingStart, range.end()));
+        assert result.get(0).start().equals(range.start()) : String.format("Starting range %s does not have the same start as %s", result.get(0), range);
+        assert result.get(result.size() - 1).end().equals(range.end()) : String.format("Ending range %s does not have the same end as %s", result.get(result.size() - 1), range);
+        return result;
+    }
+
+    private AsyncChain<?> awaitTableDropSubRange(TokenRange range)
+    {
+        return awaitTableDropSubRange(Ranges.single(range), 0);
+    }
+
+    private AsyncChain<Void> awaitTableDropSubRange(Ranges ranges, int attempt)
+    {
+        return exclusiveSyncPoint(ranges, attempt)
+               .flatMap(s -> s == null ? AsyncChains.success(null) : Await.coordinate(node, s));
+    }
+
+    private AsyncChain<SyncPoint<Ranges>> exclusiveSyncPoint(Ranges ranges, int attempt)
+    {
+        //TODO (on merge): CASSANDRA-19769 has the same logic... should this be refactored?  Would make it nice so we could split the range on retries?
+        return CoordinateSyncPoint.exclusive(node, ranges)
+                                  .recover(t -> {
+                                      //TODO (operability): make this configurable / monitorable?
+                                      if (attempt > 3) return null;
+                                      switch (shouldRetry(t))
+                                      {
+                                          case SUCCESS:
+                                              return AsyncChains.success(null);
+                                          case RETRY:
+                                              return exclusiveSyncPoint(ranges, attempt + 1);
+                                          case FAIL:
+                                              return null;
+                                          default:
+                                              throw new UnsupportedOperationException();
+                                      }
+                                  });
+    }
+
+    private enum RetryDecission { SUCCESS, RETRY, FAIL }
+    private static RetryDecission shouldRetry(Throwable t)
+    {
+        if (t.getClass() == ExecuteSyncPoint.SyncPointErased.class)
+            return RetryDecission.SUCCESS;
+        if (t instanceof Invalidated || t instanceof Preempted || t instanceof Timeout)
+            return RetryDecission.RETRY;
+        return RetryDecission.FAIL;
+    }
+
+    // TODO (duplication): this is 95% of accord.coordinate.CoordinateShardDurable
+    //   we already report all this information to EpochState; would be better to use that
+    //   Taken from ListStore...
+    private static class Await extends AsyncResults.SettableResult<SyncPoint<Ranges>> implements Callback<ReadData.ReadReply>
+    {
+        private final Node node;
+        private final AllTracker tracker;
+        private final SyncPoint<Ranges> exclusiveSyncPoint;
+
+        private Await(Node node, SyncPoint<Ranges> exclusiveSyncPoint)
+        {
+            Topologies topologies = node.topology().forEpoch(exclusiveSyncPoint.keysOrRanges, exclusiveSyncPoint.sourceEpoch());
+            this.node = node;
+            this.tracker = new AllTracker(topologies);
+            this.exclusiveSyncPoint = exclusiveSyncPoint;
+        }
+
+        public static AsyncChain<Void> coordinate(Node node, SyncPoint<Ranges> sp)
+        {
+            return node.withEpoch(sp.sourceEpoch(), () -> {
+                Await coordinate = new Await(node, sp);
+                coordinate.start();
+                AsyncChain<Void> chain = coordinate.map(i -> null);
+                return chain.recover(t -> {
+                    switch (shouldRetry(t))
+                    {
+                        case SUCCESS: return AsyncChains.success(null);
+                        case RETRY: return coordinate(node, sp);
+                        case FAIL: return null;
+                        default: throw new UnsupportedOperationException();
+                    }
+                });
+            });
+        }
+
+        private void start()
+        {
+            node.send(tracker.nodes(), to -> new WaitUntilApplied(to, tracker.topologies(), exclusiveSyncPoint.syncId, exclusiveSyncPoint.keysOrRanges, exclusiveSyncPoint.syncId.epoch()), this);
+        }
+        @Override
+        public void onSuccess(Node.Id from, ReadData.ReadReply reply)
+        {
+            if (!reply.isOk())
+            {
+                ReadData.CommitOrReadNack nack = (ReadData.CommitOrReadNack) reply;
+                switch (nack)
+                {
+                    default: throw new AssertionError("Unhandled: " + reply);
+
+                    case Insufficient:
+                        CoordinateSyncPoint.sendApply(node, from, exclusiveSyncPoint);
+                        return;
+                    case Rejected:
+                        tryFailure(new RuntimeException(nack.name()));
+                    case Redundant:
+                        tryFailure(new ExecuteSyncPoint.SyncPointErased());
+                        return;
+                    case Invalid:
+                        tryFailure(new Invalidated(exclusiveSyncPoint.syncId, exclusiveSyncPoint.homeKey));
+                        return;
+                }
+            }
+            else
+            {
+                if (tracker.recordSuccess(from) == RequestStatus.Success)
+                {
+                    node.configService().reportEpochRedundant(exclusiveSyncPoint.keysOrRanges, exclusiveSyncPoint.syncId.epoch());
+                    trySuccess(exclusiveSyncPoint);
+                }
+            }
+        }
+
+        private Throwable cause;
+
+        @Override
+        public void onFailure(Node.Id from, Throwable failure)
+        {
+            synchronized (this)
+            {
+                if (cause == null) cause = failure;
+                else
+                {
+                    try
+                    {
+                        cause.addSuppressed(failure);
+                    }
+                    catch (Throwable t)
+                    {
+                        // can not always add suppress
+                        node.agent().onUncaughtException(failure);
+                    }
+                }
+                failure = cause;
+            }
+            if (tracker.recordFailure(from) == RequestStatus.Failed)
+                tryFailure(failure);
+        }
+
+        @Override
+        public void onCallbackFailure(Node.Id from, Throwable failure)
+        {
+            tryFailure(failure);
+        }
     }
 }

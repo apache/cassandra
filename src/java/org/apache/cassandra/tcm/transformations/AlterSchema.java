@@ -248,7 +248,7 @@ public class AlterSchema implements Transformation
         return byReplication;
     }
 
-    private Transformer maybeUpdateConsensusMigrationState(ConsensusMigrationState prev, Transformer next, ImmutableList<KeyspaceDiff> altered, Keyspaces dropped)
+    public static Transformer maybeUpdateConsensusMigrationState(ConsensusMigrationState prev, Transformer next, ImmutableList<KeyspaceDiff> altered, Keyspaces dropped)
     {
         ConsensusMigrationState migrationState = prev;
 

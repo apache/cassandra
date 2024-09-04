@@ -111,7 +111,7 @@ public class LogListenerNotificationTest
 
     static Set<MetadataKey> affectedMetadata(Random random)
     {
-        List<MetadataKey> src = new ArrayList<>(CORE_METADATA);
+        List<MetadataKey> src = new ArrayList<>(CORE_METADATA.keySet());
         int required = random.nextInt(src.size());
         Set<MetadataKey> keys = new HashSet<>();
         while (keys.size() < required)
