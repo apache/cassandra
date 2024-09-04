@@ -69,15 +69,21 @@ import org.apache.cassandra.distributed.impl.InstanceConfig;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.Retry;
+import org.apache.cassandra.tcm.log.Entry;
+import org.apache.cassandra.tcm.log.LogState;
 import org.apache.cassandra.utils.ConfigGenBuilder;
 
 import static accord.utils.Property.commands;
 import static accord.utils.Property.ignoreCommand;
 import static accord.utils.Property.multistep;
 import static accord.utils.Property.stateful;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 /**
  * These tests can create many instances, so mac users may need to run the following to avoid address bind failures
@@ -482,12 +488,24 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
             sb.append("Yaml Config:\n").append(YamlConfigurationLoader.toYaml(this.yamlConfigOverrides));
             sb.append("\nTopology:\n").append(topologyHistory);
             sb.append("\nCMS Voting Group: ").append(Arrays.toString(cmsGroup));
+            if (epochHistory != null)
+                sb.append("\n").append(epochHistory);
             return sb.toString();
         }
+
+        private String epochHistory = null;
 
         @Override
         public void close() throws Exception
         {
+            epochHistory = cluster.get(cmsGroup[0]).callOnInstance(() -> {
+                LogState all = ClusterMetadataService.instance().processor().reconstruct(Epoch.EMPTY, Epoch.create(Long.MAX_VALUE), Retry.Deadline.retryIndefinitely(DatabaseDescriptor.getCmsAwaitTimeout().to(NANOSECONDS),
+                                                                                                                                                                     TCMMetrics.instance.commitRetries));
+                StringBuilder sb = new StringBuilder("Epochs:");
+                for (Entry e : all.entries)
+                    sb.append("\n").append(e.epoch.getEpoch()).append(": ").append(e.transform);
+                return sb.toString();
+            });
             cluster.close();
         }
     }

@@ -49,8 +49,8 @@ import org.slf4j.LoggerFactory;
 
 import accord.api.ConfigurationService;
 import accord.api.ConfigurationService.EpochReady;
-import accord.api.Scheduler;
 import accord.api.LocalConfig;
+import accord.api.Scheduler;
 import accord.impl.SizeOfIntersectionSorter;
 import accord.impl.TestAgent;
 import accord.local.Node;
@@ -79,11 +79,9 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.SimulatedMessageDelivery;
 import org.apache.cassandra.net.SimulatedMessageDelivery.Action;
 import org.apache.cassandra.net.Verb;
-import org.apache.cassandra.schema.DistributedMetadataLogKeyspace;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableParams;
@@ -96,11 +94,12 @@ import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MultiStepOperation;
 import org.apache.cassandra.tcm.StubClusterMetadataService;
 import org.apache.cassandra.tcm.Transformation;
-import org.apache.cassandra.tcm.membership.Directory;
+import org.apache.cassandra.tcm.ValidatingClusterMetadataService;
 import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
+import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
 import org.apache.cassandra.tcm.sequences.LeaveStreams;
 import org.apache.cassandra.tcm.transformations.PrepareJoin;
@@ -135,13 +134,13 @@ public class EpochSyncTest
                 })
                 .addAllIf(Cluster::hasPendingWork, b ->
                         b.addIf(c -> !c.status(s -> s == Cluster.Status.Registered).isEmpty(), (rs, state) -> {
-                                    long epoch = state.current.epoch.getEpoch() + 1;
+                                    long epoch = state.cms.metadata().epoch.getEpoch() + 1;
                                     Node.Id pick = rs.pick(state.status(s -> s == Cluster.Status.Registered));
                                     return new SimpleCommand<>(pick + " Start Joining; epoch=" + epoch,
                                             c -> c.increment(pick));
                                 })
-                                .addIf(c -> !c.current.inProgressSequences.isEmpty(),
-                                        (rs, state) -> new SimpleCommand<>("Next Epoch Step; epoch=" + (state.current.epoch.getEpoch() + 1),
+                                .addIf(c -> !c.cms.metadata().inProgressSequences.isEmpty(),
+                                        (rs, state) -> new SimpleCommand<>("Next Epoch Step; epoch=" + (state.cms.metadata().epoch.getEpoch() + 1),
                                                 Cluster::incrementInProgressSequences))
                 )
                 .addAllIf(Cluster::hasNoPendingWork, b ->
@@ -150,7 +149,7 @@ public class EpochSyncTest
                 )
                 .addIf(Cluster::hasWork, EpochSyncTest::processSome)
                 .add(rs -> new SimpleCommand<>("Validate", c -> c.validate(false)))
-                .add((rs, cluster) -> new SimpleCommand<>("Bump Epoch " + (cluster.current.epoch.getEpoch() + 1), Cluster::bumpEpoch))
+                .add((rs, cluster) -> new SimpleCommand<>("Bump Epoch " + (cluster.cms.metadata().epoch.getEpoch() + 1), Cluster::bumpEpoch))
                 .build());
     }
 
@@ -159,7 +158,7 @@ public class EpochSyncTest
         List<Node.Id> registered = cluster.status(s -> s == Cluster.Status.Registered);
         if (!registered.isEmpty())
             registered.forEach(cluster::increment);
-        while (!cluster.current.inProgressSequences.isEmpty())
+        while (!cluster.cms.metadata().inProgressSequences.isEmpty())
             cluster.incrementInProgressSequences();
     }
 
@@ -169,7 +168,7 @@ public class EpochSyncTest
         long token = cluster.tokenGen.nextLong(rs);
         while (cluster.tokens.contains(token))
             token = cluster.tokenGen.nextLong(rs);
-        long epoch = cluster.current.epoch.getEpoch() + 1;
+        long epoch = cluster.cms.metadata().epoch.getEpoch() + 1;
         long finalToken = token;
         return new SimpleCommand<>("Start Node " + id + "; token=" + token + ", epoch=" + epoch,
                                  c -> c.registerNode(id, finalToken));
@@ -180,7 +179,7 @@ public class EpochSyncTest
         List<Node.Id> alive = cluster.joined();
         Node.Id pick = rs.pick(alive);
         long token = cluster.instances.get(pick).token;
-        long epoch = cluster.current.epoch.getEpoch() + 1;
+        long epoch = cluster.cms.metadata().epoch.getEpoch() + 1;
         return new SimpleCommand<>("Remove Node " + pick + "; token=" + token + "; epoch=" + epoch, c -> c.removeNode(pick));
     }
 
@@ -207,10 +206,7 @@ public class EpochSyncTest
         private final SimulatedExecutorFactory globalExecutor;
         private final ScheduledExecutorPlus scheduler;
         private int nodeCounter = 0;
-        private ClusterMetadata current = new ClusterMetadata(Murmur3Partitioner.instance, Directory.EMPTY,
-                                                              new DistributedSchema(Keyspaces.of(
-                                                              DistributedMetadataLogKeyspace.initialMetadata(Collections.singleton("dc1")),
-                                                              KeyspaceMetadata.create("test", KeyspaceParams.simple(rf), Tables.of(TableMetadata.minimal("test", "tb1").unbuild().params(TableParams.builder().transactionalMode(TransactionalMode.full).build()).build())))));
+        private final ValidatingClusterMetadataService cms = ValidatingClusterMetadataService.createAndRegister(NodeVersion.CURRENT_METADATA_VERSION);
         private final IFailureDetector fd = new IFailureDetector()
         {
             @Override
@@ -258,6 +254,8 @@ public class EpochSyncTest
 
         public Cluster(RandomSource rs)
         {
+            // add the test keyspace
+            createTestKeyspaceAndTable();
             this.rs = rs;
             this.minNodes = 3;
             this.maxNodes = 10;
@@ -307,7 +305,7 @@ public class EpochSyncTest
         private boolean hasPendingWork()
         {
             return !status(s -> s == Cluster.Status.Registered).isEmpty()
-                    || !current.inProgressSequences.isEmpty();
+                    || !cms.metadata().inProgressSequences.isEmpty();
         }
 
         private boolean hasNoPendingWork()
@@ -317,7 +315,7 @@ public class EpochSyncTest
 
         private Transformation.Success process(Transformation transformation)
         {
-            Transformation.Result result = transformation.execute(current);
+            Transformation.Result result = transformation.execute(cms.metadata());
             if (result.isRejected())
                 throw new IllegalStateException("Unable to make TCM transition: " + result.rejected());
             return result.success();
@@ -325,7 +323,7 @@ public class EpochSyncTest
 
         private Transformation.Success process(MultiStepOperation<?> transformation)
         {
-            Transformation.Result result = transformation.applyTo(current);
+            Transformation.Result result = transformation.applyTo(cms.metadata());
             if (result.isRejected())
                 throw new IllegalStateException("Unable to make TCM transition");
             return result.success();
@@ -333,11 +331,11 @@ public class EpochSyncTest
 
         public void incrementInProgressSequences()
         {
-            if (current.inProgressSequences.isEmpty())
+            if (cms.metadata().inProgressSequences.isEmpty())
                 throw new IllegalStateException("Attempted to bump epoch when nothing was pending");
-            Iterator<MultiStepOperation<?>> it = current.inProgressSequences.iterator();
+            Iterator<MultiStepOperation<?>> it = cms.metadata().inProgressSequences.iterator();
             Invariants.checkState(it.hasNext());
-            notify(current = process(it.next()).metadata);
+            notify(process(it.next()).metadata);
         }
 
         private static boolean left(ClusterMetadata metadata, Node.Id id)
@@ -372,6 +370,21 @@ public class EpochSyncTest
             return new Node.Id(ByteArrayUtil.getInt(address.addressBytes));
         }
 
+        private void createTestKeyspaceAndTable()
+        {
+            ClusterMetadata current = cms.metadata();
+            Tables tables = Tables.of(TableMetadata.minimal("test", "tb1").unbuild()
+                                                   .partitioner(Murmur3Partitioner.instance)
+                                                   .params(TableParams.builder().transactionalMode(TransactionalMode.full).build())
+                                                   .build());
+            KeyspaceMetadata ks = KeyspaceMetadata.create("test", KeyspaceParams.simple(rf), tables);
+
+            cms.setMetadata(current.transformer()
+                                   .with(new DistributedSchema(current.schema.getKeyspaces().with(ks)))
+                                   .build()
+                            .metadata);
+        }
+
         void validate(boolean isDone)
         {
             for (Node.Id id : notRemoved())
@@ -380,7 +393,7 @@ public class EpochSyncTest
                 if (removed.contains(id)) continue; // ignore removed nodes
                 AccordConfigurationService conf = inst.config;
                 TopologyManager tm = inst.topology;
-                for (long epoch = inst.epoch.getEpoch(); epoch <= current.epoch.getEpoch(); epoch++)
+                for (long epoch = inst.epoch.getEpoch(); epoch <= cms.metadata().epoch.getEpoch(); epoch++)
                 {
                     // validate config
                     EpochSnapshot snapshot = conf.getEpochSnapshot(epoch);
@@ -550,15 +563,14 @@ public class EpochSyncTest
             Invariants.checkState(!tokens.contains(token), "Attempted to add token %d for node %s but token is already taken", token, id);
             Invariants.checkState(!instances.containsKey(id), "Attempted to add node %s; but already exists", id);
 
-            Epoch epoch = Epoch.create(current.epoch.getEpoch() + 1);
+            ClusterMetadata.Transformer builder = cms.metadata().transformer();
 
-            Instance instance = new Instance(id, token, epoch, createMessaging(id), fd);
+            Instance instance = new Instance(id, token, builder.epoch(), createMessaging(id), fd);
             instances.put(id, instance);
             tokens.add(token);
 
-            current = current.forceEpoch(epoch)
-                             .withDirectory(current.directory.with(new NodeAddresses(address(id)), new Location("dc1", "r1")));
-            notify(current);
+            builder.register(new NodeAddresses(address(id)), new Location("dc1", "r1"), NodeVersion.CURRENT);
+            notify(builder.build().metadata);
         }
 
         void increment(Node.Id pick)
@@ -574,7 +586,7 @@ public class EpochSyncTest
                 case Registered:
                     inst.status = Status.Joining;
                     PrepareJoin task = new PrepareJoin(new NodeId(pick.id), Collections.singleton(new LongToken(inst.token)), new UniformRangePlacement(), true, false);
-                    notify(current = process(task).metadata);
+                    notify(process(task).metadata);
                     break;
                 default:
                     throw new UnsupportedOperationException("Unknown status: " + inst.status);
@@ -588,13 +600,12 @@ public class EpochSyncTest
             removed.add(pick);
             inst.status = Status.Leaving;
             PrepareLeave prepareLeave = new PrepareLeave(new NodeId(pick.id), false, new UniformRangePlacement(), LeaveStreams.Kind.REMOVENODE);
-            notify(current = process(prepareLeave).metadata);
+            notify(process(prepareLeave).metadata);
         }
 
         void bumpEpoch()
         {
-            current = current.forceEpoch(Epoch.create(current.epoch.getEpoch() + 1));
-            notify(current);
+            notify(cms.metadata().forceEpoch(Epoch.create(cms.metadata().epoch.getEpoch() + 1)));
         }
 
         private void notify(ClusterMetadata current)
@@ -603,7 +614,7 @@ public class EpochSyncTest
             Ranges ranges = t.ranges().mergeTouching();
             if (!current.placements.get(replication_params).reads.isEmpty())
                 Assertions.assertThat(ranges).hasSize(1);
-            ((StubClusterMetadataService) ClusterMetadataService.instance()).setMetadata(current);
+            cms.setMetadata(current);
             for (Node.Id id : status(s -> s != Status.Removed))
             {
                 Instance inst = instances.get(id);

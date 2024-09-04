@@ -26,8 +26,11 @@ import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
@@ -483,6 +486,28 @@ public final class Generators
     {
         Set<T> dedup = new HashSet<>();
         return filter(gen, dedup::add);
+    }
+
+    public static <T> Gen<Set<T>> set(Gen<T> gen, Gen<Integer> sizeGen)
+    {
+        return rnd -> {
+            Set<T> set = new HashSet<>();
+            int size = sizeGen.generate(rnd);
+            for (int i = 0; i < size; i++)
+            {
+                while (!set.add(gen.generate(rnd))) {}
+            }
+            return set;
+        };
+    }
+
+    public static <T extends Comparable<T>> Gen<List<T>> uniqueList(Gen<T> gen, Gen<Integer> sizeGen)
+    {
+        return set(gen, sizeGen).map(t -> {
+            List<T> list = new ArrayList<>(t);
+            list.sort(Comparator.naturalOrder());
+            return list;
+        });
     }
 
     public static <T> Gen<T> cached(Gen<T> gen)

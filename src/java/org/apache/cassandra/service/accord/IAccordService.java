@@ -49,6 +49,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.api.AccordScheduler;
 import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.tcm.Epoch;
@@ -158,4 +159,8 @@ public interface IAccordService
     Long minEpoch(Collection<TokenRange> ranges);
 
     void tryMarkRemoved(Topology topology, Node.Id node);
+    default void awaitTableDrop(TableId id)
+    {
+
+    }
 }

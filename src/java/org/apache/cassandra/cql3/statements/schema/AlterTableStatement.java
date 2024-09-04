@@ -123,6 +123,9 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             return schema;
         }
 
+        if (table.params.pendingDrop)
+            throw ire("Cannot use ALTER TABLE on a table that is being dropped.");
+
         if (table.isView())
             throw ire("Cannot use ALTER TABLE on a materialized view; use ALTER MATERIALIZED VIEW instead");
 

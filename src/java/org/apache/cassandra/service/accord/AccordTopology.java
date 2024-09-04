@@ -65,16 +65,17 @@ public class AccordTopology
 
     private static class ShardLookup extends HashMap<accord.primitives.Range, Shard>
     {
-        private Shard createOrReuse(accord.primitives.Range range, SortedArrayList<Node.Id> nodes, Set<Node.Id> fastPathElectorate, Set<Node.Id> joining)
+        private Shard createOrReuse(boolean pendingRemoval, accord.primitives.Range range, SortedArrayList<Node.Id> nodes, Set<Node.Id> fastPathElectorate, Set<Node.Id> joining)
         {
             Shard prev = get(range);
             if (prev != null
+                && prev.pendingRemoval == pendingRemoval
                 && Objects.equals(prev.nodes, nodes)
                 && Objects.equals(prev.fastPathElectorate, fastPathElectorate)
                 && Objects.equals(prev.joining, joining))
                 return prev;
 
-            return new Shard(range, nodes, fastPathElectorate, joining);
+            return new Shard(range, nodes, fastPathElectorate, joining, pendingRemoval);
         }
     }
 
@@ -109,7 +110,7 @@ public class AccordTopology
 
             SortedArrayList<Node.Id> fastPath = strategyFor(metadata).calculateFastPath(nodes, unavailable, dcMap);
 
-            return lookup.createOrReuse(tokenRange, nodes, fastPath, pending);
+            return lookup.createOrReuse(metadata.params.pendingDrop, tokenRange, nodes, fastPath, pending);
         }
 
         private static KeyspaceShard forRange(KeyspaceMetadata keyspace, Range<Token> range, Directory directory, VersionedEndpoints.ForRange reads, VersionedEndpoints.ForRange writes)

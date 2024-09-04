@@ -23,6 +23,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutionException;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -56,8 +57,10 @@ import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.test.accord.AccordTestBase;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.api.AccordAgent;
 import org.apache.cassandra.service.consensus.TransactionalMode;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.ASTGenerators;
 import org.apache.cassandra.utils.CassandraGenerators;
 import org.apache.cassandra.utils.Isolated;
@@ -217,6 +220,24 @@ public class AccordTopologyMixupTest extends TopologyMixupTestBase<AccordTopolog
         {
             c.set("accord.shard_count", 1)
              .set("paxos_variant", Config.PaxosVariant.v2.name());
+        }
+
+        @Override
+        protected void onStartupComplete(long tcmEpoch)
+        {
+            cluster.forEach(i -> {
+              if (i.isShutdown()) return;
+              i.runOnInstance(() -> {
+                  try
+                  {
+                      AccordService.instance().epochReady(Epoch.create(tcmEpoch)).get();
+                  }
+                  catch (InterruptedException | ExecutionException e)
+                  {
+                      throw new RuntimeException(e);
+                  }
+              });
+            });
         }
 
         @Override

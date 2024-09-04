@@ -78,6 +78,7 @@ public class FetchMinEpochTest
     {
         DataOutputBuffer output = new DataOutputBuffer();
         Gen<FetchMinEpoch> gen = fromQT(CassandraGenerators.partitioners())
+                                 .map(CassandraGenerators::simplify)
                                  .flatMap(partitioner ->
                                           Gens.lists(AccordGenerators.range(partitioner)
                                                                      .map(r -> (TokenRange) r))

@@ -18,7 +18,10 @@
 
 package org.apache.cassandra.tcm.serialization;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -36,12 +39,23 @@ public enum Version
     /**
      *  - Added version to PlacementForRange serializer
      *  - Serialize MemtableParams when serializing TableParams
-     *  - Added AccordFastPath
-     *  - Added AccordStaleReplicas
      */
     V2(2),
 
+    /**
+     *  - Added AccordFastPath
+     *  - Added ConsensusMigrationState
+     *  - Added AccordStaleReplicas
+     *  - TableParam now has pendingDrop (accord table drop is multistep)
+     */
+    V3(3),
+
     UNKNOWN(Integer.MAX_VALUE);
+
+    /**
+     * The version that Accord was added to TCM.
+     */
+    public static final Version MIN_ACCORD_VERSION = V3;
 
     private static Map<Integer, Version> values = new HashMap<>();
     static
@@ -95,5 +109,16 @@ public enum Version
             return v;
 
         throw new IllegalArgumentException("Unsupported metadata version (" + i + ")");
+    }
+
+    public List<Version> greaterThanOrEqual()
+    {
+        Version[] all = Version.values();
+        if (ordinal() == all.length - 1)
+            return Collections.singletonList(this);
+        List<Version> values = new ArrayList<>(all.length - ordinal());
+        for (int i = ordinal(); i < all.length; i++)
+            values.add(all[i]);
+        return values;
     }
 }

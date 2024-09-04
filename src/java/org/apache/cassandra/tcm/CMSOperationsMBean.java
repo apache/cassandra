@@ -45,4 +45,5 @@ public interface CMSOperationsMBean
     public boolean cancelInProgressSequences(String sequenceOwner, String expectedSequenceKind);
 
     public void unregisterLeftNodes(List<String> nodeIds);
+    public void resumeDropAccordTable(String tableId);
 }

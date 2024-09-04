@@ -33,7 +33,7 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 
-import static org.apache.cassandra.tcm.serialization.Version.V2;
+import static org.apache.cassandra.tcm.serialization.Version.MIN_ACCORD_VERSION;
 
 /**
  * An immutable class representing keyspace parameters (durability and replication).
@@ -157,7 +157,7 @@ public final class KeyspaceParams
         {
             ReplicationParams.serializer.serialize(t.replication, out, version);
             out.writeBoolean(t.durableWrites);
-            if (version.isAtLeast(V2))
+            if (version.isAtLeast(MIN_ACCORD_VERSION))
                 FastPathStrategy.serializer.serialize(t.fastPath, out, version);
         }
 
@@ -165,7 +165,7 @@ public final class KeyspaceParams
         {
             ReplicationParams params = ReplicationParams.serializer.deserialize(in, version);
             boolean durableWrites = in.readBoolean();
-            FastPathStrategy fastPath = version.isAtLeast(V2)
+            FastPathStrategy fastPath = version.isAtLeast(MIN_ACCORD_VERSION)
                     ? FastPathStrategy.serializer.deserialize(in, version)
                     : FastPathStrategy.simple();
             return new KeyspaceParams(durableWrites, params, fastPath);
@@ -175,7 +175,7 @@ public final class KeyspaceParams
         {
             return ReplicationParams.serializer.serializedSize(t.replication, version) +
                    TypeSizes.sizeof(t.durableWrites) +
-                   (version.isAtLeast(V2) ? FastPathStrategy.serializer.serializedSize(t.fastPath, version) : 0);
+                   (version.isAtLeast(MIN_ACCORD_VERSION) ? FastPathStrategy.serializer.serializedSize(t.fastPath, version) : 0);
         }
     }
 }

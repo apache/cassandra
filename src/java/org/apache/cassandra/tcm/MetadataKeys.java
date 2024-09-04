@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
 import org.apache.cassandra.tcm.extensions.ExtensionKey;
@@ -43,15 +44,18 @@ public class MetadataKeys
     public static final MetadataKey IN_PROGRESS_SEQUENCES   = make(CORE_NS, "sequences", "in_progress");
     public static final MetadataKey CONSENSUS_MIGRATION_STATE = make(CORE_NS, "consensus", "migration_state");
 
-    public static final ImmutableSet<MetadataKey> CORE_METADATA = ImmutableSet.of(SCHEMA,
-                                                                                  NODE_DIRECTORY,
-                                                                                  TOKEN_MAP,
-                                                                                  DATA_PLACEMENTS,
-                                                                                  ACCORD_FAST_PATH,
-                                                                                  ACCORD_STALE_REPLICAS,   
-                                                                                  LOCKED_RANGES,
-                                                                                  IN_PROGRESS_SEQUENCES,
-                                                                                  CONSENSUS_MIGRATION_STATE);
+    public static final ImmutableMap<MetadataKey, Function<ClusterMetadata, MetadataValue<?>>> CORE_METADATA
+    = ImmutableMap.<MetadataKey, Function<ClusterMetadata, MetadataValue<?>>>builder()
+                  .put(SCHEMA, cm -> cm.schema)
+                  .put(NODE_DIRECTORY, cm -> cm.directory)
+                  .put(TOKEN_MAP, cm -> cm.tokenMap)
+                  .put(DATA_PLACEMENTS, cm -> cm.placements)
+                  .put(LOCKED_RANGES, cm -> cm.lockedRanges)
+                  .put(IN_PROGRESS_SEQUENCES, cm -> cm.inProgressSequences)
+                  .put(ACCORD_FAST_PATH, cm -> cm.accordFastPath)
+                  .put(ACCORD_STALE_REPLICAS, cm -> cm.accordStaleReplicas)
+                  .put(CONSENSUS_MIGRATION_STATE, cm -> cm.consensusMigrationState)
+                  .build();
 
     public static MetadataKey make(String...parts)
     {
@@ -65,6 +69,15 @@ public class MetadataKeys
         return new MetadataKey(b.toString());
     }
 
+    public static MetadataValue<?> extract(ClusterMetadata cm, MetadataKey key)
+    {
+        if (CORE_METADATA.containsKey(key))
+            return CORE_METADATA.get(key).apply(cm);
+        if (!(key instanceof ExtensionKey<?, ?>))
+            throw new IllegalArgumentException("Unknown key: " + key);
+        return cm.extensions.get(key);
+    }
+
     public static ImmutableSet<MetadataKey> diffKeys(ClusterMetadata before, ClusterMetadata after)
     {
         ImmutableSet.Builder<MetadataKey> builder = new ImmutableSet.Builder<>();
@@ -74,12 +87,8 @@ public class MetadataKeys
 
     private static void diffKeys(ClusterMetadata before, ClusterMetadata after, ImmutableSet.Builder<MetadataKey> builder)
     {
-        checkKey(before, after, builder, cm -> cm.schema, MetadataKeys.SCHEMA);
-        checkKey(before, after, builder, cm -> cm.directory, MetadataKeys.NODE_DIRECTORY);
-        checkKey(before, after, builder, cm -> cm.tokenMap, MetadataKeys.TOKEN_MAP);
-        checkKey(before, after, builder, cm -> cm.placements, MetadataKeys.DATA_PLACEMENTS);
-        checkKey(before, after, builder, cm -> cm.lockedRanges, MetadataKeys.LOCKED_RANGES);
-        checkKey(before, after, builder, cm -> cm.inProgressSequences, MetadataKeys.IN_PROGRESS_SEQUENCES);
+        for (Map.Entry<MetadataKey, Function<ClusterMetadata, MetadataValue<?>>> e : CORE_METADATA.entrySet())
+            checkKey(before, after, builder, e.getValue(), e.getKey());
 
         Set<ExtensionKey<?,?>> added = new HashSet<>(after.extensions.keySet());
         for (Map.Entry<ExtensionKey<?, ?>, ExtensionValue<?>> entry : before.extensions.entrySet())

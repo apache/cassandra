@@ -174,6 +174,11 @@ public final class CreateViewStatement extends AlterSchemaStatement
                       viewName, tableName);
         }
 
+        if (table.params.pendingDrop)
+            throw ire("Cannot create materialized view '%s' for base table " +
+                      "'%s' as it is being dropped.",
+                      viewName, tableName);
+
         /*
          * Process SELECT clause
          */
