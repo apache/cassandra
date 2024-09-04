@@ -1,4 +1,5 @@
 5.1
+ * SAI support for BETWEEN operator (CASSANDRA-19688)
  * Fix BETWEEN filtering for reversed clustering columns (CASSANDRA-19878)
  * Retry if node leaves CMS while committing a transformation (CASSANDRA-19872)
  * Add support for NOT operators in WHERE clauses. Fixed Three Valued Logic (CASSANDRA-18584)

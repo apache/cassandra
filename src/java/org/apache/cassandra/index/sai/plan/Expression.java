@@ -19,6 +19,7 @@
 package org.apache.cassandra.index.sai.plan;
 
 import java.nio.ByteBuffer;
+import java.util.List;
 import java.util.Objects;
 
 import org.apache.commons.lang3.builder.HashCodeBuilder;
@@ -26,6 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cql3.Operator;
+import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.analyzer.AbstractAnalyzer;
 import org.apache.cassandra.index.sai.utils.IndexTermType;
@@ -96,6 +98,7 @@ public abstract class Expression
                 case GT:
                 case LTE:
                 case GTE:
+                case BETWEEN:
                     return RANGE;
 
                 case ANN:
@@ -208,6 +211,26 @@ public abstract class Expression
                 else
                     lower = new Bound(value, indexTermType, lowerInclusive);
                 break;
+
+            case BETWEEN:
+                ListType<?> type = ListType.getInstance(indexTermType.columnMetadata().type, false);
+                List<? extends ByteBuffer> buffers = type.unpack(value);
+
+                operator = IndexOperator.RANGE;
+                this.upperInclusive = true;
+                this.lowerInclusive = true;
+
+                Value first = new Value(buffers.get(0), indexTermType);
+                Value second = new Value(buffers.get(1), indexTermType);
+
+                // SimpleRestriction#addToRowFilter() ensures correct bounds ordering, but SAI enforces a non-arbitrary 
+                // ordering between IPv4 and IPv6 addresses, so correction may still be necessary. 
+                boolean outOfOrder = indexTermType.compare(first.encoded, second.encoded) > 0;
+                lower = new Bound(outOfOrder ? second : first, true);
+                upper = new Bound(outOfOrder ? first : second, true);
+
+                break;
+
             case ANN:
                 operator = IndexOperator.ANN;
                 lower = new Bound(value, indexTermType, true);
@@ -487,10 +510,15 @@ public abstract class Expression
         public final Value value;
         public final boolean inclusive;
 
+        public Bound(Value value, boolean inclusive)
+        {
+            this.value = value;
+            this.inclusive = inclusive;
+        }
+
         public Bound(ByteBuffer value, IndexTermType indexTermType, boolean inclusive)
         {
-            this.value = new Value(value, indexTermType);
-            this.inclusive = inclusive;
+            this(new Value(value, indexTermType), inclusive);
         }
 
         @Override
