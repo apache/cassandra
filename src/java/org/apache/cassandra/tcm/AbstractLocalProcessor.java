@@ -57,7 +57,10 @@ public abstract class AbstractLocalProcessor implements Processor
             ClusterMetadata previous = log.waitForHighestConsecutive();
             if (!previous.fullCMSMembers().contains(FBUtilities.getBroadcastAddressAndPort()))
             {
-                String msg = String.format("Node %s is not a member of CMS anymore in %s members=%s", FBUtilities.getBroadcastAddressAndPort(), previous.epoch, previous.fullCMSMembers());
+                String msg = String.format("Node %s is not a CMS member in epoch %s; members=%s",
+                                           FBUtilities.getBroadcastAddressAndPort(),
+                                           previous.epoch.getEpoch(),
+                                           previous.fullCMSMembers());
                 logger.warn(msg);
                 throw new NotCMSException(msg);
             }

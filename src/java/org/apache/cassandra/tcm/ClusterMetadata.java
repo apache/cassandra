@@ -96,7 +96,7 @@ public class ClusterMetadata
     public final InProgressSequences inProgressSequences;
     public final ImmutableMap<ExtensionKey<?,?>, ExtensionValue<?>> extensions;
 
-    // These two fields are lazy but only for the test purposes, since their computation requires initialization of the log ks
+    // These fields are lazy but only for the test purposes, since their computation requires initialization of the log ks
     private EndpointsForRange fullCMSReplicas;
     private Set<InetAddressAndPort> fullCMSEndpoints;
     private Set<NodeId> fullCMSIds;

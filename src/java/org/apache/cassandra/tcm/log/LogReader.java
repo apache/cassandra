@@ -80,7 +80,7 @@ public interface LogReader
                 if (entries.isContinuous())
                     return new LogState(null, entries.immutable());
                 else if (!allowSnapshots)
-                    throw new IllegalStateException("Can't construct a continious log since " + startEpoch + " and we don't allow snapshots");
+                    throw new IllegalStateException("Can't construct a continuous log since " + startEpoch + " and inclusion of snapshots is disallowed");
                 // Gaps in a persisted log are never expected, but we have not been able to construct a continuous
                 // sequence of all entries between startEpoch and the current epoch, so fall back to the general case.
             }
