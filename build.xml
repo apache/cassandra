@@ -978,6 +978,7 @@
           <exclude name="bin/*.in.sh" />
           <include name="tools/bin/*"/>
           <exclude name="tools/bin/*.in.sh" />
+          <include name=".build/**/*.sh"/>
         </tarfileset>
       </tar>
 
