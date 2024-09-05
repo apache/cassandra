@@ -10,7 +10,7 @@ Merged from 4.0:
  * Fix latency reported by ideal consistency level monitoring (CASSANDRA-19651)
  * Do not spam log with SSLExceptions (CASSANDRA-18839)
 
-
+5.0.0
 5.0-rc2
  * Fix direct IO support always being evaluated to false upon the first start of a node (CASSANDRA-19779)
  * Memtable allocation type unslabbed_heap_buffers_logged will cause an assertion error for TrieMemtables and SegmentedTrieMemtables (CASSANDRA-19835)
