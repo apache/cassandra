@@ -104,6 +104,7 @@ class OnClusterReplace extends OnClusterChangeTopology
             ).config().num()
             ).toArray();
 
+            local.add(new OnClusterMarkDown(actions, leaving));
             local.add(new OnClusterRepairRanges(actions, others, true, false, repairRanges));
             local.add(new ExecuteNextStep(actions, joining, Transformation.Kind.START_REPLACE));
             local.addAll(Quiesce.all(actions));

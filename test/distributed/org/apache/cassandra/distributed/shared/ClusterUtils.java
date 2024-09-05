@@ -77,6 +77,7 @@ import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Commit;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.Transformation;
+import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.ownership.ReplicaGroups;
 import org.apache.cassandra.utils.Isolated;
@@ -435,6 +436,16 @@ public class ClusterUtils
     public static void waitForCMSToQuiesce(ICluster<IInvokableInstance> cluster, IInvokableInstance leader, int...ignored)
     {
         ClusterUtils.waitForCMSToQuiesce(cluster, getClusterMetadataVersion(leader), ignored);
+    }
+
+    public static void dropAllEntriesBeginningAt(IInvokableInstance instance, Epoch epoch)
+    {
+        instance.runOnInstance(() -> ClusterMetadataService.instance().log().addFilter(e -> e.epoch.isEqualOrAfter(epoch)));
+    }
+
+    public static void clearEntryFilters(IInvokableInstance instance)
+    {
+        instance.runOnInstance(() -> ClusterMetadataService.instance().log().clearFilters());
     }
 
     public static Callable<Void> pauseBeforeEnacting(IInvokableInstance instance, Epoch epoch)

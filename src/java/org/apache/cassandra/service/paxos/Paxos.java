@@ -95,6 +95,7 @@ import org.apache.cassandra.service.reads.DataResolver;
 import org.apache.cassandra.service.reads.repair.NoopReadRepair;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.triggers.TriggerExecutor;
@@ -253,23 +254,22 @@ public class Paxos
             return Iterators.concat(natural.iterator(), pending.iterator());
         }
 
-        static Electorate get(TableMetadata table, DecoratedKey key, ConsistencyLevel consistency)
+        static Electorate.Local get(TableMetadata table, DecoratedKey key, ConsistencyLevel consistency)
         {
             // MetaStrategy distributes the entire keyspace to all replicas. In addition, its tables (currently only
             // the dist log table) don't use the globally configured partitioner. For these reasons we don't lookup the
             // replicas using the supplied token as this can actually be of the incorrect type (for example when
             // performing Paxos repair).
             final Token token = table.partitioner == MetaStrategy.partitioner ? MetaStrategy.entireRange.right : key.getToken();
-            return get(consistency, forTokenWriteLiveAndDown(Keyspace.open(table.keyspace), token));
-        }
-
-        static Electorate get(ConsistencyLevel consistency, ForTokenWrite all)
-        {
-            ForTokenWrite electorate = all;
+            ClusterMetadata metadata = ClusterMetadata.current();
+            Keyspace keyspace = Keyspace.open(table.keyspace);
+            DataPlacement placement = metadata.placements.get(keyspace.getMetadata().params.replication);
+            Epoch epoch = placement.writes.forToken(token).lastModified();
+            ForTokenWrite electorate = forTokenWriteLiveAndDown(metadata, keyspace, token);
             if (consistency == LOCAL_SERIAL)
-                electorate = all.filter(InOurDc.replicas());
+                electorate = electorate.filter(InOurDc.replicas());
 
-            return new Electorate(electorate.natural().endpointList(), electorate.pending().endpointList());
+            return new Local(epoch, electorate.natural().endpointList(), electorate.pending().endpointList());
         }
 
         boolean hasPending()
@@ -285,9 +285,12 @@ public class Paxos
         public boolean equals(Object o)
         {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (o == null || !Electorate.class.isAssignableFrom(o.getClass())) return false;
             Electorate that = (Electorate) o;
-            return natural.equals(that.natural) && pending.equals(that.pending);
+            return natural.size() == that.natural.size() &&
+                   pending.size() == that.pending.size() &&
+                   natural.containsAll(that.natural)  &&
+                   pending.containsAll(that.pending);
         }
 
         public int hashCode()
@@ -319,6 +322,16 @@ public class Paxos
             {
                 return CollectionSerializer.serializedSizeCollection(inetAddressAndPortSerializer, electorate.natural, version) +
                        CollectionSerializer.serializedSizeCollection(inetAddressAndPortSerializer, electorate.pending, version);
+            }
+        }
+
+        static class Local extends Electorate
+        {
+            final Epoch createdAt;
+            public Local(Epoch createdAt, Collection<InetAddressAndPort> natural, Collection<InetAddressAndPort> pending)
+            {
+                super(natural, pending);
+                this.createdAt = createdAt;
             }
         }
     }
