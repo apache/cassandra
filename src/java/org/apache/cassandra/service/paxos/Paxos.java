@@ -253,23 +253,20 @@ public class Paxos
             return Iterators.concat(natural.iterator(), pending.iterator());
         }
 
-        static Electorate get(TableMetadata table, DecoratedKey key, ConsistencyLevel consistency)
+        static Electorate.Local get(TableMetadata table, DecoratedKey key, ConsistencyLevel consistency)
         {
             // MetaStrategy distributes the entire keyspace to all replicas. In addition, its tables (currently only
             // the dist log table) don't use the globally configured partitioner. For these reasons we don't lookup the
             // replicas using the supplied token as this can actually be of the incorrect type (for example when
             // performing Paxos repair).
             final Token token = table.partitioner == MetaStrategy.partitioner ? MetaStrategy.entireRange.right : key.getToken();
-            return get(consistency, forTokenWriteLiveAndDown(Keyspace.open(table.keyspace), token));
-        }
-
-        static Electorate get(ConsistencyLevel consistency, ForTokenWrite all)
-        {
-            ForTokenWrite electorate = all;
+            ClusterMetadata metadata = ClusterMetadata.current();
+            Epoch epoch = metadata.placements.lastModified();
+            ForTokenWrite electorate = forTokenWriteLiveAndDown(metadata, Keyspace.open(table.keyspace), token);
             if (consistency == LOCAL_SERIAL)
-                electorate = all.filter(InOurDc.replicas());
+                electorate = electorate.filter(InOurDc.replicas());
 
-            return new Electorate(electorate.natural().endpointList(), electorate.pending().endpointList());
+            return new Local(epoch, electorate.natural().endpointList(), electorate.pending().endpointList());
         }
 
         boolean hasPending()
@@ -319,6 +316,16 @@ public class Paxos
             {
                 return CollectionSerializer.serializedSizeCollection(inetAddressAndPortSerializer, electorate.natural, version) +
                        CollectionSerializer.serializedSizeCollection(inetAddressAndPortSerializer, electorate.pending, version);
+            }
+        }
+
+        static class Local extends Electorate
+        {
+            final Epoch createdAt;
+            public Local(Epoch createdAt, Collection<InetAddressAndPort> natural, Collection<InetAddressAndPort> pending)
+            {
+                super(natural, pending);
+                this.createdAt = createdAt;
             }
         }
     }
