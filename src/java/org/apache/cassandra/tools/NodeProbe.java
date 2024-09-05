@@ -1623,9 +1623,9 @@ public class NodeProbe implements AutoCloseable
         return withPort ? ssProxy.describeRingWithPortJMX(keyspaceName) : ssProxy.describeRingJMX(keyspaceName);
     }
 
-    public void rebuild(String sourceDc, String keyspace, String tokens, String specificSources)
+    public void rebuild(String sourceDc, String keyspace, String tokens, String specificSources, boolean refetchData)
     {
-        ssProxy.rebuild(sourceDc, keyspace, tokens, specificSources);
+        ssProxy.rebuild(sourceDc, keyspace, tokens, specificSources, refetchData);
     }
 
     public List<String> sampleKeyRange()

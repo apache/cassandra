@@ -775,8 +775,10 @@ public interface StorageServiceMBean extends NotificationEmitter
      * @param keyspace Name of the keyspace which to rebuild or null to rebuild all keyspaces.
      * @param tokens Range of tokens to rebuild or null to rebuild all token ranges. In the format of:
      *               "(start_token_1,end_token_1],(start_token_2,end_token_2],...(start_token_n,end_token_n]"
+     * @param refetchData When set to true, will first truncate local available_ranges_v2 table so the node
+     *                    will fetch all data from remote sources.
      */
-    public void rebuild(String sourceDc, String keyspace, String tokens, String specificSources);
+    public void rebuild(String sourceDc, String keyspace, String tokens, String specificSources, boolean refetchData);
 
     /** Starts a bulk load and blocks until it completes. */
     public void bulkLoad(String directory);

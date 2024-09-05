@@ -1537,10 +1537,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void rebuild(String sourceDc)
     {
-        rebuild(sourceDc, null, null, null);
+        rebuild(sourceDc, null, null, null, false);
     }
 
-    public void rebuild(String sourceDc, String keyspace, String tokens, String specificSources)
+    public void rebuild(String sourceDc, String keyspace, String tokens, String specificSources, boolean refetchData)
     {
         if (sourceDc != null)
         {
@@ -1571,6 +1571,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                         tokens == null ? "(All tokens)" : tokens);
 
             repairPaxosForTopologyChange("rebuild");
+
+            // if refetchData is set to true, truncate local available_ranges_v2 table so the node will fetch all data
+            // from remote sources
+            if (refetchData)
+            {
+                SystemKeyspace.resetAvailableRanges();
+            }
 
             RangeStreamer streamer = new RangeStreamer(tokenMetadata,
                                                        null,

@@ -210,7 +210,7 @@ public class StorageServiceTest
 
         try
         {
-            getStorageService().rebuild(nonExistentDC, "StorageServiceTest", null, null);
+            getStorageService().rebuild(nonExistentDC, "StorageServiceTest", null, null, false);
             fail();
         }
         catch (IllegalArgumentException ex)
@@ -227,7 +227,7 @@ public class StorageServiceTest
     {
         try
         {
-            getStorageService().rebuild("datacenter1", null, "123", null);
+            getStorageService().rebuild("datacenter1", null, "123", null, false);
             fail();
         }
         catch (IllegalArgumentException ex)
