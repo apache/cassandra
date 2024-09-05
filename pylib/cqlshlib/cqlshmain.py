@@ -1544,6 +1544,10 @@ class Shell(cmd.Cmd):
         arguments.
         """
         fname = parsed.get_binding('fname')
+        
+        if parsed.matched[1][0] == 'identifier' and parsed.matched[1][1].upper() == 'OFF':
+            fname = 'OFF'
+
         if fname is None:
             if self.shunted_query_out is not None:
                 print("Currently capturing query output to %r." % (self.query_out.name,))
