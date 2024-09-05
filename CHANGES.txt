@@ -1,4 +1,5 @@
 5.1
+ * Deprecate use of gossip state for paxos electorate verification (CASSANDRA-19904)
  * Update dtest-api to 0.0.17 to fix jvm17 crash in jvm-dtests (CASSANDRA-19239)
  * Add resource leak test and Update Netty to 4.1.113.Final to fix leak (CASSANDRA-19783)
  * Fix incorrect nodetool suggestion when gossip mode is running (CASSANDRA-19905)

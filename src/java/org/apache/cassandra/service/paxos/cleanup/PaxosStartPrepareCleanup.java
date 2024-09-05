@@ -31,13 +31,14 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.gms.EndpointState;
-import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.gms.HeartBeatState;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.RequestCallbackWithFailure;
 import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.schema.Schema;
@@ -74,9 +75,11 @@ public class PaxosStartPrepareCleanup extends AsyncFuture<PaxosCleanupHistory> i
     }
 
     /**
-     * We run paxos repair as part of topology changes, so we include the local endpoint state in the paxos repair
-     * prepare message to prevent racing with gossip dissemination and guarantee that every repair participant is aware
-     * of the pending ring change during repair.
+     * We run paxos repair as part of topology changes, so prior to 5.1 we would include the local endpoint state in
+     * the paxos repair prepare message to prevent racing with gossip dissemination and guarantee that every repair
+     * participant is aware of the pending ring change during repair. This is now deprecated as topology changes are no
+     * longer driven by gossip state. We continue to include the state in internode messages temporarily for
+     * compatibility during upgrades.
      */
     public static PaxosStartPrepareCleanup prepare(SharedContext ctx, TableId tableId, Collection<InetAddressAndPort> endpoints, EndpointState localEpState, Collection<Range<Token>> ranges, boolean isUrgent)
     {
@@ -113,27 +116,10 @@ public class PaxosStartPrepareCleanup extends AsyncFuture<PaxosCleanupHistory> i
             trySuccess(new PaxosCleanupHistory(table, maxBallot, history));
     }
 
-    private static void maybeUpdateTopology(SharedContext ctx, InetAddressAndPort endpoint, EndpointState remote)
-    {
-        EndpointState local = ctx.gossiper().getEndpointStateForEndpoint(endpoint);
-        if (local == null || local.isSupersededBy(remote))
-        {
-            logger.trace("updating endpoint info for {} with {}", endpoint, remote);
-            Map<InetAddressAndPort, EndpointState> states = Collections.singletonMap(endpoint, remote);
-
-            Gossiper.runInGossipStageBlocking(() -> {
-                ctx.gossiper().notifyFailureDetector(states);
-                ctx.gossiper().applyStateLocally(states);
-            });
-            // TODO: We should also wait for schema pulls/pushes, however this would be quite an involved change to MigrationManager
-            //       (which currently drops some migration tasks on the floor).
-            //       Note it would be fine for us to fail to complete the migration task and simply treat this response as a failure/timeout.
-        }
-    }
-
     public static class Request
     {
         final TableId tableId;
+        @Deprecated(since = "5.1")
         final EndpointState epState;
         final Collection<Range<Token>> ranges;
 
@@ -150,7 +136,9 @@ public class PaxosStartPrepareCleanup extends AsyncFuture<PaxosCleanupHistory> i
         public void serialize(Request request, DataOutputPlus out, int version) throws IOException
         {
             request.tableId.serialize(out);
-            EndpointState.serializer.serialize(request.epState, out, version);
+            // Post-5.1 topology is not driven by gossip state
+            if (version < MessagingService.VERSION_51)
+                EndpointState.serializer.serialize(request.epState, out, version);
             out.writeInt(request.ranges.size());
             for (Range<Token> rt : request.ranges)
                 AbstractBounds.tokenSerializer.serialize(rt, out, version);
@@ -159,7 +147,10 @@ public class PaxosStartPrepareCleanup extends AsyncFuture<PaxosCleanupHistory> i
         public Request deserialize(DataInputPlus in, int version) throws IOException
         {
             TableId tableId = TableId.deserialize(in);
-            EndpointState epState = EndpointState.serializer.deserialize(in, version);
+            EndpointState epState = version < MessagingService.VERSION_51
+                                    ? EndpointState.serializer.deserialize(in, version)
+                                    : new EndpointState(HeartBeatState.empty());
+
             TableMetadata table = Schema.instance.getTableMetadata(tableId);
             IPartitioner partitioner = table != null ? table.partitioner : IPartitioner.global();
             int numRanges = in.readInt();
@@ -175,7 +166,8 @@ public class PaxosStartPrepareCleanup extends AsyncFuture<PaxosCleanupHistory> i
         public long serializedSize(Request request, int version)
         {
             long size = request.tableId.serializedSize();
-            size += EndpointState.serializer.serializedSize(request.epState, version);
+            if (version < MessagingService.VERSION_51)
+                size += EndpointState.serializer.serializedSize(request.epState, version);
             size += TypeSizes.sizeof(request.ranges.size());
             for (Range<Token> range : request.ranges)
                 size += AbstractBounds.tokenSerializer.serializedSize(range, version);
@@ -187,7 +179,8 @@ public class PaxosStartPrepareCleanup extends AsyncFuture<PaxosCleanupHistory> i
     {
         return in -> {
             ColumnFamilyStore table = Schema.instance.getColumnFamilyStoreInstance(in.payload.tableId);
-            maybeUpdateTopology(ctx, in.from(), in.payload.epState);
+            // Note: pre-5.1 we would use gossip state included in the request payload to update topology
+            // prior to cleanup. Topology is no longer derived from gossip state, so this has been removed.
             Ballot highBound = newBallot(ballotTracker().getHighBound(), ConsistencyLevel.SERIAL);
             PaxosRepairHistory history = table.getPaxosRepairHistoryForRanges(in.payload.ranges);
             Message<PaxosCleanupHistory> out = in.responseWith(new PaxosCleanupHistory(table.metadata.id, highBound, history));

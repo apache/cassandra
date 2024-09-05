@@ -32,6 +32,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -257,6 +258,9 @@ public abstract class LocalLog implements Closeable
     protected final Set<ChangeListener.Async> asyncChangeListeners;
     protected final LogSpec spec;
 
+    // for testing - used to inject filters which cause entries to be dropped before appending
+    protected final List<Predicate<Entry>> entryFilters;
+
     private LocalLog(LogSpec logSpec)
     {
         this.spec = logSpec;
@@ -272,6 +276,7 @@ public abstract class LocalLog implements Closeable
         listeners = Sets.newConcurrentHashSet();
         changeListeners = Sets.newConcurrentHashSet();
         asyncChangeListeners = Sets.newConcurrentHashSet();
+        entryFilters = Lists.newCopyOnWriteArrayList();
     }
 
     public void bootstrap(InetAddressAndPort addr)
@@ -351,18 +356,24 @@ public abstract class LocalLog implements Closeable
     {
         if (!entries.isEmpty())
         {
-            if (logger.isDebugEnabled())
-                logger.debug("Appending entries to the pending buffer: {}", entries.stream().map(e -> e.epoch).collect(Collectors.toList()));
-            pending.addAll(entries);
+            if (!entryFilters.isEmpty())
+            {
+                logger.debug("Appending batch of entries to the pending buffer individually due to presence of entry filters");
+                entries.forEach(this::maybeAppend);
+            }
+            else
+            {
+                if (logger.isDebugEnabled())
+                    logger.debug("Appending entries to the pending buffer: {}", entries.stream().map(e -> e.epoch).collect(Collectors.toList()));
+                pending.addAll(entries);
+            }
             processPending();
         }
     }
 
     public void append(Entry entry)
     {
-        logger.debug("Appending entry to the pending buffer: {}", entry.epoch);
-        pending.add(entry);
-        processPending();
+        maybeAppend(entry);
     }
 
     /**
@@ -383,15 +394,30 @@ public abstract class LocalLog implements Closeable
             // Create a synthetic "force snapshot" transformation to instruct the log to pick up given metadata
             ForceSnapshot transformation = new ForceSnapshot(logState.baseState);
             Entry newEntry = new Entry(Entry.Id.NONE, epoch, transformation);
-            pending.add(newEntry);
+            maybeAppend(newEntry);
         }
 
         // Finally, append any additional transformations in the snapshot. Some or all of these could be earlier than the
         // currently enacted epoch (if we'd already moved on beyond the epoch of the base state for instance, or if newer
         // entries have been received via normal replication), but this is fine as entries will be put in the reorder
         // log, and duplicates will be dropped.
-        pending.addAll(logState.entries);
+        append(logState.entries);
         processPending();
+    }
+
+    private void maybeAppend(Entry entry)
+    {
+        for(Predicate<Entry> filter :  entryFilters)
+        {
+            if (filter.test(entry))
+            {
+                logger.debug("Not appending entry to the pending buffer due to configured filters: {}", entry.epoch);
+                return;
+            }
+        }
+
+        logger.debug("Appending entry to the pending buffer: {}", entry.epoch);
+        pending.add(entry);
     }
 
     public abstract ClusterMetadata awaitAtLeast(Epoch epoch) throws InterruptedException, TimeoutException;
@@ -598,6 +624,18 @@ public abstract class LocalLog implements Closeable
             listener.notifyPostCommit(before, after, fromSnapshot);
         for (ChangeListener.Async listener : asyncChangeListeners)
             ScheduledExecutors.optionalTasks.submit(() -> listener.notifyPostCommit(before, after, fromSnapshot));
+    }
+
+    public void addFilter(Predicate<Entry> filter)
+    {
+        logger.debug("Adding filter to pending entry buffer");
+        entryFilters.add(filter);
+    }
+
+    public void clearFilters()
+    {
+        logger.debug("Clearing filters from pending entry buffer");
+        entryFilters.removeAll(entryFilters);
     }
 
     /**
