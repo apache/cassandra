@@ -411,6 +411,19 @@ public final class Guardrails implements GuardrailsMBean
                                         threshold, value, what));
 
     /**
+     * Guardrail on the usage of vector type.
+     *
+     * This may be useful when running clusters that have diverse clients, where some do not support the vector type.
+     * Clients that do not support vector may fail to establish sessions or fail to read results containing vector
+     * columns.
+     */
+    public static final EnableFlag vectorTypeEnabled =
+    new EnableFlag("vector_type_enabled",
+                     null,
+                     state -> CONFIG_PROVIDER.getOrCreate(state).getVectorTypeEnabled(),
+                    "usage of the vector type");
+
+    /**
      * Guardrail on the number of dimensions of vector columns.
      */
     public static final MaxThreshold vectorDimensions =
@@ -1164,6 +1177,18 @@ public final class Guardrails implements GuardrailsMBean
     public void setVectorDimensionsThreshold(int warn, int fail)
     {
         DEFAULT_CONFIG.setVectorDimensionsThreshold(warn, fail);
+    }
+
+    @Override
+    public void setVectorTypeEnabled(boolean enabled)
+    {
+        DEFAULT_CONFIG.setVectorTypeEnabled(enabled);
+    }
+
+    @Override
+    public boolean getVectorTypeEnabled()
+    {
+        return DEFAULT_CONFIG.getVectorTypeEnabled();
     }
 
     @Override
