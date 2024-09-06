@@ -158,7 +158,8 @@ public final class TableParams
     public void validate()
     {
         compaction.validate();
-        compression.validate();
+        if (compression != null)
+            compression.validate();
 
         double minBloomFilterFpChanceValue = BloomCalculations.minSupportedBloomFilterFpChance();
         if (bloomFilterFpChance <=  minBloomFilterFpChanceValue || bloomFilterFpChance > 1)
@@ -219,7 +220,6 @@ public final class TableParams
             return false;
 
         TableParams p = (TableParams) o;
-
         return comment.equals(p.comment)
             && additionalWritePolicy.equals(p.additionalWritePolicy)
             && allowAutoSnapshot == p.allowAutoSnapshot
@@ -358,7 +358,7 @@ public final class TableParams
         private SpeculativeRetryPolicy additionalWritePolicy = PercentileSpeculativeRetryPolicy.NINETY_NINE_P;
         private CachingParams caching = CachingParams.DEFAULT;
         private CompactionParams compaction = CompactionParams.DEFAULT;
-        private CompressionParams compression = CompressionParams.DEFAULT;
+        private CompressionParams compression;
         private MemtableParams memtable = MemtableParams.DEFAULT;
         private ImmutableMap<String, ByteBuffer> extensions = ImmutableMap.of();
         private boolean cdc;
@@ -467,6 +467,14 @@ public final class TableParams
         {
             compression = val;
             return this;
+        }
+
+        public CompressionParams setDefaultCompressionIfNotSet(String keyspace)
+        {
+            if (compression == null)
+                compression = CompressionParams.defaultParams(keyspace);
+
+            return compression;
         }
 
         public Builder cdc(boolean val)

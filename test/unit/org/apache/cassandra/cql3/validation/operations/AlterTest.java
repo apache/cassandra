@@ -32,6 +32,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.index.StubIndex;
+import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SchemaKeyspaceTables;
@@ -697,10 +698,10 @@ public class AlterTest extends CQLTester
         createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))");
         assertSchemaOption("compression", map("chunk_length_in_kb", "16", "class", "org.apache.cassandra.io.compress.LZ4Compressor"));
 
-        alterTable("ALTER TABLE %s WITH compression = { 'class' : 'SnappyCompressor', 'chunk_length_in_kb' : 32 };");
+        alterTable("ALTER TABLE %s WITH compression = { 'class' : 'SnappyCompressor', 'chunk_length' : '32KiB' };");
         assertSchemaOption("compression", map("chunk_length_in_kb", "32", "class", "org.apache.cassandra.io.compress.SnappyCompressor"));
 
-        alterTable("ALTER TABLE %s WITH compression = { 'class' : 'LZ4Compressor', 'chunk_length_in_kb' : 64 };");
+        alterTable("ALTER TABLE %s WITH compression = { 'class' : 'LZ4Compressor', 'chunk_length' : '64KiB' };");
         assertSchemaOption("compression", map("chunk_length_in_kb", "64", "class", "org.apache.cassandra.io.compress.LZ4Compressor"));
 
         alterTable("ALTER TABLE %s WITH compression = { 'class' : 'LZ4Compressor', 'min_compress_ratio' : 2 };");
@@ -712,28 +713,24 @@ public class AlterTest extends CQLTester
         alterTable("ALTER TABLE %s WITH compression = { 'class' : 'LZ4Compressor', 'min_compress_ratio' : 0 };");
         assertSchemaOption("compression", map("chunk_length_in_kb", "16", "class", "org.apache.cassandra.io.compress.LZ4Compressor"));
 
-        alterTable("ALTER TABLE %s WITH compression = { 'class' : 'SnappyCompressor', 'chunk_length_in_kb' : 32 };");
+        alterTable("ALTER TABLE %s WITH compression = { 'class' : 'SnappyCompressor', 'chunk_length' : '32KiB' };");
         alterTable("ALTER TABLE %s WITH compression = { 'enabled' : 'false'};");
         assertSchemaOption("compression", map("enabled", "false"));
-
-        assertAlterTableThrowsException(ConfigurationException.class,
-                                        "Missing sub-option 'class' for the 'compression' option.",
-                                        "ALTER TABLE %s WITH  compression = {'chunk_length_in_kb' : 32};");
 
         assertAlterTableThrowsException(ConfigurationException.class,
                                         "The 'class' option must not be empty. To disable compression use 'enabled' : false",
                                         "ALTER TABLE %s WITH  compression = { 'class' : ''};");
 
         assertAlterTableThrowsException(ConfigurationException.class,
-                                        "If the 'enabled' option is set to false no other options must be specified",
-                                        "ALTER TABLE %s WITH compression = { 'enabled' : 'false', 'class' : 'SnappyCompressor'};");
+                                        CompressionParams.TOO_MANY_CHUNK_LENGTH,
+                                        "ALTER TABLE %s WITH compression = { 'class' : 'SnappyCompressor', 'chunk_length_in_kb' : 32 , 'chunk_length' : '32KiB'};");
 
         assertAlterTableThrowsException(ConfigurationException.class,
-                                        "Invalid negative min_compress_ratio",
+                                        "Invalid 'min_compress_ratio' value for the 'compression' option.  Can either be 0 or greater than or equal to 1: -1.0",
                                         "ALTER TABLE %s WITH compression = { 'class' : 'SnappyCompressor', 'min_compress_ratio' : -1 };");
 
         assertAlterTableThrowsException(ConfigurationException.class,
-                                        "min_compress_ratio can either be 0 or greater than or equal to 1",
+                                        "Invalid 'min_compress_ratio' value for the 'compression' option.  Can either be 0 or greater than or equal to 1: 0.5",
                                         "ALTER TABLE %s WITH compression = { 'class' : 'SnappyCompressor', 'min_compress_ratio' : 0.5 };");
     }
 
