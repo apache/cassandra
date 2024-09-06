@@ -1,4 +1,5 @@
 5.0.1
+ * Add guardrail for enabling usage of VectorType (CASSANDRA-19903)
  * Set executable flag for shell scripts in .build directory for source artifact (CASSANDRA-19896)
  * Throw ConfigurationException when commitlog_disk_access_mode is direct but direct IO is not supported by filesystem (CASSANDRA-19812)
  * Minor improvements in Cassandra shutdown and startup logs (CASSANDRA-19818)
