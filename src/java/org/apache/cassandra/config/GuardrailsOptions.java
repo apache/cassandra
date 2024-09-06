@@ -1059,6 +1059,21 @@ public class GuardrailsOptions implements GuardrailsConfig
                                   x -> config.non_partition_restricted_index_query_enabled = x);
     }
 
+    @Override
+    public boolean getVectorTypeEnabled()
+    {
+        return config.vector_type_enabled;
+    }
+
+    @Override
+    public void setVectorTypeEnabled(boolean enabled)
+    {
+        updatePropertyWithLogging("vector_type_enabled",
+                                  enabled,
+                                  () -> config.vector_type_enabled,
+                                  x -> config.vector_type_enabled = x);
+    }
+
     private static <T> void updatePropertyWithLogging(String propertyName, T newValue, Supplier<T> getter, Consumer<T> setter)
     {
         T oldValue = getter.get();
