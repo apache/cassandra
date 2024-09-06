@@ -252,7 +252,12 @@ public class ClusterMetadataTestHelper
 
     public static NodeId nodeId(int nodeIdx)
     {
-        return ClusterMetadata.current().directory.peerId(addr(nodeIdx));
+        return nodeId(addr(nodeIdx));
+    }
+
+    public static NodeId nodeId(InetAddressAndPort addr)
+    {
+        return ClusterMetadata.current().directory.peerId(addr);
     }
 
     public static InetAddressAndPort addr(int nodeIdx)
@@ -365,10 +370,15 @@ public class ClusterMetadataTestHelper
 
     public static void leave(int nodeIdx)
     {
+            leave(addr(nodeIdx));
+    }
+
+    public static void leave(InetAddressAndPort endpoint)
+    {
         try
         {
-            NodeId nodeId = nodeId(nodeIdx);
-            LeaveProcess process = lazyLeave(nodeIdx, false);
+            NodeId nodeId = nodeId(endpoint);
+            LeaveProcess process = lazyLeave(endpoint, false);
             process.prepareLeave()
                    .startLeave()
                    .midLeave()
