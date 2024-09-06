@@ -28,7 +28,7 @@ import org.junit.runners.Parameterized;
 import static java.lang.String.format;
 
 /**
- * Tests the guardrail for the usage of the vector type, {@link Guardrails#vectorType}.
+ * Tests the guardrail for the usage of the vector type, {@link Guardrails#vectorTypeEnabled}.
  */
 @RunWith(Parameterized.class)
 public class GuardrailVectorTypeEnabledTest extends GuardrailTester
@@ -46,9 +46,9 @@ public class GuardrailVectorTypeEnabledTest extends GuardrailTester
 
     public GuardrailVectorTypeEnabledTest(boolean enabled)
     {
-        super(Guardrails.vectorType);
+        super(Guardrails.vectorTypeEnabled);
         this.enabled = enabled;
-        Guardrails.instance.setVectorColumnsEnabled(enabled);
+        Guardrails.instance.setVectorTypeEnabled(enabled);
     }
 
     @Test

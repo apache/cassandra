@@ -614,10 +614,14 @@ public interface GuardrailsMBean
     void setVectorDimensionsThreshold(int warn, int fail);
 
     /**
-     *
-     * @param enabled {@code true} if vector type usage is enabled
+     * @param enabled {@code true} if vector type usage is enabled.
      */
-    void setVectorColumnsEnabled(boolean enabled);
+    void setVectorTypeEnabled(boolean enabled);
+
+    /**
+     * @return {@code true} if vector type usage is enabled.
+     */
+    boolean getVectorTypeEnabled();
 
     /**
      * @return The threshold to warn when local data disk usage percentage exceeds that threshold.
