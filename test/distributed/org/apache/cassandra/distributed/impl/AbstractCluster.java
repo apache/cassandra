@@ -1032,17 +1032,23 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
             // Start any instances with auto_bootstrap enabled first, and in series to avoid issues
             // with multiple nodes bootstrapping with consistent range movement enabled,
             // and then start any instances with it disabled in parallel.
+            // Whichever instance starts first will be the initial CMS for the cluster.
             List<I> startSequentially = new ArrayList<>();
             List<I> startParallel = new ArrayList<>();
             for (int i = 0; i < instances.size(); i++)
             {
                 I instance = instances.get(i);
 
-                if (i == 0 || (boolean) instance.config().get("auto_bootstrap"))
+                if ((boolean) instance.config().get("auto_bootstrap"))
                     startSequentially.add(instance);
                 else
                     startParallel.add(instance);
             }
+
+            // If no instances have auto_bootstrap enabled, start the first in the list
+            // so it can become the initial CMS member.
+            if (startSequentially.isEmpty())
+                startSequentially.add(startParallel.remove(0));
 
             forEach(startSequentially, i -> {
                 i.startup(this);
