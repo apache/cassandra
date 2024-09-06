@@ -723,6 +723,7 @@ public interface CQL3Type
             {
                 if (type.isVector())
                 {
+                    Guardrails.vectorType.ensureEnabled(name, state);
                     int dimensions = ((Vector) type).getType().dimension;
                     Guardrails.vectorDimensions.guard(dimensions, name, false, state);
                 }
@@ -921,6 +922,7 @@ public interface CQL3Type
             @Override
             public void validate(ClientState state, String name)
             {
+                Guardrails.vectorType.ensureEnabled(name, state);
                 Guardrails.vectorDimensions.guard(dimension, name, false, state);
             }
 
