@@ -367,7 +367,7 @@ public class ClusterMetadataTestHelper
     {
         try
         {
-            NodeId nodeId = ClusterMetadata.current().directory.peerId(InetAddressAndPort.getByName("127.0.0." + nodeIdx));
+            NodeId nodeId = nodeId(nodeIdx);
             LeaveProcess process = lazyLeave(nodeIdx, false);
             process.prepareLeave()
                    .startLeave()
