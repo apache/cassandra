@@ -401,6 +401,15 @@ public final class Guardrails implements GuardrailsMBean
                                         threshold, value, what));
 
     /**
+     * Guardrail on the usage of vector type.
+     */
+    public static final EnableFlag vectorType =
+    new EnableFlag("vector_type_enabled",
+                     null,
+                     state -> CONFIG_PROVIDER.getOrCreate(state).getVectorTypeEnabled(),
+                    "usage of the vector type");
+
+    /**
      * Guardrail on the number of dimensions of vector columns.
      */
     public static final MaxThreshold vectorDimensions =
@@ -1137,6 +1146,12 @@ public final class Guardrails implements GuardrailsMBean
     public void setVectorDimensionsThreshold(int warn, int fail)
     {
         DEFAULT_CONFIG.setVectorDimensionsThreshold(warn, fail);
+    }
+
+    @Override
+    public void setVectorColumnsEnabled(boolean enabled)
+    {
+        DEFAULT_CONFIG.setVectorTypeEnabled(enabled);
     }
 
     @Override
