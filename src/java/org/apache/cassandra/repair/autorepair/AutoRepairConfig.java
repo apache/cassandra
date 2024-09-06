@@ -238,24 +238,24 @@ public class AutoRepairConfig implements Serializable
 
     public int getParallelRepairPercentageInGroup(RepairType repairType)
     {
-        return applyOverrides(repairType, opt -> opt.parallel_repair_percentage_in_group);
+        return applyOverrides(repairType, opt -> opt.parallel_repair_percentage);
     }
 
     public void setParallelRepairPercentageInGroup(RepairType repairType, int percentageInGroup)
     {
         ensureOverrides(repairType);
-        repair_type_overrides.get(repairType).parallel_repair_percentage_in_group = percentageInGroup;
+        repair_type_overrides.get(repairType).parallel_repair_percentage = percentageInGroup;
     }
 
     public int getParallelRepairCountInGroup(RepairType repairType)
     {
-        return applyOverrides(repairType, opt -> opt.parallel_repair_count_in_group);
+        return applyOverrides(repairType, opt -> opt.parallel_repair_count);
     }
 
     public void setParallelRepairCountInGroup(RepairType repairType, int countInGroup)
     {
         ensureOverrides(repairType);
-        repair_type_overrides.get(repairType).parallel_repair_count_in_group = countInGroup;
+        repair_type_overrides.get(repairType).parallel_repair_count = countInGroup;
     }
 
     public boolean getMVRepairEnabled(RepairType repairType)
@@ -331,15 +331,15 @@ public class AutoRepairConfig implements Serializable
             opts.repair_by_keyspace = false;
             opts.number_of_subranges = 16;
             opts.number_of_repair_threads = 1;
-            opts.parallel_repair_count_in_group = 1;
-            opts.parallel_repair_percentage_in_group = 0;
+            opts.parallel_repair_count = 3;
+            opts.parallel_repair_percentage = 3;
             opts.sstable_upper_threshold = 10000;
             opts.min_repair_interval = new DurationSpec.IntSecondsBound("24h");
             opts.ignore_dcs = new HashSet<>();
             opts.repair_primary_token_range_only = true;
             opts.force_repair_new_node = false;
             opts.table_max_repair_time = new DurationSpec.IntSecondsBound("6h");
-            opts.mv_repair_enabled = true;
+            opts.mv_repair_enabled = false;
             opts.token_range_splitter = DefaultAutoRepairTokenSplitter.class.getName();
             opts.initial_scheduler_delay = new DurationSpec.IntSecondsBound("15m"); // 15 minutes
             opts.repair_session_timeout = new DurationSpec.IntSecondsBound("3h"); // 3 hours
@@ -362,13 +362,12 @@ public class AutoRepairConfig implements Serializable
         // Once the scheduler schedules one repair session, then howmany threads to use inside that job will be controlled through this parameter.
         // This is similar to -j for repair options for the nodetool repair command.
         public volatile Integer number_of_repair_threads;
-        // the number of repair sessions that can run in parallel in a single group
-        // The number of nodes running repair parallelly. If parallelrepaircount is set, it will choose the larger value of the two. The default is 3.
+        // The number of nodes running repair parallelly. If parallel_repair_count is set, it will choose the larger value of the two. The default is 3.
         // This configuration controls how many nodes would run repair in parallel.
         // The value “3” means, at any given point in time, at most 3 nodes would be running repair in parallel. These selected nodes can be from any datacenters.
         // If one or more node(s) finish repair, then the framework automatically picks up the next candidate and ensures the maximum number of nodes running repair do not exceed “3”.
-        public volatile Integer parallel_repair_count_in_group;
-        // the number of repair sessions that can run in parallel in a single groupas a percentage
+        public volatile Integer parallel_repair_count;
+        // the number of repair nodes that can run in parallel
         // of the total number of nodes in the group [0,100]
         // The percentage of nodes in the cluster that run repair parallelly. If parallelrepaircount is set, it will choose the larger value of the two.
         // The problem with a fixed number of nodes (the above property) is that in a large-scale environment,
@@ -376,7 +375,7 @@ public class AutoRepairConfig implements Serializable
         // The default is 3%, which means that 3% of the nodes in the Cassandra cluster would be repaired in parallel.
         // So now, if a fleet, an operator won't have to worry about changing the repair frequency, etc., as overall repair time will continue to remain the same even if nodes are added or removed due to elasticity.
         // Extremely fewer manual interventions as it will rarely violate the repair SLA for customers
-        public volatile Integer parallel_repair_percentage_in_group;
+        public volatile Integer parallel_repair_percentage;
         // the upper threshold of SSTables allowed to participate in a single repair session
         // Threshold to skip a table if it has too many sstables. The default is 10000. This means, if a table on a node has 10000 or more SSTables, then that table will be skipped.
         // This is to avoid penalizing good tables (neighbors) with an outlier.
@@ -421,8 +420,8 @@ public class AutoRepairConfig implements Serializable
                    ", repair_by_keyspace=" + repair_by_keyspace +
                    ", number_of_subranges=" + number_of_subranges +
                    ", number_of_repair_threads=" + number_of_repair_threads +
-                   ", parallel_repair_count_in_group=" + parallel_repair_count_in_group +
-                   ", parallel_repair_percentage_in_group=" + parallel_repair_percentage_in_group +
+                   ", parallel_repair_count_in_group=" + parallel_repair_count +
+                   ", parallel_repair_percentage_in_group=" + parallel_repair_percentage +
                    ", sstable_upper_threshold=" + sstable_upper_threshold +
                    ", min_repair_interval=" + min_repair_interval +
                    ", ignore_dcs=" + ignore_dcs +
@@ -432,7 +431,7 @@ public class AutoRepairConfig implements Serializable
                    ", mv_repair_enabled=" + mv_repair_enabled +
                    ", token_range_splitter=" + token_range_splitter +
                    ", intial_scheduler_delay=" + initial_scheduler_delay +
-                     ", repair_session_timeout=" + repair_session_timeout +
+                   ", repair_session_timeout=" + repair_session_timeout +
                    '}';
         }
     }
