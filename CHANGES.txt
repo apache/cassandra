@@ -72,6 +72,7 @@
  * Add the ability to disable bulk loading of SSTables (CASSANDRA-18781)
  * Clean up obsolete functions and simplify cql_version handling in cqlsh (CASSANDRA-18787)
 Merged from 5.0:
+ * Add guardrail for enabling usage of VectorType (CASSANDRA-19903)
  * Set executable flag for shell scripts in .build directory for source artifact (CASSANDRA-19896)
  * Throw ConfigurationException when commitlog_disk_access_mode is direct but direct IO is not supported by filesystem (CASSANDRA-19812)
  * Memtable allocation type unslabbed_heap_buffers_logged will cause an assertion error for TrieMemtables and SegmentedTrieMemtables (CASSANDRA-19835)

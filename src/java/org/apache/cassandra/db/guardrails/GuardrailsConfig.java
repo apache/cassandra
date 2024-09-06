@@ -312,6 +312,18 @@ public interface GuardrailsConfig
     int getFieldsPerUDTFailThreshold();
 
     /**
+     * @return Whether new columns can be created with vector type
+     */
+    boolean getVectorTypeEnabled();
+
+    /**
+     * Sets whether new columns can be created with vector type
+     *
+     * @param enabled
+     */
+    void setVectorTypeEnabled(boolean enabled);
+
+    /**
      * @return The threshold to warn when creating a vector with more dimensions than threshold.
      */
     int getVectorDimensionsWarnThreshold();
