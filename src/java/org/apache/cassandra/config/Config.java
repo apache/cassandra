@@ -789,13 +789,13 @@ public class Config
     public volatile Boolean should_compare_gossip_and_storage_service_cache = true;
 
     // The frequency at which the Gossip and the Storage Service caches are validated
-    public volatile Long gossip_and_storage_service_cache_comparison_interval_in_sec = 900L;
+    public volatile Long gossip_and_storage_service_cache_comparison_interval_in_sec = 300L;
 
     // Should we fix the Gossip and Storage service cache in case of a mismatch. By default, do not fix
     public volatile Boolean should_fix_gossip_and_storage_service_cache_mismatch = false;
 
     // Number of consecutive mismatch occurrences after which we declare caches are not in sync */
-    public volatile Integer gossip_and_storage_service_cache_mismatch_conviction_threshold = 5;
+    public volatile Integer gossip_and_storage_service_cache_mismatch_conviction_threshold = 3;
 
     // rate limiter related variables:
     public volatile ThrottlingOptions throttling_options = new ThrottlingOptions();

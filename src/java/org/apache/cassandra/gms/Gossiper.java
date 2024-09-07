@@ -423,7 +423,18 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                     // check the status only for NORMAL nodes
                     if (ep.isNormalState())
                     {
-                        Collection<Token> tokensFromStorageServiceCache = StorageService.instance.getTokenMetadata().getTokens(endpoint);
+                        Collection<Token> tokensFromStorageServiceCache = new ArrayList<>();
+                        try
+                        {
+                            tokensFromStorageServiceCache = StorageService.instance.getTokenMetadata().getTokens(endpoint);
+                        }
+                        catch(AssertionError e)
+                        {
+                            // if we receive AssertionError then it means that the endpoint is part of Gossip cache
+                            // but StorageService cache does not have the endpoint.
+                            // This should be treated as inconsistency between the StorageService cache and Gossip cache
+                            logger.warn("Storage service cache is missing information for normal endpoint {}", endpoint, e);
+                        }
                         Collection<Token> tokensFromGossipCache = StorageService.instance.getTokensFor(endpoint);
                         List<Token> c1 = new ArrayList<>(tokensFromStorageServiceCache);
                         List<Token> c2 = new ArrayList<>(tokensFromGossipCache);
@@ -468,7 +479,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         {
             // do not throw an exception intentionally, as this function behaves as an add-on
             GossipMetrics.gossipAndStorageServiceCacheError.inc();
-            logger.warn("Error while comparing the Gossip and Storage Service caches {}", e);
+            logger.warn("Error while comparing the Gossip and Storage Service caches", e);
         }
     }
 
