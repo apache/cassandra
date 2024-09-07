@@ -56,7 +56,6 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.IncludingExcludingBounds;
-import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.index.transactions.UpdateTransaction;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -576,11 +575,12 @@ public class Memtable implements Comparable<Memtable>
             ConcurrentNavigableMap<PartitionPosition, Object> partitions = new ConcurrentSkipListMap<>();
             final Object val = new Object();
             final int testBufferSize = 8;
+
             for (int i = 0 ; i < count ; i++)
-                partitions.put(cloner.clone(new BufferDecoratedKey(new LongToken(i), ByteBuffer.allocate(testBufferSize))), val);
+                partitions.put(cloner.clone(new BufferDecoratedKey(DatabaseDescriptor.getPartitioner().getRandomToken(), ByteBuffer.allocate(testBufferSize))), val);
             double avgSize = ObjectSizes.measureDeep(partitions) / (double) count;
             rowOverhead = (int) ((avgSize - Math.floor(avgSize)) < 0.05 ? Math.floor(avgSize) : Math.ceil(avgSize));
-            rowOverhead -= new LongToken(0).getHeapSize();
+            rowOverhead -= DatabaseDescriptor.getPartitioner().getRandomToken().getHeapSize();
             rowOverhead += AtomicBTreePartition.EMPTY_SIZE;
             rowOverhead += AbstractBTreePartition.HOLDER_UNSHARED_HEAP_SIZE;
             // omitSharedBufferOverhead includes the given number of bytes even for
@@ -588,7 +588,7 @@ public class Memtable implements Comparable<Memtable>
             if (!(allocator instanceof NativeAllocator))
             {
                 rowOverhead -= testBufferSize;
-                DecoratedKey clonedKey = cloner.clone(new BufferDecoratedKey(new LongToken(0), ByteBuffer.allocate(testBufferSize)));
+                DecoratedKey clonedKey = cloner.clone(new BufferDecoratedKey(DatabaseDescriptor.getPartitioner().getRandomToken(), ByteBuffer.allocate(testBufferSize)));
                 // if we use a slab allocator the adjustment is 0, if it is unslabbed type the adjustment is byte array heap size
                 long nonSlabAdjustment = ObjectSizes.sizeOnHeapExcludingData(clonedKey.getKey()) - ObjectSizes.measure(clonedKey.getKey());
                 rowOverhead += nonSlabAdjustment;

@@ -23,6 +23,7 @@ import org.junit.BeforeClass;
 
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.db.Memtable;
+import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.utils.memory.MemtablePool;
 import org.apache.cassandra.utils.memory.SlabPool;
 
@@ -32,9 +33,8 @@ public class MemtableSizeOffheapBuffersTest extends MemtableSizeTestBase
     @BeforeClass
     public static void setUpClass()
     {
-        setup(Config.MemtableAllocationType.offheap_buffers);
+        setup(Config.MemtableAllocationType.offheap_buffers, Murmur3Partitioner.instance);
     }
-
 
     @Override
     void checkMemtablePool()
