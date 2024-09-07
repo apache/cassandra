@@ -31,7 +31,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
-import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.cql3.statements.schema.TableAttributes;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
