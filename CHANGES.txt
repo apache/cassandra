@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * [SO-34338] Fix sonarqube submit job pipeline
  * [SO-34351] Add metric for MV local read time, the existing metric is for local read + NV mutation generation
  * [SO-34146] nodetool rebuild should have option to truncate range table
  * [SO-31012] Allow IR to run with MVs and CDC if write path replay is disabled

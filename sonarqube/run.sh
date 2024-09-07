@@ -48,6 +48,12 @@ tar xzvf apache-ant-1.10.12-bin.tar.gz
 ANT_HOME="$(readlink -f apache-ant-1.10.12)"
 export ANT_HOME
 
+# generic-udj is migrated to Debian 12, which is using Java 17 by default. We want to switch to Java 11
+JAVA_HOME="$(readlink -f $HOME/java_home/jdk_11)"
+export JAVA_HOME
+export PATH="$JAVA_HOME/bin:$PATH"
+java --version
+
 # update PATH
 export PATH="$ANT_HOME/bin:$JAVA_HOME/bin:$PATH"
 
