@@ -20,6 +20,7 @@ package org.apache.cassandra.tools.nodetool;
 
 import java.io.PrintStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 
@@ -69,7 +70,7 @@ public class SSTableRepairedSet extends NodeTool.NodeToolCmd
             message = "Previewing repaired state mutation of SSTables for";
 
         List<String> keyspaces = parseOptionalKeyspace(args, probe, KeyspaceSet.NON_LOCAL_STRATEGY);
-        List<String> tables = List.of(parseOptionalTables(args));
+        List<String> tables = new ArrayList<>(Arrays.asList(parseOptionalTables(args)));
 
         if (args.isEmpty())
             message += " all keyspaces";
