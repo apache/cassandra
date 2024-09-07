@@ -36,6 +36,8 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.github.jamm.MemoryMeter;
 
@@ -68,7 +70,7 @@ public abstract class MemtableSizeTestBase extends CQLTester
     // the main contributor to the actual size floating is randomness in ConcurrentSkipListMap
     final int MAX_DIFFERENCE_PERCENT = 3;
 
-    public static void setup(Config.MemtableAllocationType allocationType)
+    public static void setup(Config.MemtableAllocationType allocationType, IPartitioner partitioner)
     {
         ServerTestUtils.daemonInitialization();
         try
@@ -84,7 +86,7 @@ public abstract class MemtableSizeTestBase extends CQLTester
             throw new RuntimeException(e);
         }
 
-        CQLTester.setUpClass();
+        StorageService.instance.setPartitionerUnsafe(partitioner);
         CQLTester.prepareServer();
         logger.info("setupClass done, allocation type {}", allocationType);
     }
