@@ -115,7 +115,7 @@ public class AutoRepair
         for (AutoRepairConfig.RepairType repairType : AutoRepairConfig.RepairType.values())
         {
             repairExecutors.get(repairType).scheduleWithFixedDelay(
-            () -> repair(repairType, 60000),
+            () -> repair(repairType, 5000),
             config.getInitialSchedulerDelay(repairType).toSeconds(),
             config.getRepairCheckInterval().toSeconds(),
             TimeUnit.SECONDS);
@@ -443,7 +443,7 @@ public class AutoRepair
         if (timeInHours == 0 && millisToWait > 0)
         {
             //If repair finished quickly, happens for an empty instance, in such case
-            //wait for a minute so that the JMX metrics can detect the repairInProgress
+            //wait for some duration so that the JMX metrics can detect the repairInProgress
             logger.info("Wait for {} milliseconds for repair type {}.", millisToWait, repairType);
             Thread.sleep(millisToWait);
         }
