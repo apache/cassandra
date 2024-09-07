@@ -229,11 +229,11 @@ public class YamlConfigurationLoaderTest
                                                                "optional", false,
                                                                "enabled", true);
         Map<String, Object> autoRepairConfig = ImmutableMap.of("enabled", true,
-                                                               "global_settings", ImmutableMap.of("repair_dc_groups",
-                                                                                                  ImmutableSet.of("all the groups")),
+                                                               "global_settings", ImmutableMap.of("number_of_repair_threads",
+                                                                                                  1),
                                                                "repair_type_overrides", ImmutableMap.of(
-        "full", ImmutableMap.of("repair_dc_groups",
-                                ImmutableSet.of("none of the groups"))));
+        "full", ImmutableMap.of("number_of_repair_threads",
+                                2)));
         Map<String,Object> map = new ImmutableMap.Builder<String, Object>()
                                  .put("storage_port", storagePort)
                                  .put("commitlog_sync", commitLogSync)
@@ -254,7 +254,7 @@ public class YamlConfigurationLoaderTest
         assertEquals(new DataStorageSpec.IntBytesBound("5B"), config.internode_socket_send_buffer_size); // Check names backward compatibility (CASSANDRA-17141 and CASSANDRA-15234)
         assertEquals(new DataStorageSpec.IntBytesBound("5B"), config.internode_socket_receive_buffer_size); // Check names backward compatibility (CASSANDRA-17141 and CASSANDRA-15234)
         assertEquals(true, config.auto_repair.enabled);
-        assertEquals(6 * 60 * 60L, config.auto_repair.getAutoRepairTableMaxRepairTime(AutoRepairConfig.RepairType.incremental));
+        assertEquals(new DurationSpec.IntSecondsBound("6h"), config.auto_repair.getAutoRepairTableMaxRepairTime(AutoRepairConfig.RepairType.incremental));
         config.auto_repair.setMVRepairEnabled(AutoRepairConfig.RepairType.incremental, false);
     }
 
