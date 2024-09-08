@@ -599,6 +599,7 @@ public class Memtable implements Comparable<Memtable>
             allocator.setDiscarded();
 
             // Decorated key overhead with byte buffer (if needed) is included
+            logger.info("Estimated Memtable row overhead: {}", rowOverhead);
             return rowOverhead;
         }
     }
