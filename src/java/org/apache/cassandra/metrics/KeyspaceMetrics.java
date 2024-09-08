@@ -92,8 +92,10 @@ public class KeyspaceMetrics
     public final Histogram colUpdateTimeDeltaHistogram;
     /** time taken acquiring the partition lock for materialized view updates on this keyspace */
     public final Timer viewLockAcquireTime;
-    /** time taken during the local read of a materialized view update */
+    /** time taken during the local read of a materialized view update + generating the mutatiohs of the MVs */
     public final Timer viewReadTime;
+    /** time taken during the local read of a materialized view update */
+    public final Timer viewExistingReadTime;
     /** CAS Prepare metric */
     public final LatencyMetrics casPrepare;
     /** CAS Propose metrics */
@@ -253,6 +255,7 @@ public class KeyspaceMetrics
         colUpdateTimeDeltaHistogram = createKeyspaceHistogram("ColUpdateTimeDeltaHistogram", false);
         viewLockAcquireTime = createKeyspaceTimer("ViewLockAcquireTime");
         viewReadTime = createKeyspaceTimer("ViewReadTime");
+        viewExistingReadTime = createKeyspaceTimer("ViewExistingReadTime");
 
         casPrepare = createLatencyMetrics("CasPrepare");
         casPropose = createLatencyMetrics("CasPropose");

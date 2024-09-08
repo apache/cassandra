@@ -163,8 +163,10 @@ public class TableMetrics
     public final TableHistogram colUpdateTimeDeltaHistogram;
     /** time taken acquiring the partition lock for materialized view updates for this table */
     public final TableTimer viewLockAcquireTime;
-    /** time taken during the local read of a materialized view update */
+    /** time taken during the local read of a materialized view update + generating the mutatiohs of the MVs */
     public final TableTimer viewReadTime;
+    /** time taken during the local read of a materialized view update */
+    public final TableTimer viewExistingReadTime;
     /** Disk space used by snapshot files which */
     public final Gauge<Long> trueSnapshotsSize;
     /** Row cache hits, but result out of range */
@@ -991,11 +993,13 @@ public class TableMetrics
         {
             viewLockAcquireTime = null;
             viewReadTime = null;
+            viewExistingReadTime = null;
         }
         else
         {
             viewLockAcquireTime = createTableTimer("ViewLockAcquireTime", cfs.keyspace.metric.viewLockAcquireTime);
             viewReadTime = createTableTimer("ViewReadTime", cfs.keyspace.metric.viewReadTime);
+            viewExistingReadTime = createTableTimer("ViewExistingReadTime", cfs.keyspace.metric.viewExistingReadTime);
         }
 
         trueSnapshotsSize = createTableGauge("SnapshotsSize", cfs::trueSnapshotsSize);

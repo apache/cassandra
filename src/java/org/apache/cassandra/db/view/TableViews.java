@@ -162,9 +162,10 @@ public class TableViews extends AbstractCollection<View>
              UnfilteredRowIterator existings = UnfilteredPartitionIterators.getOnlyElement(command.executeLocally(orderGroup), command);
              UnfilteredRowIterator updates = update.unfilteredIterator())
         {
+            cfs.metric.viewExistingReadTime.update(nanoTime() - start, TimeUnit.NANOSECONDS);
             mutations = Iterators.getOnlyElement(generateViewUpdates(views, updates, existings, nowInSec, false));
         }
-        Keyspace.openAndGetStore(update.metadata()).metric.viewReadTime.update(nanoTime() - start, TimeUnit.NANOSECONDS);
+        cfs.metric.viewReadTime.update(nanoTime() - start, TimeUnit.NANOSECONDS);
 
         if (!mutations.isEmpty())
             StorageProxy.mutateMV(update.partitionKey().getKey(), mutations, writeCommitLog, baseComplete, requestTime);
