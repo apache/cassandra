@@ -18,9 +18,14 @@
 
 package org.apache.cassandra.config;
 
+import accord.primitives.Routable;
+import accord.primitives.Txn;
+import accord.primitives.TxnId;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import org.apache.cassandra.journal.Params;
 import org.apache.cassandra.service.consensus.TransactionalMode;
+
+import java.util.concurrent.TimeUnit;
 
 public class AccordSpec
 {
@@ -32,7 +37,16 @@ public class AccordSpec
 
     public volatile OptionaldPositiveInt shard_count = OptionaldPositiveInt.UNDEFINED;
 
-    public volatile DurationSpec.IntMillisecondsBound recover_delay = new DurationSpec.IntMillisecondsBound(1000);
+    // TODO (expected): we should be able to support lower recover delays, at least for txns
+    public volatile DurationSpec.IntMillisecondsBound recover_delay = new DurationSpec.IntMillisecondsBound(5000);
+    public volatile DurationSpec.IntMillisecondsBound range_sync_recover_delay = new DurationSpec.IntMillisecondsBound(10000);
+
+    public long recoveryDelayFor(TxnId txnId, TimeUnit unit)
+    {
+        if (txnId.kind() == Txn.Kind.SyncPoint && txnId.domain() == Routable.Domain.Range)
+            return range_sync_recover_delay.to(unit);
+        return recover_delay.to(unit);
+    }
 
     /**
      * When a barrier transaction is requested how many times to repeat attempting the barrier before giving up
