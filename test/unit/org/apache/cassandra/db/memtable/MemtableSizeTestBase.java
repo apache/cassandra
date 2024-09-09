@@ -104,11 +104,11 @@ public abstract class MemtableSizeTestBase extends CQLTester
         MemoryMeter meter = new MemoryMeter().withGuessing(MemoryMeter.Guess.FALLBACK_UNSAFE)
 //                                           .enableDebug(100)
                                              .ignoreKnownSingletons();
-        if (DatabaseDescriptor.getMemtableAllocationType() == Config.MemtableAllocationType.heap_buffers) {
-            // jamm includes capacity for all ByteBuffer sub-clases (HeapByteBuffer and DirectByteBuffer)
-            // to deepMeasure result
-            // we need it only when we use HeapByteBuffer
-            // because we want to measure heap usage only
+        if (DatabaseDescriptor.getMemtableAllocationType() == Config.MemtableAllocationType.heap_buffers ||
+            DatabaseDescriptor.getMemtableAllocationType() == Config.MemtableAllocationType.offheap_buffers) {
+            // jamm includes capacity for all ByteBuffer sub-clases (HeapByteBuffer and DirectByteBuffer) to deepMeasure result
+            // we need it only when we use HeapByteBuffer because we want to measure heap usage only
+            // we have to use it for DirectByteBuffer too to avoid MemoryMeter traversing through Cleaner references
             meter = meter.omitSharedBufferOverhead();
         }
 
@@ -180,6 +180,18 @@ public abstract class MemtableSizeTestBase extends CQLTester
             logger.info("Memtable deep size {}", FBUtilities.prettyPrintMemory(deepSizeAfter));
 
             long expectedHeap = deepSizeAfter - deepSizeBefore;
+            // jamm MemoryMeter 0.3.2 does not allow to measure heap usage for DirectHeapBuffer correctly
+            //   within a bigger object graph (measureDeep).
+            // If omitSharedBufferOverhead is disabled
+            //    it starts to traverse and include heap usage for unpredictable global Cleaner/ReferenceQueue graphs
+            // if omitSharedBufferOverhead is enabled
+            //    it includes direct buffer capacity into the memory usage
+            // so, we have to correct the heap usage measured in the test by subtracting the total size of data within DirectByteBuffer.
+            // We assume that there is no data replacement in the test operations
+            // so all the off-heap memory allocated in direct byte buffer slabs is in-use/visible by traversing Memtable object graph
+            if (DatabaseDescriptor.getMemtableAllocationType() == Config.MemtableAllocationType.offheap_buffers) {
+                expectedHeap -= usage.ownsOffHeap;
+            }
             long maxDifference = MAX_DIFFERENCE_PERCENT * expectedHeap / 100;
 
             double deltaPerPartition = (expectedHeap - actualHeap) / (double) totalPartitions;

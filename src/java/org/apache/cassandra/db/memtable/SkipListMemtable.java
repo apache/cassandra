@@ -251,6 +251,7 @@ public class SkipListMemtable extends AbstractAllocatorMemtable
             allocator.setDiscarded();
 
             // Decorated key overhead with byte buffer (if needed) is included
+            logger.info("Estimated SkipListMemtable row overhead: {}", rowOverhead);
             return rowOverhead;
         }
     }
