@@ -125,6 +125,7 @@ public class AccordRepair
         int rangeStepUpdateInterval = ACCORD_REPAIR_RANGE_STEP_UPDATE_INTERVAL.getInt();
         RoutingKey remainingStart = range.start();
         // TODO (expected): repair ranges should have a configurable lower limit of split size so already small repairs aren't broken up into excessively tiny ones
+        // TODO (expected): we should support lower range divisions for accord repair
         BigInteger rangeSize = splitter.sizeOf(range);
         if (rangeStep == null)
         {

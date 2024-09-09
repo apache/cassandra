@@ -44,7 +44,9 @@ public class AccordProgressLogTest extends TestBaseImpl
     {
         try (Cluster cluster = init(Cluster.build(3)
                                            .withoutVNodes()
-                                           .withConfig(c -> c.with(Feature.NETWORK).set("accord.enabled", "true"))
+                                           .withConfig(c -> c.with(Feature.NETWORK)
+                                                             .set("accord.enabled", "true")
+                                                            .set("accord.recover_delay", "1s"))
                                            .start()))
         {
             cluster.schemaChange("CREATE KEYSPACE ks WITH replication={'class':'SimpleStrategy', 'replication_factor': 3}");

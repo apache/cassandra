@@ -186,7 +186,7 @@ public class AccordAgent implements Agent
 
         // TODO (expected): make this a configurable calculation on normal request latencies (like ContentionStrategy)
         long oneSecond = SECONDS.toMicros(1L);
-        long startTime = mostRecentAttempt.hlc() + DatabaseDescriptor.getAccord().recover_delay.to(MICROSECONDS)
+        long startTime = mostRecentAttempt.hlc() + DatabaseDescriptor.getAccord().recoveryDelayFor(txnId, MICROSECONDS)
                          + (retryCount == 0 ? 0 : random.nextLong(oneSecond << Math.min(retryCount, 4)));
 
         startTime = nonClashingStartTime(startTime, shard == null ? null : shard.nodes, node.id(), oneSecond, random);
