@@ -27,6 +27,7 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
@@ -44,7 +45,9 @@ public class AccordProgressLogTest extends TestBaseImpl
     {
         try (Cluster cluster = init(Cluster.build(3)
                                            .withoutVNodes()
-                                           .withConfig(c -> c.with(Feature.NETWORK).set("accord.enabled", "true"))
+                                           .withConfig(c -> c.with(Feature.NETWORK)
+                                                             .set("accord.enabled", "true")
+                                                            .set("accord.recover_delay", "1s"))
                                            .start()))
         {
             cluster.schemaChange("CREATE KEYSPACE ks WITH replication={'class':'SimpleStrategy', 'replication_factor': 3}");

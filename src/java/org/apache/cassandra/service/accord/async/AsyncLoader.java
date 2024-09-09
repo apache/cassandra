@@ -27,6 +27,7 @@ import accord.utils.async.AsyncChains;
 import accord.utils.async.AsyncResult;
 import accord.utils.async.Observable;
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import org.apache.cassandra.service.accord.*;
@@ -201,30 +202,30 @@ public class AsyncLoader
         return AsyncChains.all(root);
     }
 
-    private AsyncChain<Set<? extends Key>> findOverlappingKeys(Ranges ranges)
+    private AsyncChain<List<? extends Key>> findOverlappingKeys(Ranges ranges)
     {
         if (ranges.isEmpty())
         {
             // During topology changes some shards may be included with empty ranges
-            return AsyncChains.success(Collections.emptySet());
+            return AsyncChains.success(Collections.emptyList());
         }
 
-        List<AsyncChain<Set<PartitionKey>>> chains = new ArrayList<>(ranges.size());
+        List<AsyncChain<List<PartitionKey>>> chains = new ArrayList<>(ranges.size());
         for (Range range : ranges)
             chains.add(findOverlappingKeys(range));
-        return AsyncChains.reduce(chains, (a, b) -> ImmutableSet.<Key>builder().addAll(a).addAll(b).build());
+        return AsyncChains.reduce(chains, (a, b) -> ImmutableList.<Key>builderWithExpectedSize(a.size() + b.size()).addAll(a).addAll(b).build());
     }
 
-    private AsyncChain<Set<PartitionKey>> findOverlappingKeys(Range range)
+    private AsyncChain<List<PartitionKey>> findOverlappingKeys(Range range)
     {
         // save to a variable as java gets confused when `.map` is called on the result of asChain
-        AsyncChain<Set<PartitionKey>> map = Observable.asChain(callback ->
+        AsyncChain<List<PartitionKey>> map = Observable.asChain(callback ->
                                                                AccordKeyspace.findAllKeysBetween(commandStore.id(),
                                                                                                  (AccordRoutingKey) range.start(), range.startInclusive(),
                                                                                                  (AccordRoutingKey) range.end(), range.endInclusive(),
                                                                                                  callback),
-                                                               Collectors.toSet());
-        return map.map(s -> ImmutableSet.<PartitionKey>builder().addAll(s).build());
+                                                               Collectors.toList());
+        return map.map(ImmutableList::copyOf);
     }
 
     @VisibleForTesting

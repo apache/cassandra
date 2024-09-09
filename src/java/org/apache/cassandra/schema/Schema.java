@@ -279,10 +279,15 @@ public final class Schema implements SchemaProvider
     @Override
     public TableMetadata getTableMetadata(TableId id)
     {
-        return ObjectUtils.getFirstNonNull(() -> localKeyspaces.getTableOrViewNullable(id),
-                                           () -> distributedKeyspaces().getTableOrViewNullable(id),
-                                           () -> VirtualKeyspaceRegistry.instance.getTableMetadataNullable(id));
+        TableMetadata metadata = localKeyspaces.getTableOrViewNullable(id);
+        if (metadata != null)
+            return metadata;
 
+        metadata = distributedKeyspaces().getTableOrViewNullable(id);
+        if (metadata != null)
+            return metadata;
+
+        return VirtualKeyspaceRegistry.instance.getTableMetadataNullable(id);
     }
 
     public TableMetadata getTableMetadata(Descriptor descriptor)
