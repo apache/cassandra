@@ -198,6 +198,10 @@ public class Journal<K, V> implements Shutdownable
 
     public boolean isFlushed(RecordPointer recordPointer)
     {
+        Segment<K, V> current = currentSegment;
+        if (current.descriptor.timestamp == recordPointer.segment)
+            return current.isFlushed(recordPointer.position);
+
         return segments.get().isFlushed(recordPointer);
     }
 
