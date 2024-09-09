@@ -1080,6 +1080,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
                                                                       request.partitionKey,
                                                                       consistency(request.ballot));
                     Map<InetAddressAndPort, EndpointState> gossipInfo = verifyElectorate(request.electorate, localElectorate);
+                    Epoch electorateEpoch = gossipInfo.isEmpty() ? Epoch.EMPTY : localElectorate.createdAt;
                     ReadResponse readResponse = null;
 
                     // Check we cannot race with a proposal, i.e. that we have not made a promise that
@@ -1123,7 +1124,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
 
                     ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(request.table.id);
                     long lowBound = cfs.getPaxosRepairLowBound(request.partitionKey).uuidTimestamp();
-                    return new Permitted(result.outcome, lowBound, acceptedButNotCommitted, committed, readResponse, hasProposalStability, gossipInfo, localElectorate.createdAt, supersededBy);
+                    return new Permitted(result.outcome, lowBound, acceptedButNotCommitted, committed, readResponse, hasProposalStability, gossipInfo, electorateEpoch, supersededBy);
 
                 case REJECT:
                     return new Rejected(result.supersededBy());

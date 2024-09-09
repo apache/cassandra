@@ -46,6 +46,7 @@ import org.apache.cassandra.exceptions.CasWriteTimeoutException;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.SimpleSeedProvider;
+import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.sequences.BootstrapAndJoin;
@@ -68,6 +69,7 @@ import static org.apache.cassandra.net.Verb.PAXOS_COMMIT_REQ;
 import static org.apache.cassandra.net.Verb.PAXOS_PREPARE_REQ;
 import static org.apache.cassandra.net.Verb.PAXOS_PROPOSE_REQ;
 import static org.apache.cassandra.net.Verb.READ_REQ;
+import static org.apache.cassandra.service.paxos.MessageHelper.electorateMismatchChecker;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -851,6 +853,20 @@ public class CASTest extends CASCommonTestCases
             BootstrapAndJoin plan = ClusterMetadataTestHelper.getBootstrapPlan(ClusterMetadata.current().myNodeId());
             InProgressSequences.resume(plan);
         });
+    }
+
+    @Test
+    public void testMatchingElectorates()
+    {
+        // Verify that when the local and remote electorates have not diverged, we don't include redundant
+        // information in the Permitted responses
+        String tableName = tableName("tbl");
+        FOUR_NODES.schemaChange("CREATE TABLE " + KEYSPACE + "." + tableName + " (pk int, ck int, v1 int, v2 int, PRIMARY KEY (pk, ck))");
+        int pk = pk(FOUR_NODES, 1, 2);
+        IMessageFilters.Matcher matcher = electorateMismatchChecker(FOUR_NODES);
+        FOUR_NODES.filters().verbs(Verb.PAXOS2_PREPARE_RSP.id).from(2, 3, 4).to(1).messagesMatching(matcher).drop();
+        assertRows(executeWithRetry(FOUR_NODES.coordinator(1), "INSERT INTO " + KEYSPACE + "." + tableName + " (pk, ck, v1) VALUES (?, 1, 1) IF NOT EXISTS", ONE, pk),
+                   row(true));
     }
 
 }
