@@ -477,7 +477,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
         {
             // The remote peer sent back an epoch for its local electorate, implying that it did not match our original.
             // That epoch may be after the one we built the original from, so catch up if we need to and haven't
-            // already. Either way, verify that verify the electorate is still valid according to the current topology.
+            // already. Either way, verify the electorate is still valid according to the current topology.
             ClusterMetadataService.instance().fetchLogFromPeerOrCMS(ClusterMetadata.current(), from, remoteElectorateEpoch);
             permittedOrTerminateIfElectorateMismatch(permitted, from);
         }
