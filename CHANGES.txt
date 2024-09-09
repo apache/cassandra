@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * [SO-34354] InJvm dtest to verify AutoRepair scheduler basic functionality
  * [SO-34341] Detect & Fix if endpoint is missing from Storage Service Cache but present in Gossip cache
  * [SO-34338] Fix sonarqube submit job pipeline
  * [SO-34351] Add metric for MV local read time, the existing metric is for local read + NV mutation generation
