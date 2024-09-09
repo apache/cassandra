@@ -95,6 +95,7 @@ import org.apache.cassandra.service.reads.DataResolver;
 import org.apache.cassandra.service.reads.repair.NoopReadRepair;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.triggers.TriggerExecutor;
@@ -261,8 +262,10 @@ public class Paxos
             // performing Paxos repair).
             final Token token = table.partitioner == MetaStrategy.partitioner ? MetaStrategy.entireRange.right : key.getToken();
             ClusterMetadata metadata = ClusterMetadata.current();
-            Epoch epoch = metadata.placements.lastModified();
-            ForTokenWrite electorate = forTokenWriteLiveAndDown(metadata, Keyspace.open(table.keyspace), token);
+            Keyspace keyspace = Keyspace.open(table.keyspace);
+            DataPlacement placement = metadata.placements.get(keyspace.getMetadata().params.replication);
+            Epoch epoch = placement.writes.forToken(token).lastModified();
+            ForTokenWrite electorate = forTokenWriteLiveAndDown(metadata, keyspace, token);
             if (consistency == LOCAL_SERIAL)
                 electorate = electorate.filter(InOurDc.replicas());
 

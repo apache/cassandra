@@ -1080,6 +1080,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
                                                                       request.partitionKey,
                                                                       consistency(request.ballot));
                     Map<InetAddressAndPort, EndpointState> gossipInfo = verifyElectorate(request.electorate, localElectorate);
+                    // TODO when 5.1 is the minimum supported version we can modify verifyElectorate to just return this epoch
                     Epoch electorateEpoch = gossipInfo.isEmpty() ? Epoch.EMPTY : localElectorate.createdAt;
                     ReadResponse readResponse = null;
 
