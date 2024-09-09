@@ -25,6 +25,7 @@ import accord.messages.InformDurable;
 import accord.primitives.PartialRoute;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -36,6 +37,7 @@ public class InformDurableSerializers
         @Override
         public void serializeBody(InformDurable msg, DataOutputPlus out, int version) throws IOException
         {
+            out.writeBoolean(msg.executeAt != null);
             CommandSerializers.timestamp.serialize(msg.executeAt, out, version);
             CommandSerializers.durability.serialize(msg.durability, out, version);
         }
@@ -43,7 +45,10 @@ public class InformDurableSerializers
         @Override
         public InformDurable deserializeBody(DataInputPlus in, int version, TxnId txnId, PartialRoute scope, long waitForEpoch) throws IOException
         {
-            Timestamp executeAt = CommandSerializers.timestamp.deserialize(in, version);
+            boolean hasExecuteAt = in.readBoolean();
+            Timestamp executeAt = null;
+            if (hasExecuteAt)
+                executeAt = CommandSerializers.timestamp.deserialize(in, version);
             Status.Durability durability = CommandSerializers.durability.deserialize(in, version);
             return InformDurable.SerializationSupport.create(txnId, scope, waitForEpoch, executeAt, durability);
         }
@@ -51,8 +56,9 @@ public class InformDurableSerializers
         @Override
         public long serializedBodySize(InformDurable msg, int version)
         {
-            return CommandSerializers.timestamp.serializedSize(msg.executeAt, version)
-            + CommandSerializers.durability.serializedSize(msg.durability, version);
+            return TypeSizes.sizeof(msg.executeAt != null)
+                   + CommandSerializers.timestamp.serializedSize(msg.executeAt, version)
+                   + CommandSerializers.durability.serializedSize(msg.durability, version);
         }
     };
 }
