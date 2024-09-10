@@ -936,7 +936,7 @@ public class LocalSessions
     }
 
     @VisibleForTesting
-    protected void sessionCompleted(LocalSession session)
+    public void sessionCompleted(LocalSession session)
     {
         for (TableId tid: session.tableIds)
         {
