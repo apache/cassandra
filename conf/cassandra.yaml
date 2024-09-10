@@ -1131,7 +1131,7 @@ snapshot_links_per_second: 0
 # specified class, or one of the following standard parameters:
 # Parameter             Usage
 # enabled               Disables compression if set to false. Defaults to true.
-# chunk_length          The length of the compresson chunks, must include KiB, MiB or GiB suffix, defaults to 16KiB.
+# chunk_length_in_kb    The length of the compresson chunks, defaults to 16.
 # min_compress_ratio    The minimal acceptable compression, must greater than or equal to 1.0.
 # max_compressed_length The maximum size for a compressed block. Must be less than or equal to chunk_length.
 #                       Must include KiB, MiB or GiB suffix. Defaults to Integer.MAX_VALUE
@@ -1150,7 +1150,7 @@ snapshot_links_per_second: 0
 #  compression:
 #     lz4:
 #       enabled: "true"
-#       chunk_length: 16KiB
+#       chunk_length_in_kb: "16"
 #       max_compressed_length: 16KiB
 
 # Granularity of the collation index of rows within a partition.

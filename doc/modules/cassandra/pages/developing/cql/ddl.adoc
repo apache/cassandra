@@ -628,9 +628,8 @@ Custom compressor can be provided by specifying the full class name as a xref:ca
 | `enabled` | true | Enable/disable sstable compression.
 If the `enabled` option is set to `false`, no other options must be specified.
 
-| `chunk_length_in_kb` | 64 | On disk SSTables are compressed by block (to allow random reads).
+| `chunk_length_in_kb` | 16 | On disk SSTables are compressed by block (to allow random reads).
 This option defines the size (in KB) of said block. See xref:cassandra:developing/cql/ddl.adoc#chunk_note[note] for further information.
-| `chunk_length` | 64KiB| alias to `chunk_length_in_kb` where size is specified with unit, available from CASSANDRA-12973.
 
 | `compression_level` | 3 | Compression level. Only applicable for `ZstdCompressor`.
 Accepts values between `-131072` and `22`.

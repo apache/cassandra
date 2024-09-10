@@ -104,7 +104,7 @@ public class SSTableCompressionTest
         config.default_compression = "zstd";
 
         Map<String, String> configMap = new HashMap<>();
-        configMap.put("chunk_length", "32KiB");
+        configMap.put("chunk_length_in_kb", "32");
         configMap.put("max_compressed_length", "64KiB"); // has to be equal to or lower than chunk_length
 
         config.compression = new HashMap<>();

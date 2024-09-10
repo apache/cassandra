@@ -28,7 +28,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableMap;
 import org.apache.commons.lang3.StringUtils;
@@ -65,10 +64,7 @@ public final class CompressionParams
 
     public static final String CLASS = "class";
     public static final String CHUNK_LENGTH_IN_KB = "chunk_length_in_kb";
-    /**
-     * Requires a DataStorageSpec suffix
-     */
-    public static final String CHUNK_LENGTH = "chunk_length";
+
     /**
      * Requires a DataStorageSpec suffix
      */
@@ -104,12 +100,6 @@ public final class CompressionParams
      * The default calculated from cassandra.yaml
      */
     private static CompressionParams CALCULATED_DEFAULT;
-
-    /**
-     * error message format for when 'chunk_length' and 'chunklenth_in_kb" are both specified
-     */
-    @VisibleForTesting
-    public static final String TOO_MANY_CHUNK_LENGTH = format("Only one of '%s' or '%s' may be specified", CHUNK_LENGTH, CHUNK_LENGTH_IN_KB);
 
     private final ICompressor sstableCompressor;
     /**
@@ -244,10 +234,6 @@ public final class CompressionParams
             enabled = false;
         else
             enabled = removeEnabled(options);
-
-        if (options.containsKey(CHUNK_LENGTH_IN_KB) && options.containsKey(CHUNK_LENGTH))
-            throw new ConfigurationException(format(TOO_MANY_CHUNK_LENGTH,
-                                                    CHUNK_LENGTH_IN_KB, CHUNK_LENGTH));
 
         final int chunk_length_in_bytes = removeChunkLength(options);
 
@@ -497,49 +483,30 @@ public final class CompressionParams
     {
         Integer chunkLengthInBytes = null;
         String key = null;
-        if (options.containsKey(CHUNK_LENGTH))
-        {
-            key = CHUNK_LENGTH;
-            String value = options.remove(CHUNK_LENGTH);
-            try
-            {
-                chunkLengthInBytes = new DataStorageSpec.IntKibibytesBound(value).toBytes();
-            }
-            catch (IllegalArgumentException e)
-            {
-                throw new ConfigurationException(invalidValue(CHUNK_LENGTH, e.getMessage(), value));
-            }
-        }
 
         if (options.containsKey(CHUNK_LENGTH_IN_KB))
         {
             key = CHUNK_LENGTH_IN_KB;
-            if (chunkLengthInBytes != null)
-                throw new ConfigurationException(TOO_MANY_CHUNK_LENGTH);
-            else
+            String chLengthKB = options.remove(CHUNK_LENGTH_IN_KB);
+            try
             {
-                String chLengthKB = options.remove(CHUNK_LENGTH_IN_KB);
-                try
-                {
-                    int parsed = Integer.parseInt(chLengthKB);
-                    if (parsed * 1024L > Integer.MAX_VALUE)
-                        throw new ConfigurationException(invalidValue(CHUNK_LENGTH_IN_KB, "Value is too large", parsed));
-                    if (parsed <= 0)
-                        throw new ConfigurationException(invalidValue(CHUNK_LENGTH_IN_KB, "May not be <= 0", parsed));
-                    chunkLengthInBytes = 1024 * parsed;
-                }
-                catch (NumberFormatException e)
-                {
-                    throw new ConfigurationException(invalidValue(CHUNK_LENGTH_IN_KB, e.getMessage(), chLengthKB));
-                }
+                int parsed = Integer.parseInt(chLengthKB);
+                if (parsed * 1024L > Integer.MAX_VALUE)
+                    throw new ConfigurationException(invalidValue(CHUNK_LENGTH_IN_KB, "Value is too large", parsed));
+                if (parsed <= 0)
+                    throw new ConfigurationException(invalidValue(CHUNK_LENGTH_IN_KB, "May not be <= 0", parsed));
+                chunkLengthInBytes = 1024 * parsed;
+            }
+            catch (NumberFormatException e)
+            {
+                throw new ConfigurationException(invalidValue(CHUNK_LENGTH_IN_KB, e.getMessage(), chLengthKB));
             }
         }
 
         if (chunkLengthInBytes != null)
         {
-            int chunkLength = chunkLengthInBytes;
-            validateChunkLength(key, chunkLength);
-            return chunkLength;
+            validateChunkLength(key, chunkLengthInBytes);
+            return chunkLengthInBytes;
         }
 
         return DEFAULT_CHUNK_LENGTH;
@@ -631,7 +598,7 @@ public final class CompressionParams
 
     public void validate() throws ConfigurationException
     {
-        validateChunkLength(CHUNK_LENGTH, chunkLength);
+        validateChunkLength(CHUNK_LENGTH_IN_KB, chunkLength);
         validateMinCompressRatio(minCompressRatio);
     }
 

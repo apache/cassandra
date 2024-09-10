@@ -85,38 +85,6 @@ public class CompressionParamsTest
     // Tests chunklength settings for both Options and Map.
     private static <T> void chunkLengthTest(BiConsumer<String, String> put, Consumer<String> remove, Function<T, CompressionParams> func, T instance)
     {
-        // CHUNK_LENGTH
-
-        // test empty string
-        put.accept(CompressionParams.CHUNK_LENGTH, "");
-        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> func.apply(instance))
-                                                               .withMessageContaining("Invalid 'chunk_length' value");
-
-        // text zero string
-        put.accept(CompressionParams.CHUNK_LENGTH, "0MiB");
-        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> func.apply(instance))
-                                                               .withMessageContaining("Invalid 'chunk_length' value");
-
-
-        // test properly formated value
-        put.accept(CompressionParams.CHUNK_LENGTH, "1MiB");
-        CompressionParams params = func.apply(instance);
-        assertEquals(1024 * 1024, params.chunkLength());
-
-        // test bad string
-        put.accept(CompressionParams.CHUNK_LENGTH, "badvalue");
-        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> func.apply(instance))
-                                                               .withMessageContaining("Invalid 'chunk_length' value");
-
-        // test not power of 2
-        put.accept(CompressionParams.CHUNK_LENGTH, "3MiB");
-        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> func.apply(instance))
-                                                               .withMessageContaining("Invalid 'chunk_length' value")
-                                                               .withMessageContaining("Must be a power of 2");
-
-        remove.accept(CompressionParams.CHUNK_LENGTH);
-
-
         // CHUNK_LENGTH_IN_KB
         // same tests as above
 
@@ -129,7 +97,7 @@ public class CompressionParamsTest
                                                                .withMessageContaining("Invalid 'chunk_length_in_kb' value");
 
         put.accept(CHUNK_LENGTH_IN_KB, "1");
-        params = func.apply(instance);
+        CompressionParams params = func.apply(instance);
         assertEquals(1024, params.chunkLength());
 
         put.accept(CHUNK_LENGTH_IN_KB, "badvalue");
@@ -148,13 +116,6 @@ public class CompressionParamsTest
                                                                .withMessageContaining("May not be <= 0");
 
         remove.accept(CHUNK_LENGTH_IN_KB);
-
-
-        // TEST COMBINATIONS
-        put.accept(CompressionParams.CHUNK_LENGTH, "3MiB");
-        put.accept(CHUNK_LENGTH_IN_KB, "2");
-        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> func.apply(instance))
-                                                               .withMessage(CompressionParams.TOO_MANY_CHUNK_LENGTH);
     }
 
     @Test
@@ -297,7 +258,7 @@ public class CompressionParamsTest
         assertParams(params, enabled, DEFAULT_CHUNK_LENGTH, Integer.MAX_VALUE, CompressionParams.DEFAULT_MIN_COMPRESS_RATIO, clazz);
         roundTripMapTest(params);
 
-        put.accept(CompressionParams.CHUNK_LENGTH, "4MiB");
+        put.accept(CHUNK_LENGTH_IN_KB, Integer.toString(4 * 1024));
         params = func.apply(instance);
         assertParams(params, enabled, expectedChunkLength, Integer.MAX_VALUE, CompressionParams.DEFAULT_MIN_COMPRESS_RATIO, clazz);
         roundTripMapTest(params);
@@ -660,7 +621,7 @@ public class CompressionParamsTest
     {
         Map<String, String> params = new HashMap<>();
         params.put("enabled", "true");
-        params.put("chunk_length", "16KiB");
+        params.put("chunk_length_in_kb", "16");
         params.put("min_compress_ratio", "0.0");
         params.put("max_comrpessed_length", "16KiB");
         params.put("class_specific_parameter", "value");
@@ -681,7 +642,7 @@ public class CompressionParamsTest
     {
         Map<String, String> params = new HashMap<>();
         params.put(CompressionParams.ENABLED, "true");
-        params.put(CompressionParams.CHUNK_LENGTH, "16KiB");
+        params.put(CHUNK_LENGTH_IN_KB, "16");
         params.put(MIN_COMPRESS_RATIO, "0.0");
         ParameterizedClass parameterizedClass = new ParameterizedClass("lz4", params);
         Map<String, String> map = CompressionParams.fromParameterizedClass(parameterizedClass).asMap();
@@ -705,22 +666,6 @@ public class CompressionParamsTest
         assertEquals("1.5", map.remove(MIN_COMPRESS_RATIO));
         assertEquals(LZ4Compressor.LZ4_FAST_COMPRESSOR, map.remove(LZ4Compressor.LZ4_COMPRESSOR_TYPE));
         assertTrue(map.isEmpty());
-    }
-
-    @Test
-    public void testChunkSizeCalculation()
-    {
-        Map<String, String> params = new HashMap<>();
-        params.put(CompressionParams.CHUNK_LENGTH, "16KiB");
-        ParameterizedClass parameterizedClass = new ParameterizedClass("lz4", params);
-        Map<String, String> map = CompressionParams.fromParameterizedClass(parameterizedClass).asMap();
-
-        Map<String, String> params2 = new HashMap<>();
-        params2.put(CHUNK_LENGTH_IN_KB, "16");
-        ParameterizedClass parameterizedClass2 = new ParameterizedClass("lz4", params2);
-        Map<String, String> map2 = CompressionParams.fromParameterizedClass(parameterizedClass2).asMap();
-
-        assertEquals(map.get(CHUNK_LENGTH_IN_KB), map2.get(CHUNK_LENGTH_IN_KB));
     }
 
     @Test

@@ -233,7 +233,7 @@ public class YamlConfigurationLoaderTest
         Map<String, String> parameters = c.sstable.compression.get(c.sstable.default_compression);
 
         assertThat(parameters).isNotNull();
-        assertThat(parameters.remove(CompressionParams.CHUNK_LENGTH)).isEqualTo("32MiB");
+        assertThat(parameters.remove(CompressionParams.CHUNK_LENGTH_IN_KB)).isEqualTo(Integer.toString(32 * 1024));
         assertThat(parameters.remove(CompressionParams.MIN_COMPRESS_RATIO)).isEqualTo("1.5");
         assertThat(parameters.remove(CompressionParams.ENABLED)).isNull();
         assertThat(parameters.size()).isEqualTo(2);

@@ -39,7 +39,6 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
@@ -677,7 +676,7 @@ public class CreateTest extends CQLTester
         assertSchemaOption("compression", map("chunk_length_in_kb", "32", "class", "org.apache.cassandra.io.compress.SnappyCompressor"));
 
         createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
-                + " WITH compression = { 'class' : 'SnappyCompressor', 'chunk_length' : '32KiB' };");
+                + " WITH compression = { 'class' : 'SnappyCompressor', 'chunk_length_in_kb' : 32 };");
         assertSchemaOption("compression", map("chunk_length_in_kb", "32", "class", "org.apache.cassandra.io.compress.SnappyCompressor"));
 
         createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
@@ -700,13 +699,9 @@ public class CreateTest extends CQLTester
                                            "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
                                            + " WITH compression = { 'class' : ''};");
 
-        assertThrowsConfigurationException("Invalid 'chunk_length' value for the 'compression' option.  Must be a power of 2: 31744",
+        assertThrowsConfigurationException("Invalid 'chunk_length_in_kb' value for the 'compression' option.  Must be a power of 2: 31744",
                                            "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
-                                           + " WITH compression = { 'class' : 'SnappyCompressor', 'chunk_length' : '31KiB' };");
-
-        assertThrowsConfigurationException(format("Only one of '%s' or '%s' may be specified", CompressionParams.CHUNK_LENGTH, CompressionParams.CHUNK_LENGTH_IN_KB),
-                                           "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
-                                           + " WITH compression = { 'class' : 'SnappyCompressor', 'chunk_length' : '32KiB' , 'chunk_length_in_kb' : 32 };");
+                                           + " WITH compression = { 'class' : 'SnappyCompressor', 'chunk_length_in_kb' : 31 };");
 
         assertThrowsConfigurationException("Invalid 'chunk_length_in_kb' value for the 'compression' option.  Must be a power of 2: 31744",
                                            "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"

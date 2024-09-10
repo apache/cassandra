@@ -65,7 +65,7 @@ class Cql3ParsingRuleSet(CqlParsingRuleSet):
             ('class', 'max_threshold', 'tombstone_compaction_interval', 'tombstone_threshold', 'enabled',
              'unchecked_tombstone_compaction', 'only_purge_repaired_tombstones', 'provide_overlapping_tombstones')),
         ('compression', 'compression_parameters',
-            ('class', 'chunk_length', 'chunk_length_in_kb', 'enabled', 'min_compress_ratio', 'max_compressed_length')),
+            ('class', 'chunk_length_in_kb', 'enabled', 'min_compress_ratio', 'max_compressed_length')),
         ('caching', None,
             ('rows_per_partition', 'keys')),
     )
