@@ -136,6 +136,7 @@ Merged from 4.1:
  * Fix StackOverflowError on ALTER after many previous schema changes (CASSANDRA-19166)
  * Memoize Cassandra verion (CASSANDRA-18902)
 Merged from 4.0:
+ * Improve accuracy of memtable heap usage tracking (CASSANDRA-17298)
  * Fix rendering UNSET collection types in query tracing (CASSANDRA-19880)
  * Fix latency reported by ideal consistency level monitoring (CASSANDRA-19651)
  * Use default commitlog settings in test YAMLs (CASSANDRA-19830)

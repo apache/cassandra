@@ -22,6 +22,7 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 
 import org.apache.cassandra.config.Config;
+import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.utils.memory.HeapPool;
 import org.apache.cassandra.utils.memory.MemtablePool;
 
@@ -31,7 +32,7 @@ public class MemtableSizeUnslabbedTest extends MemtableSizeTestBase
     @BeforeClass
     public static void setUpClass()
     {
-        setup(Config.MemtableAllocationType.unslabbed_heap_buffers);
+        setup(Config.MemtableAllocationType.unslabbed_heap_buffers, Murmur3Partitioner.instance);
     }
 
     @Override
