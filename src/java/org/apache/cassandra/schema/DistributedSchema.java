@@ -33,8 +33,10 @@ import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.auth.AuthKeyspace;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.functions.UserFunction;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.tcm.Epoch;
@@ -135,13 +137,38 @@ public class DistributedSchema implements MetadataValue<DistributedSchema>
      */
     private static KeyspaceMetadata merged(KeyspaceMetadata mergeTo, KeyspaceMetadata mergeFrom)
     {
-        Tables newTables = mergeTo.tables;
+        KeyspaceMetadata newKsm = KeyspaceMetadata.create(mergeTo.name,
+                                                          mergeFrom.params,
+                                                          mergeTo.tables,
+                                                          mergeTo.views,
+                                                          mergeTo.types,
+                                                          mergeTo.userFunctions);
+        Tables newTables = newKsm.tables;
         for (TableMetadata metadata : mergeFrom.tables)
-        {
             if (!newTables.containsTable(metadata.id) && newTables.stream().noneMatch(tmd -> tmd.name.equals(metadata.name)))
                 newTables = newTables.with(metadata);
+
+        Views newViews = newKsm.views;
+        for (ViewMetadata view : mergeFrom.views)
+        {
+            if (!newViews.containsView(view.name()))
+                newViews = newViews.with(view);
         }
-        return mergeTo.withSwapped(newTables);
+
+        Types newTypes = newKsm.types;
+        for (UserType type : mergeFrom.types)
+            if (!newTypes.containsType(type.name))
+                newTypes = newTypes.with(type);
+
+        UserFunctions newUserFunctions = newKsm.userFunctions;
+        for (UserFunction uf : mergeFrom.userFunctions)
+            if (newUserFunctions.get(uf.name()).isEmpty())
+                newUserFunctions = newUserFunctions.with(uf);
+
+        return newKsm.withSwapped(newTables)
+                     .withSwapped(newViews)
+                     .withSwapped(newTypes)
+                     .withSwapped(newUserFunctions);
     }
 
     public void initializeKeyspaceInstances(DistributedSchema prev, boolean loadSSTables)
