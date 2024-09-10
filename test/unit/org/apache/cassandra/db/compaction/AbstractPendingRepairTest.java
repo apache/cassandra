@@ -20,6 +20,7 @@ package org.apache.cassandra.db.compaction;
 
 import java.io.IOException;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -120,5 +121,11 @@ public class AbstractPendingRepairTest extends AbstractRepairTest
     public static void mutateRepaired(SSTableReader sstable, UUID pendingRepair, boolean isTransient)
     {
         mutateRepaired(sstable, ActiveRepairService.UNREPAIRED_SSTABLE, pendingRepair, isTransient);
+    }
+
+    public static void mutateRepaired(List<SSTableReader> sstables, UUID pendingRepair, boolean isTransient)
+    {
+        for (SSTableReader sstable: sstables)
+            mutateRepaired(sstable, ActiveRepairService.UNREPAIRED_SSTABLE, pendingRepair, isTransient);
     }
 }
