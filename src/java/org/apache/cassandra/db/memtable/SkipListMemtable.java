@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.db.memtable;
 
+import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.ConcurrentNavigableMap;
@@ -28,6 +29,7 @@ import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
@@ -46,17 +48,16 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.IncludingExcludingBounds;
-import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.index.transactions.UpdateTransaction;
 import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.memory.Cloner;
 import org.apache.cassandra.utils.memory.MemtableAllocator;
+import org.apache.cassandra.utils.memory.NativeAllocator;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.MEMTABLE_OVERHEAD_COMPUTE_STEPS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.MEMTABLE_OVERHEAD_SIZE;
@@ -227,15 +228,30 @@ public class SkipListMemtable extends AbstractAllocatorMemtable
             Cloner cloner = allocator.cloner(group);
             ConcurrentNavigableMap<PartitionPosition, Object> partitions = new ConcurrentSkipListMap<>();
             final Object val = new Object();
+            final int testBufferSize = 8;
             for (int i = 0 ; i < count ; i++)
-                partitions.put(cloner.clone(new BufferDecoratedKey(new LongToken(i), ByteBufferUtil.EMPTY_BYTE_BUFFER)), val);
-            double avgSize = ObjectSizes.measureDeep(partitions) / (double) count;
+                partitions.put(cloner.clone(new BufferDecoratedKey(DatabaseDescriptor.getPartitioner().getRandomToken(), ByteBuffer.allocate(testBufferSize))), val);
+            double avgSize = ObjectSizes.measureDeepOmitShared(partitions) / (double) count;
             rowOverhead = (int) ((avgSize - Math.floor(avgSize)) < 0.05 ? Math.floor(avgSize) : Math.ceil(avgSize));
-            rowOverhead -= ObjectSizes.measureDeep(new LongToken(0));
+            rowOverhead -= DatabaseDescriptor.getPartitioner().getRandomToken().getHeapSize();
             rowOverhead += AtomicBTreePartition.EMPTY_SIZE;
             rowOverhead += AbstractBTreePartition.HOLDER_UNSHARED_HEAP_SIZE;
+            // omitSharedBufferOverhead includes the given number of bytes even for
+            // off-heap buffers, but not for direct memory.
+            if (!(allocator instanceof NativeAllocator))
+            {
+                rowOverhead -= testBufferSize;
+                DecoratedKey clonedKey = cloner.clone(new BufferDecoratedKey(DatabaseDescriptor.getPartitioner().getRandomToken(), ByteBuffer.allocate(testBufferSize)));
+                // if we use a slab allocator the adjustment is 0, if it is unslabbed type the adjustment is byte array heap size
+                long nonSlabAdjustment = ObjectSizes.sizeOnHeapExcludingData(clonedKey.getKey()) - ObjectSizes.measure(clonedKey.getKey());
+                rowOverhead += nonSlabAdjustment;
+            }
+
             allocator.setDiscarding();
             allocator.setDiscarded();
+
+            // Decorated key overhead with byte buffer (if needed) is included
+            logger.info("Estimated SkipListMemtable row overhead: {}", rowOverhead);
             return rowOverhead;
         }
     }
