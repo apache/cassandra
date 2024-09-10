@@ -37,6 +37,8 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.github.jamm.MemoryMeter;
 import org.github.jamm.MemoryMeter.Guess;
@@ -62,6 +64,8 @@ public abstract class MemtableSizeTestBase extends CQLTester
     static final int deletedPartitions = 10_000;
     static final int deletedRows = 5_000;
 
+    static final int totalPartitions = partitions + deletedPartitions + deletedRows;
+
     @Parameterized.Parameter(0)
     public String memtableClass = "skiplist";
 
@@ -79,7 +83,7 @@ public abstract class MemtableSizeTestBase extends CQLTester
     // Slab overhead, added when the memtable uses heap_buffers.
     final int SLAB_OVERHEAD = 1024 * 1024;
 
-    public static void setup(Config.MemtableAllocationType allocationType)
+    public static void setup(Config.MemtableAllocationType allocationType, IPartitioner partitioner)
     {
         ServerTestUtils.daemonInitialization();
         try
@@ -95,7 +99,7 @@ public abstract class MemtableSizeTestBase extends CQLTester
             throw new RuntimeException(e);
         }
 
-        CQLTester.setUpClass();
+        StorageService.instance.setPartitionerUnsafe(partitioner);
         CQLTester.prepareServer();
         logger.info("setupClass done, allocation type {}", allocationType);
     }
@@ -184,10 +188,13 @@ public abstract class MemtableSizeTestBase extends CQLTester
                     actualHeap += trie_overhead;    // adjust trie memory with unused buffer space if on-heap
                     break;
             }
-            String message = String.format("Expected heap usage close to %s, got %s, %s difference.\n",
+            double deltaPerPartition = (expectedHeap - actualHeap) / (double) totalPartitions;
+            String message = String.format("Expected heap usage close to %s, got %s, %s difference. " +
+                                           "Delta per partition: %.2f bytes",
                                            FBUtilities.prettyPrintMemory(expectedHeap),
                                            FBUtilities.prettyPrintMemory(actualHeap),
-                                           FBUtilities.prettyPrintMemory(expectedHeap - actualHeap));
+                                           FBUtilities.prettyPrintMemory(expectedHeap - actualHeap),
+                                           deltaPerPartition);
             logger.info(message);
 
             Assert.assertTrue(message, Math.abs(actualHeap - expectedHeap) <= max_difference);

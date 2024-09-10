@@ -8,6 +8,7 @@
  * Add java.base/java.lang.reflect among opens for jvm11-client.options (CASSANDRA-19780)
 Merged from 4.1:
 Merged from 4.0:
+ * Improve accuracy of memtable heap usage tracking (CASSANDRA-17298)
  * Fix rendering UNSET collection types in query tracing (CASSANDRA-19880)
  * Fix latency reported by ideal consistency level monitoring (CASSANDRA-19651)
  * Do not spam log with SSLExceptions (CASSANDRA-18839)
