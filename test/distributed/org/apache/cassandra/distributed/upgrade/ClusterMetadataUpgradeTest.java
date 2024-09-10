@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.distributed.upgrade;
 
+import java.util.Arrays;
 import java.util.UUID;
 
 import org.junit.Test;
@@ -33,7 +34,6 @@ import static org.psjava.util.AssertStatus.assertTrue;
 
 public class ClusterMetadataUpgradeTest extends UpgradeTestBase
 {
-
     @Test
     public void simpleUpgradeTest() throws Throwable
     {
@@ -61,6 +61,22 @@ public class ClusterMetadataUpgradeTest extends UpgradeTestBase
                 Object [][] res = i.executeInternal("select host_id from system.local");
                 assertTrue(NodeId.isValidNodeId(UUID.fromString(res[0][0].toString())));
             });
+        }).run();
+    }
+
+    @Test
+    public void upgradeSystemKeyspaces() throws Throwable
+    {
+        new TestCase()
+        .nodes(3)
+        .nodesToUpgrade(1)
+        .withConfig((cfg) -> cfg.with(Feature.NETWORK, Feature.GOSSIP)
+                                .set(Constants.KEY_DTEST_FULL_STARTUP, true))
+        .singleUpgradeToCurrentFrom(v50)
+        .setup((cluster) -> cluster.schemaChange(withKeyspace("ALTER KEYSPACE system_auth WITH replication = {'class': 'NetworkTopologyStrategy', 'datacenter0':3}")))
+        .runAfterNodeUpgrade((cluster, i) -> {
+            Object [][] desc = cluster.get(1).executeInternal("describe keyspace system_auth");
+            assertTrue(Arrays.toString(desc[0]).contains("NetworkTopologyStrategy"));
         }).run();
     }
 }
