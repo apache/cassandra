@@ -29,6 +29,7 @@ import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
@@ -48,7 +49,6 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.IncludingExcludingBounds;
-import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.index.transactions.UpdateTransaction;
 import org.apache.cassandra.io.sstable.SSTableReadsListener;
@@ -225,10 +225,10 @@ public class SkipListMemtable extends AbstractAllocatorMemtable
             final Object val = new Object();
             final int testBufferSize = 8;
             for (int i = 0 ; i < count ; i++)
-                partitions.put(cloner.clone(new BufferDecoratedKey(new LongToken(i), ByteBuffer.allocate(testBufferSize))), val);
+                partitions.put(cloner.clone(new BufferDecoratedKey(DatabaseDescriptor.getPartitioner().getRandomToken(), ByteBuffer.allocate(testBufferSize))), val);
             double avgSize = ObjectSizes.measureDeepOmitShared(partitions) / (double) count;
             rowOverhead = (int) ((avgSize - Math.floor(avgSize)) < 0.05 ? Math.floor(avgSize) : Math.ceil(avgSize));
-            rowOverhead -= new LongToken(0).getHeapSize();
+            rowOverhead -= DatabaseDescriptor.getPartitioner().getRandomToken().getHeapSize();
             rowOverhead += AtomicBTreePartition.EMPTY_SIZE;
             rowOverhead += BTreePartitionData.UNSHARED_HEAP_SIZE;
             if (!(allocator instanceof NativeAllocator))
@@ -237,6 +237,7 @@ public class SkipListMemtable extends AbstractAllocatorMemtable
             // Decorated key overhead with byte buffer (if needed) is included
             allocator.setDiscarding();
             allocator.setDiscarded();
+            logger.info("Estimated SkipListMemtable row overhead: {}", rowOverhead);
             return rowOverhead;
         }
     }
