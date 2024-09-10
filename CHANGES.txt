@@ -6,6 +6,7 @@
  * Reduce info logging from automatic paxos repair (CASSANDRA-19445)
  * Support legacy plain_text_auth section in credentials file removed unintentionally (CASSANDRA-19498)
 Merged from 4.0:
+ * Improve accuracy of memtable heap usage tracking (CASSANDRA-17298)
  * Fix rendering UNSET collection types in query tracing (CASSANDRA-19880)
  * Fix latency reported by ideal consistency level monitoring (CASSANDRA-19651)
  * Use default commitlog settings in test YAMLs (CASSANDRA-19830)
