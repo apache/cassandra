@@ -18,10 +18,14 @@
 
 package org.apache.cassandra.schema;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 
+import accord.utils.Gen;
 import com.google.common.collect.ImmutableMap;
-import org.junit.Assert;
+import org.apache.cassandra.config.Config;
+import org.apache.cassandra.utils.ConfigGenBuilder;
+
 import org.junit.Test;
 
 import org.apache.cassandra.config.InheritingClass;
@@ -29,7 +33,12 @@ import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.db.memtable.SkipListMemtableFactory;
 import org.apache.cassandra.exceptions.ConfigurationException;
 
+import static accord.utils.Property.qt;
+import static org.apache.cassandra.config.YamlConfigurationLoader.fromMap;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class MemtableParamsTest
 {
@@ -62,6 +71,41 @@ public class MemtableParamsTest
         assertEquals(ImmutableMap.of("default", DEFAULT,
                                      "one", one),
                      map);
+    }
+
+    @Test
+    public void testOrderingDoesNotMatter()
+    {
+        // linked hash map preserves insertion order
+        Map<String, InheritingClass> config = new LinkedHashMap<>();
+
+        config.put("default", new InheritingClass("trie", null, null));
+        config.put("abc", new InheritingClass(null, "Abc", ImmutableMap.of("c", "d")));
+        config.put("skiplist", new InheritingClass("skiplistOnSteroids", "SkipListMemtable", ImmutableMap.of("e", "f")));
+        config.put("skiplistOnSteroids", new InheritingClass("abc", null, ImmutableMap.of("a", "b")));
+        config.put("trie", new InheritingClass(null, "TrieMemtable", null));
+
+        Map<String, ParameterizedClass> map = MemtableParams.expandDefinitions(config);
+        assertEquals("TrieMemtable", map.get("default").class_name);
+
+        // this inherits abc which has c as config parameter
+        assertTrue(map.get("skiplistOnSteroids").parameters.containsKey("a"));
+        assertTrue(map.get("skiplistOnSteroids").parameters.containsKey("c"));
+        assertEquals(map.get("skiplistOnSteroids").class_name, config.get("abc").class_name);
+
+        // this inherits from skiplistOnSteroids which so params are carried over as well
+        assertTrue(map.get("skiplist").parameters.containsKey("a"));
+        assertTrue(map.get("skiplist").parameters.containsKey("c"));
+        assertTrue(map.get("skiplist").parameters.containsKey("e"));
+        assertEquals(map.get("skiplist").class_name, "SkipListMemtable");
+
+        Map<String, InheritingClass> config2 = new LinkedHashMap<>();
+        config2.put("skiplist", new InheritingClass(null, "SkipListMemtable", null));
+        config2.put("trie", new InheritingClass(null, "TrieMemtable", null));
+        config2.put("default", new InheritingClass("trie", null, null));
+
+        Map<String, ParameterizedClass> map2 = MemtableParams.expandDefinitions(config2);
+        assertEquals("TrieMemtable", map2.get("default").class_name);
     }
 
     @Test
@@ -132,27 +176,6 @@ public class MemtableParamsTest
     }
 
     @Test
-    public void testInvalidExtends()
-    {
-        final InheritingClass one = new InheritingClass(null, "SkipList", null);
-        try
-        {
-            Map<String, ParameterizedClass> map = MemtableParams.expandDefinitions
-            (
-                ImmutableMap.of("two", new InheritingClass("one",
-                                                           null,
-                                                           ImmutableMap.of("extra", "value")),
-                                "one", one)
-            );
-            Assert.fail("Expected exception.");
-        }
-        catch (ConfigurationException e)
-        {
-            // expected
-        }
-    }
-
-    @Test
     public void testInvalidSelfExtends()
     {
         try
@@ -163,7 +186,7 @@ public class MemtableParamsTest
                                                            null,
                                                            ImmutableMap.of("extra", "value")))
             );
-            Assert.fail("Expected exception.");
+            fail("Expected exception.");
         }
         catch (ConfigurationException e)
         {
@@ -197,4 +220,89 @@ public class MemtableParamsTest
                      map);
     }
     // Note: The factories constructed from these parameters are tested in the CreateTest and AlterTest.
+
+    @Test
+    public void testExpandDefinitions()
+    {
+        Gen<Map<String, InheritingClass>> gen = new ConfigGenBuilder()
+                                                .buildMemtable()
+                                                .map(m -> fromMap(m, Config.class))
+                                                .map(c -> c.memtable.configurations);
+        qt().forAll(gen).check(configs -> {
+            Map<String, ParameterizedClass> result = MemtableParams.expandDefinitions(configs);
+            assertThat(result.keySet()).isEqualTo(configs.keySet());
+            for (Map.Entry<String, InheritingClass> e : configs.entrySet()) {
+                if (e.getValue().inherits == null) continue;
+                ParameterizedClass parent = result.get(e.getValue().inherits);
+                ParameterizedClass src = result.get(e.getKey());
+                assertThat(src.class_name).isEqualTo(parent.class_name);
+                assertThat(src.parameters).isEqualTo(parent.parameters);
+            }
+        });
+    }
+
+    @Test
+    public void testInheritsNonExistent()
+    {
+        try
+        {
+            Map<String, ParameterizedClass> map = MemtableParams.expandDefinitions
+            (
+            ImmutableMap.of("one", new InheritingClass("two",
+                                                       null,
+                                                       ImmutableMap.of("extra", "value")),
+                            "two", new InheritingClass("three",
+                                                       null,
+                                                       ImmutableMap.of("extra2", "value2")))
+            );
+            fail("Expected exception.");
+        }
+        catch (ConfigurationException e)
+        {
+            // expected
+        }
+    }
+
+    @Test
+    public void testInvalidLoops()
+    {
+        try
+        {
+            Map<String, ParameterizedClass> map = MemtableParams.expandDefinitions
+            (
+            ImmutableMap.of("one", new InheritingClass("two",
+                                                       null,
+                                                       ImmutableMap.of("extra", "value")),
+                            "two", new InheritingClass("one",
+                                                       null,
+                                                       ImmutableMap.of("extra2", "value2")))
+            );
+            fail("Expected exception.");
+        }
+        catch (ConfigurationException e)
+        {
+            // expected
+        }
+
+        try
+        {
+            Map<String, ParameterizedClass> map = MemtableParams.expandDefinitions
+            (
+            ImmutableMap.of("one", new InheritingClass("two",
+                                                       null,
+                                                       ImmutableMap.of("extra", "value")),
+                            "two", new InheritingClass("three",
+                                                       null,
+                                                       ImmutableMap.of("extra2", "value2")),
+                            "three", new InheritingClass("one",
+                                                         null,
+                                                         ImmutableMap.of("extra3", "value3")))
+            );
+            fail("Expected exception.");
+        }
+        catch (ConfigurationException e)
+        {
+            // expected
+        }
+    }
 }
