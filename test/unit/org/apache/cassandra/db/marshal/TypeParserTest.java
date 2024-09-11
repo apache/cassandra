@@ -18,21 +18,25 @@
  */
 package org.apache.cassandra.db.marshal;
 
-import com.google.common.collect.Lists;
+import java.util.function.Consumer;
+
+import com.google.common.collect.ImmutableList;
 import org.junit.BeforeClass;
 import org.junit.Test;
+
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.dht.ByteOrderedPartitioner;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.dht.OrderPreservingPartitioner;
+import org.apache.cassandra.dht.RandomPartitioner;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.SyntaxException;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.dht.*;
-import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.exceptions.SyntaxException;
-
-import java.util.function.Consumer;
 
 public class TypeParserTest
 {
@@ -118,7 +122,7 @@ public class TypeParserTest
         // PartitionerDefinedOrder's base type is composite type
         differentBaseTypeValidation(CompositeType.getInstance(Int32Type.instance, UTF8Type.instance));
         // PartitionerDefinedOrder's base type is tuple type
-        differentBaseTypeValidation(new TupleType(Lists.newArrayList(Int32Type.instance, UTF8Type.instance)));
+        differentBaseTypeValidation(new TupleType(ImmutableList.of(Int32Type.instance, UTF8Type.instance)));
         // PartitionerDefinedOrder's base type is ReversedType
         differentBaseTypeValidation(ReversedType.getInstance(Int32Type.instance));
         // PartitionerDefinedOrder's base type is CollectionType

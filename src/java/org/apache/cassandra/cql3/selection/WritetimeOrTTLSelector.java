@@ -70,7 +70,7 @@ final class WritetimeOrTTLSelector extends Selector
             protected AbstractType<?> getReturnType()
             {
                 AbstractType<?> type = kind.returnType;
-                return isMultiCell && !kind.aggregatesMultiCell() ? ListType.getInstance(type, false) : type;
+                return isMultiCell && !kind.aggregatesMultiCell() ? ListType.getInstance(type.freeze(), false) : type;
             }
 
             @Override
@@ -161,7 +161,7 @@ final class WritetimeOrTTLSelector extends Selector
     public AbstractType<?> getType()
     {
         AbstractType<?> type = kind.returnType;
-        return isMultiCell ? ListType.getInstance(type, false) : type;
+        return isMultiCell ? ListType.getInstance(type.freeze(), false) : type;
     }
 
     @Override

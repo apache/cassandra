@@ -22,7 +22,6 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -31,6 +30,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -141,7 +141,7 @@ public class CIDRGroupsMappingManager implements CIDRGroupsMappingManagerMBean
                                        AuthKeyspace.CIDR_GROUPS_TBL_CIDRS_COL_NAME);
 
         Set<Pair<InetAddress, Short>> cidrs = new HashSet<>();
-        TupleType tupleType = new TupleType(Arrays.asList(InetAddressType.instance, ShortType.instance));
+        TupleType tupleType = new TupleType(ImmutableList.of(InetAddressType.instance, ShortType.instance));
 
         Set<ByteBuffer> cidrAsTuples = row.getFrozenSet(AuthKeyspace.CIDR_GROUPS_TBL_CIDRS_COL_NAME, tupleType);
         for (ByteBuffer cidrAsTuple : cidrAsTuples)

@@ -23,6 +23,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.google.common.collect.ImmutableList;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.*;
@@ -89,10 +90,10 @@ public class SelectorSerializationTest extends CQLTester
         String typeName = createType("CREATE TYPE %s (f1 int, f2 int)");
 
         UserType type = new UserType(KEYSPACE, ByteBufferUtil.bytes(typeName),
-                                     asList(FieldIdentifier.forUnquoted("f1"),
-                                            FieldIdentifier.forUnquoted("f2")),
-                                     asList(Int32Type.instance,
-                                            Int32Type.instance),
+                                     ImmutableList.of(FieldIdentifier.forUnquoted("f1"),
+                                                      FieldIdentifier.forUnquoted("f2")),
+                                     ImmutableList.of(Int32Type.instance,
+                                                      Int32Type.instance),
                                      false);
 
         List<Pair<Selectable.Raw, Selectable.Raw>> list = asList(Pair.create(RawIdentifier.forUnquoted("f1"),

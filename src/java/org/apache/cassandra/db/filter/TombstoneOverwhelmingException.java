@@ -49,7 +49,7 @@ public class TombstoneOverwhelmingException extends RejectException
             {
                 if (i > 0)
                     sb.append(", ");
-                sb.append(ct.types.get(i).getString(values[i]));
+                sb.append(ct.subTypes.get(i).getString(values[i]));
             }
         }
         else

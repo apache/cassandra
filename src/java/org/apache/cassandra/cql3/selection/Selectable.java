@@ -18,14 +18,47 @@
  */
 package org.apache.cassandra.cql3.selection;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import org.apache.cassandra.cql3.*;
-import org.apache.cassandra.cql3.functions.*;
+import org.apache.cassandra.cql3.AssignmentTestable;
+import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.ColumnSpecification;
+import org.apache.cassandra.cql3.Constants;
+import org.apache.cassandra.cql3.FieldIdentifier;
+import org.apache.cassandra.cql3.Lists;
+import org.apache.cassandra.cql3.Maps;
+import org.apache.cassandra.cql3.Sets;
+import org.apache.cassandra.cql3.Term;
+import org.apache.cassandra.cql3.Tuples;
+import org.apache.cassandra.cql3.UserTypes;
+import org.apache.cassandra.cql3.VariableSpecifications;
+import org.apache.cassandra.cql3.Vectors;
+import org.apache.cassandra.cql3.functions.AggregateFcts;
+import org.apache.cassandra.cql3.functions.CastFcts;
+import org.apache.cassandra.cql3.functions.Function;
+import org.apache.cassandra.cql3.functions.FunctionName;
+import org.apache.cassandra.cql3.functions.FunctionResolver;
+import org.apache.cassandra.cql3.functions.OperationFcts;
 import org.apache.cassandra.cql3.selection.Selector.Factory;
-import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.CollectionType;
+import org.apache.cassandra.db.marshal.DurationType;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.ListType;
+import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.db.marshal.MapType;
+import org.apache.cassandra.db.marshal.SetType;
+import org.apache.cassandra.db.marshal.TupleType;
+import org.apache.cassandra.db.marshal.UserType;
+import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
@@ -297,7 +330,7 @@ public interface Selectable extends AssignmentTestable
         public AbstractType<?> getExactTypeIfKnown(String keyspace)
         {
             AbstractType<?> type = kind.returnType;
-            return column.type.isMultiCell() && !kind.aggregatesMultiCell() ? ListType.getInstance(type, false) : type;
+            return column.type.isMultiCell() && !kind.aggregatesMultiCell() ? ListType.getInstance(type.freeze(), false) : type;
         }
 
         @Override
@@ -659,7 +692,7 @@ public interface Selectable extends AssignmentTestable
                                                 VariableSpecifications boundNames)
         {
             SelectorFactories factories = createFactoriesAndCollectColumnDefinitions(selectables,
-                                                                                     tupleType.allTypes(),
+                                                                                     tupleType.subTypes,
                                                                                      cfm,
                                                                                      defs,
                                                                                      boundNames);
@@ -1335,9 +1368,7 @@ public interface Selectable extends AssignmentTestable
             public Selectable prepare(TableMetadata cfm)
             {
                 Selectable selectable = raw.prepare(cfm);
-                AbstractType<?> type = this.typeRaw.prepare(cfm.keyspace).getType();
-                if (type.isFreezable())
-                    type = type.freeze();
+                AbstractType<?> type = this.typeRaw.prepare(cfm.keyspace).getType().freeze();
                 return new WithTypeHint(typeRaw.toString(), type, selectable);
             }
         }
@@ -1430,11 +1461,7 @@ public interface Selectable extends AssignmentTestable
             Selector.Factory factory = selected.newSelectorFactory(cfm, null, defs, boundNames);
             ColumnSpecification receiver = factory.getColumnSpecification(cfm);
 
-            AbstractType<?> type = receiver.type;
-            if (receiver.isReversedType())
-            {
-                type = ((ReversedType<?>) type).baseType;
-            }
+            AbstractType<?> type = receiver.type.unwrap();
             if (!(type instanceof CollectionType))
                 throw new InvalidRequestException(String.format("Invalid element selection: %s is of type %s is not a collection", selected, type.asCQL3Type()));
 
@@ -1517,11 +1544,7 @@ public interface Selectable extends AssignmentTestable
             Selector.Factory factory = selected.newSelectorFactory(cfm, expectedType, defs, boundNames);
             ColumnSpecification receiver = factory.getColumnSpecification(cfm);
 
-            AbstractType<?> type = receiver.type;
-            if (receiver.isReversedType())
-            {
-                type = ((ReversedType<?>) type).baseType;
-            }
+            AbstractType<?> type = receiver.type.unwrap();
             if (!(type instanceof CollectionType))
                 throw new InvalidRequestException(String.format("Invalid slice selection: %s of type %s is not a collection", selected, type.asCQL3Type()));
 

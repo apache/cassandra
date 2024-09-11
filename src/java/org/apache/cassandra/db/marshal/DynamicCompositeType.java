@@ -22,17 +22,21 @@ import java.nio.charset.CharacterCodingException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+import com.google.common.collect.Streams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -45,11 +49,10 @@ import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable.Version;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
-
-import static com.google.common.collect.Iterables.any;
 
 /*
  * The encoding of a DynamicCompositeType column name should be:
@@ -76,9 +79,9 @@ public class DynamicCompositeType extends AbstractCompositeType
     {
         // aliases are held to make sure the serializer is unique for each collection of types, this is to make sure it's
         // safe to cache in all cases
-        private final Map<Byte, AbstractType<?>> aliases;
+        private final ImmutableMap<Byte, AbstractType<?>> aliases;
 
-        public Serializer(Map<Byte, AbstractType<?>> aliases)
+        public Serializer(ImmutableMap<Byte, AbstractType<?>> aliases)
         {
             this.aliases = aliases;
         }
@@ -104,12 +107,12 @@ public class DynamicCompositeType extends AbstractCompositeType
     private static final String REVERSED_TYPE = ReversedType.class.getSimpleName();
 
     @VisibleForTesting
-    public final Map<Byte, AbstractType<?>> aliases;
-    private final Map<AbstractType<?>, Byte> inverseMapping;
+    public final ImmutableMap<Byte, AbstractType<?>> aliases;
+    private final ImmutableMap<AbstractType<?>, Byte> inverseMapping;
     private final Serializer serializer;
 
     // interning instances
-    private static final ConcurrentHashMap<Map<Byte, AbstractType<?>>, DynamicCompositeType> instances = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<ImmutableMap<Byte, AbstractType<?>>, DynamicCompositeType> instances = new ConcurrentHashMap<>();
 
     public static DynamicCompositeType getInstance(TypeParser parser)
     {
@@ -118,30 +121,33 @@ public class DynamicCompositeType extends AbstractCompositeType
 
     public static DynamicCompositeType getInstance(Map<Byte, AbstractType<?>> aliases)
     {
-        DynamicCompositeType dct = instances.get(aliases);
-        return null == dct
-             ? instances.computeIfAbsent(aliases, DynamicCompositeType::new)
-             : dct;
+        ImmutableMap<Byte, AbstractType<?>> aliasesCopy = ImmutableMap.copyOf(new TreeMap<>(Maps.transformValues(aliases, AbstractType::freeze)));
+        return getInstance(instances, aliasesCopy, () -> new DynamicCompositeType(aliasesCopy));
     }
 
-    private DynamicCompositeType(Map<Byte, AbstractType<?>> aliases)
+    private DynamicCompositeType(ImmutableMap<Byte, AbstractType<?>> aliases)
     {
-        this.aliases = ImmutableMap.copyOf(aliases);
+        super(ImmutableList.copyOf(aliases.values()));
+        this.aliases = aliases;
         this.serializer = new Serializer(this.aliases);
-        this.inverseMapping = new HashMap<>();
+        LinkedHashMap<AbstractType<?>, Byte> inverseMappingBuilder = new LinkedHashMap<>();
         for (Map.Entry<Byte, AbstractType<?>> en : aliases.entrySet())
-            this.inverseMapping.put(en.getValue(), en.getKey());
-    }
-
-    public int size()
-    {
-        return aliases.size();
+            inverseMappingBuilder.put(en.getValue(), en.getKey());
+        this.inverseMapping = ImmutableMap.copyOf(inverseMappingBuilder);
     }
 
     @Override
-    public List<AbstractType<?>> subTypes()
+    public AbstractType<?> with(ImmutableList<AbstractType<?>> subTypes, boolean isMultiCell)
     {
-        return new ArrayList<>(aliases.values());
+        Preconditions.checkArgument(!isMultiCell, "Cannot create a multi-cell DynamicCompositeType");
+        Preconditions.checkArgument(subTypes.size() == aliases.size(),
+                                    "Invalid number of subTypes for DynamicCompositeType (got %s, expected %s)", subTypes.size(), aliases.size());
+
+        ImmutableMap.Builder<Byte, AbstractType<?>> copiedAliases = ImmutableMap.builderWithExpectedSize(subTypes.size());
+        Streams.zip(aliases.keySet().stream(), subTypes.stream(), Pair::create)
+               .forEachOrdered(p -> copiedAliases.put(p.left, p.right));
+
+        return new DynamicCompositeType(copiedAliases.build());
     }
 
     @Override
@@ -529,7 +535,7 @@ public class DynamicCompositeType extends AbstractCompositeType
     @Override
     public boolean isCompatibleWith(AbstractType<?> previous)
     {
-        if (this == previous)
+        if (Objects.equals(this, previous))
             return true;
 
         if (!(previous instanceof DynamicCompositeType))
@@ -539,41 +545,8 @@ public class DynamicCompositeType extends AbstractCompositeType
         // Note that modifying the type for an alias to a compatible type is
         // *not* fine since this would deal correctly with mixed aliased/not
         // aliased component.
-        DynamicCompositeType cp = (DynamicCompositeType)previous;
-        if (aliases.size() < cp.aliases.size())
-            return false;
-
-        for (Map.Entry<Byte, AbstractType<?>> entry : cp.aliases.entrySet())
-        {
-            AbstractType<?> tprev = entry.getValue();
-            AbstractType<?> tnew = aliases.get(entry.getKey());
-            if (tnew == null || tnew != tprev)
-                return false;
-        }
-        return true;
-    }
-
-    @Override
-    public <V> boolean referencesUserType(V name, ValueAccessor<V> accessor)
-    {
-        return any(aliases.values(), t -> t.referencesUserType(name, accessor));
-    }
-
-    @Override
-    public DynamicCompositeType withUpdatedUserType(UserType udt)
-    {
-        if (!referencesUserType(udt.name))
-            return this;
-
-        instances.remove(aliases);
-
-        return getInstance(Maps.transformValues(aliases, v -> v.withUpdatedUserType(udt)));
-    }
-
-    @Override
-    public AbstractType<?> expandUserTypes()
-    {
-        return getInstance(Maps.transformValues(aliases, v -> v.expandUserTypes()));
+        DynamicCompositeType tprev = (DynamicCompositeType)previous;
+        return aliases.entrySet().containsAll(tprev.aliases.entrySet());
     }
 
     private class DynamicParsedComparator implements ParsedComparator
@@ -660,8 +633,11 @@ public class DynamicCompositeType extends AbstractCompositeType
     @Override
     public boolean equals(Object o)
     {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
+
         DynamicCompositeType that = (DynamicCompositeType) o;
         return aliases.equals(that.aliases);
     }

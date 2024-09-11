@@ -22,17 +22,28 @@ import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentMap;
+import java.util.function.BiPredicate;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
+
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Streams;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cql3.AssignmentTestable;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.cql3.functions.ArgumentDeserializer;
+import org.apache.cassandra.cql3.statements.schema.AlterTableStatement;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -46,6 +57,7 @@ import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
 import org.github.jamm.Unmetered;
 
+import static com.google.common.collect.Iterables.transform;
 import static org.apache.cassandra.db.marshal.AbstractType.ComparisonType.CUSTOM;
 
 /**
@@ -59,9 +71,9 @@ import static org.apache.cassandra.db.marshal.AbstractType.ComparisonType.CUSTOM
 @Unmetered
 public abstract class AbstractType<T> implements Comparator<ByteBuffer>, AssignmentTestable
 {
-    private final static int VARIABLE_LENGTH = -1;
+    private final static Logger logger = LoggerFactory.getLogger(AbstractType.class);
 
-    public final Comparator<ByteBuffer> reverseComparator;
+    private final static int VARIABLE_LENGTH = -1;
 
     public enum ComparisonType
     {
@@ -84,12 +96,41 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
     public final ComparisonType comparisonType;
     public final boolean isByteOrderComparable;
     public final ValueComparators comparatorSet;
+    public final boolean isMultiCell;
+    public final ImmutableList<AbstractType<?>> subTypes;
+
+    private final int hashCode;
 
     protected AbstractType(ComparisonType comparisonType)
     {
+        this(comparisonType, false, ImmutableList.of());
+    }
+
+    protected AbstractType(ComparisonType comparisonType, boolean isMultiCell, ImmutableList<AbstractType<?>> subTypes)
+    {
+        this.isMultiCell = isMultiCell;
         this.comparisonType = comparisonType;
         this.isByteOrderComparable = comparisonType == ComparisonType.BYTE_ORDER;
-        reverseComparator = (o1, o2) -> AbstractType.this.compare(o2, o1);
+
+        // A frozen type can only have frozen subtypes, basically by definition. So make sure we don't mess it up
+        // when constructing types by forgetting to set some multi-cell flag.
+        if (!isMultiCell)
+        {
+            if (Iterables.any(subTypes, AbstractType::isMultiCell))
+                this.subTypes = ImmutableList.copyOf(Iterables.transform(subTypes, AbstractType::freeze));
+            else
+                this.subTypes = subTypes;
+        }
+        else
+        {
+            this.subTypes = subTypes;
+        }
+        if (subTypes != this.subTypes)
+            logger.warn("Detected corrupted type: creating a frozen {} but with some non-frozen subtypes {}. " +
+                        "This is likely a bug and should be reported.",
+                        getClass(),
+                        subTypes.stream().filter(AbstractType::isMultiCell).map(AbstractType::toString).collect(Collectors.joining(", ")));
+
         try
         {
             Method custom = getClass().getMethod("compareCustom", Object.class, ValueAccessor.class, Object.class, ValueAccessor.class);
@@ -105,6 +146,8 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
 
         comparatorSet = new ValueComparators((l, r) -> compare(l, ByteArrayAccessor.instance, r, ByteArrayAccessor.instance),
                                              (l, r) -> compare(l, ByteBufferAccessor.instance, r, ByteBufferAccessor.instance));
+
+        hashCode = Objects.hash(getClass(), isMultiCell, subTypes);
     }
 
     static <VL, VR, T extends Comparable<T>> int compareComposed(VL left, ValueAccessor<VL> accessorL, VR right, ValueAccessor<VR> accessorR, AbstractType<T> type)
@@ -293,11 +336,6 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
         return false;
     }
 
-    public boolean isFrozenCollection()
-    {
-        return isCollection() && !isMultiCell();
-    }
-
     public boolean isReversed()
     {
         return false;
@@ -328,9 +366,13 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
      * A comparator cn should be compatible with a previous one cp if forall columns c1 and c2,
      * if   cn.validate(c1) and cn.validate(c2) and cn.compare(c1, c2) == v,
      * then cp.validate(c1) and cp.validate(c2) and cp.compare(c1, c2) == v.
-     *
+     * <p/>
      * Note that a type should be compatible with at least itself and when in
      * doubt, keep the default behavior of not being compatible with any other comparator!
+     * <p/>
+     * Used for user functions and aggregates to validate the returning type when the function is replaced.
+     * Used for validation of table metadata when replacing metadata in ref (alterting a table) and when scrubbing
+     * an sstable to validate whether metadata stored in the sstable is compatible with the current metadata.
      */
     public boolean isCompatibleWith(AbstractType<?> previous)
     {
@@ -338,26 +380,36 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
     }
 
     /**
-     * Returns true if values of the other AbstractType can be read and "reasonably" interpreted by the this
+     * Returns true if values of the other AbstractType can be read and "reasonably" interpreted by this
      * AbstractType. Note that this is a weaker version of isCompatibleWith, as it does not require that both type
      * compare values the same way.
-     *
+     * <p/>
      * The restriction on the other type being "reasonably" interpreted is to prevent, for example, IntegerType from
      * being compatible with all other types.  Even though any byte string is a valid IntegerType value, it doesn't
      * necessarily make sense to interpret a UUID or a UTF8 string as an integer.
-     *
+     * <p/>
      * Note that a type should be compatible with at least itself.
+     * <p/>
+     * Also note that to ensure consistent handling of the {@link ReversedType} (which should be ignored as far as this
+     * method goes since it only impacts sorting), this method is final and subclasses should override the
+     * {@link #isValueCompatibleWithInternal} method instead.
+     * <p/>
+     * Used for type casting and values assignment. It valid if we can compose L values which were decomposed using R
+     * serializer. Therefore, it does not care about whether the type is reversed or not. It should not whether the
+     * type is fixed or variable length as for compose/decompose we always deal with all remaining data in the buffer
+     * (so for example, a variable length type may be compatible with fixed length type given the interpretation is
+     * consistent, like between BigInt and Long).
      */
-    public boolean isValueCompatibleWith(AbstractType<?> previous)
+    public final boolean isValueCompatibleWith(AbstractType<?> previous)
     {
-        AbstractType<?> thisType =          isReversed() ? ((ReversedType<?>)     this).baseType : this;
-        AbstractType<?> thatType = previous.isReversed() ? ((ReversedType<?>) previous).baseType : previous;
-        return thisType.isValueCompatibleWithInternal(thatType);
+        return unwrap().isValueCompatibleWithInternal(previous.unwrap());
     }
 
     /**
-     * Needed to handle ReversedType in value-compatibility checks.  Subclasses should implement this instead of
-     * isValueCompatibleWith().
+     * Needed to handle {@link ReversedType} in value-compatibility checks. Subclasses should override this instead of
+     * {@link #isValueCompatibleWith}. However, if said override has subtypes on which they need to check value
+     * compatibility recursively, they should call {@link #isValueCompatibleWith} instead of this method
+     * so that reversed types are ignored even if nested.
      */
     protected boolean isValueCompatibleWithInternal(AbstractType<?> otherType)
     {
@@ -368,6 +420,10 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
      * Similar to {@link #isValueCompatibleWith(AbstractType)}, but takes into account {@link Cell} encoding.
      * In particular, this method doesn't consider two types serialization compatible if one of them has fixed
      * length (overrides {@link #valueLengthIfFixed()}, and the other one doesn't.
+     * </p>
+     * Used in {@link AlterTableStatement} when adding a column with the same name as the previously dropped column.
+     * The new column type must be serialization compatible with the old one. We must be able to read cells of the new
+     * type which were serialized as cells of the old type.
      */
     public boolean isSerializationCompatibleWith(AbstractType<?> previous)
     {
@@ -414,42 +470,65 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
         return false;
     }
 
-    public boolean isMultiCell()
+    public final boolean isMultiCell()
     {
-        return false;
-    }
-
-    public boolean isFreezable()
-    {
-        return false;
-    }
-
-    public AbstractType<?> freeze()
-    {
-        return this;
-    }
-
-    public AbstractType<?> unfreeze()
-    {
-        return this;
-    }
-
-    public List<AbstractType<?>> subTypes()
-    {
-        return Collections.emptyList();
+        return isMultiCell;
     }
 
     /**
-     * Returns an AbstractType instance that is equivalent to this one, but with all nested UDTs and collections
-     * explicitly frozen.
+     * If the type is a multi-cell one ({@link #isMultiCell()} is true), returns a frozen copy of this type (one
+     * for which {@link #isMultiCell()} returns false).
+     * <p>
+     * Note that as mentioned on {@link #isMultiCell()}, a frozen type necessarily has all its subtypes frozen, so
+     * this method also ensures that no subtypes (recursively) are marked as multi-cell.
      *
-     * This is only necessary for {@code 2.x -> 3.x} schema migrations, and can be removed in Cassandra 4.0.
-     *
-     * See CASSANDRA-11609 and CASSANDRA-11613.
+     * @return a frozen version of this type. If this type is not multi-cell (whether because it is not a "complex"
+     * type, or because it is already a frozen one), this should return {@code this}.
      */
-    public AbstractType<?> freezeNestedMulticellTypes()
+    public AbstractType<?> freeze()
     {
+        if (!isMultiCell())
+            return this;
+
+        return with(freeze(subTypes()), false);
+    }
+
+    /**
+     * Creates an instance of this type (the concrete type extending this class) with the provided updated multi-cell
+     * flag and subtypes.
+     * <p>
+     * Any other information (other than multi-cellness and subtypes) the type may have is expected to be left unchanged
+     * in the created type.
+     *
+     * @param isMultiCell whether the returned type must be a multi-cell one or not.
+     * @param subTypes the subtypes to use for the returned type as a list. The list will have subtypes in the exact
+     * same order as returned by {@link #subTypes()}, and exactly as many as the concrete class expects.
+     * @return the created type, which can be {@code this} if the provided subTypes and multi-cell flag are the same
+     * as that of this type.
+     */
+    public AbstractType<?> with(ImmutableList<AbstractType<?>> subTypes, boolean isMultiCell)
+    {
+        // Default implementation for types that can neither be multi-cell, nor have subtypes (and thus where this
+        // is basically a no-op). Any other type must override this.
+
+        assert this.subTypes.isEmpty() && subTypes.isEmpty() :
+        String.format("Invalid call to 'with' on %s with subTypes %s (provided subTypes: %s)",
+                      this, this.subTypes, subTypes);
+
+        assert !this.isMultiCell() && !isMultiCell:
+        String.format("Invalid call to 'with' on %s with isMultiCell %b (provided isMultiCell: %b)",
+                      this, this.isMultiCell(), isMultiCell);
+
         return this;
+    }
+
+    /**
+     * If the type has "complex" values that depend on subtypes, return those (direct) subtypes (in undefined order),
+     * and an empty list otherwise.
+     */
+    public final ImmutableList<AbstractType<?>> subTypes()
+    {
+        return subTypes;
     }
 
     /**
@@ -466,15 +545,6 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
     public String toString(boolean ignoreFreezing)
     {
         return this.toString();
-    }
-
-    /**
-     * Return a list of the "subcomponents" this type has.
-     * This always return a singleton list with the type itself except for CompositeType.
-     */
-    public List<AbstractType<?>> getComponents()
-    {
-        return Collections.<AbstractType<?>>singletonList(this);
     }
 
     /**
@@ -614,9 +684,14 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
         return referencesUserType(name, ByteBufferAccessor.instance);
     }
 
+    /**
+     * Returns true if this type is or references a user type with provided name.
+     */
     public <V> boolean referencesUserType(V name, ValueAccessor<V> accessor)
     {
-        return false;
+        // Note that non-complex types have no subtypes, so will return false, and UserType overrides this to return
+        // true if the provided name matches.
+        return subTypes().stream().anyMatch(t -> t.referencesUserType(name, accessor));
     }
 
     /**
@@ -625,23 +700,42 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
      */
     public AbstractType<?> withUpdatedUserType(UserType udt)
     {
-        return this;
+        if (!referencesUserType(udt.name))
+            return this;
+
+        ImmutableList.Builder<AbstractType<?>> builder = ImmutableList.builder();
+        for (AbstractType<?> subType : subTypes)
+            builder.add(subType.withUpdatedUserType(udt));
+
+        return with(builder.build(), isMultiCell());
+    }
+
+    /**
+     * Whether this type is or contains any UDT.
+     */
+    public final boolean referencesUserTypes()
+    {
+        return isUDT() || subTypes().stream().anyMatch(AbstractType::referencesUserTypes);
     }
 
     /**
      * Replace any instances of UserType with equivalent TupleType-s.
-     *
+     * <p>
      * We need it for dropped_columns, to allow safely dropping unused user types later without retaining any references
      * to them in system_schema.dropped_columns.
      */
     public AbstractType<?> expandUserTypes()
     {
-        return this;
+        return referencesUserTypes()
+               ? with(ImmutableList.copyOf(transform(subTypes, AbstractType::expandUserTypes)), isMultiCell())
+               : this;
     }
 
     public boolean referencesDuration()
     {
-        return false;
+        // Note that non-complex types have no subtypes, so will return false, and DurationType overrides this to return
+        // true.
+        return subTypes().stream().anyMatch(AbstractType::referencesDuration);
     }
 
     /**
@@ -652,7 +746,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
         // testAssignement is for CQL literals and native protocol values, none of which make a meaningful
         // difference between frozen or not and reversed or not.
 
-        if (isFreezable() && !isMultiCell())
+        if (!isMultiCell())
             receiverType = receiverType.freeze();
 
         if (isReversed() && !receiverType.isReversed())
@@ -771,6 +865,36 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
         throw new UnsupportedOperationException("There isn't a defined masked value for type " + asCQL3Type());
     }
 
+    protected static <K, V extends AbstractType<?>> V getInstance(ConcurrentMap<K, V> instances, K key, Supplier<V> value)
+    {
+        V cached = instances.get(key);
+        if (cached != null)
+            return cached;
+
+        // We avoid constructor calls in Map#computeIfAbsent to avoid recursive update exceptions because the automatic
+        // fixing of subtypes done by the top-level constructor might attempt a recursive update to the instances map.
+        V instance = value.get();
+        return instances.computeIfAbsent(key, k -> instance);
+    }
+
+    /**
+     * Utility method that freezes a list of types.
+     *
+     * @param types the list of types to freeze.
+     * @return a new (unmodifiable) list containing the result of applying {@link #freeze()} on every type of
+     * {@code types}.
+     */
+    public static ImmutableList<AbstractType<?>> freeze(List<AbstractType<?>> types)
+    {
+        if (types.isEmpty())
+            return ImmutableList.of();
+
+        ImmutableList.Builder<AbstractType<?>> builder = ImmutableList.builder();
+        for (AbstractType<?> type : types)
+            builder.add(type.freeze());
+        return builder.build();
+    }
+
     /**
      * {@link ArgumentDeserializer} that uses the type deserialization.
      */
@@ -791,5 +915,31 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
 
             return type.compose(buffer);
         }
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
+        AbstractType<?> that = (AbstractType<?>) o;
+        return isMultiCell == that.isMultiCell && Objects.equals(subTypes, that.subTypes);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return hashCode;
+    }
+
+    protected boolean isSubTypesCompatibleWith(AbstractType<?> previous, BiPredicate<AbstractType<?>, AbstractType<?>> predicate)
+    {
+        if (subTypes.size() < previous.subTypes.size())
+            return false;
+
+        return Streams.zip(subTypes.stream().limit(previous.subTypes.size()), previous.subTypes.stream(), predicate::test)
+                      .allMatch(Predicate.isEqual(true));
     }
 }

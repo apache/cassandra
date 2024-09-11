@@ -36,7 +36,6 @@ import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.MapType;
-import org.apache.cassandra.db.marshal.ReversedType;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -66,19 +65,14 @@ public abstract class Maps
         return new ColumnSpecification(column.ksName, column.cfName, new ColumnIdentifier("value(" + column.name + ")", true), valuesType(column.type));
     }
 
-    private static AbstractType<?> unwrap(AbstractType<?> type)
-    {
-        return type.isReversed() ? unwrap(((ReversedType<?>) type).baseType) : type;
-    }
-
     private static AbstractType<?> keysType(AbstractType<?> type)
     {
-        return ((MapType<?, ?>) unwrap(type)).getKeysType();
+        return ((MapType<?, ?>) type.unwrap()).getKeysType();
     }
 
     private static AbstractType<?> valuesType(AbstractType<?> type)
     {
-        return ((MapType<?, ?>) unwrap(type)).getValuesType();
+        return ((MapType<?, ?>) type.unwrap()).getValuesType();
     }
 
     /**
@@ -153,7 +147,7 @@ public abstract class Maps
             if (valueType == null)
                 valueType = mapper.apply(entry.right);
             if (keyType != null && valueType != null)
-                return MapType.getInstance(keyType, valueType, false);
+                return MapType.getInstance(keyType.freeze(), valueType.freeze(), false);
         }
         return null;
     }
@@ -171,7 +165,7 @@ public abstract class Maps
         if (valueType == null)
             return null;
 
-        return  MapType.getInstance(keyType, valueType, false);
+        return  MapType.getInstance(keyType.freeze(), valueType.freeze(), false);
     }
 
     public static class Literal extends Term.Raw
@@ -210,7 +204,7 @@ public abstract class Maps
 
         private void validateAssignableTo(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
         {
-            AbstractType<?> type = unwrap(receiver.type);
+            AbstractType<?> type = receiver.type.unwrap();
 
             if (!(type instanceof MapType))
                 throw new InvalidRequestException(String.format("Invalid map literal for %s of type %s", receiver.name, receiver.type.asCQL3Type()));

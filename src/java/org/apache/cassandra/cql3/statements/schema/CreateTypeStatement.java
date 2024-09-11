@@ -19,6 +19,8 @@ package org.apache.cassandra.cql3.statements.schema;
 
 import java.util.*;
 
+import com.google.common.collect.ImmutableList;
+
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.Permission;
@@ -38,6 +40,7 @@ import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
 import org.apache.cassandra.transport.Event.SchemaChange.Target;
 
+import static com.google.common.collect.ImmutableList.toImmutableList;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
 import static java.util.stream.Collectors.toList;
@@ -104,12 +107,12 @@ public final class CreateTypeStatement extends AlterSchemaStatement
                 throw ire("A user type cannot contain non-frozen UDTs");
         }
 
-        List<AbstractType<?>> fieldTypes =
+        ImmutableList<AbstractType<?>> fieldTypes =
             rawFieldTypes.stream()
                          .map(t -> t.prepare(keyspaceName, keyspace.types).getType())
-                         .collect(toList());
+                         .collect(toImmutableList());
 
-        UserType udt = new UserType(keyspaceName, bytes(typeName), fieldNames, fieldTypes, true);
+        UserType udt = new UserType(keyspaceName, bytes(typeName), ImmutableList.copyOf(fieldNames), fieldTypes, true);
         return schema.withAddedOrUpdated(keyspace.withSwapped(keyspace.types.with(udt)));
     }
 

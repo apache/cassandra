@@ -347,8 +347,8 @@ public class DataRange
         {
             CompositeType ct = (CompositeType)type;
             ByteBuffer[] values = ct.split(key);
-            for (int i = 0; i < ct.types.size(); i++)
-                sb.append(i == 0 ? "" : ", ").append(ct.types.get(i).toCQLString(values[i]));
+            for (int i = 0; i < ct.subTypes.size(); i++)
+                sb.append(i == 0 ? "" : ", ").append(ct.subTypes.get(i).toCQLString(values[i]));
         }
         else
         {

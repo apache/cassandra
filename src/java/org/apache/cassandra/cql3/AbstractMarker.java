@@ -150,7 +150,7 @@ public abstract class AbstractMarker extends Term.NonTerminal
         private static ColumnSpecification makeInReceiver(ColumnSpecification receiver)
         {
             ColumnIdentifier inName = new ColumnIdentifier("in(" + receiver.name + ")", true);
-            return new ColumnSpecification(receiver.ksName, receiver.cfName, inName, ListType.getInstance(receiver.type, false));
+            return new ColumnSpecification(receiver.ksName, receiver.cfName, inName, ListType.getInstance(receiver.type.freeze(), false));
         }
 
         @Override

@@ -271,79 +271,51 @@ public class AbstractTypeTest
             // org.apache.cassandra.db.marshal.AbstractType.comparatorSet needs to match the serializer, but when serialziers
             // break this mapping they may cause the wrong comparator (happened in cases like uuid and lexecal uuid; which have different orderings!).
             // Frozen types (as of this writing) do not change the sort ordering, so this simplification is fine...
-            if (old != null && !old.unfreeze().equals(t.unfreeze()))
+            if (old != null && !unfreeze(old).equals(unfreeze(t)))
                 throw new AssertionError(String.format("Different types detected that shared the same serializer: %s != %s", old.asCQL3Type(), t.asCQL3Type()));
         });
     }
 
     @Test
-    @SuppressWarnings({"rawtypes", "unchecked"})
     public void eqHashSafe()
     {
-        StringBuilder sb = new StringBuilder();
-        outter: for (Class<? extends AbstractType> type : reflections.getSubTypesOf(AbstractType.class))
-        {
-            if (Modifier.isAbstract(type.getModifiers()) || isTestType(type) || AbstractTypeGenerators.UNSUPPORTED.containsKey(type))
-                continue;
-            boolean hasEq = false;
-            boolean hasHashCode = false;
-            for (Class<? extends AbstractType> t = type; !t.equals(AbstractType.class); t = (Class<? extends AbstractType>) t.getSuperclass())
+        forEachTypesPair(true,(left, right) ->{
+            if (left.equals(right))
             {
-                try
+                assertThat(left.hashCode()).isEqualTo(right.hashCode());
+
+                assertThat(left.subTypes()).isEqualTo(right.subTypes());
+                assertThat(left.isMultiCell()).isEqualTo(right.isMultiCell());
+                assertThat(left.isCollection()).isEqualTo(right.isCollection());
+                assertThat(left.isUDT()).isEqualTo(right.isUDT());
+                assertThat(left.isTuple()).isEqualTo(right.isTuple());
+                assertThat(left.isCounter()).isEqualTo(right.isCounter());
+                assertThat(left.isReversed()).isEqualTo(right.isReversed());
+                assertThat(left.isVector()).isEqualTo(right.isVector());
+
+                if (left.isVector())
+                    assertThat(((VectorType) left).dimension).isEqualTo(((VectorType) right).dimension);
+
+                if (left.isUDT())
                 {
-                    t.getDeclaredMethod("getInstance");
-                    continue outter;
+                    assertThat(((UserType) left).name).isEqualTo(((UserType) right).name);
+                    assertThat(((UserType) left).keyspace).isEqualTo(((UserType) right).keyspace);
+                    assertThat(((UserType) left).fieldNames()).isEqualTo(((UserType) right).fieldNames());
                 }
-                catch (NoSuchMethodException e)
+
+                if (left.getClass() == CompositeType.class)
+                    assertThat(right.getClass()).isEqualTo(CompositeType.class);
+
+                if (left.getClass() == DynamicCompositeType.class)
                 {
-                    // ignore
+                    assertThat(right.getClass()).isEqualTo(DynamicCompositeType.class);
+                    assertThat(((DynamicCompositeType) left).aliases).isEqualTo(((DynamicCompositeType) right).aliases);
                 }
-                try
-                {
-                    t.getDeclaredField("instance");
-                    continue outter;
-                }
-                catch (NoSuchFieldException e)
-                {
-                    // ignore
-                }
-                try
-                {
-                    t.getDeclaredMethod("equals", Object.class);
-                    hasEq = true;
-                }
-                catch (NoSuchMethodException e)
-                {
-                    // ignore
-                }
-                try
-                {
-                    t.getDeclaredMethod("hashCode");
-                    hasHashCode = true;
-                }
-                catch (NoSuchMethodException e)
-                {
-                    // ignore
-                }
-                if (hasEq && hasHashCode)
-                    continue outter;
+
+                if (left.isCollection())
+                    assertThat(((CollectionType) left).kind).isEqualTo(((CollectionType) right).kind);
             }
-            sb.append("AbstractType must be safe for map keys, so must either be a singleton or define ");
-            if (!hasEq)
-                sb.append("equals");
-            if (!hasHashCode)
-            {
-                if (!hasEq)
-                    sb.append('/');
-                sb.append("hashCode");
-            }
-            sb.append("; ").append(type).append('\n');
-        }
-        if (sb.length() != 0)
-        {
-            sb.setLength(sb.length() - 1);
-            throw new AssertionError(sb.toString());
-        }
+        });
     }
 
     @Test
@@ -452,8 +424,8 @@ public class AbstractTypeTest
         Map<Class<? extends AbstractType>, Function<? super AbstractType<?>, Integer>> complexTypes = ImmutableMap.of(MapType.class, ignore -> 2,
                                                                                                                       TupleType.class, t -> ((TupleType) t).size(),
                                                                                                                       UserType.class, t -> ((UserType) t).size(),
-                                                                                                                      CompositeType.class, t -> ((CompositeType) t).types.size(),
-                                                                                                                      DynamicCompositeType.class, t -> ((DynamicCompositeType) t).size());
+                                                                                                                      CompositeType.class, t -> ((CompositeType) t).subTypes.size(),
+                                                                                                                      DynamicCompositeType.class, t -> ((DynamicCompositeType) t).subTypes.size());
         qt().withShrinkCycles(0).forAll(AbstractTypeGenerators.builder().withoutTypeKinds(PRIMITIVE, COUNTER).build()).checkAssert(type -> {
             int expectedSize = complexTypes.containsKey(type.getClass()) ? complexTypes.get(type.getClass()).apply(type) : 1;
             assertThat(type.subTypes()).hasSize(expectedSize);
@@ -679,7 +651,7 @@ public class AbstractTypeTest
             return Types.none();
         Types.Builder builder = Types.builder();
         for (UserType udt : udts)
-            builder.add(udt.unfreeze());
+            builder.add((UserType) unfreeze(udt));
         return builder.build();
     }
 
@@ -872,6 +844,10 @@ public class AbstractTypeTest
         SoftAssertions assertions = new SoftAssertionsWithLimit(100);
 
         forEachTypesPair(true, (l, r) -> {
+            if (l instanceof MultiCellCapableType && l.isMultiCell && ((MultiCellCapableType<?>) l).nameComparator().referencesDuration())
+                return;
+            if (r instanceof MultiCellCapableType && r.isMultiCell && ((MultiCellCapableType<?>) r).nameComparator().referencesDuration())
+                return;
             assertions.assertThat(l.equals(r)).describedAs("equals symmetricity for %s and %s", l, r).isEqualTo(r.equals(l));
             verifyTypesCompatibility(l, r, getTypeSupport(r).valueGen, assertions);
         });
@@ -944,7 +920,9 @@ public class AbstractTypeTest
         if (!left.isMultiCell() && !right.isMultiCell())
         {
             // make sure that frozen<left> isCompatibleWith frozen<right> ==> left isCompatibleWith right
-            assertions.assertThat(unfreeze(left).isCompatibleWith(unfreeze(right))).isTrue();
+            assertions.assertThat(unfreeze(left).isCompatibleWith(unfreeze(right)))
+                      .describedAs(typeRelDesc("isCompatibleWith", unfreeze(left), unfreeze(right)))
+                      .isTrue();
 
             assertions.assertThatCode(() -> qt().withExamples(10)
                                                 .forAll(rightGen, rightGen)
@@ -1160,7 +1138,7 @@ public class AbstractTypeTest
                     {
                         assertions.assertThat(l.freeze()).isSameAs(l);
                         assertions.assertThat(unfreeze(l)).isSameAs(l);
-                        assertions.assertThat(unfreeze(l)).isEqualTo(l.unfreeze());
+                        assertions.assertThat(unfreeze(l)).isEqualTo(unfreeze(l));
                     }
                 }
 

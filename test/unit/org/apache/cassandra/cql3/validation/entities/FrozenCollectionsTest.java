@@ -17,10 +17,9 @@
  */
 package org.apache.cassandra.cql3.validation.entities;
 
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
 
+import com.google.common.collect.ImmutableList;
 import org.apache.commons.lang3.StringUtils;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -30,7 +29,11 @@ import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
-import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.ListType;
+import org.apache.cassandra.db.marshal.MapType;
+import org.apache.cassandra.db.marshal.SetType;
+import org.apache.cassandra.db.marshal.TupleType;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -1378,9 +1381,7 @@ public class FrozenCollectionsTest extends CQLTester
         assertEquals("MapType(ListType(Int32Type),Int32Type)", clean(m.toString(true)));
 
         // tuple<set<int>>
-        List<AbstractType<?>> types = new ArrayList<>();
-        types.add(SetType.getInstance(Int32Type.instance, true));
-        TupleType tuple = new TupleType(types);
+        TupleType tuple = new TupleType(ImmutableList.of(SetType.getInstance(Int32Type.instance, true)));
         assertEquals("TupleType(SetType(Int32Type))", clean(tuple.toString()));
     }
 

@@ -224,8 +224,14 @@ public abstract class AbstractTimeUUIDType<T> extends TemporalType<T>
     }
 
     @Override
-    public boolean equals(Object obj)
+    public final boolean equals(Object obj)
     {
         return obj instanceof AbstractTimeUUIDType<?>;
+    }
+
+    @Override
+    public final int hashCode()
+    {
+        return AbstractTimeUUIDType.class.hashCode();
     }
 }

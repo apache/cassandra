@@ -201,11 +201,10 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
     {
         if (kind.isPrimaryKeyKind() || !type.isMultiCell())
             return null;
+        assert !type.isReversed() : "This should not happen because reversed types can be only constructed for " +
+                                    "clustering columns which are part of primary keys and should be excluded by the above condition";
 
-        AbstractType<?> nameComparator = type.isCollection()
-                                       ? ((CollectionType) type).nameComparator()
-                                       : ((UserType) type).nameComparator();
-
+        AbstractType<?> nameComparator = ((MultiCellCapableType<?>) type).nameComparator();
 
         return (path1, path2) ->
         {

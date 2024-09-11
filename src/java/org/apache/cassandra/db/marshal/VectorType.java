@@ -25,8 +25,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
-
 import javax.annotation.Nullable;
+
+import com.google.common.collect.ImmutableList;
 
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.Term;
@@ -75,7 +76,7 @@ public final class VectorType<T> extends AbstractType<List<T>>
         }
     }
     @SuppressWarnings("rawtypes")
-    private static final ConcurrentHashMap<Key, VectorType> instances = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<Key, VectorType<?>> instances = new ConcurrentHashMap<>();
 
     public final AbstractType<T> elementType;
     public final int dimension;
@@ -85,7 +86,7 @@ public final class VectorType<T> extends AbstractType<List<T>>
 
     private VectorType(AbstractType<T> elementType, int dimension)
     {
-        super(ComparisonType.CUSTOM);
+        super(ComparisonType.CUSTOM, false, ImmutableList.of(elementType));
         if (dimension <= 0)
             throw new InvalidRequestException(String.format("vectors may only have positive dimensions; given %d", dimension));
         this.elementType = elementType;
@@ -103,7 +104,7 @@ public final class VectorType<T> extends AbstractType<List<T>>
     public static <T> VectorType<T> getInstance(AbstractType<T> elements, int dimension)
     {
         Key key = new Key(elements, dimension);
-        return instances.computeIfAbsent(key, Key::create);
+        return (VectorType<T>) getInstance(instances, key, key::create);
     }
 
     public static VectorType<?> getInstance(TypeParser parser)
@@ -263,12 +264,6 @@ public final class VectorType<T> extends AbstractType<List<T>>
     }
 
     @Override
-    public List<AbstractType<?>> subTypes()
-    {
-        return Collections.singletonList(elementType);
-    }
-
-    @Override
     public String toJSONString(ByteBuffer buffer, ProtocolVersion protocolVersion)
     {
         return toJSONString(buffer, ByteBufferAccessor.instance, protocolVersion);
@@ -317,16 +312,20 @@ public final class VectorType<T> extends AbstractType<List<T>>
     @Override
     public boolean equals(Object o)
     {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
+        if (!super.equals(o))
+            return false;
         VectorType<?> that = (VectorType<?>) o;
-        return dimension == that.dimension && Objects.equals(elementType, that.elementType);
+        return dimension == that.dimension;
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(elementType, dimension);
+        return Objects.hash(super.hashCode(), dimension);
     }
 
     @Override

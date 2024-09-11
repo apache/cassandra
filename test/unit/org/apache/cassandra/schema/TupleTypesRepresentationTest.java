@@ -20,8 +20,8 @@ package org.apache.cassandra.schema;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 
+import com.google.common.collect.ImmutableList;
 import org.junit.Ignore;
 import org.junit.Test;
 
@@ -66,24 +66,24 @@ public class TupleTypesRepresentationTest
     private static final Types types = Types.builder()
                                             .add(new UserType(keyspace,
                                                               mcUdtNameBytes,
-                                                              Arrays.asList(new FieldIdentifier(ByteBufferUtil.bytes(udtField1)),
-                                                                            new FieldIdentifier(ByteBufferUtil.bytes(udtField2))),
-                                                              Arrays.asList(udtType1,
-                                                                            udtType2),
+                                                              ImmutableList.of(new FieldIdentifier(ByteBufferUtil.bytes(udtField1)),
+                                                                               new FieldIdentifier(ByteBufferUtil.bytes(udtField2))),
+                                                              ImmutableList.of(udtType1,
+                                                                               udtType2),
                                                               true))
                                             .add(new UserType(keyspace,
                                                               iUdtNameBytes,
-                                                              Arrays.asList(new FieldIdentifier(ByteBufferUtil.bytes(udtField1)),
-                                                                            new FieldIdentifier(ByteBufferUtil.bytes(udtField2))),
-                                                              Arrays.asList(udtType1,
-                                                                            udtType2),
+                                                              ImmutableList.of(new FieldIdentifier(ByteBufferUtil.bytes(udtField1)),
+                                                                               new FieldIdentifier(ByteBufferUtil.bytes(udtField2))),
+                                                              ImmutableList.of(udtType1,
+                                                                               udtType2),
                                                               true))
                                             .add(new UserType(keyspace,
                                                               fUdtNameBytes,
-                                                              Arrays.asList(new FieldIdentifier(ByteBufferUtil.bytes(udtField1)),
-                                                                            new FieldIdentifier(ByteBufferUtil.bytes(udtField2))),
-                                                              Arrays.asList(udtType1,
-                                                                            udtType2),
+                                                              ImmutableList.of(new FieldIdentifier(ByteBufferUtil.bytes(udtField1)),
+                                                                               new FieldIdentifier(ByteBufferUtil.bytes(udtField2))),
+                                                              ImmutableList.of(udtType1,
+                                                                               udtType2),
                                                               true))
                                             .build();
 

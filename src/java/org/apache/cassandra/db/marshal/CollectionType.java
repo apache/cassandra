@@ -17,14 +17,16 @@
  */
 package org.apache.cassandra.db.marshal;
 
-import java.nio.ByteBuffer;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.Locale;
+
+import com.google.common.collect.ImmutableList;
 
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.ColumnSpecification;
@@ -50,7 +52,7 @@ import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
  * Please note that this comparator shouldn't be used "manually" (as a custom
  * type for instance).
  */
-public abstract class CollectionType<T> extends AbstractType<T>
+public abstract class CollectionType<T> extends MultiCellCapableType<T>
 {
     public static CellPath.Serializer cellPathSerializer = new CollectionPathSerializer();
 
@@ -89,13 +91,12 @@ public abstract class CollectionType<T> extends AbstractType<T>
 
     public final Kind kind;
 
-    protected CollectionType(ComparisonType comparisonType, Kind kind)
+    protected CollectionType(ComparisonType comparisonType, Kind kind, boolean isMultiCell, ImmutableList<AbstractType<?>> subTypes)
     {
-        super(comparisonType);
+        super(comparisonType, isMultiCell, subTypes);
         this.kind = kind;
     }
 
-    public abstract AbstractType<?> nameComparator();
     public abstract AbstractType<?> valueComparator();
 
     protected abstract List<ByteBuffer> serializedValues(Iterator<Cell<?>> cells);
@@ -156,12 +157,6 @@ public abstract class CollectionType<T> extends AbstractType<T>
         return kind == Kind.MAP;
     }
 
-    @Override
-    public boolean isFreezable()
-    {
-        return true;
-    }
-
     // Overrided by maps
     protected int collectionSize(List<ByteBuffer> values)
     {
@@ -179,46 +174,22 @@ public abstract class CollectionType<T> extends AbstractType<T>
     @Override
     public boolean isCompatibleWith(AbstractType<?> previous)
     {
-        if (this == previous)
-            return true;
-
-        if (!getClass().equals(previous.getClass()))
+        if (previous == null || previous.getClass() != getClass())
             return false;
 
-        CollectionType<?> tprev = (CollectionType<?>) previous;
-        if (this.isMultiCell() != tprev.isMultiCell())
-            return false;
-
-        // subclasses should handle compatibility checks for frozen collections
-        if (!this.isMultiCell())
-            return isCompatibleWithFrozen(tprev);
-
-        if (!this.nameComparator().isCompatibleWith(tprev.nameComparator()))
-            return false;
-
-        // the value comparator is only used for Cell values, so sorting doesn't matter
-        return this.valueComparator().isSerializationCompatibleWith(tprev.valueComparator());
+        return super.isCompatibleWith(previous);
     }
 
     @Override
     public boolean isValueCompatibleWithInternal(AbstractType<?> previous)
     {
-        // for multi-cell collections, compatibility and value-compatibility are the same
-        if (this.isMultiCell())
-            return isCompatibleWith(previous);
-
-        if (this == previous)
+        if (Objects.equals(this, previous))
             return true;
 
-        if (!getClass().equals(previous.getClass()))
+        if (previous == null || previous.getClass() != getClass())
             return false;
 
-        CollectionType<?> tprev = (CollectionType<?>) previous;
-        if (this.isMultiCell() != tprev.isMultiCell())
-            return false;
-
-        // subclasses should handle compatibility checks for frozen collections
-        return isValueCompatibleWithFrozen(tprev);
+        return super.isValueCompatibleWithInternal(previous);
     }
 
     @Override
@@ -230,41 +201,21 @@ public abstract class CollectionType<T> extends AbstractType<T>
         return valueComparator().isSerializationCompatibleWith(((CollectionType<?>)previous).valueComparator());
     }
 
-    /** A version of isCompatibleWith() to deal with non-multicell (frozen) collections */
-    protected abstract boolean isCompatibleWithFrozen(CollectionType<?> previous);
-
     /** A version of isValueCompatibleWith() to deal with non-multicell (frozen) collections */
-    protected abstract boolean isValueCompatibleWithFrozen(CollectionType<?> previous);
+    @Override
+    public boolean isValueCompatibleWithFrozen(MultiCellCapableType<?> previous)
+    {
+        assert !isMultiCell;
+        if (getClass() != previous.getClass())
+            return false;
+        CollectionType<?> tprev = (CollectionType<?>) previous;
+        return nameComparator().isCompatibleWith(tprev.nameComparator()) && valueComparator().isValueCompatibleWith(tprev.valueComparator());
+    }
+
 
     public CQL3Type asCQL3Type()
     {
         return new CQL3Type.Collection(this);
-    }
-
-    @Override
-    public boolean equals(Object o)
-    {
-        if (this == o)
-            return true;
-
-        if (!(o instanceof CollectionType))
-            return false;
-
-        CollectionType<?> other = (CollectionType<?>) o;
-
-        if (kind != other.kind)
-            return false;
-
-        if (isMultiCell() != other.isMultiCell())
-            return false;
-
-        return nameComparator().equals(other.nameComparator()) && valueComparator().equals(other.valueComparator());
-    }
-
-    @Override
-    public int hashCode()
-    {
-        return Objects.hash(kind, isMultiCell(), nameComparator(), valueComparator());
     }
 
     @Override

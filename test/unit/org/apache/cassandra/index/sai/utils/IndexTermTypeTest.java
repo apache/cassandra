@@ -25,6 +25,7 @@ import java.util.Collections;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 
+import com.google.common.collect.ImmutableList;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQL3Type;
@@ -132,8 +133,8 @@ public class IndexTermTypeTest
         for (CQL3Type elementType : StorageAttachedIndex.SUPPORTED_TYPES)
         {
             UserType type = new UserType("ks", ByteBufferUtil.bytes("myType"),
-                                         Arrays.asList(FieldIdentifier.forQuoted("f1"), FieldIdentifier.forQuoted("f2")),
-                                         Arrays.asList(elementType.getType(), elementType.getType()),
+                                         ImmutableList.of(FieldIdentifier.forQuoted("f1"), FieldIdentifier.forQuoted("f2")),
+                                         ImmutableList.of(elementType.getType(), elementType.getType()),
                                          true);
             IndexTermType indexTermType = indexTermType(type, IndexTarget.Type.SIMPLE);
             assertFalse(indexTermType.isFrozenCollection());
@@ -141,22 +142,22 @@ public class IndexTermTypeTest
             assertFalse(indexTermType.isLiteral());
             assertFalse(indexTermType.isReversed());
 
-            IndexTermType reversedIndexTermType = indexTermType(ReversedType.getInstance(type), IndexTarget.Type.SIMPLE);
+            IndexTermType reversedIndexTermType = indexTermTypeForClusteringColumn(ReversedType.getInstance(type), IndexTarget.Type.SIMPLE);
             assertFalse(reversedIndexTermType.isFrozenCollection());
             assertFalse(reversedIndexTermType.isFrozen());
             assertFalse(reversedIndexTermType.isLiteral());
             assertTrue(reversedIndexTermType.isReversed());
 
             type = new UserType("ks", ByteBufferUtil.bytes("myType"),
-                                Arrays.asList(FieldIdentifier.forQuoted("f1"), FieldIdentifier.forQuoted("f2")),
-                                Arrays.asList(elementType.getType(), elementType.getType()),
+                                ImmutableList.of(FieldIdentifier.forQuoted("f1"), FieldIdentifier.forQuoted("f2")),
+                                ImmutableList.of(elementType.getType(), elementType.getType()),
                                 false);
             indexTermType = indexTermType(type, IndexTarget.Type.SIMPLE);
             assertFalse(indexTermType.isFrozenCollection());
             assertTrue(indexTermType.isFrozen());
             assertTrue(indexTermType.isLiteral());
 
-            reversedIndexTermType = indexTermType(ReversedType.getInstance(type), IndexTarget.Type.SIMPLE);
+            reversedIndexTermType = indexTermTypeForClusteringColumn(ReversedType.getInstance(type), IndexTarget.Type.SIMPLE);
             assertFalse(reversedIndexTermType.isFrozenCollection());
             assertTrue(reversedIndexTermType.isFrozen());
             assertTrue(reversedIndexTermType.isLiteral());
@@ -196,6 +197,16 @@ public class IndexTermTypeTest
     private static ColumnMetadata column(AbstractType<?> type)
     {
         return ColumnMetadata.regularColumn("ks", "cf", "col", type);
+    }
+
+    private static IndexTermType indexTermTypeForClusteringColumn(AbstractType<?> type, IndexTarget.Type indexType)
+    {
+        return IndexTermType.create(clusteringColumn(type), Collections.emptyList(), indexType);
+    }
+
+    private static ColumnMetadata clusteringColumn(AbstractType<?> type)
+    {
+        return ColumnMetadata.clusteringColumn("ks", "cf", "col", type, 0);
     }
 
     @Test
