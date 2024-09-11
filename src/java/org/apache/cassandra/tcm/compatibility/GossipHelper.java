@@ -229,7 +229,7 @@ public class GossipHelper
         throw new IllegalStateException("Can't upgrade the first node when STATUS = " + status + " for node " + endpoint);
     }
 
-    private static NodeAddresses getAddressesFromEndpointState(InetAddressAndPort endpoint, EndpointState epState)
+    public static NodeAddresses getAddressesFromEndpointState(InetAddressAndPort endpoint, EndpointState epState)
     {
         if (endpoint.equals(getBroadcastAddressAndPort()))
             return NodeAddresses.current();
@@ -357,8 +357,8 @@ public class GossipHelper
         return new ClusterMetadata(Epoch.UPGRADE_GOSSIP,
                                    partitioner,
                                    schema,
-                                   directory,
-                                   tokenMap,
+                                   directory.withLastModified(Epoch.UPGRADE_GOSSIP),
+                                   tokenMap.withLastModified(Epoch.UPGRADE_GOSSIP),
                                    new UniformRangePlacement().calculatePlacements(Epoch.UPGRADE_GOSSIP, forPlacementCalculation, schema.getKeyspaces()),
                                    LockedRanges.EMPTY,
                                    InProgressSequences.EMPTY,

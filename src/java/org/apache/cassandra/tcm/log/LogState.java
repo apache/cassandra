@@ -29,6 +29,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -40,6 +41,7 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MetadataSnapshots;
+import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.VerboseMetadataSerializer;
@@ -294,6 +296,13 @@ public class LogState
             {
                 logger.info("Received metadata log notification from {}, marking in progress migration complete", message.from());
                 ClusterMetadataService.instance().migrated();
+                ClusterMetadata metadata = ClusterMetadata.currentNullable();
+                if (metadata != null)
+                {
+                    NodeId mynodeId = metadata.myNodeId();
+                    if (mynodeId != null)
+                        SystemKeyspace.setLocalHostId(mynodeId.toUUID());
+                }
             }
 
             log.append(message.payload);
