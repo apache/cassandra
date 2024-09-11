@@ -41,10 +41,12 @@ import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.dht.BootStrapper;
 import org.apache.cassandra.exceptions.StartupException;
+import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.NewGossiper;
+import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -281,12 +283,40 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 
         logger.debug("Starting to initialize ClusterMetadata from gossip");
         Map<InetAddressAndPort, EndpointState> epStates = NewGossiper.instance.doShadowRound();
+        InetAddressAndPort switchIp = null;
+        if (!epStates.containsKey(getBroadcastAddressAndPort()))
+        {
+            UUID hostId = SystemKeyspace.getLocalHostId();
+            for (Map.Entry<InetAddressAndPort, EndpointState> epstate : epStates.entrySet())
+            {
+                EndpointState state = epstate.getValue();
+                VersionedValue gossipHostId = state.getApplicationState(ApplicationState.HOST_ID);
+                if (gossipHostId != null && UUID.fromString(gossipHostId.value).equals(hostId))
+                {
+                    switchIp = epstate.getKey();
+                    break;
+                }
+            }
+            if (switchIp != null)
+            {
+                logger.info("Changing IP in gossip mode from {} to {}", switchIp, getBroadcastAddressAndPort());
+                // we simply switch the key to the new ip here to make sure we grab NodeAddresses.current() for
+                // this node when constructing the initial ClusterMetadata in GossipHelper#getAddressesFromEndpointState
+                epStates.put(getBroadcastAddressAndPort(), epStates.remove(switchIp));
+            }
+        }
+
         logger.debug("Got epStates {}", epStates);
         ClusterMetadata initial = fromEndpointStates(emptyFromSystemTables.schema, epStates);
         logger.debug("Created initial ClusterMetadata {}", initial);
-        SystemKeyspace.setLocalHostId(initial.myNodeId().toUUID());
         ClusterMetadataService.instance().setFromGossip(initial);
         Gossiper.instance.clearUnsafe();
+        if (switchIp != null)
+        {
+            // quarantine the old ip to make sure it doesn't get re-added via gossip
+            InetAddressAndPort removeEp = switchIp;
+            Gossiper.runInGossipStageBlocking(() -> Gossiper.instance.removeEndpoint(removeEp));
+        }
         Gossiper.instance.maybeInitializeLocalState(SystemKeyspace.incrementAndGetGeneration());
         for (Map.Entry<NodeId, NodeState> entry : initial.directory.states.entrySet())
             Gossiper.instance.mergeNodeToGossip(entry.getKey(), initial);

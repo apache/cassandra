@@ -79,14 +79,14 @@ public class PreInitialize implements Transformation
                                           MetaStrategy.partitioner.getMinimumToken(),
                                           MetaStrategy.partitioner.getMinimumToken(),
                                           true);
-            dataPlacementBuilder.reads.withReplica(metadata.nextEpoch(), replica);
-            dataPlacementBuilder.writes.withReplica(metadata.nextEpoch(), replica);
+            dataPlacementBuilder.reads.withReplica(Epoch.FIRST, replica);
+            dataPlacementBuilder.writes.withReplica(Epoch.FIRST, replica);
             DataPlacements initialPlacement = metadata.placements.unbuild().with(ReplicationParams.meta(metadata), dataPlacementBuilder.build()).build();
 
             transformer.with(initialPlacement);
         }
         ClusterMetadata.Transformer.Transformed transformed = transformer.build();
-        metadata = transformed.metadata;
+        metadata = transformed.metadata.forceEpoch(Epoch.FIRST);
         assert metadata.epoch.is(Epoch.FIRST) : metadata.epoch;
 
         return new Success(metadata, LockedRanges.AffectedRanges.EMPTY, transformed.modifiedKeys);
