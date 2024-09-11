@@ -14,7 +14,7 @@ This section covers the new features in Apache Cassandra 5.1.
 This section covers the new features in Apache Cassandra 5.0.
 
 * Storage Attached Indexes: xref:cassandra:developing/cql/indexing/sai/sai-overview.adoc[Docs], https://cwiki.apache.org/confluence/display/CASSANDRA/CEP-7%3A+Storage+Attached+Index[CEP-7],  https://issues.apache.org/jira/browse/CASSANDRA-16052[JIRA ticket]
-* Trie memtables: https://cwiki.apache.org/confluence/display/CASSANDRA/CEP-19%3A+Trie+memtable+implementation[CEP-19], https://issues.apache.org/jira/browse/CASSANDRA-17240[JIRA ticket]
+* Trie memtables: xref:cassandra:architecture/storage-engine.adoc#trie-memtables[Docs], https://cwiki.apache.org/confluence/display/CASSANDRA/CEP-19%3A+Trie+memtable+implementation[CEP-19], https://issues.apache.org/jira/browse/CASSANDRA-17240[JIRA ticket]
 * Trie SSTables: https://cwiki.apache.org/confluence/display/CASSANDRA/CEP-25%3A+Trie-indexed+SSTable+format[CEP-25], https://issues.apache.org/jira/browse/CASSANDRA-18398[JIRA ticket]
 * JDK 17: xref:cassandra:reference/java17.adoc[Docs], https://issues.apache.org/jira/browse/CASSANDRA-16895[JIRA ticket]
 * More guardrails: https://github.com/apache/cassandra/blob/trunk/NEWS.txt[NEWS.txt]

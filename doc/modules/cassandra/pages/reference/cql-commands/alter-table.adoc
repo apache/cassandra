@@ -336,6 +336,17 @@ Lists the number of pending tasks for a compaction strategy.
  "time":1470083447967,"strategyId":"1","pending":200}
 ----
 
+== Alter a table with memtable
+
+To alter a table with memtable, a memtable configuration must be enabled in `cassandra.yaml`. See xref:architecture/storage-engine/memtable.adoc[Memtable] for more information.
+
+To alter a table with a default memtable:
+
+[source,language-cql]
+----
+include::cassandra:example$CQL/cyclist_id-table.cql[tag=table-alter-memtable]
+----
+
 === Reviewing the table definition
 
 Use `DESCRIBE` or `DESC` to view the table definition.
