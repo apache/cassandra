@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Predicate;
 
 import com.google.common.collect.ImmutableMap;
 import org.apache.cassandra.utils.JVMStabilityInspector;
@@ -38,6 +39,7 @@ import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.LogAction;
 import org.apache.cassandra.utils.FBUtilities;
 import org.assertj.core.api.Assertions;
+import org.mockito.Mockito;
 
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
@@ -182,6 +184,37 @@ public class JVMDTestTest extends TestBaseImpl
             cluster.get(2).startup();
             assertRows(cluster.get(2).executeInternal("SELECT table_name FROM system_schema.tables WHERE keyspace_name = ?", KEYSPACE),
                        row("tbl1"), row("tbl2"), row("tbl3"), row("tbl4"));
+        }
+    }
+
+    @Test
+    public void uncaughtExceptionHandling() throws IOException
+    {
+        try (Cluster a = Cluster.build(1).start();
+             Cluster b = Cluster.build(1).start())
+        {
+            Predicate<Throwable> af = Mockito.mock(Predicate.class);
+            Mockito.when(af.test(Mockito.any())).thenReturn(true);
+            a.setUncaughtExceptionsFilter(af);
+
+            Predicate<Throwable> bf = Mockito.mock(Predicate.class);
+            Mockito.when(bf.test(Mockito.any())).thenReturn(true);
+            b.setUncaughtExceptionsFilter(bf);
+
+            Assertions.assertThatThrownBy(() -> a.get(1).runOnInstance(() -> {throw new NullPointerException("a");}));
+            Assertions.assertThatThrownBy(() -> b.get(1).runOnInstance(() -> {throw new NullPointerException("b");}));
+            Mockito.verifyNoInteractions(af);
+            Mockito.verifyNoInteractions(bf);
+
+            Assertions.assertThatThrownBy(() -> a.get(1).runOnInstance(() -> Stage.READ.submit(() -> {throw new NullPointerException("a");}).syncUninterruptibly()));
+            Mockito.verify(af, Mockito.times(1)).test(Mockito.argThat(t -> t instanceof NullPointerException && "a".equals(t.getMessage())));
+            Mockito.verifyNoInteractions(bf);
+            Mockito.clearInvocations(af);
+
+            Assertions.assertThatThrownBy(() -> b.get(1).runOnInstance(() -> Stage.READ.submit(() -> {throw new NullPointerException("b");}).syncUninterruptibly()));
+            Mockito.verify(bf, Mockito.times(1)).test(Mockito.argThat(t -> t instanceof NullPointerException && "b".equals(t.getMessage())));
+            Mockito.verifyNoInteractions(af);
+            Mockito.clearInvocations(bf);
         }
     }
 }

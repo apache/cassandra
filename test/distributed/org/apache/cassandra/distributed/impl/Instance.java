@@ -195,6 +195,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     private final AtomicLong startedAt = new AtomicLong();
     private IsolatedJmx isolatedJmx;
 
+    private enum Status { INIT, STARTUP, RUNNING, SHUTDOWN, TERMINATED }
+    private volatile Status status = Status.INIT;
+
     /** @deprecated See CASSANDRA-17013 */
     @Deprecated(since = "4.1")
     Instance(IInstanceConfig config, ClassLoader classLoader)
@@ -209,10 +212,18 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
     Instance(IInstanceConfig config, ClassLoader classLoader, FileSystem fileSystem, ShutdownExecutor shutdownExecutor)
     {
+        this(config, classLoader, fileSystem, shutdownExecutor, null);
+    }
+
+    Instance(IInstanceConfig config, ClassLoader classLoader, FileSystem fileSystem, ShutdownExecutor shutdownExecutor, SharedUncaughtExceptionHandler uncaughtExceptionHandler)
+    {
         super("node" + config.num(), classLoader, executorFactory().pooled("isolatedExecutor", Integer.MAX_VALUE), shutdownExecutor);
         this.config = config;
         if (fileSystem != null)
             File.unsafeSetFilesystem(fileSystem);
+        // It is intentional not to include isolatedExecutor.  Most tests will see these errors and are more than likely testing failure cases.
+        if (uncaughtExceptionHandler != null)
+            ExecutorFactory.Global.tryUnsafeSet(new ExecutorFactory.Default(classLoader, null, uncaughtExceptionHandler));
         Object clusterId = Objects.requireNonNull(config.get(Constants.KEY_DTEST_API_CLUSTER_ID), "cluster_id is not defined");
         ClusterIDDefiner.setId("cluster-" + clusterId);
         InstanceIDDefiner.setInstanceId(config.num());
@@ -322,7 +333,26 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
     public boolean isShutdown()
     {
-        return isolatedExecutor.isShutdown();
+        return isolatedExecutor.isShutdown() || isInternalShutdown();
+    }
+
+    private boolean isInternalShutdown()
+    {
+        switch (status)
+        {
+            case INIT:
+            case STARTUP:
+                return false;
+            case RUNNING:
+                break; // need to check internal status
+            case SHUTDOWN:
+            case TERMINATED:
+                return true;
+        }
+        // org.apache.cassandra.service.StorageService.shutdownNetworking
+        // When we do decom we shutdown the process, but jvm-dtest doesn't know this, so need to check
+        // if that happened
+        return Stage.READ.executor().isShutdown();
     }
 
     @Override
@@ -615,6 +645,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
         sync(() -> {
             inInstancelogger = LoggerFactory.getLogger(Instance.class);
+            status = Status.STARTUP;
             try
             {
                 boolean isFullStartup = config.get(Constants.KEY_DTEST_FULL_STARTUP) != null && (boolean) config.get(Constants.KEY_DTEST_FULL_STARTUP);
@@ -633,6 +664,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                     partialStartup(cluster);
                 }
                 StorageService.instance.startSnapshotManager();
+                status = Status.RUNNING;
             }
             catch (Throwable t)
             {
@@ -691,6 +723,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     {
         // org.apache.cassandra.distributed.impl.AbstractCluster.startup sets the exception handler for the thread
         // so extract it to populate ExecutorFactory.Global
+        // In the common path this will be set in the constructor, but for older jvm-dtests that might not be true, so need to set here as well
         ExecutorFactory.Global.tryUnsafeSet(new ExecutorFactory.Default(Thread.currentThread().getContextClassLoader(), null, Thread.getDefaultUncaughtExceptionHandler()));
         if (config.has(GOSSIP))
         {
@@ -888,6 +921,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     public Future<Void> shutdown(boolean runOnExitThreads, boolean shutdownMessagingGracefully)
     {
         Future<?> future = async((ExecutorService executor) -> {
+            status = Status.SHUTDOWN;
             Throwable error = null;
 
             CompactionManager.instance.forceShutdown();
@@ -996,6 +1030,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             }
             finally
             {
+                status = Status.TERMINATED;
                 super.shutdown();
                 startedAt.set(0L);
                 //withThreadLeakCheck();
