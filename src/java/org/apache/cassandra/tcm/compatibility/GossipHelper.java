@@ -229,7 +229,7 @@ public class GossipHelper
         throw new IllegalStateException("Can't upgrade the first node when STATUS = " + status + " for node " + endpoint);
     }
 
-    private static NodeAddresses getAddressesFromEndpointState(InetAddressAndPort endpoint, EndpointState epState)
+    public static NodeAddresses getAddressesFromEndpointState(InetAddressAndPort endpoint, EndpointState epState)
     {
         if (endpoint.equals(getBroadcastAddressAndPort()))
             return NodeAddresses.current();
@@ -322,8 +322,8 @@ public class GossipHelper
     @VisibleForTesting
     public static ClusterMetadata fromEndpointStates(Map<InetAddressAndPort, EndpointState> epStates, IPartitioner partitioner, DistributedSchema schema)
     {
-        Directory directory = new Directory();
-        TokenMap tokenMap = new TokenMap(partitioner);
+        Directory directory = new Directory().withLastModified(Epoch.UPGRADE_GOSSIP);
+        TokenMap tokenMap = new TokenMap(partitioner).withLastModified(Epoch.UPGRADE_GOSSIP);
         List<InetAddressAndPort> sortedEps = Lists.newArrayList(epStates.keySet());
         Collections.sort(sortedEps);
         Map<ExtensionKey<?, ?>, ExtensionValue<?>> extensions = new HashMap<>();
@@ -354,12 +354,15 @@ public class GossipHelper
                                                                       LockedRanges.EMPTY,
                                                                       InProgressSequences.EMPTY,
                                                                       extensions);
+        DataPlacements placements = new UniformRangePlacement().calculatePlacements(Epoch.UPGRADE_GOSSIP,
+                                                                                    forPlacementCalculation,
+                                                                                    schema.getKeyspaces());
         return new ClusterMetadata(Epoch.UPGRADE_GOSSIP,
                                    partitioner,
                                    schema,
                                    directory,
                                    tokenMap,
-                                   new UniformRangePlacement().calculatePlacements(Epoch.UPGRADE_GOSSIP, forPlacementCalculation, schema.getKeyspaces()),
+                                   placements,
                                    LockedRanges.EMPTY,
                                    InProgressSequences.EMPTY,
                                    extensions);

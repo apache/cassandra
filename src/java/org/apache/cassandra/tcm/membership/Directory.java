@@ -712,10 +712,18 @@ public class Directory implements MetadataValue<Directory>
         {
             logger.warn("nextId differ: {} != {}", nextId, other.nextId);
         }
+        if (!Objects.equals(lastModified, other.lastModified))
+        {
+            logger.warn("Last modified differ: {} != {}", lastModified, other.lastModified);
+        }
         if (!Objects.equals(peers, other.peers))
         {
             logger.warn("Peers differ: {} != {}", peers, other.peers);
             dumpDiff(logger, peers, other.peers);
+        }
+        if (!Objects.equals(locations, other.locations))
+        {
+            logger.warn("Locations differ: {} != {}", locations, other.locations);
         }
         if (!Objects.equals(states, other.states))
         {
@@ -726,6 +734,10 @@ public class Directory implements MetadataValue<Directory>
         {
             logger.warn("Endpoints by dc differ: {} != {}", endpointsByDC, other.endpointsByDC);
             dumpDiff(logger, endpointsByDC.asMap(), other.endpointsByDC.asMap());
+        }
+        if (!Objects.equals(racksByDC, other.racksByDC))
+        {
+            logger.warn("Racks by dc differ: {} != {}", racksByDC, other.racksByDC);
         }
         if (!Objects.equals(versions, other.versions))
         {

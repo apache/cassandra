@@ -35,6 +35,7 @@ import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -140,6 +141,7 @@ public class Election
 
         Startup.initializeAsFirstCMSNode();
         Register.maybeRegister();
+        SystemKeyspace.setLocalHostId(ClusterMetadata.current().myNodeId().toUUID());
 
         updateInitiator(currentCoordinator, MIGRATED);
         MessageDelivery.fanoutAndWait(messaging, sendTo, Verb.TCM_NOTIFY_REQ, DistributedMetadataLogKeyspace.getLogState(Epoch.EMPTY, false));
