@@ -44,7 +44,7 @@ import accord.api.Agent;
 import accord.impl.AbstractConfigurationService;
 import accord.impl.TestAgent;
 import accord.impl.basic.PendingQueue;
-import accord.impl.basic.PropagatingPendingQueue;
+import accord.impl.basic.MonitoredPendingQueue;
 import accord.impl.basic.RandomDelayQueue;
 import accord.impl.basic.SimulatedDelayedExecutorService;
 import accord.local.Node;
@@ -103,7 +103,7 @@ public class AccordSyncPropagatorTest
 
             List<Throwable> failures = new ArrayList<>();
             RandomDelayQueue delayQueue = new RandomDelayQueue.Factory(rs).get();
-            PendingQueue queue = new PropagatingPendingQueue(failures, delayQueue);
+            PendingQueue queue = new MonitoredPendingQueue(failures, delayQueue);
             Agent agent = new TestAgent.RethrowAgent();
             SimulatedDelayedExecutorService globalExecutor = new SimulatedDelayedExecutorService(queue, agent);
             ScheduledExecutorPlus scheduler = new AdaptingScheduledExecutorPlus(globalExecutor);

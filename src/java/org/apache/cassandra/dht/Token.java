@@ -38,6 +38,7 @@ import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
+import org.apache.cassandra.utils.vint.VIntCoding;
 
 public abstract class Token implements RingPosition<Token>, Serializable
 {
@@ -95,7 +96,7 @@ public abstract class Token implements RingPosition<Token>, Serializable
             out.write(toByteArray(token));
         }
 
-        public void serialize(Token token, ByteBuffer out) throws IOException
+        public void serialize(Token token, ByteBuffer out)
         {
             out.put(toByteArray(token));
         }
@@ -202,6 +203,26 @@ public abstract class Token implements RingPosition<Token>, Serializable
             p.getTokenFactory().serialize(token, out);
         }
 
+        public void serialize(Token token, ByteBuffer out)
+        {
+            IPartitioner p = token.getPartitioner();
+            if (logPartitioner && serializePartitioners.add(p.getClass()))
+              logger.debug("Serializing token with partitioner " + p);
+            if (!p.isFixedLength())
+                VIntCoding.writeUnsignedVInt32(p.getTokenFactory().byteSize(token), out);
+            p.getTokenFactory().serialize(token, out);
+        }
+
+        public Token deserialize(ByteBuffer in, IPartitioner p)
+        {
+            int size = p.isFixedLength() ? p.getMaxTokenSize() : VIntCoding.readUnsignedVInt32(in);
+            if (logPartitioner && deserializePartitioners.add(p.getClass()))
+                logger.debug("Deserializing token with partitioner " + p);
+            byte[] bytes = new byte[size];
+            in.get(bytes);
+            return p.getTokenFactory().fromByteArray(ByteBuffer.wrap(bytes));
+        }
+
         public Token deserialize(DataInputPlus in, IPartitioner p, int version) throws IOException
         {
             int size = p.isFixedLength() ? p.getMaxTokenSize() : in.readUnsignedVInt32();
@@ -213,6 +234,11 @@ public abstract class Token implements RingPosition<Token>, Serializable
         }
 
         public long serializedSize(Token object, int version)
+        {
+            return serializedSize(object);
+        }
+
+        public long serializedSize(Token object)
         {
             IPartitioner p = object.getPartitioner();
             int byteSize = p.getTokenFactory().byteSize(object);

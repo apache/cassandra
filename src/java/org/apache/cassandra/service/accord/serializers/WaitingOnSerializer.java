@@ -23,9 +23,9 @@ import java.nio.ByteBuffer;
 
 import accord.local.Command.WaitingOn;
 import accord.primitives.KeyDeps;
-import accord.primitives.Keys;
 import accord.primitives.RangeDeps;
 import accord.primitives.Routable;
+import accord.primitives.RoutingKeys;
 import accord.primitives.TxnId;
 import accord.utils.ImmutableBitSet;
 import accord.utils.Invariants;
@@ -84,7 +84,7 @@ public class WaitingOnSerializer
             out.putLong(bits[i]);
     }
 
-    public static WaitingOn deserialize(TxnId txnId, Keys keys, RangeDeps directRangeDeps, KeyDeps directKeyDeps, ByteBuffer in) throws IOException
+    public static WaitingOn deserialize(TxnId txnId, RoutingKeys keys, RangeDeps directRangeDeps, KeyDeps directKeyDeps, ByteBuffer in) throws IOException
     {
         int txnIdCount = directRangeDeps.txnIdCount() + directKeyDeps.txnIdCount();
         int waitingOnLength = (txnIdCount + keys.size() + 63) / 64;

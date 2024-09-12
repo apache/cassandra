@@ -21,7 +21,6 @@ package org.apache.cassandra.service.accord;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.function.Function;
-
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -29,13 +28,12 @@ import com.google.common.annotations.VisibleForTesting;
 import accord.api.Result;
 import accord.local.Command;
 import accord.local.CommonAttributes;
-import accord.local.SaveStatus;
-import accord.local.Status;
+import accord.local.StoreParticipants;
 import accord.primitives.Ballot;
 import accord.primitives.PartialDeps;
 import accord.primitives.PartialTxn;
-import accord.primitives.Route;
-import accord.primitives.Seekables;
+import accord.primitives.SaveStatus;
+import accord.primitives.Status;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.primitives.Writes;
@@ -44,10 +42,12 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.journal.Journal;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import org.apache.cassandra.service.accord.serializers.DepsSerializer;
-import org.apache.cassandra.service.accord.serializers.KeySerializers;
 import org.apache.cassandra.service.accord.serializers.WaitingOnSerializer;
 import org.apache.cassandra.utils.Throwables;
 
+import static accord.primitives.Known.KnownDeps.DepsErased;
+import static accord.primitives.Known.KnownDeps.DepsUnknown;
+import static accord.primitives.Known.KnownDeps.NoDeps;
 import static accord.utils.Invariants.illegalState;
 
 public class SavedCommand
@@ -62,31 +62,28 @@ public class SavedCommand
         DURABILITY,
         ACCEPTED,
         PROMISED,
-        ROUTE,
+        PARTICIPANTS,
         PARTIAL_TXN,
         PARTIAL_DEPS,
-        ADDITIONAL_KEYS,
         WAITING_ON,
         WRITES,
     }
 
-    public interface Writer<K> extends Journal.Writer
-    {
-        void write(DataOutputPlus out, int userVersion) throws IOException;
-        K key();
-    }
-
-    public static class DiffWriter implements Writer<TxnId>
+    // TODO: maybe rename this and enclosing classes?
+    public static class DiffWriter implements Journal.Writer
     {
         private final Command before;
         private final Command after;
         private final TxnId txnId;
 
+        // TODO: improve encapsulationd
+        @VisibleForTesting
         public DiffWriter(Command before, Command after)
         {
             this(after.txnId(), before, after);
         }
 
+        @VisibleForTesting
         public DiffWriter(TxnId txnId, Command before, Command after)
         {
             this.txnId = txnId;
@@ -118,21 +115,29 @@ public class SavedCommand
     }
 
     @Nullable
-    public static Writer<TxnId> diff(Command original, Command current)
+    public static DiffWriter diff(Command original, Command current)
     {
         if (original == current
             || current == null
-            || current.saveStatus() == SaveStatus.Uninitialised)
+            || current.saveStatus() == SaveStatus.Uninitialised
+            || !anyFieldChanged(original, current))
             return null;
         return new SavedCommand.DiffWriter(original, current);
     }
 
-
-    public static Writer<TxnId> diffWriter(Command before, Command after)
+    // TODO (required): this is very inefficient
+    private static boolean anyFieldChanged(Command before, Command after)
     {
-        return new DiffWriter(before, after);
-    }
+        int flags = getFlags(before, after);
+        for (Fields field : Fields.values())
+        {
+            if (getFieldChanged(field, flags))
+                return true;
+        }
 
+        return false;
+    }    
+    
     public static void serialize(Command before, Command after, DataOutputPlus out, int userVersion) throws IOException
     {
         int flags = getFlags(before, after);
@@ -157,14 +162,12 @@ public class SavedCommand
         if (getFieldChanged(Fields.PROMISED, flags) && after.promised() != null)
             CommandSerializers.ballot.serialize(after.promised(), out, userVersion);
 
-        if (getFieldChanged(Fields.ROUTE, flags) && after.route() != null)
-            AccordKeyspace.LocalVersionedSerializers.route.serialize(after.route(), out); // TODO (required): user version
+        if (getFieldChanged(Fields.PARTICIPANTS, flags) && after.participants() != null)
+            CommandSerializers.participants.serialize(after.participants(), out, userVersion);
         if (getFieldChanged(Fields.PARTIAL_TXN, flags) && after.partialTxn() != null)
             CommandSerializers.partialTxn.serialize(after.partialTxn(), out, userVersion);
         if (getFieldChanged(Fields.PARTIAL_DEPS, flags) && after.partialDeps() != null)
             DepsSerializer.partialDeps.serialize(after.partialDeps(), out, userVersion);
-        if (getFieldChanged(Fields.ADDITIONAL_KEYS, flags) && after.additionalKeysOrRanges() != null)
-            KeySerializers.seekables.serialize(after.additionalKeysOrRanges(), out, userVersion);
 
         Command.WaitingOn waitingOn = getWaitingOn(after);
         if (getFieldChanged(Fields.WAITING_ON, flags) && waitingOn != null)
@@ -193,10 +196,9 @@ public class SavedCommand
         flags = collectFlags(before, after, Command::acceptedOrCommitted, false, Fields.ACCEPTED, flags);
         flags = collectFlags(before, after, Command::promised, false, Fields.PROMISED, flags);
 
-        flags = collectFlags(before, after, Command::route, true, Fields.ROUTE, flags);
+        flags = collectFlags(before, after, Command::participants, true, Fields.PARTICIPANTS, flags);
         flags = collectFlags(before, after, Command::partialTxn, false, Fields.PARTIAL_TXN, flags);
         flags = collectFlags(before, after, Command::partialDeps, false, Fields.PARTIAL_DEPS, flags);
-        flags = collectFlags(before, after, Command::additionalKeysOrRanges, false, Fields.ADDITIONAL_KEYS, flags);
 
         flags = collectFlags(before, after, SavedCommand::getWaitingOn, false, Fields.WAITING_ON, flags);
 
@@ -259,8 +261,15 @@ public class SavedCommand
         return oldFlags | (1 << field.ordinal());
     }
 
+    private static int unsetFieldIsNull(Fields field, int oldFlags)
+    {
+        return oldFlags & ~(1 << field.ordinal());
+    }
+
     public static class Builder
     {
+        int flags;
+
         TxnId txnId;
 
         Timestamp executeAt;
@@ -271,11 +280,11 @@ public class SavedCommand
         Ballot acceptedOrCommitted;
         Ballot promised;
 
-        Route<?> route;
+        StoreParticipants participants;
         PartialTxn partialTxn;
         PartialDeps partialDeps;
-        Seekables<?, ?> additionalKeysOrRanges;
 
+        byte[] waitingOnBytes;
         SavedCommand.WaitingOnProvider waitingOn;
         Writes writes;
         Result result;
@@ -298,6 +307,11 @@ public class SavedCommand
             return executeAt;
         }
 
+        public Timestamp executeAtLeast()
+        {
+            return executeAtLeast;
+        }
+
         public SaveStatus saveStatus()
         {
             return saveStatus;
@@ -318,9 +332,9 @@ public class SavedCommand
             return promised;
         }
 
-        public Route<?> route()
+        public StoreParticipants participants()
         {
-            return route;
+            return participants;
         }
 
         public PartialTxn partialTxn()
@@ -331,11 +345,6 @@ public class SavedCommand
         public PartialDeps partialDeps()
         {
             return partialDeps;
-        }
-
-        public Seekables<?, ?> additionalKeysOrRanges()
-        {
-            return additionalKeysOrRanges;
         }
 
         public SavedCommand.WaitingOnProvider waitingOn()
@@ -355,6 +364,8 @@ public class SavedCommand
 
         public void clear()
         {
+            flags = 0;
+
             txnId = null;
 
             executeAt = null;
@@ -364,10 +375,9 @@ public class SavedCommand
             acceptedOrCommitted = Ballot.ZERO;
             promised = null;
 
-            route = null;
+            participants = null;
             partialTxn = null;
             partialDeps = null;
-            additionalKeysOrRanges = null;
 
             waitingOn = (txn, deps) -> null;
             writes = null;
@@ -387,13 +397,65 @@ public class SavedCommand
             return count;
         }
 
+        public void serialize(DataOutputPlus out, int userVersion) throws IOException
+        {
+            out.writeInt(flags);
+
+            // We encode all changed fields unless their value is null
+            if (getFieldChanged(Fields.TXN_ID, flags) && !getFieldIsNull(Fields.TXN_ID, flags))
+                CommandSerializers.txnId.serialize(txnId(), out, userVersion);
+            if (getFieldChanged(Fields.EXECUTE_AT, flags) && !getFieldIsNull(Fields.EXECUTE_AT, flags))
+                CommandSerializers.timestamp.serialize(executeAt(), out, userVersion);
+            // TODO (desired): check if this can fold into executeAt
+            if (getFieldChanged(Fields.EXECUTES_AT_LEAST, flags) && !getFieldIsNull(Fields.EXECUTES_AT_LEAST, flags))
+                CommandSerializers.timestamp.serialize(executeAtLeast(), out, userVersion);
+            if (getFieldChanged(Fields.SAVE_STATUS, flags) && !getFieldIsNull(Fields.SAVE_STATUS, flags))
+                out.writeInt(saveStatus().ordinal());
+            if (getFieldChanged(Fields.DURABILITY, flags) && !getFieldIsNull(Fields.DURABILITY, flags))
+                out.writeInt(durability().ordinal());
+
+            if (getFieldChanged(Fields.ACCEPTED, flags) && !getFieldIsNull(Fields.ACCEPTED, flags))
+                CommandSerializers.ballot.serialize(acceptedOrCommitted(), out, userVersion);
+            if (getFieldChanged(Fields.PROMISED, flags) && !getFieldIsNull(Fields.PROMISED, flags))
+                CommandSerializers.ballot.serialize(promised(), out, userVersion);
+
+            if (getFieldChanged(Fields.PARTICIPANTS, flags) && !getFieldIsNull(Fields.PARTICIPANTS, flags))
+                CommandSerializers.participants.serialize(participants(), out, userVersion);
+            if (getFieldChanged(Fields.PARTIAL_TXN, flags) && !getFieldIsNull(Fields.PARTIAL_TXN, flags))
+                CommandSerializers.partialTxn.serialize(partialTxn(), out, userVersion);
+            if (getFieldChanged(Fields.PARTIAL_DEPS, flags) && !getFieldIsNull(Fields.PARTIAL_DEPS, flags))
+                DepsSerializer.partialDeps.serialize(partialDeps(), out, userVersion);
+
+            if (getFieldChanged(Fields.WAITING_ON, flags) && !getFieldIsNull(Fields.WAITING_ON, flags))
+            {
+                out.writeInt(waitingOnBytes.length);
+                out.write(waitingOnBytes);
+            }
+
+            if (getFieldChanged(Fields.WRITES, flags) && !getFieldIsNull(Fields.WRITES, flags))
+                CommandSerializers.writes.serialize(writes(), out, userVersion);
+        }
+
+
+        // TODO: we seem to be writing some form of empty transaction
         @SuppressWarnings({ "rawtypes", "unchecked" })
         public void deserializeNext(DataInputPlus in, int userVersion) throws IOException
         {
+            final int flags = in.readInt();
             nextCalled = true;
             count++;
 
-            final int flags = in.readInt();
+            for (Fields field : Fields.values())
+            {
+                if (getFieldChanged(field, flags))
+                {
+                    this.flags = setFieldChanged(field, this.flags);
+                    if (getFieldIsNull(field, flags))
+                        this.flags = setFieldIsNull(field, this.flags);
+                    else
+                        this.flags = unsetFieldIsNull(field, this.flags);
+                }
+            }
 
             if (getFieldChanged(Fields.TXN_ID, flags))
             {
@@ -450,12 +512,12 @@ public class SavedCommand
                     promised = CommandSerializers.ballot.deserialize(in, userVersion);
             }
 
-            if (getFieldChanged(Fields.ROUTE, flags))
+            if (getFieldChanged(Fields.PARTICIPANTS, flags))
             {
-                if (getFieldIsNull(Fields.ROUTE, flags))
-                    route = null;
+                if (getFieldIsNull(Fields.PARTICIPANTS, flags))
+                    participants = null;
                 else
-                    route = AccordKeyspace.LocalVersionedSerializers.route.deserialize(in);
+                    participants = CommandSerializers.participants.deserialize(in, userVersion);
             }
 
             if (getFieldChanged(Fields.PARTIAL_TXN, flags))
@@ -474,14 +536,6 @@ public class SavedCommand
                     partialDeps = DepsSerializer.partialDeps.deserialize(in, userVersion);
             }
 
-            if (getFieldChanged(Fields.ADDITIONAL_KEYS, flags))
-            {
-                if (getFieldIsNull(Fields.ADDITIONAL_KEYS, flags))
-                    additionalKeysOrRanges = null;
-                else
-                    additionalKeysOrRanges = KeySerializers.seekables.deserialize(in, userVersion);
-            }
-
             if (getFieldChanged(Fields.WAITING_ON, flags))
             {
                 if (getFieldIsNull(Fields.WAITING_ON, flags))
@@ -491,9 +545,9 @@ public class SavedCommand
                 else
                 {
                     int size = in.readInt();
-                    byte[] bytes = new byte[size];
-                    in.readFully(bytes);
-                    ByteBuffer buffer = ByteBuffer.wrap(bytes);
+                    waitingOnBytes = new byte[size];
+                    in.readFully(waitingOnBytes);
+                    ByteBuffer buffer = ByteBuffer.wrap(waitingOnBytes);
                     waitingOn = (localTxnId, deps) -> {
                         try
                         {
@@ -514,6 +568,7 @@ public class SavedCommand
                 else
                     writes = CommandSerializers.writes.deserialize(in, userVersion);
             }
+            
         }
 
         public void forceResult(Result newValue)
@@ -521,7 +576,7 @@ public class SavedCommand
             this.result = newValue;
         }
 
-        public Command construct() throws IOException
+        public Command construct()
         {
             if (!nextCalled)
                 return null;
@@ -531,15 +586,13 @@ public class SavedCommand
                 attrs.partialTxn(partialTxn);
             if (durability != null)
                 attrs.durability(durability);
-            if (route != null)
-                attrs.route(route);
+            if (participants != null)
+                attrs.setParticipants(participants);
             if (partialDeps != null &&
-                (saveStatus.known.deps != Status.KnownDeps.NoDeps &&
-                 saveStatus.known.deps != Status.KnownDeps.DepsErased &&
-                 saveStatus.known.deps != Status.KnownDeps.DepsUnknown))
+                (saveStatus.known.deps != NoDeps &&
+                 saveStatus.known.deps != DepsErased &&
+                 saveStatus.known.deps != DepsUnknown))
                 attrs.partialDeps(partialDeps);
-            if (additionalKeysOrRanges != null)
-                attrs.additionalKeysOrRanges(additionalKeysOrRanges);
 
             Command.WaitingOn waitingOn = null;
             if (this.waitingOn != null)
@@ -553,14 +606,12 @@ public class SavedCommand
                 case PreAccepted:
                     return Command.PreAccepted.preAccepted(attrs, executeAt, promised);
                 case AcceptedInvalidate:
-                    if (saveStatus == SaveStatus.AcceptedInvalidateWithDefinition)
-                        return Command.Accepted.accepted(attrs, saveStatus, executeAt, promised, acceptedOrCommitted);
-                    else
-                        return Command.AcceptedInvalidateWithoutDefinition.acceptedInvalidate(attrs, promised, acceptedOrCommitted);
-
                 case Accepted:
                 case PreCommitted:
-                    return Command.Accepted.accepted(attrs, saveStatus, executeAt, promised, acceptedOrCommitted);
+                    if (saveStatus == SaveStatus.AcceptedInvalidate)
+                        return Command.AcceptedInvalidateWithoutDefinition.acceptedInvalidate(attrs, promised, acceptedOrCommitted);
+                    else
+                        return Command.Accepted.accepted(attrs, saveStatus, executeAt, promised, acceptedOrCommitted);
                 case Committed:
                 case Stable:
                     return Command.Committed.committed(attrs, saveStatus, executeAt, promised, acceptedOrCommitted, waitingOn);
@@ -587,10 +638,10 @@ public class SavedCommand
                     if (attrs.txnId().kind().awaitsOnlyDeps())
                         return Command.Truncated.truncatedApply(attrs, status, executeAt, writes, result, executesAtLeast);
                     return Command.Truncated.truncatedApply(attrs, status, executeAt, writes, result, null);
-                case ErasedOrInvalidOrVestigial:
-                    return Command.Truncated.erasedOrInvalidOrVestigial(attrs.txnId(), attrs.durability(), attrs.route());
+                case ErasedOrVestigial:
+                    return Command.Truncated.erasedOrInvalidOrVestigial(attrs.txnId(), attrs.durability(), attrs.participants());
                 case Erased:
-                    return Command.Truncated.erased(attrs.txnId(), attrs.durability(), attrs.route());
+                    return Command.Truncated.erased(attrs.txnId(), attrs.durability(), attrs.participants());
                 case Invalidated:
                     return Command.Truncated.invalidated(attrs.txnId());
             }
@@ -605,10 +656,9 @@ public class SavedCommand
                    ", durability=" + durability +
                    ", acceptedOrCommitted=" + acceptedOrCommitted +
                    ", promised=" + promised +
-                   ", route=" + route +
+                   ", participants=" + participants +
                    ", partialTxn=" + partialTxn +
                    ", partialDeps=" + partialDeps +
-                   ", additionalKeysOrRanges=" + additionalKeysOrRanges +
                    ", waitingOn=" + waitingOn +
                    ", writes=" + writes +
                    '}';

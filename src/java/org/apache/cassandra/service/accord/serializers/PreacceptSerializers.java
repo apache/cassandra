@@ -42,14 +42,14 @@ public class PreacceptSerializers
 {
     private PreacceptSerializers() {}
 
-    public static final IVersionedSerializer<PreAccept> request = new WithUnsyncedSerializer<PreAccept>()
+    public static final IVersionedSerializer<PreAccept> request = new WithUnsyncedSerializer<>()
     {
         @Override
         public void serializeBody(PreAccept msg, DataOutputPlus out, int version) throws IOException
         {
             CommandSerializers.partialTxn.serialize(msg.partialTxn, out, version);
             serializeNullable(msg.route, out, version, KeySerializers.fullRoute);
-            out.writeUnsignedVInt(msg.maxEpoch - msg.minEpoch);
+            out.writeUnsignedVInt(msg.acceptEpoch - msg.minEpoch);
         }
 
         @Override
@@ -57,9 +57,9 @@ public class PreacceptSerializers
         {
             PartialTxn partialTxn = CommandSerializers.partialTxn.deserialize(in, version);
             @Nullable FullRoute<?> fullRoute = deserializeNullable(in, version, KeySerializers.fullRoute);
-            long maxEpoch = in.readUnsignedVInt() + minEpoch;
+            long acceptEpoch = in.readUnsignedVInt() + minEpoch;
             return PreAccept.SerializerSupport.create(txnId, scope, waitForEpoch, minEpoch,
-                                                      maxEpoch, partialTxn, fullRoute);
+                                                      acceptEpoch, partialTxn, fullRoute);
         }
 
         @Override
@@ -67,11 +67,11 @@ public class PreacceptSerializers
         {
             return CommandSerializers.partialTxn.serializedSize(msg.partialTxn, version)
                    + serializedNullableSize(msg.route, version, KeySerializers.fullRoute)
-                   + TypeSizes.sizeofUnsignedVInt(msg.maxEpoch - msg.minEpoch);
+                   + TypeSizes.sizeofUnsignedVInt(msg.acceptEpoch - msg.minEpoch);
         }
     };
 
-    public static final IVersionedSerializer<PreAcceptReply> reply = new IVersionedSerializer<PreAcceptReply>()
+    public static final IVersionedSerializer<PreAcceptReply> reply = new IVersionedSerializer<>()
     {
         @Override
         public void serialize(PreAcceptReply reply, DataOutputPlus out, int version) throws IOException
@@ -83,7 +83,7 @@ public class PreacceptSerializers
             PreAcceptOk preAcceptOk = (PreAcceptOk) reply;
             CommandSerializers.txnId.serialize(preAcceptOk.txnId, out, version);
             CommandSerializers.timestamp.serialize(preAcceptOk.witnessedAt, out, version);
-            DepsSerializer.partialDeps.serialize(preAcceptOk.deps, out, version);
+            DepsSerializer.deps.serialize(preAcceptOk.deps, out, version);
         }
 
         @Override
@@ -94,7 +94,7 @@ public class PreacceptSerializers
 
             return new PreAcceptOk(CommandSerializers.txnId.deserialize(in, version),
                                    CommandSerializers.timestamp.deserialize(in, version),
-                                   DepsSerializer.partialDeps.deserialize(in, version));
+                                   DepsSerializer.deps.deserialize(in, version));
         }
 
         @Override
@@ -107,7 +107,7 @@ public class PreacceptSerializers
             PreAcceptOk preAcceptOk = (PreAcceptOk) reply;
             size += CommandSerializers.txnId.serializedSize(preAcceptOk.txnId, version);
             size += CommandSerializers.timestamp.serializedSize(preAcceptOk.witnessedAt, version);
-            size += DepsSerializer.partialDeps.serializedSize(preAcceptOk.deps, version);
+            size += DepsSerializer.deps.serializedSize(preAcceptOk.deps, version);
 
             return size;
         }

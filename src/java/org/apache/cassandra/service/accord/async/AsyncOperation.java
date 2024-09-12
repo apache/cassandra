@@ -30,13 +30,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 
-import accord.api.Key;
+import accord.api.RoutingKey;
 import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.PreLoadContext;
 import accord.local.SafeCommandStore;
-import accord.primitives.Seekables;
 import accord.primitives.TxnId;
+import accord.primitives.Unseekables;
 import accord.utils.Invariants;
 import accord.utils.async.AsyncChains;
 import org.apache.cassandra.config.CassandraRelevantProperties;
@@ -48,6 +48,7 @@ import org.apache.cassandra.service.accord.AccordSafeCommandsForRanges;
 import org.apache.cassandra.service.accord.AccordSafeState;
 import org.apache.cassandra.service.accord.AccordSafeTimestampsForKey;
 import org.apache.cassandra.service.accord.SavedCommand;
+import org.apache.cassandra.utils.concurrent.Condition;
 
 import static org.apache.cassandra.service.accord.async.AsyncLoader.txnIds;
 import static org.apache.cassandra.service.accord.async.AsyncOperation.State.COMPLETING;
@@ -71,8 +72,8 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
     static class Context
     {
         final HashMap<TxnId, AccordSafeCommand> commands = new HashMap<>();
-        final TreeMap<Key, AccordSafeTimestampsForKey> timestampsForKey = new TreeMap<>();
-        final TreeMap<Key, AccordSafeCommandsForKey> commandsForKey = new TreeMap<>();
+        final TreeMap<RoutingKey, AccordSafeTimestampsForKey> timestampsForKey = new TreeMap<>();
+        final TreeMap<RoutingKey, AccordSafeCommandsForKey> commandsForKey = new TreeMap<>();
         @Nullable
         AccordSafeCommandsForRanges commandsForRanges = null;
 
@@ -189,7 +190,7 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
     }
 
     @SuppressWarnings("unchecked")
-    Seekables<?, ?> keys()
+    Unseekables<?> keys()
     {
         return preLoadContext.keys();
     }
@@ -251,10 +252,10 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
 
                 result = apply(safeStore);
                 // TODO (required): currently, we are not very efficient about ensuring that we persist the absolute minimum amount of state. Improve that.
-                List<SavedCommand.Writer<TxnId>> diffs = null;
+                List<SavedCommand.DiffWriter> diffs = null;
                 for (AccordSafeCommand commandState : context.commands.values())
                 {
-                    SavedCommand.Writer<TxnId> diff = commandState.diff();
+                    SavedCommand.DiffWriter diff = commandState.diff();
                     if (diff == null)
                         continue;
                     if (diffs == null)
@@ -269,11 +270,22 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
                 }
 
                 commandStore.completeOperation(safeStore);
+
                 context.releaseResources(commandStore);
                 state(COMPLETING);
-                if (diffs != null)
+                if (diffs != null || safeStore.fieldUpdates() != null)
                 {
-                    this.commandStore.appendCommands(diffs, sanityCheck, () -> finish(result, null));
+                    Runnable onFlush = () -> finish(result, null);
+                    if (safeStore.fieldUpdates() != null)
+                    {
+                        if (diffs != null)
+                            appendCommands(diffs, null);
+                        commandStore.persistFieldUpdates(safeStore.fieldUpdates(), onFlush);
+                    }
+                    else
+                    {
+                        appendCommands(diffs, onFlush);
+                    }
                     return false;
                 }
             case COMPLETING:
@@ -284,6 +296,26 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
         }
 
         return false;
+    }
+
+    private void appendCommands(List<SavedCommand.DiffWriter> diffs, Runnable onFlush)
+    {
+        if (sanityCheck != null)
+        {
+            Invariants.checkState(CassandraRelevantProperties.DTEST_ACCORD_JOURNAL_SANITY_CHECK_ENABLED.getBoolean());
+            Condition condition = Condition.newOneTimeCondition();
+            this.commandStore.appendCommands(diffs, condition::signal);
+            condition.awaitUninterruptibly();
+
+            for (Command check : sanityCheck)
+                this.commandStore.sanityCheckCommand(check);
+
+            if (onFlush != null) onFlush.run();
+        }
+        else
+        {
+            this.commandStore.appendCommands(diffs, onFlush);
+        }
     }
 
     @Override

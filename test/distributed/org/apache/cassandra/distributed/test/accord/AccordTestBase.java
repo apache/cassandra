@@ -337,7 +337,8 @@ public abstract class AccordTestBase extends TestBaseImpl
                                          .withConfig(c -> c.with(Feature.GOSSIP)
                                                            .set("write_request_timeout", "10s")
                                                            .set("transaction_timeout", "15s")
-                                                           .set("native_transport_timeout", "30s"))
+                                                           .set("native_transport_timeout", "30s")
+                                                           .set("accord.shard_count", "2"))
                                          .withInstanceInitializer(EnforceUpdateDoesNotPerformRead::install);
         builder = options.apply(builder);
         return init(builder.start());

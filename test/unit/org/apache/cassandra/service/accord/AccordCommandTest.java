@@ -26,6 +26,7 @@ import org.junit.Test;
 
 import accord.api.Key;
 import accord.api.RoutingKey;
+import accord.local.StoreParticipants;
 import accord.local.cfk.CommandsForKey;
 import accord.local.Command;
 import accord.local.KeyHistory;
@@ -33,7 +34,7 @@ import accord.local.Node;
 import accord.local.PreLoadContext;
 import accord.local.SafeCommand;
 import accord.local.SafeCommandStore;
-import accord.local.Status;
+import accord.primitives.Status;
 import accord.messages.Accept;
 import accord.messages.Commit;
 import accord.messages.PreAccept;
@@ -105,7 +106,7 @@ public class AccordCommandTest
 
         // Check preaccept
         getUninterruptibly(commandStore.execute(preAccept, safeStore -> {
-            SafeCommand safeCommand = safeStore.get(txnId, txnId, route);
+            SafeCommand safeCommand = safeStore.get(txnId, StoreParticipants.all(route));
             Command before = safeCommand.current();
             PreAccept.PreAcceptReply reply = preAccept.apply(safeStore);
             Command after = safeCommand.current();
@@ -120,12 +121,12 @@ public class AccordCommandTest
 
         getUninterruptibly(commandStore.execute(preAccept, safeStore -> {
             Command before = safeStore.ifInitialised(txnId).current();
-            SafeCommand safeCommand = safeStore.get(txnId, txnId, route);
+            SafeCommand safeCommand = safeStore.get(txnId, StoreParticipants.all(route));
             Assert.assertEquals(txnId, before.executeAt());
             Assert.assertEquals(Status.PreAccepted, before.status());
             Assert.assertTrue(before.partialDeps() == null || before.partialDeps().isEmpty());
 
-            CommandsForKey cfk = safeStore.get(key(1)).current();
+            CommandsForKey cfk = safeStore.get(key(1).toUnseekable()).current();
             Assert.assertTrue(cfk.indexOf(txnId) >= 0);
             Command after = safeCommand.current();
             AccordTestUtils.appendCommandsBlocking(commandStore, before, after);
@@ -137,10 +138,10 @@ public class AccordCommandTest
         PartialDeps deps;
         try (PartialDeps.Builder builder = PartialDeps.builder(route))
         {
-            builder.add(key, txnId2);
+            builder.add(key.toUnseekable(), txnId2);
             deps = builder.build();
         }
-        Accept accept = Accept.SerializerSupport.create(txnId, route, 1, 1, Ballot.ZERO, executeAt, partialTxn.keys(), deps);
+        Accept accept = Accept.SerializerSupport.create(txnId, route, 1, 1, Ballot.ZERO, executeAt, deps);
 
         getUninterruptibly(commandStore.execute(accept, safeStore -> {
             Command before = safeStore.ifInitialised(txnId).current();
@@ -157,23 +158,23 @@ public class AccordCommandTest
             Assert.assertEquals(Status.Accepted, before.status());
             Assert.assertEquals(deps, before.partialDeps());
 
-            CommandsForKey cfk = safeStore.get(key(1)).current();
+            CommandsForKey cfk = safeStore.get(key(1).toUnseekable()).current();
             Assert.assertTrue(cfk.indexOf(txnId) >= 0);
             Command after = safeStore.ifInitialised(txnId).current();
             AccordTestUtils.appendCommandsBlocking(commandStore, before, after);
         }));
 
         // check commit
-        Commit commit = Commit.SerializerSupport.create(txnId, route, 1, Commit.Kind.StableWithTxnAndDeps, Ballot.ZERO, executeAt, partialTxn.keys(), partialTxn, deps, fullRoute, null);
+        Commit commit = Commit.SerializerSupport.create(txnId, route, 1, 1, Commit.Kind.StableWithTxnAndDeps, Ballot.ZERO, executeAt, partialTxn, deps, fullRoute, null);
         getUninterruptibly(commandStore.execute(commit, commit::apply));
 
-        getUninterruptibly(commandStore.execute(PreLoadContext.contextFor(txnId, Keys.of(key), KeyHistory.COMMANDS), safeStore -> {
+        getUninterruptibly(commandStore.execute(PreLoadContext.contextFor(txnId, Keys.of(key).toParticipants(), KeyHistory.COMMANDS), safeStore -> {
             Command before = safeStore.ifInitialised(txnId).current();
             Assert.assertEquals(commit.executeAt, before.executeAt());
             Assert.assertTrue(before.hasBeen(Status.Committed));
             Assert.assertEquals(commit.partialDeps, before.partialDeps());
 
-            CommandsForKey cfk = safeStore.get(key(1)).current();
+            CommandsForKey cfk = safeStore.get(key(1).toUnseekable()).current();
             Assert.assertTrue(cfk.indexOf(txnId) >= 0);
             Command after = safeStore.ifInitialised(txnId).current();
             AccordTestUtils.appendCommandsBlocking(commandStore, before, after);
@@ -216,7 +217,7 @@ public class AccordCommandTest
 
     private static void persistDiff(AccordCommandStore commandStore, SafeCommandStore safeStore, TxnId txnId, Route<?> route, Runnable runnable)
     {
-        SafeCommand safeCommand = safeStore.get(txnId, txnId, route);
+        SafeCommand safeCommand = safeStore.get(txnId, StoreParticipants.all(route));
         Command before = safeCommand.current();
         runnable.run();
         Command after = safeCommand.current();

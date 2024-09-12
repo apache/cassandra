@@ -19,11 +19,10 @@ package org.apache.cassandra.service.accord.serializers;
 
 import java.io.IOException;
 
-import accord.api.RoutingKey;
 import accord.messages.SetGloballyDurable;
 import accord.messages.SetShardDurable;
 import accord.primitives.Deps;
-import accord.primitives.Seekables;
+import accord.primitives.FullRoute;
 import accord.primitives.SyncPoint;
 import accord.primitives.TxnId;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -58,21 +57,19 @@ public class SetDurableSerializers
         @Override
         public void serialize(SetGloballyDurable msg, DataOutputPlus out, int version) throws IOException
         {
-            CommandSerializers.txnId.serialize(msg.txnId, out, version);
             CommandStoreSerializers.durableBefore.serialize(msg.durableBefore, out, version);
         }
 
         @Override
         public SetGloballyDurable deserialize(DataInputPlus in, int version) throws IOException
         {
-            return new SetGloballyDurable(CommandSerializers.txnId.deserialize(in, version), CommandStoreSerializers.durableBefore.deserialize(in, version));
+            return new SetGloballyDurable(CommandStoreSerializers.durableBefore.deserialize(in, version));
         }
 
         @Override
         public long serializedSize(SetGloballyDurable msg, int version)
         {
-            return CommandSerializers.txnId.serializedSize(msg.txnId, version)
-                   + CommandStoreSerializers.durableBefore.serializedSize(msg.durableBefore, version);
+            return CommandStoreSerializers.durableBefore.serializedSize(msg.durableBefore, version);
         }
     };
 
@@ -83,8 +80,7 @@ public class SetDurableSerializers
         {
             CommandSerializers.txnId.serialize(sp.syncId, out, version);
             DepsSerializer.deps.serialize(sp.waitFor, out, version);
-            KeySerializers.seekables.serialize(sp.keysOrRanges, out, version);
-            KeySerializers.routingKey.serialize(sp.homeKey, out, version);
+            KeySerializers.fullRoute.serialize(sp.route, out, version);
         }
 
         @Override
@@ -92,9 +88,8 @@ public class SetDurableSerializers
         {
             TxnId syncId = CommandSerializers.txnId.deserialize(in, version);
             Deps waitFor = DepsSerializer.deps.deserialize(in, version);
-            Seekables<?, ?> keysOrRanges = KeySerializers.seekables.deserialize(in, version);
-            RoutingKey homeKey = KeySerializers.routingKey.deserialize(in, version);
-            return SyncPoint.SerializationSupport.construct(syncId, waitFor, keysOrRanges, homeKey);
+            FullRoute<?> route = KeySerializers.fullRoute.deserialize(in, version);
+            return SyncPoint.SerializationSupport.construct(syncId, waitFor, route);
         }
 
         @Override
@@ -102,8 +97,7 @@ public class SetDurableSerializers
         {
             return CommandSerializers.txnId.serializedSize(sp.syncId, version)
                    + DepsSerializer.deps.serializedSize(sp.waitFor, version)
-                   + KeySerializers.seekables.serializedSize(sp.keysOrRanges, version)
-                   + KeySerializers.routingKey.serializedSize(sp.homeKey, version);
+                   + KeySerializers.fullRoute.serializedSize(sp.route, version);
         }
     };
 }

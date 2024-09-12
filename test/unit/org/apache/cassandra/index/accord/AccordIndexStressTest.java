@@ -41,8 +41,9 @@ import org.slf4j.LoggerFactory;
 
 import accord.api.RoutingKey;
 import accord.local.Node;
-import accord.local.SaveStatus;
-import accord.local.Status;
+import accord.local.StoreParticipants;
+import accord.primitives.SaveStatus;
+import accord.primitives.Status;
 import accord.primitives.FullKeyRoute;
 import accord.primitives.Range;
 import accord.primitives.Ranges;
@@ -399,7 +400,7 @@ public class AccordIndexStressTest extends CQLTester
                               int minToken, int maxToken,
                               int numRecords)
     {
-        var cql = "INSERT INTO system_accord.commands (store_id, domain, txn_id, status, route, durability) VALUES (?, ?, ?, ?, ?, ?)";
+        var cql = "INSERT INTO system_accord.commands (store_id, domain, txn_id, status, participants, durability) VALUES (?, ?, ?, ?, ?, ?)";
         for (int i = 0; i < numRecords; i++)
         {
             int store = rs.nextInt(0, numStores);
@@ -409,8 +410,8 @@ public class AccordIndexStressTest extends CQLTester
             ByteBuffer routeBB;
             try
             {
-                Route<?> route = createRoute(rs, numRecords, i, rs.nextInt(1, 20), tables, minToken, maxToken);
-                for (var u : route)
+                StoreParticipants participants = StoreParticipants.all(createRoute(rs, numRecords, i, rs.nextInt(1, 20), tables, minToken, maxToken));
+                for (var u : participants.route())
                 {
                     switch (u.domain())
                     {
@@ -439,7 +440,7 @@ public class AccordIndexStressTest extends CQLTester
                             throw new AssertionError("Unexpected domain: " + u.domain());
                     }
                 }
-                routeBB = AccordKeyspace.serializeRoute(route);
+                routeBB = AccordKeyspace.serializeParticipants(participants);
             }
             catch (IOException e)
             {

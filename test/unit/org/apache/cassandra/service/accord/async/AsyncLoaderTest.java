@@ -31,18 +31,20 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import accord.api.Key;
+import accord.api.RoutingKey;
 import accord.local.cfk.CommandsForKey;
 import accord.impl.TimestampsForKey;
 import accord.local.Command;
 import accord.local.KeyHistory;
-import accord.primitives.Keys;
 import accord.primitives.PartialTxn;
+import accord.primitives.RoutingKeys;
 import accord.primitives.TxnId;
 import accord.utils.async.AsyncChains;
 import accord.utils.async.AsyncResult;
 import accord.utils.async.AsyncResults;
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.concurrent.ExecutorFactory;
+import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.concurrent.ManualExecutor;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.StorageService;
@@ -53,9 +55,11 @@ import org.apache.cassandra.service.accord.AccordSafeCommand;
 import org.apache.cassandra.service.accord.AccordSafeState;
 import org.apache.cassandra.service.accord.AccordSafeTimestampsForKey;
 import org.apache.cassandra.service.accord.AccordStateCache;
+import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.async.AsyncOperation.Context;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
+import org.apache.cassandra.utils.concurrent.Condition;
 
 import static accord.local.KeyHistory.COMMANDS;
 import static accord.local.KeyHistory.TIMESTAMPS;
@@ -95,10 +99,10 @@ public class AsyncLoaderTest
         AccordStateCache.Instance<TxnId, Command, AccordSafeCommand> commandCache = commandStore.commandCache();
         commandStore.executeBlocking(() -> commandStore.setCapacity(1024));
 
-        AccordStateCache.Instance<Key, TimestampsForKey, AccordSafeTimestampsForKey> timestampsCache = commandStore.timestampsForKeyCache();
+        AccordStateCache.Instance<RoutingKey, TimestampsForKey, AccordSafeTimestampsForKey> timestampsCache = commandStore.timestampsForKeyCache();
         TxnId txnId = txnId(1, clock.incrementAndGet(), 1);
         PartialTxn txn = createPartialTxn(0);
-        PartitionKey key = (PartitionKey) Iterables.getOnlyElement(txn.keys());
+        TokenKey key = ((PartitionKey) Iterables.getOnlyElement(txn.keys())).toUnseekable();
 
         // acquire / release
 
@@ -108,13 +112,13 @@ public class AsyncLoaderTest
         AccordCachingState<TxnId, Command> safeCommandGlobal = safeCommand.global();
         commandCache.release(safeCommand);
 
-        timestampsCache.unsafeSetLoadFunction(k -> new TimestampsForKey((PartitionKey) k));
+        timestampsCache.unsafeSetLoadFunction(k -> new TimestampsForKey((TokenKey) k));
         AccordSafeTimestampsForKey safeTimestamps = timestampsCache.acquire(key);
         testLoad(executor, safeTimestamps, new TimestampsForKey(key));
-        AccordCachingState<Key, TimestampsForKey> safeTimestampsGlobal = safeTimestamps.global();
+        AccordCachingState<RoutingKey, TimestampsForKey> safeTimestampsGlobal = safeTimestamps.global();
         timestampsCache.release(safeTimestamps);
 
-        AsyncLoader loader = new AsyncLoader(commandStore, singleton(txnId), Keys.of(key), TIMESTAMPS);
+        AsyncLoader loader = new AsyncLoader(commandStore, singleton(txnId), RoutingKeys.of(key), TIMESTAMPS);
 
         // everything is cached, so the loader should return immediately
         commandStore.executeBlocking(() -> {
@@ -139,7 +143,7 @@ public class AsyncLoaderTest
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
         TxnId txnId = txnId(1, clock.incrementAndGet(), 1);
         PartialTxn txn = createPartialTxn(0);
-        PartitionKey key = (PartitionKey) Iterables.getOnlyElement(txn.keys());
+        TokenKey key = ((PartitionKey) Iterables.getOnlyElement(txn.keys())).toUnseekable();
 
         // create / persist
         AccordSafeCommand safeCommand = new AccordSafeCommand(loaded(txnId, null));
@@ -154,7 +158,7 @@ public class AsyncLoaderTest
         AccordKeyspace.getTimestampsForKeyMutation(commandStore.id(), null, timestamps.current(), commandStore.nextSystemTimestampMicros()).apply();
 
         // resources are on disk only, so the loader should suspend...
-        AsyncLoader loader = new AsyncLoader(commandStore, singleton(txnId), Keys.of(key), TIMESTAMPS);
+        AsyncLoader loader = new AsyncLoader(commandStore, singleton(txnId), RoutingKeys.of(key), TIMESTAMPS);
         AsyncPromise<Void> cbFired = new AsyncPromise<>();
         Context context = new Context();
         commandStore.executeBlocking(() -> {
@@ -191,7 +195,7 @@ public class AsyncLoaderTest
         AccordStateCache.Instance<TxnId, Command, AccordSafeCommand> commandCache = commandStore.commandCache();
         TxnId txnId = txnId(1, clock.incrementAndGet(), 1);
         PartialTxn txn = createPartialTxn(0);
-        PartitionKey key = (PartitionKey) Iterables.getOnlyElement(txn.keys());
+        TokenKey key = ((PartitionKey) Iterables.getOnlyElement(txn.keys())).toUnseekable();
 
         // acquire /release, create / persist
         commandCache.unsafeSetLoadFunction(id -> notDefined(id, txn));
@@ -202,7 +206,7 @@ public class AsyncLoaderTest
         AccordKeyspace.getTimestampsForKeyMutation(commandStore.id(), null, new TimestampsForKey(key), commandStore.nextSystemTimestampMicros()).apply();
 
         // resources are on disk only, so the loader should suspend...
-        AsyncLoader loader = new AsyncLoader(commandStore, singleton(txnId), Keys.of(key), TIMESTAMPS);
+        AsyncLoader loader = new AsyncLoader(commandStore, singleton(txnId), RoutingKeys.of(key), TIMESTAMPS);
         AsyncPromise<Void> cbFired = new AsyncPromise<>();
         Context context = new Context();
         commandStore.executeBlocking(() -> {
@@ -242,7 +246,7 @@ public class AsyncLoaderTest
         AccordStateCache.Instance<TxnId, Command, AccordSafeCommand> commandCache = commandStore.commandCache();
         TxnId txnId = txnId(1, clock.incrementAndGet(), 1);
         PartialTxn txn = createPartialTxn(0);
-        PartitionKey key = (PartitionKey) Iterables.getOnlyElement(txn.keys());
+        TokenKey key = ((PartitionKey) Iterables.getOnlyElement(txn.keys())).toUnseekable();
 
         commandCache.unsafeSetLoadFunction(id -> { Assert.assertEquals(txnId, id); return notDefined(id, txn); });
         AccordSafeCommand safeCommand = commandCache.acquire(txnId);
@@ -250,7 +254,7 @@ public class AsyncLoaderTest
         Assert.assertTrue(commandCache.isReferenced(txnId));
         Assert.assertFalse(commandCache.isLoaded(txnId));
 
-        AsyncLoader loader = new AsyncLoader(commandStore, singleton(txnId), Keys.of(key), KeyHistory.NONE);
+        AsyncLoader loader = new AsyncLoader(commandStore, singleton(txnId), RoutingKeys.of(key), KeyHistory.NONE);
 
         // since there's a read future associated with the txnId, we'll wait for it to load
         AsyncPromise<Void> cbFired = new AsyncPromise<>();
@@ -284,7 +288,9 @@ public class AsyncLoaderTest
     public void failedLoadTest() throws Throwable
     {
         AtomicLong clock = new AtomicLong(0);
-        AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
+        ExecutorPlus executor = ExecutorFactory.Global.executorFactory().sequential("GlobalLogFollower");
+        AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl", executor, executor);
+
         TxnId txnId1 = txnId(1, clock.incrementAndGet(), 1);
         TxnId txnId2 = txnId(1, clock.incrementAndGet(), 1);
 
@@ -292,27 +298,38 @@ public class AsyncLoaderTest
         AsyncResult.Settable<Void> callback = AsyncResults.settable();
         RuntimeException failure = new RuntimeException();
 
+        Condition startResponding = Condition.newOneTimeCondition();
+        Condition loadedAll = Condition.newOneTimeCondition();
         execute(commandStore, () -> {
             AtomicInteger loadCalls = new AtomicInteger();
 
             commandStore.commandCache().unsafeSetLoadFunction(txnId ->
             {
+                startResponding.awaitUninterruptibly();
                 loadCalls.incrementAndGet();
-                if (txnId.equals(txnId1))
+
+                if (!txnId.equals(txnId1) && !txnId.equals(txnId2))
+                    throw new AssertionError("Unknown txnId: " + txnId);
+
+                if (loadCalls.get() == 2)
+                {
+                    loadedAll.signal();
                     throw failure;
-                else if (txnId.equals(txnId2))
-                    return notDefined(txnId, null);
-                throw new AssertionError("Unknown txnId: " + txnId);
+                }
+
+                return notDefined(txnId, null);
             });
 
-            AsyncLoader loader = new AsyncLoader(commandStore, ImmutableList.of(txnId1, txnId2), Keys.EMPTY, KeyHistory.COMMANDS);
+            AsyncLoader loader = new AsyncLoader(commandStore, ImmutableList.of(txnId1, txnId2), RoutingKeys.EMPTY, KeyHistory.COMMANDS);
 
-            boolean result = loader.load(new Context(), (u, t) -> {
+            boolean result =  loader.load(new Context(), (u, t) -> {
                 Assert.assertFalse(callback.isDone());
                 Assert.assertNull(u);
                 Assert.assertEquals(failure, t);
                 callback.trySuccess(null);
             });
+            startResponding.signal();
+            loadedAll.awaitUninterruptibly();
             Assert.assertFalse(result);
             Assert.assertEquals(2, loadCalls.get());
         });
@@ -348,7 +365,7 @@ public class AsyncLoaderTest
         Assert.assertEquals(AccordCachingState.Status.SAVING, commandCache.getUnsafe(txnId).status());
 
         // since the command is still saving, the loader shouldn't be able to acquire a reference
-        AsyncLoader loader = new AsyncLoader(commandStore, singleton(txnId), Keys.of(), KeyHistory.NONE);
+        AsyncLoader loader = new AsyncLoader(commandStore, singleton(txnId), RoutingKeys.of(), KeyHistory.NONE);
         AsyncPromise<Void> cbFired = new AsyncPromise<>();
         Context context = new Context();
         commandStore.executeBlocking(() -> {
@@ -382,10 +399,10 @@ public class AsyncLoaderTest
     @Test
     public void inProgressTFKSaveTest()
     {
-        inProgressCFKSaveTest(TIMESTAMPS, AccordCommandStore::timestampsForKeyCache, context -> context.timestampsForKey, TimestampsForKey::new, (tfk, c) -> new TimestampsForKey(tfk.key(), c.executeAt(), c.executeAt().hlc(), c.executeAt()));
+        inProgressCFKSaveTest(TIMESTAMPS, AccordCommandStore::timestampsForKeyCache, context -> context.timestampsForKey, TimestampsForKey::new, (tfk, c) -> new TimestampsForKey(tfk.key(), c.executeAt(), c.executeAt().hlc(), c.txnId(), c.executeAt()));
     }
 
-    private <T1, T2 extends AccordSafeState<Key, T1>, C extends AccordStateCache.Instance<Key, T1, T2>>  void inProgressCFKSaveTest(KeyHistory history, Function<AccordCommandStore, C> getter, Function<Context, TreeMap<?, ?>> inContext, Function<Key, T1> initialiser, BiFunction<T1, Command, T1> update)
+    private <T1, T2 extends AccordSafeState<RoutingKey, T1>, C extends AccordStateCache.Instance<RoutingKey, T1, T2>>  void inProgressCFKSaveTest(KeyHistory history, Function<AccordCommandStore, C> getter, Function<Context, TreeMap<?, ?>> inContext, Function<RoutingKey, T1> initialiser, BiFunction<T1, Command, T1> update)
     {
         AtomicLong clock = new AtomicLong(0);
         ManualExecutor executor = new ManualExecutor();
@@ -397,11 +414,11 @@ public class AsyncLoaderTest
 
         TxnId txnId = txnId(1, clock.incrementAndGet(), 1);
         PartialTxn txn = createPartialTxn(0);
-        PartitionKey key = (PartitionKey) Iterables.getOnlyElement(txn.keys());
+        TokenKey key = ((PartitionKey) Iterables.getOnlyElement(txn.keys())).toUnseekable();
         Command preaccepted = preaccepted(txnId, txn, txnId);
 
         // acquire / release
-        T2 safe = cache.acquireOrInitialize(key, k -> initialiser.apply((Key)k));
+        T2 safe = cache.acquireOrInitialize(key, k -> initialiser.apply(k));
         safe.preExecute();
         safe.set(update.apply(safe.current(), preaccepted));
         cache.release(safe);
@@ -411,7 +428,7 @@ public class AsyncLoaderTest
         Assert.assertEquals(AccordCachingState.Status.SAVING, cache.getUnsafe(key).status());
 
         // since the command is still saving, the loader shouldn't be able to acquire a reference
-        AsyncLoader loader = new AsyncLoader(commandStore, emptyList(), Keys.of(key), history);
+        AsyncLoader loader = new AsyncLoader(commandStore, emptyList(), RoutingKeys.of(key), history);
         AsyncPromise<Void> cbFired = new AsyncPromise<>();
         Context context = new Context();
         commandStore.executeBlocking(() -> {

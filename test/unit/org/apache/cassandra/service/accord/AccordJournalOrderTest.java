@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.service.accord;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
@@ -64,7 +63,7 @@ public class AccordJournalOrderTest
     {
         if (new File(DatabaseDescriptor.getAccordJournalDirectory()).exists())
             ServerTestUtils.cleanupDirectory(DatabaseDescriptor.getAccordJournalDirectory());
-        AccordJournal accordJournal = new AccordJournal(SimpleAccordEndpointMapper.INSTANCE, TestParams.INSTANCE);
+        AccordJournal accordJournal = new AccordJournal(TestParams.INSTANCE);
         accordJournal.start(null);
         RandomSource randomSource = RandomSource.wrap(new Random());
         TxnId id1 = AccordGens.txnIds().next(randomSource);
@@ -74,11 +73,10 @@ public class AccordJournalOrderTest
         for (int i = 0; i < 10_000; i++)
         {
             TxnId txnId = randomSource.nextBoolean() ? id1 : id2;
-            JournalKey key = new JournalKey(txnId, randomSource.nextInt(5));
+            JournalKey key = new JournalKey(txnId, JournalKey.Type.COMMAND_DIFF, randomSource.nextInt(5));
             res.compute(key, (k, prev) -> prev == null ? 1 : prev + 1);
             accordJournal.appendCommand(key.commandStoreId,
-                                        Collections.singletonList(new SavedCommand.DiffWriter(txnId, null, null)),
-                                        null,
+                                        new SavedCommand.DiffWriter(txnId, null, null),
                                         () -> {});
         }
 

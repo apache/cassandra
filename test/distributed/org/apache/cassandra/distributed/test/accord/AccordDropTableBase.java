@@ -22,7 +22,7 @@ import java.util.UUID;
 
 import com.google.common.base.Throwables;
 
-import accord.api.Key;
+import accord.api.RoutingKey;
 import accord.local.CommandStores;
 import accord.local.KeyHistory;
 import accord.local.PreLoadContext;
@@ -44,8 +44,6 @@ import org.apache.cassandra.service.accord.AccordSafeCommandsForKey;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.assertj.core.api.Assertions;
-
-import static org.apache.cassandra.service.accord.AccordTestUtils.wrapInTxn;
 
 public class AccordDropTableBase extends TestBaseImpl
 {
@@ -137,7 +135,7 @@ public class AccordDropTableBase extends TestBaseImpl
                     AccordCommandStore store = (AccordCommandStore) stores.forId(storeId);
                     AsyncChains.getUnchecked(store.submit(ctx, input -> {
                         AccordSafeCommandStore safe = (AccordSafeCommandStore) input;
-                        for (Key key : safe.commandsForKeysKeys())
+                        for (RoutingKey key : safe.commandsForKeysKeys())
                         {
                             AccordSafeCommandsForKey safeCFK = safe.maybeCommandsForKey(key);
                             if (safeCFK == null) // we read and found a key, but its null at load time... so ignore it

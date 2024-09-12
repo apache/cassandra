@@ -27,7 +27,7 @@ import org.junit.Test;
 
 import accord.api.RoutingKey;
 import accord.impl.IntKey;
-import accord.local.SaveStatus;
+import accord.primitives.SaveStatus;
 import accord.primitives.Range;
 import accord.primitives.Ranges;
 import accord.primitives.TxnId;

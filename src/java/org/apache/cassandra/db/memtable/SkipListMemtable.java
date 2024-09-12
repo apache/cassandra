@@ -50,6 +50,7 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.IncludingExcludingBounds;
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.transactions.UpdateTransaction;
 import org.apache.cassandra.io.sstable.SSTableReadsListener;
 import org.apache.cassandra.schema.TableMetadata;
@@ -95,6 +96,15 @@ public class SkipListMemtable extends AbstractAllocatorMemtable
     public boolean isClean()
     {
         return partitions.isEmpty();
+    }
+
+    @Override
+    public Token lastToken()
+    {
+        Iterator<PartitionPosition> iterator = partitions.keySet().iterator();
+        if (iterator.hasNext())
+            return iterator.next().getToken();
+        return null;
     }
 
     /**

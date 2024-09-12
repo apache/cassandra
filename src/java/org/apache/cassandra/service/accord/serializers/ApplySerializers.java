@@ -26,7 +26,6 @@ import accord.primitives.FullRoute;
 import accord.primitives.PartialDeps;
 import accord.primitives.PartialTxn;
 import accord.primitives.Route;
-import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.primitives.Writes;
@@ -64,7 +63,6 @@ public class ApplySerializers
         public void serializeBody(A apply, DataOutputPlus out, int version) throws IOException
         {
             kind.serialize(apply.kind, out, version);
-            KeySerializers.seekables.serialize(apply.keys(), out, version);
             CommandSerializers.timestamp.serialize(apply.executeAt, out, version);
             DepsSerializer.partialDeps.serialize(apply.deps, out, version);
             CommandSerializers.nullablePartialTxn.serialize(apply.txn, out, version);
@@ -72,7 +70,7 @@ public class ApplySerializers
             CommandSerializers.writes.serialize(apply.writes, out, version);
         }
 
-        protected abstract A deserializeApply(TxnId txnId, Route<?> scope, long waitForEpoch, Apply.Kind kind, Seekables<?, ?> keys,
+        protected abstract A deserializeApply(TxnId txnId, Route<?> scope, long waitForEpoch, Apply.Kind kind,
                                               Timestamp executeAt, PartialDeps deps, PartialTxn txn, FullRoute<?> fullRoute, Writes writes, Result result);
 
         @Override
@@ -80,7 +78,6 @@ public class ApplySerializers
         {
             return deserializeApply(txnId, scope, waitForEpoch,
                                     kind.deserialize(in, version),
-                                    KeySerializers.seekables.deserialize(in, version),
                                     CommandSerializers.timestamp.deserialize(in, version),
                                     DepsSerializer.partialDeps.deserialize(in, version),
                                     CommandSerializers.nullablePartialTxn.deserialize(in, version),
@@ -93,7 +90,6 @@ public class ApplySerializers
         public long serializedBodySize(A apply, int version)
         {
             return   kind.serializedSize(apply.kind, version)
-                   + KeySerializers.seekables.serializedSize(apply.keys(), version)
                    + CommandSerializers.timestamp.serializedSize(apply.executeAt, version)
                    + DepsSerializer.partialDeps.serializedSize(apply.deps, version)
                    + CommandSerializers.nullablePartialTxn.serializedSize(apply.txn, version)
@@ -102,17 +98,17 @@ public class ApplySerializers
         }
     }
 
-    public static final IVersionedSerializer<Apply> request = new ApplySerializer<Apply>()
+    public static final IVersionedSerializer<Apply> request = new ApplySerializer<>()
     {
         @Override
-        protected Apply deserializeApply(TxnId txnId, Route<?> scope, long waitForEpoch, Apply.Kind kind, Seekables<?, ?> keys,
+        protected Apply deserializeApply(TxnId txnId, Route<?> scope, long waitForEpoch, Apply.Kind kind,
                                Timestamp executeAt, PartialDeps deps, PartialTxn txn, FullRoute<?> fullRoute, Writes writes, Result result)
         {
-            return Apply.SerializationSupport.create(txnId, scope, waitForEpoch, kind, keys, executeAt, deps, txn, fullRoute, writes, result);
+            return Apply.SerializationSupport.create(txnId, scope, waitForEpoch, kind, executeAt, deps, txn, fullRoute, writes, result);
         }
     };
 
-    public static final IVersionedSerializer<Apply.ApplyReply> reply = new IVersionedSerializer<Apply.ApplyReply>()
+    public static final IVersionedSerializer<Apply.ApplyReply> reply = new IVersionedSerializer<>()
     {
         private final Apply.ApplyReply[] replies = Apply.ApplyReply.values();
 

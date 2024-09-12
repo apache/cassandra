@@ -48,7 +48,7 @@ public class RoutesSearcher
 {
     private final ColumnFamilyStore cfs = Keyspace.open("system_accord").getColumnFamilyStore("commands");
     private final Index index = cfs.indexManager.getIndexByName("route");;
-    private final ColumnMetadata route = AccordKeyspace.CommandsColumns.route;
+    private final ColumnMetadata participants = AccordKeyspace.CommandsColumns.participants;
     private final ColumnMetadata store_id = AccordKeyspace.CommandsColumns.store_id;
     private final ColumnMetadata txn_id = AccordKeyspace.CommandsColumns.txn_id;
     private final ColumnFilter columnFilter = ColumnFilter.selectionBuilder().add(store_id).add(txn_id).build();
@@ -58,8 +58,8 @@ public class RoutesSearcher
     private CloseableIterator<Entry> searchKeysAccord(int store, AccordRoutingKey start, AccordRoutingKey end)
     {
         RowFilter rowFilter = RowFilter.create(false);
-        rowFilter.add(route, Operator.GT, OrderedRouteSerializer.serializeRoutingKey(start));
-        rowFilter.add(route, Operator.LTE, OrderedRouteSerializer.serializeRoutingKey(end));
+        rowFilter.add(participants, Operator.GT, OrderedRouteSerializer.serializeRoutingKey(start));
+        rowFilter.add(participants, Operator.LTE, OrderedRouteSerializer.serializeRoutingKey(end));
         rowFilter.add(store_id, Operator.EQ, Int32Type.instance.decompose(store));
 
         PartitionRangeReadCommand cmd = PartitionRangeReadCommand.create(cfs.metadata(),

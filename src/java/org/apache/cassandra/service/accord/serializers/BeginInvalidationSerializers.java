@@ -21,11 +21,12 @@ package org.apache.cassandra.service.accord.serializers;
 import java.io.IOException;
 
 import accord.api.RoutingKey;
-import accord.local.SaveStatus;
 import accord.messages.BeginInvalidation;
 import accord.messages.BeginInvalidation.InvalidateReply;
 import accord.primitives.Ballot;
+import accord.primitives.Participants;
 import accord.primitives.Route;
+import accord.primitives.SaveStatus;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -39,7 +40,7 @@ public class BeginInvalidationSerializers
         public void serialize(BeginInvalidation begin, DataOutputPlus out, int version) throws IOException
         {
             CommandSerializers.txnId.serialize(begin.txnId, out, version);
-            KeySerializers.unseekables.serialize(begin.someUnseekables, out, version);
+            KeySerializers.participants.serialize(begin.participants, out, version);
             CommandSerializers.ballot.serialize(begin.ballot, out, version);
         }
 
@@ -47,7 +48,7 @@ public class BeginInvalidationSerializers
         public BeginInvalidation deserialize(DataInputPlus in, int version) throws IOException
         {
             return new BeginInvalidation(CommandSerializers.txnId.deserialize(in, version),
-                                       KeySerializers.unseekables.deserialize(in, version),
+                                       KeySerializers.participants.deserialize(in, version),
                                        CommandSerializers.ballot.deserialize(in, version));
         }
 
@@ -55,7 +56,7 @@ public class BeginInvalidationSerializers
         public long serializedSize(BeginInvalidation begin, int version)
         {
             return CommandSerializers.txnId.serializedSize(begin.txnId, version)
-                   + KeySerializers.unseekables.serializedSize(begin.someUnseekables, version)
+                   + KeySerializers.participants.serializedSize(begin.participants, version)
                    + CommandSerializers.ballot.serializedSize(begin.ballot, version);
         }
     };
@@ -70,6 +71,7 @@ public class BeginInvalidationSerializers
             CommandSerializers.saveStatus.serialize(reply.maxStatus, out, version);
             CommandSerializers.saveStatus.serialize(reply.maxKnowledgeStatus, out, version);
             out.writeBoolean(reply.acceptedFastPath);
+            KeySerializers.nullableParticipants.serialize(reply.truncated, out, version);
             KeySerializers.nullableRoute.serialize(reply.route, out, version);
             KeySerializers.nullableRoutingKey.serialize(reply.homeKey, out, version);
         }
@@ -77,14 +79,16 @@ public class BeginInvalidationSerializers
         @Override
         public InvalidateReply deserialize(DataInputPlus in, int version) throws IOException
         {
+            // TODO (expected): use headers instead of nullable+bool serializers
             Ballot supersededBy = CommandSerializers.nullableBallot.deserialize(in, version);
             Ballot accepted = CommandSerializers.ballot.deserialize(in, version);
             SaveStatus maxStatus = CommandSerializers.saveStatus.deserialize(in, version);
             SaveStatus maxKnowledgeStatus = CommandSerializers.saveStatus.deserialize(in, version);
             boolean acceptedFastPath = in.readBoolean();
+            Participants<?> truncated = KeySerializers.nullableParticipants.deserialize(in, version);
             Route<?> route = KeySerializers.nullableRoute.deserialize(in, version);
             RoutingKey homeKey = KeySerializers.nullableRoutingKey.deserialize(in, version);
-            return new InvalidateReply(supersededBy, accepted, maxStatus, maxKnowledgeStatus, acceptedFastPath, route, homeKey);
+            return new InvalidateReply(supersededBy, accepted, maxStatus, maxKnowledgeStatus, acceptedFastPath, truncated, route, homeKey);
         }
 
         @Override
@@ -95,6 +99,7 @@ public class BeginInvalidationSerializers
                  + CommandSerializers.saveStatus.serializedSize(reply.maxStatus, version)
                  + CommandSerializers.saveStatus.serializedSize(reply.maxKnowledgeStatus, version)
                  + TypeSizes.BOOL_SIZE
+                 + KeySerializers.nullableParticipants.serializedSize(reply.truncated, version)
                  + KeySerializers.nullableRoute.serializedSize(reply.route, version)
                  + KeySerializers.nullableRoutingKey.serializedSize(reply.homeKey, version);
         }

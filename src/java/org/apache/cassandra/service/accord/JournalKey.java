@@ -23,31 +23,38 @@ import java.nio.ByteBuffer;
 import java.util.Objects;
 import java.util.zip.Checksum;
 
-import accord.local.Node;
+import accord.local.Node.Id;
 import accord.primitives.Timestamp;
+import accord.utils.Invariants;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.journal.KeySupport;
+import org.apache.cassandra.service.accord.AccordJournalValueSerializers.BootstrapBeganAtSerializer;
+import org.apache.cassandra.service.accord.AccordJournalValueSerializers.CommandDiffSerializer;
+import org.apache.cassandra.service.accord.AccordJournalValueSerializers.DurableBeforeSerializer;
+import org.apache.cassandra.service.accord.AccordJournalValueSerializers.FlyweightSerializer;
+import org.apache.cassandra.service.accord.AccordJournalValueSerializers.HistoricalTransactionsSerializer;
+import org.apache.cassandra.service.accord.AccordJournalValueSerializers.RedundantBeforeSerializer;
 import org.apache.cassandra.utils.ByteArrayUtil;
 
+import static org.apache.cassandra.db.TypeSizes.BYTE_SIZE;
 import static org.apache.cassandra.db.TypeSizes.INT_SIZE;
 import static org.apache.cassandra.db.TypeSizes.LONG_SIZE;
 import static org.apache.cassandra.db.TypeSizes.SHORT_SIZE;
+import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.RangesForEpochSerializer;
+import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.SafeToReadSerializer;
 
 public final class JournalKey
 {
+    final Type type;
     public final Timestamp timestamp;
-    // TODO: command store id _before_ timestamp
     public final int commandStoreId;
 
-    JournalKey(Timestamp timestamp)
+    public JournalKey(Timestamp timestamp, Type type, int commandStoreId)
     {
-        this(timestamp, -1);
-    }
-
-    JournalKey(Timestamp timestamp, int commandStoreId)
-    {
-        if (timestamp == null) throw new NullPointerException("Null timestamp");
+        Invariants.nonNull(type);
+        Invariants.nonNull(timestamp);
+        this.type = type;
         this.timestamp = timestamp;
         this.commandStoreId = commandStoreId;
     }
@@ -65,7 +72,8 @@ public final class JournalKey
         private static final int HLC_OFFSET = 0;
         private static final int EPOCH_AND_FLAGS_OFFSET = HLC_OFFSET + LONG_SIZE;
         private static final int NODE_OFFSET = EPOCH_AND_FLAGS_OFFSET + LONG_SIZE;
-        private static final int CS_ID_OFFSET = NODE_OFFSET + INT_SIZE;
+        private static final int TYPE_OFFSET = NODE_OFFSET + INT_SIZE;
+        private static final int CS_ID_OFFSET = TYPE_OFFSET + BYTE_SIZE;
 
         @Override
         public int serializedSize(int userVersion)
@@ -74,6 +82,7 @@ public final class JournalKey
                    + 6           // timestamp.epoch()
                    + 2           // timestamp.flags()
                    + INT_SIZE    // timestamp.node
+                   + BYTE_SIZE   // type
                    + SHORT_SIZE; // commandStoreId
         }
 
@@ -81,29 +90,33 @@ public final class JournalKey
         public void serialize(JournalKey key, DataOutputPlus out, int userVersion) throws IOException
         {
             serializeTimestamp(key.timestamp, out);
+            out.writeByte(key.type.id);
             out.writeShort(key.commandStoreId);
         }
 
         private void serialize(JournalKey key, byte[] out)
         {
             serializeTimestamp(key.timestamp, out);
-            ByteArrayUtil.putShort(out, 20, (short) key.commandStoreId);
+            out[20] = (byte) (key.type.id & 0xFF);
+            ByteArrayUtil.putShort(out, 21, (short) key.commandStoreId);
         }
 
         @Override
         public JournalKey deserialize(DataInputPlus in, int userVersion) throws IOException
         {
             Timestamp timestamp = deserializeTimestamp(in);
-            int commandStoreId = in.readShort();
-            return new JournalKey(timestamp, commandStoreId);
+            int type = in.readByte();
+             int commandStoreId = in.readShort();
+            return new JournalKey(timestamp, Type.fromId(type), commandStoreId);
         }
 
         @Override
         public JournalKey deserialize(ByteBuffer buffer, int position, int userVersion)
         {
             Timestamp timestamp = deserializeTimestamp(buffer, position);
+            int type = buffer.get(position + TYPE_OFFSET);
             int commandStoreId = buffer.getShort(position + CS_ID_OFFSET);
-            return new JournalKey(timestamp, commandStoreId);
+            return new JournalKey(timestamp, Type.fromId(type), commandStoreId);
         }
 
         private void serializeTimestamp(Timestamp timestamp, DataOutputPlus out) throws IOException
@@ -118,7 +131,7 @@ public final class JournalKey
             long hlc = in.readLong();
             long epochAndFlags = in.readLong();
             int nodeId = in.readInt();
-            return Timestamp.fromValues(epoch(epochAndFlags), hlc, flags(epochAndFlags), new Node.Id(nodeId));
+            return Timestamp.fromValues(epoch(epochAndFlags), hlc, flags(epochAndFlags), new Id(nodeId));
         }
 
         private void serializeTimestamp(Timestamp timestamp, byte[] out)
@@ -133,7 +146,7 @@ public final class JournalKey
             long hlc = buffer.getLong(position + HLC_OFFSET);
             long epochAndFlags = buffer.getLong(position + EPOCH_AND_FLAGS_OFFSET);
             int nodeId = buffer.getInt(position + NODE_OFFSET);
-            return Timestamp.fromValues(epoch(epochAndFlags), hlc, flags(epochAndFlags), new Node.Id(nodeId));
+            return Timestamp.fromValues(epoch(epochAndFlags), hlc, flags(epochAndFlags), new Id(nodeId));
         }
 
         @Override
@@ -148,6 +161,10 @@ public final class JournalKey
         public int compareWithKeyAt(JournalKey k, ByteBuffer buffer, int position, int userVersion)
         {
             int cmp = compareWithTimestampAt(k.timestamp, buffer, position);
+            if (cmp != 0) return cmp;
+
+            byte type = buffer.get(position + TYPE_OFFSET);
+            cmp = Byte.compare((byte) k.type.id, type);
             if (cmp != 0) return cmp;
 
             short commandStoreId = buffer.getShort(position + CS_ID_OFFSET);
@@ -174,6 +191,7 @@ public final class JournalKey
         public int compare(JournalKey k1, JournalKey k2)
         {
             int cmp = compare(k1.timestamp, k2.timestamp);
+            if (cmp == 0) cmp = Byte.compare((byte) k1.type.id, (byte) k2.type.id);
             if (cmp == 0) cmp = Short.compare((short) k1.commandStoreId, (short) k2.commandStoreId);
             return cmp;
         }
@@ -213,20 +231,75 @@ public final class JournalKey
     boolean equals(JournalKey other)
     {
         return this.timestamp.equals(other.timestamp) &&
+               this.type == other.type &&
                this.commandStoreId == other.commandStoreId;
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(timestamp, commandStoreId);
+        return Objects.hash(timestamp, type, commandStoreId);
     }
 
     public String toString()
     {
         return "Key{" +
                "timestamp=" + timestamp +
+               "type=" + type +
                ", commandStoreId=" + commandStoreId +
                '}';
     }
+
+    public enum Type
+    {
+        COMMAND_DIFF                 (0, new CommandDiffSerializer()),
+        REDUNDANT_BEFORE             (1, new RedundantBeforeSerializer()),
+        DURABLE_BEFORE               (2, new DurableBeforeSerializer()),
+        SAFE_TO_READ                 (3, new SafeToReadSerializer()),
+        BOOTSTRAP_BEGAN_AT           (4, new BootstrapBeganAtSerializer()),
+        RANGES_FOR_EPOCH             (5, new RangesForEpochSerializer()),
+        HISTORICAL_TRANSACTIONS      (6, new HistoricalTransactionsSerializer())
+        ;
+
+        final int id;
+        final FlyweightSerializer<?, ?> serializer;
+
+        Type(int id, FlyweightSerializer<?, ?> serializer)
+        {
+            this.id = id;
+            this.serializer = serializer;
+        }
+
+        private static final Type[] idToTypeMapping;
+
+        static
+        {
+            Type[] types = values();
+
+            int maxId = -1;
+            for (Type type : types)
+                maxId = Math.max(type.id, maxId);
+
+            Type[] idToType = new Type[maxId + 1];
+            for (Type type : types)
+            {
+                if (null != idToType[type.id])
+                    throw new IllegalStateException("Duplicate Type id " + type.id);
+                idToType[type.id] = type;
+            }
+            idToTypeMapping = idToType;
+        }
+
+        static Type fromId(int id)
+        {
+            if (id < 0 || id >= idToTypeMapping.length)
+                throw new IllegalArgumentException("Out or range Type id " + id);
+            Type type = idToTypeMapping[id];
+            if (null == type)
+                throw new IllegalArgumentException("Unknown Type id " + id);
+            return type;
+        }
+    }
+
+
 }

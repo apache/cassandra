@@ -20,9 +20,9 @@ package org.apache.cassandra.service.accord.serializers;
 
 import java.io.IOException;
 
-import accord.local.Status;
 import accord.messages.InformDurable;
 import accord.primitives.Route;
+import accord.primitives.Status;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import org.apache.cassandra.io.IVersionedSerializer;

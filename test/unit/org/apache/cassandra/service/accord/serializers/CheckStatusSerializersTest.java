@@ -25,9 +25,8 @@ import java.util.List;
 import org.junit.Test;
 
 import accord.api.RoutingKey;
-import accord.coordinate.Infer;
-import accord.local.SaveStatus;
-import accord.messages.CheckStatus.FoundKnownMap;
+import accord.primitives.SaveStatus;
+import accord.primitives.KnownMap;
 import accord.primitives.Ballot;
 import accord.primitives.FullKeyRoute;
 import accord.primitives.Routable;
@@ -61,7 +60,7 @@ public class CheckStatusSerializersTest
     public void serde()
     {
         DataOutputBuffer buffer = new DataOutputBuffer();
-        qt().forAll(foundKnownMap()).check(map -> Assertions.assertThat(serde(CheckStatusSerializers.foundKnownMap, MessagingService.Version.CURRENT.value, buffer, map)).isEqualTo(map));
+        qt().forAll(foundKnownMap()).check(map -> Assertions.assertThat(serde(CheckStatusSerializers.knownMap, MessagingService.Version.CURRENT.value, buffer, map)).isEqualTo(map));
     }
 
     private static <T> T serde(IVersionedSerializer<T> serializer, int version, DataOutputBuffer buffer, T value) throws IOException
@@ -76,11 +75,10 @@ public class CheckStatusSerializersTest
         }
     }
 
-    private static Gen<FoundKnownMap> foundKnownMap()
+    private static Gen<KnownMap> foundKnownMap()
     {
         return rs -> {
             SaveStatus saveStatus = Gens.pick(SaveStatus.values()).next(rs);
-            Infer.InvalidIfNot invalidIfNot = Gens.pick(Infer.InvalidIfNot.values()).next(rs);
             Ballot promised = AccordGens.ballot().next(rs);
             Routable.Domain domain = Gens.pick(Routable.Domain.values()).next(rs);
             Unseekables<?> keysOrRanges;
@@ -101,7 +99,7 @@ public class CheckStatusSerializersTest
                 default:
                     throw new AssertionError("Unknown domain");
             }
-            return FoundKnownMap.create(keysOrRanges, saveStatus, invalidIfNot, promised);
+            return KnownMap.create(keysOrRanges, saveStatus);
         };
     }
 }

@@ -23,7 +23,6 @@ import java.io.IOException;
 import accord.messages.GetMaxConflict;
 import accord.messages.GetMaxConflict.GetMaxConflictOk;
 import accord.primitives.Route;
-import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import org.apache.cassandra.db.TypeSizes;
@@ -38,23 +37,20 @@ public class GetMaxConflictSerializers
         @Override
         public void serializeBody(GetMaxConflict msg, DataOutputPlus out, int version) throws IOException
         {
-            KeySerializers.seekables.serialize(msg.keys, out, version);
             out.writeUnsignedVInt(msg.executionEpoch);
         }
 
         @Override
         public GetMaxConflict deserializeBody(DataInputPlus in, int version, TxnId txnId, Route<?> scope, long waitForEpoch, long minEpoch) throws IOException
         {
-            Seekables<?, ?> keys = KeySerializers.seekables.deserialize(in, version);
             long executionEpoch = in.readUnsignedVInt();
-            return GetMaxConflict.SerializationSupport.create(scope, waitForEpoch, minEpoch, keys, executionEpoch);
+            return GetMaxConflict.SerializationSupport.create(scope, waitForEpoch, minEpoch, executionEpoch);
         }
 
         @Override
         public long serializedBodySize(GetMaxConflict msg, int version)
         {
-            return KeySerializers.seekables.serializedSize(msg.keys, version)
-                   + TypeSizes.sizeofUnsignedVInt(msg.executionEpoch);
+            return TypeSizes.sizeofUnsignedVInt(msg.executionEpoch);
         }
     };
 

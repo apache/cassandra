@@ -24,7 +24,6 @@ import javax.annotation.Nullable;
 
 import accord.api.Result;
 import accord.api.RoutingKey;
-import accord.local.Status;
 import accord.messages.BeginRecovery;
 import accord.messages.BeginRecovery.RecoverNack;
 import accord.messages.BeginRecovery.RecoverOk;
@@ -32,9 +31,11 @@ import accord.messages.BeginRecovery.RecoverReply;
 import accord.primitives.Ballot;
 import accord.primitives.Deps;
 import accord.primitives.FullRoute;
+import accord.primitives.Known.KnownDeps;
 import accord.primitives.LatestDeps;
 import accord.primitives.PartialTxn;
 import accord.primitives.Route;
+import accord.primitives.Status;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.primitives.Writes;
@@ -42,6 +43,7 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.service.accord.serializers.TxnRequestSerializer.WithUnsyncedSerializer;
 
 import static org.apache.cassandra.utils.NullableSerializer.deserializeNullable;
 import static org.apache.cassandra.utils.NullableSerializer.serializeNullable;
@@ -49,7 +51,7 @@ import static org.apache.cassandra.utils.NullableSerializer.serializedNullableSi
 
 public class RecoverySerializers
 {
-    public static final IVersionedSerializer<BeginRecovery> request = new TxnRequestSerializer<BeginRecovery>()
+    public static final IVersionedSerializer<BeginRecovery> request = new WithUnsyncedSerializer<BeginRecovery>()
     {
         @Override
         public void serializeBody(BeginRecovery recover, DataOutputPlus out, int version) throws IOException
@@ -57,15 +59,17 @@ public class RecoverySerializers
             CommandSerializers.partialTxn.serialize(recover.partialTxn, out, version);
             CommandSerializers.ballot.serialize(recover.ballot, out, version);
             serializeNullable(recover.route, out, version, KeySerializers.fullRoute);
+            out.writeUnsignedVInt(recover.executeAtOrTxnIdEpoch - recover.txnId.epoch());
         }
 
         @Override
-        public BeginRecovery deserializeBody(DataInputPlus in, int version, TxnId txnId, Route<?> scope, long waitForEpoch) throws IOException
+        public BeginRecovery deserializeBody(DataInputPlus in, int version, TxnId txnId, Route<?> scope, long waitForEpoch, long minEpoch) throws IOException
         {
             PartialTxn partialTxn = CommandSerializers.partialTxn.deserialize(in, version);
             Ballot ballot = CommandSerializers.ballot.deserialize(in, version);
             @Nullable FullRoute<?> route = deserializeNullable(in, version, KeySerializers.fullRoute);
-            return BeginRecovery.SerializationSupport.create(txnId, scope, waitForEpoch, partialTxn, ballot, route);
+            long executeAtOrTxnIdEpoch = in.readUnsignedVInt32() + txnId.epoch();
+            return BeginRecovery.SerializationSupport.create(txnId, scope, waitForEpoch, minEpoch, partialTxn, ballot, route, executeAtOrTxnIdEpoch);
         }
 
         @Override
@@ -73,7 +77,8 @@ public class RecoverySerializers
         {
             return CommandSerializers.partialTxn.serializedSize(recover.partialTxn, version)
                    + CommandSerializers.ballot.serializedSize(recover.ballot, version)
-                   + serializedNullableSize(recover.route, version, KeySerializers.fullRoute);
+                   + serializedNullableSize(recover.route, version, KeySerializers.fullRoute)
+                   + TypeSizes.sizeofUnsignedVInt(recover.executeAtOrTxnIdEpoch - recover.txnId.epoch());
         }
     };
 
@@ -93,6 +98,7 @@ public class RecoverySerializers
             latestDeps.serialize(recoverOk.deps, out, version);
             DepsSerializer.deps.serialize(recoverOk.earlierCommittedWitness, out, version);
             DepsSerializer.deps.serialize(recoverOk.earlierAcceptedNoWitness, out, version);
+            out.writeBoolean(recoverOk.acceptsFastPath);
             out.writeBoolean(recoverOk.rejectsFastPath);
             CommandSerializers.nullableWrites.serialize(recoverOk.writes, out, version);
         }
@@ -112,9 +118,9 @@ public class RecoverySerializers
             return new RecoverNack(supersededBy);
         }
 
-        RecoverOk deserializeOk(TxnId txnId, Status status, Ballot accepted, Timestamp executeAt, @Nonnull LatestDeps deps, Deps earlierCommittedWitness, Deps earlierAcceptedNoWitness, boolean rejectsFastPath, Writes writes, Result result, DataInputPlus in, int version)
+        RecoverOk deserializeOk(TxnId txnId, Status status, Ballot accepted, Timestamp executeAt, @Nonnull LatestDeps deps, Deps earlierCommittedWitness, Deps earlierAcceptedNoWitness, boolean acceptsFastPath, boolean rejectsFastPath, Writes writes, Result result, DataInputPlus in, int version)
         {
-            return new RecoverOk(txnId, status, accepted, executeAt, deps, earlierCommittedWitness, earlierAcceptedNoWitness, rejectsFastPath, writes, result);
+            return new RecoverOk(txnId, status, accepted, executeAt, deps, earlierCommittedWitness, earlierAcceptedNoWitness, acceptsFastPath, rejectsFastPath, writes, result);
         }
 
         @Override
@@ -139,6 +145,7 @@ public class RecoverySerializers
                                  DepsSerializer.deps.deserialize(in, version),
                                  DepsSerializer.deps.deserialize(in, version),
                                  in.readBoolean(),
+                                 in.readBoolean(),
                                  CommandSerializers.nullableWrites.deserialize(in, version),
                                  result,
                                  in,
@@ -159,6 +166,7 @@ public class RecoverySerializers
             size += latestDeps.serializedSize(recoverOk.deps, version);
             size += DepsSerializer.deps.serializedSize(recoverOk.earlierCommittedWitness, version);
             size += DepsSerializer.deps.serializedSize(recoverOk.earlierAcceptedNoWitness, version);
+            size += TypeSizes.sizeof(recoverOk.acceptsFastPath);
             size += TypeSizes.sizeof(recoverOk.rejectsFastPath);
             size += CommandSerializers.nullableWrites.serializedSize(recoverOk.writes, version);
             return size;
@@ -207,7 +215,7 @@ public class RecoverySerializers
             for (int i = 0 ; i < size ; ++i)
             {
                 starts[i] = KeySerializers.routingKey.deserialize(in, version);
-                Status.KnownDeps knownDeps = CommandSerializers.nullableKnownDeps.deserialize(in, version);
+                KnownDeps knownDeps = CommandSerializers.nullableKnownDeps.deserialize(in, version);
                 if (knownDeps == null)
                     continue;
 

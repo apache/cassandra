@@ -292,7 +292,7 @@ public class AccordFetchCoordinator extends AbstractFetchCoordinator implements 
         public Read slice(Ranges ranges) { return new StreamingRead(to, this.ranges.slice(ranges)); }
 
         @Override
-        public Read intersecting(Participants<?> participants) { return new StreamingRead(to, this.ranges.intersecting(ranges)); }
+        public Read intersecting(Participants<?> participants) { return new StreamingRead(to, this.ranges.slice(ranges)); }
 
         @Override
         public Read merge(Read other) { throw new UnsupportedOperationException(); }

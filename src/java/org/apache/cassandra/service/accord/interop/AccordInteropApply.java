@@ -27,19 +27,19 @@ import accord.local.Command;
 import accord.local.Node.Id;
 import accord.local.SafeCommand;
 import accord.local.SafeCommandStore;
-import accord.local.Status;
+import accord.local.StoreParticipants;
 import accord.messages.Apply;
 import accord.messages.MessageType;
 import accord.primitives.Deps;
 import accord.primitives.FullRoute;
-import accord.primitives.Keys;
 import accord.primitives.PartialDeps;
 import accord.primitives.PartialTxn;
 import accord.primitives.Route;
-import accord.primitives.Seekables;
+import accord.primitives.Status;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
+import accord.primitives.Unseekables;
 import accord.primitives.Writes;
 import accord.topology.Topologies;
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -77,9 +77,9 @@ public class AccordInteropApply extends Apply implements LocalListeners.ComplexL
     public static final IVersionedSerializer<AccordInteropApply> serializer = new ApplySerializer<AccordInteropApply>()
     {
         @Override
-        protected AccordInteropApply deserializeApply(TxnId txnId, Route<?> scope, long waitForEpoch, Apply.Kind kind, Seekables<?, ?> keys, Timestamp executeAt, PartialDeps deps, PartialTxn txn, @Nullable FullRoute<?> fullRoute, Writes writes, Result result)
+        protected AccordInteropApply deserializeApply(TxnId txnId, Route<?> scope, long waitForEpoch, Apply.Kind kind, Timestamp executeAt, PartialDeps deps, PartialTxn txn, @Nullable FullRoute<?> fullRoute, Writes writes, Result result)
         {
-            return new AccordInteropApply(kind, txnId, scope, waitForEpoch, keys, executeAt, deps, txn, fullRoute, writes, result);
+            return new AccordInteropApply(kind, txnId, scope, waitForEpoch, executeAt, deps, txn, fullRoute, writes, result);
         }
     };
 
@@ -87,9 +87,9 @@ public class AccordInteropApply extends Apply implements LocalListeners.ComplexL
     transient int waitingOnCount;
     final MpscChunkedArrayQueue<LocalListeners.Registered> listeners = new MpscChunkedArrayQueue<>(4, 1 << 30);
 
-    private AccordInteropApply(Kind kind, TxnId txnId, Route<?> route, long waitForEpoch, Seekables<?, ?> keys, Timestamp executeAt, PartialDeps deps, @Nullable PartialTxn txn, @Nullable FullRoute<?> fullRoute, Writes writes, Result result)
+    private AccordInteropApply(Kind kind, TxnId txnId, Route<?> route, long waitForEpoch, Timestamp executeAt, PartialDeps deps, @Nullable PartialTxn txn, @Nullable FullRoute<?> fullRoute, Writes writes, Result result)
     {
-        super(kind, txnId, route, waitForEpoch, keys, executeAt, deps, txn, fullRoute, writes, result);
+        super(kind, txnId, route, waitForEpoch, executeAt, deps, txn, fullRoute, writes, result);
     }
 
     private AccordInteropApply(Kind kind, Id to, Topologies participates, TxnId txnId, FullRoute<?> route, Txn txn, Timestamp executeAt, Deps deps, Writes writes, Result result)
@@ -106,7 +106,7 @@ public class AccordInteropApply extends Apply implements LocalListeners.ComplexL
 
 
     @Override
-    public ApplyReply apply(SafeCommandStore safeStore)
+    public ApplyReply apply(SafeCommandStore safeStore, StoreParticipants participants)
     {
         ApplyReply reply = super.apply(safeStore);
         checkState(reply == ApplyReply.Redundant || reply == ApplyReply.Applied || reply == ApplyReply.Insufficient, "Unexpected ApplyReply");
@@ -118,7 +118,7 @@ public class AccordInteropApply extends Apply implements LocalListeners.ComplexL
         // once the coordinator sends a maximal commit
         // Applied doesn't actually mean the command is in the Applied state so we still need to check and maybe install
         // the listener
-        SafeCommand safeCommand = safeStore.get(txnId, executeAt, scope);
+        SafeCommand safeCommand = safeStore.get(txnId, participants);
         Command current = safeCommand.current();
         // Don't actually think it is possible for this to reach applied while we are stll running, but just to be safe
         // check anyways
@@ -201,10 +201,9 @@ public class AccordInteropApply extends Apply implements LocalListeners.ComplexL
     }
 
     @Override
-    public Seekables<?, ?> keys()
+    public Unseekables<?> keys()
     {
-        if (txn == null) return Keys.EMPTY;
-        return txn.keys();
+        return scope;
     }
 
     @Override

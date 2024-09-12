@@ -203,6 +203,8 @@ public class KeySerializers
         EnumSet.allOf(UnseekablesKind.class)
     );
 
+    public static final IVersionedSerializer<Participants<?>> nullableParticipants = NullableSerializer.wrap(participants);
+
     static class AbstractRoutablesSerializer<RS extends Unseekables<?>> implements IVersionedSerializer<RS>
     {
         final EnumSet<UnseekablesKind> permitted;
@@ -337,6 +339,7 @@ public class KeySerializers
     };
 
     public static final IVersionedSerializer<Seekables<?, ?>> nullableSeekables = NullableSerializer.wrap(seekables);
+    public static final IVersionedSerializer<Unseekables<?>> nullableUnseekables = NullableSerializer.wrap(unseekables);
 
     public static abstract class AbstractKeysSerializer<K extends RoutableKey, KS extends AbstractKeys<K>> implements IVersionedSerializer<KS>
     {

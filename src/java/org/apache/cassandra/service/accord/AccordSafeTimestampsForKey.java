@@ -23,21 +23,21 @@ import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import accord.api.Key;
+import accord.api.RoutingKey;
 import accord.impl.SafeTimestampsForKey;
 import accord.impl.TimestampsForKey;
 import accord.primitives.Timestamp;
 
-public class AccordSafeTimestampsForKey extends SafeTimestampsForKey implements AccordSafeState<Key, TimestampsForKey>
+public class AccordSafeTimestampsForKey extends SafeTimestampsForKey implements AccordSafeState<RoutingKey, TimestampsForKey>
 {
     private boolean invalidated;
-    private final AccordCachingState<Key, TimestampsForKey> global;
+    private final AccordCachingState<RoutingKey, TimestampsForKey> global;
     private TimestampsForKey original;
     private TimestampsForKey current;
 
-    public AccordSafeTimestampsForKey(AccordCachingState<Key, TimestampsForKey> global)
+    public AccordSafeTimestampsForKey(AccordCachingState<RoutingKey, TimestampsForKey> global)
     {
-        super((Key) global.key());
+        super(global.key());
         this.global = global;
         this.original = null;
         this.current = null;
@@ -70,7 +70,7 @@ public class AccordSafeTimestampsForKey extends SafeTimestampsForKey implements 
     }
 
     @Override
-    public AccordCachingState<Key, TimestampsForKey> global()
+    public AccordCachingState<RoutingKey, TimestampsForKey> global()
     {
         checkNotInvalidated();
         return global;

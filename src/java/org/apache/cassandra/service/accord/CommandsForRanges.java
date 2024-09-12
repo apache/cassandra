@@ -33,9 +33,9 @@ import accord.local.SafeCommandStore.CommandFunction;
 import accord.local.SafeCommandStore.TestDep;
 import accord.local.SafeCommandStore.TestStartedAt;
 import accord.local.SafeCommandStore.TestStatus;
-import accord.local.SaveStatus;
 import accord.primitives.Range;
 import accord.primitives.Ranges;
+import accord.primitives.SaveStatus;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
@@ -44,9 +44,9 @@ import static accord.local.SafeCommandStore.TestDep.ANY_DEPS;
 import static accord.local.SafeCommandStore.TestDep.WITH;
 import static accord.local.SafeCommandStore.TestStartedAt.STARTED_BEFORE;
 import static accord.local.SafeCommandStore.TestStatus.ANY_STATUS;
-import static accord.local.Status.Stable;
-import static accord.local.Status.Truncated;
 import static accord.primitives.Routables.Slice.Minimal;
+import static accord.primitives.Status.Stable;
+import static accord.primitives.Status.Truncated;
 
 public class CommandsForRanges implements CommandsSummary
 {

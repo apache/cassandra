@@ -18,39 +18,60 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.NavigableMap;
 import java.util.function.Function;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableSortedMap;
 
 import accord.api.Result;
 import accord.local.Command;
+import accord.local.CommandStores;
 import accord.local.CommonAttributes;
-import accord.local.SaveStatus;
-import accord.local.Status;
+import accord.local.DurableBefore;
+import accord.local.RedundantBefore;
+import accord.local.StoreParticipants;
+import accord.primitives.Known;
+import accord.primitives.SaveStatus;
+import accord.primitives.Status;
 import accord.primitives.Ballot;
+import accord.primitives.Deps;
 import accord.primitives.PartialDeps;
 import accord.primitives.PartialTxn;
-import accord.primitives.Route;
-import accord.primitives.Seekables;
+import accord.primitives.Ranges;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.primitives.Writes;
 import accord.utils.Invariants;
+import org.apache.cassandra.service.accord.AccordJournalValueSerializers.DurableBeforeAccumulator;
+import org.apache.cassandra.service.accord.AccordJournalValueSerializers.HistoricalTransactionsAccumulator;
+import org.apache.cassandra.service.accord.AccordJournalValueSerializers.IdentityAccumulator;
+import org.apache.cassandra.service.accord.AccordJournalValueSerializers.RedundantBeforeAccumulator;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
-
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
 
 public class MockJournal implements IJournal
 {
     private final Map<JournalKey, List<LoadedDiff>> commands = new HashMap<>();
 
-    @Override
-    public Command loadCommand(int commandStoreId, TxnId txnId)
+    private static class FieldUpdates
     {
-        JournalKey key = new JournalKey(txnId, commandStoreId);
+        final RedundantBeforeAccumulator redundantBeforeAccumulator = new RedundantBeforeAccumulator();
+        final DurableBeforeAccumulator durableBeforeAccumulator = new DurableBeforeAccumulator();
+        final IdentityAccumulator<NavigableMap<TxnId, Ranges>> bootstrapBeganAtAccumulator = new IdentityAccumulator<>(ImmutableSortedMap.of(TxnId.NONE, Ranges.EMPTY));
+        final IdentityAccumulator<NavigableMap<Timestamp, Ranges>> safeToReadAccumulator = new IdentityAccumulator<>(ImmutableSortedMap.of(Timestamp.NONE, Ranges.EMPTY));
+        final IdentityAccumulator<CommandStores.RangesForEpoch.Snapshot> rangesForEpochAccumulator = new IdentityAccumulator<>(null);
+        final HistoricalTransactionsAccumulator historicalTransactionsAccumulator = new HistoricalTransactionsAccumulator();
+    }
+
+    private final Map<Integer, FieldUpdates> fieldUpdates = new HashMap<>();
+    @Override
+    public Command loadCommand(int store, TxnId txnId)
+    {
+        JournalKey key = new JournalKey(txnId, JournalKey.Type.COMMAND_DIFF, store);
         List<LoadedDiff> saved = commands.get(key);
         if (saved == null)
             return null;
@@ -58,16 +79,77 @@ public class MockJournal implements IJournal
     }
 
     @Override
-    public void appendCommand(int commandStoreId, List<SavedCommand.Writer<TxnId>> diffs, List<Command> sanityCheck, Runnable onFlush)
+    public RedundantBefore loadRedundantBefore(int store)
     {
-        for (SavedCommand.Writer<TxnId> diff : diffs)
-        {
-            SavedCommand.DiffWriter writer = (SavedCommand.DiffWriter) diff;
+        return fieldUpdates(store).redundantBeforeAccumulator.get();
+    }
 
-            JournalKey key = new JournalKey(diff.key(), commandStoreId);
-            commands.computeIfAbsent(key, (ignore_) -> new ArrayList<>())
-                    .add(diff(writer.before(), writer.after()));
+    @Override
+    public DurableBefore loadDurableBefore(int store)
+    {
+        return fieldUpdates(store).durableBeforeAccumulator.get();
+    }
+
+    @Override
+    public NavigableMap<TxnId, Ranges> loadBootstrapBeganAt(int store)
+    {
+        return fieldUpdates(store).bootstrapBeganAtAccumulator.get();
+    }
+
+    @Override
+    public NavigableMap<Timestamp, Ranges> loadSafeToRead(int store)
+    {
+        return fieldUpdates(store).safeToReadAccumulator.get();
+    }
+
+    @Override
+    public CommandStores.RangesForEpoch.Snapshot loadRangesForEpoch(int store)
+    {
+        return fieldUpdates(store).rangesForEpochAccumulator.get();
+    }
+
+    @Override
+    public List<Deps> loadHistoricalTransactions(int store)
+    {
+        return fieldUpdates(store).historicalTransactionsAccumulator.get();
+    }
+
+    @Override
+    public void appendCommand(int store, SavedCommand.DiffWriter diff, Runnable onFlush)
+    {
+        if (diff != null)
+        {
+            commands.computeIfAbsent(new JournalKey(diff.after().txnId(), JournalKey.Type.COMMAND_DIFF, store),
+                                     (ignore_) -> new ArrayList<>())
+                    .add(diff(diff.before(), diff.after()));
         }
+
+        if (onFlush != null)
+            onFlush.run();
+    }
+
+    private FieldUpdates fieldUpdates(int store)
+    {
+        return fieldUpdates.computeIfAbsent(store, (o) -> new FieldUpdates());
+    }
+
+    @Override
+    public void persistStoreState(int store, AccordSafeCommandStore.FieldUpdates fieldUpdates, Runnable onFlush)
+    {
+        FieldUpdates updates = fieldUpdates(store);
+        if (fieldUpdates.redundantBefore != null)
+            updates.redundantBeforeAccumulator.update(fieldUpdates.redundantBefore);
+        if (fieldUpdates.durableBefore != null)
+            updates.durableBeforeAccumulator.update(fieldUpdates.durableBefore);
+        if (fieldUpdates.bootstrapBeganAt != null)
+            updates.bootstrapBeganAtAccumulator.update(fieldUpdates.bootstrapBeganAt);
+        if (fieldUpdates.safeToRead != null)
+            updates.safeToReadAccumulator.update(fieldUpdates.safeToRead);
+        if (fieldUpdates.rangesForEpoch != null)
+            updates.rangesForEpochAccumulator.update(fieldUpdates.rangesForEpoch);
+        if (fieldUpdates.historicalTransactions != null)
+            updates.historicalTransactionsAccumulator.update(fieldUpdates.historicalTransactions);
+
         onFlush.run();
     }
 
@@ -90,10 +172,9 @@ public class MockJournal implements IJournal
                              ifNotEqual(before, after, Command::acceptedOrCommitted, false),
                              ifNotEqual(before, after, Command::promised, false),
 
-                             ifNotEqual(before, after, Command::route, true),
+                             ifNotEqual(before, after, Command::participants, false),
                              ifNotEqual(before, after, Command::partialTxn, false),
                              ifNotEqual(before, after, Command::partialDeps, false),
-                             ifNotEqual(before, after, Command::additionalKeysOrRanges, false),
 
                              new NewValue<>((k, deps) -> waitingOn),
                              ifNotEqual(before, after, Command::writes, false));
@@ -122,10 +203,9 @@ public class MockJournal implements IJournal
         Ballot acceptedOrCommitted = Ballot.ZERO;
         Ballot promised = null;
 
-        Route<?> route = null;
+        StoreParticipants participants = null;
         PartialTxn partialTxn = null;
         PartialDeps partialDeps = null;
-        Seekables<?, ?> additionalKeysOrRanges = null;
 
         SavedCommand.WaitingOnProvider waitingOnProvider = null;
         Writes writes = null;
@@ -146,14 +226,12 @@ public class MockJournal implements IJournal
             if (diff.promised != null)
                 promised = diff.promised.get();
 
-            if (diff.route != null)
-                route = diff.route.get();
+            if (diff.participants != null)
+                participants = diff.participants.get();
             if (diff.partialTxn != null)
                 partialTxn = diff.partialTxn.get();
             if (diff.partialDeps != null)
                 partialDeps = diff.partialDeps.get();
-            if (diff.additionalKeysOrRanges != null)
-                additionalKeysOrRanges = diff.additionalKeysOrRanges.get();
 
             if (diff.waitingOn != null)
                 waitingOnProvider = diff.waitingOn.get();
@@ -166,15 +244,13 @@ public class MockJournal implements IJournal
             attrs.partialTxn(partialTxn);
         if (durability != null)
             attrs.durability(durability);
-        if (route != null)
-            attrs.route(route);
+        if (participants != null)
+            attrs.setParticipants(participants);
         if (partialDeps != null &&
-            (saveStatus.known.deps != Status.KnownDeps.NoDeps &&
-             saveStatus.known.deps != Status.KnownDeps.DepsErased &&
-             saveStatus.known.deps != Status.KnownDeps.DepsUnknown))
+            (saveStatus.known.deps != Known.KnownDeps.NoDeps &&
+             saveStatus.known.deps != Known.KnownDeps.DepsErased &&
+             saveStatus.known.deps != Known.KnownDeps.DepsUnknown))
             attrs.partialDeps(partialDeps);
-        if (additionalKeysOrRanges != null)
-            attrs.additionalKeysOrRanges(additionalKeysOrRanges);
 
         Command.WaitingOn waitingOn = null;
         if (waitingOnProvider != null)
@@ -279,10 +355,9 @@ public class MockJournal implements IJournal
         public final NewValue<Ballot> acceptedOrCommitted;
         public final NewValue<Ballot> promised;
 
-        public final NewValue<Route<?>> route;
+        public final NewValue<StoreParticipants> participants;
         public final NewValue<PartialTxn> partialTxn;
         public final NewValue<PartialDeps> partialDeps;
-        public final NewValue<Seekables<?, ?>> additionalKeysOrRanges;
 
         public final NewValue<Writes> writes;
         public final NewValue<WaitingOnProvider> waitingOn;
@@ -295,10 +370,9 @@ public class MockJournal implements IJournal
                           NewValue<Ballot> acceptedOrCommitted,
                           NewValue<Ballot> promised,
 
-                          NewValue<Route<?>> route,
+                          NewValue<StoreParticipants> participants,
                           NewValue<PartialTxn> partialTxn,
                           NewValue<PartialDeps> partialDeps,
-                          NewValue<Seekables<?, ?>> additionalKeysOrRanges,
 
                           NewValue<SavedCommand.WaitingOnProvider> waitingOn,
                           NewValue<Writes> writes)
@@ -311,10 +385,9 @@ public class MockJournal implements IJournal
             this.acceptedOrCommitted = acceptedOrCommitted;
             this.promised = promised;
 
-            this.route = route;
+            this.participants = participants;
             this.partialTxn = partialTxn;
             this.partialDeps = partialDeps;
-            this.additionalKeysOrRanges = additionalKeysOrRanges;
 
             this.writes = writes;
 

@@ -30,6 +30,7 @@ import accord.local.Node;
 import accord.messages.Apply;
 import accord.primitives.Deps;
 import accord.primitives.FullRoute;
+import accord.primitives.Participants;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
@@ -84,8 +85,9 @@ public class AccordInteropAdapter extends AbstractTxnAdapter
     }
 
     @Override
-    public void persist(Node node, Topologies all, FullRoute<?> route, TxnId txnId, Txn txn, Timestamp executeAt, Deps deps, Writes writes, Result result, BiConsumer<? super Result, Throwable> callback)
+    public void persist(Node node, Topologies all, FullRoute<?> route, Participants<?> sendTo, TxnId txnId, Txn txn, Timestamp executeAt, Deps deps, Writes writes, Result result, BiConsumer<? super Result, Throwable> callback)
     {
+        // TODO (required): we aren't using sendTo
         if (applyKind == Minimal && doInteropPersist(node, all, route, txnId, txn, executeAt, deps, writes, result, callback))
             return;
 

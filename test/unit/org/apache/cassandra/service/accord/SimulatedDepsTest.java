@@ -28,7 +28,7 @@ import java.util.Map;
 
 import org.junit.Test;
 
-import accord.api.Key;
+import accord.api.RoutingKey;
 import accord.primitives.FullKeyRoute;
 import accord.primitives.FullRangeRoute;
 import accord.primitives.FullRoute;
@@ -40,6 +40,7 @@ import accord.primitives.TxnId;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 
 import static accord.utils.Property.qt;
@@ -65,8 +66,8 @@ public class SimulatedDepsTest extends SimulatedAccordCommandStoreTestBase
                 List<TxnId> conflicts = new ArrayList<>(numSamples);
                 for (int i = 0; i < numSamples; i++)
                 {
-                    instance.maybeCacheEvict(keys, Ranges.EMPTY);
-                    conflicts.add(assertDepsMessage(instance, rs.pick(DepsMessage.values()), txn, route, keyConflicts(conflicts, keys)));
+                    instance.maybeCacheEvict(route, Ranges.EMPTY);
+                    conflicts.add(assertDepsMessage(instance, rs.pick(DepsMessage.values()), txn, route, keyConflicts(conflicts, route)));
                 }
             }
         });
@@ -89,8 +90,8 @@ public class SimulatedDepsTest extends SimulatedAccordCommandStoreTestBase
                 long outOfRangeToken = token - 10;
                 if (outOfRangeToken == Long.MIN_VALUE) // if this wraps around that is fine, just can't be min
                     outOfRangeToken++;
-                Key key = new PartitionKey(tbl.id, tbl.partitioner.decorateKey(LongToken.keyForToken(token)));
-                Key outOfRangeKey = new PartitionKey(tbl.id, tbl.partitioner.decorateKey(LongToken.keyForToken(outOfRangeToken)));
+                RoutingKey key = new TokenKey(tbl.id, new LongToken(token));
+                RoutingKey outOfRangeKey = new TokenKey(tbl.id, new LongToken(outOfRangeToken));
                 Txn keyTxn = createTxn(wrapInTxn("INSERT INTO " + tbl + "(pk, value) VALUES (?, ?)",
                                                  "INSERT INTO " + tbl + "(pk, value) VALUES (?, ?)"),
                                        Arrays.asList(LongToken.keyForToken(token), 42,
@@ -111,7 +112,7 @@ public class SimulatedDepsTest extends SimulatedAccordCommandStoreTestBase
                 List<TxnId> rangeConflicts = new ArrayList<>(numSamples);
                 for (int i = 0; i < numSamples; i++)
                 {
-                    instance.maybeCacheEvict((Keys) keyTxn.keys(), partialRange);
+                    instance.maybeCacheEvict(((Keys) keyTxn.keys()).toParticipants(), partialRange);
                     for (int j = 0; j < numConflictKeyTxns; j++)
                         outOfRangeKeyConflicts.add(assertDepsMessage(instance, rs.pick(DepsMessage.values()), conflictingKeyTxn, conflictingRoute, Map.of(outOfRangeKey, outOfRangeKeyConflicts)));
 
@@ -153,9 +154,9 @@ public class SimulatedDepsTest extends SimulatedAccordCommandStoreTestBase
                 List<TxnId> rangeConflicts = new ArrayList<>(numSamples);
                 for (int i = 0; i < numSamples; i++)
                 {
-                    instance.maybeCacheEvict(keys, ranges);
-                    keyConflicts.add(assertDepsMessage(instance, rs.pick(DepsMessage.values()), keyTxn, keyRoute, keyConflicts(keyConflicts, keys)));
-                    rangeConflicts.add(assertDepsMessage(instance, rs.pick(DepsMessage.values()), rangeTxn, rangeRoute, keyConflicts(keyConflicts, keys), rangeConflicts(rangeConflicts, instance.slice(ranges))));
+                    instance.maybeCacheEvict(keyRoute, ranges);
+                    keyConflicts.add(assertDepsMessage(instance, rs.pick(DepsMessage.values()), keyTxn, keyRoute, keyConflicts(keyConflicts, keyRoute)));
+                    rangeConflicts.add(assertDepsMessage(instance, rs.pick(DepsMessage.values()), rangeTxn, rangeRoute, keyConflicts(keyConflicts, keyRoute), rangeConflicts(rangeConflicts, instance.slice(ranges))));
                 }
             }
         });
@@ -187,9 +188,9 @@ public class SimulatedDepsTest extends SimulatedAccordCommandStoreTestBase
                     Txn rangeTxn = createTxn(Txn.Kind.ExclusiveSyncPoint, partialRange);
                     try
                     {
-                        instance.maybeCacheEvict(keys, partialRange);
-                        keyConflicts.add(assertDepsMessage(instance, rs.pick(DepsMessage.values()), keyTxn, keyRoute, keyConflicts(keyConflicts, keys)));
-                        rangeConflicts.put(partialRange.get(0), Collections.singletonList(assertDepsMessage(instance, rs.pick(DepsMessage.values()), rangeTxn, rangeRoute, keyConflicts(keyConflicts, keys), rangeConflicts)));
+                        instance.maybeCacheEvict(keyRoute, partialRange);
+                        keyConflicts.add(assertDepsMessage(instance, rs.pick(DepsMessage.values()), keyTxn, keyRoute, keyConflicts(keyConflicts, keyRoute)));
+                        rangeConflicts.put(partialRange.get(0), Collections.singletonList(assertDepsMessage(instance, rs.pick(DepsMessage.values()), rangeTxn, rangeRoute, keyConflicts(keyConflicts, keyRoute), rangeConflicts)));
                     }
                     catch (Throwable t)
                     {
@@ -231,12 +232,12 @@ public class SimulatedDepsTest extends SimulatedAccordCommandStoreTestBase
                     Ranges partialRange = Ranges.of(rs.nextBoolean() ? left : right);
                     try
                     {
-                        instance.maybeCacheEvict(keys, partialRange);
-                        keyConflicts.add(assertDepsMessage(instance, rs.pick(DepsMessage.values()), keyTxn, keyRoute, keyConflicts(keyConflicts, keys)));
+                        instance.maybeCacheEvict(keyRoute, partialRange);
+                        keyConflicts.add(assertDepsMessage(instance, rs.pick(DepsMessage.values()), keyTxn, keyRoute, keyConflicts(keyConflicts, keyRoute)));
 
                         FullRangeRoute rangeRoute = partialRange.toRoute(pk.toUnseekable());
                         Txn rangeTxn = createTxn(Txn.Kind.ExclusiveSyncPoint, partialRange);
-                        rangeConflicts.get(partialRange.get(0)).add(assertDepsMessage(instance, rs.pick(DepsMessage.values()), rangeTxn, rangeRoute, keyConflicts(keyConflicts, keys), rangeConflicts));
+                        rangeConflicts.get(partialRange.get(0)).add(assertDepsMessage(instance, rs.pick(DepsMessage.values()), rangeTxn, rangeRoute, keyConflicts(keyConflicts, keyRoute), rangeConflicts));
                     }
                     catch (Throwable t)
                     {

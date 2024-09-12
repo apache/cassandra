@@ -31,7 +31,7 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import accord.local.SaveStatus;
+import accord.primitives.SaveStatus;
 import accord.messages.TxnRequest;
 import accord.primitives.Routable;
 import accord.primitives.Txn;

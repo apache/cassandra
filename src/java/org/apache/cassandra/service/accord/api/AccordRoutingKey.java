@@ -34,6 +34,7 @@ import accord.primitives.Range;
 import accord.primitives.RangeFactory;
 import accord.primitives.Ranges;
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -77,6 +78,18 @@ public abstract class AccordRoutingKey extends AccordRoutableKey implements Rout
     public TokenKey asTokenKey()
     {
         return (TokenKey) this;
+    }
+
+    @Override
+    public RoutingKey toUnseekable()
+    {
+        return this;
+    }
+
+    @Override
+    public RoutingKey asRoutingKey()
+    {
+        return asTokenKey();
     }
 
     public static AccordRoutingKey of(Key key)
@@ -264,6 +277,25 @@ public abstract class AccordRoutingKey extends AccordRoutableKey implements Rout
                 TableId table = TableId.deserialize(in);
                 Token token = Token.compactSerializer.deserialize(in, getPartitioner(), version);
                 return new TokenKey(table, token);
+            }
+
+            public TokenKey fromBytes(ByteBuffer bytes, IPartitioner partitioner)
+            {
+                TableId tableId = TableId.deserialize(bytes, ByteBufferAccessor.instance, 0);
+                bytes.position(tableId.serializedSize());
+                Token token = Token.compactSerializer.deserialize(bytes, partitioner);
+                return new TokenKey(tableId, token);
+            }
+
+            public ByteBuffer toBytes(TokenKey tokenKey)
+            {
+                int size = (int) (tokenKey.table.serializedSize() + Token.compactSerializer.serializedSize(tokenKey.token));
+                ByteBuffer out = ByteBuffer.allocate(size);
+                int position = tokenKey.table.serialize(out, ByteBufferAccessor.instance, 0);
+                out.position(position);
+                Token.compactSerializer.serialize(tokenKey.token, out);
+                out.flip();
+                return out;
             }
 
             @Override

@@ -117,11 +117,11 @@ public class RouteIndex implements Index, INotificationConsumer
 
         TableMetadata tableMetadata = baseCfs.metadata();
         Pair<ColumnMetadata, IndexTarget.Type> target = TargetParser.parse(tableMetadata, indexMetadata);
-        if (!AccordKeyspace.CommandsColumns.route.name.equals(target.left.name))
-            throw new IllegalArgumentException("Attempted to index the wrong column; needed " + AccordKeyspace.CommandsColumns.route.name + " but given " + target.left.name);
+        if (!AccordKeyspace.CommandsColumns.participants.name.equals(target.left.name))
+            throw new IllegalArgumentException("Attempted to index the wrong column; needed " + AccordKeyspace.CommandsColumns.participants.name + " but given " + target.left.name);
 
         if (target.right != IndexTarget.Type.VALUES)
-            throw new IllegalArgumentException("Attempted to index " + AccordKeyspace.CommandsColumns.route.name + " with index type " + target.right + "; only " + IndexTarget.Type.VALUES + " is supported");
+            throw new IllegalArgumentException("Attempted to index " + AccordKeyspace.CommandsColumns.participants.name + " with index type " + target.right + "; only " + IndexTarget.Type.VALUES + " is supported");
 
         this.baseCfs = baseCfs;
         this.indexMetadata = indexMetadata;
@@ -383,7 +383,7 @@ public class RouteIndex implements Index, INotificationConsumer
         Integer storeId = null;
         for (RowFilter.Expression e : expressions)
         {
-            if (e.column() == AccordKeyspace.CommandsColumns.route)
+            if (e.column() == AccordKeyspace.CommandsColumns.participants)
             {
                 switch (e.operator())
                 {

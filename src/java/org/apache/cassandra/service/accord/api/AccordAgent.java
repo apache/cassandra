@@ -19,7 +19,6 @@
 package org.apache.cassandra.service.accord.api;
 
 import java.util.concurrent.TimeUnit;
-import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
@@ -35,7 +34,9 @@ import accord.local.Node;
 import accord.local.SafeCommand;
 import accord.local.SafeCommandStore;
 import accord.messages.ReplyContext;
+import accord.primitives.Keys;
 import accord.primitives.Ranges;
+import accord.primitives.Routable;
 import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
@@ -52,7 +53,6 @@ import org.apache.cassandra.net.ResponseContext;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRead;
-import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
@@ -62,7 +62,6 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.config.DatabaseDescriptor.getReadRpcTimeout;
-import static org.apache.cassandra.service.consensus.migration.ConsensusKeyMigrationState.maybeSaveAccordKeyMigrationLocally;
 
 // TODO (expected): merge with AccordService
 public class AccordAgent implements Agent
@@ -100,6 +99,11 @@ public class AccordAgent implements Agent
         throw error;
     }
 
+    public void onSuccessfulBarrier(TxnId id, Seekables<?, ?> keysOrRanges)
+    {
+
+    }
+
     public void onFailedBarrier(TxnId id, Seekables<?, ?> keysOrRanges, Throwable cause)
     {
 
@@ -110,16 +114,6 @@ public class AccordAgent implements Agent
     {
         logger.error("Failed bootstrap at {} for {}", phase, ranges, failure);
         AccordService.instance().scheduler().once(retry, retryBootstrapDelayMicros, MICROSECONDS);
-    }
-
-    @Override
-    public void onLocalBarrier(@Nonnull Seekables<?, ?> keysOrRanges, @Nonnull TxnId txnId)
-    {
-        if (keysOrRanges.domain() == Key)
-        {
-            PartitionKey key = (PartitionKey)keysOrRanges.get(0);
-            maybeSaveAccordKeyMigrationLocally(key, Epoch.create(txnId.epoch()));
-        }
     }
 
     @Override
@@ -136,9 +130,10 @@ public class AccordAgent implements Agent
     }
 
     @Override
-    public void onHandledException(Throwable t)
+    public void onHandledException(Throwable t, String context)
     {
-        // TODO: this
+        logger.warn(context, t);
+        JVMStabilityInspector.uncaughtException(Thread.currentThread(), t);
     }
 
     @Override
@@ -179,9 +174,9 @@ public class AccordAgent implements Agent
      * for tests since it skips validation done by regular transactions.
      */
     @Override
-    public Txn emptySystemTxn(Kind kind, Seekables<?, ?> seekables)
+    public Txn emptySystemTxn(Kind kind, Routable.Domain domain)
     {
-        return new Txn.InMemory(kind, seekables, TxnRead.EMPTY, TxnQuery.UNSAFE_EMPTY, null);
+        return new Txn.InMemory(kind, domain == Key ? Keys.EMPTY : Ranges.EMPTY, TxnRead.EMPTY, TxnQuery.UNSAFE_EMPTY, null);
     }
 
     @Override

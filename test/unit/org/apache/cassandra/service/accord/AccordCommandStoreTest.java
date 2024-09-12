@@ -34,9 +34,10 @@ import accord.api.Result;
 import accord.impl.TimestampsForKey;
 import accord.impl.TimestampsForKeys;
 import accord.local.Command;
+import accord.local.StoreParticipants;
 import accord.local.cfk.CommandsForKey;
 import accord.local.CommonAttributes;
-import accord.local.SaveStatus;
+import accord.primitives.SaveStatus;
 import accord.primitives.Ballot;
 import accord.primitives.PartialDeps;
 import accord.primitives.PartialTxn;
@@ -61,12 +62,13 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.utils.Pair;
 
-import static accord.local.Status.Durability.Majority;
+import static accord.primitives.Status.Durability.Majority;
 import static com.google.common.collect.Iterables.getOnlyElement;
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
 import static org.apache.cassandra.service.accord.AccordTestUtils.Commands.preaccepted;
@@ -125,7 +127,7 @@ public class AccordCommandStoreTest
         PartialTxn txn = createPartialTxn(0);
         Route<?> route = RoutingKeys.of(key.toUnseekable()).toRoute(key.toUnseekable());
         attrs.partialTxn(txn);
-        attrs.route(route);
+        attrs.setParticipants(StoreParticipants.all(route));
         attrs.durability(Majority);
         attrs.partialTxn(txn);
         Ballot promised = ballot(1, clock.incrementAndGet(), 1);
@@ -160,7 +162,7 @@ public class AccordCommandStoreTest
         Timestamp maxTimestamp = timestamp(1, clock.incrementAndGet(), 1);
 
         PartialTxn txn = createPartialTxn(1);
-        PartitionKey key = (PartitionKey) getOnlyElement(txn.keys());
+        TokenKey key = ((PartitionKey) getOnlyElement(txn.keys())).toUnseekable();
         TxnId txnId1 = txnId(1, clock.incrementAndGet(), 1);
         TxnId txnId2 = txnId(1, clock.incrementAndGet(), 1);
 
@@ -170,10 +172,10 @@ public class AccordCommandStoreTest
         AccordSafeTimestampsForKey tfk = new AccordSafeTimestampsForKey(loaded(key, null));
         tfk.initialize();
 
-        TimestampsForKeys.updateLastExecutionTimestamps(commandStore, tfk, txnId1, true);
+        TimestampsForKeys.updateLastExecutionTimestamps(commandStore, tfk, txnId1, txnId1, true);
         Assert.assertEquals(txnId1.hlc(), AccordSafeTimestampsForKey.timestampMicrosFor(tfk.current(), txnId1, true));
 
-        TimestampsForKeys.updateLastExecutionTimestamps(commandStore, tfk, txnId2, true);
+        TimestampsForKeys.updateLastExecutionTimestamps(commandStore, tfk, txnId2, txnId2, true);
         Assert.assertEquals(txnId2.hlc(), AccordSafeTimestampsForKey.timestampMicrosFor(tfk.current(), txnId2, true));
 
         Assert.assertEquals(txnId2, tfk.current().lastExecutedTimestamp());
@@ -200,7 +202,7 @@ public class AccordCommandStoreTest
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
 
         PartialTxn txn = createPartialTxn(1);
-        PartitionKey key = (PartitionKey) getOnlyElement(txn.keys());
+        TokenKey key = ((PartitionKey) getOnlyElement(txn.keys())).toUnseekable();
         TxnId txnId1 = txnId(1, clock.incrementAndGet(), 1);
         TxnId txnId2 = txnId(1, clock.incrementAndGet(), 1);
 

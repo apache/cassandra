@@ -20,6 +20,7 @@ package org.apache.cassandra.service.accord;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -30,9 +31,15 @@ import accord.primitives.TxnId;
 import accord.utils.AccordGens;
 import accord.utils.Gen;
 import accord.utils.Gens;
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.AsymmetricOrdering;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.FBUtilities.Order;
@@ -45,9 +52,20 @@ import static org.assertj.core.api.Assertions.assertThat;
 public class AccordJournalTest
 {
     @BeforeClass
-    public static void setCompatibilityMode()
+    public static void setCompatibilityMode() throws IOException
     {
         CassandraRelevantProperties.TEST_STORAGE_COMPATIBILITY_MODE.setEnum(StorageCompatibilityMode.NONE);
+
+        ServerTestUtils.daemonInitialization();
+        StorageService.instance.registerMBeans();
+        StorageService.instance.setPartitionerUnsafe(Murmur3Partitioner.instance);
+        ServerTestUtils.prepareServerNoRegister();
+
+        File directory = new File(Files.createTempDirectory(null));
+        directory.deleteRecursiveOnExit();
+        DatabaseDescriptor.setAccordJournalDirectory(directory.path());
+        StorageService.instance.initServer();
+        Keyspace.setInitialized();
     }
 
     @Test
@@ -122,6 +140,6 @@ public class AccordJournalTest
     private Gen<JournalKey> keyGen()
     {
         Gen<TxnId> txnIdGen = AccordGens.txnIds();
-        return rs -> new JournalKey(txnIdGen.next(rs));
+        return rs -> new JournalKey(txnIdGen.next(rs), JournalKey.Type.COMMAND_DIFF, -1);
     }
 }

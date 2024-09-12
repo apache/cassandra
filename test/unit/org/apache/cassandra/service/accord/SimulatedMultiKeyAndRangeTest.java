@@ -73,7 +73,7 @@ public class SimulatedMultiKeyAndRangeTest extends SimulatedAccordCommandStoreTe
                 Gen.LongGen tokenGen = tokenDistribution.next(rs);
                 Gen<Domain> domainGen = domainDistribution.next(rs);
                 Gen<DepsMessage> msgGen = msgDistribution.next(rs);
-                Map<Key, List<TxnId>> keyConflicts = new HashMap<>();
+                Map<RoutingKey, List<TxnId>> keyConflicts = new HashMap<>();
                 RangeTree<RoutingKey, Range, TxnId> rangeConflicts = RTree.create(RangeTreeRangeAccessor.instance);
 
                 Gen.IntGen keyCountGen = keyDistribution.next(rs);
@@ -97,13 +97,13 @@ public class SimulatedMultiKeyAndRangeTest extends SimulatedAccordCommandStoreTe
                                 binds.add(42);
                             });
                             Txn txn = createTxn(wrapInTxn(inserts), binds);
-                            FullRoute<?> route = keys.toRoute(keys.get(0).toUnseekable());
+                            FullRoute<RoutingKey> route = keys.toRoute(keys.get(0).toUnseekable());
 
-                            Map<Key, List<TxnId>> expectedConflicts = new HashMap<>();
-                            keys.forEach(k -> expectedConflicts.put(k, keyConflicts.computeIfAbsent(k, ignore -> new ArrayList<>())));
+                            Map<RoutingKey, List<TxnId>> expectedConflicts = new HashMap<>();
+                            route.forEach(k -> expectedConflicts.put(k, keyConflicts.computeIfAbsent(k, ignore -> new ArrayList<>())));
 
                             TxnId id = assertDepsMessage(instance, msgGen.next(rs), txn, route, expectedConflicts, Collections.emptyMap());
-                            keys.forEach(k -> keyConflicts.get(k).add(id));
+                            route.forEach(k -> keyConflicts.get(k).add(id));
                         }
                         break;
                         case Range:
@@ -133,7 +133,7 @@ public class SimulatedMultiKeyAndRangeTest extends SimulatedAccordCommandStoreTe
                             FullRangeRoute route = ranges.toRoute(ranges.get(0).end());
                             Txn txn = createTxn(Txn.Kind.ExclusiveSyncPoint, ranges);
 
-                            Map<Key, List<TxnId>> expectedKeyConflicts = keyConflicts.entrySet().stream()
+                            Map<RoutingKey, List<TxnId>> expectedKeyConflicts = keyConflicts.entrySet().stream()
                                                                                      .filter(e -> ranges.contains(e.getKey()))
                                                                                      .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
                             Map<Range, List<TxnId>> expectedRangeConflicts = new HashMap<>();

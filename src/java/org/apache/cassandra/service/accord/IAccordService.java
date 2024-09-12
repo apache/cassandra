@@ -29,7 +29,7 @@ import javax.annotation.Nullable;
 import com.google.common.collect.ImmutableSet;
 
 import accord.api.BarrierType;
-import accord.local.CommandStores;
+import accord.local.CommandStores.RangesForEpoch;
 import accord.local.DurableBefore;
 import accord.local.Node;
 import accord.local.Node.Id;
@@ -69,16 +69,16 @@ public interface IAccordService
 
     IVerbHandler<? extends Request> verbHandler();
 
-    Seekables barrierWithRetries(Seekables keysOrRanges, long minEpoch, BarrierType barrierType, boolean isForWrite) throws InterruptedException;
+    Seekables<?, ?> barrierWithRetries(Seekables<?, ?> keysOrRanges, long minEpoch, BarrierType barrierType, boolean isForWrite) throws InterruptedException;
 
-    Seekables barrier(@Nonnull Seekables keysOrRanges, long minEpoch, Dispatcher.RequestTime requestTime, long timeoutNanos, BarrierType barrierType, boolean isForWrite);
+    Seekables<?, ?> barrier(@Nonnull Seekables<?, ?> keysOrRanges, long minEpoch, Dispatcher.RequestTime requestTime, long timeoutNanos, BarrierType barrierType, boolean isForWrite);
 
-    default Seekables repairWithRetries(Seekables keysOrRanges, long minEpoch, BarrierType barrierType, boolean isForWrite, List<InetAddressAndPort> allEndpoints) throws InterruptedException
+    default Seekables<?, ?> repairWithRetries(Seekables<?, ?> keysOrRanges, long minEpoch, BarrierType barrierType, boolean isForWrite, List<InetAddressAndPort> allEndpoints) throws InterruptedException
     {
         throw new UnsupportedOperationException();
     }
 
-    Seekables repair(@Nonnull Seekables keysOrRanges, long epoch, Dispatcher.RequestTime requestTime, long timeoutNanos, BarrierType barrierType, boolean isForWrite, List<InetAddressAndPort> allEndpoints);
+    Seekables<?, ?> repair(@Nonnull Seekables<?, ?> keysOrRanges, long epoch, Dispatcher.RequestTime requestTime, long timeoutNanos, BarrierType barrierType, boolean isForWrite, List<InetAddressAndPort> allEndpoints);
 
     default void postStreamReceivingBarrier(ColumnFamilyStore cfs, List<Range<Token>> ranges)
     {
@@ -136,10 +136,10 @@ public interface IAccordService
         static final Supplier<CompactionInfo> NO_OP = () ->  new CompactionInfo(new Int2ObjectHashMap<>(), new Int2ObjectHashMap<>(), DurableBefore.EMPTY);
 
         public final Int2ObjectHashMap<RedundantBefore> redundantBefores;
-        public final Int2ObjectHashMap<CommandStores.RangesForEpoch> ranges;
+        public final Int2ObjectHashMap<RangesForEpoch> ranges;
         public final DurableBefore durableBefore;
 
-        public CompactionInfo(Int2ObjectHashMap<RedundantBefore> redundantBefores, Int2ObjectHashMap<CommandStores.RangesForEpoch> ranges, DurableBefore durableBefore)
+        public CompactionInfo(Int2ObjectHashMap<RedundantBefore> redundantBefores, Int2ObjectHashMap<RangesForEpoch> ranges, DurableBefore durableBefore)
         {
             this.redundantBefores = redundantBefores;
             this.ranges = ranges;

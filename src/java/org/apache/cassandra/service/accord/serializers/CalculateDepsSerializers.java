@@ -23,7 +23,6 @@ import java.io.IOException;
 import accord.messages.CalculateDeps;
 import accord.messages.CalculateDeps.CalculateDepsOk;
 import accord.primitives.Route;
-import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -32,28 +31,25 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 
 public class CalculateDepsSerializers
 {
-    public static final IVersionedSerializer<CalculateDeps> request = new TxnRequestSerializer.WithUnsyncedSerializer<CalculateDeps>()
+    public static final IVersionedSerializer<CalculateDeps> request = new TxnRequestSerializer.WithUnsyncedSerializer<>()
     {
         @Override
         public void serializeBody(CalculateDeps msg, DataOutputPlus out, int version) throws IOException
         {
-            KeySerializers.seekables.serialize(msg.keys, out, version);
             CommandSerializers.timestamp.serialize(msg.executeAt, out, version);
         }
 
         @Override
         public CalculateDeps deserializeBody(DataInputPlus in, int version, TxnId txnId, Route<?> scope, long waitForEpoch, long minEpoch) throws IOException
         {
-            Seekables<?, ?> keys = KeySerializers.seekables.deserialize(in, version);
             Timestamp executeAt = CommandSerializers.timestamp.deserialize(in, version);
-            return CalculateDeps.SerializationSupport.create(txnId, scope, waitForEpoch, minEpoch, keys, executeAt);
+            return CalculateDeps.SerializationSupport.create(txnId, scope, waitForEpoch, minEpoch, executeAt);
         }
 
         @Override
         public long serializedBodySize(CalculateDeps msg, int version)
         {
-            return KeySerializers.seekables.serializedSize(msg.keys, version)
-                   + CommandSerializers.timestamp.serializedSize(msg.executeAt, version);
+            return CommandSerializers.timestamp.serializedSize(msg.executeAt, version);
         }
     };
 
@@ -62,19 +58,19 @@ public class CalculateDepsSerializers
         @Override
         public void serialize(CalculateDepsOk reply, DataOutputPlus out, int version) throws IOException
         {
-            DepsSerializer.partialDeps.serialize(reply.deps, out, version);
+            DepsSerializer.deps.serialize(reply.deps, out, version);
         }
 
         @Override
         public CalculateDepsOk deserialize(DataInputPlus in, int version) throws IOException
         {
-            return new CalculateDepsOk(DepsSerializer.partialDeps.deserialize(in, version));
+            return new CalculateDepsOk(DepsSerializer.deps.deserialize(in, version));
         }
 
         @Override
         public long serializedSize(CalculateDepsOk reply, int version)
         {
-            return DepsSerializer.partialDeps.serializedSize(reply.deps, version);
+            return DepsSerializer.deps.serializedSize(reply.deps, version);
         }
     };
 }

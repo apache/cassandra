@@ -190,7 +190,7 @@ public class TableId implements Comparable<TableId>
         return new TableId(new UUID(in.readLong(), in.readLong()));
     }
 
-    public static <V> TableId deserialize(V src, ValueAccessor<V> accessor, int offset) throws IOException
+    public static <V> TableId deserialize(V src, ValueAccessor<V> accessor, int offset)
     {
         return new TableId(new UUID(accessor.getLong(src, offset), accessor.getLong(src, offset + TypeSizes.LONG_SIZE)));
     }

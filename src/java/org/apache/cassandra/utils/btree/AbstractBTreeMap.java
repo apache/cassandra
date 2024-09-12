@@ -24,6 +24,7 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.NavigableSet;
 import java.util.Set;
 
 import com.google.common.collect.Iterators;
@@ -98,9 +99,9 @@ public abstract class AbstractBTreeMap<K, V> extends AbstractMap<K, V>
         return null;
     }
 
-    private Set<K> keySet = null;
+    private NavigableSet<K> keySet = null;
     @Override
-    public Set<K> keySet()
+    public NavigableSet<K> keySet()
     {
         if (keySet == null)
             keySet = BTreeSet.wrap(BTree.transformAndFilter(tree, (entry) -> ((Map.Entry<K, V>)entry).getKey()), comparator.keyComparator);

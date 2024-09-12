@@ -51,8 +51,8 @@ import org.apache.cassandra.service.accord.serializers.KeySerializers;
 import org.apache.cassandra.service.accord.serializers.ReadDataSerializers;
 import org.apache.cassandra.service.accord.serializers.ReadDataSerializers.ReadDataSerializer;
 
-import static accord.local.SaveStatus.PreApplied;
-import static accord.local.SaveStatus.ReadyToExecute;
+import static accord.primitives.SaveStatus.PreApplied;
+import static accord.primitives.SaveStatus.ReadyToExecute;
 
 public class AccordInteropRead extends ReadData
 {
