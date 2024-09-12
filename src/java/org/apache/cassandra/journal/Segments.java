@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 import accord.utils.Invariants;
@@ -141,6 +142,13 @@ class Segments<K, V>
         for (Segment<K, V> segment : segments.values())
             if (segment.isStatic())
                 into.add(segment.asStatic());
+    }
+
+    void selectStatic(Consumer<StaticSegment<K, V>> into)
+    {
+        for (Segment<K, V> segment : segments.values())
+            if (segment.isStatic())
+                into.accept(segment.asStatic());
     }
 
     /**

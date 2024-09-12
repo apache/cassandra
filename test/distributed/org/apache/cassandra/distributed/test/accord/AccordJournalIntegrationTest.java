@@ -19,16 +19,20 @@
 package org.apache.cassandra.distributed.test.accord;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
 
 public class AccordJournalIntegrationTest extends TestBaseImpl
@@ -36,14 +40,9 @@ public class AccordJournalIntegrationTest extends TestBaseImpl
     @Test
     public void saveLoadSanityCheck() throws Throwable
     {
-        String timeout = "10s";
         try (WithProperties wp = new WithProperties().set(CassandraRelevantProperties.DTEST_ACCORD_JOURNAL_SANITY_CHECK_ENABLED, "true");
              Cluster cluster = init(Cluster.build(1)
                                            .withoutVNodes()
-                                           .withConfig(c -> c
-                                                            .set("read_request_timeout", timeout)
-                                                            .set("transaction_timeout", timeout)
-                                           )
                                            .start()))
         {
             final String TABLE = KEYSPACE + ".test_table";
@@ -84,6 +83,43 @@ public class AccordJournalIntegrationTest extends TestBaseImpl
                 thread.join();
 
             cluster.coordinator(1).execute("SELECT * FROM " + TABLE + " WHERE k = ?;", ConsistencyLevel.SERIAL, 1);
+        }
+    }
+
+    @Test
+    public void memtableStateReloadingTest() throws Throwable
+    {
+        try (Cluster cluster = Cluster.build(1)
+                                      .withoutVNodes()
+                                      .start())
+        {
+            cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': " + 1 + "} AND durable_writes = false;");
+            final String TABLE = KEYSPACE + ".test_table";
+            cluster.schemaChange("CREATE TABLE " + TABLE + " (k int, c int, v int, primary key (k, c)) WITH transactional_mode='full'");
+
+            for (int j = 0; j < 1_000; j++)
+            {
+                cluster.coordinator(1).execute("BEGIN TRANSACTION\n" +
+                                               "INSERT INTO " + TABLE + "(k, c, v) VALUES (?, ?, ?);\n" +
+                                               "COMMIT TRANSACTION",
+                                               ConsistencyLevel.ALL,
+                                               j, j, 1
+                );
+            }
+
+            Object[][] before = cluster.coordinator(1).execute("SELECT * FROM " + TABLE + " WHERE k = ?;", ConsistencyLevel.SERIAL, 1);
+
+            cluster.get(1).runOnInstance(() -> {
+                ((AccordService) AccordService.instance()).journal().closeCurrentSegmentForTesting();
+            });
+            ClusterUtils.stopUnchecked(cluster.get(1));
+            cluster.get(1).startup();
+
+            Object[][] after = cluster.coordinator(1).execute("SELECT * FROM " + TABLE + " WHERE k = ?;", ConsistencyLevel.SERIAL, 1);
+            for (int i = 0; i < before.length; i++)
+            {
+                Assert.assertTrue(Arrays.equals(before[i], after[i]));
+            }
         }
     }
 }

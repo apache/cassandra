@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.service.accord;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -29,6 +30,7 @@ import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ColumnFamilyStore.RefViewFragment;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.EmptyIterators;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.StorageHook;
@@ -37,10 +39,13 @@ import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
+import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -76,16 +81,16 @@ public class AccordJournalTable<K, V>
         this.accordJournalVersion = accordJournalVersion;
     }
 
-    public interface Reader<K>
+    public interface Reader
     {
-        void read(K key, DataInputPlus input, int userVersion) throws IOException;
+        void read(DataInputPlus input, int userVersion) throws IOException;
     }
 
     private abstract class AbstractRecordConsumer implements RecordConsumer<K>
     {
-        protected final Reader<K> reader;
+        protected final Reader reader;
 
-        AbstractRecordConsumer(Reader<K> reader)
+        AbstractRecordConsumer(Reader reader)
         {
             this.reader = reader;
         }
@@ -93,15 +98,7 @@ public class AccordJournalTable<K, V>
         @Override
         public void accept(long segment, int position, K key, ByteBuffer buffer, IntHashSet hosts, int userVersion)
         {
-            try (DataInputBuffer in = new DataInputBuffer(buffer, false))
-            {
-                reader.read(key, in, userVersion);
-            }
-            catch (IOException e)
-            {
-                // can only throw if serializer is buggy
-                throw new RuntimeException(e);
-            }
+            readBuffer(buffer, reader, userVersion);
         }
     }
 
@@ -109,7 +106,7 @@ public class AccordJournalTable<K, V>
     {
         protected LongHashSet visited = null;
 
-        TableRecordConsumer(Reader<K> reader)
+        TableRecordConsumer(Reader reader)
         {
             super(reader);
         }
@@ -139,7 +136,7 @@ public class AccordJournalTable<K, V>
         private final K key;
         private final TableRecordConsumer tableRecordConsumer;
 
-        JournalAndTableRecordConsumer(K key, Reader<K> reader)
+        JournalAndTableRecordConsumer(K key, Reader reader)
         {
             super(reader);
             this.key = key;
@@ -165,7 +162,7 @@ public class AccordJournalTable<K, V>
      * <p>
      * When reading from journal segments, skip descriptors that were read from the table.
      */
-    public void readAll(K key, Reader<K> reader)
+    public void readAll(K key, Reader reader)
     {
         journal.readAll(key, new JournalAndTableRecordConsumer(key, reader));
     }
@@ -195,20 +192,6 @@ public class AccordJournalTable<K, V>
         }
     }
 
-    public static <K> DecoratedKey makePartitionKey(ColumnFamilyStore cfs, K key, KeySupport<K> keySupport, int version)
-    {
-        try (DataOutputBuffer out = new DataOutputBuffer(keySupport.serializedSize(version)))
-        {
-            keySupport.serialize(key, out, version);
-            return cfs.decorateKey(out.buffer(false));
-        }
-        catch (IOException e)
-        {
-            // can only throw if (key) serializer is buggy
-            throw new RuntimeException("Could not serialize key " + key + ", this shouldn't be possible", e);
-        }
-    }
-
     private void readRow(K key, Unfiltered unfiltered, EntryHolder<K> into, RecordConsumer<K> onEntry)
     {
         Invariants.checkState(unfiltered.isRow());
@@ -223,5 +206,168 @@ public class AccordJournalTable<K, V>
         into.userVersion = Int32Type.instance.compose(row.getCell(versionColumn).buffer());
 
         onEntry.accept(descriptor, position, into.key, into.value, into.hosts, into.userVersion);
+    }
+
+    public static <K> DecoratedKey makePartitionKey(ColumnFamilyStore cfs, K key, KeySupport<K> keySupport, int version)
+    {
+        try (DataOutputBuffer out = new DataOutputBuffer(keySupport.serializedSize(version)))
+        {
+            keySupport.serialize(key, out, version);
+            return cfs.decorateKey(out.buffer(false));
+        }
+        catch (IOException e)
+        {
+            // can only throw if (key) serializer is buggy
+            throw new RuntimeException("Could not serialize key " + key + ", this shouldn't be possible", e);
+        }
+    }
+
+    @SuppressWarnings("resource") // Auto-closeable iterator will release related resources
+    public KeyOrderIterator<K> readAll()
+    {
+        return new JournalAndTableKeyIterator();
+    }
+
+    private class TableIterator implements Closeable
+    {
+        private final UnfilteredPartitionIterator mergeIterator;
+        private final RefViewFragment view;
+
+        private UnfilteredRowIterator partition;
+        private LongHashSet visited = null;
+
+        private TableIterator()
+        {
+            view = cfs.selectAndReference(v -> v.select(SSTableSet.LIVE));
+            List<ISSTableScanner> scanners = new ArrayList<>();
+            for (SSTableReader sstable : view.sstables)
+                scanners.add(sstable.getScanner());
+
+            mergeIterator = view.sstables.isEmpty()
+                     ? EmptyIterators.unfilteredPartition(cfs.metadata())
+                     : UnfilteredPartitionIterators.merge(scanners, UnfilteredPartitionIterators.MergeListener.NOOP);
+        }
+
+        public K key()
+        {
+            if (partition == null)
+            {
+                if (mergeIterator.hasNext())
+                    partition = mergeIterator.next();
+                else
+                    return null;
+            }
+
+            return keySupport.deserialize(partition.partitionKey().getKey(), 0, accordJournalVersion);
+        }
+
+        protected void readAllForKey(K key, RecordConsumer<K> recordConsumer)
+        {
+            while (partition.hasNext())
+            {
+                EntryHolder<K> into = new EntryHolder<>();
+                // TODO: use flyweight to avoid allocating extra lambdas?
+                readRow(key, partition.next(), into, (segment, position, key1, buffer, hosts, userVersion) -> {
+                    visit(segment);
+                    recordConsumer.accept(segment, position, key1, buffer, hosts, userVersion);
+                });
+            }
+
+            partition = null;
+        }
+
+        void visit(long segment)
+        {
+            if (visited == null)
+                visited = new LongHashSet();
+            visited.add(segment);
+        }
+
+        boolean visited(long segment)
+        {
+            return visited != null && visited.contains(segment);
+        }
+
+
+        void clear()
+        {
+            visited = null;
+        }
+
+
+        @Override
+        public void close()
+        {
+            mergeIterator.close();
+            view.close();
+        }
+    }
+
+    private class JournalAndTableKeyIterator implements KeyOrderIterator<K>
+    {
+        final TableIterator tableIterator;
+        final Journal<K, V>.StaticSegmentIterator staticSegmentIterator;
+
+        private JournalAndTableKeyIterator()
+        {
+            this.tableIterator = new TableIterator();
+            this.staticSegmentIterator = journal.staticSegmentIterator();
+        }
+
+        @Override
+        public K key()
+        {
+            K tableKey = tableIterator.key();
+            K journalKey = staticSegmentIterator.key();
+            if (tableKey == null)
+                return journalKey;
+            if (journalKey == null || keySupport.compare(tableKey, journalKey) > 0)
+                return journalKey;
+
+            return tableKey;
+        }
+
+        @Override
+        public void readAllForKey(K key, RecordConsumer<K> reader)
+        {
+            K tableKey = tableIterator.key();
+            K journalKey = staticSegmentIterator.key();
+            if (tableKey != null && keySupport.compare(tableKey, key) == 0)
+                tableIterator.readAllForKey(key, reader);
+
+            if (journalKey != null && keySupport.compare(journalKey, key) == 0)
+                staticSegmentIterator.readAllForKey(key, (segment, position, key1, buffer, hosts, userVersion) -> {
+                    if (!tableIterator.visited(segment))
+                        reader.accept(segment, position, key1, buffer, hosts, userVersion);
+                });
+
+            tableIterator.clear();
+        }
+
+        public void close()
+        {
+            tableIterator.close();
+            staticSegmentIterator.close();
+        }
+    }
+
+    public interface KeyOrderIterator<K> extends Closeable
+    {
+        K key();
+        void readAllForKey(K key, RecordConsumer<K> reader);
+        void close();
+    }
+
+    public static void readBuffer(ByteBuffer buffer, Reader reader, int userVersion)
+    {
+        try (DataInputBuffer in = new DataInputBuffer(buffer, false))
+        {
+            reader.read(in, userVersion);
+        }
+        catch (IOException e)
+        {
+            // can only throw if serializer is buggy
+            throw new RuntimeException(e);
+        }
     }
 }

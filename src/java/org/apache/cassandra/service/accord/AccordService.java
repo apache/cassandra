@@ -321,6 +321,7 @@ public class AccordService implements IAccordService, Shutdownable
             as.configurationService().notifyPostCommit(current, current, false);
         }
         instance = as;
+        as.journal().replay();
     }
 
     public static void shutdownServiceAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException

@@ -89,7 +89,7 @@ public class AccordJournalCompactionTest
                 List<ByteBuffer> expected = e.getValue();
 
                 List<ByteBuffer> actual = new ArrayList<>();
-                journalTable.readAll(e.getKey(), (key, in, userVersion) -> actual.add(journal.valueSerializer.deserialize(key, in, userVersion)));
+                journalTable.readAll(e.getKey(), (in, userVersion) -> actual.add(journal.valueSerializer.deserialize(e.getKey(), in, userVersion)));
                 Assert.assertEquals(actual.size(), expected.size());
                 for (int i = 0; i < actual.size(); i++)
                 {

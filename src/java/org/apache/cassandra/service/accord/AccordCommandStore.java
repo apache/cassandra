@@ -32,24 +32,31 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import javax.annotation.Nullable;
 
-import accord.api.Key;
 import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.api.Agent;
 import accord.api.DataStore;
+import accord.api.Key;
 import accord.api.LocalListeners;
 import accord.api.ProgressLog;
-import accord.local.cfk.CommandsForKey;
 import accord.impl.TimestampsForKey;
+import accord.local.Cleanup;
 import accord.local.Command;
 import accord.local.CommandStore;
+import accord.local.CommandStores;
+import accord.local.Commands;
 import accord.local.DurableBefore;
+import accord.local.KeyHistory;
 import accord.local.NodeTimeService;
 import accord.local.PreLoadContext;
 import accord.local.RedundantBefore;
+import accord.local.SafeCommand;
 import accord.local.SafeCommandStore;
+import accord.local.Status;
+import accord.local.cfk.CommandsForKey;
+import accord.primitives.Deps;
 import accord.primitives.Keys;
 import accord.primitives.Ranges;
 import accord.primitives.RoutableKey;
@@ -70,8 +77,15 @@ import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.async.AsyncOperation;
 import org.apache.cassandra.service.accord.events.CacheEvents;
 import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.utils.concurrent.AsyncPromise;
+import org.apache.cassandra.utils.concurrent.Promise;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
+import static accord.local.Status.Applied;
+import static accord.local.Status.Invalidated;
+import static accord.local.Status.PreApplied;
+import static accord.local.Status.Stable;
+import static accord.local.Status.Truncated;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 
 public class AccordCommandStore extends CommandStore implements CacheSize
@@ -267,6 +281,12 @@ public class AccordCommandStore extends CommandStore implements CacheSize
     public CommandsForRangesLoader diskCommandsForRanges()
     {
         return commandsForRangesLoader;
+    }
+
+    public void markShardDurable(SafeCommandStore safeStore, TxnId globalSyncId, Ranges ranges)
+    {
+        store.snapshot();
+        super.markShardDurable(safeStore, globalSyncId, ranges);
     }
 
     @Override
@@ -540,6 +560,46 @@ public class AccordCommandStore extends CommandStore implements CacheSize
         executor.shutdown();
     }
 
+    public void registerHistoricalTransactions(Deps deps, SafeCommandStore safeStore)
+    {
+        // TODO:
+        // journal.registerHistoricalTransactions(id(), deps);
+
+        if (deps.isEmpty()) return;
+
+        CommandStores.RangesForEpoch ranges = safeStore.ranges();
+        // used in places such as accord.local.CommandStore.fetchMajorityDeps
+        // We find a set of dependencies for a range then update CommandsFor to know about them
+        Ranges allRanges = safeStore.ranges().all();
+        deps.keyDeps.keys().forEach(allRanges, key -> {
+            // TODO (now): batch register to minimise GC
+            deps.keyDeps.forEach(key, (txnId, txnIdx) -> {
+                // TODO (desired, efficiency): this can be made more efficient by batching by epoch
+                if (ranges.coordinates(txnId).contains(key))
+                    return; // already coordinates, no need to replicate
+                if (!ranges.allBefore(txnId.epoch()).contains(key))
+                    return;
+
+                safeStore.get(key).registerHistorical(safeStore, txnId);
+            });
+        });
+        for (int i = 0; i < deps.rangeDeps.rangeCount(); i++)
+        {
+            var range = deps.rangeDeps.range(i);
+            if (!allRanges.intersects(range))
+                continue;
+            deps.rangeDeps.forEach(range, txnId -> {
+                // TODO (desired, efficiency): this can be made more efficient by batching by epoch
+                if (ranges.coordinates(txnId).intersects(range))
+                    return; // already coordinates, no need to replicate
+                if (!ranges.allBefore(txnId.epoch()).intersects(range))
+                    return;
+
+                diskCommandsForRanges().mergeHistoricalTransaction(txnId, Ranges.single(range).slice(allRanges), Ranges::with);
+            });
+        }
+    }
+
     protected void setRejectBefore(ReducingRangeMap<Timestamp> newRejectBefore)
     {
         super.setRejectBefore(newRejectBefore);
@@ -588,5 +648,95 @@ public class AccordCommandStore extends CommandStore implements CacheSize
     public Command loadCommand(TxnId txnId)
     {
         return journal.loadCommand(id, txnId);
+    }
+
+    public interface Loader
+    {
+        Promise<?> load(Command next);
+        Promise<?> apply(Command next);
+    }
+
+    public Loader loader()
+    {
+        return new Loader()
+        {
+            private PreLoadContext context(Command command, KeyHistory keyHistory)
+            {
+                TxnId txnId = command.txnId();
+                if (CommandsForKey.manages(txnId))
+                {
+                    Keys keys = (Keys) command.keysOrRanges();
+                    if (keys != null)
+                        return PreLoadContext.contextFor(txnId, keys, keyHistory);
+                }
+                else if (!CommandsForKey.managesExecution(txnId) && command.hasBeen(Status.Stable) && !command.hasBeen(Status.Truncated))
+                {
+                    Keys keys = command.asCommitted().waitingOn.keys;
+                    if (!keys.isEmpty())
+                        return PreLoadContext.contextFor(txnId, keys, keyHistory);
+                }
+
+                return PreLoadContext.contextFor(txnId);
+            }
+
+            public Promise<?> load(Command command)
+            {
+                TxnId txnId = command.txnId();
+
+                AsyncPromise<?> future = new AsyncPromise<>();
+                execute(context(command, KeyHistory.COMMANDS),
+                        safeStore -> {
+                            Command local = command;
+                            if (local.status() != Truncated && local.status() != Invalidated)
+                            {
+                                Cleanup cleanup = Cleanup.shouldCleanup(AccordCommandStore.this, local, null, local.route(), false);
+                                switch (cleanup)
+                                {
+                                    case NO:
+                                        break;
+                                    case INVALIDATE:
+                                    case TRUNCATE_WITH_OUTCOME:
+                                    case TRUNCATE:
+                                    case ERASE:
+                                        local = Commands.purge(local, local.route(), cleanup);
+                                }
+                            }
+
+                            local = safeStore.unsafeGet(txnId).update(safeStore, local);
+                            if (local.status() == Truncated)
+                                safeStore.progressLog().clear(local.txnId());
+                        })
+                .begin((unused, throwable) -> {
+                    if (throwable != null)
+                        future.setFailure(throwable);
+                    else
+                        future.setSuccess(null);
+                });
+                return future;
+            }
+
+            public Promise<?> apply(Command command)
+            {
+                TxnId txnId = command.txnId();
+
+                AsyncPromise<?> future = new AsyncPromise<>();
+                execute(context(command, KeyHistory.TIMESTAMPS),
+                         safeStore -> {
+                             SafeCommand safeCommand = safeStore.unsafeGet(txnId);
+                             Command local = safeCommand.current();
+                             if (local.is(Stable) && !local.hasBeen(Applied))
+                                 Commands.maybeExecute(safeStore, safeCommand, local, true, true);
+                             else if (local.hasBeen(PreApplied) && !local.is(Invalidated) && !local.is(Truncated))
+                                 Commands.applyWrites(safeStore, local).begin(agent);
+                         })
+                .begin((unused, throwable) -> {
+                    if (throwable != null)
+                        future.setFailure(throwable);
+                    else
+                        future.setSuccess(null);
+                });
+                return future;
+            }
+        };
     }
 }

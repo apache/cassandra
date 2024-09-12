@@ -20,6 +20,7 @@ package org.apache.cassandra.service.accord;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -45,6 +46,7 @@ import org.apache.cassandra.concurrent.Interruptible;
 import org.apache.cassandra.concurrent.ManyToOneConcurrentLinkedQueue;
 import org.apache.cassandra.concurrent.Shutdownable;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.File;
@@ -59,6 +61,7 @@ import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.concurrent.Condition;
 
+import static accord.local.Status.PreApplied;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.SimulatorSafe.SAFE;
 import static org.apache.cassandra.concurrent.Interruptible.State.NORMAL;
@@ -195,7 +198,7 @@ public class AccordJournal implements IJournal, Shutdownable
     {
         JournalKey key = new JournalKey(txnId, commandStoreId);
         SavedCommand.Builder builder = new SavedCommand.Builder();
-        journalTable.readAll(key, (ignore, in, userVersion) -> builder.deserializeNext(in, userVersion));
+        journalTable.readAll(key, builder::deserializeNext);
         return builder;
     }
 
@@ -470,4 +473,61 @@ public class AccordJournal implements IJournal, Shutdownable
     {
         journal.truncateForTesting();
     }
+
+    @VisibleForTesting
+    public void replay()
+    {
+        // TODO: optimize replay memory footprint
+        class ToApply
+        {
+            final JournalKey key;
+            final Command command;
+
+            ToApply(JournalKey key, Command command)
+            {
+                this.key = key;
+                this.command = command;
+            }
+        }
+
+        List<ToApply> toApply = new ArrayList<>();
+        try (AccordJournalTable.KeyOrderIterator<JournalKey> iter = journalTable.readAll())
+        {
+            JournalKey key = null;
+            final SavedCommand.Builder builder = new SavedCommand.Builder();
+            while ((key = iter.key()) != null)
+            {
+                JournalKey finalKey = key;
+                iter.readAllForKey(key, (segment, position, local, buffer, hosts, userVersion) -> {
+                    Invariants.checkState(finalKey.equals(local));
+                    try (DataInputBuffer in = new DataInputBuffer(buffer, false))
+                    {
+                        builder.deserializeNext(in, userVersion);
+                    }
+                    catch (IOException e)
+                    {
+                        // can only throw if serializer is buggy
+                        throw new RuntimeException(e);
+                    }
+                });
+
+                Command command = builder.construct();
+                AccordCommandStore commandStore = (AccordCommandStore) node.commandStores().forId(key.commandStoreId);
+                commandStore.loader().load(command).get();
+                if (command.hasBeen(PreApplied))
+                    toApply.add(new ToApply(key, command));
+            }
+        }
+        catch (Throwable t)
+        {
+            throw new RuntimeException("Can not replay journal.", t);
+        }
+        toApply.sort(Comparator.comparing(v -> v.command.executeAt()));
+        for (ToApply apply : toApply)
+        {
+            AccordCommandStore commandStore = (AccordCommandStore) node.commandStores().forId(apply.key.commandStoreId);
+            commandStore.loader().apply(apply.command);
+        }
+    }
+
 }

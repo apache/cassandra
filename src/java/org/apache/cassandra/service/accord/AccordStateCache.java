@@ -379,6 +379,25 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
             return safeRefFactory.apply(acquireExisting(node, false));
         }
 
+
+        public void maybeLoad(K key, V initial)
+        {
+            AccordCachingState<K, V> node = (AccordCachingState<K, V>) cache.get(key);
+            if (node == null)
+            {
+                node = nodeFactory.create(key, index);
+                node.initialize(initial);
+                Object prev = cache.put(key, node);
+                Invariants.checkState(prev == null, "%s not absent from cache: %s already present", key, node);
+                if (listeners != null)
+                {
+                    AccordCachingState<K, V> finalNode = node;
+                    listeners.forEach(l -> l.onAdd(finalNode));
+                }
+                maybeUpdateSize(node, heapEstimator);
+            }
+        }
+
         public S acquire(K key)
         {
             AccordCachingState<K, V> node = acquire(key, false);
