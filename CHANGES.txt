@@ -1,4 +1,5 @@
 5.1
+ * Fix incorrect nodetool suggestion when gossip mode is running (CASSANDRA-19905)
  * SAI support for BETWEEN operator (CASSANDRA-19688)
  * Fix BETWEEN filtering for reversed clustering columns (CASSANDRA-19878)
  * Retry if node leaves CMS while committing a transformation (CASSANDRA-19872)
