@@ -29,7 +29,7 @@ public class GcStatsPrinter
     /**
      * Factory method to get a printer based on the format.
      *
-     * @param format The desired output format (e.g., json).
+     * @param format The desired output format (e.g., json, yaml).
      * @return A StatsPrinter appropriate for the format.
      */
     public static StatsPrinter from(String format)
@@ -38,6 +38,8 @@ public class GcStatsPrinter
         {
             case "json":
                 return new StatsPrinter.JsonPrinter();
+            case "yaml":
+                return new StatsPrinter.YamlPrinter();
             default:
                 return new DefaultPrinter();
         }

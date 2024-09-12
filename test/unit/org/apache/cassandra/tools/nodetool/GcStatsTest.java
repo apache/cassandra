@@ -32,13 +32,10 @@ import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.Assert.*;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/**
- * Unit tests for GcStats command.
- */
 public class GcStatsTest
 {
     private NodeProbe nodeProbe;
@@ -79,7 +76,7 @@ public class GcStatsTest
                         "\n" +
                         "OPTIONS\n" +
                         "        -F <format>, --format <format>\n" +
-                        "            Output format (json)\n" +
+                        "            Output format (json, yaml)\n" +
                         "\n" +
                         "        -h <host>, --host <host>\n" +
                         "            Node hostname or ip address\n" +
@@ -116,14 +113,13 @@ public class GcStatsTest
         // Verify that output contains the expected headers and values using assertThat
         String output = outContent.toString();
 
-        assertThat(output)
-                .contains("Interval (ms)")
-                .contains("Max GC Elapsed (ms)")
-                .contains("Total GC Elapsed (ms)")
-                .contains("Stdev GC Elapsed (ms)")
-                .contains("GC Reclaimed (MB)")
-                .contains("Collections")
-                .contains("Direct Memory Bytes");
+        assertThat(output).contains("Interval (ms)");
+        assertThat(output).contains("Max GC Elapsed (ms)");
+        assertThat(output).contains("Total GC Elapsed (ms)");
+        assertThat(output).contains("Stdev GC Elapsed (ms)");
+        assertThat(output).contains("GC Reclaimed (MB)");
+        assertThat(output).contains("Collections");
+        assertThat(output).contains("Direct Memory Bytes");
 
         // Verify that NaN values are handled correctly, or actual values appear
         if (output.contains("NaN"))
@@ -132,17 +128,16 @@ public class GcStatsTest
         }
         else
         {
-            assertThat(output).contains("500")  // Interval (ms)
-                    .contains("100")  // Max GC Elapsed (ms)
-                    .contains("245")  // Total GC Elapsed (ms)
-                    .contains("300")  // Stdev GC Elapsed (ms)
-                    .contains("1024"); // Direct Memory Bytes
+            assertThat(output).contains("500");  // Interval (ms)
+            assertThat(output).contains("100");  // Max GC Elapsed (ms)
+            assertThat(output).contains("245");  // Total GC Elapsed (ms)
+            assertThat(output).contains("300");  // Stdev GC Elapsed (ms)
+            assertThat(output).contains("1024"); // Direct Memory Bytes
         }
     }
 
     @Test
-    public void testJsonGcStatsOutput() throws Exception
-    {
+    public void testJsonGcStatsOutput() throws Exception {
         // Initialize GcStats with the mock NodeProbe
         GcStatsHolder gcStatsHolder = new GcStatsHolder(nodeProbe);
         StatsPrinter jsonPrinter = GcStatsPrinter.from("json");
@@ -170,6 +165,37 @@ public class GcStatsTest
         assertThat(rootNode.get("max_gc_elapsed_ms").asInt()).isEqualTo(100);
         assertThat(rootNode.get("total_gc_elapsed_ms").asInt()).isEqualTo(245);
         assertThat(rootNode.get("direct_memory_bytes").asInt()).isEqualTo(1024);
+
+        // Check if stdev_gc_elapsed_ms is NaN
+        if (rootNode.get("stdev_gc_elapsed_ms").asText().equals("NaN")) {
+            assertThat(rootNode.get("stdev_gc_elapsed_ms").asText().equals("NaN")).isTrue();
+        } else {
+            assertThat(rootNode.get("stdev_gc_elapsed_ms").asInt()).isEqualTo(300);
+        }
+    }
+
+    @Test
+    public void testYamlGcStatsOutput() throws Exception
+    {
+        GcStatsHolder gcStatsHolder = new GcStatsHolder(nodeProbe);
+        StatsPrinter yamlPrinter = GcStatsPrinter.from("yaml");
+
+        yamlPrinter.print(gcStatsHolder, outStream);
+
+        String yamlOutput = outContent.toString();
+
+        assertThat(yamlOutput).contains("interval_ms: 500.0");
+        assertThat(yamlOutput).contains("max_gc_elapsed_ms: 100.0");
+        assertThat(yamlOutput).contains("total_gc_elapsed_ms: 245.0");
+        assertThat(yamlOutput).contains("gc_reclaimed_mb: 100.0");
+        assertThat(yamlOutput).contains("collections: 10.0");
+        assertThat(yamlOutput).contains("direct_memory_bytes: 1024");
+
+        if (yamlOutput.contains("stdev_gc_elapsed_ms: .NaN")) {
+            assertThat(yamlOutput).contains("stdev_gc_elapsed_ms: .NaN");
+        } else {
+            assertThat(yamlOutput).contains("stdev_gc_elapsed_ms: 300.0");
+        }
     }
 
     @Test
@@ -181,15 +207,7 @@ public class GcStatsTest
         java.lang.reflect.Field outputFormatField = GcStats.class.getDeclaredField("outputFormat");
         outputFormatField.setAccessible(true);
         outputFormatField.set(gcStats, "invalid_format");
-
-        try
-        {
-            gcStats.execute(nodeProbe);
-            fail("Expected IllegalArgumentException for invalid format");
-        }
-        catch (IllegalArgumentException e)
-        {
-            assertEquals("arguments for -F are json only.", e.getMessage());
-        }
+        assertThatExceptionOfType(IllegalArgumentException.class).isThrownBy(() -> gcStats.execute(nodeProbe))
+                                                                 .withMessage("arguments for -F are json, yaml only.");
     }
 }
