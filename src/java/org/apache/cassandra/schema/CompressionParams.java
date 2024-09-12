@@ -26,7 +26,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableMap;
@@ -35,16 +34,14 @@ import org.apache.commons.lang3.builder.HashCodeBuilder;
 
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.InheritingClass;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.io.compress.DeflateCompressor;
 import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.compress.LZ4Compressor;
 import org.apache.cassandra.io.compress.NoopCompressor;
-import org.apache.cassandra.io.compress.SnappyCompressor;
-import org.apache.cassandra.io.compress.ZstdCompressor;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
@@ -72,9 +69,6 @@ public final class CompressionParams
     public static final String ENABLED = "enabled";
     public static final String MIN_COMPRESS_RATIO = "min_compress_ratio";
 
-    /**
-     * A compressor that does nothing
-     */
     public static final CompressionParams NOOP = new CompressionParams(NoopCompressor.create(emptyMap()),
                                                                        // 4 KiB is often the underlying disk block size
                                                                        1024 * 4,
@@ -123,45 +117,6 @@ public final class CompressionParams
      */
     private final ImmutableMap<String, String> otherOptions;
 
-    public enum CompressorType
-    {
-        lz4(LZ4Compressor.class.getName(), LZ4Compressor::create),
-        noop(NoopCompressor.class.getName(), NoopCompressor::create),
-        snappy(SnappyCompressor.class.getName(), SnappyCompressor::create),
-        deflate(DeflateCompressor.class.getName(), DeflateCompressor::create),
-        zstd(ZstdCompressor.class.getName(), ZstdCompressor::create),
-        none(null, (opt) -> null);
-
-        public final String className;
-        final Function<Map<String, String>, ICompressor> creator;
-
-        CompressorType(String className, Function<Map<String, String>, ICompressor> creator)
-        {
-            this.className = className;
-            this.creator = creator;
-        }
-
-        public static CompressorType fromName(String name)
-        {
-            if (name == null)
-                return null;
-
-            for (CompressorType type : CompressorType.values())
-            {
-                if (type.name().equals(name) || Objects.equal(type.className, name))
-                    return type;
-                if (type.className != null && type.className.endsWith('.' + name))
-                    return type;
-            }
-            return null;
-        }
-
-        public ICompressor create(Map<String, String> options)
-        {
-            return creator.apply(options);
-        }
-    }
-
     /**
      * Gets the default compression params for the keyspace.
      * This method accounts for issues when the compression params change for system keyspaces.
@@ -183,7 +138,7 @@ public final class CompressionParams
                 return result;
             }
 
-            ParameterizedClass defaultSSTableCompression = DatabaseDescriptor.getDefaultSSTableCompression();
+            ParameterizedClass defaultSSTableCompression = DatabaseDescriptor.getDefaultSSTableCompressionConfigs().get(InheritingClass.DEFAULT_CONFIGURATION_KEY);
             if (defaultSSTableCompression == null)
                 result = CALCULATED_DEFAULT = DEFAULT;
             else
@@ -229,66 +184,107 @@ public final class CompressionParams
 
     private static CompressionParams fromClassAndOptions(String sstableCompressionClass, Map<String, String> options)
     {
-        boolean enabled;
-        if (sstableCompressionClass == null && options.isEmpty())
-            enabled = false;
+        ParameterizedClass maybeDefaultCompression;
+        if (sstableCompressionClass == null)
+            maybeDefaultCompression = DatabaseDescriptor.getDefaultSSTableCompressionConfigs().get(InheritingClass.DEFAULT_CONFIGURATION_KEY);
         else
-            enabled = removeEnabled(options);
+            maybeDefaultCompression = DatabaseDescriptor.getDefaultSSTableCompressionConfigs().get(sstableCompressionClass);
 
-        final int chunk_length_in_bytes = removeChunkLength(options);
+        String resolvedCompressionClass;
 
-        // figure out how we calculate the max_compressed_length and min_compress_ratio
-        if (options.containsKey(MIN_COMPRESS_RATIO) && options.containsKey(MAX_COMPRESSED_LENGTH))
-            throw new ConfigurationException(format("Can not specify both '%s' and '%s' for the compressor parameters.",
-                                                    MIN_COMPRESS_RATIO, MAX_COMPRESSED_LENGTH));
-
-        // calculate the max_compressed_length and min_compress_ratio
-        int max_compressed_length_in_bytes;
-        double min_compress_ratio;
-        String max_compressed_length_str = options.remove(MAX_COMPRESSED_LENGTH);
-        if (!StringUtils.isBlank(max_compressed_length_str))
+        if (sstableCompressionClass == null)
         {
-            try
-            {
-                max_compressed_length_in_bytes = new DataStorageSpec.IntKibibytesBound(max_compressed_length_str).toBytes();
-                validateMaxCompressedLength(max_compressed_length_in_bytes, chunk_length_in_bytes);
-                min_compress_ratio = CompressionParams.calcMinCompressRatio(chunk_length_in_bytes, max_compressed_length_in_bytes);
-            }
-            catch (IllegalArgumentException e)
-            {
-                throw new ConfigurationException(invalidValue(MAX_COMPRESSED_LENGTH, e.getMessage(), max_compressed_length_str));
-            }
+            resolvedCompressionClass = maybeDefaultCompression.class_name;
         }
         else
         {
-            min_compress_ratio = removeMinCompressRatio(options);
-            validateMinCompressRatio(min_compress_ratio);
-            max_compressed_length_in_bytes = CompressionParams.calcMaxCompressedLength(chunk_length_in_bytes, min_compress_ratio);
-        }
-
-        CompressorType compressorType = CompressorType.fromName(sstableCompressionClass);
-
-        // if the compressor is not one of the regular ones (e.g. enumerated in ComnpressorType) create a function to build it.
-        Function<Map<String, String>, ICompressor> creator = compressorType != null ? compressorType.creator : (opt) -> {
-            if (sstableCompressionClass != null)
+            if (maybeDefaultCompression == null)
             {
-                return newCompressor(parseCompressorClass(sstableCompressionClass), opt);
+                resolvedCompressionClass = sstableCompressionClass;
             }
             else
             {
-                return newCompressor(parseCompressorClass(defaultParams(null).klass().getName()), opt);
+                if (!validCompressorClass(sstableCompressionClass))
+                {
+                    if (!validCompressorClass(maybeDefaultCompression.class_name))
+                        throw new ConfigurationException("Unable to instantiate");
+                    else
+                        resolvedCompressionClass = maybeDefaultCompression.class_name;
+                }
+                else
+                {
+                    resolvedCompressionClass = sstableCompressionClass;
+                }
             }
-        };
+        }
+
         try
         {
-            CompressionParams cp = new CompressionParams(enabled ? creator.apply(options) : null, chunk_length_in_bytes, max_compressed_length_in_bytes, min_compress_ratio, options);
-            if (enabled && compressorType != CompressorType.none)
+            boolean enabled;
+            if (sstableCompressionClass == null && options.isEmpty())
+                enabled = false;
+            else
+                enabled = removeEnabled(options);
+
+            if (enabled && maybeDefaultCompression != null && resolvedCompressionClass.equals(maybeDefaultCompression.class_name) && options.isEmpty())
             {
-                ICompressor compressor = cp.sstableCompressor;
-                if (compressor == null)
-                    throw new ConfigurationException(format("'%s' is not a valid compressor class name for the 'class' option.", sstableCompressionClass));
-                else
-                    checkCompressorOptions(compressor, options.keySet());
+                options.putAll(maybeDefaultCompression.parameters);
+                enabled = removeEnabled(options);
+            }
+
+            Class<?> compressorClass = parseCompressorClass(resolvedCompressionClass);
+
+            int chunk_length_in_bytes = removeChunkLength(options);
+
+            // figure out how we calculate the max_compressed_length and min_compress_ratio
+            if (options.containsKey(MIN_COMPRESS_RATIO) && options.containsKey(MAX_COMPRESSED_LENGTH))
+                throw new ConfigurationException(format("Can not specify both '%s' and '%s' for the compressor parameters.",
+                                                        MIN_COMPRESS_RATIO, MAX_COMPRESSED_LENGTH));
+
+            // calculate the max_compressed_length and min_compress_ratio
+            int max_compressed_length_in_bytes;
+            double min_compress_ratio;
+            String max_compressed_length_str = options.remove(MAX_COMPRESSED_LENGTH);
+            if (!StringUtils.isBlank(max_compressed_length_str))
+            {
+                try
+                {
+                    max_compressed_length_in_bytes = new DataStorageSpec.IntKibibytesBound(max_compressed_length_str).toBytes();
+                    validateMaxCompressedLength(max_compressed_length_in_bytes, chunk_length_in_bytes);
+                    min_compress_ratio = CompressionParams.calcMinCompressRatio(chunk_length_in_bytes, max_compressed_length_in_bytes);
+                }
+                catch (IllegalArgumentException e)
+                {
+                    throw new ConfigurationException(invalidValue(MAX_COMPRESSED_LENGTH, e.getMessage(), max_compressed_length_str));
+                }
+            }
+            else
+            {
+                min_compress_ratio = removeMinCompressRatio(options);
+                validateMinCompressRatio(min_compress_ratio);
+                max_compressed_length_in_bytes = CompressionParams.calcMaxCompressedLength(chunk_length_in_bytes, min_compress_ratio);
+            }
+
+            ICompressor compressor = newCompressor(compressorClass, options);
+
+            CompressionParams cp;
+            if (enabled)
+            {
+                checkCompressorOptions(compressor, options.keySet());
+
+                cp = new CompressionParams(compressor,
+                                           chunk_length_in_bytes,
+                                           max_compressed_length_in_bytes,
+                                           min_compress_ratio,
+                                           options);
+            }
+            else
+            {
+                cp = new CompressionParams(null,
+                                           chunk_length_in_bytes,
+                                           max_compressed_length_in_bytes,
+                                           min_compress_ratio,
+                                           options);
             }
 
             cp.validate();
@@ -391,7 +387,7 @@ public final class CompressionParams
 
     public Class<? extends ICompressor> klass()
     {
-        return sstableCompressor.getClass();
+        return sstableCompressor == null ? null : sstableCompressor.getClass();
     }
 
     /**
@@ -434,6 +430,21 @@ public final class CompressionParams
         return maxCompressedLength;
     }
 
+    private static boolean validCompressorClass(String className)
+    {
+        className = className.contains(".") ? className : "org.apache.cassandra.io.compress." + className;
+
+        try
+        {
+            Class.forName(className);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            return false;
+        }
+    }
+
     private static Class<?> parseCompressorClass(String className) throws ConfigurationException
     {
         if (className == null || className.isEmpty())
@@ -468,7 +479,7 @@ public final class CompressionParams
     private static Map<String, String> copyOptions(Map<String, String> co)
     {
         if (co == null || co.isEmpty())
-            return emptyMap();
+            return new HashMap<>();
 
         return new HashMap<>(co);
     }

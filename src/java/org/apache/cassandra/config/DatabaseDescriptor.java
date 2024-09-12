@@ -62,6 +62,7 @@ import com.google.common.collect.Sets;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.RateLimiter;
+
 import org.apache.cassandra.utils.Pair;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -252,6 +253,8 @@ public class DatabaseDescriptor
     private static Function<CommitLog, AbstractCommitLogSegmentManager> commitLogSegmentMgrProvider = c -> DatabaseDescriptor.isCDCEnabled()
                                                                                                            ? new CommitLogSegmentManagerCDC(c, DatabaseDescriptor.getCommitLogLocation())
                                                                                                            : new CommitLogSegmentManagerStandard(c, DatabaseDescriptor.getCommitLogLocation());
+
+    private static Map<String, ParameterizedClass> defaultSSTableCompressionConfigs = new HashMap<>();
 
     public static void daemonInitialization() throws ConfigurationException
     {
@@ -1642,28 +1645,25 @@ public class DatabaseDescriptor
 
     private static void applySSTableConfig(Iterable<SSTableFormat.Factory> factories, Config.SSTableConfig sstableConfig)
     {
-        String defaultCompression = sstableConfig.default_compression;
-        if (defaultCompression != null)
+        InheritingClass defaultParameterizedClass = new InheritingClass(null, CompressionParams.DEFAULT.klass().getName(), CompressionParams.DEFAULT.getOtherOptions());
+
+        if (sstableConfig.compression == null || sstableConfig.compression.configurations == null)
+            setDefaultSSTableCompressionConfigs(ImmutableMap.of(InheritingClass.DEFAULT_CONFIGURATION_KEY, defaultParameterizedClass));
+        else
+            setDefaultSSTableCompressionConfigs(InheritingClass.expandDefinitions(conf.sstable.compression.configurations, defaultParameterizedClass));
+
+        // validate in advance and fail as fast as possible by ensuring that all compression configurations are correct
+        for (Map.Entry<String, ParameterizedClass> defaultCompression : DatabaseDescriptor.getDefaultSSTableCompressionConfigs().entrySet())
         {
-            CompressionParams.CompressorType compressorType = CompressionParams.CompressorType.fromName(defaultCompression);
             try
             {
-                if (compressorType != null)
-                {
-                    CompressionParams.fromParameterizedClass(new ParameterizedClass(compressorType.name(),
-                                                                                    sstableConfig.compression.getOrDefault(compressorType.name(),
-                                                                                                                           new HashMap<>())));
-                }
-                else
-                {
-                    CompressionParams.fromParameterizedClass(new ParameterizedClass(defaultCompression,
-                                                                                    sstableConfig.compression.getOrDefault(defaultCompression,
-                                                                                                                           new HashMap<>())));
-                }
+                CompressionParams.fromParameterizedClass(defaultCompression.getValue());
             }
-            catch (ConfigurationException ex)
+            catch (Exception ex)
             {
-                throw new ConfigurationException(String.format("Invalid configuration of sstable default compression: %s", ex.getMessage()));
+                throw new ConfigurationException(String.format("Invalid configuration of a default compressor under name %s: %s",
+                                                               defaultCompression.getKey(),
+                                                               ex.getMessage()));
             }
         }
 
@@ -2865,18 +2865,14 @@ public class DatabaseDescriptor
         conf.flush_compression = compression;
     }
 
-    public static ParameterizedClass getDefaultSSTableCompression()
+    public static Map<String, ParameterizedClass> getDefaultSSTableCompressionConfigs()
     {
-        String defaultCompression = conf.sstable.default_compression;
+        return defaultSSTableCompressionConfigs;
+    }
 
-        if (defaultCompression == null)
-            return null;
-
-        Map<String, String> params = conf.sstable.compression.get(defaultCompression);
-        if (params == null)
-            params = new HashMap<>();
-
-        return new ParameterizedClass(defaultCompression, params);
+    public static void setDefaultSSTableCompressionConfigs(Map<String, ParameterizedClass> configs)
+    {
+        defaultSSTableCompressionConfigs = configs;
     }
 
    /**

@@ -31,6 +31,7 @@ import java.util.function.Function;
 import org.junit.Test;
 
 import org.apache.cassandra.config.ParameterizedClass;
+import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.compress.DeflateCompressor;
@@ -51,10 +52,9 @@ import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
-public class CompressionParamsTest
+public class CompressionParamsTest extends CQLTester
 {
     private static ParameterizedClass emptyParameterizedClass()
     {
@@ -125,7 +125,7 @@ public class CompressionParamsTest
         chunkLengthTest(options.parameters::put, options.parameters::remove, CompressionParams::fromParameterizedClass, options);
 
         Map<String, String> map = new HashMap<String, String>();
-        map.put(CLASS, "lz4");
+        map.put(CLASS, LZ4Compressor.class.getName());
         Consumer<String> remove = map::remove;
         chunkLengthTest(map::put, remove, CompressionParams::fromMap, map);
     }
@@ -165,7 +165,7 @@ public class CompressionParamsTest
         minCompressRatioTest(options.parameters::put, CompressionParams::fromParameterizedClass, options);
 
         Map<String, String> map = new HashMap<>();
-        map.put(CLASS, "lz4");
+        map.put(CLASS, LZ4Compressor.class.getName());
         minCompressRatioTest(map::put, CompressionParams::fromMap, map);
     }
 
@@ -198,7 +198,7 @@ public class CompressionParamsTest
         maxCompressedLengthTest(options.parameters::put, CompressionParams::fromParameterizedClass, options);
 
         Map<String, String> map = new HashMap<>();
-        map.put(CLASS, "lz4");
+        map.put(CLASS, LZ4Compressor.class.getName());
         maxCompressedLengthTest(map::put, CompressionParams::fromMap, map);
     }
 
@@ -212,7 +212,7 @@ public class CompressionParamsTest
                                                                .withMessage("Can not specify both 'min_compress_ratio' and 'max_compressed_length' for the compressor parameters.");
 
         Map<String, String> map = new HashMap<>();
-        map.put(CLASS, "lz4");
+        map.put(CLASS, LZ4Compressor.class.getName());
         map.put(MIN_COMPRESS_RATIO, "1.0");
         map.put(CompressionParams.MAX_COMPRESSED_LENGTH, "4Gib");
         assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> CompressionParams.fromMap(map))
@@ -290,7 +290,7 @@ public class CompressionParamsTest
     public void fromMapTest()
     {
         // chunk length < 0
-        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> CompressionParams.fromMap(new HashMap<String, String>()
+        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> CompressionParams.fromMap(new HashMap<>()
                                                                {{
                                                                    put(CLASS, TestCompressor.class.getName());
                                                                    put(CHUNK_LENGTH_IN_KB, "-1");
@@ -299,7 +299,7 @@ public class CompressionParamsTest
                                                                .withMessage(format("Invalid '%s' value for the 'compression' option.  May not be <= 0: -1", CHUNK_LENGTH_IN_KB));
 
         // chunk length = 0
-        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> CompressionParams.fromMap(new HashMap<String, String>()
+        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> CompressionParams.fromMap(new HashMap<>()
                                                                {{
                                                                    put(CLASS, TestCompressor.class.getName());
                                                                    put(CHUNK_LENGTH_IN_KB, "0");
@@ -308,7 +308,7 @@ public class CompressionParamsTest
                                                                .withMessage(format("Invalid '%s' value for the 'compression' option.  May not be <= 0: 0", CHUNK_LENGTH_IN_KB));
 
         // min compress ratio < 0
-        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> CompressionParams.fromMap(new HashMap<String, String>()
+        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> CompressionParams.fromMap(new HashMap<>()
                                                                {{
                                                                    put(CLASS, TestCompressor.class.getName());
                                                                    put(CHUNK_LENGTH_IN_KB, Integer.toString(DEFAULT_CHUNK_LENGTH));
@@ -317,7 +317,7 @@ public class CompressionParamsTest
                                                                .withMessageContaining(format("Invalid '%s' value for the 'compression' option.  Can either be 0 or greater than or equal to 1", MIN_COMPRESS_RATIO));
 
         // 0 < min compress ratio < 1
-        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> CompressionParams.fromMap(new HashMap<String, String>()
+        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> CompressionParams.fromMap(new HashMap<>()
                                                                {{
                                                                    put(CLASS, TestCompressor.class.getName());
                                                                    put(CHUNK_LENGTH_IN_KB, Integer.toString(DEFAULT_CHUNK_LENGTH));
@@ -327,7 +327,7 @@ public class CompressionParamsTest
 
         // max compressed length > chunk length
         int len = 1 << 5;
-        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> CompressionParams.fromMap(new HashMap<String, String>()
+        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> CompressionParams.fromMap(new HashMap<>()
                                                                {{
                                                                    put(CLASS, TestCompressor.class.getName());
                                                                    put(CHUNK_LENGTH_IN_KB, Integer.toString(len));
@@ -367,7 +367,7 @@ public class CompressionParamsTest
     public void lz4Test()
     {
         ParameterizedClass options = emptyParameterizedClass();
-        options.class_name = CompressionParams.CompressorType.lz4.name();
+        options.class_name = LZ4Compressor.class.getName();
         paramsTest(true, LZ4Compressor.class, options.parameters::put, options.parameters::remove, CompressionParams::fromParameterizedClass, options);
 
         options.parameters.clear();
@@ -384,7 +384,7 @@ public class CompressionParamsTest
         paramsTest(true, LZ4Compressor.class, options.parameters::put, options.parameters::remove, CompressionParams::fromParameterizedClass, options);
 
         Map<String, String> map = new HashMap<>();
-        map.put(CLASS, CompressionParams.CompressorType.lz4.name());
+        map.put(CLASS, LZ4Compressor.class.getName());
         paramsTest(true, LZ4Compressor.class, map::put, map::remove, CompressionParams::fromMap, map);
 
         map.clear();
@@ -402,32 +402,10 @@ public class CompressionParamsTest
     }
 
     @Test
-    public void noneTest()
-    {
-        ParameterizedClass options = emptyParameterizedClass();
-        options.class_name = CompressionParams.CompressorType.none.name();
-        paramsTest(false, null, options.parameters::put, options.parameters::remove, CompressionParams::fromParameterizedClass, options);
-
-        options.parameters.clear();
-        options.class_name = CompressionParams.CompressorType.none.name();
-        options.parameters.put("foo", "bar");
-        paramsTest(false, null, options.parameters::put, options.parameters::remove, CompressionParams::fromParameterizedClass, options);
-
-        Map<String, String> map = new HashMap<>();
-        map.put(CompressionParams.ENABLED, "false");
-        paramsTest(false, null, map::put, map::remove, CompressionParams::fromMap, map);
-
-        map.clear();
-        map.put(CompressionParams.ENABLED, "false");
-        map.put(CLASS, "dummy");
-        paramsTest(false, null, map::put, map::remove, CompressionParams::fromMap, map);
-    }
-
-    @Test
     public void noopTest()
     {
         ParameterizedClass options = emptyParameterizedClass();
-        options.class_name = CompressionParams.CompressorType.noop.name();
+        options.class_name = NoopCompressor.class.getName();
         paramsTest(true, NoopCompressor.class, options.parameters::put, options.parameters::remove, CompressionParams::fromParameterizedClass, options);
 
         options.parameters.clear();
@@ -445,7 +423,7 @@ public class CompressionParamsTest
                                                                .withMessageContaining("Unknown compression options: ([foo])");
 
         Map<String, String> map = new HashMap<>();
-        map.put(CLASS, CompressionParams.CompressorType.noop.name());
+        map.put(CLASS, NoopCompressor.class.getName());
         paramsTest(true, NoopCompressor.class, map::put, map::remove, CompressionParams::fromMap, map);
 
         map.clear();
@@ -467,7 +445,7 @@ public class CompressionParamsTest
     public void snappyTest()
     {
         ParameterizedClass options = emptyParameterizedClass();
-        options.class_name = CompressionParams.CompressorType.snappy.name();
+        options.class_name = SnappyCompressor.class.getName();
         paramsTest(true, SnappyCompressor.class, options.parameters::put, options.parameters::remove, CompressionParams::fromParameterizedClass, options);
 
         options.parameters.clear();
@@ -485,7 +463,7 @@ public class CompressionParamsTest
                                                                .withMessageContaining("Unknown compression options: ([foo])");
 
         Map<String, String> map = new HashMap<>();
-        map.put(CLASS, CompressionParams.CompressorType.snappy.name());
+        map.put(CLASS, SnappyCompressor.class.getName());
         paramsTest(true, SnappyCompressor.class, map::put, map::remove, CompressionParams::fromMap, map);
 
         map.clear();
@@ -507,7 +485,7 @@ public class CompressionParamsTest
     public void deflateTest()
     {
         ParameterizedClass options = emptyParameterizedClass();
-        options.class_name = CompressionParams.CompressorType.deflate.name();
+        options.class_name = DeflateCompressor.class.getName();
         paramsTest(true, DeflateCompressor.class, options.parameters::put, options.parameters::remove, CompressionParams::fromParameterizedClass, options);
 
         options.parameters.clear();
@@ -526,7 +504,7 @@ public class CompressionParamsTest
 
 
         Map<String, String> map = new HashMap<>();
-        map.put(CLASS, CompressionParams.CompressorType.deflate.name());
+        map.put(CLASS, DeflateCompressor.class.getName());
         paramsTest(true, DeflateCompressor.class, map::put, map::remove, CompressionParams::fromMap, map);
 
         map.clear();
@@ -548,7 +526,7 @@ public class CompressionParamsTest
     public void zstdTest()
     {
         ParameterizedClass options = emptyParameterizedClass();
-        options.class_name = CompressionParams.CompressorType.zstd.name();
+        options.class_name = ZstdCompressor.class.getName();
         paramsTest(true, ZstdCompressor.class, options.parameters::put, options.parameters::remove, CompressionParams::fromParameterizedClass, options);
 
         options.parameters.clear();
@@ -565,7 +543,7 @@ public class CompressionParamsTest
         paramsTest(true, ZstdCompressor.class, options.parameters::put, options.parameters::remove, CompressionParams::fromParameterizedClass, options);
 
         Map<String, String> map = new HashMap<>();
-        map.put(CLASS, CompressionParams.CompressorType.zstd.name());
+        map.put(CLASS, ZstdCompressor.class.getName());
         paramsTest(true, ZstdCompressor.class, map::put, map::remove, CompressionParams::fromMap, map);
 
         map.clear();
@@ -625,7 +603,7 @@ public class CompressionParamsTest
         params.put("min_compress_ratio", "0.0");
         params.put("max_comrpessed_length", "16KiB");
         params.put("class_specific_parameter", "value");
-        ParameterizedClass parameterizedClass = new ParameterizedClass("lz4", params);
+        ParameterizedClass parameterizedClass = new ParameterizedClass(LZ4Compressor.class.getName(), params);
         assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> CompressionParams.fromParameterizedClass(parameterizedClass))
                                                                .withMessageContaining("Unknown compression options:")
                                                                .withMessageContaining("class_specific_parameter")
@@ -644,59 +622,28 @@ public class CompressionParamsTest
         params.put(CompressionParams.ENABLED, "true");
         params.put(CHUNK_LENGTH_IN_KB, "16");
         params.put(MIN_COMPRESS_RATIO, "0.0");
-        ParameterizedClass parameterizedClass = new ParameterizedClass("lz4", params);
+        ParameterizedClass parameterizedClass = new ParameterizedClass(LZ4Compressor.class.getName(), params);
         Map<String, String> map = CompressionParams.fromParameterizedClass(parameterizedClass).asMap();
         assertEquals("16", map.remove(CHUNK_LENGTH_IN_KB));
-        assertEquals(CompressionParams.CompressorType.lz4.className, map.remove(CLASS));
+        assertEquals(LZ4Compressor.class.getName(), map.remove(CLASS));
         assertTrue(map.isEmpty());
 
         params.put(MIN_COMPRESS_RATIO, "1.5");
-        parameterizedClass = new ParameterizedClass("lz4", params);
+        parameterizedClass = new ParameterizedClass(LZ4Compressor.class.getName(), params);
         map = CompressionParams.fromParameterizedClass(parameterizedClass).asMap();
         assertEquals("16", map.remove(CHUNK_LENGTH_IN_KB));
-        assertEquals(CompressionParams.CompressorType.lz4.className, map.remove(CLASS));
+        assertEquals(LZ4Compressor.class.getName(), map.remove(CLASS));
         assertEquals("1.5", map.remove(MIN_COMPRESS_RATIO));
         assertTrue(map.isEmpty());
 
         params.put(LZ4Compressor.LZ4_COMPRESSOR_TYPE, LZ4Compressor.LZ4_FAST_COMPRESSOR);
-        parameterizedClass = new ParameterizedClass("lz4", params);
+        parameterizedClass = new ParameterizedClass(LZ4Compressor.class.getName(), params);
         map = CompressionParams.fromParameterizedClass(parameterizedClass).asMap();
         assertEquals("16", map.remove(CHUNK_LENGTH_IN_KB));
-        assertEquals(CompressionParams.CompressorType.lz4.className, map.remove(CLASS));
+        assertEquals(LZ4Compressor.class.getName(), map.remove(CLASS));
         assertEquals("1.5", map.remove(MIN_COMPRESS_RATIO));
         assertEquals(LZ4Compressor.LZ4_FAST_COMPRESSOR, map.remove(LZ4Compressor.LZ4_COMPRESSOR_TYPE));
         assertTrue(map.isEmpty());
-    }
-
-    @Test
-    public void testCompressorType() {
-        assertEquals(CompressionParams.CompressorType.lz4, CompressionParams.CompressorType.fromName("lz4"));
-        assertEquals(CompressionParams.CompressorType.lz4, CompressionParams.CompressorType.fromName(LZ4Compressor.class.getName()));
-        assertEquals(CompressionParams.CompressorType.lz4, CompressionParams.CompressorType.fromName("LZ4Compressor"));
-
-        assertEquals(CompressionParams.CompressorType.noop, CompressionParams.CompressorType.fromName("noop"));
-        assertEquals(CompressionParams.CompressorType.noop, CompressionParams.CompressorType.fromName(NoopCompressor.class.getName()));
-        assertEquals(CompressionParams.CompressorType.noop, CompressionParams.CompressorType.fromName("NoopCompressor"));
-
-        assertEquals(CompressionParams.CompressorType.snappy, CompressionParams.CompressorType.fromName("snappy"));
-        assertEquals(CompressionParams.CompressorType.snappy, CompressionParams.CompressorType.fromName(SnappyCompressor.class.getName()));
-        assertEquals(CompressionParams.CompressorType.snappy, CompressionParams.CompressorType.fromName("SnappyCompressor"));
-
-        assertEquals(CompressionParams.CompressorType.deflate, CompressionParams.CompressorType.fromName("deflate"));
-        assertEquals(CompressionParams.CompressorType.deflate, CompressionParams.CompressorType.fromName(DeflateCompressor.class.getName()));
-        assertEquals(CompressionParams.CompressorType.deflate, CompressionParams.CompressorType.fromName("DeflateCompressor"));
-
-        assertEquals(CompressionParams.CompressorType.zstd, CompressionParams.CompressorType.fromName("zstd"));
-        assertEquals(CompressionParams.CompressorType.zstd, CompressionParams.CompressorType.fromName(ZstdCompressor.class.getName()));
-        assertEquals(CompressionParams.CompressorType.zstd, CompressionParams.CompressorType.fromName("ZstdCompressor"));
-
-        assertEquals(CompressionParams.CompressorType.none, CompressionParams.CompressorType.fromName("none"));
-
-        // show that invalid names return null
-        assertNull(CompressionParams.CompressorType.fromName(null));
-        assertNull(CompressionParams.CompressorType.fromName("null")); // invlaid short name
-        assertNull(CompressionParams.CompressorType.fromName(TestCompressor.class.getName()));
-        assertNull(CompressionParams.CompressorType.fromName("TestCompressor"));
     }
 
     @Test
@@ -710,18 +657,18 @@ public class CompressionParamsTest
         assertFalse(params.isEnabled());
 
         map.clear();
-        map.put("class", "none");
+        map.put("class", NoopCompressor.class.getName());
         params = CompressionParams.fromMap(map);
-        assertFalse(params.isEnabled());
+        assertTrue(params.isEnabled());
 
         map.clear();
-        map.put("class", "none");
+        map.put("class", NoopCompressor.class.getName());
         map.put("enabled", "true");
         params = CompressionParams.fromMap(map);
-        assertFalse(params.isEnabled());
+        assertTrue(params.isEnabled());
 
         map.clear();
-        map.put("class", "zstd");
+        map.put("class", ZstdCompressor.class.getName());
         params = CompressionParams.fromMap(map);
         assertTrue(params.isEnabled());
 

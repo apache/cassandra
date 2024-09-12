@@ -1113,19 +1113,7 @@ snapshot_links_per_second: 0
 #
 # For compression sections, they define the default compression used on tables when none is specified
 # in the CQL command. In that case, the parameters from the respective compressor configuration 
-#  will be taken into consideration.
-#
-# The class_name is the compressor class name. It may be one of the aliases,
-# the class name of a system ICompressor implementation, or fully qualified
-# name of a ICompressor class.
-#
-# default_compression value might be one of:
-#  deflate  DeflateCompressor
-#  lz4      LZ4Compressor
-#  none     (null) -- compresson disabled
-#  noop     NoopCompressor
-#  snappy   SnappyCompressor
-#  zstd     ZstdCompressor
+# will be taken into consideration.
 #
 # The standard parameters are any required or optional parameter for the instantiation of the
 # specified class, or one of the following standard parameters:
@@ -1146,12 +1134,19 @@ snapshot_links_per_second: 0
 #
 #sstable:
 #  selected_format: big
-#  default_compression: lz4
 #  compression:
-#     lz4:
-#       enabled: "true"
-#       chunk_length_in_kb: "16"
-#       max_compressed_length: 16KiB
+#    configurations:
+#      lz4:
+#        class_name: org.apache.cassandra.io.compress.LZ4Compressor
+#        parameters:
+#          lz4_compressor_type: fast
+#          lz4_high_compressor_level: "9"
+#      lz4_64:
+#        inherits: lz4
+#        parameters:
+#          chunk_length_in_kb: "64"
+#      default:
+#        inherits: lz4
 
 # Granularity of the collation index of rows within a partition.
 # Applies to both BIG and BTI SSTable formats. In both formats,

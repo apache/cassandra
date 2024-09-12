@@ -23,6 +23,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -33,7 +34,9 @@ import com.google.common.collect.ImmutableSet;
 import org.junit.After;
 import org.junit.Test;
 
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.Config.SSTableConfig;
+import org.apache.cassandra.config.InheritingClass;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.Cluster;
@@ -45,7 +48,6 @@ import org.apache.cassandra.io.compress.NoopCompressor;
 import org.apache.cassandra.io.compress.SnappyCompressor;
 import org.apache.cassandra.io.compress.ZstdCompressor;
 import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.schema.CompressionParams.CompressorType;
 import org.apache.cassandra.service.StorageService;
 
 import static com.google.common.base.Charsets.UTF_8;
@@ -77,7 +79,10 @@ public class SSTableCompressionTest
         c.with(NATIVE_PROTOCOL, NETWORK, GOSSIP);
         c.set("flush_compression", "fast");
         SSTableConfig config = new SSTableConfig();
-        config.default_compression = "lz4";
+        config.compression = new Config.SSTableCompressionConfig();
+        config.compression.configurations = new LinkedHashMap<>();
+        config.compression.configurations.put("lz4", new InheritingClass(null, LZ4Compressor.class.getName(), new HashMap<>()));
+        config.compression.configurations.put("default", new InheritingClass("lz4", null, null));
         c.set("sstable", config);
     };
 
@@ -85,7 +90,10 @@ public class SSTableCompressionTest
         c.with(NATIVE_PROTOCOL, NETWORK, GOSSIP);
         c.set("flush_compression", "fast");
         SSTableConfig config = new SSTableConfig();
-        config.default_compression = "deflate";
+        config.compression = new Config.SSTableCompressionConfig();
+        config.compression.configurations = new LinkedHashMap<>();
+        config.compression.configurations.put("deflate", new InheritingClass(null, DeflateCompressor.class.getName(), new HashMap<>()));
+        config.compression.configurations.put("default", new InheritingClass("deflate", null, null));
         c.set("sstable", config);
     };
 
@@ -93,7 +101,10 @@ public class SSTableCompressionTest
         c.with(NATIVE_PROTOCOL, NETWORK, GOSSIP);
         c.set("flush_compression", "fast");
         SSTableConfig config = new SSTableConfig();
-        config.default_compression = "zstd";
+        config.compression = new Config.SSTableCompressionConfig();
+        config.compression.configurations = new LinkedHashMap<>();
+        config.compression.configurations.put("zstd", new InheritingClass(null, ZstdCompressor.class.getName(), new HashMap<>()));
+        config.compression.configurations.put("default", new InheritingClass("zstd", null, null));
         c.set("sstable", config);
     };
 
@@ -101,14 +112,17 @@ public class SSTableCompressionTest
         c.with(NATIVE_PROTOCOL, NETWORK, GOSSIP);
         c.set("flush_compression", "fast");
         SSTableConfig config = new SSTableConfig();
-        config.default_compression = "zstd";
+
+        config.compression = new Config.SSTableCompressionConfig();
+        config.compression.configurations = new LinkedHashMap<>();
 
         Map<String, String> configMap = new HashMap<>();
         configMap.put("chunk_length_in_kb", "32");
         configMap.put("max_compressed_length", "64KiB"); // has to be equal to or lower than chunk_length
 
-        config.compression = new HashMap<>();
-        config.compression.put("zstd", configMap);
+        config.compression.configurations.put("zstd", new InheritingClass(null, ZstdCompressor.class.getName(), configMap));
+        config.compression.configurations.put("default", new InheritingClass("zstd", null, null));
+
         c.set("sstable", config);
     };
 
@@ -250,42 +264,8 @@ public class SSTableCompressionTest
     public void testInvalidConfigurationDoesNotStartNode()
     {
         assertThatThrownBy(() -> setupCluster(INVALID_CONFIG, null))
-        .hasMessageContaining("Invalid configuration of sstable default compression: " +
+        .hasMessageContaining("Invalid configuration of a default compressor under name zstd: " +
                               "Invalid 'max_compressed_length' value for the 'compression' option: Must be less than or equal to chunk length");
-    }
-
-    @Test
-    public void testAllCompressionTypes() throws Exception
-    {
-        List<String> compressions = new ArrayList<>();
-        for (CompressorType type : CompressorType.values())
-            compressions.add(type.name());
-
-        // test FQCN and simple name as value of 'default_compression'
-        compressions.add(ZstdCompressor.class.getName());
-        compressions.add(ZstdCompressor.class.getSimpleName());
-
-        for (String compression : compressions)
-        {
-            SSTableConfig config = new SSTableConfig();
-            config.default_compression = compression;
-            config.compression = new HashMap<>();
-            config.compression.put(compression, new HashMap<>());
-
-            try
-            {
-                setupCluster(c ->
-                             {
-                                 c.with(NATIVE_PROTOCOL, NETWORK, GOSSIP);
-                                 c.set("sstable", config);
-                             },
-                             null);
-            }
-            finally
-            {
-                tearDownCluster();
-            }
-        }
     }
 
     private void testCreate(String table, String tableArgs, Map<String, String> expected)

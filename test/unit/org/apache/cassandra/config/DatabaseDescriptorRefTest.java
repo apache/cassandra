@@ -286,7 +286,14 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.utils.concurrent.SelfRefCounted",
     "org.apache.cassandra.utils.concurrent.Transactional",
     "org.apache.cassandra.utils.concurrent.UncheckedInterruptedException",
-    "org.apache.cassandra.utils.StorageCompatibilityMode"
+    "org.apache.cassandra.utils.StorageCompatibilityMode",
+    "org.apache.cassandra.config.InheritingClass",
+    "org.apache.cassandra.schema.CompressionParams",
+    "org.apache.cassandra.io.IVersionedSerializer",
+    "org.apache.cassandra.io.IVersionedAsymmetricSerializer",
+    "org.apache.cassandra.schema.CompressionParams$Serializer",
+    "org.apache.cassandra.io.compress.NoopCompressor",
+    "org.apache.cassandra.io.compress.BufferType"
     };
 
     static final Set<String> checkedClasses = new HashSet<>(Arrays.asList(validClasses));

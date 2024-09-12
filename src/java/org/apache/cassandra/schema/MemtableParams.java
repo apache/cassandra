@@ -21,14 +21,11 @@ import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
-import com.google.common.collect.ImmutableMap;
 
 import org.slf4j.LoggerFactory;
 
@@ -97,7 +94,7 @@ public final class MemtableParams
 
     private static final String DEFAULT_CONFIGURATION_KEY = "default";
     private static final Memtable.Factory DEFAULT_MEMTABLE_FACTORY = SkipListMemtableFactory.INSTANCE;
-    private static final ParameterizedClass DEFAULT_CONFIGURATION = SkipListMemtableFactory.CONFIGURATION;
+    private static final InheritingClass DEFAULT_CONFIGURATION = SkipListMemtableFactory.CONFIGURATION;
     private static final Map<String, ParameterizedClass>
         CONFIGURATION_DEFINITIONS = expandDefinitions(DatabaseDescriptor.getMemtableConfigurations());
     private static final Map<String, MemtableParams> CONFIGURATIONS = new HashMap<>();
@@ -138,70 +135,7 @@ public final class MemtableParams
     @VisibleForTesting
     static Map<String, ParameterizedClass> expandDefinitions(Map<String, InheritingClass> memtableConfigurations)
     {
-        if (memtableConfigurations == null)
-            return ImmutableMap.of(DEFAULT_CONFIGURATION_KEY, DEFAULT_CONFIGURATION);
-
-        LinkedHashMap<String, ParameterizedClass> configs = new LinkedHashMap<>(memtableConfigurations.size() + 1);
-
-        // If default is not overridden, add an entry first so that other configurations can inherit from it.
-        // If it is, process it in its point of definition, so that the default can inherit from another configuration.
-        if (!memtableConfigurations.containsKey(DEFAULT_CONFIGURATION_KEY))
-            configs.put(DEFAULT_CONFIGURATION_KEY, DEFAULT_CONFIGURATION);
-
-        Map<String, InheritingClass> inheritingClasses = new LinkedHashMap<>();
-
-        for (Map.Entry<String, InheritingClass> entry : memtableConfigurations.entrySet())
-        {
-            if (entry.getValue().inherits != null)
-            {
-                if (entry.getKey().equals(entry.getValue().inherits))
-                    throw new ConfigurationException(String.format("Configuration entry %s can not inherit itself.", entry.getKey()));
-
-                if (memtableConfigurations.get(entry.getValue().inherits) == null && !entry.getValue().inherits.equals(DEFAULT_CONFIGURATION_KEY))
-                    throw new ConfigurationException(String.format("Configuration entry %s inherits non-existing entry %s.",
-                                                                   entry.getKey(), entry.getValue().inherits));
-
-                inheritingClasses.put(entry.getKey(), entry.getValue());
-            }
-            else
-                configs.put(entry.getKey(), entry.getValue().resolve(configs));
-        }
-
-        for (Map.Entry<String, InheritingClass> inheritingEntry : inheritingClasses.entrySet())
-        {
-            String inherits = inheritingEntry.getValue().inherits;
-            while (inherits != null)
-            {
-                InheritingClass nextInheritance = inheritingClasses.get(inherits);
-                if (nextInheritance == null)
-                    inherits = null;
-                else
-                    inherits = nextInheritance.inherits;
-
-                if (inherits != null && inherits.equals(inheritingEntry.getKey()))
-                    throw new ConfigurationException(String.format("Detected loop when processing key %s", inheritingEntry.getKey()));
-            }
-        }
-
-        while (!inheritingClasses.isEmpty())
-        {
-            Set<String> forRemoval = new HashSet<>();
-            for (Map.Entry<String, InheritingClass> inheritingEntry : inheritingClasses.entrySet())
-            {
-                if (configs.get(inheritingEntry.getValue().inherits) != null)
-                {
-                    configs.put(inheritingEntry.getKey(), inheritingEntry.getValue().resolve(configs));
-                    forRemoval.add(inheritingEntry.getKey());
-                }
-            }
-
-            assert !forRemoval.isEmpty();
-
-            for (String toRemove : forRemoval)
-                inheritingClasses.remove(toRemove);
-        }
-
-        return ImmutableMap.copyOf(configs);
+        return InheritingClass.expandDefinitions(memtableConfigurations, DEFAULT_CONFIGURATION);
     }
 
     private static MemtableParams parseConfiguration(String configurationKey)

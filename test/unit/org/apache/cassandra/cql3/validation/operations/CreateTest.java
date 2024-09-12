@@ -620,7 +620,7 @@ public class CreateTest extends CQLTester
                                            "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
                                            + " WITH memtable = 'test_invalid_param';");
 
-        assertThrowsConfigurationException("Could not create memtable factory for class NotExisting",
+        assertThrowsConfigurationException("Could not create memtable factory for class NotExisting{}",
                                            "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
                                            + " WITH memtable = 'test_unknown_class';");
 
@@ -628,11 +628,11 @@ public class CreateTest extends CQLTester
                                            "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
                                            + " WITH memtable = 'test_invalid_extra_param';");
 
-        assertThrowsConfigurationException("Could not create memtable factory for class " + InvalidMemtableFactoryMethod.class.getName(),
+        assertThrowsConfigurationException("Could not create memtable factory for class " + InvalidMemtableFactoryMethod.class.getName() + "{}",
                                            "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
                                            + " WITH memtable = 'test_invalid_factory_method';");
 
-        assertThrowsConfigurationException("Could not create memtable factory for class " + InvalidMemtableFactoryField.class.getName(),
+        assertThrowsConfigurationException("Could not create memtable factory for class " + InvalidMemtableFactoryField.class.getName() + "{}",
                                            "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
                                            + " WITH memtable = 'test_invalid_factory_field';");
 

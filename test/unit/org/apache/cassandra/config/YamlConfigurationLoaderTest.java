@@ -223,14 +223,15 @@ public class YamlConfigurationLoaderTest
     {
         Config c = load("test/conf/cassandra.yaml");
 
-        assertNull(c.sstable.default_compression);
+        assertNull(c.sstable.compression);
 
         c = load("test/conf/cassandra-with-sstable-compressor.yaml");
 
-        assertNotNull(c.sstable.default_compression);
-        assertEquals("lz4", c.sstable.default_compression);
+        assertNotNull(c.sstable.compression);
+        assertNotNull(c.sstable.compression.configurations);
+        assertNotNull(c.sstable.compression.configurations.get("lz4"));
 
-        Map<String, String> parameters = c.sstable.compression.get(c.sstable.default_compression);
+        Map<String, String> parameters = c.sstable.compression.configurations.get("lz4").parameters;
 
         assertThat(parameters).isNotNull();
         assertThat(parameters.remove(CompressionParams.CHUNK_LENGTH_IN_KB)).isEqualTo(Integer.toString(32 * 1024));
