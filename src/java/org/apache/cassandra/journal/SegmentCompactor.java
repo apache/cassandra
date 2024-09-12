@@ -22,7 +22,7 @@ import java.util.Collection;
 
 public interface SegmentCompactor<K, V>
 {
-    SegmentCompactor<?, ?> NOOP = (SegmentCompactor<Object, Object>) (segments, keySupport) -> segments;
+    SegmentCompactor<?, ?> NOOP = (SegmentCompactor<Object, Object>) (segments) -> segments;
 
     static <K, V> SegmentCompactor<K, V> noop()
     {
@@ -30,5 +30,5 @@ public interface SegmentCompactor<K, V>
         return (SegmentCompactor<K, V>) NOOP;
     }
 
-    Collection<StaticSegment<K, V>> compact(Collection<StaticSegment<K, V>> segments, KeySupport<K> keySupport) throws IOException;
+    Collection<StaticSegment<K, V>> compact(Collection<StaticSegment<K, V>> segments) throws IOException;
 }

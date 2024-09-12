@@ -30,6 +30,7 @@ import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.db.rows.UnfilteredSource;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.transactions.UpdateTransaction;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.schema.TableMetadata;
@@ -441,4 +442,9 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource
             super(copy.segmentId, copy.position);
         }
     }
+
+   default Token lastToken()
+   {
+       throw new UnsupportedOperationException("lastToken is not supported");
+   }
 }

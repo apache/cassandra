@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.service.accord;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.PriorityQueue;
@@ -30,31 +31,43 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.db.partitions.PartitionUpdate.SimpleBuilder;
 import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableTxnWriter;
+import org.apache.cassandra.io.util.DataInputBuffer;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.journal.KeySupport;
 import org.apache.cassandra.journal.SegmentCompactor;
 import org.apache.cassandra.journal.StaticSegment;
 import org.apache.cassandra.journal.StaticSegment.KeyOrderReader;
+import org.apache.cassandra.service.accord.AccordJournalValueSerializers.FlyweightSerializer;
 
 /**
  * Segment compactor: takes static segments and compacts them into a single SSTable.
  */
-public class AccordSegmentCompactor<K, V> implements SegmentCompactor<K, V>
+public class AccordSegmentCompactor<V> implements SegmentCompactor<JournalKey, V>
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordSegmentCompactor.class);
+    private final int userVersion;
+    private final KeySupport<JournalKey> keySupport;
+
+    public AccordSegmentCompactor(KeySupport<JournalKey> keySupport, int userVersion)
+    {
+        this.userVersion = userVersion;
+        this.keySupport = keySupport;
+    }
 
     @Override
-    public Collection<StaticSegment<K, V>> compact(Collection<StaticSegment<K, V>> segments, KeySupport<K> keySupport)
+    public Collection<StaticSegment<JournalKey, V>> compact(Collection<StaticSegment<JournalKey, V>> segments)
     {
         Invariants.checkState(segments.size() >= 2, () -> String.format("Can only compact 2 or more segments, but got %d", segments.size()));
         logger.info("Compacting {} static segments: {}", segments.size(), segments);
 
-        PriorityQueue<KeyOrderReader<K>> readers = new PriorityQueue<>();
-        for (StaticSegment<K, V> segment : segments)
+        PriorityQueue<KeyOrderReader<JournalKey>> readers = new PriorityQueue<>();
+        for (StaticSegment<JournalKey, V> segment : segments)
         {
-            KeyOrderReader<K> reader = segment.keyOrderReader();
+            KeyOrderReader<JournalKey> reader = segment.keyOrderReader();
             if (reader.advance())
                 readers.add(reader);
         }
@@ -70,39 +83,41 @@ public class AccordSegmentCompactor<K, V> implements SegmentCompactor<K, V>
 
         try (SSTableTxnWriter writer = SSTableTxnWriter.create(cfs, descriptor, 0, 0, null, false, header))
         {
-            K key = null;
-            PartitionUpdate.SimpleBuilder partitionBuilder = null;
-
+            JournalKey key = null;
+            Object builder = null;
+            FlyweightSerializer<Object, Object> serializer = null;
+            long lastDescriptor = -1;
+            int lastOffset = -1;
             try
             {
-                KeyOrderReader<K> reader;
+                KeyOrderReader<JournalKey> reader;
                 while ((reader = readers.poll()) != null)
                 {
-                    if (!reader.key().equals(key)) // first ever - or new - key
+                    if (key == null || !reader.key().equals(key))
                     {
-                        if (partitionBuilder != null) // append previous partition if any
-                            writer.append(partitionBuilder.build().unfilteredIterator());
+                        maybeWritePartition(cfs, writer, key, builder, serializer, lastDescriptor, lastOffset);
 
                         key = reader.key();
-                        partitionBuilder = PartitionUpdate.simpleBuilder(
-                            AccordKeyspace.Journal, AccordJournalTable.makePartitionKey(cfs, key, keySupport, reader.descriptor.userVersion)
-                        );
+                        serializer = (FlyweightSerializer<Object, Object>) key.type.serializer;
+                        builder = serializer.mergerFor(key);
                     }
 
                     boolean advanced;
                     do
                     {
-                        partitionBuilder.row(reader.descriptor.timestamp, reader.offset())
-                                        .add("record", reader.record())
-                                        .add("user_version", reader.descriptor.userVersion);
+                        try (DataInputBuffer in = new DataInputBuffer(reader.record(), false))
+                        {
+                            serializer.deserialize(key, builder, in, reader.descriptor.userVersion);
+                            lastDescriptor = reader.descriptor.timestamp;
+                            lastOffset = reader.offset();
+                        }
                     }
                     while ((advanced = reader.advance()) && reader.key().equals(key));
 
                     if (advanced) readers.offer(reader); // there is more to this reader, but not with this key
                 }
 
-                //noinspection DataFlowIssue
-                writer.append(partitionBuilder.build().unfilteredIterator()); // append the last partition
+                maybeWritePartition(cfs, writer, key, builder, serializer, lastDescriptor, lastOffset);
             }
             catch (Throwable t)
             {
@@ -113,6 +128,22 @@ public class AccordSegmentCompactor<K, V> implements SegmentCompactor<K, V>
 
             cfs.addSSTables(writer.finish(true));
             return Collections.emptyList();
+        }
+    }
+
+    private void maybeWritePartition(ColumnFamilyStore cfs, SSTableTxnWriter writer, JournalKey key, Object builder, FlyweightSerializer<Object, Object> serializer, long descriptor, int offset) throws IOException
+    {
+        if (builder != null)
+        {
+            SimpleBuilder partitionBuilder = PartitionUpdate.simpleBuilder(AccordKeyspace.Journal, AccordJournalTable.makePartitionKey(cfs, key, keySupport, userVersion));
+            try (DataOutputBuffer out = DataOutputBuffer.scratchBuffer.get())
+            {
+                serializer.reserialize(key, builder, out, userVersion);
+                partitionBuilder.row(descriptor, offset)
+                                .add("record", out.asNewBuffer())
+                                .add("user_version", userVersion);
+            }
+            writer.append(partitionBuilder.build().unfilteredIterator());
         }
     }
 }

@@ -62,7 +62,7 @@ final class Compactor<K, V> implements Runnable, Shutdownable
 
         try
         {
-            Collection<StaticSegment<K, V>> newSegments = segmentCompactor.compact(toCompact, journal.keySupport);
+            Collection<StaticSegment<K, V>> newSegments = segmentCompactor.compact(toCompact);
             for (StaticSegment<K, V> segment : newSegments)
                 toCompact.remove(segment);
 

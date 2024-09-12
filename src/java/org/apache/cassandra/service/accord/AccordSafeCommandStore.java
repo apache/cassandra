@@ -31,11 +31,14 @@ import accord.api.DataStore;
 import accord.api.Key;
 import accord.api.ProgressLog;
 import accord.impl.AbstractSafeCommandStore;
-import accord.local.cfk.CommandsForKey;
 import accord.impl.CommandsSummary;
+import accord.local.CommandStores;
 import accord.local.CommandStores.RangesForEpoch;
+import accord.local.DurableBefore;
 import accord.local.NodeTimeService;
 import accord.local.PreLoadContext;
+import accord.local.RedundantBefore;
+import accord.local.cfk.CommandsForKey;
 import accord.primitives.AbstractKeys;
 import accord.primitives.AbstractRanges;
 import accord.primitives.Deps;
@@ -54,6 +57,7 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     private final @Nullable AccordSafeCommandsForRanges commandsForRanges;
     private final AccordCommandStore commandStore;
     private final RangesForEpoch ranges;
+    private FieldUpdates fieldUpdates;
 
     private AccordSafeCommandStore(PreLoadContext context,
                                    Map<TxnId, AccordSafeCommand> commands,
@@ -68,7 +72,8 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
         this.commandsForKeys = commandsForKey;
         this.commandsForRanges = commandsForRanges;
         this.commandStore = commandStore;
-        this.ranges = commandStore.updateRangesForEpoch();
+        commandStore.updateRangesForEpoch(this);
+        this.ranges = commandStore.unsafeRangesForEpoch();
     }
 
     public static AccordSafeCommandStore create(PreLoadContext preLoadContext,
@@ -184,42 +189,6 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
         return commandStore().unsafeRangesForEpoch();
     }
 
-    @Override
-    public void registerHistoricalTransactions(Deps deps)
-    {
-        if (deps.isEmpty()) return;
-        // used in places such as accord.local.CommandStore.fetchMajorityDeps
-        // We find a set of dependencies for a range then update CommandsFor to know about them
-        Ranges allRanges = ranges.all();
-        deps.keyDeps.keys().forEach(allRanges, key -> {
-            // TODO (now): batch register to minimise GC
-            deps.keyDeps.forEach(key, (txnId, txnIdx) -> {
-                // TODO (desired, efficiency): this can be made more efficient by batching by epoch
-                if (ranges.coordinates(txnId).contains(key))
-                    return; // already coordinates, no need to replicate
-                if (!ranges.allBefore(txnId.epoch()).contains(key))
-                    return;
-
-                get(key).registerHistorical(this, txnId);
-            });
-        });
-        for (int i = 0; i < deps.rangeDeps.rangeCount(); i++)
-        {
-            var range = deps.rangeDeps.range(i);
-            if (!allRanges.intersects(range))
-                continue;
-            deps.rangeDeps.forEach(range, txnId -> {
-                // TODO (desired, efficiency): this can be made more efficient by batching by epoch
-                if (ranges.coordinates(txnId).intersects(range))
-                    return; // already coordinates, no need to replicate
-                if (!ranges.allBefore(txnId.epoch()).intersects(range))
-                    return;
-
-                commandStore.diskCommandsForRanges().mergeHistoricalTransaction(txnId, Ranges.single(range).slice(allRanges), Ranges::with);
-            });
-        }
-    }
-
     private <O> O mapReduce(Routables<?> keysOrRanges, Ranges slice, BiFunction<CommandsSummary, O, O> map, O accumulate)
     {
         accumulate = mapReduceForRange(keysOrRanges, slice, map, accumulate);
@@ -311,5 +280,80 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     public String toString()
     {
         return "AccordSafeCommandStore(id=" + commandStore().id() + ")";
+    }
+
+    @Override
+    public void upsertRedundantBefore(RedundantBefore addRedundantBefore)
+    {
+        ensureFieldUpdates().redundantBefore = addRedundantBefore;
+        super.upsertRedundantBefore(addRedundantBefore);
+    }
+
+    @Override
+    public void upsertSetBootstrapBeganAt(TxnId globalSyncId, Ranges ranges)
+    {
+        ensureFieldUpdates().newBootstrapBeganAt = new Sync(globalSyncId, ranges);
+        super.upsertSetBootstrapBeganAt(globalSyncId, ranges);
+    }
+
+    @Override
+    public void upsertDurableBefore(DurableBefore addDurableBefore)
+    {
+        ensureFieldUpdates().durableBefore = addDurableBefore;
+        super.upsertDurableBefore(addDurableBefore);
+    }
+
+    @Override
+    public void setSafeToRead(NavigableMap<Timestamp, Ranges> newSafeToRead)
+    {
+        ensureFieldUpdates().safeToRead = newSafeToRead;
+        super.setSafeToRead(newSafeToRead);
+    }
+
+    @Override
+    public void setRangesForEpoch(CommandStores.RangesForEpoch rangesForEpoch)
+    {
+        ensureFieldUpdates().rangesForEpoch = rangesForEpoch.snapshot();
+        super.setRangesForEpoch(rangesForEpoch);
+    }
+
+    @Override
+    protected void registerHistoricalTransactions(Deps deps)
+    {
+        ensureFieldUpdates().historicalTransactions = deps;
+        super.registerHistoricalTransactions(deps);
+    }
+
+    private FieldUpdates ensureFieldUpdates()
+    {
+        if (fieldUpdates == null) fieldUpdates = new FieldUpdates();
+        return fieldUpdates;
+    }
+
+    public FieldUpdates fieldUpdates()
+    {
+        return fieldUpdates;
+    }
+
+    public static class FieldUpdates
+    {
+        public RedundantBefore redundantBefore;
+        public DurableBefore durableBefore;
+        public Sync newBootstrapBeganAt;
+        public NavigableMap<Timestamp, Ranges> safeToRead;
+        public RangesForEpoch.Snapshot rangesForEpoch;
+        public Deps historicalTransactions;
+    }
+
+    public static class Sync
+    {
+        public final TxnId txnId;
+        public final Ranges ranges;
+
+        public Sync(TxnId txnId, Ranges ranges)
+        {
+            this.txnId = txnId;
+            this.ranges = ranges;
+        }
     }
 }

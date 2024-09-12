@@ -50,6 +50,7 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.IncludingExcludingBounds;
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.transactions.UpdateTransaction;
 import org.apache.cassandra.io.sstable.SSTableReadsListener;
 import org.apache.cassandra.schema.TableMetadata;
@@ -110,6 +111,25 @@ public class ShardedSkipListMemtable extends AbstractShardedMemtable
             if (!shard.isClean())
                 return false;
         return true;
+    }
+
+    @Override
+    public Token lastToken()
+    {
+        Token lastToken = null;
+        for (MemtableShard shard : shards)
+        {
+            Iterator<PartitionPosition> ppIterator = shard.partitions.descendingKeySet().iterator();
+            if (ppIterator.hasNext())
+            {
+                Token token = ppIterator.next().getToken();
+                if (lastToken == null)
+                    lastToken = token;
+                else if (lastToken.compareTo(token) < 0)
+                    lastToken = token;
+            }
+        }
+        return lastToken;
     }
 
     /**

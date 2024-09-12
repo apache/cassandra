@@ -33,6 +33,7 @@ import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.Crc;
 
 import static org.apache.cassandra.journal.Journal.validateCRC;

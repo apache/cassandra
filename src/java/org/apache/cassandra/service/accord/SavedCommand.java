@@ -70,13 +70,8 @@ public class SavedCommand
         WRITES,
     }
 
-    public interface Writer<K> extends Journal.Writer
-    {
-        void write(DataOutputPlus out, int userVersion) throws IOException;
-        K key();
-    }
-
-    public static class DiffWriter implements Writer<TxnId>
+    // TODO: maybe rename this and enclosing classes?
+    public static class DiffWriter implements Journal.Writer
     {
         private final Command before;
         private final Command after;
@@ -118,19 +113,13 @@ public class SavedCommand
     }
 
     @Nullable
-    public static Writer<TxnId> diff(Command original, Command current)
+    public static DiffWriter diff(Command original, Command current)
     {
         if (original == current
             || current == null
             || current.saveStatus() == SaveStatus.Uninitialised)
             return null;
         return new SavedCommand.DiffWriter(original, current);
-    }
-
-
-    public static Writer<TxnId> diffWriter(Command before, Command after)
-    {
-        return new DiffWriter(before, after);
     }
 
     public static void serialize(Command before, Command after, DataOutputPlus out, int userVersion) throws IOException
@@ -521,7 +510,7 @@ public class SavedCommand
             this.result = newValue;
         }
 
-        public Command construct() throws IOException
+        public Command construct()
         {
             if (!nextCalled)
                 return null;
@@ -553,14 +542,12 @@ public class SavedCommand
                 case PreAccepted:
                     return Command.PreAccepted.preAccepted(attrs, executeAt, promised);
                 case AcceptedInvalidate:
-                    if (saveStatus == SaveStatus.AcceptedInvalidateWithDefinition)
-                        return Command.Accepted.accepted(attrs, saveStatus, executeAt, promised, acceptedOrCommitted);
-                    else
-                        return Command.AcceptedInvalidateWithoutDefinition.acceptedInvalidate(attrs, promised, acceptedOrCommitted);
-
                 case Accepted:
                 case PreCommitted:
-                    return Command.Accepted.accepted(attrs, saveStatus, executeAt, promised, acceptedOrCommitted);
+                    if (saveStatus == SaveStatus.AcceptedInvalidate)
+                        return Command.AcceptedInvalidateWithoutDefinition.acceptedInvalidate(attrs, promised, acceptedOrCommitted);
+                    else
+                        return Command.Accepted.accepted(attrs, saveStatus, executeAt, promised, acceptedOrCommitted);
                 case Committed:
                 case Stable:
                     return Command.Committed.committed(attrs, saveStatus, executeAt, promised, acceptedOrCommitted, waitingOn);

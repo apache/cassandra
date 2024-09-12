@@ -115,8 +115,11 @@ public class AcceptSerializers
                 case Redundant:
                     out.writeByte(3);
                     break;
-                case RejectedBallot:
+                case Truncated:
                     out.writeByte(4);
+                    break;
+                case RejectedBallot:
+                    out.writeByte(5);
                     CommandSerializers.ballot.serialize(reply.supersededBy, out, version);
                     break;
                 case Truncated:
@@ -139,6 +142,8 @@ public class AcceptSerializers
                 case 3:
                     return AcceptReply.REDUNDANT;
                 case 4:
+                    return AcceptReply.TRUNCATED;
+                case 5:
                     return new AcceptReply(CommandSerializers.ballot.deserialize(in, version));
                 case 5:
                     return AcceptReply.TRUNCATED;

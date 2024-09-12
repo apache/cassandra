@@ -18,39 +18,61 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.NavigableMap;
 import java.util.function.Function;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableSortedMap;
 
 import accord.api.Result;
 import accord.local.Command;
+import accord.local.CommandStores;
 import accord.local.CommonAttributes;
+import accord.local.DurableBefore;
+import accord.local.RedundantBefore;
 import accord.local.SaveStatus;
 import accord.local.Status;
 import accord.primitives.Ballot;
+import accord.primitives.Deps;
 import accord.primitives.PartialDeps;
 import accord.primitives.PartialTxn;
+import accord.primitives.Ranges;
 import accord.primitives.Route;
 import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.primitives.Writes;
 import accord.utils.Invariants;
+import org.apache.cassandra.service.accord.AccordJournalValueSerializers.BootstrapBeganAtAccumulator;
+import org.apache.cassandra.service.accord.AccordJournalValueSerializers.DurableBeforeAccumulator;
+import org.apache.cassandra.service.accord.AccordJournalValueSerializers.HistoricalTransactionsAccumulator;
+import org.apache.cassandra.service.accord.AccordJournalValueSerializers.IdentityAccumulator;
+import org.apache.cassandra.service.accord.AccordJournalValueSerializers.RedundantBeforeAccumulator;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
-
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
 
 public class MockJournal implements IJournal
 {
     private final Map<JournalKey, List<LoadedDiff>> commands = new HashMap<>();
 
-    @Override
-    public Command loadCommand(int commandStoreId, TxnId txnId)
+    private static class FieldUpdates
     {
-        JournalKey key = new JournalKey(txnId, commandStoreId);
+        final RedundantBeforeAccumulator redundantBeforeAccumulator = new RedundantBeforeAccumulator();
+        final DurableBeforeAccumulator durableBeforeAccumulator = new DurableBeforeAccumulator();
+        final BootstrapBeganAtAccumulator bootstrapBeganAtAccumulator = new BootstrapBeganAtAccumulator();
+        final IdentityAccumulator<NavigableMap<Timestamp, Ranges>> safeToReadAccumulator = new IdentityAccumulator<>(ImmutableSortedMap.of(Timestamp.NONE, Ranges.EMPTY));
+        final IdentityAccumulator<CommandStores.RangesForEpoch.Snapshot> rangesForEpochAccumulator = new IdentityAccumulator<>(null);
+        final HistoricalTransactionsAccumulator historicalTransactionsAccumulator = new HistoricalTransactionsAccumulator();
+    }
+
+    private final Map<Integer, FieldUpdates> fieldUpdates = new HashMap<>();
+    @Override
+    public Command loadCommand(int store, TxnId txnId)
+    {
+        JournalKey key = new JournalKey(txnId, JournalKey.Type.COMMAND_DIFF, store);
         List<LoadedDiff> saved = commands.get(key);
         if (saved == null)
             return null;
@@ -58,16 +80,77 @@ public class MockJournal implements IJournal
     }
 
     @Override
-    public void appendCommand(int commandStoreId, List<SavedCommand.Writer<TxnId>> diffs, List<Command> sanityCheck, Runnable onFlush)
+    public RedundantBefore loadRedundantBefore(int store)
     {
-        for (SavedCommand.Writer<TxnId> diff : diffs)
-        {
-            SavedCommand.DiffWriter writer = (SavedCommand.DiffWriter) diff;
+        return fieldUpdates(store).redundantBeforeAccumulator.get();
+    }
 
-            JournalKey key = new JournalKey(diff.key(), commandStoreId);
-            commands.computeIfAbsent(key, (ignore_) -> new ArrayList<>())
-                    .add(diff(writer.before(), writer.after()));
+    @Override
+    public DurableBefore loadDurableBefore(int store)
+    {
+        return fieldUpdates(store).durableBeforeAccumulator.get();
+    }
+
+    @Override
+    public NavigableMap<TxnId, Ranges> loadBootstrapBeganAt(int store)
+    {
+        return fieldUpdates(store).bootstrapBeganAtAccumulator.get();
+    }
+
+    @Override
+    public NavigableMap<Timestamp, Ranges> loadSafeToRead(int store)
+    {
+        return fieldUpdates(store).safeToReadAccumulator.get();
+    }
+
+    @Override
+    public CommandStores.RangesForEpoch.Snapshot loadRangesForEpoch(int store)
+    {
+        return fieldUpdates(store).rangesForEpochAccumulator.get();
+    }
+
+    @Override
+    public List<Deps> loadHistoricalTransactions(int store)
+    {
+        return fieldUpdates(store).historicalTransactionsAccumulator.get();
+    }
+
+    @Override
+    public void appendCommand(int store, SavedCommand.DiffWriter diff, Runnable onFlush)
+    {
+        if (diff != null)
+        {
+            commands.computeIfAbsent(new JournalKey(diff.after().txnId(), JournalKey.Type.COMMAND_DIFF, store),
+                                     (ignore_) -> new ArrayList<>())
+                    .add(diff(diff.before(), diff.after()));
         }
+
+        if (onFlush != null)
+            onFlush.run();
+    }
+
+    private FieldUpdates fieldUpdates(int store)
+    {
+        return fieldUpdates.computeIfAbsent(store, (o) -> new FieldUpdates());
+    }
+
+    @Override
+    public void persistStoreState(int store, AccordSafeCommandStore.FieldUpdates fieldUpdates, Runnable onFlush)
+    {
+        FieldUpdates updates = fieldUpdates(store);
+        if (fieldUpdates.redundantBefore != null)
+            updates.redundantBeforeAccumulator.update(fieldUpdates.redundantBefore);
+        if (fieldUpdates.durableBefore != null)
+            updates.durableBeforeAccumulator.update(fieldUpdates.durableBefore);
+        if (fieldUpdates.newBootstrapBeganAt != null)
+            updates.bootstrapBeganAtAccumulator.update(fieldUpdates.newBootstrapBeganAt);
+        if (fieldUpdates.safeToRead != null)
+            updates.safeToReadAccumulator.update(fieldUpdates.safeToRead);
+        if (fieldUpdates.rangesForEpoch != null)
+            updates.rangesForEpochAccumulator.update(fieldUpdates.rangesForEpoch);
+        if (fieldUpdates.historicalTransactions != null)
+            updates.historicalTransactionsAccumulator.update(fieldUpdates.historicalTransactions);
+
         onFlush.run();
     }
 

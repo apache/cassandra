@@ -384,7 +384,7 @@ public class CompactionAccordIteratorsTest
     {
         Ranges ranges = AccordTestUtils.fullRange(AccordTestUtils.keys(table, 42));
         txnId = txnId.as(Kind.Read, Range);
-        return RedundantBefore.create(ranges, Long.MIN_VALUE, Long.MAX_VALUE, txnId, txnId, LT_TXN_ID.as(Range));
+        return RedundantBefore.create(ranges, Long.MIN_VALUE, Long.MAX_VALUE, txnId, txnId, txnId, LT_TXN_ID.as(Range));
     }
 
     enum DurableBeforeType

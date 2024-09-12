@@ -61,29 +61,31 @@ public class CommandStoreSerializers
         public void serialize(R map, DataOutputPlus out, int version) throws IOException
         {
             out.writeBoolean(map.inclusiveEnds());
-            int size = map.size();
-            out.writeUnsignedVInt32(size);
+            int mapSize = map.size();
+            out.writeUnsignedVInt32(mapSize);
 
-            for (int i=0; i<size; i++)
+            for (int i=0; i<mapSize; i++)
             {
                 KeySerializers.routingKey.serialize(map.startAt(i), out, version);
                 valueSerializer.serialize(map.valueAt(i), out, version);
             }
-            KeySerializers.routingKey.serialize(map.startAt(size), out, version);
+            if (mapSize > 0)
+                KeySerializers.routingKey.serialize(map.startAt(mapSize), out, version);
         }
 
         public R deserialize(DataInputPlus in, int version) throws IOException
         {
             boolean inclusiveEnds = in.readBoolean();
-            int size = in.readUnsignedVInt32();
-            RoutingKey[] keys = new RoutingKey[size + 1];
-            T[] values = newValueArray.apply(size);
-            for (int i=0; i<size; i++)
+            int mapSize = in.readUnsignedVInt32();
+            RoutingKey[] keys = new RoutingKey[mapSize + 1];
+            T[] values = newValueArray.apply(mapSize);
+            for (int i=0; i<mapSize; i++)
             {
                 keys[i] = KeySerializers.routingKey.deserialize(in, version);
                 values[i] = valueSerializer.deserialize(in, version);
             }
-            keys[size] = KeySerializers.routingKey.deserialize(in, version);
+            if (mapSize > 0)
+                keys[mapSize] = KeySerializers.routingKey.deserialize(in, version);
             return constructor.apply(inclusiveEnds, keys, values);
         }
 
@@ -97,13 +99,13 @@ public class CommandStoreSerializers
                 size += KeySerializers.routingKey.serializedSize(map.startAt(i), version);
                 size += valueSerializer.serializedSize(map.valueAt(i), version);
             }
-            size += KeySerializers.routingKey.serializedSize(map.startAt(mapSize), version);
+            if (mapSize > 0)
+                size += KeySerializers.routingKey.serializedSize(map.startAt(mapSize), version);
 
             return size;
         }
     }
 
-    public static IVersionedSerializer<ReducingRangeMap<Timestamp>> rejectBefore = new ReducingRangeMapSerializer<>(CommandSerializers.nullableTimestamp, Timestamp[]::new, ReducingRangeMap.SerializerSupport::create);
     public static IVersionedSerializer<DurableBefore> durableBefore = new ReducingRangeMapSerializer<>(NullableSerializer.wrap(new IVersionedSerializer<DurableBefore.Entry>()
     {
         @Override
@@ -141,6 +143,7 @@ public class CommandStoreSerializers
             else out.writeUnsignedVInt(1 + t.endEpoch - t.startEpoch);
             CommandSerializers.txnId.serialize(t.locallyAppliedOrInvalidatedBefore, out, version);
             CommandSerializers.txnId.serialize(t.shardAppliedOrInvalidatedBefore, out, version);
+            CommandSerializers.txnId.serialize(t.gcBefore, out, version);
             CommandSerializers.txnId.serialize(t.bootstrappedAt, out, version);
             CommandSerializers.nullableTimestamp.serialize(t.staleUntilAtLeast, out, version);
         }
@@ -155,9 +158,10 @@ public class CommandStoreSerializers
             else endEpoch = endEpoch - 1 + startEpoch;
             TxnId locallyAppliedOrInvalidatedBefore = CommandSerializers.txnId.deserialize(in, version);
             TxnId shardAppliedOrInvalidatedBefore = CommandSerializers.txnId.deserialize(in, version);
+            TxnId gcBefore = CommandSerializers.txnId.deserialize(in, version);
             TxnId bootstrappedAt = CommandSerializers.txnId.deserialize(in, version);
             Timestamp staleUntilAtLeast = CommandSerializers.nullableTimestamp.deserialize(in, version);
-            return new RedundantBefore.Entry(range, startEpoch, endEpoch, locallyAppliedOrInvalidatedBefore, shardAppliedOrInvalidatedBefore, bootstrappedAt, staleUntilAtLeast);
+            return new RedundantBefore.Entry(range, startEpoch, endEpoch, locallyAppliedOrInvalidatedBefore, shardAppliedOrInvalidatedBefore, gcBefore, bootstrappedAt, staleUntilAtLeast);
         }
 
         @Override
@@ -168,6 +172,7 @@ public class CommandStoreSerializers
             size += TypeSizes.sizeofUnsignedVInt(t.endEpoch == Long.MAX_VALUE ? 0 : 1 + t.endEpoch - t.startEpoch);
             size += CommandSerializers.txnId.serializedSize(t.locallyAppliedOrInvalidatedBefore, version);
             size += CommandSerializers.txnId.serializedSize(t.shardAppliedOrInvalidatedBefore, version);
+            size += CommandSerializers.txnId.serializedSize(t.gcBefore, version);
             size += CommandSerializers.txnId.serializedSize(t.bootstrappedAt, version);
             size += CommandSerializers.nullableTimestamp.serializedSize(t.staleUntilAtLeast, version);
             return size;
