@@ -31,7 +31,7 @@ public class GossipProcessor implements Processor
     @Override
     public Commit.Result commit(Entry.Id entryId, Transformation transform, Epoch lastKnown, Retry.Deadline retryPolicy)
     {
-        throw new IllegalStateException("Can't commit transformations when running in gossip mode. Enable the ClusterMetadataService with `nodetool addtocms`.");
+        throw new IllegalStateException("Can't commit transformations when running in gossip mode. Enable the ClusterMetadataService with `nodetool cms initialize`.");
     }
 
     @Override
