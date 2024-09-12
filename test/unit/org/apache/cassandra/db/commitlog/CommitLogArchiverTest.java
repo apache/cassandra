@@ -22,9 +22,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.HashMap;
-import java.util.Map;
 import java.util.Properties;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.Before;
@@ -47,7 +45,6 @@ public class CommitLogArchiverTest extends CQLTester
 {
     private static Path dirName;
     private static final String rpiTime = "2024:03:22 20:43:12.633222";
-    private static CommitLogArchiver oldArchiver;
     private File dir;
 
     @ClassRule
@@ -60,7 +57,6 @@ public class CommitLogArchiverTest extends CQLTester
 
         CommitLog commitLog = CommitLog.instance;
         Properties properties = new Properties();
-        oldArchiver = commitLog.archiver;
         properties.putAll(new HashMap<String, String>() {{
                           put("archive_command", "/bin/cp %path " + dirName.toString());
                           put("restore_command", "/bin/cp -f %from %to");
@@ -98,17 +94,11 @@ public class CommitLogArchiverTest extends CQLTester
                     .apply();
         }
 
+        CommitLog.instance.forceRecycleAllSegments();
+        CommitLog.instance.segmentManager.awaitManagementTasksCompletion();
         // If the number of files that under backup dir is bigger than 1, that means the
         // arhiver for commitlog is effective.
         assertTrue(dir.isDirectory() && dir.tryList().length > 0);
-        // wait for all task to be executed
-        Map<String, Future<?>>  archivePending = CommitLog.instance.archiver.archivePending;
-        CommitLogArchiver oldArchive = CommitLog.instance.archiver;
-        CommitLog.instance.setCommitlogArchiver(oldArchiver);
-        for (String name : archivePending.keySet())
-        {
-            oldArchive.maybeWaitForArchiving(name);
-        }
     }
 
     @Test
