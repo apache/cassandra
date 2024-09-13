@@ -223,9 +223,14 @@ public final class FileUtils
 
     public static void copyWithOutConfirm(String from, String to)
     {
+        copyWithOutConfirm(new File(from), new File(to));
+    }
+
+    public static void copyWithOutConfirm(File from, File to)
+    {
         try
         {
-            Files.copy(File.getPath(from), File.getPath(to));
+            Files.copy(from.toPath(), to.toPath());
         }
         catch (IOException e)
         {
