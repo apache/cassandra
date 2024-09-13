@@ -101,7 +101,9 @@ public class Epoch implements Comparable<Epoch>, Serializable
 
     public Epoch nextEpoch()
     {
-        if (beforeFirst.contains(this))
+        if (this == UPGRADE_GOSSIP || this == UPGRADE_STARTUP)
+            return this;
+        if (this == EMPTY)
             return FIRST;
 
         return new Epoch(epoch + 1);

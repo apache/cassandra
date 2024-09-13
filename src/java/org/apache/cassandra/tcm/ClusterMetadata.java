@@ -608,9 +608,9 @@ public class ClusterMetadata
                                        Epoch.UPGRADE_GOSSIP,
                                        partitioner,
                                        schema,
-                                       directory.withLastModified(Epoch.UPGRADE_GOSSIP),
-                                       tokenMap.withLastModified(Epoch.UPGRADE_GOSSIP),
-                                       placements.withLastModified(Epoch.UPGRADE_GOSSIP),
+                                       directory,
+                                       tokenMap,
+                                       placements,
                                        lockedRanges,
                                        inProgressSequences,
                                        extensions);

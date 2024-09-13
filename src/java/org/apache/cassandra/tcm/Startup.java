@@ -293,17 +293,15 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
                 VersionedValue gossipHostId = state.getApplicationState(ApplicationState.HOST_ID);
                 if (gossipHostId != null && UUID.fromString(gossipHostId.value).equals(hostId))
                 {
-                    InetAddressAndPort ep = epstate.getKey();
-                    if (!ep.equals(getBroadcastAddressAndPort()))
-                        switchIp = ep;
+                    switchIp = epstate.getKey();
                     break;
                 }
             }
             if (switchIp != null)
             {
                 logger.info("Changing IP in gossip mode from {} to {}", switchIp, getBroadcastAddressAndPort());
-                // GossipHelper#getAddressesFromEndpointState compares the keys in the map to broadcast address
-                // and correctly constructs the NodeAddresses, so just change the key here as a marker
+                // we simply switch the key to the new ip here to make sure we grab NodeAddresses.current() for
+                // this node when constructing the initial ClusterMetadata in GossipHelper#getAddressesFromEndpointState
                 epStates.put(getBroadcastAddressAndPort(), epStates.remove(switchIp));
             }
         }
