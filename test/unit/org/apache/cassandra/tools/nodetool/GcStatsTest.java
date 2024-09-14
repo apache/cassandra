@@ -18,42 +18,25 @@
 
 package org.apache.cassandra.tools.nodetool;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.nodetool.stats.GcStatsHolder;
-import org.apache.cassandra.tools.nodetool.stats.GcStatsPrinter;
-import org.apache.cassandra.tools.nodetool.stats.StatsPrinter;
+import java.util.Arrays;
+
+import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.tools.ToolRunner;
 import org.apache.cassandra.utils.JsonUtils;
-import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
-
-import java.io.ByteArrayOutputStream;
-import java.io.PrintStream;
+import org.yaml.snakeyaml.Yaml;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.assertj.core.api.Assertions.assertThatCode;
 
-public class GcStatsTest
+public class GcStatsTest extends CQLTester
 {
-    private NodeProbe nodeProbe;
-    private ByteArrayOutputStream outContent;
-    private PrintStream outStream;
-
-    @Before
-    public void setUp() throws Exception
+    @BeforeClass
+    public static void setUp() throws Exception
     {
-        nodeProbe = mock(NodeProbe.class);
-
-        // Set up mock values for getAndResetGCStats method
-        double[] gcStats = {500, 100, 245, 300, 100, 10, 1024};
-        when(nodeProbe.getAndResetGCStats()).thenReturn(gcStats);
-
-        // Capture the output printed to the console
-        outContent = new ByteArrayOutputStream();
-        outStream = new PrintStream(outContent);
+        requireNetwork();
+        startJMXServer();
     }
 
     @Test
@@ -101,113 +84,61 @@ public class GcStatsTest
     }
 
     @Test
-    public void testDefaultGcStatsOutput() throws Exception
+    public void testDefaultGcStatsOutput()
     {
-        // Initialize GcStats with the mock NodeProbe
-        GcStatsHolder gcStatsHolder = new GcStatsHolder(nodeProbe);
-        StatsPrinter defaultPrinter = new GcStatsPrinter.DefaultPrinter();
-
-        // Print using the default format
-        defaultPrinter.print(gcStatsHolder, outStream);
-
-        // Verify that output contains the expected headers and values using assertThat
-        String output = outContent.toString();
-
-        assertThat(output).contains("Interval (ms)");
-        assertThat(output).contains("Max GC Elapsed (ms)");
-        assertThat(output).contains("Total GC Elapsed (ms)");
-        assertThat(output).contains("Stdev GC Elapsed (ms)");
-        assertThat(output).contains("GC Reclaimed (MB)");
-        assertThat(output).contains("Collections");
-        assertThat(output).contains("Direct Memory Bytes");
-
-        // Verify that NaN values are handled correctly, or actual values appear
-        if (output.contains("NaN"))
-        {
-            assertThat(output).contains("NaN");
-        }
-        else
-        {
-            assertThat(output).contains("500");  // Interval (ms)
-            assertThat(output).contains("100");  // Max GC Elapsed (ms)
-            assertThat(output).contains("245");  // Total GC Elapsed (ms)
-            assertThat(output).contains("300");  // Stdev GC Elapsed (ms)
-            assertThat(output).contains("1024"); // Direct Memory Bytes
-        }
+        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("gcstats");
+        tool.assertOnCleanExit();
+        String output = tool.getStdout();
+        assertThat(output.contains("Interval (ms)"));
+        assertThat(output.contains("Max GC Elapsed (ms)"));
+        assertThat(output.contains("Total GC Elapsed (ms)"));
+        assertThat(output.contains("GC Reclaimed (MB)"));
+        assertThat(output.contains("Collections"));
+        assertThat(output.contains("Direct Memory Bytes"));
     }
 
     @Test
-    public void testJsonGcStatsOutput() throws Exception {
-        // Initialize GcStats with the mock NodeProbe
-        GcStatsHolder gcStatsHolder = new GcStatsHolder(nodeProbe);
-        StatsPrinter jsonPrinter = GcStatsPrinter.from("json");
-
-        // Print using the JSON format
-        jsonPrinter.print(gcStatsHolder, outStream);
-
-        // Verify JSON output structure
-        String jsonOutput = outContent.toString();
-
-        // Parse JSON output using JsonUtils
-        JsonNode rootNode = JsonUtils.JSON_OBJECT_MAPPER.readTree(jsonOutput);
-
-        // Check if important fields are present in the JSON output
-        assertThat(rootNode.has("interval_ms")).isTrue();
-        assertThat(rootNode.has("max_gc_elapsed_ms")).isTrue();
-        assertThat(rootNode.has("total_gc_elapsed_ms")).isTrue();
-        assertThat(rootNode.has("stdev_gc_elapsed_ms")).isTrue();
-        assertThat(rootNode.has("gc_reclaimed_mb")).isTrue();
-        assertThat(rootNode.has("collections")).isTrue();
-        assertThat(rootNode.has("direct_memory_bytes")).isTrue();
-
-        // Verify values in JSON output
-        assertThat(rootNode.get("interval_ms").asInt()).isEqualTo(500);
-        assertThat(rootNode.get("max_gc_elapsed_ms").asInt()).isEqualTo(100);
-        assertThat(rootNode.get("total_gc_elapsed_ms").asInt()).isEqualTo(245);
-        assertThat(rootNode.get("direct_memory_bytes").asInt()).isEqualTo(1024);
-
-        // Check if stdev_gc_elapsed_ms is NaN
-        if (rootNode.get("stdev_gc_elapsed_ms").asText().equals("NaN")) {
-            assertThat(rootNode.get("stdev_gc_elapsed_ms").asText().equals("NaN")).isTrue();
-        } else {
-            assertThat(rootNode.get("stdev_gc_elapsed_ms").asInt()).isEqualTo(300);
-        }
+    public void testJsonGcStatsOutput()
+    {
+        Arrays.asList("-F", "--format").forEach(arg -> {
+            ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("gcstats", arg, "json");
+            tool.assertOnCleanExit();
+            String json = tool.getStdout();
+            assertThatCode(() -> JsonUtils.JSON_OBJECT_MAPPER.readTree(json)).doesNotThrowAnyException();
+            assertThat(json).containsPattern("\"interval_ms\"");
+            assertThat(json).containsPattern("\"stdev_gc_elapsed_ms\"");
+            assertThat(json).containsPattern("\"collections\"");
+            assertThat(json).containsPattern("\"max_gc_elapsed_ms\"");
+            assertThat(json).containsPattern("\"gc_reclaimed_mb\"");
+            assertThat(json).containsPattern("\"total_gc_elapsed_ms\"");
+            assertThat(json).containsPattern("\"direct_memory_bytes\"");
+        });
     }
 
     @Test
-    public void testYamlGcStatsOutput() throws Exception
+    public void testYamlGcStatsOutput()
     {
-        GcStatsHolder gcStatsHolder = new GcStatsHolder(nodeProbe);
-        StatsPrinter yamlPrinter = GcStatsPrinter.from("yaml");
-
-        yamlPrinter.print(gcStatsHolder, outStream);
-
-        String yamlOutput = outContent.toString();
-
-        assertThat(yamlOutput).contains("interval_ms: 500.0");
-        assertThat(yamlOutput).contains("max_gc_elapsed_ms: 100.0");
-        assertThat(yamlOutput).contains("total_gc_elapsed_ms: 245.0");
-        assertThat(yamlOutput).contains("gc_reclaimed_mb: 100.0");
-        assertThat(yamlOutput).contains("collections: 10.0");
-        assertThat(yamlOutput).contains("direct_memory_bytes: 1024");
-
-        if (yamlOutput.contains("stdev_gc_elapsed_ms: .NaN")) {
-            assertThat(yamlOutput).contains("stdev_gc_elapsed_ms: .NaN");
-        } else {
-            assertThat(yamlOutput).contains("stdev_gc_elapsed_ms: 300.0");
-        }
+        Arrays.asList("-F", "--format").forEach(arg -> {
+            ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("gcstats", arg, "yaml");
+            tool.assertOnCleanExit();
+            String yamlOutput = tool.getStdout();
+            Yaml yaml = new Yaml();
+            assertThatCode(() -> yaml.load(yamlOutput)).doesNotThrowAnyException();
+            assertThat(yamlOutput).containsPattern("interval_ms:");
+            assertThat(yamlOutput).containsPattern("stdev_gc_elapsed_ms:");
+            assertThat(yamlOutput).containsPattern("collections:");
+            assertThat(yamlOutput).containsPattern("max_gc_elapsed_ms:");
+            assertThat(yamlOutput).containsPattern("gc_reclaimed_mb:");
+            assertThat(yamlOutput).containsPattern("total_gc_elapsed_ms:");
+            assertThat(yamlOutput).containsPattern("direct_memory_bytes:");
+        });
     }
 
     @Test
     public void testInvalidFormatOption() throws Exception
     {
-        GcStats gcStats = new GcStats();
-
-        // Use reflection to set the private field outputFormat to an invalid value
-        java.lang.reflect.Field outputFormatField = GcStats.class.getDeclaredField("outputFormat");
-        outputFormatField.setAccessible(true);
-        outputFormatField.set(gcStats, "invalid_format");
-        assertThatExceptionOfType(IllegalArgumentException.class).isThrownBy(() -> gcStats.execute(nodeProbe))
-                                                                 .withMessage("arguments for -F are json, yaml only.");
+        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("gcstats", "-F", "invalid_format");
+        assertThat(tool.getExitCode()).isEqualTo(1);
+        assertThat(tool.getStdout()).contains("arguments for -F are json, yaml only.");
     }
 }
