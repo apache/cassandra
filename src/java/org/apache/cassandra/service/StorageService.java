@@ -2850,7 +2850,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             Gossiper.instance.addLocalApplicationState(ApplicationState.RPC_READY, valueFactory.rpcReady(value));
     }
 
-    private Collection<Token> getTokensFor(InetAddressAndPort endpoint)
+    public Collection<Token> getTokensFor(InetAddressAndPort endpoint)
     {
         try
         {
