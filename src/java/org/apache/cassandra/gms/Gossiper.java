@@ -2583,4 +2583,44 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         Message<GossipDigestAck2> message = Message.out(Verb.GOSSIP_DIGEST_ACK2, digestAck2Message);
         MessagingService.instance().send(message, ep);
     }
+
+    public String compareGossipAndTokenMetadataCache()
+    {
+        StringBuilder output = new StringBuilder();
+        // local epstate will be part of endpointStateMap
+        List<InetAddressAndPort> endpoints = new ArrayList<>(endpointStateMap.keySet());
+        for (InetAddressAndPort endpoint : endpoints)
+        {
+            EndpointState ep = endpointStateMap.get(endpoint);
+            // check the status only for NORMAL nodes
+            if (ep.isNormalState())
+            {
+                Collection<Token> tokensFromStorageServiceCache;
+                try
+                {
+                    tokensFromStorageServiceCache = StorageService.instance.getTokenMetadata().getTokens(endpoint);
+                }
+                catch(AssertionError e)
+                {
+                    // if we receive AssertionError then it means that the endpoint is part of Gossip cache
+                    // but StorageService cache does not have the endpoint.
+                    // This should be treated as inconsistency between the StorageService cache and Gossip cache
+                    output.append("TokenMetadata cache is missing information for normal endpoint" + endpoint);
+                    output.append("\n");
+                    continue;
+                }
+                Collection<Token> tokensFromGossipCache = StorageService.instance.getTokensFor(endpoint);
+                List<Token> c1 = new ArrayList<>(tokensFromStorageServiceCache);
+                List<Token> c2 = new ArrayList<>(tokensFromGossipCache);
+                Collections.sort(c1);
+                Collections.sort(c2);
+                if (!c1.equals(c2))
+                {
+                    output.append(String.format("Gossip and TokenMetadata cache token mismatch for endpoint %s", endpoint.toString()));
+                    output.append("\n");
+                }
+            }
+        }
+        return output.toString();
+    }
 }
