@@ -18,12 +18,15 @@
 
 package org.apache.cassandra.gms;
 
+import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
@@ -35,22 +38,26 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
+import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.SeedProvider;
 import org.apache.cassandra.locator.TokenMetadata;
+import org.apache.cassandra.metrics.GossipMetrics;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -81,12 +88,24 @@ public class GossiperTest
     {
         tmd.clearUnsafe();
         originalSeedProvider = DatabaseDescriptor.getSeedProvider();
+
+        DatabaseDescriptor.setCompareGossipAndStorageServiceCache(true);
+        DatabaseDescriptor.setSyncGossipAndStorageServiceCacheIfMismatched(true);
+        DatabaseDescriptor.setGossipAndStorageServiceCacheComparisonInterval(0, TimeUnit.SECONDS);
+        DatabaseDescriptor.setGossipAndStorageServiceCacheMismatchConvictionThreshold(3);
+
+        GossipMetrics.gossipAndStorageServiceCacheCompare.dec(GossipMetrics.gossipAndStorageServiceCacheCompare.getCount());
+        GossipMetrics.gossipAndStorageServiceCacheMismatch.dec(GossipMetrics.gossipAndStorageServiceCacheMismatch.getCount());
+        GossipMetrics.gossipAndStorageServiceCacheRepair.dec(GossipMetrics.gossipAndStorageServiceCacheRepair.getCount());
+        GossipMetrics.gossipAndStorageServiceCacheError.dec(GossipMetrics.gossipAndStorageServiceCacheError.getCount());
     }
 
     @After
     public void tearDown()
     {
         DatabaseDescriptor.setSeedProvider(originalSeedProvider);
+        Gossiper.instance.endpointStateMap.clear();
+        DatabaseDescriptor.setSyncGossipAndStorageServiceCacheIfMismatched(false);
     }
 
     @AfterClass
@@ -485,6 +504,270 @@ public class GossiperTest
             if (stateChangeListener != null)
                 Gossiper.instance.unregister(stateChangeListener);
         }
+    }
+
+    @Test
+    public void testGossipAndStorageServiceCacheMismatchExist() throws IOException
+    {
+        SchemaLoader.prepareServer();
+        Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, 2);
+        Gossiper.instance.start(1);
+        EndpointState host0State = Gossiper.instance.getEndpointStateForEndpoint(hosts.get(0));
+        EndpointState host1State = Gossiper.instance.getEndpointStateForEndpoint(hosts.get(1));
+
+        Gossiper.instance.injectApplicationState(hosts.get(1), ApplicationState.RELEASE_VERSION, new VersionedValue.VersionedValueFactory(null).releaseVersion(SystemKeyspace.CURRENT_VERSION.toString()));
+        host0State.addApplicationState(ApplicationState.STATUS_WITH_PORT, StorageService.instance.valueFactory.normal(new ArrayList<Token>(){{add(DatabaseDescriptor.getPartitioner().getRandomToken());}}));
+        host1State.addApplicationState(ApplicationState.STATUS_WITH_PORT, StorageService.instance.valueFactory.normal(new ArrayList<Token>(){{add(DatabaseDescriptor.getPartitioner().getRandomToken());}}));
+        Gossiper.instance.applyStateLocally(ImmutableMap.of(hosts.get(1), host0State));
+        Gossiper.instance.gossipAndServicecacheMismatchDetectionAndResolution();
+        assertEquals(1, GossipMetrics.gossipAndStorageServiceCacheCompare.getCount());
+        assertEquals(0, GossipMetrics.gossipAndStorageServiceCacheMismatch.getCount());
+        assertEquals(0, GossipMetrics.gossipAndStorageServiceCacheRepair.getCount());
+        assertEquals(StorageService.instance.getTokenMetadata().getTokens(hosts.get(0)), StorageService.instance.getTokensFor(hosts.get(0)));
+        assertEquals(StorageService.instance.getTokenMetadata().getTokens(hosts.get(1)), StorageService.instance.getTokensFor(hosts.get(1)));
+
+        // edit the tokens in the Gossip cache to create a mismatch between the two caches
+        host0State.addApplicationState(ApplicationState.TOKENS, StorageService.instance.valueFactory.tokens(new ArrayList<Token>(){{add(DatabaseDescriptor.getPartitioner().getRandomToken());}}));
+        assertNull(Gossiper.instance.gossipAndServiceCacheMismatchOccurredTracker.get(hosts.get(0)));
+        assertNull(Gossiper.instance.gossipAndServiceCacheMismatchOccurredTracker.get(hosts.get(1)));
+
+        // first mismatch
+        Gossiper.instance.gossipAndServicecacheMismatchDetectionAndResolution();
+        assertEquals(2, GossipMetrics.gossipAndStorageServiceCacheCompare.getCount());
+        assertEquals(1, GossipMetrics.gossipAndStorageServiceCacheMismatch.getCount());
+        assertEquals(0, GossipMetrics.gossipAndStorageServiceCacheRepair.getCount());
+
+        // Disable the feature; host0's cache incoherence persists
+        Gossiper.instance.setCompareGossipAndStorageServiceCache(false);
+        Gossiper.instance.gossipAndServicecacheMismatchDetectionAndResolution();
+        assertEquals(2, GossipMetrics.gossipAndStorageServiceCacheCompare.getCount());
+        assertEquals(1, GossipMetrics.gossipAndStorageServiceCacheMismatch.getCount());
+        assertEquals(0, GossipMetrics.gossipAndStorageServiceCacheRepair.getCount());
+        assertNotEquals(StorageService.instance.getTokenMetadata().getTokens(hosts.get(0)), StorageService.instance.getTokensFor(hosts.get(0)));
+        assertEquals(StorageService.instance.getTokenMetadata().getTokens(hosts.get(1)), StorageService.instance.getTokensFor(hosts.get(1)));
+    }
+
+    @Test
+    public void testGossipAndStorageServiceCacheMismatchDoNotExist() throws IOException
+    {
+        SchemaLoader.prepareServer();
+        Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, 2);
+        Gossiper.instance.start(1);
+
+        Gossiper.instance.injectApplicationState(hosts.get(1), ApplicationState.RELEASE_VERSION, new VersionedValue.VersionedValueFactory(null).releaseVersion(SystemKeyspace.CURRENT_VERSION.toString()));
+
+        assertEquals(StorageService.instance.getTokenMetadata().getTokens(hosts.get(0)), StorageService.instance.getTokensFor(hosts.get(0)));
+        assertEquals(StorageService.instance.getTokenMetadata().getTokens(hosts.get(1)), StorageService.instance.getTokensFor(hosts.get(1)));
+        // no impact to the cache if there is no cache coherence
+        Gossiper.instance.gossipAndServicecacheMismatchDetectionAndResolution();
+        assertEquals(1, GossipMetrics.gossipAndStorageServiceCacheCompare.getCount());
+        assertEquals(StorageService.instance.getTokenMetadata().getTokens(hosts.get(0)), StorageService.instance.getTokensFor(hosts.get(0)));
+        assertEquals(StorageService.instance.getTokenMetadata().getTokens(hosts.get(1)), StorageService.instance.getTokensFor(hosts.get(1)));
+    }
+
+    @Test
+    public void testGossipAndStorageServiceCacheIgnoreNonNormalNode() throws IOException
+    {
+        SchemaLoader.prepareServer();
+        Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, 2);
+        Gossiper.instance.start(1);
+
+        EndpointState host0State = Gossiper.instance.getEndpointStateForEndpoint(hosts.get(0));
+        Gossiper.instance.injectApplicationState(hosts.get(1), ApplicationState.RELEASE_VERSION, new VersionedValue.VersionedValueFactory(null).releaseVersion(SystemKeyspace.CURRENT_VERSION.toString()));
+
+        assertEquals(StorageService.instance.getTokenMetadata().getTokens(hosts.get(0)), StorageService.instance.getTokensFor(hosts.get(0)));
+        assertEquals(StorageService.instance.getTokenMetadata().getTokens(hosts.get(1)), StorageService.instance.getTokensFor(hosts.get(1)));
+
+        // Change host1's status to non-normal
+        host0State.addApplicationState(ApplicationState.STATUS, StorageService.instance.valueFactory.leaving(new ArrayList<>(){{add(new ByteOrderedPartitioner.BytesToken(new byte[]{ 1}));}}));
+        // Now intentionally inject inconsistency between the Gossip cache and storage service cache
+        host0State.addApplicationState(ApplicationState.TOKENS, StorageService.instance.valueFactory.tokens(new ArrayList<>(){{add(new ByteOrderedPartitioner.BytesToken(new byte[]{1,2,3}));}}));
+
+        assertNotEquals(StorageService.instance.getTokenMetadata().getTokens(hosts.get(0)), StorageService.instance.getTokensFor(hosts.get(0)));
+        assertEquals(StorageService.instance.getTokenMetadata().getTokens(hosts.get(1)), StorageService.instance.getTokensFor(hosts.get(1)));
+
+        // Because host1 is not yet "NORMAL", it should be skipped in fixing the caches
+        Gossiper.instance.gossipAndServicecacheMismatchDetectionAndResolution();
+        assertEquals(1, GossipMetrics.gossipAndStorageServiceCacheCompare.getCount());
+        assertEquals(0, GossipMetrics.gossipAndStorageServiceCacheMismatch.getCount());
+        assertNotEquals(StorageService.instance.getTokenMetadata().getTokens(hosts.get(0)), StorageService.instance.getTokensFor(hosts.get(0)));
+        assertEquals(StorageService.instance.getTokenMetadata().getTokens(hosts.get(1)), StorageService.instance.getTokensFor(hosts.get(1)));
+    }
+
+    @Test
+    public void testGossipAndStorageServiceCacheMismatchExistAndFixedAutomatically() throws IOException
+    {
+        SchemaLoader.prepareServer();
+        Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, 2);
+        Gossiper.instance.start(1);
+        EndpointState host0State = Gossiper.instance.getEndpointStateForEndpoint(hosts.get(0));
+        EndpointState host1State = Gossiper.instance.getEndpointStateForEndpoint(hosts.get(1));
+
+        Gossiper.instance.injectApplicationState(hosts.get(1), ApplicationState.RELEASE_VERSION, new VersionedValue.VersionedValueFactory(null).releaseVersion(SystemKeyspace.CURRENT_VERSION.toString()));
+        host0State.addApplicationState(ApplicationState.STATUS_WITH_PORT, StorageService.instance.valueFactory.normal(new ArrayList<Token>(){{add(DatabaseDescriptor.getPartitioner().getRandomToken());}}));
+        host1State.addApplicationState(ApplicationState.STATUS_WITH_PORT, StorageService.instance.valueFactory.normal(new ArrayList<Token>(){{add(DatabaseDescriptor.getPartitioner().getRandomToken());}}));
+        Gossiper.instance.applyStateLocally(ImmutableMap.of(hosts.get(1), host0State));
+        Gossiper.instance.gossipAndServicecacheMismatchDetectionAndResolution();
+        assertEquals(1, GossipMetrics.gossipAndStorageServiceCacheCompare.getCount());
+        assertEquals(0, GossipMetrics.gossipAndStorageServiceCacheMismatch.getCount());
+        assertEquals(0, GossipMetrics.gossipAndStorageServiceCacheRepair.getCount());
+
+        assertEquals(getStorageServiceCacheTokens(0), getGossipCacheTokens(0));
+        assertEquals(getStorageServiceCacheTokens(1), getGossipCacheTokens(1));
+
+
+        // edit the tokens in the Gossip cache to create a mismatch between the two caches
+        host0State.addApplicationState(ApplicationState.TOKENS, StorageService.instance.valueFactory.tokens(new ArrayList<Token>(){{add(DatabaseDescriptor.getPartitioner().getRandomToken());}}));
+        assertNull(Gossiper.instance.gossipAndServiceCacheMismatchOccurredTracker.get(hosts.get(0)));
+        assertNull(Gossiper.instance.gossipAndServiceCacheMismatchOccurredTracker.get(hosts.get(1)));
+
+        // Gossip tokens should be used as the source of truth in case of a mismtach
+        Collection<Token> newGossipTokensHost0 = getGossipCacheTokens(0);
+
+        // first mismatch
+        Gossiper.instance.gossipAndServicecacheMismatchDetectionAndResolution();
+        assertEquals(2, GossipMetrics.gossipAndStorageServiceCacheCompare.getCount());
+        assertEquals(1, GossipMetrics.gossipAndStorageServiceCacheMismatch.getCount());
+        assertEquals(0, GossipMetrics.gossipAndStorageServiceCacheRepair.getCount());
+        assertNotEquals(getStorageServiceCacheTokens(0), getGossipCacheTokens(0));
+        assertEquals(getStorageServiceCacheTokens(1), getGossipCacheTokens(1));
+        assertEquals(new Long(1), Gossiper.instance.gossipAndServiceCacheMismatchOccurredTracker.get(hosts.get(0)));
+        assertEquals(new Long(0), Gossiper.instance.gossipAndServiceCacheMismatchOccurredTracker.get(hosts.get(1)));
+
+        // second mismatch
+        Gossiper.instance.gossipAndServicecacheMismatchDetectionAndResolution();
+        assertEquals(3, GossipMetrics.gossipAndStorageServiceCacheCompare.getCount());
+        assertEquals(2, GossipMetrics.gossipAndStorageServiceCacheMismatch.getCount());
+        assertEquals(0, GossipMetrics.gossipAndStorageServiceCacheRepair.getCount());
+        assertNotEquals(getStorageServiceCacheTokens(0), getGossipCacheTokens(0));
+        assertEquals(getStorageServiceCacheTokens(1), getGossipCacheTokens(1));
+        assertEquals(new Long(2), Gossiper.instance.gossipAndServiceCacheMismatchOccurredTracker.get(hosts.get(0)));
+        assertEquals(new Long(0), Gossiper.instance.gossipAndServiceCacheMismatchOccurredTracker.get(hosts.get(1)));
+
+        // third mismatch should fix the cache
+        Gossiper.instance.gossipAndServicecacheMismatchDetectionAndResolution();
+        assertEquals(4, GossipMetrics.gossipAndStorageServiceCacheCompare.getCount());
+        assertEquals(3, GossipMetrics.gossipAndStorageServiceCacheMismatch.getCount());
+        assertEquals(1, GossipMetrics.gossipAndStorageServiceCacheRepair.getCount());
+        assertEquals(getStorageServiceCacheTokens(0), newGossipTokensHost0);
+        assertEquals(getStorageServiceCacheTokens(0), getGossipCacheTokens(0));
+        assertEquals(getStorageServiceCacheTokens(1), getGossipCacheTokens(1));
+        assertEquals(new Long(3), Gossiper.instance.gossipAndServiceCacheMismatchOccurredTracker.get(hosts.get(0)));
+        assertEquals(new Long(0), Gossiper.instance.gossipAndServiceCacheMismatchOccurredTracker.get(hosts.get(1)));
+
+        // no-op, as the caches have already been fixed (above)
+        Gossiper.instance.gossipAndServicecacheMismatchDetectionAndResolution();
+        assertEquals(5, GossipMetrics.gossipAndStorageServiceCacheCompare.getCount());
+        assertEquals(3, GossipMetrics.gossipAndStorageServiceCacheMismatch.getCount());
+        assertEquals(1, GossipMetrics.gossipAndStorageServiceCacheRepair.getCount());
+        assertEquals(getStorageServiceCacheTokens(0), newGossipTokensHost0);
+        assertEquals(getStorageServiceCacheTokens(0), getGossipCacheTokens(0));
+        assertEquals(getStorageServiceCacheTokens(1), getGossipCacheTokens(1));
+        assertNull(Gossiper.instance.gossipAndServiceCacheMismatchOccurredTracker.get(hosts.get(0)));
+        assertNull(Gossiper.instance.gossipAndServiceCacheMismatchOccurredTracker.get(hosts.get(1)));
+    }
+
+    @Test
+    public void testCacheMismatchIfStorageServiceCacheIsMissingTheEndpoint() throws IOException
+    {
+        SchemaLoader.prepareServer();
+        Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, 2);
+        Gossiper.instance.start(1);
+        EndpointState host0State = Gossiper.instance.getEndpointStateForEndpoint(hosts.get(0));
+        EndpointState host1State = Gossiper.instance.getEndpointStateForEndpoint(hosts.get(1));
+
+        Gossiper.instance.injectApplicationState(hosts.get(1), ApplicationState.RELEASE_VERSION, new VersionedValue.VersionedValueFactory(null).releaseVersion(SystemKeyspace.CURRENT_VERSION.toString()));
+        host0State.addApplicationState(ApplicationState.STATUS_WITH_PORT, StorageService.instance.valueFactory.normal(new ArrayList<Token>(){{add(DatabaseDescriptor.getPartitioner().getRandomToken());}}));
+        host1State.addApplicationState(ApplicationState.STATUS_WITH_PORT, StorageService.instance.valueFactory.normal(new ArrayList<Token>(){{add(DatabaseDescriptor.getPartitioner().getRandomToken());}}));
+        Gossiper.instance.applyStateLocally(ImmutableMap.of(hosts.get(1), host0State));
+        Gossiper.instance.gossipAndServicecacheMismatchDetectionAndResolution();
+        assertEquals(1, GossipMetrics.gossipAndStorageServiceCacheCompare.getCount());
+        assertEquals(0, GossipMetrics.gossipAndStorageServiceCacheMismatch.getCount());
+        assertEquals(0, GossipMetrics.gossipAndStorageServiceCacheRepair.getCount());
+        // Gossip tokens should be used as the source of truth in case of a mismtach
+        Collection<Token> gossipTokensHost0 = getGossipCacheTokens(0);
+        Collection<Token> gossipTokensHost1 = getGossipCacheTokens(1);
+
+        assertEquals(getStorageServiceCacheTokens(0), getGossipCacheTokens(0));
+        assertEquals(getStorageServiceCacheTokens(1), getGossipCacheTokens(1));
+
+        // remove the tokens from StorageService cache to create a mismatch between the two caches
+        StorageService.instance.getTokenMetadata().removeEndpoint(hosts.get(0));
+        assertNull(Gossiper.instance.gossipAndServiceCacheMismatchOccurredTracker.get(hosts.get(0)));
+        assertNull(Gossiper.instance.gossipAndServiceCacheMismatchOccurredTracker.get(hosts.get(1)));
+
+        // first mismatch
+        Gossiper.instance.gossipAndServicecacheMismatchDetectionAndResolution();
+        assertEquals(2, GossipMetrics.gossipAndStorageServiceCacheCompare.getCount());
+        assertEquals(1, GossipMetrics.gossipAndStorageServiceCacheMismatch.getCount());
+        assertEquals(0, GossipMetrics.gossipAndStorageServiceCacheRepair.getCount());
+        try
+        {
+            getStorageServiceCacheTokens(0);
+            fail("Expected AssertionError");
+        }
+        catch (AssertionError e)
+        {
+            assertTrue(e.getMessage().contains("Unable to get tokens for /127.0.0.1:7012; it is not a member"));
+        }
+        assertEquals(getStorageServiceCacheTokens(1), gossipTokensHost1);
+        assertEquals(getStorageServiceCacheTokens(1), getGossipCacheTokens(1));
+        assertEquals(new Long(1), Gossiper.instance.gossipAndServiceCacheMismatchOccurredTracker.get(hosts.get(0)));
+        assertEquals(new Long(0), Gossiper.instance.gossipAndServiceCacheMismatchOccurredTracker.get(hosts.get(1)));
+
+        // second mismatch
+        Gossiper.instance.gossipAndServicecacheMismatchDetectionAndResolution();
+        assertEquals(3, GossipMetrics.gossipAndStorageServiceCacheCompare.getCount());
+        assertEquals(2, GossipMetrics.gossipAndStorageServiceCacheMismatch.getCount());
+        assertEquals(0, GossipMetrics.gossipAndStorageServiceCacheRepair.getCount());
+        try
+        {
+            getStorageServiceCacheTokens(0);
+            fail("Expected AssertionError");
+        }
+        catch (AssertionError e)
+        {
+            assertTrue(e.getMessage().contains("Unable to get tokens for /127.0.0.1:7012; it is not a member"));
+        }
+        assertEquals(getStorageServiceCacheTokens(1), gossipTokensHost1);
+        assertEquals(getStorageServiceCacheTokens(1), getGossipCacheTokens(1));
+        assertEquals(new Long(2), Gossiper.instance.gossipAndServiceCacheMismatchOccurredTracker.get(hosts.get(0)));
+        assertEquals(new Long(0), Gossiper.instance.gossipAndServiceCacheMismatchOccurredTracker.get(hosts.get(1)));
+
+        // third mismatch should fix the cache
+        Gossiper.instance.gossipAndServicecacheMismatchDetectionAndResolution();
+        assertEquals(4, GossipMetrics.gossipAndStorageServiceCacheCompare.getCount());
+        assertEquals(3, GossipMetrics.gossipAndStorageServiceCacheMismatch.getCount());
+        assertEquals(1, GossipMetrics.gossipAndStorageServiceCacheRepair.getCount());
+
+        assertEquals(getStorageServiceCacheTokens(0), gossipTokensHost0);
+        assertEquals(getStorageServiceCacheTokens(0), getGossipCacheTokens(0));
+        assertEquals(getStorageServiceCacheTokens(1), gossipTokensHost1);
+        assertEquals(getStorageServiceCacheTokens(1), getGossipCacheTokens(1));
+        assertEquals(new Long(3), Gossiper.instance.gossipAndServiceCacheMismatchOccurredTracker.get(hosts.get(0)));
+        assertEquals(new Long(0), Gossiper.instance.gossipAndServiceCacheMismatchOccurredTracker.get(hosts.get(1)));
+
+        // no-op, as the caches have already been fixed (above)
+        Gossiper.instance.gossipAndServicecacheMismatchDetectionAndResolution();
+        assertEquals(5, GossipMetrics.gossipAndStorageServiceCacheCompare.getCount());
+        assertEquals(3, GossipMetrics.gossipAndStorageServiceCacheMismatch.getCount());
+        assertEquals(1, GossipMetrics.gossipAndStorageServiceCacheRepair.getCount());
+        assertEquals(getStorageServiceCacheTokens(0), gossipTokensHost0);
+        assertEquals(getStorageServiceCacheTokens(0), getGossipCacheTokens(0));
+        assertEquals(getStorageServiceCacheTokens(1), gossipTokensHost1);
+        assertEquals(getStorageServiceCacheTokens(1), getGossipCacheTokens(1));
+        assertNull(Gossiper.instance.gossipAndServiceCacheMismatchOccurredTracker.get(hosts.get(0)));
+        assertNull(Gossiper.instance.gossipAndServiceCacheMismatchOccurredTracker.get(hosts.get(1)));
+    }
+
+    private Collection<Token> getStorageServiceCacheTokens(int hostIndex)
+    {
+        return StorageService.instance.getTokenMetadata().getTokens(hosts.get(hostIndex));
+    }
+
+    private Collection<Token> getGossipCacheTokens(int hostIndex)
+    {
+        return StorageService.instance.getTokensFor(hosts.get(hostIndex));
     }
 
     static class SimpleStateChangeListener implements IEndpointStateChangeSubscriber

@@ -4516,4 +4516,44 @@ public class DatabaseDescriptor
     {
         conf.cql_start_time = value;
     }
+
+    public static boolean getCompareGossipAndStorageServiceCache()
+    {
+        return conf.compare_gossip_and_storage_service_cache;
+    }
+
+    public static void setCompareGossipAndStorageServiceCache(boolean compareGossipAndStorageServiceCache)
+    {
+        conf.compare_gossip_and_storage_service_cache = compareGossipAndStorageServiceCache;
+    }
+
+    public static DurationSpec.IntSecondsBound getGossipAndStorageServiceCacheComparisonInterval()
+    {
+        return conf.gossip_and_storage_service_cache_comparison_interval;
+    }
+
+    public static void setGossipAndStorageServiceCacheComparisonInterval(long interval, TimeUnit timeUnit)
+    {
+        conf.gossip_and_storage_service_cache_comparison_interval = new DurationSpec.IntSecondsBound(interval, timeUnit);
+    }
+
+    public static boolean getSyncGossipAndStorageServiceCacheIfMismatched()
+    {
+        return conf.sync_gossip_and_storage_service_cache_if_mismatched;
+    }
+
+    public static void setSyncGossipAndStorageServiceCacheIfMismatched(boolean cacheSyncEnabled)
+    {
+        conf.sync_gossip_and_storage_service_cache_if_mismatched = cacheSyncEnabled;
+    }
+
+    public static int getGossipAndStorageServiceCacheMismatchConvictionThreshold()
+    {
+        return conf.gossip_and_storage_service_cache_mismatch_conviction_threshold;
+    }
+
+    public static void setGossipAndStorageServiceCacheMismatchConvictionThreshold(int threshold)
+    {
+        conf.gossip_and_storage_service_cache_mismatch_conviction_threshold = threshold;
+    }
 }
