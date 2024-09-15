@@ -41,4 +41,5 @@ public interface GossiperMBean
     public boolean getLooseEmptyEnabled();
 
     public void setLooseEmptyEnabled(boolean enabled);
+    public String compareGossipAndTokenMetadataCache();
 }
