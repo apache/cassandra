@@ -82,7 +82,7 @@ public class CommitLog implements CommitLogMBean
 
     final public AbstractCommitLogSegmentManager segmentManager;
 
-    public final CommitLogArchiver archiver;
+    public CommitLogArchiver archiver;
     public final CommitLogMetrics metrics;
     final AbstractCommitLogService executor;
 
@@ -165,7 +165,7 @@ public class CommitLog implements CommitLogMBean
         return getUnmanagedFiles().length > 0;
     }
 
-    private File[] getUnmanagedFiles()
+    public File[] getUnmanagedFiles()
     {
         File[] files = new File(segmentManager.storageDirectory).tryList(unmanagedFilesFilter);
         if (files == null)
@@ -403,13 +403,19 @@ public class CommitLog implements CommitLogMBean
     @Override
     public long getRestorePointInTime()
     {
-        return archiver.restorePointInTime;
+        return archiver.restorePointInTimeInMicroseconds;
     }
 
     @Override
     public String getRestorePrecision()
     {
         return archiver.precision.toString();
+    }
+
+    @VisibleForTesting
+    public void setCommitlogArchiver(CommitLogArchiver archiver)
+    {
+        this.archiver = archiver;
     }
 
     public List<String> getActiveSegmentNames()
