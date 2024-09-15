@@ -2583,4 +2583,34 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         Message<GossipDigestAck2> message = Message.out(Verb.GOSSIP_DIGEST_ACK2, digestAck2Message);
         MessagingService.instance().send(message, ep);
     }
+
+    public Map<String,List<String>> compareGossipAndTokenMetadata()
+    {
+        // local epstate will be part of endpointStateMap
+        Map<String,List<String>> mismatches = new HashMap<>();
+        for (InetAddressAndPort endpoint : endpointStateMap.keySet())
+        {
+            EndpointState ep = endpointStateMap.get(endpoint);
+            // check the status only for NORMAL nodes
+            if (ep.isNormalState())
+            {
+                List<Token> tokensFromMetadata;
+                try
+                {
+                    tokensFromMetadata = new ArrayList<>(StorageService.instance.getTokenMetadata().getTokens(endpoint));
+                    Collections.sort(tokensFromMetadata);
+                }
+                catch(AssertionError e)
+                {
+                    tokensFromMetadata = Collections.EMPTY_LIST;
+                }
+                List<Token> tokensFromGossip = new ArrayList<>(StorageService.instance.getTokensFor(endpoint));
+                Collections.sort(tokensFromGossip);
+
+                if (!tokensFromMetadata.equals(tokensFromGossip))
+                    mismatches.put(endpoint.toString(), ImmutableList.of(tokensFromGossip.toString(), tokensFromMetadata.toString()));
+            }
+        }
+        return mismatches;
+    }
 }

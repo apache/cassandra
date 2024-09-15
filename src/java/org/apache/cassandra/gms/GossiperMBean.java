@@ -38,4 +38,9 @@ public interface GossiperMBean
     /** Returns each node's database release version */
     public Map<String, List<String>> getReleaseVersionsWithPort();
 
+    /** Returns a map of endpoints that don't have matching tokenMetadata to gossip tokens.
+     * Values are lists of fixed size two (as Pair is not jmx safe),
+     * the first is the gossip tokens, the second tokenMetadata).
+     */
+    public Map<String, List<String>> compareGossipAndTokenMetadata();
 }
