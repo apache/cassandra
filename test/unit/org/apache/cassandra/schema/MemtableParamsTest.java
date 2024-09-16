@@ -21,7 +21,7 @@ package org.apache.cassandra.schema;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-import accord.utilsfork.Gen;
+import accord.utils.Gen;
 import com.google.common.collect.ImmutableMap;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.utils.ConfigGenBuilder;
@@ -33,7 +33,7 @@ import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.db.memtable.SkipListMemtableFactory;
 import org.apache.cassandra.exceptions.ConfigurationException;
 
-import static accord.utilsfork.Property.qt;
+import static accord.utils.Property.qt;
 import static org.apache.cassandra.config.YamlConfigurationLoader.fromMap;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;

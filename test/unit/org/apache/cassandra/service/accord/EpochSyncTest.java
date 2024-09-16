@@ -302,7 +302,7 @@ public class EpochSyncTest
             this.maxNodes = 10;
             this.tokenGen = rs2 -> rs2.nextLong(Long.MIN_VALUE + 1, Long.MAX_VALUE);
 
-            this.globalExecutor = new SimulatedExecutorFactory(accord.utilsfork.RandomSource.wrap(rs.asJdkRandom()), failures::add);
+            this.globalExecutor = new SimulatedExecutorFactory(rs, failures::add);
             this.scheduler = globalExecutor.scheduled("ignored");
             Stage.MISC.unsafeSetExecutor(scheduler);
 
@@ -459,7 +459,7 @@ public class EpochSyncTest
                                                         return rs.nextBoolean() ? Action.DELIVER_WITH_FAILURE : Action.FAILURE;
                                                     return Action.DELIVER;
                                                 },
-                                                SimulatedMessageDelivery.randomDelay(accord.utilsfork.RandomSource.wrap(rs.asJdkRandom())),
+                                                SimulatedMessageDelivery.randomDelay(rs.fork()),
                                                 (to, msg) -> instances.get(nodeId(to)).reciver.recieve(msg),
                                                 (action, to, msg) -> logger.warn("{} message {}", action, msg),
                                                 scheduler::schedule,

@@ -24,8 +24,8 @@ import java.util.Map;
 import java.util.TreeMap;
 import javax.annotation.Nullable;
 
-import accord.utilsfork.Gen;
-import accord.utilsfork.Property;
+import accord.utils.Gen;
+import accord.utils.Property;
 import org.agrona.collections.IntArrayList;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -33,7 +33,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.index.sai.SAITester;
 import org.assertj.core.api.Assertions;
 
-import static accord.utilsfork.Property.qt;
+import static accord.utils.Property.qt;
 
 public abstract class AbstractSimpleEqTestBase extends SAITester
 {

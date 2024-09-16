@@ -24,12 +24,12 @@ import java.util.function.Function;
 
 import javax.annotation.Nullable;
 
-import accord.utilsfork.Gen;
-import accord.utilsfork.Property;
-import accord.utilsfork.Property.Command;
-import accord.utilsfork.Property.PreCheckResult;
-import accord.utilsfork.Property.SimpleCommand;
-import accord.utilsfork.RandomSource;
+import accord.utils.Gen;
+import accord.utils.Property;
+import accord.utils.Property.Command;
+import accord.utils.Property.PreCheckResult;
+import accord.utils.Property.SimpleCommand;
+import accord.utils.RandomSource;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.harry.HarryHelper;

@@ -23,8 +23,8 @@ import java.util.List;
 
 import org.junit.Test;
 
-import accord.utilsfork.Gen;
-import accord.utilsfork.Gens;
+import accord.utils.Gen;
+import accord.utils.Gens;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.RetrySpec;
 import org.apache.cassandra.db.compaction.ICompactionManager;
@@ -39,7 +39,7 @@ import org.apache.cassandra.utils.Closeable;
 import org.assertj.core.api.Assertions;
 import org.mockito.Mockito;
 
-import static accord.utilsfork.Property.qt;
+import static accord.utils.Property.qt;
 
 public class FailedAckTest extends FuzzTestBase
 {
@@ -66,7 +66,7 @@ public class FailedAckTest extends FuzzTestBase
                 RepairCoordinator repair = coordinator.repair(KEYSPACE, irOption(rs, coordinator, KEYSPACE, ignore -> TABLES), false);
                 repair.run();
                 // make sure the failing node is not the coordinator, else messaging isn't used
-                InetAddressAndPort failingAddress = rs.pick(repair.state.getNeighborsAndRanges().participants);
+                InetAddressAndPort failingAddress = rs.pickUnorderedSet(repair.state.getNeighborsAndRanges().participants);
                 Cluster.Node failingNode = cluster.nodes.get(failingAddress);
                 RepairStage stage = stageGen.next(rs);
                 switch (stage)

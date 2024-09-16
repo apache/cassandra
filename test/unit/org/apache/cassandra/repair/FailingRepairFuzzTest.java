@@ -29,8 +29,8 @@ import java.util.stream.Collectors;
 import com.google.common.collect.ImmutableList;
 import org.junit.Test;
 
-import accord.utilsfork.Gen;
-import accord.utilsfork.Gens;
+import accord.utils.Gen;
+import accord.utils.Gens;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.RetrySpec;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -42,7 +42,7 @@ import org.apache.cassandra.utils.Closeable;
 import org.assertj.core.api.AbstractStringAssert;
 import org.assertj.core.api.Assertions;
 
-import static accord.utilsfork.Property.qt;
+import static accord.utils.Property.qt;
 
 public class FailingRepairFuzzTest extends FuzzTestBase
 {

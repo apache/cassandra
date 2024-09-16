@@ -86,10 +86,10 @@ import org.junit.runner.Description;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import accord.utilsfork.DefaultRandom;
-import accord.utilsfork.Gen;
-import accord.utilsfork.Property;
-import accord.utilsfork.RandomSource;
+import accord.utils.DefaultRandom;
+import accord.utils.Gen;
+import accord.utils.Property;
+import accord.utils.RandomSource;
 import com.codahale.metrics.Gauge;
 import com.datastax.driver.core.CloseFuture;
 import com.datastax.driver.core.Cluster;

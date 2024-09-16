@@ -23,7 +23,7 @@ import java.util.Map;
 import com.google.common.jimfs.Jimfs;
 import org.junit.Test;
 
-import accord.utilsfork.Gen;
+import accord.utils.Gen;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
@@ -31,7 +31,7 @@ import org.apache.cassandra.config.YamlConfigurationLoader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.SimpleSeedProvider;
 
-import static accord.utilsfork.Property.qt;
+import static accord.utils.Property.qt;
 
 public class ConfigGenBuilderTest
 {

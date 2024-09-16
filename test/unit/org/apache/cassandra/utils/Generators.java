@@ -586,7 +586,7 @@ public final class Generators
                                                    .map(end -> Range.closed(start, end)));
     }
 
-    public static <T> accord.utilsfork.Gen<T> toGen(org.quicktheories.core.Gen<T> qt)
+    public static <T> accord.utils.Gen<T> toGen(org.quicktheories.core.Gen<T> qt)
     {
         return rs -> {
             JavaRandom r = new JavaRandom(rs.asJdkRandom());

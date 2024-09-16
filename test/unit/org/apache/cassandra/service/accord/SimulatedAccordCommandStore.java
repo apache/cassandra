@@ -102,7 +102,7 @@ public class SimulatedAccordCommandStore implements AutoCloseable
 
     public SimulatedAccordCommandStore(RandomSource rs)
     {
-        globalExecutor = new SimulatedExecutorFactory(accord.utilsfork.RandomSource.wrap(rs).fork(), fromQT(Generators.TIMESTAMP_GEN.map(java.sql.Timestamp::getTime)).mapToLong(TimeUnit.MILLISECONDS::toNanos).next(rs), failures::add);
+        globalExecutor = new SimulatedExecutorFactory(rs.fork(), fromQT(Generators.TIMESTAMP_GEN.map(java.sql.Timestamp::getTime)).mapToLong(TimeUnit.MILLISECONDS::toNanos).next(rs), failures::add);
         this.unorderedScheduled = globalExecutor.scheduled("ignored");
         ExecutorFactory.Global.unsafeSet(globalExecutor);
         Stage.READ.unsafeSetExecutor(unorderedScheduled);

@@ -303,7 +303,7 @@ public class AsyncOperationTest
     @Test
     public void testFutureCleanup() throws Throwable
     {
-        SimulatedExecutorFactory factory = new SimulatedExecutorFactory(accord.utilsfork.RandomSource.wrap(new DefaultRandom(42)), 42);
+        SimulatedExecutorFactory factory = new SimulatedExecutorFactory(new DefaultRandom(42), 42);
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl", factory.scheduled("ignored"), Stage.MUTATION.executor());
 
         TxnId txnId = txnId(1, clock.incrementAndGet(), 1);
