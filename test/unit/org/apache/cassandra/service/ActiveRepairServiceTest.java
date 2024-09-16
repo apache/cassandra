@@ -61,6 +61,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.service.snapshot.TableSnapshot;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.membership.NodeAddresses;
@@ -293,7 +294,7 @@ public class ActiveRepairServiceTest
                                                                    true, PreviewKind.NONE);
         createSSTables(store, 2);
         store.getRepairManager().snapshot(prsId.toString(), ranges, false);
-        try (Refs<SSTableReader> refs = store.getSnapshotSSTableReaders(prsId.toString()))
+        try (Refs<SSTableReader> refs = TableSnapshot.getSnapshotSSTableReaders(store.getKeyspaceName(), store.getTableName(), prsId.toString()))
         {
             assertEquals(original, Sets.newHashSet(refs.iterator()));
         }

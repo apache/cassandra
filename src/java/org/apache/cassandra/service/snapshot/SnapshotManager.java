@@ -18,7 +18,6 @@
 package org.apache.cassandra.service.snapshot;
 
 import java.io.IOException;
-import java.io.PrintStream;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
@@ -42,7 +41,6 @@ import javax.management.openmbean.TabularDataSupport;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.RateLimiter;
-import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -53,18 +51,14 @@ import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.SchemaCQLHelper;
 import org.apache.cassandra.db.SnapshotDetailsTabularData;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.lifecycle.View;
-import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.SchemaConstants;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
@@ -75,7 +69,6 @@ import static java.util.Comparator.comparing;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.schema.SchemaConstants.isLocalSystemKeyspace;
-import static org.apache.cassandra.utils.FBUtilities.now;
 
 public class SnapshotManager implements SnapshotManagerMBean, AutoCloseable
 {
@@ -548,112 +541,18 @@ public class SnapshotManager implements SnapshotManagerMBean, AutoCloseable
         return snapshot;
     }
 
+
+    public void takeSnapshot(TakeSnapshotTask takeSnapshotTask) throws IOException
+    {
+        addSnapshots(takeSnapshotTask.call());
+    }
+
     // MBean methods
 
     @Override
     public void takeSnapshot(String tag, Map<String, String> options, String... entities) throws IOException
     {
-        if (StorageService.instance.operationMode() == StorageService.Mode.JOINING)
-            throw new IOException("Cannot snapshot until bootstrap completes");
-
-        if (tag == null || tag.isEmpty())
-            throw new IOException("You must supply a snapshot name.");
-
-        DurationSpec.IntSecondsBound ttl = options.containsKey("ttl") ? new DurationSpec.IntSecondsBound(options.get("ttl")) : null;
-        if (ttl != null)
-        {
-            int minAllowedTtlSecs = CassandraRelevantProperties.SNAPSHOT_MIN_ALLOWED_TTL_SECONDS.getInt();
-            if (ttl.toSeconds() < minAllowedTtlSecs)
-                throw new IllegalArgumentException(format("ttl for snapshot must be at least %d seconds", minAllowedTtlSecs));
-        }
-
-        boolean skipFlush = Boolean.parseBoolean(options.getOrDefault("skipFlush", "false"));
-
-        Map<Keyspace, Set<ColumnFamilyStore>> entitiesForSnapshot = parseEntitiesForSnapshot(entities);
-
-        for (Map.Entry<Keyspace, Set<ColumnFamilyStore>> entry : entitiesForSnapshot.entrySet())
-        {
-            for (ColumnFamilyStore table : entry.getValue())
-            {
-                String keyspaceName = table.getKeyspaceName();
-                String tableName = table.getTableName();
-                if (getSnapshot(table.getKeyspaceName(), table.getTableName(), tag).isPresent())
-                    throw new IOException(format("Snapshot %s for %s.%s already exists.", tag, keyspaceName, tableName));
-            }
-        }
-
-        Instant creationTime = now();
-
-        for (Map.Entry<Keyspace, Set<ColumnFamilyStore>> entry : entitiesForSnapshot.entrySet())
-        {
-            Keyspace keyspace = entry.getKey();
-            for (ColumnFamilyStore table : entry.getValue())
-                keyspace.snapshot(tag, table.getTableName(), skipFlush, ttl, snapshotRateLimiter, creationTime);
-        }
-    }
-
-    private Map<Keyspace, Set<ColumnFamilyStore>> parseEntitiesForSnapshot(String... entities) throws IOException
-    {
-        Map<Keyspace, Set<ColumnFamilyStore>> entitiesForSnapshot = new HashMap<>();
-
-        if (entities != null && entities.length > 0 && entities[0].contains("."))
-        {
-            for (String entity : entities)
-            {
-                String[] splitted = StringUtils.split(entity, '.');
-                if (splitted.length == 2)
-                {
-                    String keyspaceName = splitted[0];
-                    String tableName = splitted[1];
-
-                    if (keyspaceName == null)
-                        throw new IOException("You must supply a keyspace name");
-                    if (tableName == null)
-                        throw new IOException("You must supply a table name");
-
-                    Keyspace validKeyspace = Keyspace.getValidKeyspace(keyspaceName);
-                    ColumnFamilyStore existingTable = validKeyspace.getColumnFamilyStore(tableName);
-
-                    entitiesForSnapshot.computeIfAbsent(validKeyspace, (ks) -> new HashSet<>());
-                    entitiesForSnapshot.get(validKeyspace).add(existingTable);
-                }
-                else
-                {
-                    throw new IllegalArgumentException("Cannot take a snapshot on secondary index or invalid column " +
-                                                       "family name. You must supply a column family name in the " +
-                                                       "form of keyspace.columnfamily");
-                }
-            }
-        }
-        else
-        {
-            if (entities != null && entities.length == 0)
-            {
-                for (Keyspace keyspace : Keyspace.all())
-                {
-                    for (ColumnFamilyStore table : keyspace.getColumnFamilyStores())
-                    {
-                        entitiesForSnapshot.computeIfAbsent(keyspace, (ks) -> new HashSet<>());
-                        entitiesForSnapshot.get(keyspace).add(table);
-                    }
-                }
-            }
-            else if (entities != null)
-            {
-                for (String keyspace : entities)
-                {
-                    Keyspace validKeyspace = Keyspace.getValidKeyspace(keyspace);
-
-                    for (ColumnFamilyStore table : validKeyspace.getColumnFamilyStores())
-                    {
-                        entitiesForSnapshot.computeIfAbsent(validKeyspace, (ks) -> new HashSet<>());
-                        entitiesForSnapshot.get(validKeyspace).add(table);
-                    }
-                }
-            }
-        }
-
-        return entitiesForSnapshot;
+        takeSnapshot(new TakeSnapshotTask(tag, options, entities));
     }
 
     @Override
@@ -794,37 +693,6 @@ public class SnapshotManager implements SnapshotManagerMBean, AutoCloseable
         return total;
     }
 
-    private void writeSnapshotManifest(SnapshotManifest manifest, File manifestFile)
-    {
-        try
-        {
-            manifestFile.parent().tryCreateDirectories();
-            manifest.serializeToJsonFile(manifestFile);
-        }
-        catch (IOException e)
-        {
-            throw new FSWriteError(e, manifestFile);
-        }
-    }
-
-    private void writeSnapshotSchema(File schemaFile, ColumnFamilyStore cfs)
-    {
-        try
-        {
-            if (!schemaFile.parent().exists())
-                schemaFile.parent().tryCreateDirectories();
-
-            try (PrintStream out = new PrintStream(new FileOutputStreamPlus(schemaFile)))
-            {
-                SchemaCQLHelper.reCreateStatementsForSchemaCql(cfs.metadata(), cfs.keyspace.getMetadata())
-                               .forEach(out::println);
-            }
-        }
-        catch (IOException e)
-        {
-            throw new FSWriteError(e, schemaFile);
-        }
-    }
 
     private void removeSnapshotDirectory(File snapshotDir)
     {

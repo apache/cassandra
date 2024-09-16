@@ -25,8 +25,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
@@ -38,12 +40,20 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.lifecycle.SSTableSet;
+import org.apache.cassandra.io.FSReadError;
+import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTable;
+import org.apache.cassandra.io.sstable.SSTableId;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.utils.Throwables;
+import org.apache.cassandra.utils.concurrent.Refs;
 
 public class TableSnapshot
 {
@@ -516,5 +526,67 @@ public class TableSnapshot
     protected static String buildSnapshotId(String keyspaceName, String tableName, UUID tableId, String tag)
     {
         return String.format("%s:%s:%s:%s", keyspaceName, tableName, tableId, tag);
+    }
+
+    public static Set<Descriptor> getSnapshotDescriptors(String keyspace, String table, String tag)
+    {
+        try
+        {
+            Refs<SSTableReader> snapshotSSTableReaders = getSnapshotSSTableReaders(keyspace, table, tag);
+
+            Set<Descriptor> descriptors = new HashSet<>();
+            for (SSTableReader ssTableReader : snapshotSSTableReaders)
+            {
+                descriptors.add(ssTableReader.descriptor);
+            }
+
+            return descriptors;
+        }
+        catch (IOException e)
+        {
+            throw Throwables.unchecked(e);
+        }
+    }
+
+    public static Refs<SSTableReader> getSnapshotSSTableReaders(String keyspace, String table, String tag) throws IOException
+    {
+        ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
+
+        Map<SSTableId, SSTableReader> active = new HashMap<>();
+        for (SSTableReader sstable : cfs.getSSTables(SSTableSet.CANONICAL))
+            active.put(sstable.descriptor.id, sstable);
+        Map<Descriptor, Set<Component>> snapshots = cfs.getDirectories().sstableLister(Directories.OnTxnErr.IGNORE).snapshots(tag).list();
+        Refs<SSTableReader> refs = new Refs<>();
+        try
+        {
+            for (Map.Entry<Descriptor, Set<Component>> entries : snapshots.entrySet())
+            {
+                // Try acquire reference to an active sstable instead of snapshot if it exists,
+                // to avoid opening new sstables. If it fails, use the snapshot reference instead.
+                SSTableReader sstable = active.get(entries.getKey().id);
+                if (sstable == null || !refs.tryRef(sstable))
+                {
+                    if (logger.isTraceEnabled())
+                        logger.trace("using snapshot sstable {}", entries.getKey());
+                    // open offline so we don't modify components or track hotness.
+                    sstable = SSTableReader.open(cfs, entries.getKey(), entries.getValue(), cfs.metadata, true, true);
+                    refs.tryRef(sstable);
+                    // release the self ref as we never add the snapshot sstable to DataTracker where it is otherwise released
+                    sstable.selfRef().release();
+                }
+                else if (logger.isTraceEnabled())
+                {
+                    logger.trace("using active sstable {}", entries.getKey());
+                }
+            }
+        }
+        catch (FSReadError | RuntimeException e)
+        {
+            // In case one of the snapshot sstables fails to open,
+            // we must release the references to the ones we opened so far
+            refs.release();
+            throw e;
+        }
+        return refs;
     }
 }

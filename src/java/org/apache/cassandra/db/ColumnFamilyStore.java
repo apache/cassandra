@@ -114,7 +114,6 @@ import org.apache.cassandra.exceptions.StartupException;
 import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.index.internal.CassandraIndex;
 import org.apache.cassandra.index.transactions.UpdateTransaction;
-import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.IScrubber;
@@ -156,6 +155,7 @@ import org.apache.cassandra.service.paxos.TablePaxosRepairHistory;
 import org.apache.cassandra.service.snapshot.SnapshotLoader;
 import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.service.snapshot.TableSnapshot;
+import org.apache.cassandra.service.snapshot.TakeSnapshotTask;
 import org.apache.cassandra.streaming.TableStreamManager;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
@@ -2122,20 +2122,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
     public TableSnapshot snapshotWithoutMemtable(String snapshotName)
     {
-        return snapshotWithoutMemtable(snapshotName, now());
+        return SnapshotManager.instance.createSnapshot(this, snapshotName, null, false, null, now(), null);
     }
 
     public TableSnapshot snapshotWithoutMemtable(String snapshotName, Instant creationTime)
     {
-        return snapshotWithoutMemtable(snapshotName, null, false, null, null, creationTime);
-    }
-
-    /**
-     * @param ephemeral If this flag is set to true, the snapshot will be cleaned during next startup
-     */
-    public TableSnapshot snapshotWithoutMemtable(String snapshotName, Predicate<SSTableReader> predicate, boolean ephemeral, DurationSpec.IntSecondsBound ttl, RateLimiter rateLimiter, Instant creationTime)
-    {
-        return SnapshotManager.instance.createSnapshot(this, snapshotName, predicate, ephemeral, ttl, creationTime, rateLimiter);
+        return SnapshotManager.instance.createSnapshot(this, snapshotName, null, false, null, creationTime, null);
     }
 
     /**
@@ -2208,7 +2200,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                     current.performSnapshot(snapshotName);
             }
         }
-        return snapshotWithoutMemtable(snapshotName, predicate, ephemeral, ttl, rateLimiter, creationTime);
+
+        return SnapshotManager.instance.createSnapshot(this, snapshotName, predicate, ephemeral, ttl, creationTime, rateLimiter);
     }
 
     public boolean snapshotExists(String snapshotName)
@@ -2232,6 +2225,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
      * @return  Return a map of all snapshots to space being used
      * The pair for a snapshot has true size and size on disk.
      */
+    // TODO - this is used just in tests
     public Map<String, TableSnapshot> listSnapshots()
     {
         Set<TableSnapshot> snapshots = new SnapshotLoader(getDirectories()).loadSnapshots();
@@ -2241,46 +2235,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             tagSnapshotsMap.put(snapshot.getTag(), snapshot);
 
         return tagSnapshotsMap;
-    }
-
-    public Refs<SSTableReader> getSnapshotSSTableReaders(String tag) throws IOException
-    {
-        Map<SSTableId, SSTableReader> active = new HashMap<>();
-        for (SSTableReader sstable : getSSTables(SSTableSet.CANONICAL))
-            active.put(sstable.descriptor.id, sstable);
-        Map<Descriptor, Set<Component>> snapshots = getDirectories().sstableLister(Directories.OnTxnErr.IGNORE).snapshots(tag).list();
-        Refs<SSTableReader> refs = new Refs<>();
-        try
-        {
-            for (Map.Entry<Descriptor, Set<Component>> entries : snapshots.entrySet())
-            {
-                // Try acquire reference to an active sstable instead of snapshot if it exists,
-                // to avoid opening new sstables. If it fails, use the snapshot reference instead.
-                SSTableReader sstable = active.get(entries.getKey().id);
-                if (sstable == null || !refs.tryRef(sstable))
-                {
-                    if (logger.isTraceEnabled())
-                        logger.trace("using snapshot sstable {}", entries.getKey());
-                    // open offline so we don't modify components or track hotness.
-                    sstable = SSTableReader.open(this, entries.getKey(), entries.getValue(), metadata, true, true);
-                    refs.tryRef(sstable);
-                    // release the self ref as we never add the snapshot sstable to DataTracker where it is otherwise released
-                    sstable.selfRef().release();
-                }
-                else if (logger.isTraceEnabled())
-                {
-                    logger.trace("using active sstable {}", entries.getKey());
-                }
-            }
-        }
-        catch (FSReadError | RuntimeException e)
-        {
-            // In case one of the snapshot sstables fails to open,
-            // we must release the references to the ones we opened so far
-            refs.release();
-            throw e;
-        }
-        return refs;
     }
 
     /**

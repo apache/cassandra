@@ -20,6 +20,8 @@ package org.apache.cassandra.db;
 
 import java.nio.ByteBuffer;
 import java.util.Collection;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import org.junit.Before;
@@ -43,6 +45,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.big.BigTableReader;
 import org.apache.cassandra.metrics.ClearableHistogram;
 import org.apache.cassandra.service.snapshot.SnapshotManager;
+import org.apache.cassandra.service.snapshot.TableSnapshot;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
@@ -50,7 +53,6 @@ import org.assertj.core.api.Assertions;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class KeyspaceTest extends CQLTester
@@ -441,10 +443,12 @@ public class KeyspaceTest extends CQLTester
 
         Keyspace ks = Keyspace.open(KEYSPACE_PER_TEST);
         String table = getCurrentColumnFamilyStore().name;
-        ks.snapshot("test", table);
+        SnapshotManager.instance.takeSnapshot("test", Map.of(), ks.getName() + '.' + table);
+        //ks.snapshot("test", table);
 
-        assertTrue(ks.snapshotExists("test"));
-        assertEquals(1, SnapshotManager.instance.getSnapshots(ks.getName()).size());
+        List<TableSnapshot> snapshots = SnapshotManager.instance.getSnapshots(ks.getName());
+        assertEquals(1, snapshots.size());
+        assertEquals(snapshots.get(0).getTag(), "test");
     }
 
     @Test

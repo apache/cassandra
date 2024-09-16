@@ -147,7 +147,6 @@ import org.apache.cassandra.utils.CounterId;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.FilterFactory;
 import org.apache.cassandra.utils.OutputHandler;
-import org.apache.cassandra.utils.Throwables;
 import org.awaitility.Awaitility;
 import org.hamcrest.Matcher;
 import org.mockito.Mockito;
@@ -1168,23 +1167,6 @@ public class Util
                        .stream()
                        .map(sstr -> sstr.descriptor)
                        .collect(Collectors.toSet());
-    }
-
-    public static Set<Descriptor> getSnapshots(String ks, String tableName, String snapshotTag)
-    {
-        try
-        {
-            return Keyspace.open(ks)
-                           .getColumnFamilyStore(tableName)
-                           .getSnapshotSSTableReaders(snapshotTag)
-                           .stream()
-                           .map(sstr -> sstr.descriptor)
-                           .collect(Collectors.toSet());
-        }
-        catch (IOException e)
-        {
-            throw Throwables.unchecked(e);
-        }
     }
 
     public static Set<Descriptor> getBackups(String ks, String tableName)
