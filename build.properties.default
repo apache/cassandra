@@ -20,4 +20,4 @@
 #
 artifact.remoteRepository.central:     https://repo1.maven.org/maven2
 artifact.remoteRepository.apache:      https://repo.maven.apache.org/maven2
-
+artifact.remoteRepository.apacheSnapshot: https://repository.apache.org/content/repositories/snapshots
