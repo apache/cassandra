@@ -61,7 +61,7 @@ public class IndexMetrics
         {
             metricScope += '.' + indexName;
         }
-        metricScope += '.' + SCOPE + '.' + name;
+        metricScope += '.' + SCOPE;
 
         CassandraMetricsRegistry.MetricName metricName = new CassandraMetricsRegistry.MetricName(DefaultNameFactory.GROUP_NAME,
                                                                                                  TYPE, name, metricScope, createMBeanName(name, SCOPE));
