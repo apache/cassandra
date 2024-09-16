@@ -553,6 +553,11 @@ public class SavedCommand
                 case PreAccepted:
                     return Command.PreAccepted.preAccepted(attrs, executeAt, promised);
                 case AcceptedInvalidate:
+                    if (saveStatus == SaveStatus.AcceptedInvalidateWithDefinition)
+                        return Command.Accepted.accepted(attrs, saveStatus, executeAt, promised, acceptedOrCommitted);
+                    else
+                        return Command.AcceptedInvalidateWithoutDefinition.acceptedInvalidate(attrs, promised, acceptedOrCommitted);
+
                 case Accepted:
                 case PreCommitted:
                     return Command.Accepted.accepted(attrs, saveStatus, executeAt, promised, acceptedOrCommitted);
