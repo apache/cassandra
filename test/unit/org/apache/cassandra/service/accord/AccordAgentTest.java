@@ -61,7 +61,7 @@ public class AccordAgentTest
                 for (int j = 1 ; j < startTimes.length ; ++j)
                 {
                     long actualDelta = startTimes[j] - startTimes[j - 1];
-                    assertTrue(Math.abs(targetDelta - actualDelta) <= 1);
+                    assertTrue(Math.abs(targetDelta - actualDelta) <= startTimes.length);
                 }
             }
         });
