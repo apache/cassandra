@@ -6,6 +6,7 @@
  * Reduce info logging from automatic paxos repair (CASSANDRA-19445)
  * Support legacy plain_text_auth section in credentials file removed unintentionally (CASSANDRA-19498)
 Merged from 4.0:
+ * Fix memory leak in BTree.FastBuilder (CASSANDRA-19785)
  * Fix millisecond and microsecond precision for commit log replay (CASSANDRA-19448)
  * Improve accuracy of memtable heap usage tracking (CASSANDRA-17298)
  * Fix rendering UNSET collection types in query tracing (CASSANDRA-19880)
