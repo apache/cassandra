@@ -67,8 +67,8 @@
                  the following line.
 
                  You may also need to add an exclusion for "resolver-apache-snapshot" to your mirrors in ~/.m2/settings.xml
-                 as mirrors will, by default, catch and override all dependency resolution regardless of it being a -SNAPSHOT
-                 lib or not.
+                 or ~/.ant/settings.xml (maven ant resolver supersedes) as mirrors will, by default, catch and override
+                 all dependency resolution regardless of it being a -SNAPSHOT lib or not.
              -->
             <!-- <remoterepo id="resolver-apache-snapshot" url="${artifact.remoteRepository.apacheSnapshot}" releases="false" snapshots="true" updates="always" checksums="fail" /> -->
         </resolver:remoterepos>
