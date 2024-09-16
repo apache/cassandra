@@ -1,4 +1,5 @@
 5.0.1
+ * Emit error when altering a table with non-frozen UDTs with nested non-frozen collections the same way as done upon table creation (CASSANDRA-19925)
  * Make configuration entries in memtable section order-independent (CASSANDRA-19906)
  * Add guardrail for enabling usage of VectorType (CASSANDRA-19903)
  * Set executable flag for shell scripts in .build directory for source artifact (CASSANDRA-19896)
