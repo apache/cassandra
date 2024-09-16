@@ -254,19 +254,6 @@ public class Keyspace
     }
 
     /**
-     * Take a snapshot of the specific column family, or the entire set of column families
-     * if columnFamily is null with a given timestamp
-     *
-     * @param snapshotName     the tag associated with the name of the snapshot.  This value may not be null
-     * @param columnFamilyName the column family to snapshot or all on null
-     * @throws IOException if the column family doesn't exist
-     */
-    public void snapshot(String snapshotName, String columnFamilyName) throws IOException
-    {
-        snapshot(snapshotName, columnFamilyName, false, null, null, now());
-    }
-
-    /**
      * @param clientSuppliedName may be null.
      * @return the name of the snapshot
      */
@@ -298,23 +285,6 @@ public class Keyspace
     public static String getTimestampedSnapshotNameWithPrefix(String clientSuppliedName, String prefix)
     {
         return prefix + "-" + getTimestampedSnapshotName(clientSuppliedName);
-    }
-
-    /**
-     * Check whether snapshots already exists for a given name.
-     *
-     * @param snapshotName the user supplied snapshot name
-     * @return true if the snapshot exists
-     */
-    public boolean snapshotExists(String snapshotName)
-    {
-        assert snapshotName != null;
-        for (ColumnFamilyStore cfStore : columnFamilyStores.values())
-        {
-            if (cfStore.snapshotExists(snapshotName))
-                return true;
-        }
-        return false;
     }
 
     /**

@@ -51,6 +51,7 @@ import org.apache.cassandra.io.sstable.SequenceBasedSSTableId;
 import org.apache.cassandra.io.sstable.UUIDBasedSSTableId;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.metrics.RestorableMeter;
+import org.apache.cassandra.service.snapshot.TableSnapshot;
 import org.apache.cassandra.tools.SystemExitException;
 import org.apache.cassandra.utils.TimeUUID;
 import org.assertj.core.api.Assertions;
@@ -60,7 +61,6 @@ import static java.lang.String.format;
 import static org.apache.cassandra.Util.bulkLoadSSTables;
 import static org.apache.cassandra.Util.getBackups;
 import static org.apache.cassandra.Util.getSSTables;
-import static org.apache.cassandra.Util.getSnapshots;
 import static org.apache.cassandra.Util.relativizePath;
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 import static org.apache.cassandra.db.SystemKeyspace.LEGACY_SSTABLE_ACTIVITY;
@@ -457,7 +457,7 @@ public class SSTableIdGenerationTest extends TestBaseImpl
 
     private static void assertSnapshotSSTablesCount(IInvokableInstance instance, int expectedSeqGenIds, int expectedUUIDGenIds, String ks, String... tableNames)
     {
-        instance.runOnInstance(rethrow(() -> Arrays.stream(tableNames).forEach(tableName -> assertSSTablesCount(getSnapshots(ks, tableName, SNAPSHOT_TAG), tableName, expectedSeqGenIds, expectedUUIDGenIds))));
+        instance.runOnInstance(rethrow(() -> Arrays.stream(tableNames).forEach(tableName -> assertSSTablesCount(TableSnapshot.getSnapshotDescriptors(ks, tableName, SNAPSHOT_TAG), tableName, expectedSeqGenIds, expectedUUIDGenIds))));
     }
 
     private static void assertBackupSSTablesCount(IInvokableInstance instance, int expectedSeqGenIds, int expectedUUIDGenIds, String ks, String... tableNames)

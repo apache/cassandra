@@ -495,7 +495,7 @@ public enum CassandraRelevantProperties
      * it will enrich it with more metadata upon snapshot's loading at startup.
      * Defaults to true, when set to false, no enriching will be done.
      * */
-    SNAPSHOT_MANIFEST_ENRICH_ENABLED("cassandra.snapshot.enrich.enabled", "true"),
+    SNAPSHOT_MANIFEST_ENRICH_ENABLED("cassandra.snapshot.enrich.enabled", "false"),
     /** minimum allowed TTL for snapshots */
     SNAPSHOT_MIN_ALLOWED_TTL_SECONDS("cassandra.snapshot.min_allowed_ttl_seconds", "60"),
     SSL_ENABLE("ssl.enable"),

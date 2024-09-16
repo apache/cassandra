@@ -58,6 +58,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.repair.NoSuchRepairSessionException;
 import org.apache.cassandra.service.snapshot.SnapshotManager;
+import org.apache.cassandra.service.snapshot.TableSnapshot;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Refs;
 
@@ -192,7 +193,7 @@ public class CassandraValidationIterator extends ValidationPartitionIterator
             // If there is a snapshot created for the session then read from there.
             // note that we populate the parent repair session when creating the snapshot, meaning the sstables in the snapshot are the ones we
             // are supposed to validate.
-            sstables = cfs.getSnapshotSSTableReaders(snapshotName);
+            sstables = TableSnapshot.getSnapshotSSTableReaders(cfs.getKeyspaceName(), cfs.getTableName(), snapshotName);
         }
         else
         {
