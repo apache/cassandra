@@ -101,7 +101,6 @@ Merged from 4.0:
 
 
 5.0-rc1
->>>>>>> cassandra-5.0
  * Move bcpkix-jdk18on to build dependencies, update to 1.78 and explicitly enumerate transitive dependencies (CASSANDRA-19739)
  * Avoid streams in the common case for UpdateTransaction creation (CASSANDRA-19675)
  * Only wait until native_transport_timeout for dispatcher to finish (CASSANDRA-19697)
@@ -167,7 +166,6 @@ Merged from 3.0:
 
 
 4.1.5
->>>>>>> cassandra-4.1
  * Make queries visible to the "system_views.queries" virtual table at the coordinator level (CASSANDRA-19577)
  * Fix hints delivery for a node going down repeatedly (CASSANDRA-19495)
  * Do not go to disk for reading hints file sizes (CASSANDRA-19477)
