@@ -44,6 +44,7 @@ import org.apache.cassandra.cql3.QualifiedName;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.marshal.AbstractType;
 
+import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.Gossiper;
@@ -200,6 +201,16 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
 
             if (isStatic && table.clusteringColumns().isEmpty())
                 throw ire("Static columns are only useful (and thus allowed) if the table has at least one clustering column");
+
+            // check for nested non-frozen UDTs or collections in a non-frozen UDT
+            if (type.isUDT() && type.isMultiCell())
+            {
+                for (AbstractType<?> fieldType : ((UserType) type).fieldTypes())
+                {
+                    if (fieldType.isMultiCell())
+                        throw ire("Non-frozen UDTs with nested non-frozen collections are not supported for column " + column.name);
+                }
+            }
 
             ColumnMetadata droppedColumn = table.getDroppedColumn(name.bytes);
             if (null != droppedColumn)
