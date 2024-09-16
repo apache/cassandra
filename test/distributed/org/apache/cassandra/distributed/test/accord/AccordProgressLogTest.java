@@ -22,8 +22,8 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
+import org.junit.Assert;
 import org.junit.Test;
-import org.junit.jupiter.api.Assertions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -75,12 +75,12 @@ public class AccordProgressLogTest extends TestBaseImpl
             {
                 failed = true;
             }
-            Assertions.assertTrue(failed);
+            Assert.assertTrue(failed);
 
             waitForRecovery.acquire();
             long timeDeltaMillis = TimeUnit.NANOSECONDS.toMillis(recoveryStartedAt.get() - coordinationStartedAt);
-            Assertions.assertTrue(timeDeltaMillis >= 1000, "Recovery started in " + timeDeltaMillis + "ms");
-            Assertions.assertTrue(timeDeltaMillis <= 3000, "Recovery started in " + timeDeltaMillis + "ms");
+            Assert.assertTrue("Recovery started in " + timeDeltaMillis + "ms", timeDeltaMillis >= 1000);
+            Assert.assertTrue("Recovery started in " + timeDeltaMillis + "ms", timeDeltaMillis <= 3000);
         }
     }
 
@@ -123,8 +123,8 @@ public class AccordProgressLogTest extends TestBaseImpl
             logger.info("Coordinated at {}", coordinationStartedAt);
             logger.info("Awaited at {}", fetchStartedAt.get());
             long timeDeltaMillis = TimeUnit.NANOSECONDS.toMillis(fetchStartedAt.get() - coordinationStartedAt);
-            Assertions.assertTrue(timeDeltaMillis >= 100, "Fetch started in " + timeDeltaMillis + "ms");
-            Assertions.assertTrue(timeDeltaMillis <= 2000, "Fetch started in " + timeDeltaMillis + "ms");
+            Assert.assertTrue("Fetch started in " + timeDeltaMillis + "ms", timeDeltaMillis >= 100);
+            Assert.assertTrue("Fetch started in " + timeDeltaMillis + "ms", timeDeltaMillis <= 2000);
         }
     }
 }
