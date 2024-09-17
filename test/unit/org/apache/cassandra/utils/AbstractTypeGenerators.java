@@ -1102,6 +1102,49 @@ public final class AbstractTypeGenerators
         return Math.min(size, uniq);
     }
 
+    public static boolean contains(AbstractType<?> type, AbstractType<?> searchFor)
+    {
+        return contains(type, searchFor::equals);
+    }
+
+    public static boolean contains(AbstractType<?> type, Predicate<AbstractType<?>> searchFor)
+    {
+        class Found
+        {
+            boolean result = false;
+        }
+        Found found = new Found();
+        visit(type, t -> {
+            if (searchFor.test(t))
+            {
+                found.result = true;
+                return VisitAction.STOP;
+            }
+            return VisitAction.CONTINUE;
+        });
+        return found.result;
+    }
+
+    public enum VisitAction { CONTINUE, STOP}
+
+    public static VisitAction visit(AbstractType<?> type, Function<AbstractType<?>, VisitAction> fn)
+    {
+        VisitAction action = fn.apply(type);
+        if (action == VisitAction.STOP) return action;
+        if (type.isReversed())
+        {
+            type = type.unwrap();
+            action = fn.apply(type);
+            if (action == VisitAction.STOP) return action;
+        }
+        for (AbstractType<?> t : type.subTypes())
+        {
+            action = visit(t, fn);
+            if (action == VisitAction.STOP) return action;
+        }
+        return VisitAction.CONTINUE;
+    }
+
     public static Set<UserType> extractUDTs(AbstractType<?> type)
     {
         Set<UserType> matches = new HashSet<>();
