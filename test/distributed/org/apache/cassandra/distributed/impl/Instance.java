@@ -885,6 +885,11 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 }
             };
             error = parallelRun(error, executor,
+                    // If an index build completes as shutting down, setIndexBuild may trigger
+                    // a CFS.forceBlockingFlush
+                    () -> SecondaryIndexManager.shutdownAndWait(1L, MINUTES)
+            );
+            error = parallelRun(error, executor,
                                 () -> Gossiper.instance.stopShutdownAndWait(1L, MINUTES),
                                 CompactionManager.instance::forceShutdown,
                                 () -> BatchlogManager.instance.shutdownAndWait(1L, MINUTES),
@@ -896,7 +901,6 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                 () -> StreamReceiveTask.shutdownAndWait(1L, MINUTES),
                                 () -> StreamTransferTask.shutdownAndWait(1L, MINUTES),
                                 () -> StreamManager.instance.stop(),
-                                () -> SecondaryIndexManager.shutdownAndWait(1L, MINUTES),
                                 () -> IndexSummaryManager.instance.shutdownAndWait(1L, MINUTES),
                                 () -> ColumnFamilyStore.shutdownExecutorsAndWait(1L, MINUTES),
                                 () -> BufferPools.shutdownLocalCleaner(1L, MINUTES),

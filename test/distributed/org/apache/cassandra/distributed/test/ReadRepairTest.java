@@ -26,7 +26,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
-import org.apache.cassandra.utils.concurrent.Condition;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -55,6 +54,7 @@ import org.apache.cassandra.service.PendingRangeCalculatorService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.reads.repair.BlockingReadRepair;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
+import org.apache.cassandra.utils.concurrent.Condition;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
 
@@ -181,7 +181,7 @@ public class ReadRepairTest extends TestBaseImpl
     public void movingTokenReadRepairTest() throws Throwable
     {
         // TODO: fails with vnode enabled
-        try (Cluster cluster = init(Cluster.build(4).withoutVNodes().start(), 3))
+        try (Cluster cluster = init(Cluster.build(4).withoutVNodes().withConfig(c -> c.set("reject_out_of_token_range_requests", false)).start(), 3))
         {
             List<Token> tokens = cluster.tokens();
 
@@ -358,7 +358,7 @@ public class ReadRepairTest extends TestBaseImpl
                                            .withConfig(config -> config.with(Feature.GOSSIP, Feature.NETWORK)
                                                                        .set("read_request_timeout", String.format("%dms", Integer.MAX_VALUE))
                                                                        .set("native_transport_timeout", String.format("%dms", Integer.MAX_VALUE))
-                                           )
+                                                                       .set("reject_out_of_token_range_requests", false))
                                            .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(4))
                                            .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(4, "dc0", "rack0"))
                                            .withNodes(3)
@@ -496,6 +496,7 @@ public class ReadRepairTest extends TestBaseImpl
         // on timestamp tie of RT and partition deletion: we should not generate RT bounds in such case,
         // since monotonicity is already ensured by the partition deletion, and RT is unnecessary there.
         // For details, see CASSANDRA-16453.
+        @SuppressWarnings("unused")
         public static Object repairPartition(DecoratedKey partitionKey, Map<Replica, Mutation> mutations, ReplicaPlan.ForWrite writePlan, @SuperCall Callable<Void> r) throws Exception
         {
             Assert.assertEquals(2, mutations.size());

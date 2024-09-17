@@ -47,7 +47,6 @@ import static org.junit.Assert.assertTrue;
 
 import static org.apache.cassandra.Util.token;
 
-
 public class TokenMetadataTest
 {
     public final static String ONE = "1";
@@ -357,7 +356,6 @@ public class TokenMetadataTest
         assertEquals(0, tokenMetadata.getSizeOfLeavingEndpoints());
         assertEquals(0, tokenMetadata.getSizeOfMovingEndpoints());
     }
-
 
     @Test
     public void testRemoveEndpointTokenChange() throws Exception

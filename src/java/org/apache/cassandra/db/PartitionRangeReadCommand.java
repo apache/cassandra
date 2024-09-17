@@ -66,7 +66,8 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
     protected final DataRange dataRange;
     protected final Slices requestedSlices;
 
-    private PartitionRangeReadCommand(boolean isDigest,
+    @VisibleForTesting
+    protected PartitionRangeReadCommand(boolean isDigest,
                                       int digestVersion,
                                       boolean acceptsTransient,
                                       TableMetadata metadata,

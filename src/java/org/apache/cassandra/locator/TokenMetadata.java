@@ -821,6 +821,14 @@ public class TokenMetadata
         return builder.build();
     }
 
+    @VisibleForTesting
+    public void setPendingRangesUnsafe(String keyspaceName, Multimap<Range<Token>, Replica> rangeMap)
+    {
+        PendingRangeMaps prm = new PendingRangeMaps();
+        rangeMap.entries().forEach(entry -> prm.addPendingRange(entry.getKey(), entry.getValue()));
+        pendingRanges.put(keyspaceName, prm);
+    }
+
      /**
      * Calculate pending ranges according to bootsrapping and leaving nodes. Reasoning is:
      *
@@ -1413,6 +1421,12 @@ public class TokenMetadata
     public DecoratedKey decorateKey(ByteBuffer key)
     {
         return partitioner.decorateKey(key);
+    }
+
+    public boolean isTokenInLocalPendingRange(String keyspaceName, Token token)
+    {
+        PendingRangeMaps pending = pendingRanges.get(keyspaceName);
+        return pending == null ? false : pending.isTokenInLocalPendingRange(token);
     }
 
     /**

@@ -9,6 +9,7 @@
  * Add java.base/java.lang.reflect among opens for jvm11-client.options (CASSANDRA-19780)
 Merged from 4.1:
 Merged from 4.0:
+ * Safer handling of out-of-range tokens (CASSANDRA-13704)
  * Fix memory leak in BTree.FastBuilder (CASSANDRA-19785)
  * Fix millisecond and microsecond precision for commit log replay (CASSANDRA-19448)
  * Improve accuracy of memtable heap usage tracking (CASSANDRA-17298)
