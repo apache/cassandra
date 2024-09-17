@@ -41,6 +41,9 @@ public class Info extends NodeToolCmd
     @Option(name = {"-T", "--tokens"}, description = "Display all tokens")
     private boolean tokens = false;
 
+    @Option(name = {"-O", "--out-of-range-ops"}, description = "Display per-keyspace counts of operations for invalid tokens")
+    private boolean outOfRangeOps = false;
+
     @Override
     public void execute(NodeProbe probe)
     {
@@ -174,6 +177,20 @@ public class Info extends NodeToolCmd
         else
         {
             out.printf("%-23s: (node is not joined to the cluster)%n", "Token");
+        }
+
+        // Operations for out of range tokens
+        if (this.outOfRangeOps)
+        {
+            System.out.printf("%-23s: %-48s %10s %10s %10s%n", "Invalid Token Ops", "Keyspace", "Read", "Write", "Paxos");
+
+            Map<String, long[]> outOfRangeOpCounts = probe.getOutOfRangeOpCounts();
+            outOfRangeOpCounts.forEach((ks, counts) -> System.out.printf("%-24s %-48s %10s %10s %10s%n",
+                                                                         "",
+                                                                         ks,
+                                                                         counts[0],
+                                                                         counts[1],
+                                                                         counts[2]));
         }
     }
 

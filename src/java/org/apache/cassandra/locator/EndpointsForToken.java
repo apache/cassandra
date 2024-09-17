@@ -156,6 +156,12 @@ public class EndpointsForToken extends Endpoints<EndpointsForToken>
         return builder(token, replicas.size()).addAll(replicas).build();
     }
 
+    public static EndpointsForToken copyOf(Token token, Iterable<Replica> replicas)
+    {
+        if (!replicas.iterator().hasNext()) return empty(token);
+        return builder(token).addAll(replicas).build();
+    }
+
     public static EndpointsForToken natural(Keyspace keyspace, Token token)
     {
         return keyspace.getReplicationStrategy().getNaturalReplicasForToken(token);

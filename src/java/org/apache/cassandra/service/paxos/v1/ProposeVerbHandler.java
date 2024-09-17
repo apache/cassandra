@@ -23,7 +23,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.paxos.Commit;
 import org.apache.cassandra.service.paxos.PaxosState;
 
-public class ProposeVerbHandler implements IVerbHandler<Commit>
+public class ProposeVerbHandler extends AbstractPaxosVerbHandler implements IVerbHandler<Commit>
 {
     public static final ProposeVerbHandler instance = new ProposeVerbHandler();
 
@@ -32,7 +32,8 @@ public class ProposeVerbHandler implements IVerbHandler<Commit>
         return PaxosState.legacyPropose(proposal);
     }
 
-    public void doVerb(Message<Commit> message)
+    @Override
+    void processMessage(Message<Commit> message)
     {
         Boolean response = doPropose(message.payload);
         Message<Boolean> reply = message.responseWith(response);
