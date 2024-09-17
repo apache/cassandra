@@ -16,26 +16,21 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.service.paxos.v1;
-import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.service.paxos.Commit;
-import org.apache.cassandra.service.paxos.PaxosState;
-import org.apache.cassandra.service.paxos.PrepareResponse;
+package org.apache.cassandra.streaming;
 
-public class PrepareVerbHandler extends AbstractPaxosVerbHandler
+import java.util.Collection;
+
+public class StreamRequestOutOfTokenRangeException extends RuntimeException
 {
-    public static PrepareVerbHandler instance = new PrepareVerbHandler();
+    private final Collection<StreamRequest> requests;
 
-    public static PrepareResponse doPrepare(Commit toPrepare)
+    public StreamRequestOutOfTokenRangeException(Collection<StreamRequest> requests)
     {
-        return PaxosState.legacyPrepare(toPrepare);
+        this.requests = requests;
     }
 
-    @Override
-    public void processMessage(Message<Commit> message)
+    public String getMessage()
     {
-        Message<PrepareResponse> reply = message.responseWith(doPrepare(message.payload));
-        MessagingService.instance().send(reply, message.from());
+        return String.format("Received stream requests containing ranges outside of owned ranges: %s", requests);
     }
 }
