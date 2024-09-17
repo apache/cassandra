@@ -171,6 +171,16 @@ public abstract class ReadCommand extends AbstractReadQuery
 
     public abstract boolean isLimitedToOnePartition();
 
+    /**
+     * Whether this command is a single partition read
+     *
+     * @return true if the command is a single partition read, false otherwise
+     */
+    public boolean isSinglePartitionRead()
+    {
+        return kind == Kind.SINGLE_PARTITION;
+    }
+
     public abstract boolean isRangeRequest();
 
     /**

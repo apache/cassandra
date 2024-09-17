@@ -17,17 +17,28 @@
  */
 package org.apache.cassandra.repair;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.repair.messages.*;
+import org.apache.cassandra.repair.messages.CleanupMessage;
+import org.apache.cassandra.repair.messages.FailSession;
+import org.apache.cassandra.repair.messages.PrepareMessage;
+import org.apache.cassandra.repair.messages.RepairMessage;
+import org.apache.cassandra.repair.messages.StatusRequest;
+import org.apache.cassandra.repair.messages.StatusResponse;
+import org.apache.cassandra.repair.messages.SyncRequest;
+import org.apache.cassandra.repair.messages.ValidationRequest;
 import org.apache.cassandra.repair.state.AbstractCompletable;
 import org.apache.cassandra.repair.state.AbstractState;
 import org.apache.cassandra.repair.state.Completable;
@@ -36,6 +47,7 @@ import org.apache.cassandra.repair.state.SyncState;
 import org.apache.cassandra.repair.state.ValidationState;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.TimeUUID;
@@ -59,7 +71,8 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
 
     private final SharedContext ctx;
 
-    private RepairMessageVerbHandler()
+    @VisibleForTesting
+    public RepairMessageVerbHandler()
     {
         this(SharedContext.Global.instance);
     }
@@ -82,6 +95,7 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
         return prs != null ? prs.previewKind : PreviewKind.NONE;
     }
 
+    @Override
     public void doVerb(final Message<RepairMessage> message)
     {
         // TODO add cancel/interrupt message
@@ -231,7 +245,14 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
 
                         Validator validator = new Validator(ctx, vState, validationRequest.nowInSec,
                                                             isIncremental(desc.parentSessionId), previewKind);
-                        ctx.validationManager().submitValidation(store, validator);
+                        if (acceptMessage(ctx, validationRequest, message.from()))
+                        {
+                            ctx.validationManager().submitValidation(store, validator);
+                        }
+                        else
+                        {
+                            validator.fail(new RepairOutOfTokenRangeException(validationRequest.desc.ranges));
+                        }
                     }
                     catch (Throwable t)
                     {
@@ -419,5 +440,20 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
     private void sendAck(Message<RepairMessage> message)
     {
         RepairMessage.sendAck(ctx, message);
+    }
+
+    private static boolean acceptMessage(SharedContext ctx, final ValidationRequest validationRequest, final InetAddressAndPort from)
+    {
+        boolean outOfRangeTokenLogging = DatabaseDescriptor.getLogOutOfTokenRangeRequests();
+        boolean outOfRangeTokenRejection = DatabaseDescriptor.getRejectOutOfTokenRangeRequests();
+
+        if (!outOfRangeTokenLogging && !outOfRangeTokenRejection)
+            return true;
+
+        return StorageService.instance.getNormalizedRanges(validationRequest.desc.keyspace, ctx.broadcastAddressAndPort())
+                                      .validateRangeRequest(validationRequest.desc.ranges,
+                                                            "RepairSession #" + validationRequest.desc.parentSessionId,
+                                                            "validation request",
+                                                            from);
     }
 }

@@ -16,26 +16,17 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.service.paxos.v1;
-import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.service.paxos.Commit;
-import org.apache.cassandra.service.paxos.PaxosState;
-import org.apache.cassandra.service.paxos.PrepareResponse;
+package org.apache.cassandra.repair;
 
-public class PrepareVerbHandler extends AbstractPaxosVerbHandler
+import java.util.Collection;
+
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
+
+public class RepairOutOfTokenRangeException extends RuntimeException
 {
-    public static PrepareVerbHandler instance = new PrepareVerbHandler();
-
-    public static PrepareResponse doPrepare(Commit toPrepare)
+    public RepairOutOfTokenRangeException(Collection<Range<Token>> ownedRanges)
     {
-        return PaxosState.legacyPrepare(toPrepare);
-    }
-
-    @Override
-    public void processMessage(Message<Commit> message)
-    {
-        Message<PrepareResponse> reply = message.responseWith(doPrepare(message.payload));
-        MessagingService.instance().send(reply, message.from());
+        super(String.format("Received repair outside of owned ranges %s", ownedRanges));
     }
 }
