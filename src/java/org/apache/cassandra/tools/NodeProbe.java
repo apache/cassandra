@@ -75,6 +75,7 @@ import org.apache.cassandra.batchlog.BatchlogManagerMBean;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.CompactionManagerMBean;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.fql.FullQueryLoggerOptionsCompositeData;
 import org.apache.cassandra.gms.FailureDetector;
@@ -85,13 +86,17 @@ import org.apache.cassandra.hints.HintsService;
 import org.apache.cassandra.hints.HintsServiceMBean;
 import org.apache.cassandra.locator.DynamicEndpointSnitchMBean;
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.metrics.ThreadPoolMetrics;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.MessagingServiceMBean;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
 import org.apache.cassandra.service.ActiveRepairServiceMBean;
+import org.apache.cassandra.service.AutoRepairService;
+import org.apache.cassandra.service.AutoRepairServiceMBean;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.CacheServiceMBean;
 import org.apache.cassandra.service.GCInspector;
@@ -154,6 +159,8 @@ public class NodeProbe implements AutoCloseable
     protected NetworkPermissionsCacheMBean npcProxy;
     protected PermissionsCacheMBean pcProxy;
     protected RolesCacheMBean rcProxy;
+    protected AutoRepairServiceMBean autoRepairProxy;
+
     protected Output output;
     private boolean failed;
 
@@ -278,6 +285,8 @@ public class NodeProbe implements AutoCloseable
             pcProxy = JMX.newMBeanProxy(mbeanServerConn, name, PermissionsCacheMBean.class);
             name = new ObjectName(AuthCache.MBEAN_NAME_BASE + RolesCache.CACHE_NAME);
             rcProxy = JMX.newMBeanProxy(mbeanServerConn, name, RolesCacheMBean.class);
+            name = new ObjectName(AutoRepairService.MBEAN_NAME);
+            autoRepairProxy = JMX.newMBeanProxy(mbeanServerConn, name, AutoRepairServiceMBean.class);
         }
         catch (MalformedObjectNameException e)
         {
@@ -2136,6 +2145,106 @@ public class NodeProbe implements AutoCloseable
     public int getDefaultKeyspaceReplicationFactor()
     {
         return ssProxy.getDefaultKeyspaceReplicationFactor();
+    }
+
+    public AutoRepairConfig getAutoRepairConfig() {
+        return autoRepairProxy.getAutoRepairConfig();
+    }
+
+    public void setAutoRepairEnabled(AutoRepairConfig.RepairType repairType, boolean enabled)
+    {
+        autoRepairProxy.setAutoRepairEnabled(repairType, enabled);
+    }
+
+    public void setRepairThreads(AutoRepairConfig.RepairType repairType, int repairThreads)
+    {
+        autoRepairProxy.setRepairThreads(repairType, repairThreads);
+    }
+
+    public void setRepairPriorityForHosts(AutoRepairConfig.RepairType repairType, Set<InetAddressAndPort> hosts)
+    {
+        autoRepairProxy.setRepairPriorityForHosts(repairType, hosts);
+    }
+
+    public Set<InetAddressAndPort> getRepairPriorityForHosts(AutoRepairConfig.RepairType repairType)
+    {
+        return autoRepairProxy.getRepairHostPriority(repairType);
+    }
+
+    public void setForceRepairForHosts(AutoRepairConfig.RepairType repairType, Set<InetAddressAndPort> hosts){
+        autoRepairProxy.setForceRepairForHosts(repairType, hosts);
+    }
+
+    public void setRepairSubRangeNum(AutoRepairConfig.RepairType repairType, int repairSubRanges)
+    {
+        autoRepairProxy.setRepairSubRangeNum(repairType, repairSubRanges);
+    }
+
+    public void setRepairMinInterval(AutoRepairConfig.RepairType repairType, String minRepairInterval)
+    {
+        autoRepairProxy.setRepairMinInterval(repairType, minRepairInterval);
+    }
+
+    public void setAutoRepairHistoryClearDeleteHostsBufferDuration(String duration)
+    {
+        autoRepairProxy.setAutoRepairHistoryClearDeleteHostsBufferDuration(duration);
+    }
+
+    public void setAutoRepairMaxRetriesCount(int retries)
+    {
+        autoRepairProxy.setAutoRepairMaxRetriesCount(retries);
+    }
+
+    public void setAutoRepairRetryBackoff(String interval)
+    {
+        autoRepairProxy.setAutoRepairRetryBackoff(interval);
+    }
+
+    public void setRepairSSTableCountHigherThreshold(AutoRepairConfig.RepairType repairType, int ssTableHigherThreshold)
+    {
+        autoRepairProxy.setRepairSSTableCountHigherThreshold(repairType, ssTableHigherThreshold);
+    }
+
+    public void setAutoRepairTableMaxRepairTime(AutoRepairConfig.RepairType repairType, String autoRepairTableMaxRepairTime)
+    {
+        autoRepairProxy.setAutoRepairTableMaxRepairTime(repairType, autoRepairTableMaxRepairTime);
+    }
+
+    public void setAutoRepairIgnoreDCs(AutoRepairConfig.RepairType repairType, Set<String> ignoreDCs)
+    {
+        autoRepairProxy.setIgnoreDCs(repairType, ignoreDCs);
+    }
+
+    public void setParallelRepairPercentageInGroup(AutoRepairConfig.RepairType repairType, int percentageInGroup) {
+        autoRepairProxy.setParallelRepairPercentageInGroup(repairType, percentageInGroup);
+    }
+
+    public void setParallelRepairCountInGroup(AutoRepairConfig.RepairType repairType, int countInGroup) {
+        autoRepairProxy.setParallelRepairCountInGroup(repairType, countInGroup);
+    }
+
+    public void setPrimaryTokenRangeOnly(AutoRepairConfig.RepairType repairType, boolean primaryTokenRangeOnly)
+    {
+        autoRepairProxy.setPrimaryTokenRangeOnly(repairType, primaryTokenRangeOnly);
+    }
+
+    public void setMVRepairEnabled(AutoRepairConfig.RepairType repairType, boolean enabled)
+    {
+        autoRepairProxy.setMVRepairEnabled(repairType, enabled);
+    }
+
+    public List<String> mutateSSTableRepairedState(boolean repair, boolean preview, String keyspace, List<String> tables) throws InvalidRequestException
+    {
+        return ssProxy.mutateSSTableRepairedState(repair, preview, keyspace, tables);
+    }
+
+    public List<String> getTablesForKeyspace(String keyspace) {
+        return ssProxy.getTablesForKeyspace(keyspace);
+    }
+
+    public void setRepairSessionTimeout(AutoRepairConfig.RepairType repairType, String timeout)
+    {
+        autoRepairProxy.setRepairSessionTimeout(repairType, timeout);
     }
 }
 

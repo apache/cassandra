@@ -1,21 +1,21 @@
 /*
-* Licensed to the Apache Software Foundation (ASF) under one
-* or more contributor license agreements.  See the NOTICE file
-* distributed with this work for additional information
-* regarding copyright ownership.  The ASF licenses this file
-* to you under the Apache License, Version 2.0 (the
-* "License"); you may not use this file except in compliance
-* with the License.  You may obtain a copy of the License at
-*
-*    http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing,
-* software distributed under the License is distributed on an
-* "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-* KIND, either express or implied.  See the License for the
-* specific language governing permissions and limitations
-* under the License.
-*/
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 
 package org.apache.cassandra.service;
 
@@ -23,12 +23,17 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 
+import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.SystemKeyspace;
+
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -42,6 +47,8 @@ import org.apache.cassandra.dht.OrderPreservingPartitioner.StringToken;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.VersionedValue;
@@ -56,10 +63,17 @@ import org.assertj.core.api.Assertions;
 import static org.apache.cassandra.ServerTestUtils.cleanup;
 import static org.apache.cassandra.ServerTestUtils.mkdirs;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+
 
 public class StorageServiceServerTest
 {
+    public static final String keyspace = "test_keyspace";
+    public static ColumnFamilyStore table1;
+    public static ColumnFamilyStore table2;
+
     @BeforeClass
     public static void setUp() throws ConfigurationException
     {
@@ -72,6 +86,21 @@ public class StorageServiceServerTest
         mkdirs();
         cleanup();
         StorageService.instance.initServer(0);
+
+        SchemaLoader.createKeyspace(keyspace, KeyspaceParams.simple(1),
+                                    SchemaLoader.standardCFMD(keyspace, "table1").build(),
+                                    SchemaLoader.standardCFMD(keyspace, "table2").build());
+        table1 = Keyspace.open(keyspace).getColumnFamilyStore("table1");
+        assert table1 != null;
+        table2 = Keyspace.open(keyspace).getColumnFamilyStore("table2");
+        assert table2 != null;
+    }
+
+    @Before
+    public void clearData()
+    {
+        table1.truncateBlocking();
+        table2.truncateBlocking();
     }
 
     @Test
@@ -552,6 +581,7 @@ public class StorageServiceServerTest
 
     /**
      * Test that StorageService.getNativeAddress returns the correct value based on available yaml and gossip state
+     *
      * @throws Exception
      */
     @Test
@@ -563,7 +593,7 @@ public class StorageServiceServerTest
         //Default to using the provided address with the configured port
         assertEquals("127.0.0.2:" + DatabaseDescriptor.getNativeTransportPort(), StorageService.instance.getNativeaddress(internalAddress, true));
 
-        VersionedValue.VersionedValueFactory valueFactory =  new VersionedValue.VersionedValueFactory(Murmur3Partitioner.instance);
+        VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(Murmur3Partitioner.instance);
         //If we don't have the port use the gossip address, but with the configured port
         Gossiper.instance.getEndpointStateForEndpoint(internalAddress).addApplicationState(ApplicationState.RPC_ADDRESS, valueFactory.rpcaddress(InetAddress.getByName("127.0.0.3")));
         assertEquals("127.0.0.3:" + DatabaseDescriptor.getNativeTransportPort(), StorageService.instance.getNativeaddress(internalAddress, true));
@@ -584,7 +614,7 @@ public class StorageServiceServerTest
         //Default to using the provided address with the configured port
         assertEquals("[0:0:0:0:0:0:0:3]:" + DatabaseDescriptor.getNativeTransportPort(), StorageService.instance.getNativeaddress(internalAddressIPV6, true));
 
-        VersionedValue.VersionedValueFactory valueFactory =  new VersionedValue.VersionedValueFactory(Murmur3Partitioner.instance);
+        VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(Murmur3Partitioner.instance);
         //If RPC_ADDRESS is present with an IPv6 address, we should properly bracket encode the IP with the configured port.
         Gossiper.instance.getEndpointStateForEndpoint(internalAddressIPV6).addApplicationState(ApplicationState.RPC_ADDRESS, valueFactory.rpcaddress(InetAddress.getByName("0:0:0:0:0:0:5a:3")));
         assertEquals("[0:0:0:0:0:0:5a:3]:" + DatabaseDescriptor.getNativeTransportPort(), StorageService.instance.getNativeaddress(internalAddressIPV6, true));
@@ -636,7 +666,7 @@ public class StorageServiceServerTest
         try
         {
             UUID differentHostId = UUID.randomUUID();
-            Assert.assertFalse(StorageService.instance.isReplacingSameHostAddressAndHostId(differentHostId));
+            assertFalse(StorageService.instance.isReplacingSameHostAddressAndHostId(differentHostId));
 
             final String hostAddress = FBUtilities.getBroadcastAddressAndPort().getHostAddress(false);
             UUID localHostId = SystemKeyspace.getOrInitializeLocalHostId();
@@ -648,15 +678,108 @@ public class StorageServiceServerTest
 
             // Check detects replacing the same host address with a different host id
             System.setProperty("cassandra.replace_address", hostAddress);
-            Assert.assertFalse(StorageService.instance.isReplacingSameHostAddressAndHostId(differentHostId));
+            assertFalse(StorageService.instance.isReplacingSameHostAddressAndHostId(differentHostId));
 
             // Check tolerates the DNS entry going away for the replace_address
             System.setProperty("cassandra.replace_address", "unresolvable.host.local.");
-            Assert.assertFalse(StorageService.instance.isReplacingSameHostAddressAndHostId(differentHostId));
+            assertFalse(StorageService.instance.isReplacingSameHostAddressAndHostId(differentHostId));
         }
         finally
         {
             System.clearProperty("cassandra.replace_address");
         }
+    }
+
+    @Test
+    public void testGetTablesForKeyspace()
+    {
+        List<String> result = StorageService.instance.getTablesForKeyspace(keyspace);
+
+        assertEquals(Arrays.asList(table1.name, table2.name), result.stream().sorted().collect(Collectors.toList()));
+    }
+
+    @Test
+    public void testGetTablesForKeyspaceNotFound()
+    {
+        String missingKeyspace = "MISSING_KEYSPACE";
+        try
+        {
+            StorageService.instance.getTablesForKeyspace(missingKeyspace);
+            fail("Expected an AssertionError to be thrown");
+        }
+        catch (AssertionError e)
+        {
+            assertEquals("Unknown keyspace " + missingKeyspace, e.getMessage());
+        }
+    }
+
+    @Test
+    public void testMutateSSTableRepairedStateTableNotFound()
+    {
+        try
+        {
+            StorageService.instance.mutateSSTableRepairedState(true, false, keyspace, Arrays.asList("MISSING_TABLE"));
+            fail("Expected an InvalidRequestException to be thrown");
+        }
+        catch (InvalidRequestException e)
+        {
+            // Test passed
+        }
+    }
+
+    @Test
+    public void testMutateSSTableRepairedStateTablePreview()
+    {
+        SchemaLoader.insertData(keyspace, table1.name, 0, 1);
+        table1.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+        assertEquals(1, table1.getLiveSSTables().size());
+
+        List<String> result = StorageService.instance.mutateSSTableRepairedState(true, true, keyspace, Arrays.asList(table1.name));
+
+        assertEquals(1, result.size());
+        table1.getLiveSSTables().forEach(sstable -> {
+            assertFalse(sstable.isRepaired());
+            assertTrue(result.contains(sstable.descriptor.baseFilename()));
+        });
+    }
+
+    @Test
+    public void testMutateSSTableRepairedStateTableRepaired()
+    {
+        SchemaLoader.insertData(keyspace, table1.name, 0, 1);
+        table1.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+        SchemaLoader.insertData(keyspace, table1.name, 0, 1);
+        table1.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+        assertEquals(2, table1.getLiveSSTables().size());
+        table1.getLiveSSTables().forEach(sstable -> {
+            assertFalse(sstable.isRepaired());
+        });
+
+        List<String> result = StorageService.instance.mutateSSTableRepairedState(true, false, keyspace, Arrays.asList(table1.name));
+
+        assertEquals(2, result.size());
+        table1.getLiveSSTables().forEach(sstable -> {
+            assertTrue(sstable.isRepaired());
+            assertTrue(result.contains(sstable.descriptor.baseFilename()));
+        });
+    }
+
+    @Test
+    public void testMutateSSTableRepairedStateTableUnrepaired() throws Exception
+    {
+        SchemaLoader.insertData(keyspace, table1.name, 0, 1);
+        table1.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+        SchemaLoader.insertData(keyspace, table1.name, 0, 1);
+        table1.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+        table1.getCompactionStrategyManager().mutateRepaired(table1.getLiveSSTables(), 1, null, false);
+        assertEquals(2, table1.getLiveSSTables().stream().filter(SSTableReader::isRepaired).count());
+
+        List<String> result = StorageService.instance.mutateSSTableRepairedState(false, false, keyspace, Arrays.asList(table1.name));
+
+        assertEquals(2, result.size());
+        table1.getLiveSSTables().forEach(sstable -> {
+            assertFalse(sstable.isRepaired());
+            assertTrue(result.contains(sstable.descriptor.baseFilename()));
+        });
     }
 }
