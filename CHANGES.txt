@@ -1,10 +1,4 @@
-4.1.6
- * Add native transport deadline, an ultimate deadline for all tasks related to a specific request (CASSANDRA-19534)
- * Do not create a role if ALTER ROLE IF EXISTS operates on non-existing role (CASSANDRA-19749)
- * Use OpOrder in repairIterator to ensure we don't lose memtables mid-paxos repair (Cassandra-19668)
- * Refresh stale paxos commit (CASSANDRA-19617)
- * Reduce info logging from automatic paxos repair (CASSANDRA-19445)
- * Support legacy plain_text_auth section in credentials file removed unintentionally (CASSANDRA-19498)
+4.1.7
 Merged from 4.0:
  * Safer handling of out-of-range tokens (CASSANDRA-13704)
  * Fix memory leak in BTree.FastBuilder (CASSANDRA-19785)
@@ -13,6 +7,16 @@ Merged from 4.0:
  * Fix rendering UNSET collection types in query tracing (CASSANDRA-19880)
  * Fix latency reported by ideal consistency level monitoring (CASSANDRA-19651)
  * Use default commitlog settings in test YAMLs (CASSANDRA-19830)
+
+
+4.1.6
+ * Add native transport deadline, an ultimate deadline for all tasks related to a specific request (CASSANDRA-19534)
+ * Do not create a role if ALTER ROLE IF EXISTS operates on non-existing role (CASSANDRA-19749)
+ * Use OpOrder in repairIterator to ensure we don't lose memtables mid-paxos repair (Cassandra-19668)
+ * Refresh stale paxos commit (CASSANDRA-19617)
+ * Reduce info logging from automatic paxos repair (CASSANDRA-19445)
+ * Support legacy plain_text_auth section in credentials file removed unintentionally (CASSANDRA-19498)
+Merged from 4.0:
  * Do not spam log with SSLExceptions (CASSANDRA-18839)
  * Fix schema.cql created by a snapshot after dropping more than one column (CASSANDRA-19747)
  * UnsupportedOperationException when reducing scope for LCS compactions (CASSANDRA-19704)
