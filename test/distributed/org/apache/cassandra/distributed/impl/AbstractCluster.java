@@ -29,6 +29,7 @@ import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -55,6 +56,7 @@ import javax.annotation.concurrent.GuardedBy;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.LinkedHashMultimap;
 import org.junit.Assume;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -1152,19 +1154,23 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         //This is an alternate version of the thread leak check that just checks to see if any threads are still alive
         // with the context classloader.
         Map<Thread, StackTraceElement[]> allThreads = Thread.getAllStackTraces();
-        StringBuilder sb = new StringBuilder();
+        var groupByStacktrace = LinkedHashMultimap.<List<StackTraceElement>, String>create();
         for (Map.Entry<Thread, StackTraceElement[]> e : allThreads.entrySet())
         {
 
             if (!(e.getKey().getContextClassLoader() instanceof InstanceClassLoader)) continue;
             e.getKey().setContextClassLoader(null);
-            sb.append(e.getKey().getName()).append(":\n");
-            for (StackTraceElement s : e.getValue())
+            groupByStacktrace.put(Arrays.asList(e.getValue()), e.getKey().getName());
+        }
+        if (groupByStacktrace.isEmpty()) return null;
+        StringBuilder sb = new StringBuilder();
+        for (Map.Entry<List<StackTraceElement>, Collection<String>> e : groupByStacktrace.asMap().entrySet())
+        {
+            sb.append("Threads: ").append(e.getValue()).append(":\n");
+            for (StackTraceElement s : e.getKey())
                 sb.append("\t").append(s).append("\n");
         }
-        return sb.length() > 0
-               ? new IllegalStateException("Unterminated threads detected; active threads:\n" + sb)
-               : null;
+        return new IllegalStateException("Unterminated threads detected; active threads:\n" + sb);
     }
 
     public List<Token> tokens()
