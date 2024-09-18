@@ -141,7 +141,10 @@ public final class Schema implements SchemaProvider
         if (SchemaConstants.isVirtualSystemKeyspace(keyspaceName))
             return null;
         else if (SchemaConstants.isLocalSystemKeyspace(keyspaceName))
-            return localKeyspaceInstances.get(keyspaceName).get();
+        {
+            Supplier<Keyspace> supplier = localKeyspaceInstances.get(keyspaceName);
+            return supplier == null ? null : supplier.get();
+        }
         else
             return ClusterMetadata.current().schema.getKeyspace(keyspaceName);
     }
