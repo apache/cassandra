@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * Equality check for Paxos.Electorate should not depend on collection types (CASSANDRA-19935)
  * Use OpOrder in repairIterator to ensure we don't lose memtables mid-paxos repair (Cassandra-19668)
  * Refresh stale paxos commit (CASSANDRA-19617)
  * Fix Paxos repair interrupts running transactions (CASSANDRA-20469)
