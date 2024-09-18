@@ -88,6 +88,8 @@ Merged from 5.0:
  * Add java.base/java.lang.reflect among opens for jvm11-client.options (CASSANDRA-19780)
 Merged from 4.1:
 Merged from 4.0:
+ * Emit error when altering a table with non-frozen UDTs with nested non-frozen collections the same way as done upon table creation (CASSANDRA-19925)
+ * Safer handling of out-of-range tokens (CASSANDRA-13704)
  * Fix memory leak in BTree.FastBuilder (CASSANDRA-19785)
  * Fix millisecond and microsecond precision for commit log replay (CASSANDRA-19448)
  * Improve accuracy of memtable heap usage tracking (CASSANDRA-17298)
