@@ -10,7 +10,7 @@ Dynamo and Bigtable were both developed to meet emerging requirements for scalab
 
 {product} was designed as a best-in-class combination of both systems to meet emerging largescale, both in data footprint and query volume, storage requirements. 
 As applications began to require full global replication and always available low-latency reads and writes, a new kind of database model was required to meet these new requirements.
-Relational database systems at that time struggled to meet the the requirements.
+Relational database systems at that time struggled to meet the requirements.
 
 {product} was designed to meet these challenges with the following design objectives in mind:
 
