@@ -183,6 +183,11 @@ public class UserTypesTest extends CQLTester
         String myType2 = KEYSPACE + '.' + typename2;
         assertInvalidMessage("Non-frozen UDTs with nested non-frozen collections are not supported",
                 "CREATE TABLE " + KEYSPACE + ".wrong (k int PRIMARY KEY, v " + myType2 + ")");
+
+        String userType = createType("CREATE TYPE %s (userids SET<UUID>)");
+        createTable("CREATE TABLE %s (id int PRIMARY KEY)");
+        assertInvalidMessage("Non-frozen UDTs with nested non-frozen collections are not supported for column my_type",
+                             "alter TABLE %s add my_type " + userType);
     }
 
     @Test
