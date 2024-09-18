@@ -49,6 +49,7 @@ import accord.messages.PreAccept;
 import accord.primitives.PartialKeyRoute;
 import accord.primitives.Routable.Domain;
 import accord.primitives.Route;
+import accord.primitives.TxnId;
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
@@ -75,6 +76,8 @@ import org.apache.cassandra.distributed.shared.AssertUtils;
 import org.apache.cassandra.distributed.shared.Metrics;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.distributed.util.QueryResultUtil;
+import org.apache.cassandra.exceptions.ReadTimeoutException;
+import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.hints.HintsService;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -101,6 +104,7 @@ import static org.apache.cassandra.db.SystemKeyspace.CONSENSUS_MIGRATION_STATE;
 import static org.apache.cassandra.db.SystemKeyspace.PAXOS;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ALL;
 import static org.apache.cassandra.schema.SchemaConstants.SYSTEM_KEYSPACE_NAME;
+import static org.apache.cassandra.schema.SchemaConstants.VIRTUAL_VIEWS;
 import static org.junit.Assert.assertArrayEquals;
 
 public abstract class AccordTestBase extends TestBaseImpl
@@ -395,7 +399,7 @@ public abstract class AccordTestBase extends TestBaseImpl
         return result;
     }
 
-    private static boolean hasRootCause(RuntimeException ex, Class<? extends RuntimeException> klass)
+    private static boolean hasRootCause(Throwable ex, Class<? extends RuntimeException> klass)
     {
         return AssertionUtils.rootCauseIs(klass).matches(ex);
 
@@ -414,9 +418,53 @@ public abstract class AccordTestBase extends TestBaseImpl
                 logger.warn("[Retry attempt={}] Preempted failure for\n{}", count, check);
                 return executeWithRetry0(count + 1, cluster, check, boundValues);
             }
-
+            TxnId txnId = maybeExtractId(ex);
+            if (txnId != null)
+            {
+                // query the cluster to find its status...
+                String cql = String.format("SELECT * FROM %s.txn_blocked_by WHERE txn_id=?", VIRTUAL_VIEWS);
+                StringBuilder sb = new StringBuilder();
+                sb.append("Txn ").append(txnId).append(" timed out...\n");
+                for (IInvokableInstance inst : cluster)
+                {
+                    if (inst.isShutdown())
+                    {
+                        sb.append(inst).append(": is down\n");
+                        continue;
+                    }
+                    sb.append(inst).append(":\n");
+                    SimpleQueryResult result = inst.executeInternalWithResult(cql, txnId.toString());
+                    if (!result.names().isEmpty())
+                        sb.append(result.names()).append('\n');
+                    while (result.hasNext())
+                    {
+                        var row = result.next();
+                        sb.append(Arrays.asList(row.toObjectArray())).append('\n');
+                    }
+                }
+                throw new AssertionError(sb.toString(), ex.getCause());
+            }
             throw ex;
         }
+    }
+
+    private static TxnId maybeExtractId(Throwable ex)
+    {
+        if (hasRootCause(ex, ReadPreemptedException.class)
+            || hasRootCause(ex, WritePreemptedException.class)
+            || hasRootCause(ex, ReadTimeoutException.class)
+            || hasRootCause(ex, WriteTimeoutException.class))
+        {
+            try
+            {
+                return TxnId.parse(ex.getMessage());
+            }
+            catch (Throwable t)
+            {
+                // ignore
+            }
+        }
+        return null;
     }
 
     public static SimpleQueryResult executeWithRetry(Cluster cluster, String check, Object... boundValues)
