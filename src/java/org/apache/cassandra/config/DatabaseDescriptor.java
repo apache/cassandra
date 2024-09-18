@@ -2115,6 +2115,28 @@ public class DatabaseDescriptor
         conf.concurrent_writes = concurrent_writers;
     }
 
+    public static int getConcurrentHints()
+    {
+        return conf.concurrent_hints;
+    }
+
+    public static void setConcurrentHints(int concurrent_hints)
+    {
+        if (concurrent_hints < 0)
+        {
+            throw new IllegalArgumentException("Concurrent hints must be non-negative");
+        }
+        conf.concurrent_hints = concurrent_hints;
+    }
+
+    public static boolean isUseHintStageForHints() {
+        return conf.use_hintstage_for_hints;
+    }
+
+    public static void setUseHintStageForHints(boolean use_hintstage_for_hints) {
+        conf.use_hintstage_for_hints = use_hintstage_for_hints;
+    }
+
     public static int getConcurrentCounterWriters()
     {
         return conf.concurrent_counter_writes;

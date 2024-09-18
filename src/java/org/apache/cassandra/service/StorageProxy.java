@@ -3012,7 +3012,11 @@ public class StorageProxy implements StorageProxyMBean
         StorageMetrics.totalHintsInProgress.inc(runnable.targets.size());
         for (Replica target : runnable.targets)
             getHintsInProgressFor(target.endpoint()).incrementAndGet();
-        return (Future<Void>) Stage.MUTATION.submit(runnable);
+
+        // Choose the appropriate stage (HINT or MUTATION) based on the configuration
+        Stage stage = DatabaseDescriptor.isUseHintStageForHints() ? Stage.HINT : Stage.MUTATION;
+
+        return (Future<Void>) stage.submit(runnable);
     }
 
     public Long getRpcTimeout() { return DatabaseDescriptor.getRpcTimeout(MILLISECONDS); }
