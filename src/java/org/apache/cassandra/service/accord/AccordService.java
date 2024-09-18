@@ -719,7 +719,7 @@ public class AccordService implements IAccordService, Shutdownable
         AccordClientRequestMetrics metrics = isWrite ? accordWriteMetrics : accordReadMetrics;
         try
         {
-            long deadlineNanos = requestTime.startedAtNanos() + DatabaseDescriptor.getTransactionTimeout(NANOSECONDS);
+            long deadlineNanos = requestTime.computeDeadline(DatabaseDescriptor.getTransactionTimeout(NANOSECONDS));
             TxnResult result = asyncTxnResult.get(deadlineNanos - nanoTime(), NANOSECONDS);
             return result;
         }

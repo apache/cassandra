@@ -23,8 +23,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
 
-import com.google.common.base.Throwables;
-
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -45,6 +43,8 @@ import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.exceptions.ReadPreemptedException;
 import org.apache.cassandra.service.accord.exceptions.WritePreemptedException;
 import org.apache.cassandra.service.consensus.TransactionalMode;
+import org.apache.cassandra.utils.AssertionUtils;
+import org.assertj.core.api.Assertions;
 import org.assertj.core.data.Offset;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -133,7 +133,7 @@ public class AccordMetricsTest extends AccordTestBase
         }
         catch (RuntimeException ex)
         {
-            assertThat(Throwables.getCausalChain(ex).stream().map(t -> t.getClass().getName())).contains(WritePreemptedException.class.getName());
+            Assertions.assertThat(ex).is(AssertionUtils.rootCauseIs(WritePreemptedException.class));
         }
 
         assertCoordinatorMetrics(0, "rw", 1, 0, 1, 0, 0);
@@ -151,7 +151,7 @@ public class AccordMetricsTest extends AccordTestBase
         }
         catch (RuntimeException ex)
         {
-            assertThat(Throwables.getCausalChain(ex).stream().map(t -> t.getClass().getName())).contains(ReadPreemptedException.class.getName());
+            Assertions.assertThat(ex).is(AssertionUtils.rootCauseIs(ReadPreemptedException.class));
         }
 
         assertCoordinatorMetrics(0, "ro", 1, 0, 1, 0, 0);
@@ -176,7 +176,7 @@ public class AccordMetricsTest extends AccordTestBase
         }
         catch (RuntimeException ex)
         {
-            assertThat(Throwables.getCausalChain(ex).stream().map(t -> t.getClass().getName())).contains(ReadTimeoutException.class.getName());
+            Assertions.assertThat(ex).is(AssertionUtils.rootCauseIs(ReadTimeoutException.class));
         }
 
         assertCoordinatorMetrics(0, "ro", 0, 0, 0, 1, 0);
@@ -194,7 +194,7 @@ public class AccordMetricsTest extends AccordTestBase
         }
         catch (RuntimeException ex)
         {
-            assertThat(Throwables.getCausalChain(ex).stream().map(t -> t.getClass().getName())).contains(WriteTimeoutException.class.getName());
+            Assertions.assertThat(ex).is(AssertionUtils.rootCauseIs(WriteTimeoutException.class));
         }
 
         assertCoordinatorMetrics(0, "rw", 0, 0, 0, 1, 0);
