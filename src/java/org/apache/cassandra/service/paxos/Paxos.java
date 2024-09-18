@@ -273,7 +273,10 @@ public class Paxos
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Electorate that = (Electorate) o;
-            return natural.equals(that.natural) && pending.equals(that.pending);
+            return natural.size() == that.natural.size() &&
+                   pending.size() == that.pending.size() &&
+                   natural.containsAll(that.natural)  &&
+                   pending.containsAll(that.pending);
         }
 
         public int hashCode()
