@@ -27,6 +27,7 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.service.snapshot.SnapshotManager;
 
 public class SnapshotTest extends CQLTester
 {
@@ -41,6 +42,6 @@ public class SnapshotTest extends CQLTester
             File toc = sstable.descriptor.fileFor(Components.TOC);
             Files.write(toc.toPath(), new byte[0], StandardOpenOption.TRUNCATE_EXISTING);
         }
-        getCurrentColumnFamilyStore().snapshot("hello");
+        SnapshotManager.instance.takeSnapshot("hello", getCurrentColumnFamilyStore().getKeyspaceTableName());
     }
 }

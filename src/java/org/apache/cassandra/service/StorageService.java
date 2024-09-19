@@ -2772,8 +2772,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      * @param tag      the tag given to the snapshot; may not be null or empty
      * @param options  Map of options (skipFlush is the only supported option for now)
      * @param entities list of keyspaces / tables in the form of empty | ks1 ks2 ... | ks1.cf1,ks2.cf2,...
+     *
+     * @deprecated See CASSANDRA-18111
      */
     @Override
+    @Deprecated(since = "5.1")
     public void takeSnapshot(String tag, Map<String, String> options, String... entities) throws IOException
     {
         SnapshotManager.instance.takeSnapshot(tag, options, entities);
@@ -2786,8 +2789,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      * @param keyspaceName the keyspace which holds the specified table
      * @param tableName    the table to snapshot
      * @param tag          the tag given to the snapshot; may not be null or empty
+     *
+     * @deprecated use {@link #takeSnapshot(String tag, Map options, String... entities)} instead. See CASSANDRA-10907
      */
     @Override
+    @Deprecated(since = "3.4")
     public void takeTableSnapshot(String keyspaceName, String tableName, String tag) throws IOException
     {
         SnapshotManager.instance.takeSnapshot(tag, Collections.emptyMap(), keyspaceName + '.' + tableName);
@@ -2798,8 +2804,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      *
      * @param tag the tag given to the snapshot; may not be null or empty
      * @param keyspaceNames the names of the keyspaces to snapshot; empty means "all."
+     *
+     * @deprecated use {@link #takeSnapshot(String tag, Map options, String... entities)} instead. See CASSANDRA-10907
      */
     @Override
+    @Deprecated(since = "3.4")
     public void takeSnapshot(String tag, String... keyspaceNames) throws IOException
     {
         SnapshotManager.instance.takeSnapshot(tag, Collections.emptyMap(), keyspaceNames);
@@ -2810,8 +2819,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      *
      * @param tag the tag given to the snapshot; may not be null or empty
      * @param tableList list of tables from different keyspace in the form of ks1.cf1 ks2.cf2
+     *
+     * @deprecated See CASSANDRA-10907
      */
     @Override
+    @Deprecated(since = "3.4")
     public void takeMultipleTableSnapshot(String tag, String... tableList)  throws IOException
     {
         SnapshotManager.instance.takeSnapshot(tag, Collections.emptyMap(), tableList);
@@ -2820,44 +2832,53 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     /**
      * Remove the snapshot with the given name from the given keyspaces.
      * If no tag is specified we will remove all snapshots.
+     *
+     * @deprecated See CASSANDRA-16860
      */
     @Override
+    @Deprecated(since = "5.0")
     public void clearSnapshot(String tag, String... keyspaceNames) throws IOException
     {
         SnapshotManager.instance.clearSnapshot(tag, Collections.emptyMap(), keyspaceNames);
     }
 
     @Override
+    @Deprecated(since = "5.1")
     public void clearSnapshot(Map<String, Object> options, String tag, String... keyspaceNames)
     {
         SnapshotManager.instance.clearSnapshot(tag, options, keyspaceNames);
     }
 
     @Override
+    @Deprecated(since = "5.1")
     public Map<String, TabularData> getSnapshotDetails(Map<String, String> options)
     {
         return SnapshotManager.instance.listSnapshots(options);
     }
 
     @Override
+    @Deprecated(since = "4.1")
     public Map<String, TabularData> getSnapshotDetails()
     {
         return SnapshotManager.instance.listSnapshots(ImmutableMap.of());
     }
 
     @Override
+    @Deprecated(since = "5.1")
     public long trueSnapshotsSize()
     {
         return SnapshotManager.instance.getTrueSnapshotSize();
     }
 
     @Override
+    @Deprecated(since = "5.1")
     public void setSnapshotLinksPerSecond(long throttle)
     {
         SnapshotManager.instance.setSnapshotLinksPerSecond(throttle);
     }
 
     @Override
+    @Deprecated(since = "5.1")
     public long getSnapshotLinksPerSecond()
     {
         return SnapshotManager.instance.getSnapshotLinksPerSecond();

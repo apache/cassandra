@@ -17,15 +17,12 @@
  */
 package org.apache.cassandra.service.snapshot;
 
-import java.io.IOException;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -36,11 +33,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Predicate;
 import javax.management.openmbean.TabularData;
-import javax.management.openmbean.TabularDataSupport;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
-import com.google.common.util.concurrent.RateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,22 +44,14 @@ import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.SnapshotDetailsTabularData;
-import org.apache.cassandra.db.lifecycle.SSTableSet;
-import org.apache.cassandra.db.lifecycle.View;
-import org.apache.cassandra.io.sstable.format.SSTableFormat;
-import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
 
-import static java.lang.String.format;
 import static java.util.Comparator.comparing;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
@@ -81,7 +68,6 @@ public class SnapshotManager implements SnapshotManagerMBean, AutoCloseable
     private final long initialDelaySeconds;
     private final long cleanupPeriodSeconds;
     private final SnapshotLoader snapshotLoader;
-    public final RateLimiter snapshotRateLimiter;
 
     private volatile ScheduledFuture<?> cleanupTaskFuture;
 
@@ -111,7 +97,6 @@ public class SnapshotManager implements SnapshotManagerMBean, AutoCloseable
         this.initialDelaySeconds = initialDelaySeconds;
         this.cleanupPeriodSeconds = cleanupPeriodSeconds;
         snapshotLoader = new SnapshotLoader(dataDirs);
-        snapshotRateLimiter = DatabaseDescriptor.getSnapshotRateLimiter();
     }
 
     public void registerMBean()
@@ -391,6 +376,17 @@ public class SnapshotManager implements SnapshotManagerMBean, AutoCloseable
         getSnapshot(keyspace, table, tag).ifPresent(this::clearSnapshot);
     }
 
+    public void clearAllSnapshots(String keyspace, String table)
+    {
+        getSnapshot(keyspace, table, "").ifPresent(this::clearSnapshot);
+    }
+
+    public void clearAllSnapshots()
+    {
+        for (TableSnapshot tableSnapshot : getSnapshots(p -> true))
+            clearSnapshot(tableSnapshot);
+    }
+
     /**
      * Clears all ephemeral snapshots in a node.
      */
@@ -466,93 +462,33 @@ public class SnapshotManager implements SnapshotManagerMBean, AutoCloseable
         };
     }
 
-    /**
-     * Takes a snapshot by creating hardlinks into snapshot directories. This method also
-     * creates manifests and schema files and such snapshot will be added among tracked ones in this manager.
-     *
-     * @param cfs          column family to create a snapshot for
-     * @param tag          name of snapshot
-     * @param ephemeral    true if the snapshot is ephemeral, false otherwise
-     * @param ttl          time after the created snapshot will be removed
-     * @param creationTime time the snapshot was created
-     * @param rateLimiter  limiter for hard-links creation, if null, limiter from DatabaseDescriptor will be used
-     * @return logical representation of a snapshot
-     */
-    public TableSnapshot createSnapshot(ColumnFamilyStore cfs,
-                                        String tag,
-                                        com.google.common.base.Predicate<SSTableReader> predicate,
-                                        boolean ephemeral,
-                                        DurationSpec.IntSecondsBound ttl,
-                                        Instant creationTime,
-                                        RateLimiter rateLimiter)
+    public List<TableSnapshot> takeSnapshot(TakeSnapshotTask takeSnapshotTask)
     {
-        if (ephemeral && ttl != null)
-            throw new IllegalStateException(format("can not take ephemeral snapshot (%s) while ttl is specified too", tag));
-
-        RateLimiter limiter = rateLimiter;
-        if (limiter == null)
-            limiter = SnapshotManager.instance.snapshotRateLimiter;
-
-        Set<SSTableReader> sstables = new LinkedHashSet<>();
-        for (ColumnFamilyStore aCfs : cfs.concatWithIndexes())
-        {
-            try (ColumnFamilyStore.RefViewFragment currentView = aCfs.selectAndReference(View.select(SSTableSet.CANONICAL, (x) -> predicate == null || predicate.apply(x))))
-            {
-                for (SSTableReader ssTable : currentView.sstables)
-                {
-                    File snapshotDirectory = Directories.getSnapshotDirectory(ssTable.descriptor, tag);
-                    ssTable.createLinks(snapshotDirectory.path(), limiter); // hard links
-                    if (logger.isTraceEnabled())
-                        logger.trace("Snapshot for {} keyspace data file {} created in {}", cfs.keyspace, ssTable.getFilename(), snapshotDirectory);
-                    sstables.add(ssTable);
-                }
-            }
-        }
-
-        List<String> dataComponents = new ArrayList<>();
-        for (SSTableReader sstable : sstables)
-            dataComponents.add(sstable.descriptor.relativeFilenameFor(SSTableFormat.Components.DATA));
-
-        SnapshotManifest manifest = new SnapshotManifest(dataComponents, ttl, creationTime, ephemeral);
-
-        Set<File> snapshotDirs = cfs.getDirectories().getSnapshotDirs(tag);
-
-        for (File snapshotDir : snapshotDirs)
-        {
-            writeSnapshotManifest(manifest, Directories.getSnapshotManifestFile(snapshotDir));
-
-            if (!SchemaConstants.isLocalSystemKeyspace(cfs.metadata.keyspace)
-                && !SchemaConstants.isReplicatedSystemKeyspace(cfs.metadata.keyspace))
-            {
-                writeSnapshotSchema(Directories.getSnapshotSchemaFile(snapshotDir), cfs);
-            }
-        }
-
-        TableSnapshot snapshot = new TableSnapshot(cfs.metadata.keyspace,
-                                                   cfs.metadata.name,
-                                                   cfs.metadata.id.asUUID(),
-                                                   tag,
-                                                   creationTime,
-                                                   SnapshotManifest.computeExpiration(ttl, creationTime),
-                                                   snapshotDirs,
-                                                   ephemeral);
-
-        addSnapshot(snapshot);
-        return snapshot;
+        List<TableSnapshot> snapshots = takeSnapshotTask.call();
+        addSnapshots(snapshots);
+        return snapshots;
     }
 
-
-    public void takeSnapshot(TakeSnapshotTask takeSnapshotTask) throws IOException
+    public TableSnapshot takeSnapshot(String snapshotName, String keyspaceTable)
     {
-        addSnapshots(takeSnapshotTask.call());
+        return takeSnapshot(new TakeSnapshotTask.Builder(snapshotName, keyspaceTable).build()).get(0);
+    }
+
+    public TableSnapshot takeSnapshot(String snapshotName, String keyspace, String table)
+    {
+        return takeSnapshot(new TakeSnapshotTask.Builder(snapshotName, keyspace + '.' + table).build()).get(0);
     }
 
     // MBean methods
 
     @Override
-    public void takeSnapshot(String tag, Map<String, String> options, String... entities) throws IOException
+    public void takeSnapshot(String tag, Map<String, String> options, String... entities)
     {
-        takeSnapshot(new TakeSnapshotTask(tag, options, entities));
+        TakeSnapshotTask.Builder builder = new TakeSnapshotTask.Builder(tag, entities).ttl(options.get(TakeSnapshotTask.TTL));
+        if (Boolean.parseBoolean(options.getOrDefault(TakeSnapshotTask.SKIP_FLUSH, Boolean.FALSE.toString())))
+            builder.skipFlush();
+
+        takeSnapshot(builder.build());
     }
 
     @Override
@@ -592,76 +528,7 @@ public class SnapshotManager implements SnapshotManagerMBean, AutoCloseable
     @Override
     public Map<String, TabularData> listSnapshots(Map<String, String> options)
     {
-        boolean skipExpiring = options != null && Boolean.parseBoolean(options.getOrDefault("no_ttl", "false"));
-        boolean includeEphemeral = options != null && Boolean.parseBoolean(options.getOrDefault("include_ephemeral", "false"));
-        String selectedKeyspace = options != null ? options.get("keyspace") : null;
-        String selectedTable = options != null ? options.get("table") : null;
-        String selectedSnapshotName = options != null ? options.get("snapshot") : null;
-
-        Map<String, TabularData> snapshotMap = new HashMap<>();
-
-        Set<String> tags = new HashSet<>();
-
-        List<TableSnapshot> snapshots = SnapshotManager.instance.getSnapshots(s -> {
-            if (selectedSnapshotName != null && !s.getTag().equals(selectedSnapshotName))
-                return false;
-
-            if (skipExpiring && s.isExpiring())
-                return false;
-
-            if (!includeEphemeral && s.isEphemeral())
-                return false;
-
-            if (selectedKeyspace != null && !s.getKeyspaceName().equals(selectedKeyspace))
-                return false;
-
-            if (selectedTable != null && !s.getTableName().equals(selectedTable))
-                return false;
-
-            return true;
-        });
-
-        for (TableSnapshot t : snapshots)
-            tags.add(t.getTag());
-
-        for (String tag : tags)
-            snapshotMap.put(tag, new TabularDataSupport(SnapshotDetailsTabularData.TABULAR_TYPE));
-
-        Map<String, Set<String>> keyspaceTables = new HashMap<>();
-        for (TableSnapshot s : snapshots)
-        {
-            keyspaceTables.computeIfAbsent(s.getKeyspaceName(), ignore -> new HashSet<>());
-            keyspaceTables.get(s.getKeyspaceName()).add(s.getTableName());
-        }
-
-        Map<String, Set<String>> cfsFiles = new HashMap<>();
-
-        for (Map.Entry<String, Set<String>> entry : keyspaceTables.entrySet())
-        {
-            for (String table : entry.getValue())
-            {
-                ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(entry.getKey(), table);
-                if (cfs == null)
-                    continue;
-
-                try
-                {
-                    cfsFiles.put(cfs.getKeyspaceName() + '.' + cfs.name, cfs.getFilesOfCfs());
-                }
-                catch (Throwable t)
-                {
-                    logger.debug("Unable to get all files of live SSTables for {}.{}", cfs.getKeyspaceName(), cfs.name);
-                }
-            }
-        }
-
-        for (TableSnapshot snapshot : snapshots)
-        {
-            TabularDataSupport data = (TabularDataSupport) snapshotMap.get(snapshot.getTag());
-            SnapshotDetailsTabularData.from(snapshot, data, cfsFiles.get(snapshot.getKeyspaceTable()));
-        }
-
-        return snapshotMap;
+        return new ListSnapshotsTask(options).call();
     }
 
     @Override
@@ -687,12 +554,20 @@ public class SnapshotManager implements SnapshotManagerMBean, AutoCloseable
                 continue;
 
             for (ColumnFamilyStore cfStore : keyspace.getColumnFamilyStores())
-                total += cfStore.trueSnapshotsSize();
+                total += trueSnapshotsSize(keyspace.getName(), cfStore.getTableName(), cfStore.getFilesOfCfs());
         }
 
         return total;
     }
 
+    public synchronized long trueSnapshotsSize(String keyspace, String table, Set<String> filesOfCfs)
+    {
+        long size = 0;
+        for (TableSnapshot snapshot : getSnapshots(keyspace, table))
+            size += snapshot.computeTrueSizeBytes(filesOfCfs);
+
+        return size;
+    }
 
     private void removeSnapshotDirectory(File snapshotDir)
     {
@@ -701,7 +576,7 @@ public class SnapshotManager implements SnapshotManagerMBean, AutoCloseable
             logger.trace("Removing snapshot directory {}", snapshotDir);
             try
             {
-                FileUtils.deleteRecursiveWithThrottle(snapshotDir, snapshotRateLimiter);
+                FileUtils.deleteRecursiveWithThrottle(snapshotDir, DatabaseDescriptor.getSnapshotRateLimiter());
             }
             catch (RuntimeException ex)
             {

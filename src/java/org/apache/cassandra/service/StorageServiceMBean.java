@@ -273,7 +273,9 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void takeTableSnapshot(String keyspaceName, String tableName, String tag) throws IOException;
 
     /**
-     * @deprecated use {@link #takeSnapshot(String tag, Map options, String... entities)} instead. See CASSANDRA-10907
+     * Use {@link #takeSnapshot(String tag, Map options, String... entities)} instead.
+     *
+     * @deprecated See CASSANDRA-10907
      */
     @Deprecated(since = "3.4")
     public void takeMultipleTableSnapshot(String tag, String... tableList) throws IOException;

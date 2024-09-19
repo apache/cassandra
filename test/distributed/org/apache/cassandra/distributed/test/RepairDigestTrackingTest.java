@@ -30,6 +30,8 @@ import java.util.stream.Stream;
 
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.Assert;
+
+import org.apache.cassandra.Util;
 import org.apache.cassandra.concurrent.SEPExecutor;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.dht.Token;
@@ -39,6 +41,7 @@ import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.locator.ReplicaUtils;
+import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.Throwables;
 import org.junit.Test;
@@ -591,7 +594,7 @@ public class RepairDigestTrackingTest extends TestBaseImpl
             int attempts = 100;
             ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(TABLE);
 
-            while (cfs.listSnapshots().isEmpty())
+            while (Util.listSnapshots(cfs).isEmpty())
             {
                 Uninterruptibles.sleepUninterruptibly(100, TimeUnit.MILLISECONDS);
                 if (attempts-- < 0)
@@ -602,11 +605,7 @@ public class RepairDigestTrackingTest extends TestBaseImpl
 
     private IInvokableInstance.SerializableRunnable assertSnapshotNotPresent(String snapshotName)
     {
-        return () ->
-        {
-            ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(TABLE);
-            Assert.assertFalse(cfs.snapshotExists(snapshotName));
-        };
+        return () -> Assert.assertTrue(SnapshotManager.instance.getSnapshot(KEYSPACE, TABLE, snapshotName).isEmpty());
     }
 
     private long getConfirmedInconsistencies(IInvokableInstance instance)

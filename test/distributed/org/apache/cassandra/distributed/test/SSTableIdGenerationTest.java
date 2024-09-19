@@ -21,6 +21,7 @@ package org.apache.cassandra.distributed.test;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
@@ -51,6 +52,7 @@ import org.apache.cassandra.io.sstable.SequenceBasedSSTableId;
 import org.apache.cassandra.io.sstable.UUIDBasedSSTableId;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.metrics.RestorableMeter;
+import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.service.snapshot.TableSnapshot;
 import org.apache.cassandra.tools.SystemExitException;
 import org.apache.cassandra.utils.TimeUUID;
@@ -403,12 +405,21 @@ public class SSTableIdGenerationTest extends TestBaseImpl
 
     private static Set<String> snapshot(IInvokableInstance instance, String ks, String tableName)
     {
-        Set<String> snapshotDirs = instance.callOnInstance(() -> ColumnFamilyStore.getIfExists(ks, tableName)
-                                                                                  .snapshot(SNAPSHOT_TAG)
-                                                                                  .getDirectories()
-                                                                                  .stream()
-                                                                                  .map(File::toString)
-                                                                                  .collect(Collectors.toSet()));
+        Set<String> snapshotDirs = instance.callOnInstance(() -> {
+
+            ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(ks, tableName);
+
+            if (cfs == null)
+                return Set.of();
+
+            TableSnapshot tableSnapshot = SnapshotManager.instance.takeSnapshot(SNAPSHOT_TAG, cfs.getKeyspaceTableName());
+
+            Set<String> dirs = new HashSet<>();
+            for (File dir : tableSnapshot.getDirectories())
+                dirs.add(dir.toString());
+
+            return dirs;
+        });
         assertThat(snapshotDirs).isNotEmpty();
         return snapshotDirs;
     }

@@ -17,9 +17,6 @@
  */
 package org.apache.cassandra.service;
 
-import java.io.IOException;
-import java.util.Map;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -51,9 +48,9 @@ public class SnapshotVerbHandler implements IVerbHandler<SnapshotCommand>
         {
             try
             {
-                SnapshotManager.instance.takeSnapshot(command.snapshot_name, Map.of(), command.keyspace + '.' + command.column_family);
+                SnapshotManager.instance.takeSnapshot(command.snapshot_name, command.keyspace, command.column_family);
             }
-            catch (IOException ex)
+            catch (Exception ex)
             {
                 throw new RuntimeException(ex);
             }

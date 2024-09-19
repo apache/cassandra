@@ -55,6 +55,8 @@ import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.Refs;
 
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+
 public class TableSnapshot
 {
     private static final Logger logger = LoggerFactory.getLogger(TableSnapshot.class);
@@ -588,5 +590,19 @@ public class TableSnapshot
             throw e;
         }
         return refs;
+    }
+
+    public static String getTimestampedSnapshotName(String clientSuppliedName)
+    {
+        String snapshotName = Long.toString(currentTimeMillis());
+        if (clientSuppliedName != null && !clientSuppliedName.isEmpty())
+            snapshotName = snapshotName + '-' + clientSuppliedName;
+
+        return snapshotName;
+    }
+
+    public static String getTimestampedSnapshotNameWithPrefix(String clientSuppliedName, String prefix)
+    {
+        return prefix + '-' + getTimestampedSnapshotName(clientSuppliedName);
     }
 }

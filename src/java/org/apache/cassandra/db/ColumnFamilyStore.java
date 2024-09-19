@@ -66,7 +66,6 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-import com.google.common.util.concurrent.RateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -77,7 +76,6 @@ import org.apache.cassandra.cache.RowCacheSentinel;
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.concurrent.FutureTask;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.commitlog.IntervalSet;
@@ -152,10 +150,9 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.paxos.Ballot;
 import org.apache.cassandra.service.paxos.PaxosRepairHistory;
 import org.apache.cassandra.service.paxos.TablePaxosRepairHistory;
-import org.apache.cassandra.service.snapshot.SnapshotLoader;
 import org.apache.cassandra.service.snapshot.SnapshotManager;
-import org.apache.cassandra.service.snapshot.TableSnapshot;
 import org.apache.cassandra.service.snapshot.TakeSnapshotTask;
+import org.apache.cassandra.service.snapshot.TakeSnapshotTask.Builder;
 import org.apache.cassandra.streaming.TableStreamManager;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
@@ -179,6 +176,7 @@ import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.config.DatabaseDescriptor.getFlushWriters;
 import static org.apache.cassandra.db.commitlog.CommitLogPosition.NONE;
+import static org.apache.cassandra.service.snapshot.TableSnapshot.getTimestampedSnapshotNameWithPrefix;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.FBUtilities.now;
@@ -970,6 +968,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         return keyspace.getName();
     }
 
+    public String getKeyspaceTableName()
+    {
+        return getKeyspaceName() + '.' + getTableName();
+    }
+
     public Descriptor newSSTableDescriptor(File directory)
     {
         return newSSTableDescriptor(directory, DatabaseDescriptor.getSelectedSSTableFormat().getLatestVersion());
@@ -1754,7 +1757,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         {
             Instant creationTime = now();
             String snapshotName = "pre-scrub-" + creationTime.toEpochMilli();
-            snapshotWithoutMemtable(snapshotName, creationTime);
+
+            SnapshotManager.instance.takeSnapshot(new Builder(snapshotName, getKeyspaceTableName())
+                                                  .skipFlush()
+                                                  .creationTime(creationTime)
+                                                  .build());
         }
 
         try
@@ -2118,123 +2125,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     public ClusteringComparator getComparator()
     {
         return metadata().comparator;
-    }
-
-    public TableSnapshot snapshotWithoutMemtable(String snapshotName)
-    {
-        return SnapshotManager.instance.createSnapshot(this, snapshotName, null, false, null, now(), null);
-    }
-
-    public TableSnapshot snapshotWithoutMemtable(String snapshotName, Instant creationTime)
-    {
-        return SnapshotManager.instance.createSnapshot(this, snapshotName, null, false, null, creationTime, null);
-    }
-
-    /**
-     * Take a snapshot of this columnfamily store.
-     *
-     * @param snapshotName the name of the associated with the snapshot
-     */
-    public TableSnapshot snapshot(String snapshotName)
-    {
-        return snapshot(snapshotName, null);
-    }
-
-    /**
-     * Take a snapshot of this columnfamily store.
-     *
-     * @param snapshotName the name of the associated with the snapshot
-     * @param ttl duration after which the taken snapshot is removed automatically, if supplied with null, it will never be automatically removed
-     */
-    public TableSnapshot snapshot(String snapshotName, DurationSpec.IntSecondsBound ttl)
-    {
-        return snapshot(snapshotName, false, ttl, null, now());
-    }
-
-    /**
-     * Take a snapshot of this columnfamily store.
-     *
-     * @param snapshotName the name of the associated with the snapshot
-     * @param skipMemtable Skip flushing the memtable
-     * @param ttl duration after which the taken snapshot is removed automatically, if supplied with null, it will never be automatically removed
-     * @param rateLimiter Rate limiter for hardlinks-per-second
-     * @param creationTime time when this snapshot was taken
-     */
-    public TableSnapshot snapshot(String snapshotName, boolean skipMemtable, DurationSpec.IntSecondsBound ttl, RateLimiter rateLimiter, Instant creationTime)
-    {
-        return snapshot(snapshotName, null, false, skipMemtable, ttl, rateLimiter, creationTime);
-    }
-
-    /**
-     * Take a snapshot of this columnfamily store.
-     *
-     * @param snapshotName the name of the associated with the snapshot
-     * @param predicate filter sstables to include into a snapshot based on this predicate
-     * @param ephemeral If this flag is set to true, the snapshot will be cleaned up during next startup
-     * @param skipMemtable Skip flushing the memtable
-     */
-    public TableSnapshot snapshot(String snapshotName, Predicate<SSTableReader> predicate, boolean ephemeral, boolean skipMemtable)
-    {
-        return snapshot(snapshotName, predicate, ephemeral, skipMemtable, null, null, now());
-    }
-
-    /**
-     * Take a snapshot of this columnfamily store.
-     *
-     * @param ephemeral If this flag is set to true, the snapshot will be cleaned up during next startup
-     * @param skipMemtable Skip flushing the memtable
-     * @param ttl duration after which the taken snapshot is removed automatically, if supplied with null, it will never be automatically removed
-     * @param rateLimiter Rate limiter for hardlinks-per-second
-     * @param creationTime time when this snapshot was taken
-     */
-    public TableSnapshot snapshot(String snapshotName, Predicate<SSTableReader> predicate, boolean ephemeral, boolean skipMemtable, DurationSpec.IntSecondsBound ttl, RateLimiter rateLimiter, Instant creationTime)
-    {
-        if (!skipMemtable)
-        {
-            Memtable current = getTracker().getView().getCurrentMemtable();
-            if (!current.isClean())
-            {
-                if (current.shouldSwitch(FlushReason.SNAPSHOT))
-                    FBUtilities.waitOnFuture(switchMemtableIfCurrent(current, FlushReason.SNAPSHOT));
-                else
-                    current.performSnapshot(snapshotName);
-            }
-        }
-
-        return SnapshotManager.instance.createSnapshot(this, snapshotName, predicate, ephemeral, ttl, creationTime, rateLimiter);
-    }
-
-    public boolean snapshotExists(String snapshotName)
-    {
-        return SnapshotManager.instance.getSnapshot(keyspace.getName(), name, snapshotName).isPresent();
-    }
-
-    /**
-     * Clear all the snapshots for a given column family.
-     *
-     * @param snapshotName the user supplied snapshot name. If left empty,
-     *                     all the snapshots will be cleaned.
-     */
-    public void clearSnapshot(String snapshotName)
-    {
-        SnapshotManager.instance.clearSnapshot(keyspace.getName(), getTableName(), snapshotName);
-    }
-
-    /**
-     *
-     * @return  Return a map of all snapshots to space being used
-     * The pair for a snapshot has true size and size on disk.
-     */
-    // TODO - this is used just in tests
-    public Map<String, TableSnapshot> listSnapshots()
-    {
-        Set<TableSnapshot> snapshots = new SnapshotLoader(getDirectories()).loadSnapshots();
-        Map<String, TableSnapshot> tagSnapshotsMap = new HashMap<>();
-
-        for (TableSnapshot snapshot : snapshots)
-            tagSnapshotsMap.put(snapshot.getTag(), snapshot);
-
-        return tagSnapshotsMap;
     }
 
     /**
@@ -2628,7 +2518,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                 data.notifyTruncated(truncatedAt);
 
             if (!noSnapshot && isAutoSnapshotEnabled())
-                snapshot(Keyspace.getTimestampedSnapshotNameWithPrefix(name, SNAPSHOT_TRUNCATE_PREFIX), DatabaseDescriptor.getAutoSnapshotTtl());
+            {
+                String tag = getTimestampedSnapshotNameWithPrefix(name, SNAPSHOT_TRUNCATE_PREFIX);
+                TakeSnapshotTask task = new Builder(tag, getKeyspaceTableName()).ttl(DatabaseDescriptor.getAutoSnapshotTtl()).build();
+                SnapshotManager.instance.takeSnapshot(task);
+            }
 
             discardSSTables(truncatedAt);
 
@@ -3170,12 +3064,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     @Override
     public long trueSnapshotsSize()
     {
-        long size = 0;
-        Set<String> filesOfCfs = getFilesOfCfs();
-        for (TableSnapshot snapshot : SnapshotManager.instance.getSnapshots(getKeyspaceName(), getTableName()))
-            size += snapshot.computeTrueSizeBytes(filesOfCfs);
-
-        return size;
+        return SnapshotManager.instance.trueSnapshotsSize(getKeyspaceName(), getTableName(), getFilesOfCfs());
     }
 
     /**
@@ -3296,7 +3185,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         CompactionManager.instance.interruptCompactionForCFs(concatWithIndexes(), (sstable) -> true, true);
 
         if (isAutoSnapshotEnabled())
-            snapshot(Keyspace.getTimestampedSnapshotNameWithPrefix(name, ColumnFamilyStore.SNAPSHOT_DROP_PREFIX), DatabaseDescriptor.getAutoSnapshotTtl());
+        {
+            String tag = getTimestampedSnapshotNameWithPrefix(name, ColumnFamilyStore.SNAPSHOT_DROP_PREFIX);
+            TakeSnapshotTask task = new Builder(tag, getKeyspaceTableName())
+                                    .cfs(this)
+                                    .ttl(DatabaseDescriptor.getAutoSnapshotTtl())
+                                    .build();
+            SnapshotManager.instance.takeSnapshot(task);
+        }
 
         CommitLog.instance.forceRecycleAllSegments(Collections.singleton(metadata.id));
 

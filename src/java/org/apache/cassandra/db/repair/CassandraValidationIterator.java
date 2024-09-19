@@ -181,12 +181,12 @@ public class CassandraValidationIterator extends ValidationPartitionIterator
         this.cfs = cfs;
         this.ctx = ctx;
 
-        isGlobalSnapshotValidation = cfs.snapshotExists(parentId.toString());
+        isGlobalSnapshotValidation = SnapshotManager.instance.getSnapshot(cfs.getKeyspaceName(), cfs.getTableName(), parentId.toString()).isPresent();
         if (isGlobalSnapshotValidation)
             snapshotName = parentId.toString();
         else
             snapshotName = sessionID.toString();
-        isSnapshotValidation = cfs.snapshotExists(snapshotName);
+        isSnapshotValidation = SnapshotManager.instance.getSnapshot(cfs.getKeyspaceName(), cfs.getTableName(), snapshotName).isPresent();
 
         if (isSnapshotValidation)
         {

@@ -29,6 +29,7 @@ import io.airlift.airline.Command;
 import io.airlift.airline.Option;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.service.snapshot.TakeSnapshotTask;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
@@ -68,10 +69,10 @@ public class Snapshot extends NodeToolCmd
             sb.append("Requested creating snapshot(s) for ");
 
             Map<String, String> options = new HashMap<String,String>();
-            options.put("skipFlush", Boolean.toString(skipFlush));
+            options.put(TakeSnapshotTask.SKIP_FLUSH, Boolean.toString(skipFlush));
             if (null != ttl) {
                 DurationSpec.LongNanosecondsBound d = new DurationSpec.LongNanosecondsBound(ttl);
-                options.put("ttl", d.toString());
+                options.put(TakeSnapshotTask.TTL, d.toString());
             }
 
             if (!snapshotName.isEmpty() && snapshotName.contains(File.pathSeparator()))

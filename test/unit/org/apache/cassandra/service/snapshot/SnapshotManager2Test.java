@@ -87,7 +87,7 @@ public class SnapshotManager2Test
                 for (int k = 0; k < NUM_SNAPSHOTS_PER_TABLE; k++)
                 {
                     System.out.printf("Creating snapshot %d of table %s.%s%n", k, cfs.keyspace.getName(), cfs.name);
-                    cfs.snapshot(snapshotName(k));
+                    SnapshotManager.instance.takeSnapshot(snapshotName(k), cfs.getKeyspaceTableName());
                 }
             }
         }
