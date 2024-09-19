@@ -3,25 +3,7 @@
 
 // LLP: *NOT DONE*
 
-Configuring your {product} environment for Storage-Attached Indexing (SAI) requires some important customization of the `cassandra.yaml` file. 
-
-== Increase file cache above the default value
-
-By default, the file cache's xref:cassandra:managing/configuration/cass_yaml_file.adoc#file_cache_size[file_cache_size] value is calculated as 50% of the `MaxDirectMemorySize` setting.
-This default for `file_cache_size` may result in suboptimal performance because Cassandra is not able to take full advantage of available memory.
-
-[TIP]
-====
-File cache is also known as chunk cache.
-====
-
-The `file_cache_size` value can be defined explicitly in `cassandra.yaml`.
-The recommendation is to:
-
-. Increase `--XX:MaxDirectMemorySize`, leaving approximately 15-20% of memory for the OS and other in-memory structures.
-. In `cassandra.yaml`, explicitly set `file_cache_size` to 75% of that value.
-
-In testing, this configuration improves indexing performance across read, write, and mixed read/write scenarios.
+Configuring your {product} environment for Storage-Attached Indexing (SAI) may require some customization of the `cassandra.yaml` file. 
 
 == Compaction strategies
 
@@ -45,7 +27,7 @@ In general, do not use `LeveledCompactionStrategy` (LCS) unless your index queri
 However, if you decide to use LCS, use the following guidelines:
 
 * The `160` MB default for the `CREATE TABLE` command's `sstable_size_in_mb` option, described in this xref:reference:cql-commands/create-table.adoc#compactSubprop__LCS[topic], may result in suboptimal performance for index queries that do not restrict on token range or partition key.
-* While even higher values may be appropriate, depending on your hardware, DataStax recommends at least doubling the default value of `sstable_size_in_mb`.
+* While even higher values may be appropriate, depending on your hardware, we recommend at least doubling the default value of `sstable_size_in_mb`. 
 
 Example:
 
@@ -62,6 +44,9 @@ However, the larger value results in having fewer SSTables, which lowers query l
 Each SAI index should ultimately consume less space on disk because of better long-term compression with the larger indexes.
 
 If query performance degrades on large (`sstable_max_size` ~2GB) SAI indexed SSTables when the workload is not dominated by reads but is experiencing increased write amplification, consider using Unified Compaction Strategy (UCS).
+
+The `cassandra.yaml` options `sai_sstable_indexes_per_query_warn_threshold` (default: 32) and `sai_sstable_indexes_per_query_fail_threshold` (default: disabled) determine the number of SSTable indexes a SAI query touches before warning clients and failing queries respectively.
+When enabled, they can provide feedback for clients and protection for the database in the face of sub-optimal read queries.
 
 == About SAI encryption
 

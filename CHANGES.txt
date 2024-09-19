@@ -76,6 +76,7 @@
  * Add the ability to disable bulk loading of SSTables (CASSANDRA-18781)
  * Clean up obsolete functions and simplify cql_version handling in cqlsh (CASSANDRA-18787)
 Merged from 5.0:
+ * Correct out-of-date metrics and configuration documentation for SAI (CASSANDRA-19898)
  * Make configuration entries in memtable section order-independent (CASSANDRA-19906)
  * Add guardrail for enabling usage of VectorType (CASSANDRA-19903)
  * Set executable flag for shell scripts in .build directory for source artifact (CASSANDRA-19896)
