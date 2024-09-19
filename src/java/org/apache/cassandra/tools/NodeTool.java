@@ -94,6 +94,7 @@ public class NodeTool
     public int execute(String... args)
     {
         List<Class<? extends NodeToolCmdRunnable>> commands = newArrayList(
+                ApplySchemaChangesForCompactionParams.class,
                 Assassinate.class,
                 AutoRepairStatus.class,
                 CassHelp.class,
