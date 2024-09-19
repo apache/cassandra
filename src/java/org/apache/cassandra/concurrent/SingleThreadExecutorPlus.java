@@ -25,6 +25,7 @@ public class SingleThreadExecutorPlus extends ThreadPoolExecutorPlus implements 
 {
     public static class AtLeastOnce extends AtomicBoolean implements AtLeastOnceTrigger, Runnable
     {
+        private static final long serialVersionUID = 0;  // for simulator support
         protected final SequentialExecutorPlus executor;
         protected final Runnable run;
 

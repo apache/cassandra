@@ -62,6 +62,7 @@ public enum AuditLogEntryType
     DROP_IDENTITY(AuditLogEntryCategory.DCL),
     USE_KEYSPACE(AuditLogEntryCategory.OTHER),
     DESCRIBE(AuditLogEntryCategory.OTHER),
+    TRANSACTION(AuditLogEntryCategory.TRANSACTION),
 
     /*
      * Common Audit Log Entry Types

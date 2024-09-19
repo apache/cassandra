@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
 import java.util.function.ToDoubleFunction;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -41,14 +42,17 @@ import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.simulator.Debug.Info;
 import org.apache.cassandra.simulator.Debug.Levels;
+import org.apache.cassandra.simulator.cluster.ClusterActions.ConsensusChange;
 import org.apache.cassandra.simulator.cluster.ClusterActions.TopologyChange;
 import org.apache.cassandra.simulator.debug.SelfReconcile;
+import org.apache.cassandra.simulator.logging.SeedDefiner;
 import org.apache.cassandra.simulator.systems.InterceptedWait;
 import org.apache.cassandra.simulator.systems.InterceptedWait.CaptureSites.Capture;
 import org.apache.cassandra.simulator.systems.InterceptibleThread;
 import org.apache.cassandra.simulator.systems.InterceptorOfGlobalMethods;
 import org.apache.cassandra.simulator.utils.ChanceRange;
 import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Hex;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
@@ -61,9 +65,10 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.CLOCK_GLOB
 import static org.apache.cassandra.config.CassandraRelevantProperties.CLOCK_MONOTONIC_APPROX;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CLOCK_MONOTONIC_PRECISE;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CONSISTENT_DIRECTORY_LISTINGS;
-import static org.apache.cassandra.config.CassandraRelevantProperties.DETERMINISM_UNSAFE_UUID_NODE;
-import static org.apache.cassandra.config.CassandraRelevantProperties.DISABLE_SSTABLE_ACTIVITY_TRACKING;
 import static org.apache.cassandra.config.CassandraRelevantProperties.DETERMINISM_SSTABLE_COMPRESSION_DEFAULT;
+import static org.apache.cassandra.config.CassandraRelevantProperties.DETERMINISM_UNSAFE_UUID_NODE;
+import static org.apache.cassandra.config.CassandraRelevantProperties.DISABLE_GOSSIP_ENDPOINT_REMOVAL;
+import static org.apache.cassandra.config.CassandraRelevantProperties.DISABLE_SSTABLE_ACTIVITY_TRACKING;
 import static org.apache.cassandra.config.CassandraRelevantProperties.DTEST_API_LOG_TOPOLOGY;
 import static org.apache.cassandra.config.CassandraRelevantProperties.GOSSIPER_SKIP_WAITING_TO_SETTLE;
 import static org.apache.cassandra.config.CassandraRelevantProperties.IGNORE_MISSING_NATIVE_FILE_HINTS;
@@ -73,8 +78,10 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.MEMTABLE_O
 import static org.apache.cassandra.config.CassandraRelevantProperties.PAXOS_REPAIR_RETRY_TIMEOUT_IN_MS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.RING_DELAY;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SHUTDOWN_ANNOUNCE_DELAY_IN_MS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.SIMULATOR_STARTED;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SYSTEM_AUTH_DEFAULT_RF;
-import static org.apache.cassandra.config.CassandraRelevantProperties.DISABLE_GOSSIP_ENDPOINT_REMOVAL;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_CASSANDRA_SUITENAME;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_CASSANDRA_TESTTAG;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_JVM_DTEST_DISABLE_SSL;
 import static org.apache.cassandra.simulator.debug.Reconcile.reconcileWith;
 import static org.apache.cassandra.simulator.debug.Record.record;
@@ -85,7 +92,15 @@ import static org.apache.cassandra.simulator.utils.LongRange.parseNanosRange;
 @SuppressWarnings({ "ZeroLengthArrayAllocation", "CodeBlock2Expr", "SameParameterValue", "DynamicRegexReplaceableByCompiledPattern", "CallToSystemGC" })
 public class SimulationRunner
 {
-    private static final Logger logger = LoggerFactory.getLogger(SimulationRunner.class);
+    private static class LoggerHandle
+    {
+        private static final Logger logger = LoggerFactory.getLogger(SimulationRunner.class);
+    }
+
+    private static Logger logger()
+    {
+        return LoggerHandle.logger;
+    }
 
     public enum RecordOption { NONE, VALUE, WITH_CALLSITES }
 
@@ -126,6 +141,7 @@ public class SimulationRunner
         IGNORE_MISSING_NATIVE_FILE_HINTS.setBoolean(true);
         ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION.setBoolean(true);
         TEST_JVM_DTEST_DISABLE_SSL.setBoolean(true); // to support easily running without netty from dtest-jar
+        SIMULATOR_STARTED.setString(Long.toString(TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis())));
 
         if (Thread.currentThread() instanceof InterceptibleThread); // load InterceptibleThread class to avoid infinite loop in InterceptorOfGlobalMethods
         new InterceptedWait.CaptureSites(Thread.currentThread())
@@ -170,8 +186,15 @@ public class SimulationRunner
         protected String topologyChanges = stream(TopologyChange.values()).map(Object::toString).collect(Collectors.joining(","));
         @Option(name = { "--cluster-action-interval" }, title = "int...int(s|ms|us|ns)", description = "The period of time between two cluster actions (default 5..15s)")
         protected String topologyChangeInterval = "5..15s";
-        @Option(name = { "--cluster-action-limit" }, title = "int", description = "The maximum number of topology change events to perform (default 0)")
+        @Option(name = { "--cluster-action-limit" }, title = "int", description = "The maximum number of topology change events to perform (default 0 disabled, -1 unlimited)")
         protected String topologyChangeLimit = "0";
+
+        @Option(name = { "--consensus-actions" }, title = "ACCORD_MIGRATE", description = "Consensus migration actions to select from, comma delimited (ACCORD_MIGRATE)")
+        protected String consensusChanges = stream(ConsensusChange.values()).map(Object::toString).collect(Collectors.joining(","));
+        @Option(name = { "--consensus-action-interval" }, title = "int...int(s|ms|us|ns)", description = "The period of time between two consensus actions (default 5..15s)")
+        protected String consensusChangeInterval = "1..5s";
+        @Option(name = { "--consensus-action-limit" }, title = "int", description = "The maximum number of consensus change events to perform (default 0 disabled, -1 unlimited)")
+        protected String consensusChangeLimit = "0";
 
         @Option(name = { "-s", "--run-time" }, title = "int", description = "Length of simulated time to run in seconds (default -1)")
         protected int secondsToSimulate = -1;
@@ -248,6 +271,9 @@ public class SimulationRunner
         @Option(name = { "--capture" }, title = "wait,wake,now", description = "Capture thread stack traces alongside events, choose from (wait,wake,now)")
         protected String capture;
 
+        @Option(name = { "--lwt-strategy" }, title = "migration|accord]", description = "What execution strategy to use for CAS and serial read")
+        protected String lwtStrategy;
+
         protected void propagate(B builder)
         {
             builder.threadCount(threadCount);
@@ -286,13 +312,14 @@ public class SimulationRunner
             });
             parseNanosRange(Optional.ofNullable(topologyChangeInterval)).ifPresent(builder::topologyChangeIntervalNanos);
             builder.topologyChangeLimit(Integer.parseInt(topologyChangeLimit));
-            Optional.ofNullable(priority).ifPresent(kinds -> {
-                builder.scheduler(stream(kinds.split(","))
-                                  .filter(v -> !v.isEmpty())
-                                  .map(v -> RunnableActionScheduler.Kind.valueOf(v.toUpperCase()))
-                                  .toArray(RunnableActionScheduler.Kind[]::new));
+            Optional.ofNullable(consensusChanges).ifPresent(consensusChanges -> {
+                builder.consensusChanges(stream(consensusChanges.split(","))
+                                        .filter(v -> !v.isEmpty())
+                                        .map(v -> ConsensusChange.valueOf(v.toUpperCase()))
+                                        .toArray(ConsensusChange[]::new));
             });
-
+            parseNanosRange(Optional.ofNullable(consensusChangeInterval)).ifPresent(builder::consensusChangeIntervalNanos);
+            builder.consensusChangeLimit(Integer.parseInt(consensusChangeLimit));
             Optional.ofNullable(this.capture)
                     .map(s -> s.split(","))
                     .map(s -> new Capture(
@@ -316,11 +343,19 @@ public class SimulationRunner
                                                  .orElse(new int[0]);
                 builder.debug(debugLevels, debugPrimaryKeys);
             }
+
+            Optional.ofNullable(lwtStrategy).ifPresent(builder::transactionalMode);
         }
 
         public void run(B builder) throws IOException
         {
+            long seed = parseHex(Optional.ofNullable(this.seed)).orElse(new Random(System.nanoTime()).nextLong());
+            SeedDefiner.setSeed(seed);
             beforeAll();
+            // TODO (expected): this doesn't work properly for multiple seeds in a single JVM
+            TEST_CASSANDRA_TESTTAG.setString("simulator");
+            TEST_CASSANDRA_SUITENAME.setString(SIMULATOR_STARTED.getString() + '-' + CassandraRelevantProperties.SIMULATOR_SEED.getString());
+            logger();
             Thread.setDefaultUncaughtExceptionHandler((th, e) -> {
                 boolean isInterrupt = false;
                 Throwable t = e;
@@ -330,14 +365,12 @@ public class SimulationRunner
                     t = t.getCause();
                 }
                 if (!isInterrupt)
-                    logger.error("Uncaught exception on {}", th, e);
+                    logger().error("Uncaught exception on {}", th, e);
                 if (e instanceof Error)
                     throw (Error) e;
             });
 
             propagate(builder);
-
-            long seed = parseHex(Optional.ofNullable(this.seed)).orElse(new Random(System.nanoTime()).nextLong());
             for (int i = 0 ; i < simulationCount ; ++i)
             {
                 cleanup();
@@ -354,7 +387,8 @@ public class SimulationRunner
     {
         protected void run(long seed, B builder) throws IOException
         {
-            logger.error("Seed 0x{}", Long.toHexString(seed));
+            logger().error("Seed 0x{}", Long.toHexString(seed));
+            logger().info("Cassandra {} / {}", FBUtilities.getReleaseVersionString(), FBUtilities.getGitSHA());
 
             try (ClusterSimulation<?> cluster = builder.create(seed))
             {
@@ -364,6 +398,7 @@ public class SimulationRunner
                 }
                 catch (Throwable t)
                 {
+                    logger().error("Failed on seed 0x{}", Long.toHexString(seed), t);
                     throw new SimulationException(seed, t);
                 }
             }
@@ -432,6 +467,16 @@ public class SimulationRunner
         }
     }
 
+    @Command(name = "version", description = "Display version information")
+    protected static class VersionCommand<B extends ClusterSimulation.Builder<?>> implements ICommand<B>
+    {
+        @Override
+        public void run(B builder) throws IOException
+        {
+            System.out.println(FBUtilities.getReleaseVersionString());
+            System.out.println(FBUtilities.getGitSHA());
+        }
+    }
 
     public static Optional<Long> parseHex(Optional<String> value)
     {

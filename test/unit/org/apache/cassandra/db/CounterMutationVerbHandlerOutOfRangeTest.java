@@ -37,7 +37,7 @@ import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.exceptions.InvalidRoutingException;
-import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -51,11 +51,17 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.utils.FBUtilities;
 
-import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.*;
-import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+
+import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.MessageDelivery;
+import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.broadcastAddress;
+import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.bytesToken;
+import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.node1;
+import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.randomInt;
+import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.registerOutgoingMessageSink;
+import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
 public class CounterMutationVerbHandlerOutOfRangeTest
 {
@@ -168,7 +174,7 @@ public class CounterMutationVerbHandlerOutOfRangeTest
         MessageDelivery response = messageSink.get(100, TimeUnit.MILLISECONDS);
         assertEquals(Verb.FAILURE_RSP, response.message.verb());
         assertEquals(broadcastAddress, response.message.from());
-        assertTrue(response.message.payload instanceof RequestFailureReason);
+        assertTrue(response.message.payload instanceof RequestFailure);
         assertEquals(messageId, response.message.id());
         assertEquals(node1, response.to);
     }

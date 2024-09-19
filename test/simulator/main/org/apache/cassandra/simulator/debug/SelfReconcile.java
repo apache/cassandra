@@ -43,6 +43,7 @@ import org.apache.cassandra.simulator.systems.InterceptibleThread;
 import org.apache.cassandra.simulator.systems.InterceptorOfConsequences;
 import org.apache.cassandra.simulator.systems.SimulatedTime;
 import org.apache.cassandra.utils.CloseableIterator;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 import org.apache.cassandra.utils.memory.HeapPool;
@@ -124,17 +125,26 @@ public class SelfReconcile
 
             if (events.size() == 1)
             {
-                int cur = counter;
-                while (cur == counter)
+                boolean restoreInterrupt = Thread.interrupted();
+                try
                 {
-                    try
+                    int cur = counter;
+                    while (cur == counter)
                     {
-                        wait();
+                        try
+                        {
+                            wait();
+                        }
+                        catch (InterruptedException e)
+                        {
+                            throw new UncheckedInterruptedException(e);
+                        }
                     }
-                    catch (InterruptedException e)
-                    {
-                        throw new UncheckedInterruptedException(e);
-                    }
+                }
+                finally
+                {
+                    if (restoreInterrupt)
+                        Thread.currentThread().interrupt();
                 }
             }
             else
@@ -239,6 +249,7 @@ public class SelfReconcile
     public static void reconcileWithSelf(long seed, RecordOption withRng, RecordOption withTime, boolean withAllocations, ClusterSimulation.Builder<?> builder)
     {
         logger.error("Seed 0x{}", Long.toHexString(seed));
+        logger.info("Cassandra {} / {}", FBUtilities.getReleaseVersionString(), FBUtilities.getGitSHA());
 
         InterceptReconciler reconciler = new InterceptReconciler(withRng == WITH_CALLSITES);
         if (withRng != NONE) builder.random(reconciler);
@@ -311,5 +322,4 @@ public class SelfReconcile
             ).replaceAll("$1$2]")
         ).replaceAll("$1]");
     }
-
 }

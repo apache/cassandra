@@ -50,7 +50,17 @@ public class VirtualKeyspace
         if (!duplicates.isEmpty())
             throw new IllegalArgumentException(String.format("Duplicate table names in virtual keyspace %s: %s", name, duplicates));
 
-        metadata = KeyspaceMetadata.virtual(name, Tables.of(Iterables.transform(tables, VirtualTable::metadata)));
+        KeyspaceMetadata metadata = KeyspaceMetadata.virtual(name, Tables.of(Iterables.transform(tables, VirtualTable::metadata)));
+        for (var t : tables)
+        {
+            for (var udt : t.userTypes())
+            {
+                if (metadata.types.getNullable(udt.name) != null)
+                    throw new IllegalStateException("UDT " + udt.getNameAsString() + " already exists");
+                metadata = metadata.withUpdatedUserType(udt);
+            }
+        }
+        this.metadata = metadata;
     }
 
     public String name()

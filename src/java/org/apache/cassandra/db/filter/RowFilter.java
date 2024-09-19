@@ -87,7 +87,7 @@ public class RowFilter implements Iterable<RowFilter.Expression>
     private static final Logger logger = LoggerFactory.getLogger(RowFilter.class);
 
     public static final Serializer serializer = new Serializer();
-    private static final RowFilter NONE = new RowFilter(Collections.emptyList(), false);
+    public static final RowFilter NONE = new RowFilter(Collections.emptyList(), false);
 
     protected final List<Expression> expressions;
 

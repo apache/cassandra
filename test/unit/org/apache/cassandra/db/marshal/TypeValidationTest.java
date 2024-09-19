@@ -204,7 +204,7 @@ public class TypeValidationTest
         qt().forAll(tupleWithValueGen(baseGen)).checkAssert(pair -> {
             TupleType tuple = pair.left;
             ByteBuffer value = pair.right;
-            Assertions.assertThat(tuple.pack(tuple.unpack(value)))
+            Assertions.assertThat(tuple.pack(tuple.unpack(value), ByteBufferAccessor.instance))
                       .as("tuple.pack(tuple.unpack(value)) == value")
                       .isEqualTo(value);
         });

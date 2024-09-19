@@ -39,6 +39,8 @@ import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
+import static com.google.common.base.Throwables.getStackTraceAsString;
+
 public final class Throwables
 {
     public enum FileOpType { READ, WRITE }
@@ -46,6 +48,23 @@ public final class Throwables
     public interface DiscreteAction<E extends Exception>
     {
         void perform() throws E;
+    }
+
+    public interface ThrowingRunnable
+    {
+        void run() throws Exception;
+    }
+
+    public static void runUnchecked(ThrowingRunnable runnable)
+    {
+        try
+        {
+            runnable.run();
+        }
+        catch (Exception e)
+        {
+            throwAsUncheckedException(e);
+        }
     }
 
     public static boolean isCausedBy(Throwable t, Predicate<Throwable> cause)
@@ -332,5 +351,17 @@ public final class Throwables
     {
         if (!anyCauseMatches(err, cause::isInstance))
             throw new AssertionError("The exception is not caused by " + cause.getName(), err);
+    }
+
+    public static Object getStackTraceAsToString(Throwable t)
+    {
+        return new Object()
+        {
+            @Override
+            public String toString()
+            {
+                return getStackTraceAsString(t);
+            }
+        };
     }
 }

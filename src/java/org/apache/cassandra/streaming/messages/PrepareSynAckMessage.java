@@ -23,9 +23,9 @@ import java.util.ArrayList;
 import java.util.Collection;
 
 import org.apache.cassandra.io.util.DataInputPlus;
-import org.apache.cassandra.streaming.StreamingDataOutputPlus;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.StreamSummary;
+import org.apache.cassandra.streaming.StreamingDataOutputPlus;
 
 public class PrepareSynAckMessage extends StreamMessage
 {

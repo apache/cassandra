@@ -23,12 +23,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.UUID;
 
 import com.google.common.collect.Lists;
-
-import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
-import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -41,13 +37,19 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
+import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.repair.SyncNodePair;
 import org.apache.cassandra.repair.RepairJobDesc;
+import org.apache.cassandra.repair.SyncNodePair;
 import org.apache.cassandra.repair.Validator;
-import org.apache.cassandra.repair.messages.*;
+import org.apache.cassandra.repair.messages.RepairMessage;
+import org.apache.cassandra.repair.messages.SyncRequest;
+import org.apache.cassandra.repair.messages.SyncResponse;
+import org.apache.cassandra.repair.messages.ValidationRequest;
+import org.apache.cassandra.repair.messages.ValidationResponse;
 import org.apache.cassandra.repair.state.ValidationState;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
@@ -57,14 +59,18 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.streaming.SessionSummary;
 import org.apache.cassandra.streaming.StreamSummary;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MerkleTrees;
 import org.apache.cassandra.utils.TimeUUID;
 
+import static java.util.Collections.emptyList;
+
 public class SerializationsTest extends AbstractSerializationsTester
 {
     private static PartitionerSwitcher partitionerSwitcher;
+    private static TableId TABLE_ID;
     private static TimeUUID RANDOM_UUID;
     private static Range<Token> FULL_RANGE;
     private static RepairJobDesc DESC;
@@ -79,6 +85,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         ClusterMetadataTestHelper.setInstanceForTest();
         SchemaTestUtil.addOrUpdateKeyspace(KeyspaceMetadata.create("Keyspace1", KeyspaceParams.simple(3)));
         SchemaTestUtil.announceNewTable(TableMetadata.minimal("Keyspace1", "Standard1"));
+        TABLE_ID = ClusterMetadata.current().schema.getKeyspaceMetadata("Keyspace1").getTableOrViewNullable("Standard1").id();
         RANDOM_UUID = TimeUUID.fromString("743325d0-4c4b-11ec-8a88-2d67081686db");
         FULL_RANGE = new Range<>(Util.testPartitioner().getMinimumToken(), Util.testPartitioner().getMinimumToken());
         DESC = new RepairJobDesc(RANDOM_UUID, RANDOM_UUID, "Keyspace1", "Standard1", Arrays.asList(FULL_RANGE));
@@ -217,12 +224,12 @@ public class SerializationsTest extends AbstractSerializationsTester
         // sync success
         List<SessionSummary> summaries = new ArrayList<>();
         summaries.add(new SessionSummary(src, dest,
-                                         Lists.newArrayList(new StreamSummary(TableId.fromUUID(UUID.randomUUID()), 5, 100)),
-                                         Lists.newArrayList(new StreamSummary(TableId.fromUUID(UUID.randomUUID()), 500, 10))
+                                         Lists.newArrayList(new StreamSummary(TABLE_ID, emptyList(), 5, 100)),
+                                         Lists.newArrayList(new StreamSummary(TABLE_ID, emptyList(), 500, 10))
         ));
         SyncResponse success = new SyncResponse(DESC, src, dest, true, summaries);
         // sync fail
-        SyncResponse fail = new SyncResponse(DESC, src, dest, false, Collections.emptyList());
+        SyncResponse fail = new SyncResponse(DESC, src, dest, false, emptyList());
 
         testRepairMessageWrite("service.SyncComplete.bin", SyncResponse.serializer, success, fail);
     }

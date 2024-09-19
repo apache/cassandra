@@ -126,7 +126,8 @@ public class BootStrapper extends ProgressEventNotifierSupport
                                                    true,
                                                    DatabaseDescriptor.getStreamingConnectionsPerHost(),
                                                    movements,
-                                                   strictMovements);
+                                                   strictMovements,
+                                                   true);
 
         if (beingReplaced != null)
             streamer.addSourceFilter(new RangeStreamer.ExcludedSourcesFilter(Collections.singleton(beingReplaced)));

@@ -59,7 +59,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
-import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.UnknownColumnException;
 import org.apache.cassandra.io.IVersionedAsymmetricSerializer;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -78,7 +78,7 @@ import static org.apache.cassandra.net.NoPayload.noPayload;
 import static org.apache.cassandra.net.MessagingService.current_version;
 import static org.apache.cassandra.net.ConnectionType.LARGE_MESSAGES;
 import static org.apache.cassandra.net.ConnectionType.SMALL_MESSAGES;
-import static org.apache.cassandra.net.ConnectionUtils.*;
+import static org.apache.cassandra.net.ConnectionUtils.check;
 import static org.apache.cassandra.net.OutboundConnectionSettings.Framing.LZ4;
 import static org.apache.cassandra.net.OutboundConnections.LARGE_MESSAGE_THRESHOLD;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
@@ -387,7 +387,7 @@ public class ConnectionTest
             MessagingService.instance().callbacks.addWithExpiration(new RequestCallback()
             {
                 @Override
-                public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
+                public void onFailure(InetAddressAndPort from, RequestFailure failure)
                 {
                     done.countDown();
                 }

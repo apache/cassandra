@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.schema;
 
+import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -26,6 +27,7 @@ import java.util.Set;
 import java.util.UUID;
 import javax.annotation.Nullable;
 
+import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.functions.FunctionName;
 import org.apache.cassandra.cql3.functions.UserFunction;
@@ -33,6 +35,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.KeyspaceNotDefinedException;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.UnknownTableException;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -134,6 +137,18 @@ public interface SchemaProvider
     TableMetadata getTableMetadata(TableId id);
 
     @Nullable
+    default IPartitioner getTablePartitioner(TableId id)
+    {
+        TableMetadata metadata = getTableMetadata(id);
+        return metadata == null ? null : metadata.partitioner;
+    }
+
+    default IPartitioner getExistingTablePartitioner(TableId id) throws UnknownTableException
+    {
+        return getExistingTableMetadata(id).partitioner;
+    }
+
+    @Nullable
     default TableMetadataRef getTableMetadataRef(TableId id)
     {
         return getTableMetadata(id).ref;
@@ -145,6 +160,22 @@ public interface SchemaProvider
     default TableMetadataRef getTableMetadataRef(String keyspace, String table)
     {
         return getTableMetadata(keyspace, table).ref;
+    }
+
+    @Nullable
+    default ColumnMetadata getColumnMetadata(String keyspace, String table, ColumnIdentifier name)
+    {
+        TableMetadata metadata = getTableMetadata(keyspace, table);
+        if (metadata == null) return null;
+        return metadata.getColumn(name);
+    }
+
+    @Nullable
+    default ColumnMetadata getColumnMetadata(String keyspace, String table, ByteBuffer name)
+    {
+        TableMetadata metadata = getTableMetadata(keyspace, table);
+        if (metadata == null) return null;
+        return metadata.getColumn(name);
     }
 
     default TableMetadata getExistingTableMetadata(TableId id) throws UnknownTableException

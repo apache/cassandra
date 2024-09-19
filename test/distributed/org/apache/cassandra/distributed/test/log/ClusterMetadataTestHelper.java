@@ -33,12 +33,13 @@ import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 
-
 import org.apache.cassandra.ServerTestUtils.ResettableClusterMetadataService;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.statements.schema.CreateKeyspaceStatement;
 import org.apache.cassandra.cql3.statements.schema.KeyspaceAttributes;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
@@ -52,9 +53,12 @@ import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.ReplicationParams;
+import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SchemaTransformation;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.accord.AccordStaleReplicas;
 import org.apache.cassandra.tcm.AtomicLongBackedProcessor;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
@@ -64,6 +68,7 @@ import org.apache.cassandra.tcm.MetadataSnapshots;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.membership.Directory;
+import org.apache.cassandra.service.accord.AccordFastPath;
 import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeId;
@@ -149,9 +154,12 @@ public class ClusterMetadataTestHelper
                                    Directory.EMPTY,
                                    new TokenMap(partitioner),
                                    DataPlacements.empty(),
+                                   AccordFastPath.EMPTY,
                                    LockedRanges.EMPTY,
                                    InProgressSequences.EMPTY,
-                                   ImmutableMap.of());
+                                   null,
+                                   ImmutableMap.of(),
+                                   AccordStaleReplicas.EMPTY);
     }
 
     public static ClusterMetadata minimalForTesting(IPartitioner partitioner)
@@ -162,9 +170,12 @@ public class ClusterMetadataTestHelper
                                    null,
                                    null,
                                    DataPlacements.empty(),
+                                   AccordFastPath.EMPTY,
                                    null,
                                    null,
-                                   ImmutableMap.of());
+                                   null,
+                                   ImmutableMap.of(),
+                                   AccordStaleReplicas.EMPTY);
     }
 
     public static ClusterMetadata minimalForTesting(Keyspaces keyspaces)
@@ -175,9 +186,12 @@ public class ClusterMetadataTestHelper
                                    null,
                                    null,
                                    DataPlacements.empty(),
+                                   AccordFastPath.EMPTY,
                                    null,
                                    null,
-                                   ImmutableMap.of());
+                                   null,
+                                   ImmutableMap.of(),
+                                   AccordStaleReplicas.EMPTY);
     }
 
     public static ClusterMetadataService syncInstanceForTest()
@@ -221,6 +235,30 @@ public class ClusterMetadataTestHelper
         catch (Throwable e)
         {
             throw new RuntimeException(e);
+        }
+    }
+
+    public static void setMemtable(String ks, String table, String memtable)
+    {
+        setMemtable(ks, table, MemtableParams.get(memtable));
+    }
+
+    public static void setMemtable(String ks, String table, MemtableParams memtable)
+    {
+        if (SchemaConstants.isLocalSystemKeyspace(ks))
+        {
+            ColumnFamilyStore store = Keyspace.open(ks).getColumnFamilyStore(table);
+            store.reload(store.metadata().unbuild().memtable(memtable).build());
+        }
+        else
+        {
+            Schema.instance.submit(cms -> {
+                var km = cms.schema.getKeyspaceMetadata(ks);
+                var update = km.withSwapped(km.tables.withSwapped(km.tables.getNullable(table).unbuild()
+                                                                     .memtable(memtable)
+                                                                     .build()));
+                return cms.schema.getKeyspaces().withAddedOrUpdated(update);
+            });
         }
     }
 

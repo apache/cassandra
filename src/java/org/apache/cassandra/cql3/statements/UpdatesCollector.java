@@ -30,5 +30,5 @@ import org.apache.cassandra.service.ClientState;
 public interface UpdatesCollector
 {
     PartitionUpdate.Builder getPartitionUpdateBuilder(TableMetadata metadata, DecoratedKey dk, ConsistencyLevel consistency);
-    List<IMutation> toMutations(ClientState state);
+    List<IMutation> toMutations(ClientState state, boolean allowPotentialTxnConflicts);
 }

@@ -72,6 +72,7 @@ import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.repair.state.CoordinatorState;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.ActiveRepairService.ParentRepairStatus;
 import org.apache.cassandra.service.ClientState;
@@ -128,7 +129,7 @@ public class RepairCoordinator implements Runnable, ProgressEventNotifier, Repai
     {
         this.ctx = ctx;
         this.validationScheduler = Scheduler.build(DatabaseDescriptor.getConcurrentMerkleTreeRequests());
-        this.state = new CoordinatorState(ctx.clock(), cmd, keyspace, options);
+        this.state = new CoordinatorState(ctx, cmd, keyspace, options);
         this.tag = "repair:" + cmd;
         this.validColumnFamilies = validColumnFamilies;
         this.getLocalReplicas = getLocalReplicas;
@@ -290,17 +291,35 @@ public class RepairCoordinator implements Runnable, ProgressEventNotifier, Repai
         }
     }
 
+    private static void validate(RepairOption options, List<ColumnFamilyStore> columnFamilies)
+    {
+        if (options.paxosOnly() && options.accordOnly())
+            throw new IllegalArgumentException("Cannot specify a repair as both paxos only and accord only");
+
+        for (ColumnFamilyStore cfs : columnFamilies)
+        {
+            TableMetadata metadata = cfs.metadata();
+            if (options.paxosOnly() && !metadata.supportsPaxosOperations())
+                throw new IllegalArgumentException(String.format("Cannot run paxos only repair on %s.%s, which isn't configured for paxos operations", cfs.keyspace.getName(), cfs.name));
+
+            if (options.accordOnly() && !metadata.requiresAccordSupport())
+                throw new IllegalArgumentException(String.format("Cannot run accord only repair on %s.%s, which isn't configured for accord operations", cfs.keyspace.getName(), cfs.name));
+        }
+    }
+
     private void runMayThrow() throws Throwable
     {
         state.phase.setup();
         ctx.repair().recordRepairStatus(state.cmd, ParentRepairStatus.IN_PROGRESS, ImmutableList.of());
 
         List<ColumnFamilyStore> columnFamilies = getColumnFamilies();
+        validate(state.options, columnFamilies);
         String[] cfnames = columnFamilies.stream().map(cfs -> cfs.name).toArray(String[]::new);
 
         this.traceState = maybeCreateTraceState(columnFamilies);
         notifyStarting();
         NeighborsAndRanges neighborsAndRanges = getNeighborsAndRanges();
+
         // We test to validate the start JMX notification is seen before we compute neighbors and ranges
         // but in state (vtable) tracking, we rely on getNeighborsAndRanges to know where we are running repair...
         // JMX start != state start, its possible we fail in getNeighborsAndRanges and state start is never reached
@@ -478,15 +497,15 @@ public class RepairCoordinator implements Runnable, ProgressEventNotifier, Repai
         RepairTask task;
         if (state.options.isPreview())
         {
-            task = new PreviewRepairTask(this, state.id, neighborsAndRanges.filterCommonRanges(state.keyspace, cfnames), cfnames);
+            task = new PreviewRepairTask(this, state.id, neighborsAndRanges.filterCommonRanges(state.keyspace, cfnames), neighborsAndRanges.shouldExcludeDeadParticipants, cfnames);
         }
-        else if (state.options.isIncremental())
+        else if (state.options.isIncremental() && !state.options.isConsensusOnly())
         {
             task = new IncrementalRepairTask(this, state.id, neighborsAndRanges, cfnames);
         }
         else
         {
-            task = new NormalRepairTask(this, state.id, neighborsAndRanges.filterCommonRanges(state.keyspace, cfnames), cfnames);
+            task = new NormalRepairTask(this, state.id, neighborsAndRanges.filterCommonRanges(state.keyspace, cfnames), neighborsAndRanges.shouldExcludeDeadParticipants, cfnames);
         }
 
         ExecutorPlus executor = createExecutor();

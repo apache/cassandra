@@ -46,13 +46,13 @@ public class BlockingReadRepairs
      * Create a read repair mutation from the given update, if the mutation is not larger than the maximum
      * mutation size, otherwise return null. Or, if we're configured to be strict, throw an exception.
      */
-    public static Mutation createRepairMutation(PartitionUpdate update, ConsistencyLevel consistency, InetAddressAndPort destination, boolean suppressException)
+    public static Mutation createRepairMutation(PartitionUpdate update, ConsistencyLevel consistency, InetAddressAndPort destination, boolean suppressException, boolean allowPotentialTransactionConflicts)
     {
         if (update == null)
             return null;
 
         DecoratedKey key = update.partitionKey();
-        Mutation mutation = new Mutation(update);
+        Mutation mutation = new Mutation(update, allowPotentialTransactionConflicts);
         int messagingVersion = MessagingService.instance().versions.get(destination);
 
         try

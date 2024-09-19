@@ -34,6 +34,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.service.reads.ReadCallback;
 import org.apache.cassandra.transport.Dispatcher;
+import org.apache.cassandra.service.reads.ReadCoordinator;
 
 public class ReadOnlyReadRepairTest extends AbstractReadRepairTest
 {
@@ -42,7 +43,7 @@ public class ReadOnlyReadRepairTest extends AbstractReadRepairTest
     {
         public InstrumentedReadOnlyReadRepair(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, Dispatcher.RequestTime requestTime)
         {
-            super(command, replicaPlan, requestTime);
+            super(ReadCoordinator.DEFAULT, command, replicaPlan, requestTime);
         }
 
         Set<InetAddressAndPort> readCommandRecipients = new HashSet<>();

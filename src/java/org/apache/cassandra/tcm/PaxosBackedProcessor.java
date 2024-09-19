@@ -32,8 +32,8 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
-import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.EndpointsForRange;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.metrics.TCMMetrics;
@@ -167,6 +167,11 @@ public class PaxosBackedProcessor extends AbstractLocalProcessor
         throw new ReadTimeoutException(ConsistencyLevel.QUORUM, blockFor - collected.size(), blockFor, false);
     }
 
+    public LogState reconstruct(Epoch lowEpoch, Epoch highEpoch, Retry.Deadline retryPolicy)
+    {
+        return DistributedMetadataLogKeyspace.getLogState(lowEpoch, highEpoch);
+    }
+
     private static <T> T unwrap(Promise<T> promise)
     {
         if (!promise.isDone() || !promise.isSuccess())
@@ -202,10 +207,10 @@ public class PaxosBackedProcessor extends AbstractLocalProcessor
         }
 
         @Override
-        public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
+        public void onFailure(InetAddressAndPort from, RequestFailure failure)
         {
-            logger.debug("Error response from {} with {}", from, failureReason);
-            condition.tryFailure(new TimeoutException(failureReason.toString()));
+            logger.debug("Error response from {} with {}", from, failure.reason);
+            condition.tryFailure(new TimeoutException(failure.reason.toString()));
         }
 
         public void retry()

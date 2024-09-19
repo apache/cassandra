@@ -38,6 +38,7 @@ import java.util.function.Supplier;
 import com.google.common.util.concurrent.AsyncFunction;
 import com.google.common.util.concurrent.FutureCallback;
 
+import org.apache.cassandra.auth.PasswordSaltSupplier;
 import org.apache.cassandra.concurrent.ExecutorFactory;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.distributed.Cluster;
@@ -51,6 +52,7 @@ import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableBiConsumer;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableConsumer;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableRunnable;
+import org.apache.cassandra.distributed.impl.ClusterIDDefiner;
 import org.apache.cassandra.distributed.impl.DirectStreamingConnectionFactory;
 import org.apache.cassandra.distributed.impl.InstanceConfig;
 import org.apache.cassandra.distributed.impl.InstanceIDDefiner;
@@ -59,12 +61,15 @@ import org.apache.cassandra.io.compress.LZ4Compressor;
 import org.apache.cassandra.io.filesystem.ListenableFileSystem;
 import org.apache.cassandra.io.util.FileSystems;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.service.paxos.BallotGenerator;
 import org.apache.cassandra.service.paxos.PaxosPrepare;
 import org.apache.cassandra.simulator.RandomSource.Choices;
+import org.apache.cassandra.simulator.asm.DeterministicChanceSupplier;
 import org.apache.cassandra.simulator.asm.InterceptAsClassTransformer;
 import org.apache.cassandra.simulator.asm.NemesisFieldSelectors;
 import org.apache.cassandra.simulator.cluster.ClusterActions;
+import org.apache.cassandra.simulator.cluster.ClusterActions.ConsensusChange;
 import org.apache.cassandra.simulator.cluster.ClusterActions.TopologyChange;
 import org.apache.cassandra.simulator.systems.Failures;
 import org.apache.cassandra.simulator.systems.InterceptedWait.CaptureSites.Capture;
@@ -91,7 +96,6 @@ import org.apache.cassandra.simulator.utils.KindOfSequence;
 import org.apache.cassandra.simulator.utils.LongRange;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.Closeable;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.memory.BufferPool;
@@ -150,6 +154,9 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
         protected TopologyChange[] topologyChanges = TopologyChange.values();
         protected int topologyChangeLimit = -1;
 
+        protected ConsensusChange[] consensusChanges = ConsensusChange.values();
+        protected int consensusChangeLimit = -1;
+
         protected int primaryKeyCount;
         protected int secondsToSimulate;
 
@@ -175,7 +182,8 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
                               schedulerLongDelayNanos = new LongRange(50, 5000, MICROSECONDS, NANOSECONDS),
                                       clockDriftNanos = new LongRange(1, 5000, MILLISECONDS, NANOSECONDS),
                        clockDiscontinuitIntervalNanos = new LongRange(10, 60, SECONDS, NANOSECONDS),
-                          topologyChangeIntervalNanos = new LongRange(5, 15, SECONDS, NANOSECONDS);
+                          topologyChangeIntervalNanos = new LongRange(5, 15, SECONDS, NANOSECONDS),
+                         consensusChangeIntervalNanos = new LongRange(1, 5, SECONDS, NANOSECONDS);
 
 
 
@@ -192,6 +200,7 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
         protected HeapPool.Logged.Listener memoryListener;
         protected SimulatedTime.Listener timeListener = (i1, i2) -> {};
         protected LongConsumer onThreadLocalRandomCheck;
+        protected String transactionalMode = "full";
 
         public Builder<S> failures(Failures failures)
         {
@@ -308,6 +317,24 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
         public Builder<S> topologyChangeLimit(int topologyChangeLimit)
         {
             this.topologyChangeLimit = topologyChangeLimit;
+            return this;
+        }
+
+        public Builder<S> consensusChanges(ConsensusChange[] consensusChanges)
+        {
+            this.consensusChanges = consensusChanges;
+            return this;
+        }
+
+        public Builder<S> consensusChangeIntervalNanos(LongRange consensusChangeIntervalNanos)
+        {
+            this.consensusChangeIntervalNanos = consensusChangeIntervalNanos;
+            return this;
+        }
+
+        public Builder<S> consensusChangeLimit(int consensusChangeLimit)
+        {
+            this.consensusChangeLimit = consensusChangeLimit;
             return this;
         }
 
@@ -550,6 +577,17 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
             return this;
         }
 
+        public Builder<S> transactionalMode(String mode)
+        {
+            this.transactionalMode = mode;
+            return this;
+        }
+
+        public TransactionalMode transactionalMode()
+        {
+            return TransactionalMode.fromString(transactionalMode);
+        }
+
         public abstract ClusterSimulation<S> create(long seed) throws IOException;
     }
 
@@ -580,7 +618,7 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
                    .set("concurrent_counter_writes", take(1, 4))
                    .set("concurrent_materialized_view_writes", take(1, 4))
                    .set("concurrent_reads", take(1, 4))
-                   .forceSet("available_processors", take(3, 4));
+                   .set("available_processors", take(3, 4));
         }
 
         // begin allocating for a new node
@@ -627,7 +665,7 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
             if (remaining * min <= allocationPool)
                 return min;
             if (times == remaining)
-                return allocationPool / remaining;
+                return Math.max(allocationPool / remaining, min);
             if (times + 1 == remaining)
                 return random.uniform(Math.max(min, (allocationPool - max) / times), Math.min(max, (allocationPool - min) / times));
 
@@ -637,7 +675,6 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
             return min >= max ? min : random.uniform(min, max);
         }
     }
-
 
     public final RandomSource random;
     public final SimulatedSystems simulated;
@@ -687,6 +724,9 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
                     nodeToDc[n++] = i;
             }
         }
+        if (builder.topologyChangeLimit < 0)
+            initialRf = maxRf;
+
         snitch = new SimulatedSnitch(nodeToDc, numInDcs);
 
         execution = new SimulatedExecution();
@@ -702,7 +742,24 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
         });
 
         Predicate<String> sharedClassPredicate = getSharedClassPredicate(ISOLATE, SHARE, ANY, SIMULATION);
-        InterceptAsClassTransformer interceptClasses = new InterceptAsClassTransformer(builder.monitorDelayChance.asSupplier(random), builder.nemesisChance.asSupplier(random), NemesisFieldSelectors.get(), ClassLoader.getSystemClassLoader(), sharedClassPredicate.negate());
+        DeterministicChanceSupplier monitorDelayChance; {
+            long monitorDelayChanceSeed = random.uniform(0, Long.MAX_VALUE);
+            monitorDelayChance = hash -> {
+                RandomSource subRandom = new RandomSource.Default();
+                subRandom.reset(monitorDelayChanceSeed * 31 + hash);
+                return builder.monitorDelayChance.asSupplier(subRandom);
+            };
+        }
+        DeterministicChanceSupplier nemesisChance; {
+            long nemesisChanceSeed = random.uniform(0, Long.MAX_VALUE);
+            nemesisChance = hash -> {
+                RandomSource subRandom = new RandomSource.Default();
+                subRandom.reset(nemesisChanceSeed * 31 + hash);
+                return builder.nemesisChance.asSupplier(subRandom);
+            };
+        }
+
+        InterceptAsClassTransformer interceptClasses = new InterceptAsClassTransformer(monitorDelayChance, nemesisChance, NemesisFieldSelectors.get(), ClassLoader.getSystemClassLoader(), sharedClassPredicate.negate());
         threadLocalRandomCheck = new ThreadLocalRandomCheck(builder.onThreadLocalRandomCheck);
 
         Failures failures = builder.failures;
@@ -726,7 +783,6 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
                                    .set("failure_detector", SimulatedFailureDetector.Instance.class.getName())
                                    .set("commitlog_compression", new ParameterizedClass(LZ4Compressor.class.getName(), emptyMap()))
                                    .set("commitlog_sync", "batch");
-
                              // TODO: Add remove() to IInstanceConfig
                              if (config instanceof InstanceConfig)
                              {
@@ -742,6 +798,11 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
                              @Override
                              public void initialise(ClassLoader classLoader, ThreadGroup threadGroup, int num, int generation)
                              {
+                                 IsolatedExecutor.transferAdhoc((IIsolatedExecutor.SerializableConsumer<String>) ClusterIDDefiner::setId, classLoader)
+                                                 .accept(threadGroup.getParent().getName());
+                                 IsolatedExecutor.transferAdhoc((IIsolatedExecutor.SerializableConsumer<Integer>) InstanceIDDefiner::setInstanceId, classLoader)
+                                                 .accept(num);
+
                                  List<Closeable> onShutdown = new ArrayList<>();
                                  IsolatedExecutor.transferAdhoc((SerializableConsumer<Integer>) InstanceIDDefiner::setInstanceId, classLoader)
                                                  .accept(num);
@@ -769,8 +830,9 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
                              @Override
                              public void beforeStartup(IInstance i)
                              {
-                                 ((IInvokableInstance) i).unsafeAcceptOnThisThread(FBUtilities::setAvailableProcessors, i.config().getInt("available_processors"));
+                                 ((IInvokableInstance) i).unsafeAcceptOnThisThread(PasswordSaltSupplier::unsafeSet, () -> "$2a$05$rT01y27MnvpE7NgzwvYNFe");
                                  ((IInvokableInstance) i).unsafeAcceptOnThisThread(IfInterceptibleThread::setThreadLocalRandomCheck, (LongConsumer) threadLocalRandomCheck);
+
 
                                  int num = i.config().num();
                                  if (builder.memoryListener != null)
@@ -818,8 +880,11 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
             simulated.register((SimulatedFutureActionScheduler) futureActionScheduler);
 
         scheduler = builder.schedulerFactory.create(random);
+        // TODO (required): we aren't passing paxos variant change parameter anymore
         options = new ClusterActions.Options(builder.topologyChangeLimit, Choices.uniform(KindOfSequence.values()).choose(random).period(builder.topologyChangeIntervalNanos, random),
                                              Choices.random(random, builder.topologyChanges),
+                                             builder.consensusChangeLimit, Choices.uniform(KindOfSequence.values()).choose(random).period(builder.consensusChangeIntervalNanos, random),
+                                             Choices.random(random, builder.consensusChanges),
                                              minRf, initialRf, maxRf, null);
         this.factory = factory;
     }

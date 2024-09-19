@@ -30,6 +30,7 @@ import java.rmi.server.RMIClientSocketFactory;
 import java.rmi.server.RMISocketFactory;
 import java.util.AbstractMap;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -41,7 +42,6 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-
 import javax.annotation.Nullable;
 import javax.management.JMX;
 import javax.management.MBeanServerConnection;
@@ -55,12 +55,20 @@ import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXServiceURL;
 import javax.rmi.ssl.SslRMIClientSocketFactory;
 
+import com.google.common.base.Function;
+import com.google.common.base.Strings;
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Multimap;
+import com.google.common.collect.Sets;
+import com.google.common.util.concurrent.Uninterruptibles;
+
 import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.audit.AuditLogManagerMBean;
 import org.apache.cassandra.audit.AuditLogOptions;
 import org.apache.cassandra.audit.AuditLogOptionsCompositeData;
-
-import com.google.common.collect.ImmutableMap;
 import org.apache.cassandra.auth.AuthCache;
 import org.apache.cassandra.auth.AuthCacheMBean;
 import org.apache.cassandra.auth.CIDRGroupsMappingManager;
@@ -102,27 +110,21 @@ import org.apache.cassandra.net.MessagingServiceMBean;
 import org.apache.cassandra.service.ActiveRepairServiceMBean;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.CacheServiceMBean;
-import org.apache.cassandra.tcm.CMSOperationsMBean;
 import org.apache.cassandra.service.GCInspector;
 import org.apache.cassandra.service.GCInspectorMXBean;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageProxyMBean;
 import org.apache.cassandra.service.StorageServiceMBean;
+import org.apache.cassandra.service.accord.AccordOperations;
+import org.apache.cassandra.service.accord.AccordOperationsMBean;
 import org.apache.cassandra.streaming.StreamManagerMBean;
 import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.streaming.management.StreamStateCompositeData;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
 
-import com.google.common.base.Function;
-import com.google.common.base.Strings;
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Multimap;
-import com.google.common.collect.Sets;
-import com.google.common.util.concurrent.Uninterruptibles;
-
 import org.apache.cassandra.tcm.CMSOperations;
+import org.apache.cassandra.tcm.CMSOperationsMBean;
+import org.apache.cassandra.tools.RepairRunner.RepairCmd;
 import org.apache.cassandra.tools.nodetool.GetTimeout;
 import org.apache.cassandra.utils.NativeLibrary;
 
@@ -151,6 +153,7 @@ public class NodeProbe implements AutoCloseable
     protected CompactionManagerMBean compactionProxy;
     protected StorageServiceMBean ssProxy;
     protected CMSOperationsMBean cmsProxy;
+    protected AccordOperationsMBean accordProxy;
     protected GossiperMBean gossProxy;
     protected MemoryMXBean memProxy;
     protected GCInspectorMXBean gcProxy;
@@ -265,6 +268,8 @@ public class NodeProbe implements AutoCloseable
             ssProxy = JMX.newMBeanProxy(mbeanServerConn, name, StorageServiceMBean.class);
             name = new ObjectName(CMSOperations.MBEAN_OBJECT_NAME);
             cmsProxy = JMX.newMBeanProxy(mbeanServerConn, name, CMSOperationsMBean.class);
+            name = new ObjectName(AccordOperations.MBEAN_OBJECT_NAME);
+            accordProxy = JMX.newMBeanProxy(mbeanServerConn, name, AccordOperationsMBean.class);
             name = new ObjectName(MessagingService.MBEAN_NAME);
             msProxy = JMX.newMBeanProxy(mbeanServerConn, name, MessagingServiceMBean.class);
             name = new ObjectName(StreamManagerMBean.OBJECT_NAME);
@@ -510,13 +515,28 @@ public class NodeProbe implements AutoCloseable
 
     public void repairAsync(final PrintStream out, final String keyspace, Map<String, String> options) throws IOException
     {
-        RepairRunner runner = new RepairRunner(out, ssProxy, keyspace, options);
+        startAndBlockOnAsyncRepairs(out, Collections.singleton(new RepairCmd(keyspace)
+        {
+            @Override
+            public Integer start()
+            {
+                return ssProxy.repairAsync(keyspace, options);
+            }
+        }));
+    }
+
+    public void startAndBlockOnAsyncRepairs(final PrintStream out, Collection<RepairCmd> cmds) throws IOException
+    {
+        List<RepairRunner> runners = new ArrayList<>(cmds.size());
+        for (RepairCmd cmd : cmds)
+            runners.add(new RepairRunner(out, jmxc, ssProxy, cmd));
+
         try
         {
-            if (jmxc != null)
-                jmxc.addConnectionNotificationListener(runner, null, null);
-            ssProxy.addNotificationListener(runner, null, null);
-            runner.run();
+            runners.forEach(RepairRunner::start);
+
+            for (RepairRunner runner : runners)
+                runner.run();
         }
         catch (Exception e)
         {
@@ -526,9 +546,7 @@ public class NodeProbe implements AutoCloseable
         {
             try
             {
-                ssProxy.removeNotificationListener(runner);
-                if (jmxc != null)
-                    jmxc.removeConnectionNotificationListener(runner);
+                runners.forEach(RepairRunner::close);
             }
             catch (Throwable e)
             {
@@ -1236,6 +1254,11 @@ public class NodeProbe implements AutoCloseable
         return cmsProxy;
     }
 
+    public AccordOperationsMBean getAccordOperationsProxy()
+    {
+        return accordProxy;
+    }
+
     public GossiperMBean getGossProxy()
     {
         return gossProxy;
@@ -1270,6 +1293,16 @@ public class NodeProbe implements AutoCloseable
     public List<String> getNonLocalStrategyKeyspaces()
     {
         return ssProxy.getNonLocalStrategyKeyspaces();
+    }
+
+    public List<String> getAccordManagedKeyspaces()
+    {
+        return ssProxy.getAccordManagedKeyspaces();
+    }
+
+    public List<String> getAccordManagedTables()
+    {
+        return ssProxy.getAccordManagedTables();
     }
 
     public String getClusterName()

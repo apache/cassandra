@@ -34,6 +34,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.TimeoutException;
 
 import com.google.common.base.Charsets;
+import org.apache.commons.lang3.RandomStringUtils;
 
 import org.apache.cassandra.auth.jmx.AuthorizationProxy;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -44,6 +45,7 @@ import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.AlterRoleStatement;
 import org.apache.cassandra.cql3.statements.AuthenticationStatement;
+import org.apache.cassandra.cql3.statements.AuthorizationStatement;
 import org.apache.cassandra.cql3.statements.BatchStatement;
 import org.apache.cassandra.cql3.statements.CreateRoleStatement;
 import org.apache.cassandra.cql3.statements.DropRoleStatement;
@@ -434,5 +436,27 @@ public class AuthTestUtils
                .pollInterval(250, MILLISECONDS)
                .atMost(10, SECONDS)
                .until(CassandraRoleManager::hasExistingRoles);
+    }
+
+    static void authorize(String query, Object... args)
+    {
+        CQLStatement statement = QueryProcessor.parseStatement(String.format(query, args)).prepare(ClientState.forInternalCalls());
+        assert statement instanceof AuthorizationStatement;
+        AuthorizationStatement authStmt = (AuthorizationStatement) statement;
+
+        // invalidate roles cache so that any changes to the underlying roles are picked up
+        AuthenticatedUser.permissionsCache.invalidate();
+        authStmt.execute(getClientState());
+    }
+
+    static String createName()
+    {
+        return RandomStringUtils.randomAlphabetic(8).toLowerCase();
+    }
+
+    public static void setupSuperUser()
+    {
+        QueryProcessor.executeInternal(String.format("INSERT INTO %s.%s (role, is_superuser, can_login, salted_hash) VALUES ('%s', true, true, '%s')",
+                                                     AUTH_KEYSPACE_NAME, AuthKeyspace.ROLES, CassandraRoleManager.DEFAULT_SUPERUSER_NAME, "xxx"));
     }
 }

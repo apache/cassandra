@@ -52,12 +52,7 @@ import org.apache.cassandra.tcm.sequences.InProgressSequences;
 import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.mockito.Mockito;
 
-import static org.apache.cassandra.tcm.MetadataKeys.DATA_PLACEMENTS;
-import static org.apache.cassandra.tcm.MetadataKeys.IN_PROGRESS_SEQUENCES;
-import static org.apache.cassandra.tcm.MetadataKeys.LOCKED_RANGES;
-import static org.apache.cassandra.tcm.MetadataKeys.NODE_DIRECTORY;
-import static org.apache.cassandra.tcm.MetadataKeys.SCHEMA;
-import static org.apache.cassandra.tcm.MetadataKeys.TOKEN_MAP;
+import static org.apache.cassandra.tcm.MetadataKeys.*;
 import static org.apache.cassandra.tcm.ownership.OwnershipUtils.randomPlacements;
 import static org.apache.cassandra.tcm.ownership.OwnershipUtils.token;
 import static org.apache.cassandra.tcm.sequences.SequencesUtils.affectedRanges;
@@ -310,6 +305,12 @@ public class ClusterMetadataTransformationTest
             return metadata.lockedRanges;
         else if (key == IN_PROGRESS_SEQUENCES)
             return metadata.inProgressSequences;
+        else if (key == ACCORD_FAST_PATH)
+            return metadata.accordFastPath;
+        else if (key == CONSENSUS_MIGRATION_STATE)
+            return metadata.consensusMigrationState;
+        else if (key == ACCORD_STALE_REPLICAS)
+            return metadata.accordStaleReplicas;
 
         throw new IllegalArgumentException("Unknown metadata key " + key);
     }

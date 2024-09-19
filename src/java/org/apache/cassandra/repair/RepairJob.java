@@ -17,7 +17,14 @@
  */
 package org.apache.cassandra.repair;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Queue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
@@ -28,18 +35,15 @@ import javax.annotation.Nullable;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.util.concurrent.*;
-
-import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.repair.state.JobState;
-import org.apache.cassandra.utils.concurrent.AsyncFuture;
+import com.google.common.util.concurrent.FutureCallback;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.primitives.Ranges;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -47,17 +51,25 @@ import org.apache.cassandra.repair.asymmetric.DifferenceHolder;
 import org.apache.cassandra.repair.asymmetric.HostDifferences;
 import org.apache.cassandra.repair.asymmetric.PreferedNodeFilter;
 import org.apache.cassandra.repair.asymmetric.ReduceHelper;
+import org.apache.cassandra.repair.state.JobState;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.accord.repair.AccordRepair;
+import org.apache.cassandra.service.consensus.migration.ConsensusMigrationRepairResult;
 import org.apache.cassandra.service.paxos.cleanup.PaxosCleanup;
 import org.apache.cassandra.streaming.PreviewKind;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MerkleTrees;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.concurrent.AsyncFuture;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 
+import static com.google.common.util.concurrent.Futures.getUnchecked;
 import static org.apache.cassandra.config.DatabaseDescriptor.paxosRepairEnabled;
 import static org.apache.cassandra.schema.SchemaConstants.METADATA_KEYSPACE_NAME;
 import static org.apache.cassandra.service.paxos.Paxos.useV2;
@@ -69,6 +81,8 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
 {
     private static final Logger logger = LoggerFactory.getLogger(RepairJob.class);
 
+    protected final Keyspace ks;
+    protected final ColumnFamilyStore cfs;
     private final SharedContext ctx;
     public final JobState state;
     private final RepairJobDesc desc;
@@ -94,7 +108,17 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
         this.taskExecutor = session.taskExecutor;
         this.parallelismDegree = session.parallelismDegree;
         this.desc = new RepairJobDesc(session.state.parentRepairSession, session.getId(), session.state.keyspace, columnFamily, session.state.commonRange.ranges);
+        this.ks = Keyspace.open(desc.keyspace);
+        this.cfs = ks.getColumnFamilyStore(columnFamily);
         this.state = new JobState(ctx.clock(), desc, session.state.commonRange.endpoints);
+
+        TableMetadata metadata = this.cfs.metadata();
+        if (session.paxosOnly && !metadata.supportsPaxosOperations())
+            throw new IllegalArgumentException(String.format("Cannot run paxos only repair on %s.%s, which isn't configured for paxos operations", cfs.keyspace.getName(), cfs.name));
+
+        if (session.accordOnly && !metadata.requiresAccordSupport())
+            throw new IllegalArgumentException(String.format("Cannot run accord only repair on %s.%s, which isn't configured for accord operations", cfs.keyspace.getName(), cfs.name));
+
     }
 
     public long getNowInSeconds()
@@ -110,26 +134,39 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
         }
     }
 
+    @Override
+    public void run()
+    {
+        state.phase.start();
+        cfs.metric.repairsStarted.inc();
+        runRepair();
+    }
+
     /**
      * Runs repair job.
      * <p/>
      * This sets up necessary task and runs them on given {@code taskExecutor}.
      * After submitting all tasks, waits until validation with replica completes.
      */
-    public void run()
+    protected void runRepair()
     {
-        state.phase.start();
-        Keyspace ks = Keyspace.open(desc.keyspace);
-        ColumnFamilyStore cfs = ks.getColumnFamilyStore(desc.columnFamily);
-        cfs.metric.repairsStarted.inc();
         List<InetAddressAndPort> allEndpoints = new ArrayList<>(session.state.commonRange.endpoints);
         allEndpoints.add(ctx.broadcastAddressAndPort());
 
+        TableMetadata metadata = cfs.metadata();
         Future<Void> paxosRepair;
-        if (paxosRepairEnabled() && (((useV2() || isMetadataKeyspace()) && session.repairPaxos) || session.paxosOnly))
+        Epoch repairStartingEpoch = ClusterMetadata.current().epoch;
+
+        Preconditions.checkArgument(!session.paxosOnly || !session.accordOnly);
+        boolean doPaxosRepair = paxosRepairEnabled()
+                                && (((useV2() || isMetadataKeyspace()) && session.repairPaxos) || session.paxosOnly)
+                                && metadata.supportsPaxosOperations()
+                                && !session.accordOnly;
+        boolean doAccordRepair = metadata.requiresAccordSupport() && !session.paxosOnly;
+
+        if (doPaxosRepair)
         {
             logger.info("{} {}.{} starting paxos repair", session.previewKind.logPrefix(session.getId()), desc.keyspace, desc.columnFamily);
-            TableMetadata metadata = Schema.instance.getTableMetadata(desc.keyspace, desc.columnFamily);
             paxosRepair = PaxosCleanup.cleanup(ctx, allEndpoints, metadata, desc.ranges, session.state.commonRange.hasSkippedReplicas, taskExecutor);
         }
         else
@@ -138,22 +175,57 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
             paxosRepair = ImmediateFuture.success(null);
         }
 
+
         if (session.paxosOnly)
         {
             paxosRepair.addCallback(new FutureCallback<>()
             {
-                public void onSuccess(Void v)
+                public void onSuccess(Void ignored)
                 {
                     logger.info("{} {}.{} paxos repair completed", session.previewKind.logPrefix(session.getId()), desc.keyspace, desc.columnFamily);
-                    trySuccess(new RepairResult(desc, Collections.emptyList()));
+                    trySuccess(new RepairResult(desc, Collections.emptyList(), ConsensusMigrationRepairResult.fromPaxosOnlyRepair(repairStartingEpoch, session.excludedDeadNodes)));
                 }
 
-                /**
-                 * Snapshot, validation and sync failures are all handled here
-                 */
                 public void onFailure(Throwable t)
                 {
                     logger.warn("{} {}.{} paxos repair failed", session.previewKind.logPrefix(session.getId()), desc.keyspace, desc.columnFamily);
+                    tryFailure(t);
+                }
+            }, taskExecutor);
+            return;
+        }
+
+        Future<Ranges> accordRepair;
+        if (doAccordRepair)
+        {
+            accordRepair = paxosRepair.flatMap(unused -> {
+                logger.info("{} {}.{} starting accord repair", session.previewKind.logPrefix(session.getId()), desc.keyspace, desc.columnFamily);
+                IPartitioner partitioner = metadata.partitioner;
+                AccordRepair repair = new AccordRepair(ctx, cfs, partitioner, desc.keyspace, desc.ranges, session.isConsensusMigration && session.accordOnly, allEndpoints);
+                return repair.repair(taskExecutor);
+            }, taskExecutor);
+        }
+        else
+        {
+            accordRepair = paxosRepair.flatMap(unused -> {
+                logger.info("{} {}.{} not running accord repair", session.previewKind.logPrefix(session.getId()), desc.keyspace, desc.columnFamily);
+                return ImmediateFuture.success(null);
+            });
+        }
+
+        if (session.accordOnly)
+        {
+            accordRepair.addCallback(new FutureCallback<>()
+            {
+                public void onSuccess(Ranges barrieredRanges)
+                {
+                    logger.info("{} {}.{} accord repair completed", session.previewKind.logPrefix(session.getId()), desc.keyspace, desc.columnFamily);
+                    trySuccess(new RepairResult(desc, Collections.emptyList(), ConsensusMigrationRepairResult.fromAccordOnlyRepair(repairStartingEpoch, barrieredRanges, session.excludedDeadNodes)));
+                }
+
+                public void onFailure(Throwable t)
+                {
+                    logger.warn("{} {}.{} accord repair failed", session.previewKind.logPrefix(session.getId()), desc.keyspace, desc.columnFamily);
                     tryFailure(t);
                 }
             }, taskExecutor);
@@ -167,12 +239,12 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
             if (session.isIncremental)
             {
                 // consistent repair does it's own "snapshotting"
-                allSnapshotTasks = paxosRepair.map(input -> allEndpoints);
+                allSnapshotTasks = accordRepair.map(input -> allEndpoints);
             }
             else
             {
                 // Request snapshot to all replica
-                allSnapshotTasks = paxosRepair.flatMap(input -> {
+                allSnapshotTasks = accordRepair.flatMap(input -> {
                     List<Future<InetAddressAndPort>> snapshotTasks = new ArrayList<>(allEndpoints.size());
                     state.phase.snapshotsSubmitted();
                     for (InetAddressAndPort endpoint : allEndpoints)
@@ -195,7 +267,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
 
         // Run validations and the creation of sync tasks in the scheduler, so it can limit the number of Merkle trees
         // that there are in memory at once. When all validations complete, submit sync tasks out of the scheduler.
-        Future<List<SyncStat>> syncResults = session.validationScheduler.schedule(() -> createSyncTasks(paxosRepair, allSnapshotTasks, allEndpoints), taskExecutor)
+        Future<List<SyncStat>> syncResults = session.validationScheduler.schedule(() -> createSyncTasks(accordRepair, allSnapshotTasks, allEndpoints), taskExecutor)
                                                                         .flatMap(this::executeTasks, taskExecutor);
 
         // When all sync complete, set the final result
@@ -211,7 +283,8 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
                     SystemDistributedKeyspace.successfulRepairJob(session.getId(), desc.keyspace, desc.columnFamily);
                 }
                 cfs.metric.repairsCompleted.inc();
-                trySuccess(new RepairResult(desc, stats));
+                logger.info("Completing repair with excludedDeadNodes {}", session.excludedDeadNodes);
+                trySuccess(new RepairResult(desc, stats, ConsensusMigrationRepairResult.fromRepair(repairStartingEpoch, getUnchecked(accordRepair), doPaxosRepair, doAccordRepair, session.excludedDeadNodes)));
             }
 
             /**
@@ -236,7 +309,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
         }, taskExecutor);
     }
 
-    private Future<List<SyncTask>> createSyncTasks(Future<Void> paxosRepair, Future<?> allSnapshotTasks, List<InetAddressAndPort> allEndpoints)
+    private Future<List<SyncTask>> createSyncTasks(Future<Ranges> accordRepair, Future<?> allSnapshotTasks, List<InetAddressAndPort> allEndpoints)
     {
         Future<List<TreeResponse>> treeResponses;
         if (allSnapshotTasks != null)
@@ -252,7 +325,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
         else
         {
             // If not sequential, just send validation request to all replica
-            treeResponses = paxosRepair.flatMap(input -> sendValidationRequest(allEndpoints));
+            treeResponses = accordRepair.flatMap(input -> sendValidationRequest(allEndpoints));
         }
 
         treeResponses = treeResponses.map(a -> {

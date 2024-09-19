@@ -33,7 +33,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
 import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableList;
@@ -45,6 +44,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Duration;
 import org.apache.cassandra.cql3.FieldIdentifier;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.SchemaCQLHelper;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
@@ -110,7 +110,6 @@ public final class CassandraGenerators
         InetAddress address = Generators.INET_ADDRESS_GEN.generate(rnd);
         return InetAddressAndPort.getByAddressOverrideDefaults(address, NETWORK_PORT_GEN.generate(rnd));
     };
-
 
     public static final Gen<TableId> TABLE_ID_GEN = Generators.UUID_RANDOM_GEN.map(TableId::fromUUID);
     private static final Gen<TableMetadata.Kind> TABLE_KIND_GEN = SourceDSL.arbitrary().pick(TableMetadata.Kind.REGULAR, TableMetadata.Kind.INDEX, TableMetadata.Kind.VIRTUAL);
@@ -376,6 +375,18 @@ public final class CassandraGenerators
         }
     }
 
+    public static Gen<ColumnMetadata> columnMetadataGen(Gen<ColumnMetadata.Kind> kindGen, Gen<AbstractType<?>> typeGen)
+    {
+        Gen<String> ksNameGen = CassandraGenerators.KEYSPACE_NAME_GEN;
+        Gen<String> tableNameGen = IDENTIFIER_GEN;
+        return rs -> {
+            String ks = ksNameGen.generate(rs);
+            String table = tableNameGen.generate(rs);
+            ColumnMetadata.Kind kind = kindGen.generate(rs);
+            return createColumnDefinition(ks, table, kind, new HashSet<>(), typeGen, rs);
+        };
+    }
+
     private static ColumnMetadata createColumnDefinition(String ks, String table,
                                                          ColumnMetadata.Kind kind,
                                                          Set<String> createdColumnNames, /* This is mutated to check for collisions, so has a side effect outside of normal random generation */
@@ -573,7 +584,8 @@ public final class CassandraGenerators
 
     public static Gen<Token> byteOrderToken()
     {
-        Constraint size = Constraint.between(0, 10);
+        // empty token only happens if partition key is byte[0], which isn't allowed
+        Constraint size = Constraint.between(1, 10);
         Constraint byteRange = Constraint.between(Byte.MIN_VALUE, Byte.MAX_VALUE);
         return rs -> {
             byte[] token = new byte[Math.toIntExact(rs.next(size))];
@@ -585,7 +597,9 @@ public final class CassandraGenerators
 
     public static Gen<Token> randomPartitionerToken()
     {
-        Constraint domain = Constraint.none();
+        // valid range is -1 -> 2^127
+        Constraint domain = Constraint.between(-1, Long.MAX_VALUE);
+        // TODO (coverage): handle the range [2^63-1, 2^127]
         return rs -> new RandomPartitioner.BigIntegerToken(BigInteger.valueOf(rs.next(domain)));
     }
 
@@ -612,7 +626,8 @@ public final class CassandraGenerators
 
     public static Gen<Token> orderPreservingToken()
     {
-        Gen<String> string = Generators.utf8(0, 10);
+        // empty token only happens if partition key is byte[0], which isn't allowed
+        Gen<String> string = Generators.utf8(1, 10);
         return rs -> new OrderPreservingPartitioner.StringToken(string.generate(rs));
     }
 
@@ -804,6 +819,30 @@ public final class CassandraGenerators
                 nanoseconds = -1 * nanoseconds;
             }
             return Duration.newInstance(months, days, nanoseconds);
+        };
+    }
+
+    public static Gen<DecoratedKey> decoratedKeys()
+    {
+        return decoratedKeys(partitioners(), Generators.bytes(0, 100));
+    }
+
+    public static Gen<DecoratedKey> decoratedKeys(Gen<IPartitioner> partitionerGen)
+    {
+        return decoratedKeys(partitionerGen, Generators.bytes(0, 100));
+    }
+
+    public static Gen<DecoratedKey> decoratedKeys(Gen<IPartitioner> partitionerGen, Gen<ByteBuffer> keyGen)
+    {
+        return rs -> {
+            IPartitioner partitioner = partitionerGen.generate(rs);
+            Gen<ByteBuffer> valueGen = keyGen;
+            if (partitioner instanceof LocalPartitioner)
+            {
+                LocalPartitioner lp = (LocalPartitioner) partitioner;
+                valueGen = AbstractTypeGenerators.getTypeSupport(lp.getTokenValidator()).bytesGen();
+            }
+            return partitioner.decorateKey(valueGen.generate(rs));
         };
     }
 }

@@ -18,9 +18,11 @@
 
 package org.apache.cassandra.service.paxos.cleanup;
 
-import java.util.*;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Set;
 
-import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
@@ -51,7 +53,7 @@ public class PaxosFinishPrepareCleanup extends AsyncFuture<Void> implements Requ
     }
 
     @Override
-    public void onFailure(InetAddressAndPort from, RequestFailureReason reason)
+    public void onFailure(InetAddressAndPort from, RequestFailure reason)
     {
         tryFailure(new PaxosCleanupException(reason + " failure response from " + from));
     }

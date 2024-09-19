@@ -28,7 +28,7 @@ final class AuditLogFilter
 {
     private static final Logger logger = LoggerFactory.getLogger(AuditLogFilter.class);
 
-    private static ImmutableSet<String> EMPTY_FILTERS = ImmutableSet.of();
+    private static final ImmutableSet<String> EMPTY_FILTERS = ImmutableSet.of();
 
     final ImmutableSet<String> excludedKeyspaces;
     final ImmutableSet<String> includedKeyspaces;

@@ -22,8 +22,8 @@ import java.io.IOException;
 
 import org.apache.cassandra.config.Config.PaxosVariant;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
-import org.apache.cassandra.simulator.RandomSource;
 import org.apache.cassandra.simulator.ClusterSimulation;
+import org.apache.cassandra.simulator.RandomSource;
 import org.apache.cassandra.simulator.utils.KindOfSequence;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -79,6 +79,7 @@ class PaxosClusterSimulation extends ClusterSimulation<PaxosSimulation> implemen
                               .set("paxos_cache_size", (builder.stateCache != null ? builder.stateCache : random.uniformFloat() < 0.5) ? null : "0MiB")
                               .set("paxos_state_purging", "repaired")
                               .set("paxos_on_linearizability_violations", "log")
+                              .set("storage_compatibility_mode", "NONE")
         ,
               (simulated, schedulers, cluster, options) -> {
                   int[] primaryKeys = primaryKeys(seed, builder.primaryKeyCount());

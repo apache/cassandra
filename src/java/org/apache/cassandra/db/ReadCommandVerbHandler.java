@@ -22,21 +22,21 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
-import org.apache.cassandra.exceptions.CoordinatorBehindException;
-import org.apache.cassandra.exceptions.InvalidRoutingException;
-import org.apache.cassandra.exceptions.QueryCancelledException;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.exceptions.CoordinatorBehindException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.InvalidRoutingException;
+import org.apache.cassandra.exceptions.QueryCancelledException;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.metrics.TCMMetrics;
-import org.apache.cassandra.schema.SchemaConstants;
-import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
@@ -48,6 +48,18 @@ public class ReadCommandVerbHandler implements IVerbHandler<ReadCommand>
     public static final ReadCommandVerbHandler instance = new ReadCommandVerbHandler();
 
     private static final Logger logger = LoggerFactory.getLogger(ReadCommandVerbHandler.class);
+
+    public ReadResponse doRead(ReadCommand command, boolean trackRepairedData)
+    {
+        ReadResponse response;
+        try (ReadExecutionController controller = command.executionController(trackRepairedData);
+             UnfilteredPartitionIterator iterator = command.executeLocally(controller))
+        {
+            response = command.createResponse(iterator, controller.getRepairedDataInfo());
+        }
+
+        return response;
+    }
 
     public void doVerb(Message<ReadCommand> message)
     {
@@ -68,10 +80,9 @@ public class ReadCommandVerbHandler implements IVerbHandler<ReadCommand>
             command.trackWarnings();
 
         ReadResponse response;
-        try (ReadExecutionController controller = command.executionController(message.trackRepairedData());
-             UnfilteredPartitionIterator iterator = command.executeLocally(controller))
+        try
         {
-            response = command.createResponse(iterator, controller.getRepairedDataInfo());
+            response = doRead(command, message.trackRepairedData());
         }
         catch (RejectException e)
         {
@@ -147,7 +158,13 @@ public class ReadCommandVerbHandler implements IVerbHandler<ReadCommand>
     private ClusterMetadata checkTokenOwnership(ClusterMetadata metadata, Message<ReadCommand> message)
     {
         ReadCommand command = message.payload;
+
         if (command.metadata().isVirtual())
+            return metadata;
+
+        // Some read commands may be sent using an older Epoch intentionally so validating using the current Epoch
+        // doesn't work
+        if (command.allowsOutOfRangeReads())
             return metadata;
 
         if (command.isTopK())
@@ -155,7 +172,7 @@ public class ReadCommandVerbHandler implements IVerbHandler<ReadCommand>
 
         if (command instanceof SinglePartitionReadCommand)
         {
-            Token token = ((SinglePartitionReadCommand) command).partitionKey().getToken();
+            Token token = ((SinglePartitionReadCommand)command).partitionKey().getToken();
             Replica localReplica = getLocalReplica(metadata, token, command.metadata().keyspace);
             if (localReplica == null)
             {

@@ -23,9 +23,11 @@ import com.google.common.collect.ImmutableSet;
 
 import org.apache.cassandra.cql3.statements.PropertyDefinitions;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.KeyspaceParams.Option;
 import org.apache.cassandra.schema.ReplicationParams;
+import org.apache.cassandra.service.accord.fastpath.FastPathStrategy;
 
 public final class KeyspaceAttributes extends PropertyDefinitions
 {
@@ -48,6 +50,10 @@ public final class KeyspaceAttributes extends PropertyDefinitions
         Map<String, String> replicationOptions = getAllReplicationOptions();
         if (!replicationOptions.isEmpty() && !replicationOptions.containsKey(ReplicationParams.CLASS))
             throw new ConfigurationException("Missing replication strategy class");
+
+        FastPathStrategy strategy = getFastPathStrategy();
+        if (strategy != null && strategy.kind() == FastPathStrategy.Kind.INHERIT_KEYSPACE)
+            throw new ConfigurationException("Cannot use keyspace inheriting fast path strategy with keyspaces");
     }
 
     public String getReplicationStrategyClass()
@@ -63,10 +69,26 @@ public final class KeyspaceAttributes extends PropertyDefinitions
              : replication;
     }
 
+    private FastPathStrategy getFastPathStrategy()
+    {
+        if (!hasOption(Option.FAST_PATH))
+            return null;
+
+        try
+        {
+            return FastPathStrategy.fromMap(getMap(Option.FAST_PATH.toString()));
+        }
+        catch (SyntaxException e)
+        {
+            return FastPathStrategy.keyspaceStrategyFromString(getString(Option.FAST_PATH.toString()));
+        }
+    }
+
     KeyspaceParams asNewKeyspaceParams()
     {
         boolean durableWrites = getBoolean(Option.DURABLE_WRITES.toString(), KeyspaceParams.DEFAULT_DURABLE_WRITES);
-        return KeyspaceParams.create(durableWrites, getAllReplicationOptions());
+        FastPathStrategy fastPath = getFastPathStrategy();
+        return KeyspaceParams.create(durableWrites, getAllReplicationOptions(), fastPath != null ? fastPath : FastPathStrategy.simple());
     }
 
     KeyspaceParams asAlteredKeyspaceParams(KeyspaceParams previous)
@@ -76,7 +98,8 @@ public final class KeyspaceAttributes extends PropertyDefinitions
         ReplicationParams replication = getReplicationStrategyClass() == null
                                       ? previous.replication
                                       : ReplicationParams.fromMapWithDefaults(getAllReplicationOptions(), previousOptions);
-        return new KeyspaceParams(durableWrites, replication);
+        FastPathStrategy fastPath = getFastPathStrategy();
+        return new KeyspaceParams(durableWrites, replication, fastPath != null ? fastPath : previous.fastPath);
     }
 
     public boolean hasOption(Option option)

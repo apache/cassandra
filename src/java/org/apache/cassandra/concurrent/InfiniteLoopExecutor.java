@@ -52,6 +52,11 @@ public class InfiniteLoopExecutor implements Interruptible
     @Shared(scope = Shared.Scope.SIMULATION)
     public enum SimulatorSafe { SAFE, UNSAFE }
 
+    /**
+     * Does this loop always block on some external work provision that is going to be simulator-controlled, or does
+     * it loop periodically? If the latter, it may prevent simulation making progress between phases, and should be
+     * marked as a DAEMON process.
+     */
     @Shared(scope = Shared.Scope.SIMULATION)
     public enum Daemon        { DAEMON, NON_DAEMON }
 

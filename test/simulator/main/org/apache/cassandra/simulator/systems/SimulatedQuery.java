@@ -20,9 +20,10 @@ package org.apache.cassandra.simulator.systems;
 
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.impl.Query;
 
-public class SimulatedQuery extends SimulatedActionCallable<Object[][]>
+public class SimulatedQuery extends SimulatedActionCallable<SimpleQueryResult>
 {
     public SimulatedQuery(Object description, SimulatedSystems simulated, IInvokableInstance instance, String query, ConsistencyLevel commitConsistency, ConsistencyLevel serialConsistency, Object... params)
     {
@@ -45,7 +46,7 @@ public class SimulatedQuery extends SimulatedActionCallable<Object[][]>
     }
 
     @Override
-    public void accept(Object[][] success, Throwable failure)
+    public void accept(SimpleQueryResult success, Throwable failure)
     {
         if (failure != null)
             simulated.failures.accept(failure);

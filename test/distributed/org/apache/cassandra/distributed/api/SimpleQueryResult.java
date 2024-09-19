@@ -61,12 +61,15 @@ import java.util.stream.Stream;
  */
 public class SimpleQueryResult implements QueryResult
 {
+    private static final int NO_MARK = -1;
+
     private final String[] names;
     private final Object[][] results;
     private final List<String> warnings;
     private final Predicate<Row> filter;
     private final Row row;
-    private int offset = -1;
+    private int offset = NO_MARK;
+    private int mark = NO_MARK;
 
     public SimpleQueryResult(String[] names, Object[][] results)
     {
@@ -108,12 +111,18 @@ public class SimpleQueryResult implements QueryResult
         return new SimpleQueryResult(names, results, filter.and(fn), offset);
     }
 
+    public void mark()
+    {
+        mark = offset;
+    }
+
     /**
      * Reset the cursor to the start of the query result; if the query result has not been iterated, this has no effect.
      */
     public void reset()
     {
-        offset = -1;
+        offset = mark;
+        mark = NO_MARK;
         row.setResults(null);
     }
 

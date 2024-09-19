@@ -59,6 +59,7 @@ import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.concurrent.ExecutorFactory;
 import org.apache.cassandra.concurrent.ExecutorLocals;
 import org.apache.cassandra.concurrent.ExecutorPlus;
+import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.SharedExecutorPool;
@@ -101,6 +102,7 @@ import org.apache.cassandra.exceptions.StartupException;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.hints.DTestSerializer;
 import org.apache.cassandra.hints.HintsService;
+import org.apache.cassandra.index.IndexStatusManager;
 import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.io.IVersionedAsymmetricSerializer;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -128,6 +130,7 @@ import org.apache.cassandra.service.DefaultFSErrorHandler;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.StorageServiceMBean;
+import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.paxos.PaxosRepair;
 import org.apache.cassandra.service.paxos.PaxosState;
 import org.apache.cassandra.service.paxos.uncommitted.UncommittedTableData;
@@ -444,7 +447,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             byte[] bytes = out.toByteArray();
             if (messageOut.serializedSize(toVersion) != bytes.length)
                 throw new AssertionError(String.format("Message serializedSize(%s) does not match what was written with serialize(out, %s) for verb %s and serializer %s; " +
-                                                       "expected %s, actual %s ", toVersion, toVersion, messageOut.verb(), Message.serializer.getClass(),
+                                                       "expected %s, actual %s ", toVersion, toVersion, messageOut.verb(), messageOut.verb().serializer().getClass(),
                                                        messageOut.serializedSize(toVersion), bytes.length));
             return new MessageImpl(messageOut.verb().id, bytes, messageOut.id(), toVersion, messageOut.expiresAtNanos(), fromCassandraInetAddressAndPort(from));
         }
@@ -504,6 +507,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     public void receiveMessage(IMessage message)
     {
         sync(receiveMessageRunnable(message)).accept(false);
+//        async(receiveMessageRunnable(message)).apply(false);
     }
 
     @Override
@@ -553,6 +557,10 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                     inInstancelogger.warn("Dropping message {} due to stage {} being shutdown", messageIn, header.verb.stage);
                     return;
                 }
+                // This can cause deadlocks when sending messages to self so use Stage.MISC.executor() just to have a
+                // place for it to run
+                if ( executor == ImmediateExecutor.INSTANCE)
+                    executor = Stage.MISC.executor();
                 executor.execute(ExecutorLocals.create(state), () -> MessagingService.instance().inboundSink.accept(messageIn));
             }
         };
@@ -622,6 +630,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 {
                     assert config.networkTopology().contains(config.broadcastAddress()) : String.format("Network topology %s doesn't contain the address %s",
                                                                                                         config.networkTopology(), config.broadcastAddress());
+                    // org.apache.cassandra.distributed.impl.AbstractCluster.startup sets the exception handler for the thread
+                    // so extract it to populate ExecutorFactory.Global
+                    ExecutorFactory.Global.tryUnsafeSet(new ExecutorFactory.Default(Thread.currentThread().getContextClassLoader(), null, Thread.getDefaultUncaughtExceptionHandler()));
                     DistributedTestSnitch.assign(config.networkTopology());
                     CassandraDaemon.getInstanceForTesting().activate(false);
                     // TODO: filters won't work for the messages dispatched during startup
@@ -805,6 +816,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             Schema.instance.saveSystemKeyspace();
             ClusterMetadataService.instance().processor().fetchLogAndWait();
             NodeId self = Register.maybeRegister();
+            AccordService.startup(self);
             boolean joinRing = config.get(Constants.KEY_DTEST_JOIN_RING) == null || (boolean) config.get(Constants.KEY_DTEST_JOIN_RING);
             if (ClusterMetadata.current().directory.peerState(self) != NodeState.JOINED && joinRing)
             {
@@ -889,6 +901,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     {
         Future<?> future = async((ExecutorService executor) -> {
             Throwable error = null;
+            inInstancelogger.warn("Shutting down in thread {}", Thread.currentThread().getName());
 
             CompactionManager.instance.forceShutdown();
 
@@ -901,6 +914,11 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 StorageService.instance.shutdownServer();
                 error = parallelRun(error, executor,
                                     () -> Gossiper.instance.stopShutdownAndWait(1L, MINUTES));
+            }
+            else
+            {
+                error = parallelRun(error, executor,
+                                    () -> Gossiper.instance.shutdownAndWait(1L, MINUTES));
             }
 
             error = parallelRun(error, executor, StorageService.instance::disableAutoCompaction);
@@ -944,7 +962,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                 () -> shutdownAndWait(Collections.singletonList(ActiveRepairService.repairCommandExecutor())),
                                 () -> ActiveRepairService.instance().shutdownNowAndWait(1L, MINUTES),
                                 () -> EpochAwareDebounce.instance.close(),
-                                () -> SnapshotManager.shutdownAndWait(1L, MINUTES)
+                                () -> SnapshotManager.shutdownAndWait(1L, MINUTES),
+                                () -> IndexStatusManager.instance.shutdownAndWait(1L, MINUTES)
             );
 
             internodeMessagingStarted = false;
@@ -959,6 +978,11 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                 () -> Stage.shutdownAndWait(1L, MINUTES),
                                 () -> SharedExecutorPool.SHARED.shutdownAndWait(1L, MINUTES)
             );
+
+            error = parallelRun(error, executor, () -> {
+                if (!AccordService.isSetup()) return;
+                AccordService.instance().shutdownAndWait(1l, MINUTES);
+            });
 
             // CommitLog must shut down after Stage, or threads from the latter may attempt to use the former.
             // (ex. A Mutation stage thread may attempt to add a mutation to the CommitLog.)
@@ -1218,6 +1242,11 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 }
             }));
         }
+        // This is not used code, but it is here for when you run in a debugger...
+        // When shutdown gets blocked we need to be able to trace down which future is blocked, so this idx
+        // helps map the location... the reason we can't leverage here is the timeout logic is higher up, so
+        // 'idx' really only helps out in a debugger...
+        int idx = 0;
         for (Future<Throwable> future : results)
         {
             try
@@ -1230,6 +1259,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             {
                 accumulate = Throwables.merge(accumulate, t);
             }
+            idx++;
         }
         return accumulate;
     }

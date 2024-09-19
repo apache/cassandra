@@ -46,6 +46,7 @@ import javax.management.AttributeNotFoundException;
 import javax.management.ObjectName;
 
 import com.google.common.collect.Sets;
+import com.google.common.primitives.Ints;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -677,7 +678,9 @@ public abstract class SAITester extends CQLTester.Fuzzed
 
     protected int getCompactionTasks()
     {
-        return CompactionManager.instance.getActiveCompactions() + CompactionManager.instance.getPendingTasks();
+        long activeCount = CompactionManager.instance.active.getCompactions().stream().filter(compaction -> compaction.getCompactionInfo().getTableMetadata().keyspace.equals(KEYSPACE)).count();
+        int pendingCount = Keyspace.open(KEYSPACE).getColumnFamilyStores().stream().map(columnFamilyStore -> columnFamilyStore.getCompactionStrategyManager().getEstimatedRemainingTasks()).reduce(0, Integer::sum);
+        return Ints.checkedCast(activeCount + pendingCount);
     }
 
     protected int snapshot(String snapshotName)

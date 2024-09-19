@@ -26,6 +26,7 @@ import org.apache.cassandra.utils.ByteArrayUtil;
 // a container for simplifying the method signature for per-instance message handling/delivery
 public class MessageImpl implements IMessage
 {
+    private static final long serialVersionUID = 0;  // for simulator support
     public final int verb;
     public final byte[] bytes;
     public final long id;

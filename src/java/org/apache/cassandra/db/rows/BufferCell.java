@@ -127,6 +127,12 @@ public class BufferCell extends AbstractCell<ByteBuffer>
         return new BufferCell(column, timestamp, ttl, localDeletionTimeUnsignedInteger, newValue, path);
     }
 
+    @Override
+    public Cell<?> withUpdatedTimestamp(long newTimestamp)
+    {
+        return new BufferCell(column, newTimestamp, ttl, localDeletionTimeUnsignedInteger, value, path);
+    }
+    
     public Cell<?> withUpdatedTimestampAndLocalDeletionTime(long newTimestamp, long newLocalDeletionTime)
     {
         return new BufferCell(column, newTimestamp, ttl, newLocalDeletionTime, value, path);

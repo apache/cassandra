@@ -18,10 +18,15 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
+import javax.annotation.Nullable;
 
 import com.google.common.base.Function;
 import com.google.common.base.Objects;
@@ -31,11 +36,16 @@ import com.google.common.collect.PeekingIterator;
 import com.google.common.util.concurrent.Striped;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.marshal.ByteBufferAccessor;
-import org.apache.cassandra.db.rows.*;
-import org.apache.cassandra.db.filter.*;
-import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.context.CounterContext;
+import org.apache.cassandra.db.filter.ClusteringIndexNamesFilter;
+import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.ColumnData;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.RowIterator;
+import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -44,10 +54,11 @@ import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.tracing.Tracing;
-import org.apache.cassandra.utils.*;
+import org.apache.cassandra.utils.CounterId;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.btree.BTreeSet;
 
-import static java.util.concurrent.TimeUnit.*;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.net.MessagingService.VERSION_40;
 import static org.apache.cassandra.net.MessagingService.VERSION_50;
 import static org.apache.cassandra.net.MessagingService.VERSION_51;
@@ -81,6 +92,12 @@ public class CounterMutation implements IMutation
     public Collection<PartitionUpdate> getPartitionUpdates()
     {
         return mutation.getPartitionUpdates();
+    }
+
+    @Override
+    public boolean hasUpdateForTable(TableId tableId)
+    {
+        return mutation.hasUpdateForTable(tableId);
     }
 
     @Override
@@ -154,6 +171,27 @@ public class CounterMutation implements IMutation
     public void apply()
     {
         applyCounterMutation();
+    }
+
+    @Override
+    public @Nullable CounterMutation filter(Predicate<TableId> test)
+    {
+        Mutation m = mutation.filter(test);
+        if (m == null)
+            return null;
+        if (m == mutation)
+            return this;
+        return new CounterMutation(m, consistency);
+    }
+
+    /*
+     * Accord currently doesn't support interoperability with counters so no Accord transactions should read them
+     * anyways and it's safe to continue non-transactionally updating them
+     */
+    @Override
+    public boolean allowsPotentialTransactionConflicts()
+    {
+        return true;
     }
 
     private void grabCounterLocks(Keyspace keyspace, List<Lock> locks) throws WriteTimeoutException

@@ -40,6 +40,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.CommonRange;
 import org.apache.cassandra.repair.RepairJobDesc;
 import org.apache.cassandra.repair.RepairCoordinator;
+import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.repair.messages.PrepareMessage;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.repair.state.Completable;
@@ -289,7 +290,7 @@ public class LocalRepairTablesTest extends CQLTester
     private static CoordinatorState coordinator()
     {
         RepairOption options = RepairOption.parse(Collections.emptyMap(), DatabaseDescriptor.getPartitioner());
-        CoordinatorState state = new CoordinatorState(Clock.Global.clock(), 0, "test", options);
+        CoordinatorState state = new CoordinatorState(SharedContext.Global.instance, 0, "test", options);
         ActiveRepairService.instance().register(state);
         return state;
     }
@@ -297,7 +298,7 @@ public class LocalRepairTablesTest extends CQLTester
     private static SessionState session()
     {
         CoordinatorState parent = coordinator();
-        SessionState state = new SessionState(Clock.Global.clock(), parent.id, REPAIR_KS, new String[]{ REPAIR_TABLE }, COMMON_RANGE);
+        SessionState state = new SessionState(SharedContext.Global.instance, parent.id, REPAIR_KS, new String[]{ REPAIR_TABLE }, COMMON_RANGE);
         parent.register(state);
         return state;
     }

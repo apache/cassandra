@@ -42,6 +42,7 @@ import org.apache.cassandra.streaming.StreamPlan;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
+import org.apache.cassandra.utils.TimeUUID;
 
 /**
  * Access methods to shared resources and services.
@@ -81,6 +82,10 @@ public interface SharedContext
     TableRepairManager repairManager(ColumnFamilyStore store);
     StreamExecutor streamExecutor();
     PaxosRepairState paxosRepairState();
+    default Supplier<TimeUUID> timeUUID()
+    {
+        return TimeUUID.Generator::nextTimeUUID;
+    }
 
     class Global implements SharedContext
     {

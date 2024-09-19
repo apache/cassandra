@@ -41,8 +41,6 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.auth.DataResource;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -67,10 +65,12 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.service.accord.fastpath.FastPathStrategy;
+import org.apache.cassandra.service.consensus.TransactionalMode;
+import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.serialization.UDTAndFunctionsAwareMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
-import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -89,7 +89,7 @@ public class TableMetadata implements SchemaElement
 {
     public static final Serializer serializer = new Serializer();
 
-    private static final Logger logger = LoggerFactory.getLogger(TableMetadata.class);
+    public static final String UNDEFINED_COLUMN_NAME_MESSAGE = "Undefined column name %s in table %s";
 
     // Please note that currently the only one truly useful flag is COUNTER, as the rest of the flags were about
     // differencing between CQL tables and the various types of COMPACT STORAGE tables (pre-4.0). As those "compact"
@@ -286,6 +286,11 @@ public class TableMetadata implements SchemaElement
         return unbuild().indexes(indexes).build();
     }
 
+    public TableId id()
+    {
+        return id;
+    }
+
     public boolean isView()
     {
         return kind == Kind.VIEW;
@@ -310,7 +315,7 @@ public class TableMetadata implements SchemaElement
     {
         return false;
     }
-    
+
     public boolean isIncrementalBackupsEnabled()
     {
         return params.incrementalBackups;
@@ -319,6 +324,27 @@ public class TableMetadata implements SchemaElement
     public boolean isStaticCompactTable()
     {
         return false;
+    }
+
+    public boolean isAccordEnabled()
+    {
+        return params.transactionalMode.accordIsEnabled;
+    }
+
+    public boolean migratingFromAccord()
+    {
+        return params.transactionalMigrationFrom.migratingFromAccord();
+    }
+
+    public boolean requiresAccordSupport()
+    {
+        return isAccordEnabled() || migratingFromAccord();
+    }
+
+    public boolean supportsPaxosOperations()
+    {
+        return params.transactionalMode == TransactionalMode.off
+               || params.transactionalMigrationFrom.from == TransactionalMode.off;
     }
 
     public ImmutableCollection<ColumnMetadata> columns()
@@ -422,7 +448,7 @@ public class TableMetadata implements SchemaElement
     {
         ColumnMetadata def = getColumn(name);
         if (def == null)
-            throw new InvalidRequestException(format("Undefined column name %s in table %s", name.toCQLString(), this));
+            throw new InvalidRequestException(format(UNDEFINED_COLUMN_NAME_MESSAGE, name.toCQLString(), this));
         return def;
     }
     /*
@@ -909,6 +935,12 @@ public class TableMetadata implements SchemaElement
         public Builder compression(CompressionParams val)
         {
             params.compression(val);
+            return this;
+        }
+
+        public Builder fastPath(FastPathStrategy val)
+        {
+            params.fastPath(val);
             return this;
         }
 

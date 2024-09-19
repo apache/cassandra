@@ -60,7 +60,8 @@ public class JMXGetterCheckTest extends TestBaseImpl
     "org.apache.cassandra.db:type=StorageService:startGossiping", // causes multiple loops to fail
     "org.apache.cassandra.db:type=StorageService:startNativeTransport", // causes multiple loops to fail
     "org.apache.cassandra.db:type=CIDRGroupsMappingManager:loadCidrGroupsCache", // AllowAllCIDRAuthorizer doesn't support this operation, as feature is disabled by default
-    "org.apache.cassandra.db:type=StorageService:forceRemoveCompletion" // deprecated (TCM)
+    "org.apache.cassandra.db:type=StorageService:forceRemoveCompletion", // deprecated (TCM)
+    "org.apache.cassandra.db:type=StorageService:createEpochUnsafe" // for Accord testing, but will likely be removed
     );
 
     @Test

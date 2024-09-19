@@ -19,11 +19,9 @@ package org.apache.cassandra.exceptions;
 
 import java.io.IOException;
 
-import org.apache.cassandra.db.filter.TombstoneOverwhelmingException;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.tcm.NotCMSException;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
 import static java.lang.Math.max;
@@ -31,18 +29,25 @@ import static org.apache.cassandra.net.MessagingService.VERSION_40;
 
 public enum RequestFailureReason
 {
-    UNKNOWN                  (0),
-    READ_TOO_MANY_TOMBSTONES (1),
-    TIMEOUT                  (2),
-    INCOMPATIBLE_SCHEMA      (3),
-    READ_SIZE                (4),
-    NODE_DOWN                (5),
-    INDEX_NOT_AVAILABLE      (6),
-    NOT_CMS                  (7),
-    INVALID_ROUTING          (8),
-    COORDINATOR_BEHIND       (9),
+    UNKNOWN                               (0),
+    READ_TOO_MANY_TOMBSTONES              (1),
+    TIMEOUT                               (2),
+    INCOMPATIBLE_SCHEMA                   (3),
+    READ_SIZE                             (4),
+    NODE_DOWN                             (5),
+    INDEX_NOT_AVAILABLE                   (6),
+    NOT_CMS                               (7),
+    INVALID_ROUTING                       (8),
+    COORDINATOR_BEHIND                    (9),
     READ_TOO_MANY_INDEXES    (10),
+    RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM (11),
     ;
+
+    static
+    {
+        // Load RequestFailure class to check that all request failure reasons are handled
+        RequestFailure.init();
+    }
 
     public static final Serializer serializer = new Serializer();
 
@@ -82,26 +87,6 @@ public enum RequestFailureReason
 
         // be forgiving and return UNKNOWN if we aren't aware of the code - for forward compatibility
         return code < codeToReasonMap.length ? codeToReasonMap[code] : UNKNOWN;
-    }
-
-    public static RequestFailureReason forException(Throwable t)
-    {
-        if (t instanceof TombstoneOverwhelmingException)
-            return READ_TOO_MANY_TOMBSTONES;
-
-        if (t instanceof IncompatibleSchemaException)
-            return INCOMPATIBLE_SCHEMA;
-
-        if (t instanceof NotCMSException)
-            return NOT_CMS;
-
-        if (t instanceof InvalidRoutingException)
-            return INVALID_ROUTING;
-
-        if (t instanceof CoordinatorBehindException)
-            return COORDINATOR_BEHIND;
-
-        return UNKNOWN;
     }
 
     public static final class Serializer implements IVersionedSerializer<RequestFailureReason>

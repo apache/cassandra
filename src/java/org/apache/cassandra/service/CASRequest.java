@@ -17,11 +17,16 @@
  */
 package org.apache.cassandra.service;
 
+import accord.primitives.Txn;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.service.paxos.Ballot;
+
+import static org.apache.cassandra.service.StorageProxy.ConsensusAttemptResult;
 
 /**
  * Abstract the conditions and updates for a CAS operation.
@@ -31,17 +36,21 @@ public interface CASRequest
     /**
      * The command to use to fetch the value to compare for the CAS.
      */
-    public SinglePartitionReadCommand readCommand(long nowInSec);
+    SinglePartitionReadCommand readCommand(long nowInSec);
 
     /**
      * Returns whether the provided CF, that represents the values fetched using the
      * readFilter(), match the CAS conditions this object stands for.
      */
-    public boolean appliesTo(FilteredPartition current) throws InvalidRequestException;
+    boolean appliesTo(FilteredPartition current) throws InvalidRequestException;
 
     /**
      * The updates to perform of a CAS success. The values fetched using the readFilter()
      * are passed as argument.
      */
-    public PartitionUpdate makeUpdates(FilteredPartition current, ClientState clientState, Ballot ballot) throws InvalidRequestException;
+    PartitionUpdate makeUpdates(FilteredPartition current, ClientState clientState, Ballot ballot) throws InvalidRequestException;
+
+    Txn toAccordTxn(ConsistencyLevel consistencyLevel, ConsistencyLevel commitConsistencyLevel, ClientState clientState, long nowInSecs);
+
+    ConsensusAttemptResult toCasResult(TxnResult txnResult);
 }

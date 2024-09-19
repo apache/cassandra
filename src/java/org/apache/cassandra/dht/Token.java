@@ -20,29 +20,49 @@ package org.apache.cassandra.dht;
 import java.io.IOException;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+
+import com.google.common.collect.Sets;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.utils.bytecomparable.ByteComparable;
-import org.apache.cassandra.utils.bytecomparable.ByteSource;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.tcm.serialization.PartitionerAwareMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
-import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.utils.bytecomparable.ByteComparable;
+import org.apache.cassandra.utils.bytecomparable.ByteSource;
+import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
 
 public abstract class Token implements RingPosition<Token>, Serializable
 {
+    private static final Logger logger = LoggerFactory.getLogger(Token.class);
+
     private static final long serialVersionUID = 1L;
 
     public static final TokenSerializer serializer = new TokenSerializer();
     public static final MetadataSerializer metadataSerializer = new MetadataSerializer();
+    public static final CompactTokenSerializer compactSerializer = new CompactTokenSerializer();
 
     public static abstract class TokenFactory
     {
         public abstract ByteBuffer toByteArray(Token token);
         public abstract Token fromByteArray(ByteBuffer bytes);
+
+        public byte[] toOrderedByteArray(Token token, ByteComparable.Version version)
+        {
+            return ByteSourceInverse.readBytes(asComparableBytes(token, version));
+        }
+
+        public Token fromOrderedByteArray(byte[] bytes, ByteComparable.Version version)
+        {
+            return fromComparableBytes(ByteSource.peekable(ByteSource.fixedLength(bytes)), version);
+        }
 
         /**
          * Produce a byte-comparable representation of the token.
@@ -78,6 +98,14 @@ public abstract class Token implements RingPosition<Token>, Serializable
         public void serialize(Token token, ByteBuffer out) throws IOException
         {
             out.put(toByteArray(token));
+        }
+
+        public Token deserialize(DataInputPlus in, IPartitioner p) throws IOException
+        {
+            int size = p.isFixedLength() ? p.getMaxTokenSize() : in.readUnsignedVInt32();
+            byte[] bytes = new byte[size];
+            in.readFully(bytes);
+            return p.getTokenFactory().fromByteArray(ByteBuffer.wrap(bytes));
         }
 
         public Token fromByteBuffer(ByteBuffer bytes, int position, int length)
@@ -158,9 +186,46 @@ public abstract class Token implements RingPosition<Token>, Serializable
         }
     }
 
+    public static volatile boolean logPartitioner = false;
+    public static final Set<Class<? extends IPartitioner>> serializePartitioners = Sets.newSetFromMap(new ConcurrentHashMap<>());
+    public static final Set<Class<? extends IPartitioner>> deserializePartitioners = Sets.newSetFromMap(new ConcurrentHashMap<>());
+
+    public static class CompactTokenSerializer implements IPartitionerDependentSerializer<Token>
+    {
+        public void serialize(Token token, DataOutputPlus out, int version) throws IOException
+        {
+            IPartitioner p = token.getPartitioner();
+            if (logPartitioner && serializePartitioners.add(p.getClass()))
+              logger.debug("Serializing token with partitioner " + p);
+            if (!p.isFixedLength())
+                out.writeUnsignedVInt32(p.getTokenFactory().byteSize(token));
+            p.getTokenFactory().serialize(token, out);
+        }
+
+        public Token deserialize(DataInputPlus in, IPartitioner p, int version) throws IOException
+        {
+            int size = p.isFixedLength() ? p.getMaxTokenSize() : in.readUnsignedVInt32();
+            if (logPartitioner && deserializePartitioners.add(p.getClass()))
+                logger.debug("Deserializing token with partitioner " + p);
+            byte[] bytes = new byte[size];
+            in.readFully(bytes);
+            return p.getTokenFactory().fromByteArray(ByteBuffer.wrap(bytes));
+        }
+
+        public long serializedSize(Token object, int version)
+        {
+            IPartitioner p = object.getPartitioner();
+            int byteSize = p.getTokenFactory().byteSize(object);
+            if (p.isFixedLength())
+                return byteSize;
+            return TypeSizes.sizeofUnsignedVInt(byteSize) + byteSize;
+        }
+    }
+
     abstract public IPartitioner getPartitioner();
     abstract public long getHeapSize();
     abstract public Object getTokenValue();
+    abstract public int tokenHash();
 
     /**
      * This method exists so that callers can access the primitive {@code long} value for this {@link Token}, if
@@ -196,6 +261,7 @@ public abstract class Token implements RingPosition<Token>, Serializable
      * Used by the token allocation algorithm (see CASSANDRA-7032).
      */
     abstract public double size(Token next);
+
     /**
      * Returns the next possible token in the token space, one that compares
      * greater than this and such that there is no other token that sits
@@ -209,6 +275,15 @@ public abstract class Token implements RingPosition<Token>, Serializable
      * constructing token ranges for sstables.
      */
     abstract public Token nextValidToken();
+    /**
+     * Returns a token that is slightly more than this. This is NOT guaranteed to be the directly following token.
+     */
+    public Token increaseSlightly() { return nextValidToken(); }
+
+    /**
+     * Returns a token that is slightly less than this. This is NOT guaranteed to be the directly preceding token.
+     */
+    abstract public Token decreaseSlightly();
 
     public Token getToken()
     {

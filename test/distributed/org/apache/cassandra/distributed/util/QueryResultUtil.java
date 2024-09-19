@@ -20,16 +20,20 @@ package org.apache.cassandra.distributed.util;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.function.Predicate;
 
 import com.google.monitoring.runtime.instrumentation.common.collect.Iterators;
+import org.assertj.core.api.Assertions;
+import org.assertj.core.data.Index;
+
 import org.apache.cassandra.distributed.api.QueryResults;
 import org.apache.cassandra.distributed.api.Row;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
+import org.apache.cassandra.distributed.shared.AssertUtils;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
-import org.assertj.core.api.Assertions;
-import org.assertj.core.data.Index;
 
 public class QueryResultUtil
 {
@@ -67,6 +71,33 @@ public class QueryResultUtil
             }
             return 0;
         });
+    }
+
+    @SuppressWarnings("unchecked")
+    public static SimpleQueryResult map(SimpleQueryResult input, Map<String, ? extends Function<?, Object>> mapper)
+    {
+        if (input.toObjectArrays().length == 0 || mapper == null || mapper.isEmpty())
+            return input;
+        for (String name : mapper.keySet())
+        {
+            if (!input.names().contains(name))
+                throw new IllegalArgumentException("Unable to find column " + name);
+        }
+        Object[][] rows = input.toObjectArrays().clone();
+        List<String> names = new ArrayList<>(mapper.keySet());
+        int[] idxes = names.stream().mapToInt(input.names()::indexOf).toArray();
+        for (int i = 0; i < rows.length; i++)
+        {
+            Object[] row = rows[i].clone();
+            for (int j = 0; j < idxes.length; j++)
+            {
+                @SuppressWarnings("rawtypes") Function map = mapper.get(names.get(j));
+                int idx = idxes[j];
+                row[idx] = map.apply(row[idx]);
+            }
+            rows[i] = row;
+        }
+        return new SimpleQueryResult(input.names().toArray(new String[0]), rows, input.warnings());
     }
 
     public static boolean contains(SimpleQueryResult qr, Object... values)
@@ -121,6 +152,7 @@ public class QueryResultUtil
     {
         StringBuilder sb = new StringBuilder();
         int rowNum = 1;
+        qr.mark();
         while (qr.hasNext())
         {
             sb.append("@ Row ").append(rowNum).append('\n');
@@ -133,6 +165,7 @@ public class QueryResultUtil
             }
             sb.append(table);
         }
+        qr.reset();
         return sb.toString();
     }
 
@@ -196,6 +229,41 @@ public class QueryResultUtil
             qr.reset();
             if (!QueryResultUtil.contains(qr, fn))
                 throw new AssertionError("Row  is not present");
+            return this;
+        }
+
+        public SimpleQueryResultAssertHelper isEqualTo(SimpleQueryResult expectedResult)
+        {
+            qr.mark();
+            expectedResult.mark();
+            try
+            {
+                // org.apache.cassandra.distributed.shared.AssertUtils.assertRows has some issues with the error msg
+                // so rewrite to make sure to have a nicer msg
+                List<String> otherNames = qr.names().isEmpty() ? expectedResult.names() : qr.names();
+                Assertions.assertThat(otherNames).describedAs("Column names do not match").isEqualTo(qr.names());
+                int rowId = 0;
+                while (qr.hasNext())
+                {
+                    if (!expectedResult.hasNext())
+                        throw new AssertionError("Unexpected row at index " + rowId + "; found " + Arrays.toString(qr.next().toObjectArray()));
+                    Row next = qr.next();
+                    Row expected = expectedResult.next();
+                    if (!Arrays.equals(next.toObjectArray(), expected.toObjectArray()))
+                        throw new AssertionError("Expected row " + rowId + " to be " + Arrays.toString(expected.toObjectArray()) + " but was " + Arrays.toString(next.toObjectArray()));
+
+                    rowId++;
+                }
+                if (expectedResult.hasNext())
+                    throw new AssertionError("Expected row " + rowId + " to be " + Arrays.toString(expectedResult.next().toObjectArray()) + " but was missing");
+
+                AssertUtils.assertRows(qr, expectedResult);
+            }
+            finally
+            {
+                qr.reset();
+                expectedResult.reset();
+            }
             return this;
         }
 

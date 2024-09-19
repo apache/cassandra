@@ -37,7 +37,6 @@ import org.apache.cassandra.utils.btree.BTree.Dir;
 
 import static org.apache.cassandra.utils.btree.BTree.findIndex;
 
-
 public class BTreeSet<V> extends AbstractSet<V> implements NavigableSet<V>, List<V>
 {
     protected final Comparator<? super V> comparator;
@@ -238,6 +237,8 @@ public class BTreeSet<V> extends AbstractSet<V> implements NavigableSet<V>, List
                 return false;
         return true;
     }
+
+    @Override
     public int hashCode()
     {
         // we can't just delegate to Arrays.deepHashCode(),

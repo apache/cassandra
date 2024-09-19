@@ -20,11 +20,18 @@ package org.apache.cassandra.dht;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.Function;
 
-import org.apache.cassandra.db.DecoratedKey;
+import accord.api.RoutingKey;
+import accord.primitives.Ranges;
 import org.apache.cassandra.db.CachedHashDecoratedKey;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -32,6 +39,7 @@ import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
@@ -39,6 +47,11 @@ import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.Pair;
+
+import static accord.utils.Invariants.checkArgument;
+import static java.lang.Integer.max;
+import static java.math.BigInteger.ONE;
+import static java.math.BigInteger.ZERO;
 
 public class OrderPreservingPartitioner implements IPartitioner
 {
@@ -60,6 +73,8 @@ public class OrderPreservingPartitioner implements IPartitioner
     private static final long EMPTY_SIZE = ObjectSizes.measure(MINIMUM);
 
     public static final OrderPreservingPartitioner instance = new OrderPreservingPartitioner();
+
+    private OrderPreservingPartitioner() {}
 
     public DecoratedKey decorateKey(ByteBuffer key)
     {
@@ -90,7 +105,7 @@ public class OrderPreservingPartitioner implements IPartitioner
     {
         assert str.length() <= sigchars;
 
-        BigInteger big = BigInteger.ZERO;
+        BigInteger big = ZERO;
         for (int i = 0; i < str.length(); i++)
         {
             int charpos = 16 * (sigchars - (i + 1));
@@ -125,7 +140,7 @@ public class OrderPreservingPartitioner implements IPartitioner
         return MINIMUM;
     }
 
-    public StringToken getMaximumToken()
+    public StringToken getMaximumTokenForSplitting()
     {
         return MAXIMUM;
     }
@@ -232,6 +247,12 @@ public class OrderPreservingPartitioner implements IPartitioner
 
             return super.compareTo(o);
         }
+
+        @Override
+        public int tokenHash()
+        {
+            return token.hashCode();
+        }
     }
 
     public StringToken getToken(ByteBuffer key)
@@ -295,5 +316,62 @@ public class OrderPreservingPartitioner implements IPartitioner
     public AbstractType<?> partitionOrdering()
     {
         return UTF8Type.instance;
+    }
+
+    @Override
+    public Function<Ranges, AccordSplitter> accordSplitter()
+    {
+        return ranges -> new AccordSplitter()
+        {
+            final int charLength = ranges.stream().mapToInt(range -> max(charLength(range.start()), charLength(range.end())))
+                                         .max().orElse(0);
+
+            @Override
+            BigInteger valueForToken(Token token)
+            {
+                String chars = ((StringToken) token).token;
+                checkArgument(chars.length() <= charLength);
+                BigInteger value = ZERO;
+                for (int i = 0 ; i < chars.length() ; ++i)
+                    value = value.add(BigInteger.valueOf(chars.charAt(i) & 0xffffL).shiftLeft((charLength - 1 - i) * 16));
+                return value;
+            }
+
+            @Override
+            Token tokenForValue(BigInteger value)
+            {
+                // TODO (required): test
+                checkArgument(value.compareTo(ZERO) >= 0);
+                char[] chars = new char[charLength];
+                for (int i = 0 ; i < chars.length ; ++i)
+                    chars[i] = (char) value.shiftRight((charLength - 1 - i) * 16).shortValue();
+                return new StringToken(new String(chars));
+            }
+
+            @Override
+            BigInteger minimumValue()
+            {
+                return ZERO;
+            }
+
+            @Override
+            BigInteger maximumValue()
+            {
+                return ONE.shiftLeft(charLength * 16).subtract(ONE);
+            }
+        };
+    }
+
+    private static int charLength(RoutingKey routingKey)
+    {
+        AccordRoutingKey accordKey = (AccordRoutingKey) routingKey;
+        if (accordKey.kindOfRoutingKey() == AccordRoutingKey.RoutingKeyKind.SENTINEL)
+            return 0;
+        return charLength(accordKey.token());
+    }
+
+    private static int charLength(Token token)
+    {
+        return ((StringToken) token).token.length();
     }
 }

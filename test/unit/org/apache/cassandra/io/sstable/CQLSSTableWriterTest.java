@@ -44,7 +44,6 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 import com.datastax.driver.core.utils.UUIDs;
-import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.functions.types.DataType;
@@ -53,7 +52,6 @@ import org.apache.cassandra.cql3.functions.types.TypeCodec;
 import org.apache.cassandra.cql3.functions.types.UDTValue;
 import org.apache.cassandra.cql3.functions.types.UserType;
 import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -110,57 +108,54 @@ public abstract class CQLSSTableWriterTest
     @Test
     public void testUnsortedWriter() throws Exception
     {
-        try (AutoCloseable ignored = Util.switchPartitioner(ByteOrderedPartitioner.instance))
+        String schema = "CREATE TABLE " + qualifiedTable + " ("
+                        + "  k int PRIMARY KEY,"
+                        + "  v1 text,"
+                        + "  v2 int"
+                        + ")";
+        String insert = "INSERT INTO " + qualifiedTable + " (k, v1, v2) VALUES (?, ?, ?)";
+        CQLSSTableWriter writer = CQLSSTableWriter.builder()
+                                                  .inDirectory(dataDir)
+                                                  .forTable(schema)
+                                                  .using(insert).build();
+
+        writer.addRow(0, "test1", 24);
+        writer.addRow(1, "test2", 44);
+        writer.addRow(2, "test3", 42);
+        writer.addRow(ImmutableMap.<String, Object>of("k", 3, "v2", 12));
+
+        writer.close();
+
+        loadSSTables(dataDir, keyspace, table);
+
+        if (verifyDataAfterLoading)
         {
-            String schema = "CREATE TABLE " + qualifiedTable + " ("
-                            + "  k int PRIMARY KEY,"
-                            + "  v1 text,"
-                            + "  v2 int"
-                            + ")";
-            String insert = "INSERT INTO " + qualifiedTable + " (k, v1, v2) VALUES (?, ?, ?)";
-            CQLSSTableWriter writer = CQLSSTableWriter.builder()
-                                                      .inDirectory(dataDir)
-                                                      .forTable(schema)
-                                                      .using(insert).build();
+            UntypedResultSet rs = QueryProcessor.executeInternal("SELECT * FROM " + qualifiedTable);
+            assertEquals(4, rs.size());
 
-            writer.addRow(0, "test1", 24);
-            writer.addRow(1, "test2", 44);
-            writer.addRow(2, "test3", 42);
-            writer.addRow(ImmutableMap.<String, Object>of("k", 3, "v2", 12));
+            Iterator<UntypedResultSet.Row> iter = rs.iterator();
+            UntypedResultSet.Row row;
 
-            writer.close();
+            row = iter.next();
+            assertEquals(0, row.getInt("k"));
+            assertEquals("test1", row.getString("v1"));
+            assertEquals(24, row.getInt("v2"));
 
-            loadSSTables(dataDir, keyspace, table);
+            row = iter.next();
+            assertEquals(1, row.getInt("k"));
+            assertEquals("test2", row.getString("v1"));
+            //assertFalse(row.has("v2"));
+            assertEquals(44, row.getInt("v2"));
 
-            if (verifyDataAfterLoading)
-            {
-                UntypedResultSet rs = QueryProcessor.executeInternal("SELECT * FROM " + qualifiedTable);
-                assertEquals(4, rs.size());
+            row = iter.next();
+            assertEquals(2, row.getInt("k"));
+            assertEquals("test3", row.getString("v1"));
+            assertEquals(42, row.getInt("v2"));
 
-                Iterator<UntypedResultSet.Row> iter = rs.iterator();
-                UntypedResultSet.Row row;
-
-                row = iter.next();
-                assertEquals(0, row.getInt("k"));
-                assertEquals("test1", row.getString("v1"));
-                assertEquals(24, row.getInt("v2"));
-
-                row = iter.next();
-                assertEquals(1, row.getInt("k"));
-                assertEquals("test2", row.getString("v1"));
-                //assertFalse(row.has("v2"));
-                assertEquals(44, row.getInt("v2"));
-
-                row = iter.next();
-                assertEquals(2, row.getInt("k"));
-                assertEquals("test3", row.getString("v1"));
-                assertEquals(42, row.getInt("v2"));
-
-                row = iter.next();
-                assertEquals(3, row.getInt("k"));
-                assertEquals(null, row.getBytes("v1")); // Using getBytes because we know it won't NPE
-                assertEquals(12, row.getInt("v2"));
-            }
+            row = iter.next();
+            assertEquals(3, row.getInt("k"));
+            assertEquals(null, row.getBytes("v1")); // Using getBytes because we know it won't NPE
+            assertEquals(12, row.getInt("v2"));
         }
     }
 

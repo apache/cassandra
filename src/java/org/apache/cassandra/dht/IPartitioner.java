@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
+import java.util.function.Function;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
@@ -67,9 +68,9 @@ public interface IPartitioner
      * The biggest token for this partitioner, unlike getMinimumToken, this token is actually used and users wanting to
      * include all tokens need to do getMaximumToken().maxKeyBound()
      *
-     * Not implemented for the ordered partitioners
+     * THIS IS NOT SAFE FOR PURPOSES BESIDES SPLITTING/BALANCING
      */
-    default Token getMaximumToken()
+    default Token getMaximumTokenForSplitting()
     {
         throw new UnsupportedOperationException("If you are using a splitting partitioner, getMaximumToken has to be implemented");
     }
@@ -133,6 +134,13 @@ public interface IPartitioner
     default Optional<Splitter> splitter()
     {
         return Optional.empty();
+    }
+
+    Function<accord.primitives.Ranges, AccordSplitter> accordSplitter();
+
+    default boolean isFixedLength()
+    {
+        return false;
     }
 
     default public int getMaxTokenSize()

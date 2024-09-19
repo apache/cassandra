@@ -17,6 +17,10 @@
  */
 package org.apache.cassandra.locator;
 
+import java.util.Comparator;
+
+import org.apache.cassandra.utils.Sortable;
+
 /**
  * An endpoint snitch tells Cassandra information about network topology that it can use to route
  * requests more efficiently.
@@ -39,6 +43,11 @@ public abstract class AbstractNetworkTopologySnitch extends AbstractEndpointSnit
 
     @Override
     public int compareEndpoints(InetAddressAndPort address, Replica r1, Replica r2)
+    {
+        return compareByEndpoints(address, r1, r2);
+    }
+
+    public int compareByEndpoints(InetAddressAndPort address, Endpoint r1, Endpoint r2)
     {
         InetAddressAndPort a1 = r1.endpoint();
         InetAddressAndPort a2 = r2.endpoint();
@@ -63,5 +72,19 @@ public abstract class AbstractNetworkTopologySnitch extends AbstractEndpointSnit
         if (addressRack.equals(a2Rack) && !addressRack.equals(a1Rack))
             return 1;
         return 0;
+    }
+
+    @Override
+    public boolean supportCompareByEndpoint()
+    {
+        return true;
+    }
+
+    @Override
+    public <C extends Sortable<? extends Endpoint, ? extends C>> Comparator<Endpoint> endpointComparator(InetAddressAndPort address, C addresses)
+    {
+        if (!supportCompareByEndpoint())
+            throw new UnsupportedOperationException();
+        return (a, b) -> compareByEndpoints(address, a, b);
     }
 }

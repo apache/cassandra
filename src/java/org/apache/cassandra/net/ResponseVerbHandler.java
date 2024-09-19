@@ -24,6 +24,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
@@ -33,6 +34,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.exceptions.RequestFailureReason.COORDINATOR_BEHIND;
 import static org.apache.cassandra.exceptions.RequestFailureReason.INVALID_ROUTING;
+import static org.apache.cassandra.exceptions.RequestFailureReason.RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM;
 import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 
 class ResponseVerbHandler implements IVerbHandler
@@ -58,7 +60,11 @@ class ResponseVerbHandler implements IVerbHandler
     @Override
     public void doVerb(Message message)
     {
-        RequestCallbacks.CallbackInfo callbackInfo = MessagingService.instance().callbacks.remove(message.id(), message.from());
+        RequestCallbacks.CallbackInfo callbackInfo;
+        if (message.header.isFinal())
+            callbackInfo = MessagingService.instance().callbacks.remove(message.id(), message.from());
+        else
+            callbackInfo = MessagingService.instance().callbacks.get(message.id(), message.from());
         if (callbackInfo == null)
         {
             String msg = "Callback already removed for {} (from {})";
@@ -74,7 +80,7 @@ class ResponseVerbHandler implements IVerbHandler
         RequestCallback cb = callbackInfo.callback;
         if (message.isFailureResponse())
         {
-            cb.onFailure(message.from(), (RequestFailureReason) message.payload);
+            cb.onFailure(message.from(), (RequestFailure) message.payload);
         }
         else
         {
@@ -97,8 +103,11 @@ class ResponseVerbHandler implements IVerbHandler
 
         // Gossip stage is single-threaded, so we may end up in a deadlock with after-commit hook
         // that executes something on the gossip stage as well.
-        if (message.isFailureResponse() &&
-            (message.payload == COORDINATOR_BEHIND || message.payload == INVALID_ROUTING) &&
+        boolean isFailureResponse = message.isFailureResponse();
+        // RequestFailure is not a singleton so we need to extract and compare against the reason
+        RequestFailureReason reason = isFailureResponse ? ((RequestFailure)message.payload).reason : null;
+        if (isFailureResponse &&
+            (reason == COORDINATOR_BEHIND || reason == INVALID_ROUTING || reason == RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM) &&
             // Gossip stage is single-threaded, so we may end up in a deadlock with after-commit hook
             // that executes something on the gossip stage as well.
             !Stage.GOSSIP.executor().inExecutor())

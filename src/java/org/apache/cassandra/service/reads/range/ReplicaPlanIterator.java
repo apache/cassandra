@@ -37,6 +37,7 @@ import org.apache.cassandra.index.Index;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.locator.ReplicaPlans;
 import org.apache.cassandra.schema.ReplicationParams;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.compatibility.TokenRingUtils;
 import org.apache.cassandra.utils.AbstractIterator;
@@ -46,6 +47,7 @@ class ReplicaPlanIterator extends AbstractIterator<ReplicaPlan.ForRangeRead>
 {
     private final Keyspace keyspace;
     private final ConsistencyLevel consistency;
+    private final TableId tableId;
     private final Index.QueryPlan indexQueryPlan;
     @VisibleForTesting
     final Iterator<? extends AbstractBounds<PartitionPosition>> ranges;
@@ -54,10 +56,12 @@ class ReplicaPlanIterator extends AbstractIterator<ReplicaPlan.ForRangeRead>
     ReplicaPlanIterator(AbstractBounds<PartitionPosition> keyRange,
                         @Nullable Index.QueryPlan indexQueryPlan,
                         Keyspace keyspace,
+                        TableId tableId,
                         ConsistencyLevel consistency)
     {
         this.indexQueryPlan = indexQueryPlan;
         this.keyspace = keyspace;
+        this.tableId = tableId;
         this.consistency = consistency;
 
         ReplicationParams replication = keyspace.getMetadata().params.replication;
@@ -82,7 +86,7 @@ class ReplicaPlanIterator extends AbstractIterator<ReplicaPlan.ForRangeRead>
         if (!ranges.hasNext())
             return endOfData();
 
-        return ReplicaPlans.forRangeRead(keyspace, indexQueryPlan, consistency, ranges.next(), 1);
+        return ReplicaPlans.forRangeRead(keyspace, tableId, indexQueryPlan, consistency, ranges.next(), 1);
     }
 
     /**

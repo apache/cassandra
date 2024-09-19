@@ -28,6 +28,7 @@ import java.util.stream.Collectors;
 
 import org.junit.Test;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
@@ -63,6 +64,7 @@ public class RepairMetadataKeyspaceTest extends TestBaseImpl
 
             IInvokableInstance toRepair = cluster.get(3);
             stopUnchecked(toRepair);
+            DatabaseDescriptor.clientInitialization();
             String targetDir = DistributedMetadataLogKeyspace.TABLE_NAME + '-' + DistributedMetadataLogKeyspace.LOG_TABLE_ID.toHexString();
             for (File datadir : getDataDirectories(toRepair))
             {

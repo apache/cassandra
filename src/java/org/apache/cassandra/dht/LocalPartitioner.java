@@ -21,10 +21,13 @@ import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Random;
+import java.util.function.Function;
 
-import org.apache.cassandra.db.DecoratedKey;
+import accord.primitives.Ranges;
 import org.apache.cassandra.db.CachedHashDecoratedKey;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -138,6 +141,21 @@ public class LocalPartitioner implements IPartitioner
         return comparator;
     }
 
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        LocalPartitioner that = (LocalPartitioner) o;
+        return comparator.equals(that.comparator) && tokenFactory.equals(that.tokenFactory);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(comparator, tokenFactory);
+    }
+
     public class LocalToken extends ComparableObjectToken<ByteBuffer>
     {
         static final long serialVersionUID = 8437543776403014875L;
@@ -162,7 +180,7 @@ public class LocalPartitioner implements IPartitioner
         public int compareTo(Token o)
         {
             // todo (tcm); seems partitioner got mutated on alter type (for example) before tcm, now we create a new one - not sure its enough just making sure that its the same type of partitioner
-            assert o.getPartitioner().getClass().equals(getPartitioner().getClass());
+            assert o.getPartitioner().getClass().equals(getPartitioner().getClass()) : String.format("partitioners do not match; %s != %s", getPartitioner(), o.getPartitioner());
 //            assert getPartitioner() == o.getPartitioner() : String.format("partitioners do not match; %s != %s", getPartitioner(), o.getPartitioner());
             return comparator.compare(token, ((LocalToken) o).token);
         }
@@ -172,6 +190,12 @@ public class LocalPartitioner implements IPartitioner
         {
             final int prime = 31;
             return prime + token.hashCode();
+        }
+
+        @Override
+        public int tokenHash()
+        {
+            return hashCode();
         }
 
         @Override
@@ -202,5 +226,11 @@ public class LocalPartitioner implements IPartitioner
         {
             return EMPTY_SIZE + ObjectSizes.sizeOnHeapOf(token);
         }
+    }
+
+    @Override
+    public Function<Ranges, AccordSplitter> accordSplitter()
+    {
+        return AccordBytesSplitter::new;
     }
 }

@@ -33,7 +33,7 @@ import org.apache.cassandra.utils.WithResources;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 
-public class ForwardingExecutorPlus implements ExecutorPlus
+public class ForwardingExecutorPlus implements ExecutorPlus, SequentialExecutorPlus
 {
     private final ExecutorService delegate;
 
@@ -215,5 +215,11 @@ public class ForwardingExecutorPlus implements ExecutorPlus
             return promise;
         }
         throw new IllegalStateException("Unexpected future type: " + submit.getClass());
+    }
+
+    @Override
+    public AtLeastOnceTrigger atLeastOnceTrigger(Runnable runnable)
+    {
+        return new SingleThreadExecutorPlus.AtLeastOnce(this, runnable);
     }
 }

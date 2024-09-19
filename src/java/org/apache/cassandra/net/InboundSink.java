@@ -29,11 +29,11 @@ import net.openhft.chronicle.core.util.ThrowingConsumer;
 import org.apache.cassandra.db.filter.TombstoneOverwhelmingException;
 import org.apache.cassandra.exceptions.CoordinatorBehindException;
 import org.apache.cassandra.exceptions.InvalidRoutingException;
-import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.index.IndexNotAvailableException;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.NotCMSException;
 import org.apache.cassandra.utils.NoSpamLogger;
 
@@ -108,9 +108,9 @@ public class InboundSink implements InboundMessageHandlers.MessageConsumer
         if (header.callBackOnFailure())
         {
             InetAddressAndPort to = header.respondTo() != null ? header.respondTo() : header.from;
-            Message<RequestFailureReason> response = Message.failureResponse(header.id,
-                                                                             header.expiresAtNanos,
-                                                                             RequestFailureReason.forException(failure));
+            Message<RequestFailure> response = Message.failureResponse(header.id,
+                                                                       header.expiresAtNanos,
+                                                                       RequestFailure.forException(failure));
             messaging.send(response, to);
         }
     }

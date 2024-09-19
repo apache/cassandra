@@ -27,8 +27,6 @@ import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.service.StorageService;
 
-import static org.apache.cassandra.ServerTestUtils.daemonInitialization;
-
 public class UserTypesTest extends CQLTester
 {
     @BeforeClass

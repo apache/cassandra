@@ -20,6 +20,7 @@ package org.apache.cassandra.utils.concurrent;
 import io.netty.util.concurrent.GenericFutureListener;
 import io.netty.util.concurrent.GlobalEventExecutor;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -56,6 +57,7 @@ public class FutureCombiner<T> extends AsyncFuture<T>
      */
     private static class Listener<T> extends AtomicInteger implements GenericFutureListener<io.netty.util.concurrent.Future<Object>>
     {
+        private static final long serialVersionUID = 0;  // for simulator support
         Supplier<T> onSuccess; // non-final so we can release resources immediately when failing fast
         final FutureCombiner<T> complete;
 
@@ -239,6 +241,11 @@ public class FutureCombiner<T> extends AsyncFuture<T>
             return ImmediateFuture.success(Collections.emptyList());
 
         return new FutureCombiner<>(futures, () -> futures.stream().map(f -> f.getNow()).collect(Collectors.toList()), FailFastListener::new);
+    }
+
+    public static <V> Future<List<V>> allOf(io.netty.util.concurrent.Future<? extends V>... futures)
+    {
+        return allOf(Arrays.asList(futures));
     }
 
     /**

@@ -32,14 +32,14 @@ import java.util.Set;
 import java.util.function.Supplier;
 
 import com.google.common.collect.Sets;
+import org.apache.commons.lang3.StringUtils;
 
-import org.apache.cassandra.schema.SchemaConstants;
-import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.repair.RepairParallelism;
 import org.apache.cassandra.repair.messages.RepairOption;
+import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
-import org.apache.commons.lang3.StringUtils;
 
 @Command(name = "repair", description = "Repair one or more tables")
 public class Repair extends NodeToolCmd
@@ -105,6 +105,9 @@ public class Repair extends NodeToolCmd
     @Option(title = "paxos-only", name = {"-paxos-only", "--paxos-only"}, description = "If the --paxos-only flag is included, no table data is repaired, only paxos operations..")
     private boolean paxosOnly = false;
 
+    @Option(title = "accord-only", name = {"-accord-only", "--accord-only"}, description = "If the --accord-only flag is included, no table data is repaired, only accord operations..")
+    private boolean accordOnly = false;
+
     @Option(title = "ignore_unreplicated_keyspaces", name = {"-iuk","--ignore-unreplicated-keyspaces"}, description = "Use --ignore-unreplicated-keyspaces to ignore keyspaces which are not replicated, otherwise the repair will fail")
     private boolean ignoreUnreplicatedKeyspaces = false;
 
@@ -131,7 +134,8 @@ public class Repair extends NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
-        List<String> keyspaces = parseOptionalKeyspace(args, probe, KeyspaceSet.NON_LOCAL_STRATEGY);
+        KeyspaceSet keyspaceSet = KeyspaceSet.NON_LOCAL_STRATEGY;
+        List<String> keyspaces = parseOptionalKeyspace(args, probe, keyspaceSet);
         String[] cfnames = parseOptionalTables(args);
 
         if (primaryRange && (!specificDataCenters.isEmpty() || !specificHosts.isEmpty()))
@@ -186,6 +190,7 @@ public class Repair extends NodeToolCmd
         options.put(RepairOption.IGNORE_UNREPLICATED_KS, Boolean.toString(ignoreUnreplicatedKeyspaces));
         options.put(RepairOption.REPAIR_PAXOS_KEY, Boolean.toString(!skipPaxos && getPreviewKind() == PreviewKind.NONE));
         options.put(RepairOption.PAXOS_ONLY_KEY, Boolean.toString(paxosOnly && getPreviewKind() == PreviewKind.NONE));
+        options.put(RepairOption.ACCORD_ONLY_KEY, Boolean.toString(accordOnly && getPreviewKind() == PreviewKind.NONE));
 
         if (!startToken.isEmpty() || !endToken.isEmpty())
         {

@@ -29,6 +29,7 @@ import org.apache.cassandra.cql3.terms.Tuples;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.filter.ColumnFilter.Builder;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.TupleType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -102,7 +103,7 @@ final class TupleSelector extends Selector
         {
             buffers.add(elements.get(i).getOutput(protocolVersion));
         }
-        return type.pack(buffers);
+        return type.pack(buffers, ByteBufferAccessor.instance);
     }
 
     public void reset()

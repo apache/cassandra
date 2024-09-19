@@ -46,6 +46,7 @@ import org.apache.cassandra.service.StartupChecks.StartupCheckType;
 import org.apache.cassandra.utils.StorageCompatibilityMode;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.AUTOCOMPACTION_ON_STARTUP_ENABLED;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_AVAILABLE_PROCESSORS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.FILE_CACHE_ENABLED;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SKIP_PAXOS_REPAIR_ON_TOPOLOGY_CHANGE;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SKIP_PAXOS_REPAIR_ON_TOPOLOGY_CHANGE_KEYSPACES;
@@ -174,6 +175,8 @@ public class Config
 
     public volatile DurationSpec.LongMillisecondsBound stream_transfer_task_timeout = new DurationSpec.LongMillisecondsBound("12h");
 
+    public volatile DurationSpec.LongMillisecondsBound transaction_timeout = new DurationSpec.LongMillisecondsBound("10s");
+
     public volatile DurationSpec.LongMillisecondsBound cms_await_timeout = new DurationSpec.LongMillisecondsBound("120000ms");
     public volatile int cms_default_max_retries = 10;
     public volatile DurationSpec.IntMillisecondsBound cms_default_retry_backoff = new DurationSpec.IntMillisecondsBound("50ms");
@@ -187,9 +190,10 @@ public class Config
 
     public int concurrent_reads = 32;
     public int concurrent_writes = 32;
+    public int concurrent_accord_operations = 32;
     public int concurrent_counter_writes = 32;
     public int concurrent_materialized_view_writes = 32;
-    public int available_processors = -1;
+    public OptionaldPositiveInt available_processors = new OptionaldPositiveInt(CASSANDRA_AVAILABLE_PROCESSORS.getInt(OptionaldPositiveInt.UNDEFINED_VALUE));
 
     public int memtable_flush_writers = 0;
     @Replaces(oldName = "memtable_heap_space_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_INT, deprecated = true)
@@ -390,6 +394,7 @@ public class Config
     @Replaces(oldName = "commitlog_total_space_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_INT, deprecated = true)
     public DataStorageSpec.IntMebibytesBound commitlog_total_space;
     public CommitLogSync commitlog_sync;
+
     @Replaces(oldName = "commitlog_sync_group_window_in_ms", converter = Converters.MILLIS_DURATION_DOUBLE, deprecated = true)
     public DurationSpec.IntMillisecondsBound commitlog_sync_group_window = new DurationSpec.IntMillisecondsBound("0ms");
     @Replaces(oldName = "commitlog_sync_period_in_ms", converter = Converters.MILLIS_DURATION_INT, deprecated = true)
@@ -481,6 +486,9 @@ public class Config
     public volatile int counter_cache_keys_to_save = Integer.MAX_VALUE;
 
     public DataStorageSpec.LongMebibytesBound paxos_cache_size = null;
+    public DataStorageSpec.LongMebibytesBound accord_cache_size = null;
+
+    public DataStorageSpec.LongMebibytesBound consensus_migration_cache_size = null;
 
     @Replaces(oldName = "cache_load_timeout_seconds", converter = Converters.NEGATIVE_SECONDS_DURATION, deprecated = true)
     public DurationSpec.IntSecondsBound cache_load_timeout = new DurationSpec.IntSecondsBound("30s");
@@ -1128,6 +1136,7 @@ public class Config
 
     public volatile boolean client_request_size_metrics_enabled = true;
 
+
     public volatile int max_top_size_partition_count = 10;
     public volatile int max_top_tombstone_partition_count = 10;
     public volatile DataStorageSpec.LongBytesBound min_tracked_partition_size = new DataStorageSpec.LongBytesBound("1MiB");
@@ -1140,6 +1149,8 @@ public class Config
      * Default compaction configuration, used if a table does not specify any.
      */
     public ParameterizedClass default_compaction = null;
+
+    public final AccordSpec accord = new AccordSpec();
 
     public static Supplier<Config> getOverrideLoadConfig()
     {
@@ -1277,10 +1288,10 @@ public class Config
             String value;
             try
             {
-                // Field.get() can throw NPE if the value of the field is null
-                value = field.get(config).toString();
+                Object obj = field.get(config);
+                value = obj != null ? obj.toString() : "null";
             }
-            catch (NullPointerException | IllegalAccessException npe)
+            catch (IllegalAccessException npe)
             {
                 value = "null";
             }

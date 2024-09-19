@@ -20,7 +20,12 @@ package org.apache.cassandra.service.paxos;
 
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
@@ -40,7 +45,7 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -56,6 +61,7 @@ import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.paxos.PaxosPropose.Superseded;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.utils.CassandraVersion;
@@ -63,21 +69,32 @@ import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MonotonicClock;
 
+import static com.google.common.base.Preconditions.checkState;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.config.CassandraRelevantProperties.PAXOS_REPAIR_RETRY_TIMEOUT_IN_MS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SKIP_PAXOS_REPAIR_VERSION_VALIDATION;
 import static org.apache.cassandra.exceptions.RequestFailureReason.UNKNOWN;
 import static org.apache.cassandra.net.Verb.PAXOS2_REPAIR_REQ;
-import static java.util.concurrent.TimeUnit.NANOSECONDS;
-import static org.apache.cassandra.service.paxos.Commit.*;
+import static org.apache.cassandra.service.paxos.Commit.Accepted;
+import static org.apache.cassandra.service.paxos.Commit.Committed;
+import static org.apache.cassandra.service.paxos.Commit.Proposal;
+import static org.apache.cassandra.service.paxos.Commit.isAfter;
+import static org.apache.cassandra.service.paxos.Commit.latest;
+import static org.apache.cassandra.service.paxos.Commit.timestampsClash;
 import static org.apache.cassandra.service.paxos.ContentionStrategy.Type.REPAIR;
 import static org.apache.cassandra.service.paxos.ContentionStrategy.waitUntilForContention;
-import static org.apache.cassandra.service.paxos.Paxos.*;
-import static org.apache.cassandra.service.paxos.PaxosPrepare.*;
+import static org.apache.cassandra.service.paxos.Paxos.Participants;
+import static org.apache.cassandra.service.paxos.Paxos.isInRangeAndShouldProcess;
+import static org.apache.cassandra.service.paxos.Paxos.staleBallotNewerThan;
+import static org.apache.cassandra.service.paxos.PaxosPrepare.FoundIncompleteAccepted;
+import static org.apache.cassandra.service.paxos.PaxosPrepare.FoundIncompleteCommitted;
+import static org.apache.cassandra.service.paxos.PaxosPrepare.Status;
+import static org.apache.cassandra.service.paxos.PaxosPrepare.prepareWithBallot;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.NullableSerializer.deserializeNullable;
 import static org.apache.cassandra.utils.NullableSerializer.serializeNullable;
-import static org.apache.cassandra.utils.NullableSerializer.serializedSizeNullable;
+import static org.apache.cassandra.utils.NullableSerializer.serializedNullableSize;
 
 /**
  * Facility to finish any in-progress paxos transaction, and ensure that a quorum of nodes agree on the most recent operation.
@@ -126,9 +143,10 @@ public class PaxosRepair extends AbstractPaxosRepair
     public static final RequestSerializer requestSerializer = new RequestSerializer();
     public static final ResponseSerializer responseSerializer = new ResponseSerializer();
     public static final RequestHandler requestHandler = new RequestHandler();
-    private static final long RETRY_TIMEOUT_NANOS = getRetryTimeoutNanos();
 
     private static final ScheduledExecutorPlus RETRIES = executorFactory().scheduled("PaxosRepairRetries");
+
+    private static final long RETRY_TIMEOUT_NANOS = getRetryTimeoutNanos();
 
     private static long getRetryTimeoutNanos()
     {
@@ -174,7 +192,7 @@ public class PaxosRepair extends AbstractPaxosRepair
         private Ballot clashingPromise;
 
         @Override
-        public void onFailure(InetAddressAndPort from, RequestFailureReason reason)
+        public void onFailure(InetAddressAndPort from, RequestFailure reason)
         {
             updateState(this, null, (i1, i2) -> i1.onFailure());
         }
@@ -254,6 +272,7 @@ public class PaxosRepair extends AbstractPaxosRepair
             {
                 if (logger.isTraceEnabled())
                     logger.trace("PaxosRepair of {} completing {}", partitionKey(), latestAccepted);
+
                 // We need to complete this in-progress accepted proposal, which may not have been seen by a majority
                 // However, since we have not sought any promises, we can simply complete the existing proposal
                 // since this is an idempotent operation - both us and the original proposer (and others) can
@@ -262,8 +281,7 @@ public class PaxosRepair extends AbstractPaxosRepair
                 // If ballots with same timestamp have been both accepted and rejected by different nodes,
                 // to avoid a livelock we simply try to poison, knowing we will fail but use a new ballot
                 // (note there are alternative approaches but this is conservative)
-
-                return PaxosPropose.propose(latestAccepted, participants, false,
+                return PaxosPropose.propose(latestAccepted, participants, false, true,
                         new ProposingRepair(latestAccepted));
             }
             else if (isAcceptedButNotCommitted || isPromisedButNotAccepted || latestWitnessed.compareTo(latestPreviouslyWitnessed) < 0)
@@ -321,9 +339,10 @@ public class PaxosRepair extends AbstractPaxosRepair
                     // (else an "earlier" operation can sneak in and invalidate us while we're proposing
                     // with a newer ballot)
                     FoundIncompleteAccepted incomplete = input.incompleteAccepted();
+
                     Proposal propose = new Proposal(incomplete.ballot, incomplete.accepted.update);
                     logger.trace("PaxosRepair of {} found incomplete {}", partitionKey(), incomplete.accepted);
-                    return PaxosPropose.propose(propose, participants, false,
+                    return PaxosPropose.propose(propose, participants, false, true,
                             new ProposingRepair(propose)); // we don't know if we're done, so we must restart
                 }
 
@@ -341,7 +360,7 @@ public class PaxosRepair extends AbstractPaxosRepair
                     // propose the empty ballot
                     logger.trace("PaxosRepair of {} submitting empty proposal", partitionKey());
                     Proposal proposal = Proposal.empty(input.success().ballot, partitionKey(), table);
-                    return PaxosPropose.propose(proposal, participants, false,
+                    return PaxosPropose.propose(proposal, participants, false, true,
                             new ProposingRepair(proposal));
                 }
 
@@ -368,7 +387,9 @@ public class PaxosRepair extends AbstractPaxosRepair
                     return retry(this);
 
                 case SUPERSEDED:
-                    if (isAfter(input.superseded().by, prevSupersededBy))
+                    Superseded superseded = input.superseded();
+                    checkState(!superseded.needsConsensusMigration, "Repair should not encounter consensus migration rejection");
+                    if (isAfter(superseded.by, prevSupersededBy))
                         prevSupersededBy = input.superseded().by;
                     return retry(this);
 
@@ -408,9 +429,9 @@ public class PaxosRepair extends AbstractPaxosRepair
         }
     }
 
-    private PaxosRepair(DecoratedKey partitionKey, Ballot incompleteBallot, TableMetadata table, ConsistencyLevel paxosConsistency)
+    private PaxosRepair(DecoratedKey partitionKey, @Nullable Ballot incompleteBallot, TableMetadata table, ConsistencyLevel paxosConsistency, long retryTimeoutNanos)
     {
-        super(partitionKey, incompleteBallot);
+        super(partitionKey, incompleteBallot, retryTimeoutNanos);
         // TODO: move precondition into super ctor
         Preconditions.checkArgument(paxosConsistency.isSerialConsistency());
         this.table = table;
@@ -420,12 +441,17 @@ public class PaxosRepair extends AbstractPaxosRepair
 
     public static PaxosRepair create(ConsistencyLevel consistency, DecoratedKey partitionKey, Ballot incompleteBallot, TableMetadata table)
     {
-        return new PaxosRepair(partitionKey, incompleteBallot, table, consistency);
+        return new PaxosRepair(partitionKey, incompleteBallot, table, consistency, RETRY_TIMEOUT_NANOS);
+    }
+
+    public static PaxosRepair create(ConsistencyLevel consistency, DecoratedKey partitionKey, TableMetadata table, long retryTimeoutNanos)
+    {
+        return new PaxosRepair(partitionKey, null, table, consistency, retryTimeoutNanos);
     }
 
     private State retry(State state)
     {
-        Preconditions.checkState(isStarted());
+        checkState(isStarted());
         if (isResult(state))
             return state;
 
@@ -440,7 +466,7 @@ public class PaxosRepair extends AbstractPaxosRepair
 
         participants = Participants.get(table, partitionKey(), paxosConsistency);
 
-        if (waitUntil > Long.MIN_VALUE && waitUntil - startedNanos() > RETRY_TIMEOUT_NANOS)
+        if (waitUntil > Long.MIN_VALUE && waitUntil - startedNanos() > retryTimeoutNanos)
             return new Failure(null);
 
         try
@@ -462,7 +488,7 @@ public class PaxosRepair extends AbstractPaxosRepair
 
     private ConsistencyLevel commitConsistency()
     {
-        Preconditions.checkState(paxosConsistency.isSerialConsistency());
+        checkState(paxosConsistency.isSerialConsistency());
         return paxosConsistency.isDatacenterLocal() ? ConsistencyLevel.LOCAL_QUORUM : ConsistencyLevel.QUORUM;
     }
 
@@ -622,14 +648,14 @@ public class PaxosRepair extends AbstractPaxosRepair
         public void serialize(Response response, DataOutputPlus out, int version) throws IOException
         {
             response.latestWitnessedOrLowBound.serialize(out);
-            serializeNullable(Accepted.serializer, response.acceptedButNotCommitted, out, version);
+            serializeNullable(response.acceptedButNotCommitted, out, version, Accepted.serializer);
             Committed.serializer.serialize(response.committed, out, version);
         }
 
         public Response deserialize(DataInputPlus in, int version) throws IOException
         {
             Ballot latestWitnessed = Ballot.deserialize(in);
-            Accepted acceptedButNotCommitted = deserializeNullable(Accepted.serializer, in, version);
+            Accepted acceptedButNotCommitted = deserializeNullable(in, version, Accepted.serializer);
             Committed committed = Committed.serializer.deserialize(in, version);
             return new Response(latestWitnessed, acceptedButNotCommitted, committed);
         }
@@ -637,7 +663,7 @@ public class PaxosRepair extends AbstractPaxosRepair
         public long serializedSize(Response response, int version)
         {
             return Ballot.sizeInBytes()
-                   + serializedSizeNullable(Accepted.serializer, response.acceptedButNotCommitted, version)
+                   + serializedNullableSize(response.acceptedButNotCommitted, version, Accepted.serializer)
                    + Committed.serializer.serializedSize(response.committed, version);
         }
     }

@@ -184,6 +184,8 @@ public abstract class Cell<V> extends ColumnData
 
     public abstract Cell<?> withUpdatedValue(ByteBuffer newValue);
 
+    public abstract Cell<?> withUpdatedTimestamp(long newTimestamp);
+
     public abstract Cell<?> withUpdatedTimestampAndLocalDeletionTime(long newTimestamp, long newLocalDeletionTime);
 
     /**

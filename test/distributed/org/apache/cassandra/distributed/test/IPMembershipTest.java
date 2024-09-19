@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.distributed.test;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Set;
@@ -33,7 +34,6 @@ import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.impl.InstanceConfig;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
-import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.tools.ToolRunner;
 import org.assertj.core.api.Assertions;
 
@@ -44,6 +44,25 @@ import static org.apache.cassandra.distributed.shared.ClusterUtils.updateAddress
 
 public class IPMembershipTest extends TestBaseImpl
 {
+
+    private static void deleteRecursiveNoStaticInit(File file)
+    {
+        if (file.isDirectory())
+        {
+            for (File entry : file.listFiles())
+                deleteRecursiveNoStaticInit(entry);
+        }
+        else
+        {
+            file.delete();
+        }
+    }
+
+    private static void deleteRecursiveNoStaticInit(org.apache.cassandra.io.util.File file)
+    {
+        deleteRecursiveNoStaticInit(new File(file.absolutePath()));
+    }
+
     /**
      * Port of replace_address_test.py::fail_without_replace_test to jvm-dtest
      */
@@ -62,7 +81,7 @@ public class IPMembershipTest extends TestBaseImpl
             for (boolean auto_bootstrap : Arrays.asList(true, false))
             {
                 stopUnchecked(nodeToReplace);
-                getDirectories(nodeToReplace).forEach(FileUtils::deleteRecursive);
+                getDirectories(nodeToReplace).forEach(IPMembershipTest::deleteRecursiveNoStaticInit);
 
                 nodeToReplace.config().set("auto_bootstrap", auto_bootstrap);
 

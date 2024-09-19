@@ -463,7 +463,7 @@ public class CancelCompactionsTest extends CQLTester
         try (LifecycleTransaction txn = idx.getTracker().tryModify(idx.getLiveSSTables(), OperationType.COMPACTION))
         {
             IPartitioner partitioner = getCurrentColumnFamilyStore().getPartitioner();
-            getCurrentColumnFamilyStore().forceCompactionForTokenRange(Collections.singleton(new Range<>(partitioner.getMinimumToken(), partitioner.getMaximumToken())));
+            getCurrentColumnFamilyStore().forceCompactionForTokenRange(Collections.singleton(new Range<>(partitioner.getMinimumToken(), partitioner.getMaximumTokenForSplitting())));
         }
     }
 

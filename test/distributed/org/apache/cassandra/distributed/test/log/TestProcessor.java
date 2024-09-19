@@ -32,6 +32,7 @@ import org.apache.cassandra.tcm.Processor;
 import org.apache.cassandra.tcm.Retry;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.log.Entry;
+import org.apache.cassandra.tcm.log.LogState;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -67,6 +68,11 @@ public class TestProcessor implements Processor
     public ClusterMetadata fetchLogAndWait(Epoch waitFor, Retry.Deadline retryPolicy)
     {
         return delegate.fetchLogAndWait(waitFor, retryPolicy);
+    }
+
+    public LogState reconstruct(Epoch lowEpoch, Epoch highEpoch, Retry.Deadline retryPolicy)
+    {
+        return delegate.reconstruct(lowEpoch, highEpoch, retryPolicy);
     }
 
     protected void waitIfPaused()

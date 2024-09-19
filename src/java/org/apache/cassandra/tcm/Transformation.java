@@ -38,8 +38,25 @@ import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.VerboseMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
-import org.apache.cassandra.tcm.transformations.*;
+import org.apache.cassandra.tcm.transformations.AccordMarkRejoining;
+import org.apache.cassandra.tcm.transformations.AccordMarkStale;
+import org.apache.cassandra.tcm.transformations.AlterSchema;
+import org.apache.cassandra.tcm.transformations.Assassinate;
+import org.apache.cassandra.tcm.transformations.BeginConsensusMigrationForTableAndRange;
+import org.apache.cassandra.tcm.transformations.CancelInProgressSequence;
+import org.apache.cassandra.tcm.transformations.CustomTransformation;
+import org.apache.cassandra.tcm.transformations.ForceSnapshot;
+import org.apache.cassandra.tcm.transformations.MaybeFinishConsensusMigrationForTableAndRange;
+import org.apache.cassandra.tcm.transformations.PrepareJoin;
+import org.apache.cassandra.tcm.transformations.PrepareLeave;
+import org.apache.cassandra.tcm.transformations.PrepareMove;
+import org.apache.cassandra.tcm.transformations.PrepareReplace;
+import org.apache.cassandra.tcm.transformations.ReconfigureAccordFastPath;
+import org.apache.cassandra.tcm.transformations.Register;
 import org.apache.cassandra.tcm.transformations.Startup;
+import org.apache.cassandra.tcm.transformations.TriggerSnapshot;
+import org.apache.cassandra.tcm.transformations.Unregister;
+import org.apache.cassandra.tcm.transformations.UnsafeJoin;
 import org.apache.cassandra.tcm.transformations.cms.AdvanceCMSReconfiguration;
 import org.apache.cassandra.tcm.transformations.cms.FinishAddToCMS;
 import org.apache.cassandra.tcm.transformations.cms.Initialize;
@@ -213,7 +230,15 @@ public interface Transformation
         PREPARE_SIMPLE_CMS_RECONFIGURATION(31, () -> PrepareCMSReconfiguration.Simple.serializer),
         PREPARE_COMPLEX_CMS_RECONFIGURATION(32, () -> PrepareCMSReconfiguration.Complex.serializer),
         ADVANCE_CMS_RECONFIGURATION(33, () -> AdvanceCMSReconfiguration.serializer),
-        CANCEL_CMS_RECONFIGURATION(34, () -> CancelCMSReconfiguration.serializer)
+        CANCEL_CMS_RECONFIGURATION(34, () -> CancelCMSReconfiguration.serializer),
+
+        UPDATE_AVAILABILITY(35, () -> ReconfigureAccordFastPath.serializer),
+
+        BEGIN_CONSENSUS_MIGRATION_FOR_TABLE_AND_RANGE(36, () -> BeginConsensusMigrationForTableAndRange.serializer),
+        MAYBE_FINISH_CONSENSUS_MIGRATION_FOR_TABLE_AND_RANGE(37, () -> MaybeFinishConsensusMigrationForTableAndRange.serializer),
+        ACCORD_MARK_STALE(38, () -> AccordMarkStale.serializer),
+        ACCORD_MARK_REJOINING(39, () -> AccordMarkRejoining.serializer),
+
         ;
 
         private final Supplier<AsymmetricMetadataSerializer<Transformation, ? extends Transformation>> serializer;

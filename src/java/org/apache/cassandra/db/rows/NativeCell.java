@@ -160,6 +160,12 @@ public class NativeCell extends AbstractCell<ByteBuffer>
         throw new UnsupportedOperationException();
     }
 
+    @Override
+    public Cell<?> withUpdatedTimestamp(long newTimestamp)
+    {
+        return new BufferCell(column, newTimestamp, ttl(), localDeletionTime(), value(), path());
+    }
+
     public Cell<?> withUpdatedTimestampAndLocalDeletionTime(long newTimestamp, long newLocalDeletionTime)
     {
         return new BufferCell(column, newTimestamp, ttl(), newLocalDeletionTime, value(), path());
@@ -170,7 +176,7 @@ public class NativeCell extends AbstractCell<ByteBuffer>
         return new BufferCell(column, timestamp(), ttl(), localDeletionTimeAsUnsignedInt(), value(), path());
     }
 
-    public Cell withSkippedValue()
+    public Cell<?> withSkippedValue()
     {
         return new BufferCell(column, timestamp(), ttl(), localDeletionTimeAsUnsignedInt(), ByteBufferUtil.EMPTY_BYTE_BUFFER, path());
     }

@@ -27,6 +27,7 @@ import java.util.Map.Entry;
 
 import com.google.common.base.Objects;
 
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.ColumnSpecification;
@@ -197,7 +198,7 @@ final class UserTypeSelector extends Selector
             Selector selector = fields.get(userType.fieldName(i));
             buffers.add(selector == null ? null : selector.getOutput(protocolVersion));
         }
-        return type.pack(buffers);
+        return type.pack(buffers, ByteBufferAccessor.instance);
     }
 
     public void reset()

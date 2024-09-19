@@ -17,13 +17,26 @@
  */
 package org.apache.cassandra.db.rows;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.function.Function;
+import javax.annotation.Nonnull;
+
+import com.google.common.base.Function;
 
 import org.apache.cassandra.cache.IMeasurableMemory;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.DeletionPurger;
+import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.Digest;
+import org.apache.cassandra.db.LivenessInfo;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
@@ -298,6 +311,8 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
      * @see Commit for why we need this.
      */
     public Row updateAllTimestamp(long newTimestamp);
+
+    public Row updateTimesAndPathsForAccord(@Nonnull Function<Cell, CellPath> cellToMaybeNewListPath, long newTimestamp, int newLocalDeletionTime);
 
     /**
      * Returns a copy of this row with the new deletion as row deletion if it is more recent

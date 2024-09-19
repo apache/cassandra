@@ -18,6 +18,9 @@
 
 package org.apache.cassandra.simulator.paxos;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -26,6 +29,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
+import java.util.stream.Stream;
 import javax.annotation.Nullable;
 
 import com.google.common.base.Throwables;
@@ -35,8 +39,9 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.concurrent.ExecutorFactory;
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.distributed.Cluster;
-import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.api.IIsolatedExecutor;
+import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.service.paxos.BallotGenerator;
 import org.apache.cassandra.simulator.ActionList;
@@ -46,8 +51,9 @@ import org.apache.cassandra.simulator.RunnableActionScheduler;
 import org.apache.cassandra.simulator.Simulation;
 import org.apache.cassandra.simulator.cluster.ClusterActionListener;
 import org.apache.cassandra.simulator.systems.InterceptorOfGlobalMethods;
-import org.apache.cassandra.simulator.systems.SimulatedQuery;
+import org.apache.cassandra.simulator.systems.SimulatedActionCallable;
 import org.apache.cassandra.simulator.systems.SimulatedSystems;
+import org.apache.cassandra.utils.AssertionUtils;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.concurrent.Threads;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
@@ -57,22 +63,34 @@ import static org.apache.cassandra.simulator.Action.Modifiers.DISPLAY_ORIGIN;
 import static org.apache.cassandra.simulator.Action.Modifiers.NONE;
 import static org.apache.cassandra.simulator.SimulatorUtils.failWithOOM;
 import static org.apache.cassandra.simulator.paxos.HistoryChecker.causedBy;
+import static org.apache.cassandra.utils.AssertionUtils.anyOf;
+import static org.apache.cassandra.utils.AssertionUtils.hasCause;
 
 public abstract class PaxosSimulation implements Simulation, ClusterActionListener
 {
     private static final Logger logger = LoggerFactory.getLogger(PaxosSimulation.class);
 
-    abstract class Operation extends SimulatedQuery implements BiConsumer<Object[][], Throwable>
+    private static String createDescription(int[] primaryKeys, int id, String idString)
     {
-        final int primaryKey;
+        return primaryKeys.length == 1 ? Integer.toString(primaryKeys[0]) : Arrays.toString(primaryKeys) + "/" + id + ": " + idString;
+    }
+
+    protected Class<? extends Throwable>[] expectedExceptions()
+    {
+        return (Class<? extends Throwable>[]) new Class<?>[] { RequestExecutionException.class };
+    }
+
+    abstract class Operation extends SimulatedActionCallable<SimpleQueryResult> implements BiConsumer<SimpleQueryResult, Throwable>
+    {
+        final int[] primaryKeys;
         final int id;
         int start;
 
-        public Operation(int primaryKey, int id, IInvokableInstance instance,
-                         String idString, String query, ConsistencyLevel commitConsistency, ConsistencyLevel serialConistency, Object... params)
+        public Operation(int[] primaryKeys, int id, IInvokableInstance instance,
+                         String idString, IIsolatedExecutor.SerializableCallable<SimpleQueryResult> query)
         {
-            super(primaryKey + "/" + id + ": " + idString, DISPLAY_ORIGIN, NONE, PaxosSimulation.this.simulated, instance, query, commitConsistency, serialConistency, params);
-            this.primaryKey = primaryKey;
+            super(createDescription(primaryKeys, id, idString), DISPLAY_ORIGIN, NONE, PaxosSimulation.this.simulated, instance, query);
+            this.primaryKeys = primaryKeys;
             this.id = id;
         }
 
@@ -82,12 +100,30 @@ public abstract class PaxosSimulation implements Simulation, ClusterActionListen
             return super.performAndRegister();
         }
 
-        @Override
-        public void accept(Object[][] success, Throwable failure)
+        private boolean wasInterrupted(Throwable failure)
         {
-            if (failure != null && !(failure instanceof RequestExecutionException))
+            if (failure instanceof UncheckedInterruptedException)
+                return true;
+
+            if (failure instanceof InterruptedException)
+                return true;
+
+            Throwable cause = failure.getCause();
+            while (cause != null && cause != failure)
             {
-                if (!simulated.failures.hasFailure() || !(failure instanceof UncheckedInterruptedException))
+                if (cause instanceof InterruptedException)
+                    return true;
+                cause = cause.getCause();
+            }
+            return false;
+        }
+
+        @Override
+        public void accept(SimpleQueryResult success, Throwable failure)
+        {
+            if (failure != null && !expectedException(failure))
+            {
+                if (!simulated.failures.hasFailure() || !wasInterrupted(failure))
                     logger.error("Unexpected exception", failure);
                 simulated.failures.accept(failure);
                 return;
@@ -96,10 +132,14 @@ public abstract class PaxosSimulation implements Simulation, ClusterActionListen
             {
                 logger.trace("{}", failure.getMessage());
             }
-
             verify(new Observation(id, success, start, logicalClock.incrementAndGet()));
         }
 
+        protected boolean expectedException(Throwable failure)
+        {
+            // due to class loaders can't use instanceOf directly
+            return hasCause(anyOf(Stream.of(expectedExceptions()).map(AssertionUtils::isThrowableInstanceof))).matches(failure);
+        }
         abstract void verify(Observation outcome);
     }
 
@@ -248,19 +288,39 @@ public abstract class PaxosSimulation implements Simulation, ClusterActionListen
 
     private RuntimeException logAndThrow()
     {
-        Integer causedByPrimaryKey = null;
-        Throwable causedByThrowable = null;
+        class Violation
+        {
+            final int primaryKey;
+            final Throwable cause;
+
+            Violation(int primaryKey, Throwable cause)
+            {
+                this.primaryKey = primaryKey;
+                this.cause = cause;
+            }
+        }
+        List<Violation> violations = new ArrayList<>();
         for (Throwable t : simulated.failures.get())
         {
+            Integer causedByPrimaryKey;
             if (null != (causedByPrimaryKey = causedBy(t)))
             {
-                causedByThrowable = t;
+                violations.add(new Violation(causedByPrimaryKey, t));
                 break;
             }
         }
 
-        log(causedByPrimaryKey);
-        Throwable t = (causedByPrimaryKey != null) ? causedByThrowable : simulated.failures.get().get(0);
+        if (!violations.isEmpty())
+        {
+            AssertionError error = new AssertionError("History violations detected");
+            violations.forEach(v -> {
+                log(v.primaryKey);
+                error.addSuppressed(v.cause);
+            });
+            throw error;
+        }
+
+        Throwable t = simulated.failures.get().get(0);
         Throwables.throwIfUnchecked(t);
         throw new RuntimeException(t);
     }

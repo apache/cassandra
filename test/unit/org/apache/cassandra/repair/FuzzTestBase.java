@@ -22,7 +22,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.sql.Timestamp;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -44,7 +44,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
 
@@ -85,7 +84,6 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
-import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.HeartBeatState;
@@ -99,12 +97,12 @@ import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.LocalStrategy;
 import org.apache.cassandra.locator.RangesAtEndpoint;
-import org.apache.cassandra.net.ConnectionType;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.net.RequestCallback;
+import org.apache.cassandra.net.SimulatedMessageDelivery;
+import org.apache.cassandra.net.SimulatedMessageDelivery.SimulatedMessageReceiver;
 import org.apache.cassandra.repair.messages.RepairMessage;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.repair.messages.ValidationResponse;
@@ -123,6 +121,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.paxos.cleanup.PaxosCleanupComplete;
 import org.apache.cassandra.service.paxos.cleanup.PaxosCleanupHistory;
 import org.apache.cassandra.service.paxos.cleanup.PaxosCleanupRequest;
@@ -149,24 +148,23 @@ import org.apache.cassandra.utils.MerkleTree;
 import org.apache.cassandra.utils.MerkleTrees;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.TimeUUID;
-import org.apache.cassandra.utils.concurrent.AsyncPromise;
-import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import org.apache.cassandra.utils.progress.ProgressEventType;
 import org.assertj.core.api.Assertions;
 import org.mockito.Mockito;
 import org.quicktheories.impl.JavaRandom;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.ACCORD_REPAIR_RANGE_STEP_UPDATE_INTERVAL;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CLOCK_GLOBAL;
 import static org.apache.cassandra.config.CassandraRelevantProperties.ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION;
 
 public abstract class FuzzTestBase extends CQLTester.InMemory
 {
     private static final int MISMATCH_NUM_PARTITIONS = 1;
-    private static final Gen<String> IDENTIFIER_GEN = fromQT(Generators.IDENTIFIER_GEN);
-    private static final Gen<String> KEYSPACE_NAME_GEN = fromQT(CassandraGenerators.KEYSPACE_NAME_GEN);
-    private static final Gen<TableId> TABLE_ID_GEN = fromQT(CassandraGenerators.TABLE_ID_GEN);
-    private static final Gen<InetAddressAndPort> ADDRESS_W_PORT = fromQT(CassandraGenerators.INET_ADDRESS_AND_PORT_GEN);
+    private static final Gen<String> IDENTIFIER_GEN = Generators.toGen(Generators.IDENTIFIER_GEN);
+    private static final Gen<String> KEYSPACE_NAME_GEN = Generators.toGen(CassandraGenerators.KEYSPACE_NAME_GEN);
+    private static final Gen<TableId> TABLE_ID_GEN = Generators.toGen(CassandraGenerators.TABLE_ID_GEN);
+    private static final Gen<InetAddressAndPort> ADDRESS_W_PORT = Generators.toGen(CassandraGenerators.INET_ADDRESS_AND_PORT_GEN);
 
     private static boolean SETUP_SCHEMA = false;
     static String KEYSPACE;
@@ -176,6 +174,7 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
     public static void setUpClass()
     {
         ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION.setBoolean(true);
+        ACCORD_REPAIR_RANGE_STEP_UPDATE_INTERVAL.setInt(1);
         CLOCK_GLOBAL.setString(ClockAccess.class.getName());
         // when running in CI an external actor will replace the test configs based off the test type (such as trie, cdc, etc.), this could then have failing tests
         // that do not repo with the same seed!  To fix that, go to UnitConfigOverride and update the config type to match the one that failed in CI, this should then
@@ -288,8 +287,12 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
         // so don't want to deal with unlucky histories...
         DatabaseDescriptor.setRepairRpcTimeout(TimeUnit.DAYS.toMillis(1));
 
+        // make sure accord is enabled as accord has custom repair steps
+        DatabaseDescriptor.setAccordTransactionsEnabled(true);
 
         InMemory.setUpClass();
+
+        MessagingService.instance().listen();
     }
 
     public static void setupSchema()
@@ -464,13 +467,12 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
     {
         if (repair.state.isComplete())
             throw new IllegalStateException("Repair is completed! " + repair.state.getResult());
-        List<InetAddressAndPort> participaents = new ArrayList<>(repair.state.getNeighborsAndRanges().participants.size() + 1);
-        if (rs.nextBoolean()) participaents.add(coordinator.broadcastAddressAndPort());
-        participaents.addAll(repair.state.getNeighborsAndRanges().participants);
-        participaents.sort(Comparator.naturalOrder());
+        List<InetAddressAndPort> participants = new ArrayList<>(repair.state.getNeighborsAndRanges().participants.size() + 1);
+        if (rs.nextBoolean()) participants.add(coordinator.broadcastAddressAndPort());
+        participants.addAll(repair.state.getNeighborsAndRanges().participants);
+        participants.sort(Comparator.naturalOrder());
 
-        InetAddressAndPort selected = rs.pick(participaents);
-        return selected;
+        return participants.get(rs.nextInt(participants.size()));
     }
 
     static void addMismatch(RandomSource rs, ColumnFamilyStore cfs, Validator validator)
@@ -488,7 +490,7 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
         Set<Token> allTokens = new HashSet<>();
         for (Range<Token> range : validator.desc.ranges)
         {
-            Gen<Token> gen = fromQT(CassandraGenerators.tokensInRange(range));
+            Gen<Token> gen = Generators.toGen(CassandraGenerators.tokensInRange(range));
             Set<Token> tokens = new LinkedHashSet<>();
             for (int i = 0, size = rs.nextInt(1, 10); i < size; i++)
             {
@@ -555,11 +557,13 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
 
     private static RepairOption repairOption(RandomSource rs, Cluster.Node coordinator, String ks, Gen<List<String>> tablesGen, Gen<RepairType> repairTypeGen, Gen<PreviewType> previewTypeGen, Gen<RepairParallelism> repairParallelismGen)
     {
+        RepairType type = repairTypeGen.next(rs);
+        PreviewType previewType = previewTypeGen.next(rs);
         List<String> args = new ArrayList<>();
         args.add(ks);
-        args.addAll(tablesGen.next(rs));
+        List<String> tables = tablesGen.next(rs);
+        args.addAll(tables);
         args.add("-pr");
-        RepairType type = repairTypeGen.next(rs);
         switch (type)
         {
             case IR:
@@ -571,7 +575,6 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
             default:
                 throw new AssertionError("Unsupported repair type: " + type);
         }
-        PreviewType previewType = previewTypeGen.next(rs);
         switch (previewType)
         {
             case NONE:
@@ -684,15 +687,13 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
         private final List<MessageListener> listeners = new ArrayList<>();
         private final RandomSource rs;
         private BiFunction<Node, Message<?>, Set<Faults>> allowedMessageFaults = (a, b) -> Collections.emptySet();
-
-        private final Map<Connection, LongSupplier> networkLatencies = new HashMap<>();
         private final Map<Connection, Supplier<Boolean>> networkDrops = new HashMap<>();
 
         Cluster(RandomSource rs)
         {
             ClockAccess.includeThreadAsOwner();
             this.rs = rs;
-            globalExecutor = new SimulatedExecutorFactory(rs, fromQT(Generators.TIMESTAMP_GEN.map(Timestamp::getTime)).mapToLong(TimeUnit.MILLISECONDS::toNanos).next(rs));
+            globalExecutor = new SimulatedExecutorFactory(rs);
             orderedExecutor = globalExecutor.configureSequential("ignore").build();
             unorderedScheduled = globalExecutor.scheduled("ignored");
 
@@ -713,8 +714,8 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
             int numNodes = rs.nextInt(3, 10);
             List<String> dcs = Gens.lists(IDENTIFIER_GEN).unique().ofSizeBetween(1, Math.min(10, numNodes)).next(rs);
             Map<InetAddressAndPort, Node> nodes = Maps.newHashMapWithExpectedSize(numNodes);
-            Gen<Token> tokenGen = fromQT(CassandraGenerators.token(DatabaseDescriptor.getPartitioner()));
-            Gen<UUID> hostIdGen = fromQT(Generators.UUID_RANDOM_GEN);
+            Gen<Token> tokenGen = Generators.toGen(CassandraGenerators.token(DatabaseDescriptor.getPartitioner()));
+            Gen<UUID> hostIdGen = Generators.toGen(Generators.UUID_RANDOM_GEN);
             Set<Token> tokens = new HashSet<>();
             Set<UUID> hostIds = new HashSet<>();
             for (int i = 0; i < numNodes; i++)
@@ -758,6 +759,10 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
                 ClusterMetadataTestHelper.register(inst.broadcastAddressAndPort());
                 ClusterMetadataTestHelper.join(inst.broadcastAddressAndPort(), inst.tokens());
             }
+            List<InetAddressAndPort> addresses = new ArrayList<>(nodes.keySet());
+            addresses.sort(Comparator.naturalOrder());
+            AccordService.unsafeSetNoop();
+
             setupSchema();
         }
 
@@ -802,214 +807,43 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
             }
         }
 
-        private class CallbackContext
+        private SimulatedMessageDelivery.Action action(InetAddressAndPort self, Message<?> msg, InetAddressAndPort to)
         {
-            final RequestCallback callback;
-
-            private CallbackContext(RequestCallback callback)
-            {
-                this.callback = Objects.requireNonNull(callback);
-            }
-
-            public void onResponse(Message msg)
-            {
-                callback.onResponse(msg);
-            }
-
-            public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
-            {
-                if (callback.invokeOnFailure()) callback.onFailure(from, failureReason);
-            }
+            boolean toSelf = self.equals(to);
+            Node node = nodes.get(to);
+            Set<Faults> allowedFaults = allowedMessageFaults.apply(node, msg);
+            if (allowedFaults.contains(Faults.DROP) && !toSelf && networkDrops(self, to)) return SimulatedMessageDelivery.Action.DROP_PARTITIONED;
+            return SimulatedMessageDelivery.Action.DELIVER;
         }
 
-        private static class CallbackKey
+        private boolean networkDrops(InetAddressAndPort self, InetAddressAndPort to)
         {
-            private final long id;
-            private final InetAddressAndPort peer;
-
-            private CallbackKey(long id, InetAddressAndPort peer)
-            {
-                this.id = id;
-                this.peer = peer;
-            }
-
-            @Override
-            public boolean equals(Object o)
-            {
-                if (this == o) return true;
-                if (o == null || getClass() != o.getClass()) return false;
-                CallbackKey that = (CallbackKey) o;
-                return id == that.id && peer.equals(that.peer);
-            }
-
-            @Override
-            public int hashCode()
-            {
-                return Objects.hash(id, peer);
-            }
-
-            @Override
-            public String toString()
-            {
-                return "CallbackKey{" +
-                       "id=" + id +
-                       ", peer=" + peer +
-                       '}';
-            }
+            return networkDrops.computeIfAbsent(new Connection(self, to), ignore -> Gens.bools().biasedRepeatingRuns(rs.nextInt(1, 11) / 100.0D, rs.nextInt(3, 15)).asSupplier(rs)).get();
         }
 
-        private class Messaging implements MessageDelivery
+        private class Messaging extends SimulatedMessageDelivery
         {
-            final InetAddressAndPort broadcastAddressAndPort;
-            final Map<CallbackKey, CallbackContext> callbacks = new HashMap<>();
-
             private Messaging(InetAddressAndPort broadcastAddressAndPort)
             {
-                this.broadcastAddressAndPort = broadcastAddressAndPort;
-            }
-
-            @Override
-            public <REQ> void send(Message<REQ> message, InetAddressAndPort to)
-            {
-                message = message.withFrom(broadcastAddressAndPort);
-                maybeEnqueue(message, to, null);
-            }
-
-            @Override
-            public <REQ, RSP> void sendWithCallback(Message<REQ> message, InetAddressAndPort to, RequestCallback<RSP> cb)
-            {
-                message = message.withFrom(broadcastAddressAndPort);
-                maybeEnqueue(message, to, cb);
-            }
-
-            @Override
-            public <REQ, RSP> void sendWithCallback(Message<REQ> message, InetAddressAndPort to, RequestCallback<RSP> cb, ConnectionType specifyConnection)
-            {
-                message = message.withFrom(broadcastAddressAndPort);
-                maybeEnqueue(message, to, cb);
-            }
-
-            private <REQ, RSP> void maybeEnqueue(Message<REQ> message, InetAddressAndPort to, @Nullable RequestCallback<RSP> callback)
-            {
-                CallbackContext cb;
-                if (callback != null)
-                {
-                    CallbackKey key = new CallbackKey(message.id(), to);
-                    if (callbacks.containsKey(key))
-                        throw new AssertionError("Message id " + message.id() + " to " + to + " already has a callback");
-                    cb = new CallbackContext(callback);
-                    callbacks.put(key, cb);
-                }
-                else
-                {
-                    cb = null;
-                }
-                boolean toSelf = this.broadcastAddressAndPort.equals(to);
-                Node node = nodes.get(to);
-                Set<Faults> allowedFaults = allowedMessageFaults.apply(node, message);
-                if (allowedFaults.isEmpty())
-                {
-                    // enqueue so stack overflow doesn't happen with the inlining
-                    unorderedScheduled.submit(() -> node.handle(message));
-                }
-                else
-                {
-                    Runnable enqueue = () -> {
-                        if (!allowedFaults.contains(Faults.DELAY))
-                        {
-                            unorderedScheduled.submit(() -> node.handle(message));
-                        }
-                        else
-                        {
-                            if (toSelf) unorderedScheduled.submit(() -> node.handle(message));
-                            else
-                                unorderedScheduled.schedule(() -> node.handle(message), networkJitterNanos(to), TimeUnit.NANOSECONDS);
-                        }
-                    };
-
-                    if (!allowedFaults.contains(Faults.DROP)) enqueue.run();
-                    else
-                    {
-                        if (!toSelf && networkDrops(to))
-                        {
-//                            logger.warn("Dropped message {}", message);
-                            // drop
-                        }
-                        else
-                        {
-                            enqueue.run();
-                        }
-                    }
-
-                    if (cb != null)
-                    {
-                        unorderedScheduled.schedule(() -> {
-                            CallbackContext ctx = callbacks.remove(new CallbackKey(message.id(), to));
-                            if (ctx != null)
-                            {
-                                assert ctx == cb;
-                                try
-                                {
-                                    ctx.onFailure(to, RequestFailureReason.TIMEOUT);
-                                }
-                                catch (Throwable t)
-                                {
-                                    failures.add(t);
-                                }
-                            }
-                        }, message.verb().expiresAfterNanos(), TimeUnit.NANOSECONDS);
-                    }
-                }
-            }
-
-            private long networkJitterNanos(InetAddressAndPort to)
-            {
-                return networkLatencies.computeIfAbsent(new Connection(broadcastAddressAndPort, to), ignore -> {
-                    long min = TimeUnit.MICROSECONDS.toNanos(500);
-                    long maxSmall = TimeUnit.MILLISECONDS.toNanos(5);
-                    long max = TimeUnit.SECONDS.toNanos(5);
-                    LongSupplier small = () -> rs.nextLong(min, maxSmall);
-                    LongSupplier large = () -> rs.nextLong(maxSmall, max);
-                    return Gens.bools().biasedRepeatingRuns(rs.nextInt(1, 11) / 100.0D, rs.nextInt(3, 15)).mapToLong(b -> b ? large.getAsLong() : small.getAsLong()).asLongSupplier(rs);
-                }).getAsLong();
-            }
-
-            private boolean networkDrops(InetAddressAndPort to)
-            {
-                return networkDrops.computeIfAbsent(new Connection(broadcastAddressAndPort, to), ignore -> Gens.bools().biasedRepeatingRuns(rs.nextInt(1, 11) / 100.0D, rs.nextInt(3, 15)).asSupplier(rs)).get();
-            }
-
-            @Override
-            public <REQ, RSP> Future<Message<RSP>> sendWithResult(Message<REQ> message, InetAddressAndPort to)
-            {
-                AsyncPromise<Message<RSP>> promise = new AsyncPromise<>();
-                sendWithCallback(message, to, new RequestCallback<RSP>()
-                {
-                    @Override
-                    public void onResponse(Message<RSP> msg)
-                    {
-                        promise.trySuccess(msg);
-                    }
-
-                    @Override
-                    public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
-                    {
-                        promise.tryFailure(new MessagingService.FailureResponseException(from, failureReason));
-                    }
-
-                    @Override
-                    public boolean invokeOnFailure()
-                    {
-                        return true;
-                    }
-                });
-                return promise;
-            }
-
-            @Override
-            public <V> void respond(V response, Message<?> message)
-            {
-                send(message.responseWith(response), message.respondTo());
+                super(broadcastAddressAndPort,
+                      Cluster.this::action,
+                      new NetworkDelaySupplier()
+                      {
+                          private final NetworkDelaySupplier delegate = SimulatedMessageDelivery.randomDelay(rs);
+                          @Nullable
+                          @Override
+                          public Duration jitter(Message<?> msg, InetAddressAndPort to)
+                          {
+                              Set<Faults> allowedFaults = allowedMessageFaults.apply(nodes.get(to), msg);
+                              if (!allowedFaults.contains(Faults.DELAY) || broadcastAddressAndPort.equals(to))
+                                  return null;
+                              return delegate.jitter(msg, to);
+                          }
+                      },
+                      (to, msg) -> unorderedScheduled.submit(() -> nodes.get(to).handle(msg)),
+                      (action, to, msg) -> logger.warn("{} message {}", action, msg),
+                      unorderedScheduled::schedule,
+                      failures::add);
             }
         }
 
@@ -1059,7 +893,7 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
             final InetAddressAndPort addressAndPort;
             final Collection<Token> tokens;
             final ActiveRepairService activeRepairService;
-            final IVerbHandler verbHandler;
+            final SimulatedMessageReceiver receiver;
             final Messaging messaging;
             final IValidationManager validationManager;
             private FailingBiConsumer<ColumnFamilyStore, Validator> doValidation = DEFAULT_VALIDATION;
@@ -1093,7 +927,7 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
                         validator.fail(e);
                     }
                 });
-                this.verbHandler = new IVerbHandler<>()
+                this.receiver = messaging.receiver(new IVerbHandler<>()
                 {
                     private final RepairMessageVerbHandler repairVerbHandler = new RepairMessageVerbHandler(Node.this);
                     private final IVerbHandler<PaxosStartPrepareCleanup.Request> paxosStartPrepareCleanup = PaxosStartPrepareCleanup.createVerbHandler(Node.this);
@@ -1125,7 +959,7 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
                                 repairVerbHandler.doVerb(message);
                         }
                     }
-                };
+                });
 
                 activeRepairService.start();
             }
@@ -1165,38 +999,7 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
                 }
                 for (MessageListener l : listeners)
                     l.preHandle(this, msg);
-                if (msg.verb().isResponse())
-                {
-                    // handle callbacks
-                    CallbackKey key = new CallbackKey(msg.id(), msg.from());
-                    if (messaging.callbacks.containsKey(key))
-                    {
-                        CallbackContext callback = messaging.callbacks.remove(key);
-                        if (callback == null)
-                            return;
-                        try
-                        {
-                            if (msg.isFailureResponse())
-                                callback.onFailure(msg.from(), (RequestFailureReason) msg.payload);
-                            else callback.onResponse(msg);
-                        }
-                        catch (Throwable t)
-                        {
-                            failures.add(t);
-                        }
-                    }
-                }
-                else
-                {
-                    try
-                    {
-                        verbHandler.doVerb(msg);
-                    }
-                    catch (Throwable e)
-                    {
-                        failures.add(e);
-                    }
-                }
+                receiver.recieve(msg);
             }
 
             public UUID hostId()
@@ -1351,6 +1154,12 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
                 return paxosRepairState;
             }
 
+            @Override
+            public Supplier<TimeUUID> timeUUID()
+            {
+                return Generators.toGen(Generators.timeUUID()).asSupplier(rs);
+            }
+
             public String toString()
             {
                 return "Node{" +
@@ -1375,14 +1184,6 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
                 return null;
             }
         }
-    }
-
-    private static <T> Gen<T> fromQT(org.quicktheories.core.Gen<T> qt)
-    {
-        return rs -> {
-            JavaRandom r = new JavaRandom(rs.asJdkRandom());
-            return qt.generate(r);
-        };
     }
 
     public static class HackStrat extends LocalStrategy
@@ -1450,7 +1251,10 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
                     if (("org.apache.cassandra.service.paxos.Paxos".equals(next.getClassName()) && "newBallot".equals(next.getMethodName()))
                         || ("org.apache.cassandra.service.paxos.uncommitted.PaxosBallotTracker".equals(next.getClassName()) && "updateLowBound".equals(next.getMethodName())))
                         return Access.MAIN_THREAD_ONLY;
-                    if (next.getClassName().startsWith("org.apache.cassandra.db.")
+                    if (next.getClassName().startsWith("org.apache.cassandra.accord.")
+                        || next.getClassName().startsWith("org.apache.cassandra.journal.")
+                        || next.getClassName().startsWith("org.apache.cassandra.service.accord.")
+                        || next.getClassName().startsWith("org.apache.cassandra.db.")
                         || next.getClassName().startsWith("org.apache.cassandra.gms.")
                         || next.getClassName().startsWith("org.apache.cassandra.cql3.")
                         || next.getClassName().startsWith("org.apache.cassandra.metrics.")

@@ -27,17 +27,22 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.exceptions.CoordinatorBehindException;
 import org.apache.cassandra.exceptions.InvalidRoutingException;
+import org.apache.cassandra.exceptions.RetryOnDifferentSystemException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.NoSpamLogger;
+
+import static org.apache.cassandra.exceptions.RequestFailureReason.RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM;
 
 public abstract class AbstractMutationVerbHandler<T extends IMutation> implements IVerbHandler<T>
 {
@@ -57,7 +62,17 @@ public abstract class AbstractMutationVerbHandler<T extends IMutation> implement
             metadata = checkTokenOwnership(metadata, message);
             metadata = checkSchemaVersion(metadata, message);
         }
-        applyMutation(message, respondTo);
+
+        try
+        {
+            applyMutation(message, respondTo);
+        }
+        catch (RetryOnDifferentSystemException e)
+        {
+            logger.debug("Responding with retry on different system");
+            MessagingService.instance().respondWithFailure(RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM, message);
+            Tracing.trace("Payload application resulted in RetryOnDifferentSysten");
+        }
     }
 
     abstract void applyMutation(Message<T> message, InetAddressAndPort respondToAddress);

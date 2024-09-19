@@ -35,6 +35,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.io.IVersionedAsymmetricSerializer;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -71,7 +72,7 @@ import static org.apache.cassandra.utils.vint.VIntCoding.skipUnsignedVInt;
  *
  * @param <T> The type of the message payload.
  */
-public class Message<T>
+public class Message<T> implements ResponseContext
 {
     private static final Logger logger = LoggerFactory.getLogger(Message.class);
     private static final NoSpamLogger noSpam1m = NoSpamLogger.getLogger(logger, 1, TimeUnit.MINUTES);
@@ -91,6 +92,7 @@ public class Message<T>
     }
 
     /** Sender of the message. */
+    @Override
     public InetAddressAndPort from()
     {
         return header.from;
@@ -106,6 +108,7 @@ public class Message<T>
      * id of the request/message. In 4.0+ can be shared between multiple messages of the same logical request,
      * whilst in versions above a new id would be allocated for each message sent.
      */
+    @Override
     public long id()
     {
         return header.id;
@@ -116,6 +119,7 @@ public class Message<T>
         return header.epoch;
     }
 
+    @Override
     public Verb verb()
     {
         return header.verb;
@@ -135,6 +139,7 @@ public class Message<T>
         return header.createdAtNanos;
     }
 
+    @Override
     public long expiresAtNanos()
     {
         return header.expiresAtNanos;
@@ -301,6 +306,7 @@ public class Message<T>
      * Used by the {@code MultiRangeReadCommand} to split multi-range responses from a replica
      * into single-range responses.
      */
+    @VisibleForTesting
     public static <T> Message<T> remoteResponse(InetAddressAndPort from, Verb verb, T payload)
     {
         assert verb.isResponse();
@@ -339,10 +345,15 @@ public class Message<T>
     /** Builds a response Message with provided payload, and all the right fields inferred from request Message */
     public <T> Message<T> responseWith(T payload)
     {
-        Message<T> msg = outWithParam(id(), verb().responseVerb, expiresAtNanos(), payload, null, null);
+        Message<T> msg = responseWith(payload, this);
         if (header.hasFlag(MessageFlag.URGENT))
             msg = msg.withFlag(MessageFlag.URGENT);
         return msg;
+    }
+
+    public static <T> Message<T> responseWith(T payload, ResponseContext respondTo)
+    {
+        return outWithParam(respondTo.id(), respondTo.verb().responseVerb, respondTo.expiresAtNanos(), payload, null, null);
     }
 
     /** Builds a response Message with no payload, and all the right fields inferred from request Message */
@@ -352,12 +363,22 @@ public class Message<T>
     }
 
     /** Builds a failure response Message with an explicit reason, and fields inferred from request Message */
-    public Message<RequestFailureReason> failureResponse(RequestFailureReason reason)
+    public Message<RequestFailure> failureResponse(RequestFailureReason reason)
     {
-        return failureResponse(id(), expiresAtNanos(), reason);
+        return failureResponse(reason, null);
     }
 
-    static Message<RequestFailureReason> failureResponse(long id, long expiresAtNanos, RequestFailureReason reason)
+    public Message<RequestFailure> failureResponse(RequestFailureReason reason, @Nullable Throwable failure)
+    {
+        return failureResponse(reason, failure, this);
+    }
+
+    public static Message<RequestFailure> failureResponse(RequestFailureReason reason, @Nullable Throwable failure, ResponseContext respondTo)
+    {
+        return failureResponse(respondTo.id(), respondTo.expiresAtNanos(), new RequestFailure(reason, failure));
+    }
+
+    static Message<RequestFailure> failureResponse(long id, long expiresAtNanos, RequestFailure reason)
     {
         return outWithParam(id, Verb.FAILURE_RSP, expiresAtNanos, reason, null, null);
     }
@@ -565,6 +586,11 @@ public class Message<T>
         boolean trackWarnings()
         {
             return MessageFlag.TRACK_WARNINGS.isIn(flags);
+        }
+
+        boolean isFinal()
+        {
+            return !MessageFlag.NOT_FINAL.isIn(flags);
         }
 
         @Nullable

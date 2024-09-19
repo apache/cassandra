@@ -36,7 +36,7 @@ import static java.util.stream.Collectors.toSet;
 /**
  * Partition splitter.
  */
-public abstract class Splitter
+public abstract class Splitter extends AccordSplitter
 {
     private final IPartitioner partitioner;
 
@@ -46,17 +46,11 @@ public abstract class Splitter
     }
 
     @VisibleForTesting
-    protected abstract Token tokenForValue(BigInteger value);
-
-    @VisibleForTesting
-    protected abstract BigInteger valueForToken(Token token);
-
-    @VisibleForTesting
     protected BigInteger tokensInRange(Range<Token> range)
     {
         //full range case
         if (range.left.equals(range.right))
-            return tokensInRange(new Range(partitioner.getMinimumToken(), partitioner.getMaximumToken()));
+            return tokensInRange(new Range(partitioner.getMinimumToken(), partitioner.getMaximumTokenForSplitting()));
 
         BigInteger totalTokens = BigInteger.ZERO;
         for (Range<Token> unwrapped : range.unwrap())
@@ -101,7 +95,7 @@ public abstract class Splitter
     {
         //full range case
         if (range.left.equals(range.right))
-            return positionInRange(token, new Range(partitioner.getMinimumToken(), partitioner.getMaximumToken()));
+            return positionInRange(token, new Range(partitioner.getMinimumToken(), partitioner.getMaximumTokenForSplitting()));
 
         // leftmost token means we are on position 0.0
         if (token.equals(range.left))
@@ -121,7 +115,7 @@ public abstract class Splitter
     public List<Token> splitOwnedRanges(int parts, List<WeightedRange> weightedRanges, boolean dontSplitRanges)
     {
         if (weightedRanges.isEmpty() || parts == 1)
-            return Collections.singletonList(partitioner.getMaximumToken());
+            return Collections.singletonList(partitioner.getMaximumTokenForSplitting());
 
         BigInteger totalTokens = BigInteger.ZERO;
         for (WeightedRange weightedRange : weightedRanges)
@@ -132,7 +126,7 @@ public abstract class Splitter
         BigInteger perPart = totalTokens.divide(BigInteger.valueOf(parts));
         // the range owned is so tiny we can't split it:
         if (perPart.equals(BigInteger.ZERO))
-            return Collections.singletonList(partitioner.getMaximumToken());
+            return Collections.singletonList(partitioner.getMaximumTokenForSplitting());
 
         if (dontSplitRanges)
             return splitOwnedRangesNoPartialRanges(weightedRanges, perPart, parts);
@@ -161,7 +155,7 @@ public abstract class Splitter
             }
             sum = sum.add(currentRangeWidth);
         }
-        boundaries.set(boundaries.size() - 1, partitioner.getMaximumToken());
+        boundaries.set(boundaries.size() - 1, partitioner.getMaximumTokenForSplitting());
 
         assert boundaries.size() == parts : boundaries.size() + "!=" + parts + " " + boundaries + ":" + weightedRanges;
         return boundaries;
@@ -198,7 +192,7 @@ public abstract class Splitter
             }
             i++;
         }
-        boundaries.add(partitioner.getMaximumToken());
+        boundaries.add(partitioner.getMaximumTokenForSplitting());
         return boundaries;
     }
 
@@ -208,7 +202,7 @@ public abstract class Splitter
      */
     private Token token(Token t)
     {
-        return t.equals(partitioner.getMinimumToken()) ? partitioner.getMaximumToken() : t;
+        return t.equals(partitioner.getMinimumToken()) ? partitioner.getMaximumTokenForSplitting() : t;
     }
 
     /**

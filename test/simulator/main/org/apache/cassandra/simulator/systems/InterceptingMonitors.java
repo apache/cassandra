@@ -55,8 +55,20 @@ import static org.apache.cassandra.simulator.systems.SimulatedTime.Global.relati
 @SuppressWarnings("SynchronizationOnLocalVariableOrMethodParameter")
 public abstract class InterceptingMonitors implements InterceptorOfGlobalMethods, Closeable
 {
-    private static final Logger logger = LoggerFactory.getLogger(InterceptingMonitors.class);
     private static final boolean DEBUG_MONITOR_STATE = TEST_SIMULATOR_DEBUG.getBoolean();
+
+    // eagerly initializing the logger prevents the dtest instance variables
+    // from being setup correctly, which causes all nodes to log as <main>
+    private static class LoggerHandle
+    {
+        private static final Logger logger = LoggerFactory.getLogger(InterceptingMonitors.class);
+    }
+
+    protected static Logger logger()
+    {
+        return LoggerHandle.logger;
+    }
+
 
     static class MonitorState
     {
@@ -650,8 +662,9 @@ public abstract class InterceptingMonitors implements InterceptorOfGlobalMethods
         if (!(anyThread instanceof InterceptibleThread))
             return;
 
-        boolean restoreInterrupt = false;
+        // save any interrupt before testing random.decide, in case we are trapping these for verification
         InterceptibleThread thread = (InterceptibleThread) anyThread;
+        boolean restoreInterrupt = Thread.interrupted();
         try
         {
             if (   !thread.isEvaluationDeterministic()
@@ -662,8 +675,6 @@ public abstract class InterceptingMonitors implements InterceptorOfGlobalMethods
                 InterceptedConditionWait signal = new InterceptedConditionWait(NEMESIS, 0L, thread, captureWaitSite(thread), null);
                 thread.interceptWait(signal);
 
-                // save interrupt state to restore afterwards - new ones only arrive if terminating simulation
-                restoreInterrupt = Thread.interrupted();
                 while (true)
                 {
                     try
@@ -687,10 +698,7 @@ public abstract class InterceptingMonitors implements InterceptorOfGlobalMethods
                 {
                     if (!thread.isIntercepting() && disabled) return;
                     else if (!thread.isIntercepting())
-                    {
                         throw new AssertionError("Thread " + thread + " is running but is not simulated");
-                    }
-
 
                     checkForDeadlock(thread, state.heldBy);
                     InterceptedMonitorWait wait = new InterceptedMonitorWait(UNBOUNDED_WAIT, 0L, state, thread, captureWaitSite(thread));
@@ -825,7 +833,7 @@ public abstract class InterceptingMonitors implements InterceptorOfGlobalMethods
                 return; // not really waiting, just hasn't woken up yet
             if (next == waiting)
             {
-                logger.error("Deadlock between {}{} and {}{}", waiting, Threads.prettyPrintStackTrace(waiting, true, ";"), cur, Threads.prettyPrintStackTrace(cur, true, ";"));
+                logger().error("Deadlock between {}{} and {}{}", waiting, Threads.prettyPrintStackTrace(waiting, true, ";"), cur, Threads.prettyPrintStackTrace(cur, true, ";"));
                 throw failWithOOM();
             }
             cur = next;

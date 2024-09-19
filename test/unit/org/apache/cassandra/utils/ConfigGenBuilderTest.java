@@ -32,12 +32,14 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.SimpleSeedProvider;
 
 import static accord.utils.Property.qt;
+import static org.apache.cassandra.config.CassandraRelevantProperties.STORAGE_DIR;
 
 public class ConfigGenBuilderTest
 {
     static
     {
         File.unsafeSetFilesystem(Jimfs.newFileSystem("testing"));
+        STORAGE_DIR.setString("/data");
     }
 
     private static final Gen<Map<String, Object>> GEN = new ConfigGenBuilder().build();

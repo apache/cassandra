@@ -44,6 +44,7 @@ import org.apache.cassandra.service.CacheServiceMBean;
 import org.apache.cassandra.service.GCInspector;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.accord.AccordOperations;
 import org.apache.cassandra.streaming.StreamManager;
 import org.apache.cassandra.tcm.CMSOperations;
 import org.apache.cassandra.tools.NodeProbe;
@@ -70,6 +71,7 @@ public class InternalNodeProbe extends NodeProbe
 
         ssProxy = StorageService.instance;
         cmsProxy = CMSOperations.instance;
+        accordProxy = AccordOperations.instance;
         msProxy = MessagingService.instance();
         streamProxy = StreamManager.instance;
         compactionProxy = CompactionManager.instance;

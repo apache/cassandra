@@ -325,6 +325,12 @@ public class DirectStreamingConnectionFactory
                 else if (onClose == null) onClose = runOnClose;
                 else { Runnable tmp = onClose; onClose = () -> { tmp.run(); runOnClose.run(); }; }
             }
+
+            @Override
+            public int hashCode()
+            {
+                return id;
+            }
         }
 
         private final DirectStreamingChannel outToRecipient, outToOriginator;

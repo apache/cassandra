@@ -20,14 +20,26 @@ package org.apache.cassandra.cql3;
 import java.nio.ByteBuffer;
 import java.util.Map;
 
+import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.ClusteringComparator;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.DeletionPurger;
+import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.LivenessInfo;
+import org.apache.cassandra.db.RangeTombstone;
+import org.apache.cassandra.db.Slice;
+import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.guardrails.Guardrails;
+import org.apache.cassandra.db.partitions.Partition;
+import org.apache.cassandra.db.rows.BTreeRow;
+import org.apache.cassandra.db.rows.BufferCell;
+import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.CellPath;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.Rows;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.context.CounterContext;
-import org.apache.cassandra.db.partitions.Partition;
-import org.apache.cassandra.db.rows.*;
-import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.utils.TimeUUID;
 
@@ -37,9 +49,9 @@ import org.apache.cassandra.utils.TimeUUID;
 public class UpdateParameters
 {
     public final TableMetadata metadata;
-    public final RegularAndStaticColumns updatedColumns;
     public final ClientState clientState;
     public final QueryOptions options;
+    public final boolean constructingAccordBaseUpdate;
 
     private final long nowInSec;
     private final long timestamp;
@@ -47,7 +59,7 @@ public class UpdateParameters
 
     private final DeletionTime deletionTime;
 
-    // For lists operation that require a read-before-write. Will be null otherwise.
+    // Holds data for operations that require a read-before-write. Will be null otherwise.
     private final Map<DecoratedKey, Partition> prefetchedRows;
 
     private Row.Builder staticBuilder;
@@ -57,17 +69,26 @@ public class UpdateParameters
     private Row.Builder builder;
 
     public UpdateParameters(TableMetadata metadata,
-                            RegularAndStaticColumns updatedColumns,
                             ClientState clientState,
                             QueryOptions options,
                             long timestamp,
                             long nowInSec,
                             int ttl,
-                            Map<DecoratedKey, Partition> prefetchedRows)
-    throws InvalidRequestException
+                            Map<DecoratedKey, Partition> prefetchedRows) throws InvalidRequestException
+    {
+        this(metadata, clientState, options, timestamp, nowInSec, ttl, prefetchedRows, false);
+    }
+
+    public UpdateParameters(TableMetadata metadata,
+                            ClientState clientState,
+                            QueryOptions options,
+                            long timestamp,
+                            long nowInSec,
+                            int ttl,
+                            Map<DecoratedKey, Partition> prefetchedRows,
+                            boolean constructingAccordBaseUpdate) throws InvalidRequestException
     {
         this.metadata = metadata;
-        this.updatedColumns = updatedColumns;
         this.clientState = clientState;
         this.options = options;
 
@@ -83,6 +104,8 @@ public class UpdateParameters
         // it to avoid potential confusion.
         if (timestamp == Long.MIN_VALUE)
             throw new InvalidRequestException(String.format("Out of bound timestamp, must be in [%d, %d]", Long.MIN_VALUE + 1, Long.MAX_VALUE));
+
+        this.constructingAccordBaseUpdate = constructingAccordBaseUpdate;
     }
 
     public <V> void newRow(Clustering<V> clustering) throws InvalidRequestException
@@ -123,10 +146,20 @@ public class UpdateParameters
 
     public void addPrimaryKeyLivenessInfo()
     {
-        builder.addPrimaryKeyLivenessInfo(LivenessInfo.create(timestamp, ttl, nowInSec));
+        addPrimaryKeyLivenessInfo(LivenessInfo.create(timestamp, ttl, nowInSec));
+    }
+
+    private void addPrimaryKeyLivenessInfo(LivenessInfo info)
+    {
+        builder.addPrimaryKeyLivenessInfo(info);
     }
 
     public void addRowDeletion()
+    {
+        addRowDeletion(Row.Deletion.regular(deletionTime));
+    }
+
+    private void addRowDeletion(Row.Deletion deletion)
     {
         // For compact tables, at the exclusion of the static row (of static compact tables), each row ever has a single column,
         // the "compact" one. As such, deleting the row or deleting that single cell is equivalent. We favor the later
@@ -134,7 +167,7 @@ public class UpdateParameters
         if (metadata.isCompactTable() && builder.clustering() != Clustering.STATIC_CLUSTERING)
             addTombstone(((TableMetadata.CompactTableMetadata) metadata).compactValueColumn);
         else
-            builder.addRowDeletion(Row.Deletion.regular(deletionTime));
+            builder.addRowDeletion(deletion);
     }
 
     public void addTombstone(ColumnMetadata column) throws InvalidRequestException
@@ -173,6 +206,14 @@ public class UpdateParameters
                        : BufferCell.expiring(column, timestamp, ttl, nowInSec, value, path);
         builder.addCell(cell);
         return cell;
+    }
+
+    public void addRow(Row row)
+    {
+        newRow(row.clustering());
+        addRowDeletion(row.deletion());
+        addPrimaryKeyLivenessInfo(row.primaryKeyLivenessInfo());
+        row.cells().forEach(builder::addCell);
     }
 
     public void addCounter(ColumnMetadata column, long increment) throws InvalidRequestException

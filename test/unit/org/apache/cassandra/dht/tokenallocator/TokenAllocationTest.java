@@ -27,15 +27,15 @@ import java.util.Random;
 import java.util.Set;
 
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
-import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.CassandraTestBase;
+import org.apache.cassandra.CassandraTestBase.DDDaemonInitialization;
+import org.apache.cassandra.CassandraTestBase.UseMurmur3Partitioner;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -53,17 +53,11 @@ import org.apache.cassandra.utils.FBUtilities;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
-public class TokenAllocationTest
+@DDDaemonInitialization
+@UseMurmur3Partitioner
+public class TokenAllocationTest extends CassandraTestBase
 {
-    static IPartitioner oldPartitioner;
     static Random rand = new Random(1);
-
-    @BeforeClass
-    public static void beforeClass() throws ConfigurationException
-    {
-        DatabaseDescriptor.daemonInitialization();
-        oldPartitioner = StorageService.instance.setPartitionerUnsafe(Murmur3Partitioner.instance);
-    }
 
     @Before
     public void before() throws ConfigurationException
@@ -76,12 +70,6 @@ public class TokenAllocationTest
     public void after() throws ConfigurationException
     {
         ClusterMetadataService.unsetInstance();
-    }
-
-    @AfterClass
-    public static void afterClass()
-    {
-        DatabaseDescriptor.setPartitionerUnsafe(oldPartitioner);
     }
 
     private static TokenAllocation createForTest(ClusterMetadata metadata, int replicas, int numTokens)

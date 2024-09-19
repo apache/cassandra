@@ -101,7 +101,7 @@ public class SimulatedExecutorFactory implements ExecutorFactory, Clock
 
     public SimulatedExecutorFactory(RandomSource rs, Consumer<Throwable> onError)
     {
-        this(rs, toGen(Generators.TIMESTAMP_GEN.map(Timestamp::getTime)).mapToLong(TimeUnit.MILLISECONDS::toNanos).next(rs), onError);
+        this(rs, toGen(Generators.TIMESTAMP_GEN.map(Timestamp::getTime)).mapToLong(TimeUnit.MILLISECONDS::toNanos).nextLong(rs), onError);
     }
 
     public SimulatedExecutorFactory(RandomSource rs)

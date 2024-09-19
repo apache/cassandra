@@ -18,21 +18,30 @@
 package org.apache.cassandra.db;
 
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
-import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.context.CounterContext;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.CollectionType;
+import org.apache.cassandra.db.marshal.ListType;
+import org.apache.cassandra.db.marshal.MapType;
+import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.BTreeRow;
 import org.apache.cassandra.db.rows.BufferCell;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.db.rows.Row;
-import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CounterId;
 import org.apache.cassandra.utils.FBUtilities;
@@ -111,10 +120,18 @@ public abstract class SimpleBuilders
 
         private final Map<TableId, PartitionUpdateBuilder> updateBuilders = new HashMap<>();
 
+        private boolean allowPotentialTransactionConflicts = false;
+
         public MutationBuilder(String keyspaceName, DecoratedKey key)
         {
             this.keyspaceName = keyspaceName;
             this.key = key;
+        }
+
+        public MutationBuilder allowPotentialTransactionConflicts()
+        {
+            allowPotentialTransactionConflicts = true;
+            return this;
         }
 
         public PartitionUpdate.SimpleBuilder update(TableMetadata metadata)
@@ -145,9 +162,9 @@ public abstract class SimpleBuilders
             assert !updateBuilders.isEmpty() : "Cannot create empty mutation";
 
             if (updateBuilders.size() == 1)
-                return new Mutation(updateBuilders.values().iterator().next().build());
+                return new Mutation(updateBuilders.values().iterator().next().build(), allowPotentialTransactionConflicts);
 
-            Mutation.PartitionUpdateCollector mutationBuilder = new Mutation.PartitionUpdateCollector(keyspaceName, key);
+            Mutation.PartitionUpdateCollector mutationBuilder = new Mutation.PartitionUpdateCollector(keyspaceName, key, allowPotentialTransactionConflicts);
             for (PartitionUpdateBuilder builder : updateBuilders.values())
                 mutationBuilder.add(builder.build());
             return mutationBuilder.build();

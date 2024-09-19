@@ -19,12 +19,12 @@
 package org.apache.cassandra.simulator.systems;
 
 import java.net.InetSocketAddress;
-import java.util.Collections;
-import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -41,7 +41,7 @@ public class SimulatedFailureDetector
         private static volatile FailureDetector wrapped;
 
         private static volatile Function<InetSocketAddress, Boolean> OVERRIDE;
-        private static final Map<IFailureDetectionEventListener, Boolean> LISTENERS = Collections.synchronizedMap(new IdentityHashMap<>());
+        private static final Set<IFailureDetectionEventListener> LISTENERS = new CopyOnWriteArraySet<>();
 
         private static FailureDetector wrapped()
         {
@@ -92,7 +92,7 @@ public class SimulatedFailureDetector
 
         public void registerFailureDetectionEventListener(IFailureDetectionEventListener listener)
         {
-            LISTENERS.put(listener, Boolean.TRUE);
+            LISTENERS.add(listener);
         }
 
         public void unregisterFailureDetectionEventListener(IFailureDetectionEventListener listener)
@@ -103,7 +103,7 @@ public class SimulatedFailureDetector
         synchronized static void setup(Function<InetSocketAddress, Boolean> override, Consumer<Consumer<InetSocketAddress>> register)
         {
             OVERRIDE = override;
-            register.accept(ep -> LISTENERS.keySet().forEach(c -> c.convict(InetAddressAndPort.getByAddress(ep), Double.MAX_VALUE)));
+            register.accept(ep -> LISTENERS.forEach(c -> c.convict(InetAddressAndPort.getByAddress(ep), Double.MAX_VALUE)));
         }
     }
 

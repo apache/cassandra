@@ -408,6 +408,26 @@ public class AuditLoggerTest extends CQLTester
     }
 
     @Test
+    public void testTransactionAuditing()
+    {
+        createTable("CREATE TABLE %s (key int PRIMARY KEY, val int) WITH transactional_mode='full'");
+
+        Session session = sessionNet();
+        String fqTableName = KEYSPACE + "." + currentTable();
+        String query = "BEGIN TRANSACTION\n" +
+                       "  LET a = (SELECT * FROM " + fqTableName + " WHERE key = 0);\n" +
+                       "  SELECT a.val;\n" +
+                       "  IF a IS NULL THEN\n" +
+                       "      INSERT INTO " + fqTableName + " (key, val) VALUES (0, 0);\n" +
+                       "  END IF\n" +
+                       "COMMIT TRANSACTION";
+
+        session.execute(query);
+        AuditLogEntry logEntry = ((InMemoryAuditLogger) AuditLogManager.instance.getLogger()).inMemQueue.poll();
+        assertLogEntry(query, AuditLogEntryType.TRANSACTION, logEntry, true, null);
+    }
+
+    @Test
     public void testCqlKeyspaceAuditing() throws Throwable
     {
         createTable("CREATE TABLE %s (id int primary key, v1 text, v2 text)");

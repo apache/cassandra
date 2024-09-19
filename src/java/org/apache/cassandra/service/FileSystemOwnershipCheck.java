@@ -75,9 +75,6 @@ public class FileSystemOwnershipCheck implements StartupCheck
 {
     private static final Logger logger = LoggerFactory.getLogger(FileSystemOwnershipCheck.class);
 
-    public static final String FILE_SYSTEM_CHECK_OWNERSHIP_TOKEN = "CassandraOwnershipToken";
-    public static final String DEFAULT_FS_OWNERSHIP_FILENAME = ".cassandra_fs_ownership";
-
     // Ownership file properties
     static final String VERSION                                 = "version";
     static final String VOLUME_COUNT                            = "volume_count";
@@ -230,7 +227,7 @@ public class FileSystemOwnershipCheck implements StartupCheck
     {
         String cluster = getOwnershipToken(config);
         if (null == cluster || cluster.isEmpty())
-            throw exception(String.format(MISSING_PROPERTY, FILE_SYSTEM_CHECK_OWNERSHIP_TOKEN));
+            throw exception(String.format(MISSING_PROPERTY, CassandraRelevantProperties.FILE_SYSTEM_CHECK_OWNERSHIP_TOKEN.getKey()));
         return cluster;
     }
 

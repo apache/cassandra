@@ -37,9 +37,9 @@ import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.serializers.ListSerializer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.JsonUtils;
 import org.apache.cassandra.utils.TimeUUID;
-import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable.Version;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 
@@ -52,7 +52,7 @@ public class ListType<T> extends CollectionType<List<T>>
     private static final ConcurrentHashMap<AbstractType<?>, ListType> frozenInstances = new ConcurrentHashMap<>();
 
     private final AbstractType<T> elements;
-    public final ListSerializer<T> serializer;
+    private final ListSerializer<T> serializer;
     private final boolean isMultiCell;
 
     public static ListType<?> getInstance(TypeParser parser) throws ConfigurationException, SyntaxException
@@ -131,7 +131,7 @@ public class ListType<T> extends CollectionType<List<T>>
     }
 
     @Override
-    public AbstractType<?> freeze()
+    public ListType<T> freeze()
     {
         // freeze elements to match org.apache.cassandra.cql3.CQL3Type.Raw.RawCollection.freeze
         return isMultiCell ? getInstance(this.elements.freeze(), false) : this;

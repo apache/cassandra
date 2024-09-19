@@ -150,6 +150,7 @@ public class ClusteringIndexNamesFilter extends AbstractClusteringIndexFilter
         return false;
     }
 
+    @Override
     public String toString(TableMetadata metadata)
     {
         StringBuilder sb = new StringBuilder();
@@ -197,6 +198,7 @@ public class ClusteringIndexNamesFilter extends AbstractClusteringIndexFilter
         return sb.toString();
     }
 
+    @Override
     public boolean equals(Object o)
     {
         if (this == o) return true;
@@ -206,6 +208,7 @@ public class ClusteringIndexNamesFilter extends AbstractClusteringIndexFilter
                Objects.equals(reversed, that.reversed);
     }
 
+    @Override
     public int hashCode()
     {
         return Objects.hash(clusterings, reversed);

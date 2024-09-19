@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.management.NotificationEmitter;
 import javax.management.openmbean.CompositeData;
@@ -35,6 +36,7 @@ import javax.management.openmbean.TabularData;
 
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.service.consensus.migration.ConsensusMigrationTarget;
 import org.apache.cassandra.utils.BreaksJMX;
 
 public interface StorageServiceMBean extends NotificationEmitter
@@ -737,6 +739,9 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void setTruncateRpcTimeout(long value);
     public long getTruncateRpcTimeout();
 
+    public void setTransactionTimeout(long value);
+    public long getTransactionTimeout();
+
     public void setStreamThroughputMbitPerSec(int value);
     /**
      * @return stream_throughput_outbound in megabits
@@ -1070,6 +1075,21 @@ public interface StorageServiceMBean extends NotificationEmitter
     public String getBootstrapState();
     void abortBootstrap(String nodeId, String endpoint);
 
+    void migrateConsensusProtocol(@Nonnull String targetProtocol,
+                                  @Nullable List<String> keyspaceNames,
+                                  @Nullable List<String> maybeTableNames,
+                                  @Nullable String maybeRangesStr);
+
+    Integer finishConsensusMigration(@Nonnull String keyspace,
+                                     @Nullable List<String> maybeTableNames,
+                                     @Nullable String maybeRangesStr,
+                                     @Nonnull ConsensusMigrationTarget target);
+
+    String listConsensusMigrations(@Nullable Set<String> keyspaceNames, @Nullable Set<String> tableNames, @Nonnull String format);
+
+    List<String> getAccordManagedKeyspaces();
+    List<String> getAccordManagedTables();
+
     /** Gets the concurrency settings for processing stages*/
     static class StageConcurrency implements Serializable
     {
@@ -1117,6 +1137,7 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     /**
      * Start the fully query logger.
+     *
      * @param path Path where the full query log will be stored. If null cassandra.yaml value is used.
      * @param rollCycle How often to create a new file for query data (MINUTELY, DAILY, HOURLY)
      * @param blocking Whether threads submitting queries to the query log should block if they can't be drained to the filesystem or alternatively drops samples and log

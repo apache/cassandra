@@ -30,7 +30,7 @@ public class Murmur3ReplicationAwareTokenAllocatorTest extends AbstractReplicati
     @Test
     public void testExistingCluster()
     {
-        super.testExistingCluster(new Murmur3Partitioner(), MAX_VNODE_COUNT);
+        super.testExistingCluster(Murmur3Partitioner.instance, MAX_VNODE_COUNT);
     }
 
     @Test
@@ -43,6 +43,6 @@ public class Murmur3ReplicationAwareTokenAllocatorTest extends AbstractReplicati
 
     private void flakyTestNewCluster()
     {
-        testNewCluster(new Murmur3Partitioner(), MAX_VNODE_COUNT);
+        testNewCluster(Murmur3Partitioner.instance, MAX_VNODE_COUNT);
     }
 }

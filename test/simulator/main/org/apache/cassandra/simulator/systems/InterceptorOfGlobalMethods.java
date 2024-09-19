@@ -25,6 +25,9 @@ import java.util.function.IntSupplier;
 import java.util.function.LongConsumer;
 import java.util.function.ToIntFunction;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import net.openhft.chronicle.core.util.WeakIdentityHashMap;
 import org.apache.cassandra.simulator.systems.InterceptedWait.CaptureSites;
 import org.apache.cassandra.utils.Clock;
@@ -377,6 +380,16 @@ public interface InterceptorOfGlobalMethods extends InterceptorOfSystemMethods, 
     @SuppressWarnings("unused")
     public static class Global
     {
+        private static class LoggerHandle
+        {
+            private static final Logger logger = LoggerFactory.getLogger(Global.class);
+        }
+
+        private static Logger logger()
+        {
+            return LoggerHandle.logger;
+        }
+
         private static InterceptorOfGlobalMethods methods;
 
         public static WaitQueue newWaitQueue()
@@ -426,8 +439,7 @@ public interface InterceptorOfGlobalMethods extends InterceptorOfSystemMethods, 
 
         public static void uncaughtException(Thread thread, Throwable throwable)
         {
-            System.err.println(thread);
-            throwable.printStackTrace(System.err);
+            logger().error("Exception in thread {}", thread, throwable);
             methods.uncaughtException(thread, throwable);
         }
 

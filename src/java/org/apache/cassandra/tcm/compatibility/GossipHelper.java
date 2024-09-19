@@ -34,7 +34,6 @@ import java.util.UUID;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -53,11 +52,14 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.accord.AccordStaleReplicas;
+import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MultiStepOperation;
 import org.apache.cassandra.tcm.extensions.ExtensionKey;
 import org.apache.cassandra.tcm.extensions.ExtensionValue;
+import org.apache.cassandra.service.accord.AccordFastPath;
 import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.NodeAddresses;
@@ -281,9 +283,12 @@ public class GossipHelper
                                    Directory.EMPTY,
                                    new TokenMap(DatabaseDescriptor.getPartitioner()),
                                    DataPlacements.empty(),
+                                   AccordFastPath.EMPTY,
                                    LockedRanges.EMPTY,
                                    InProgressSequences.EMPTY,
-                                   Collections.emptyMap());
+                                   ConsensusMigrationState.EMPTY,
+                                   Collections.emptyMap(),
+                                   AccordStaleReplicas.EMPTY);
     }
 
     public static ClusterMetadata fromEndpointStates(DistributedSchema schema, Map<InetAddressAndPort, EndpointState> epStates)
@@ -351,18 +356,24 @@ public class GossipHelper
                                                                       directory,
                                                                       tokenMap,
                                                                       DataPlacements.empty(),
+                                                                      AccordFastPath.EMPTY,
                                                                       LockedRanges.EMPTY,
                                                                       InProgressSequences.EMPTY,
-                                                                      extensions);
+                                                                      ConsensusMigrationState.EMPTY,
+                                                                      extensions,
+                                                                      AccordStaleReplicas.EMPTY);
         return new ClusterMetadata(Epoch.UPGRADE_GOSSIP,
                                    partitioner,
                                    schema,
                                    directory,
                                    tokenMap,
                                    new UniformRangePlacement().calculatePlacements(Epoch.UPGRADE_GOSSIP, forPlacementCalculation, schema.getKeyspaces()),
+                                   AccordFastPath.EMPTY,
                                    LockedRanges.EMPTY,
                                    InProgressSequences.EMPTY,
-                                   extensions);
+                                   ConsensusMigrationState.EMPTY,
+                                   extensions,
+                                   AccordStaleReplicas.EMPTY);
     }
 
     public static boolean isValidForClusterMetadata(Map<InetAddressAndPort, EndpointState> epstates)

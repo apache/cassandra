@@ -424,7 +424,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
         return false;
     }
 
-    public AbstractType<?> freeze()
+    public AbstractType<T> freeze()
     {
         return this;
     }

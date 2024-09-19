@@ -19,13 +19,27 @@ package org.apache.cassandra.dht;
 
 import java.io.IOException;
 import java.io.Serializable;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
 import java.util.function.Predicate;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Iterators;
+import com.google.common.collect.PeekingIterator;
 import org.apache.commons.lang3.ObjectUtils;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.dht.Token.TokenFactory;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
@@ -33,6 +47,10 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.Pair;
+
+import static com.google.common.base.Preconditions.checkState;
+import static java.util.Collections.emptyList;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_RANGE_EXPENSIVE_CHECKS;
 
 /**
  * A representation of the range that a node is responsible for on the DHT ring.
@@ -47,6 +65,34 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
 {
     public static final Serializer serializer = new Serializer();
     public static final long serialVersionUID = 1L;
+
+    public static final boolean EXPENSIVE_CHECKS = TEST_RANGE_EXPENSIVE_CHECKS.getBoolean();
+
+    public static final IPartitionerDependentSerializer rangeSerializer = new RangeSerializer();
+
+    public static class RangeSerializer<T extends RingPosition<T>> implements IPartitionerDependentSerializer<Range<T>>
+    {
+        @Override
+        public void serialize(Range range, DataOutputPlus out, int version) throws IOException
+        {
+            Token.compactSerializer.serialize(range.left.getToken(), out, version);
+            Token.compactSerializer.serialize(range.right.getToken(), out, version);
+        }
+
+        @Override
+        public Range deserialize(DataInputPlus in, IPartitioner p, int version) throws IOException
+        {
+            return new Range(Token.compactSerializer.deserialize(in, p, version),
+                             Token.compactSerializer.deserialize(in, p, version));
+        }
+
+        @Override
+        public long serializedSize(Range range, int version)
+        {
+            return Token.compactSerializer.serializedSize(range.left.getToken(), version)
+                    + Token.compactSerializer.serializedSize(range.right.getToken(), version);
+        }
+    }
 
     public Range(T left, T right)
     {
@@ -349,6 +395,43 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
         return right.compareTo(rhs.right);
     }
 
+    /*
+     * Compares ranges by right token. Used for intersecting normalized ranges.
+     *
+     * Assumes no wrap around ranges except for RHS = minValue which is essentialy synonymous with the maximal value.
+     * This shows up coming out of unwrap because Range is not left inclusive so the only way to include minValue
+     * in the range is by wrapping from maxValue.
+     */
+    private int compareNormalized(Range<T> rhs)
+    {
+        // otherwise compare by right.
+        int cmp = right.compareTo(rhs.right);
+        // minValue on the RHS is maxValue, but doesn't work with compare so check for it explicitly
+        boolean rhsRMin = rhs.right.isMinimum();
+        boolean lhsRMin = right.isMinimum();
+
+        if (rhsRMin && lhsRMin)
+            return 0;
+
+        if (cmp < 0)
+        {
+            if (lhsRMin)
+            {
+                return 1;
+            }
+            return -1;
+        }
+        else if (cmp > 0)
+        {
+            if (rhsRMin)
+            {
+                return -1;
+            }
+            return 1;
+        }
+        return 0;
+    }
+
     /**
      * Subtracts a portion of this range.
      * @param contained The range to subtract from this. It must be totally
@@ -361,7 +444,7 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
         // both ranges cover the entire ring, their difference is an empty set
         if(isFull(left, right) && isFull(contained.left, contained.right))
         {
-            return Collections.emptyList();
+            return emptyList();
         }
 
         // a range is subtracted from another range that covers the entire ring
@@ -470,6 +553,190 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
             }
         }
         return false;
+    }
+
+    private static final Comparator NORMALIZED_TOKEN_RANGE_COMPARATOR = (o1, o2) -> {
+        Range range = (Range)o1;
+        RingPosition key = (RingPosition) o2;
+        boolean rangeRightIsMin = range.right.isMinimum();
+        boolean keyIsMinimum = key.isMinimum();
+
+        if (keyIsMinimum & rangeRightIsMin)
+            return 0;
+
+        int lc = key.compareTo(range.left);
+        int rc = key.compareTo(range.right);
+        if ((lc < 0 & !keyIsMinimum) | lc == 0) return 1;
+        if (rc > 0 & !rangeRightIsMin) return -1;
+        return 0;
+    };
+
+    public static <T extends RingPosition<T>> boolean isInNormalizedRanges(T token, List<Range<T>> ranges)
+    {
+        if (ranges.size() == 1 && ranges.get(0).isFull())
+            return true;
+        boolean isIn = Collections.binarySearch((List)ranges, token, NORMALIZED_TOKEN_RANGE_COMPARATOR) >= 0;
+        if (EXPENSIVE_CHECKS)
+            checkState(isInRanges(token, ranges) == isIn);
+        return isIn;
+    }
+
+    public static <T extends RingPosition<T>> List<Range<T>> subtractNormalizedRanges(List<Range<T>> a, List<Range<T>> b)
+    {
+        if (b.size() == 1 && b.get(0).isFull())
+            return emptyList();
+
+        if (a.size() == 1 && a.get(0).isFull())
+            return invertNormalizedRanges(b);
+
+        List<Range<T>> remaining = new ArrayList<>();
+        Iterator<Range<T>> aIter = a.iterator();
+        Iterator<Range<T>> bIter = b.iterator();
+        Range<T> aRange = aIter.hasNext() ? aIter.next() : null;
+        Range<T> bRange = bIter.hasNext() ? bIter.next() : null;
+        while (aRange != null && bRange != null)
+        {
+            boolean aRMin = aRange.right.isMinimum();
+            boolean bRMin = bRange.right.isMinimum();
+
+            if (aRMin && bRMin)
+            {
+                if (aRange.left.compareTo(bRange.left) < 0)
+                    remaining.add(new Range<>(aRange.left, bRange.left));
+                checkState(!aIter.hasNext() && !bIter.hasNext());
+                aRange = null;
+                break;
+            }
+
+            if (!aRMin && aRange.right.compareTo(bRange.left) <= 0)
+            {
+                remaining.add(aRange);
+                aRange = aIter.hasNext() ? aIter.next() : null;
+            }
+            else if (!bRMin && aRange.left.compareTo(bRange.right) >= 0)
+            {
+                bRange = bIter.hasNext() ? bIter.next() :  null;
+            }
+            else
+            {
+                // Handle what remains to the left of the intersection
+                if (aRange.left.compareTo(bRange.left) < 0)
+                {
+                    remaining.add(new Range(aRange.left, bRange.left));
+                }
+
+                // Handle what remains to the right of the intersection
+                if (!aRMin && (aRange.right.compareTo(bRange.right) <= 0 | bRMin))
+                    aRange = aIter.hasNext() ? aIter.next() : null;
+                else
+                    aRange = new Range(bRange.right, aRange.right);
+            }
+        }
+
+        while (aRange != null)
+        {
+            remaining.add(aRange);
+            aRange = aIter.hasNext() ? aIter.next() : null;
+        }
+
+        List<Range<T>> result = ImmutableList.copyOf(normalize(remaining));
+        if (EXPENSIVE_CHECKS)
+            checkState(result.equals(normalize(subtract(a, b))));
+        return result;
+    }
+
+    private boolean isFull()
+    {
+        return isFull(left, right);
+    }
+
+    @VisibleForTesting
+    static <T extends RingPosition<T>> List<Range<T>> invertNormalizedRanges(List<Range<T>> ranges)
+    {
+        if (ranges.isEmpty())
+            return ranges;
+
+        List<Range<T>> result = new ArrayList<>(ranges.size() + 2);
+        T minValue = ranges.get(0).left.minValue();
+        T left = minValue;
+        for (Range<T> r : ranges)
+        {
+            if (!r.left.equals(left))
+            {
+                result.add(new Range<>(left, r.left));
+            }
+            left = r.right;
+        }
+
+        // Loop doesn't add the range to the right of the last one
+        Range<T> last = ranges.get(ranges.size() - 1);
+        if (!last.right.isMinimum())
+            result.add(new Range<>(last.right, minValue));
+
+        result = normalize(result);
+        if (EXPENSIVE_CHECKS)
+            checkState(result.equals(normalize(subtract(ImmutableList.of(new Range<>(minValue, minValue)), ranges))));
+        return result;
+    }
+
+    public static <T extends RingPosition<T>> List<Range<T>> intersectionOfNormalizedRanges(List<Range<T>> a, List<Range<T>> b)
+    {
+        if (a.size() == 1 && a.get(0).isFull())
+            return b;
+        if (b.size() == 1 && b.get(0).isFull())
+            return a;
+
+        List<Range<T>> merged = new ArrayList<>();
+        PeekingIterator<Range<T>> aIter = Iterators.peekingIterator(a.iterator());
+        PeekingIterator<Range<T>> bIter = Iterators.peekingIterator(b.iterator());
+        while (aIter.hasNext() && bIter.hasNext())
+        {
+            Range<T> aRange = aIter.peek();
+            Range<T> bRange = bIter.peek();
+
+            int cmp = aRange.compareNormalized(bRange);
+            if (aRange.intersects(bRange))
+            {
+                merged.addAll(aRange.intersectionWith(bRange));
+                if (cmp == 0)
+                {
+                    aIter.next();
+                    bIter.next();
+                }
+                else if(cmp < 0)
+                {
+                    aIter.next();
+                }
+                else
+                {
+                    bIter.next();
+                }
+            }
+            else
+            {
+                if (cmp <= 0)
+                    aIter.next();
+                if (cmp >= 0)
+                    bIter.next();
+            }
+        }
+
+        List<Range<T>> result = ImmutableList.copyOf(normalize(merged));
+
+        if (EXPENSIVE_CHECKS)
+        {
+            List<Range<T>> expensiveResult = new ArrayList<>();
+            for (Range<T> r1 : a)
+            {
+                for (Range<T> r2 : b)
+                {
+                    expensiveResult.addAll(r1.intersectionWith(r2));
+                }
+            }
+            checkState(result.equals(normalize(expensiveResult)));
+        }
+
+        return result;
     }
 
     @Override
@@ -668,6 +935,26 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
                 currentRange = normalizedRangesIterator.next();
             }
         }
+    }
+
+    public static <T extends RingPosition<T>> boolean equals(Collection<Range<T>> a, Collection<Range<T>> b)
+    {
+        return normalize(a).equals(normalize(b));
+    }
+
+    // Helper to convert a range string to POJO so you can copy toString from a debugger
+    public static Range<Token> fromString(String value)
+    {
+        return fromString(value, DatabaseDescriptor.getPartitioner());
+    }
+
+    public static Range<Token> fromString(String value, IPartitioner partitioner)
+    {
+        TokenFactory tokenFactory = partitioner.getTokenFactory();
+        String[] parts = value.split(",");
+        Token left = tokenFactory.fromString(parts[0].substring(1));
+        Token right = tokenFactory.fromString(parts[1].substring(0, parts[1].length() -1));
+        return new Range<>(left, right);
     }
 
     public static <T extends RingPosition<T>> void assertNormalized(List<Range<T>> ranges)

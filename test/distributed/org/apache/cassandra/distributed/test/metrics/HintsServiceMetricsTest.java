@@ -142,6 +142,7 @@ public class HintsServiceMetricsTest extends TestBaseImpl
                 assertThat(countHintsSucceeded(node)).isEqualTo(0);
                 assertThat(countHintsFailed(node)).isEqualTo(0);
                 assertThat(countHintsTimedOut(node)).isEqualTo(0);
+                assertThat(countHintsRetryDifferentSystem(node)).isEqualTo(0);
                 assertThat(countGlobalDelays(node)).isEqualTo(0);
                 cluster.forEach(target -> assertThat(countEndpointDelays(node, target)).isEqualTo(0));
             }
@@ -178,6 +179,12 @@ public class HintsServiceMetricsTest extends TestBaseImpl
     private static Long countHintsTimedOut(IInvokableInstance node)
     {
         return node.callOnInstance(() -> HintsServiceMetrics.hintsTimedOut.getCount());
+    }
+
+    @SuppressWarnings("Convert2MethodRef")
+    private static Long countHintsRetryDifferentSystem(IInvokableInstance node)
+    {
+        return node.callOnInstance(() -> HintsServiceMetrics.hintsRetryDifferentSystem.getCount());
     }
 
     private static Long countGlobalDelays(IInvokableInstance node)

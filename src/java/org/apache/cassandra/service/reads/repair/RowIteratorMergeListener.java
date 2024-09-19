@@ -390,7 +390,7 @@ public class RowIteratorMergeListener<E extends Endpoints<E>>
             else if (repairs[i] != null)
                 update = repairs[i].build();
 
-            Mutation mutation = BlockingReadRepairs.createRepairMutation(update, readPlan.consistencyLevel(), replica.endpoint(), false);
+            Mutation mutation = BlockingReadRepairs.createRepairMutation(update, readPlan.consistencyLevel(), replica.endpoint(), false, readRepair.coordinatorAllowsPotentialTransactionConflicts());
             if (mutation == null)
                 continue;
 

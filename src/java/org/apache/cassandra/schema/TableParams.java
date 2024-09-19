@@ -32,6 +32,9 @@ import org.apache.cassandra.cql3.CqlBuilder;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.service.accord.fastpath.FastPathStrategy;
+import org.apache.cassandra.service.consensus.TransactionalMode;
+import org.apache.cassandra.service.consensus.migration.TransactionalMigrationFromMode;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.service.reads.PercentileSpeculativeRetryPolicy;
@@ -68,7 +71,10 @@ public final class TableParams
         ADDITIONAL_WRITE_POLICY,
         CRC_CHECK_CHANCE,
         CDC,
-        READ_REPAIR;
+        READ_REPAIR,
+        FAST_PATH,
+        TRANSACTIONAL_MODE,
+        TRANSACTIONAL_MIGRATION_FROM;
 
         @Override
         public String toString()
@@ -96,6 +102,9 @@ public final class TableParams
     public final ImmutableMap<String, ByteBuffer> extensions;
     public final boolean cdc;
     public final ReadRepairStrategy readRepair;
+    public final FastPathStrategy fastPath;
+    public final TransactionalMode transactionalMode;
+    public final TransactionalMigrationFromMode transactionalMigrationFrom;
 
     private TableParams(Builder builder)
     {
@@ -120,6 +129,9 @@ public final class TableParams
         extensions = builder.extensions;
         cdc = builder.cdc;
         readRepair = builder.readRepair;
+        fastPath = builder.fastPath;
+        transactionalMode = builder.transactionalMode != null ? builder.transactionalMode : TransactionalMode.off;
+        transactionalMigrationFrom = builder.transactionalMigrationFrom;
     }
 
     public static Builder builder()
@@ -147,7 +159,10 @@ public final class TableParams
                             .additionalWritePolicy(params.additionalWritePolicy)
                             .extensions(params.extensions)
                             .cdc(params.cdc)
-                            .readRepair(params.readRepair);
+                            .readRepair(params.readRepair)
+                            .fastPath(params.fastPath)
+                            .transactionalMode(params.transactionalMode)
+                            .transactionalMigrationFrom(params.transactionalMigrationFrom);
     }
 
     public Builder unbuild()
@@ -238,7 +253,10 @@ public final class TableParams
             && memtable.equals(p.memtable)
             && extensions.equals(p.extensions)
             && cdc == p.cdc
-            && readRepair == p.readRepair;
+            && readRepair == p.readRepair
+            && fastPath.equals(fastPath)
+            && transactionalMode == p.transactionalMode
+            && transactionalMigrationFrom == p.transactionalMigrationFrom;
     }
 
     @Override
@@ -262,7 +280,10 @@ public final class TableParams
                                 memtable,
                                 extensions,
                                 cdc,
-                                readRepair);
+                                readRepair,
+                                fastPath,
+                                transactionalMode,
+                                transactionalMigrationFrom);
     }
 
     @Override
@@ -274,6 +295,7 @@ public final class TableParams
                           .add(ALLOW_AUTO_SNAPSHOT.toString(), allowAutoSnapshot)
                           .add(BLOOM_FILTER_FP_CHANCE.toString(), bloomFilterFpChance)
                           .add(CRC_CHECK_CHANCE.toString(), crcCheckChance)
+                          .add(FAST_PATH.toString(), fastPath)
                           .add(GC_GRACE_SECONDS.toString(), gcGraceSeconds)
                           .add(DEFAULT_TIME_TO_LIVE.toString(), defaultTimeToLive)
                           .add(INCREMENTAL_BACKUPS.toString(), incrementalBackups)
@@ -288,6 +310,9 @@ public final class TableParams
                           .add(EXTENSIONS.toString(), extensions)
                           .add(CDC.toString(), cdc)
                           .add(READ_REPAIR.toString(), readRepair)
+                          .add(Option.FAST_PATH.toString(), fastPath)
+                          .add(Option.TRANSACTIONAL_MODE.toString(), transactionalMode)
+                          .add(Option.TRANSACTIONAL_MIGRATION_FROM.toString(), transactionalMigrationFrom)
                           .toString();
     }
 
@@ -317,8 +342,8 @@ public final class TableParams
 
         if (!isView)
         {
-            builder.append("AND default_time_to_live = ").append(defaultTimeToLive)
-                   .newLine();
+            builder.append("AND fast_path = ").append(fastPath.asCQL()).newLine();
+            builder.append("AND default_time_to_live = ").append(defaultTimeToLive).newLine();
         }
 
         builder.append("AND extensions = ").append(extensions.entrySet()
@@ -338,8 +363,17 @@ public final class TableParams
                .append("AND min_index_interval = ").append(minIndexInterval)
                .newLine()
                .append("AND read_repair = ").appendWithSingleQuotes(readRepair.toString())
-               .newLine()
-               .append("AND speculative_retry = ").appendWithSingleQuotes(speculativeRetry.toString());
+               .newLine();
+
+        if (!isView)
+        {
+               builder.append("AND transactional_mode = ").appendWithSingleQuotes(transactionalMode.toString())
+                      .newLine()
+                      .append("AND transactional_migration_from = ").appendWithSingleQuotes(transactionalMigrationFrom.toString())
+                      .newLine();
+        }
+
+        builder.append("AND speculative_retry = ").appendWithSingleQuotes(speculativeRetry.toString());
     }
 
     public static final class Builder
@@ -363,6 +397,9 @@ public final class TableParams
         private ImmutableMap<String, ByteBuffer> extensions = ImmutableMap.of();
         private boolean cdc;
         private ReadRepairStrategy readRepair = ReadRepairStrategy.BLOCKING;
+        private FastPathStrategy fastPath = FastPathStrategy.inheritKeyspace();
+        private TransactionalMode transactionalMode = TransactionalMode.off;
+        public TransactionalMigrationFromMode transactionalMigrationFrom = TransactionalMigrationFromMode.none;
 
         public Builder()
         {
@@ -481,6 +518,24 @@ public final class TableParams
             return this;
         }
 
+        public Builder fastPath(FastPathStrategy val)
+        {
+            fastPath = val;
+            return this;
+        }
+
+        public Builder transactionalMode(TransactionalMode val)
+        {
+            transactionalMode = val;
+            return this;
+        }
+
+        public Builder transactionalMigrationFrom(TransactionalMigrationFromMode val)
+        {
+            transactionalMigrationFrom = val;
+            return this;
+        }
+
         public Builder extensions(Map<String, ByteBuffer> val)
         {
             extensions = ImmutableMap.copyOf(val);
@@ -503,13 +558,18 @@ public final class TableParams
             out.writeUTF(t.speculativeRetry.toString());
             out.writeUTF(t.additionalWritePolicy.toString());
             if (version.isAtLeast(Version.V2))
+            {
                 out.writeUTF(t.memtable.configurationKey());
+                FastPathStrategy.serializer.serialize(t.fastPath, out, version);
+            }
             serializeMap(t.caching.asMap(), out);
             serializeMap(t.compaction.asMap(), out);
             serializeMap(t.compression.asMap(), out);
             serializeMapBB(t.extensions, out);
             out.writeBoolean(t.cdc);
             out.writeUTF(t.readRepair.name());
+            out.writeInt(t.transactionalMode.ordinal());
+            out.writeInt(t.transactionalMigrationFrom.ordinal());
         }
 
         public TableParams deserialize(DataInputPlus in, Version version) throws IOException
@@ -526,12 +586,15 @@ public final class TableParams
                    .speculativeRetry(SpeculativeRetryPolicy.fromString(in.readUTF()))
                    .additionalWritePolicy(SpeculativeRetryPolicy.fromString(in.readUTF()))
                    .memtable(version.isAtLeast(Version.V2) ? MemtableParams.get(in.readUTF()) : MemtableParams.DEFAULT)
+                   .fastPath(version.isAtLeast(Version.V2) ? FastPathStrategy.serializer.deserialize(in, version) : FastPathStrategy.simple())
                    .caching(CachingParams.fromMap(deserializeMap(in)))
                    .compaction(CompactionParams.fromMap(deserializeMap(in)))
                    .compression(CompressionParams.fromMap(deserializeMap(in)))
                    .extensions(deserializeMapBB(in))
                    .cdc(in.readBoolean())
-                   .readRepair(ReadRepairStrategy.fromString(in.readUTF()));
+                   .readRepair(ReadRepairStrategy.fromString(in.readUTF()))
+                   .transactionalMode(TransactionalMode.fromOrdinal(in.readInt()))
+                   .transactionalMigrationFrom(TransactionalMigrationFromMode.fromOrdinal(in.readInt()));
             return builder.build();
         }
 
@@ -548,12 +611,15 @@ public final class TableParams
                    sizeof(t.speculativeRetry.toString()) +
                    sizeof(t.additionalWritePolicy.toString()) +
                    (version.isAtLeast(Version.V2) ? sizeof(t.memtable.configurationKey()) : 0) +
+                   (version.isAtLeast(Version.V2) ? FastPathStrategy.serializer.serializedSize(t.fastPath, version) : 0) +
                    serializedSizeMap(t.caching.asMap()) +
                    serializedSizeMap(t.compaction.asMap()) +
                    serializedSizeMap(t.compression.asMap()) +
                    serializedSizeMapBB(t.extensions) +
                    sizeof(t.cdc) +
-                   sizeof(t.readRepair.name());
+                   sizeof(t.readRepair.name()) +
+                   sizeof(t.transactionalMode.ordinal()) +
+                   sizeof(t.transactionalMigrationFrom.ordinal());
         }
 
         private void serializeMap(Map<String, String> map, DataOutputPlus out) throws IOException

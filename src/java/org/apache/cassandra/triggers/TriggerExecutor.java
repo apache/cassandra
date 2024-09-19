@@ -24,8 +24,8 @@ import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
 import com.google.common.collect.ListMultimap;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 
 import org.slf4j.Logger;
@@ -34,7 +34,10 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.CounterMutation;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.IMutation;
+import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.exceptions.CassandraException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -120,7 +123,7 @@ public class TriggerExecutor
      * @throws InvalidRequestException if additional mutations were generated, but
      * the initial mutations contains counter updates
      */
-    public Collection<Mutation> execute(Collection<? extends IMutation> mutations) throws InvalidRequestException
+    public List<Mutation> execute(Collection<? extends IMutation> mutations) throws InvalidRequestException
     {
         boolean hasCounters = false;
         List<Mutation> augmentedMutations = null;
@@ -156,7 +159,7 @@ public class TriggerExecutor
         return mergeMutations(Iterables.concat(originalMutations, augmentedMutations));
     }
 
-    private Collection<Mutation> mergeMutations(Iterable<Mutation> mutations)
+    private List<Mutation> mergeMutations(Iterable<Mutation> mutations)
     {
         ListMultimap<Pair<String, ByteBuffer>, Mutation> groupedMutations = ArrayListMultimap.create();
 

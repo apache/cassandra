@@ -118,7 +118,7 @@ public class SerializationsTest extends AbstractSerializationsTester
 
     private void testBloomFilterTable(String file, boolean oldBfFormat) throws Exception
     {
-        Murmur3Partitioner partitioner = new Murmur3Partitioner();
+        Murmur3Partitioner partitioner = Murmur3Partitioner.instance;
 
         try (FileInputStreamPlus in = new File(file).newInputStream();
              IFilter filter = BloomFilterSerializer.forVersion(oldBfFormat).deserialize(in))

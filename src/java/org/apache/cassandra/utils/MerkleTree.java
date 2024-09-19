@@ -749,7 +749,7 @@ public class MerkleTree
         int size = offHeapBufferSize(innerNodeCount, partitioner);
         logger.debug("Allocating direct buffer of size {} for an off-heap merkle tree", size);
         ByteBuffer buffer = ByteBuffer.allocateDirect(size);
-        if (Ref.DEBUG_ENABLED)
+        if (Ref.TRACE_ENABLED)
             MemoryUtil.setAttachment(buffer, new Ref.DirectBufferRef<>(null, null));
         return buffer;
     }

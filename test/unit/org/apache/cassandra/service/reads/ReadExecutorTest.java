@@ -21,10 +21,6 @@ package org.apache.cassandra.service.reads;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.lang3.exception.ExceptionUtils;
-
-import org.apache.cassandra.dht.Murmur3Partitioner;
-import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.locator.ReplicaPlan;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -35,17 +31,21 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
+import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ReadFailureException;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.transport.Dispatcher;
+import org.apache.cassandra.tcm.Epoch;
 
 import static java.util.concurrent.TimeUnit.DAYS;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
@@ -96,7 +96,7 @@ public class ReadExecutorTest
     {
         assertEquals(0, cfs.metric.speculativeInsufficientReplicas.getCount());
         assertEquals(0, ks.metric.speculativeInsufficientReplicas.getCount());
-        AbstractReadExecutor executor = new AbstractReadExecutor.NeverSpeculatingReadExecutor(cfs, new MockSinglePartitionReadCommand(), plan(targets, LOCAL_QUORUM), Dispatcher.RequestTime.forImmediateExecution(), true);
+        AbstractReadExecutor executor = new AbstractReadExecutor.NeverSpeculatingReadExecutor(ReadCoordinator.DEFAULT, cfs, new MockSinglePartitionReadCommand(), plan(targets, LOCAL_QUORUM), Dispatcher.RequestTime.forImmediateExecution(), true);
         executor.maybeTryAdditionalReplicas();
         try
         {
@@ -111,7 +111,7 @@ public class ReadExecutorTest
         assertEquals(1, ks.metric.speculativeInsufficientReplicas.getCount());
 
         //Shouldn't increment
-        executor = new AbstractReadExecutor.NeverSpeculatingReadExecutor(cfs, new MockSinglePartitionReadCommand(), plan(targets, LOCAL_QUORUM), Dispatcher.RequestTime.forImmediateExecution(), false);
+        executor = new AbstractReadExecutor.NeverSpeculatingReadExecutor(ReadCoordinator.DEFAULT, cfs, new MockSinglePartitionReadCommand(), plan(targets, LOCAL_QUORUM), Dispatcher.RequestTime.forImmediateExecution(), false);
         executor.maybeTryAdditionalReplicas();
         try
         {
@@ -137,7 +137,7 @@ public class ReadExecutorTest
         assertEquals(0, cfs.metric.speculativeFailedRetries.getCount());
         assertEquals(0, ks.metric.speculativeRetries.getCount());
         assertEquals(0, ks.metric.speculativeFailedRetries.getCount());
-        AbstractReadExecutor executor = new AbstractReadExecutor.SpeculatingReadExecutor(cfs, new MockSinglePartitionReadCommand(DAYS.toMillis(365)), plan(LOCAL_QUORUM, targets, targets.subList(0, 2)), Dispatcher.RequestTime.forImmediateExecution());
+        AbstractReadExecutor executor = new AbstractReadExecutor.SpeculatingReadExecutor(ReadCoordinator.DEFAULT, cfs, new MockSinglePartitionReadCommand(DAYS.toMillis(365)), plan(LOCAL_QUORUM, targets, targets.subList(0, 2)), Dispatcher.RequestTime.forImmediateExecution());
         executor.maybeTryAdditionalReplicas();
         new Thread()
         {
@@ -145,8 +145,8 @@ public class ReadExecutorTest
             public void run()
             {
                 //Failures end the read promptly but don't require mock data to be suppleid
-                executor.handler.onFailure(targets.get(0).endpoint(), RequestFailureReason.READ_TOO_MANY_TOMBSTONES);
-                executor.handler.onFailure(targets.get(1).endpoint(), RequestFailureReason.READ_TOO_MANY_TOMBSTONES);
+                executor.handler.onFailure(targets.get(0).endpoint(), RequestFailure.READ_TOO_MANY_TOMBSTONES);
+                executor.handler.onFailure(targets.get(1).endpoint(), RequestFailure.READ_TOO_MANY_TOMBSTONES);
                 executor.handler.condition.signalAll();
             }
         }.start();
@@ -178,7 +178,7 @@ public class ReadExecutorTest
         assertEquals(0, cfs.metric.speculativeFailedRetries.getCount());
         assertEquals(0, ks.metric.speculativeRetries.getCount());
         assertEquals(0, ks.metric.speculativeFailedRetries.getCount());
-        AbstractReadExecutor executor = new AbstractReadExecutor.SpeculatingReadExecutor(cfs, new MockSinglePartitionReadCommand(), plan(LOCAL_QUORUM, targets, targets.subList(0, 2)), Dispatcher.RequestTime.forImmediateExecution());
+        AbstractReadExecutor executor = new AbstractReadExecutor.SpeculatingReadExecutor(ReadCoordinator.DEFAULT, cfs, new MockSinglePartitionReadCommand(), plan(LOCAL_QUORUM, targets, targets.subList(0, 2)), Dispatcher.RequestTime.forImmediateExecution());
         executor.maybeTryAdditionalReplicas();
         try
         {
@@ -204,7 +204,7 @@ public class ReadExecutorTest
     {
         MockSinglePartitionReadCommand command = new MockSinglePartitionReadCommand(TimeUnit.DAYS.toMillis(365));
         ReplicaPlan.ForTokenRead plan = plan(ConsistencyLevel.LOCAL_ONE, targets, targets.subList(0, 1));
-        AbstractReadExecutor executor = new AbstractReadExecutor.SpeculatingReadExecutor(cfs, command, plan, Dispatcher.RequestTime.forImmediateExecution());
+        AbstractReadExecutor executor = new AbstractReadExecutor.SpeculatingReadExecutor(ReadCoordinator.DEFAULT, cfs, command, plan, Dispatcher.RequestTime.forImmediateExecution());
 
         // Issue an initial request against the first endpoint...
         executor.executeAsync();
@@ -217,7 +217,7 @@ public class ReadExecutorTest
                    {
                        // Fail the first request. When this fails the number of contacts has already been increased
                        // to 2, so the failure won't actally signal. However...
-                       executor.handler.onFailure(targets.get(0).endpoint(), RequestFailureReason.READ_TOO_MANY_TOMBSTONES);
+                       executor.handler.onFailure(targets.get(0).endpoint(), RequestFailure.READ_TOO_MANY_TOMBSTONES);
 
                        // ...speculative retries are fired after a short wait, and it is possible for the failure to
                        // reach the handler just before one is fired and the number of contacts incremented...
@@ -250,7 +250,7 @@ public class ReadExecutorTest
 
         MockSinglePartitionReadCommand(long timeout)
         {
-            super(cfs.metadata().epoch, false, 0, false, cfs.metadata(), 0, null, null, null, Util.dk("ry@n_luvs_teh_y@nk33z"), null, null, false);
+            super(cfs.metadata().epoch, false, 0, false, false, cfs.metadata(), 0, null, null, null, Util.dk("ry@n_luvs_teh_y@nk33z"), null, null, false);
             this.timeout = timeout;
         }
 

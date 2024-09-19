@@ -28,9 +28,13 @@ import org.apache.cassandra.schema.DistributedMetadataLogKeyspace;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Keyspaces;
+import org.apache.cassandra.service.accord.AccordFastPath;
+import org.apache.cassandra.service.accord.AccordStaleReplicas;
+import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
 import org.apache.cassandra.tcm.Commit.Replicator;
 import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LocalLog;
+import org.apache.cassandra.tcm.log.LogState;
 import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.ownership.PlacementProvider;
@@ -145,6 +149,11 @@ public class StubClusterMetadataService extends ClusterMetadataService
         {
             throw new UnsupportedOperationException();
         }
+
+        public LogState reconstruct(Epoch lowEpoch, Epoch highEpoch, Retry.Deadline retryPolicy)
+        {
+            throw new UnsupportedOperationException();
+        }
     }
 
 
@@ -173,9 +182,12 @@ public class StubClusterMetadataService extends ClusterMetadataService
                                               Directory.EMPTY,
                                               new TokenMap(partitioner),
                                               DataPlacements.EMPTY,
+                                              AccordFastPath.EMPTY,
                                               LockedRanges.EMPTY,
                                               InProgressSequences.EMPTY,
-                                              ImmutableMap.of());
+                                              ConsensusMigrationState.EMPTY,
+                                              ImmutableMap.of(),
+                                              AccordStaleReplicas.EMPTY);
             return new StubClusterMetadataService(new UniformRangePlacement(),
                                                   snapshots != null ? snapshots : MetadataSnapshots.NO_OP,
                                                   LocalLog.logSpec().withInitialState(initial).createLog(),

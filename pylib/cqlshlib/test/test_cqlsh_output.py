@@ -690,6 +690,7 @@ class TestCqlshOutput(BaseTestCase):
                 AND compression = {'chunk_length_in_kb': '16', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}
                 AND memtable = 'default'
                 AND crc_check_chance = 1.0
+                AND fast_path = 'keyspace'
                 AND default_time_to_live = 0
                 AND extensions = {}
                 AND gc_grace_seconds = 864000
@@ -698,6 +699,8 @@ class TestCqlshOutput(BaseTestCase):
                 AND memtable_flush_period_in_ms = 0
                 AND min_index_interval = 128
                 AND read_repair = 'BLOCKING'
+                AND transactional_mode = 'off'
+                AND transactional_migration_from = 'none'
                 AND speculative_retry = '99p';""" % quote_name(get_keyspace()))
 
         with cqlsh_testrun(tty=True, env=self.default_env) as c:
@@ -791,7 +794,7 @@ class TestCqlshOutput(BaseTestCase):
                 self.assertNoHasColors(output)
                 # Since CASSANDRA-7622 'DESC FULL SCHEMA' also shows all VIRTUAL keyspaces
                 self.assertIn('VIRTUAL KEYSPACE system_virtual_schema', output)
-                self.assertIn("\nCREATE KEYSPACE system_auth WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}  AND durable_writes = true;\n",
+                self.assertIn("\nCREATE KEYSPACE system_auth WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}  AND durable_writes = true  AND fast_path = 'simple';\n",
                               output)
                 self.assertRegex(output, r'.*\s*$')
 

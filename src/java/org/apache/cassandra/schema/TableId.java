@@ -28,7 +28,15 @@ import javax.annotation.Nullable;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.commons.lang3.ArrayUtils;
 
+import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.db.marshal.ValueAccessor;
+import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.tcm.serialization.MetadataSerializer;
+import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.Pair;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -43,7 +51,8 @@ import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 public class TableId implements Comparable<TableId>
 {
     public static final long MAGIC = 1956074401491665062L;
-    // TODO: should this be a TimeUUID?
+    public static final long EMPTY_SIZE = ObjectSizes.measureDeep(new UUID(0, 0));
+
     private final UUID id;
 
     private TableId(UUID id)
@@ -163,7 +172,15 @@ public class TableId implements Comparable<TableId>
         out.writeLong(id.getLeastSignificantBits());
     }
 
-    public int serializedSize()
+    public <V> int serialize(V dst, ValueAccessor<V> accessor, int offset)
+    {
+        int position = offset;
+        position += accessor.putLong(dst, position, id.getMostSignificantBits());
+        position += accessor.putLong(dst, position, id.getLeastSignificantBits());
+        return position - offset;
+    }
+
+    public final int serializedSize()
     {
         return 16;
     }
@@ -173,9 +190,56 @@ public class TableId implements Comparable<TableId>
         return new TableId(new UUID(in.readLong(), in.readLong()));
     }
 
+    public static <V> TableId deserialize(V src, ValueAccessor<V> accessor, int offset) throws IOException
+    {
+        return new TableId(new UUID(accessor.getLong(src, offset), accessor.getLong(src, offset + TypeSizes.LONG_SIZE)));
+    }
+
     @Override
     public int compareTo(TableId o)
     {
         return id.compareTo(o.id);
     }
+
+    public static final IVersionedSerializer<TableId> serializer = new IVersionedSerializer<TableId>()
+    {
+        @Override
+        public void serialize(TableId t, DataOutputPlus out, int version) throws IOException
+        {
+            t.serialize(out);
+        }
+
+        @Override
+        public TableId deserialize(DataInputPlus in, int version) throws IOException
+        {
+            return TableId.deserialize(in);
+        }
+
+        @Override
+        public long serializedSize(TableId t, int version)
+        {
+            return t.serializedSize();
+        }
+    };
+
+    public static final MetadataSerializer<TableId> metadataSerializer = new MetadataSerializer<TableId>()
+    {
+        @Override
+        public void serialize(TableId t, DataOutputPlus out, Version version) throws IOException
+        {
+            t.serialize(out);
+        }
+
+        @Override
+        public TableId deserialize(DataInputPlus in, Version version) throws IOException
+        {
+            return TableId.deserialize(in);
+        }
+
+        @Override
+        public long serializedSize(TableId t, Version version)
+        {
+            return t.serializedSize();
+        }
+    };
 }

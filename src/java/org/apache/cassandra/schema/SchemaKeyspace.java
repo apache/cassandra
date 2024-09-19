@@ -27,7 +27,6 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.*;
-import com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,6 +43,7 @@ import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.service.accord.fastpath.FastPathStrategy;
 import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 import org.apache.cassandra.schema.ColumnMetadata.ClusteringOrder;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
@@ -95,6 +95,7 @@ public final class SchemaKeyspace
               + "keyspace_name text,"
               + "durable_writes boolean,"
               + "replication frozen<map<text, text>>,"
+              + "fast_path frozen<map<text, text>>,"
               + "PRIMARY KEY ((keyspace_name)))");
 
     private static final TableMetadata Tables =
@@ -126,6 +127,7 @@ public final class SchemaKeyspace
               + "additional_write_policy text,"
               + "cdc boolean,"
               + "read_repair text,"
+              + "fast_path frozen<map<text, text>>,"
               + "PRIMARY KEY ((keyspace_name), table_name))");
 
     private static final TableMetadata Columns =
@@ -341,7 +343,7 @@ public final class SchemaKeyspace
         for (String schemaTable : ALL)
         {
             String query = String.format("DELETE FROM %s.%s USING TIMESTAMP ? WHERE keyspace_name = ?", SchemaConstants.SCHEMA_KEYSPACE_NAME, schemaTable);
-            for (String systemKeyspace : SchemaConstants.LOCAL_SYSTEM_KEYSPACE_NAMES)
+            for (String systemKeyspace : Schema.instance.localKeyspaces().names())
                 executeOnceInternal(query, timestamp, systemKeyspace);
         }
 
@@ -461,7 +463,8 @@ public final class SchemaKeyspace
                .row()
                .add(KeyspaceParams.Option.DURABLE_WRITES.toString(), params.durableWrites)
                .add(KeyspaceParams.Option.REPLICATION.toString(),
-                    (params.replication.isMeta() ? params.replication.asNonMeta() : params.replication).asMap());
+                    (params.replication.isMeta() ? params.replication.asNonMeta() : params.replication).asMap())
+               .add(KeyspaceParams.Option.FAST_PATH.toString(), params.fastPath.asMap());
 
         return builder;
     }
@@ -521,7 +524,7 @@ public final class SchemaKeyspace
                                               .add("id", table.id.asUUID())
                                               .add("flags", TableMetadata.Flag.toStringSet(table.flags));
 
-        addTableParamsToRowBuilder(table.params, rowBuilder);
+        addTableParamsToRowBuilder(table.params, rowBuilder, false);
 
         if (withColumnsAndTriggers)
         {
@@ -539,7 +542,7 @@ public final class SchemaKeyspace
         }
     }
 
-    private static void addTableParamsToRowBuilder(TableParams params, Row.SimpleBuilder builder)
+    private static void addTableParamsToRowBuilder(TableParams params, Row.SimpleBuilder builder, boolean forView)
     {
         builder.add("bloom_filter_fp_chance", params.bloomFilterFpChance)
                .add("comment", params.comment)
@@ -578,6 +581,9 @@ public final class SchemaKeyspace
         // incremental_backups is enabled, to avoid RTE in pre-4.2 versioned node during upgrades
         if (!params.incrementalBackups)
             builder.add("incremental_backups", false);
+
+        if (DatabaseDescriptor.getAccordTransactionsEnabled() && !forView)
+            builder.add("fast_path", params.fastPath.asMap());
     }
 
     private static void addAlterTableToSchemaMutation(TableMetadata oldTable, TableMetadata newTable, Mutation.SimpleBuilder builder)
@@ -790,7 +796,7 @@ public final class SchemaKeyspace
                                               .add("where_clause", view.whereClause.toCQLString())
                                               .add("id", table.id.asUUID());
 
-        addTableParamsToRowBuilder(table.params, rowBuilder);
+        addTableParamsToRowBuilder(table.params, rowBuilder, true);
 
         if (includeColumns)
         {
@@ -936,9 +942,11 @@ public final class SchemaKeyspace
         UntypedResultSet.Row row = query(query, keyspaceName).one();
         boolean durableWrites = row.getBoolean(KeyspaceParams.Option.DURABLE_WRITES.toString());
         Map<String, String> replication = row.getFrozenTextMap(KeyspaceParams.Option.REPLICATION.toString());
-        KeyspaceParams params = KeyspaceParams.create(durableWrites, replication);
+        Map<String, String> fastPath = row.getFrozenTextMap(KeyspaceParams.Option.FAST_PATH.toString());
+        KeyspaceParams params = KeyspaceParams.create(durableWrites, replication, fastPath);
+
         if (keyspaceName.equals(SchemaConstants.METADATA_KEYSPACE_NAME))
-            params = new KeyspaceParams(params.durableWrites, params.replication.asMeta());
+            params = new KeyspaceParams(params.durableWrites, params.replication.asMeta(), FastPathStrategy.simple());
 
         return params;
     }
@@ -1040,7 +1048,8 @@ public final class SchemaKeyspace
                                                                         SpeculativeRetryPolicy.fromString(row.getString("additional_write_policy")) :
                                                                         SpeculativeRetryPolicy.fromString("99PERCENTILE"))
                                                  .cdc(row.has("cdc") && row.getBoolean("cdc"))
-                                                 .readRepair(getReadRepairStrategy(row));
+                                                 .readRepair(getReadRepairStrategy(row))
+                                                 .fastPath(getFastPathStrategy(row));
 
         // allow_auto_snapshot column was introduced in 4.2
         if (row.has("allow_auto_snapshot"))
@@ -1417,5 +1426,12 @@ public final class SchemaKeyspace
         return row.has("read_repair")
                ? ReadRepairStrategy.fromString(row.getString("read_repair"))
                : ReadRepairStrategy.BLOCKING;
+    }
+
+    private static FastPathStrategy getFastPathStrategy(UntypedResultSet.Row row)
+    {
+        return row.has("fast_path")
+               ? FastPathStrategy.fromMap(row.getFrozenTextMap("fast_path"))
+               : FastPathStrategy.inheritKeyspace();
     }
 }

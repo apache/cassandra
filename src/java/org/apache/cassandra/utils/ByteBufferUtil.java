@@ -34,12 +34,29 @@ import java.nio.charset.CharacterCodingException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Date;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
+import net.nicoulaj.compilecommand.annotations.DontInline;
 import net.nicoulaj.compilecommand.annotations.Inline;
+
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.db.marshal.BooleanType;
+import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.marshal.ListType;
+import org.apache.cassandra.db.marshal.MapType;
+import org.apache.cassandra.db.marshal.SetType;
+import org.apache.cassandra.db.marshal.TimestampType;
+import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.FileUtils;
 
@@ -86,6 +103,8 @@ public class ByteBufferUtil
     public static final ByteBuffer EMPTY_BYTE_BUFFER = ByteBuffer.wrap(new byte[0]);
     /** Represents an unset value in bound variables */
     public static final ByteBuffer UNSET_BYTE_BUFFER = ByteBuffer.wrap(new byte[]{});
+
+    public static final long EMPTY_SIZE_ON_HEAP = ObjectSizes.measureDeep(ByteBufferUtil.EMPTY_BYTE_BUFFER);
 
     public static final ByteBuffer[] EMPTY_ARRAY = new ByteBuffer[0];
 
@@ -354,6 +373,17 @@ public class ByteBufferUtil
         out.writeUnsignedVInt32(bytes.remaining());
         out.write(bytes);
     }
+    public static void writeWithVIntLengthAndNull(ByteBuffer bytes, DataOutputPlus out) throws IOException
+    {
+        if (bytes == null)
+        {
+            out.writeVInt32(-1);
+            return;
+        }
+        
+        out.writeVInt32(bytes.remaining());
+        out.write(bytes);
+    }
 
     public static void writeWithShortLength(ByteBuffer buffer, DataOutputPlus out) throws IOException
     {
@@ -384,16 +414,15 @@ public class ByteBufferUtil
         return ByteBufferUtil.read(in, length);
     }
 
-    public static int serializedSizeWithLength(ByteBuffer buffer)
-    {
-        int size = buffer.remaining();
-        return TypeSizes.sizeof(size) + size;
-    }
-
     public static int serializedSizeWithVIntLength(ByteBuffer buffer)
     {
         int size = buffer.remaining();
         return TypeSizes.sizeofUnsignedVInt(size) + size;
+    }
+
+    public static long estimatedSizeOnHeap(ByteBuffer buffer)
+    {
+        return EMPTY_SIZE_ON_HEAP + buffer.remaining();
     }
 
     public static void skipWithVIntLength(DataInputPlus in) throws IOException
@@ -534,6 +563,8 @@ public class ByteBufferUtil
             return ByteBufferUtil.bytes((float) obj);
         else if (obj instanceof Double)
             return ByteBufferUtil.bytes((double) obj);
+        else if (obj instanceof Boolean)
+            return BooleanType.instance.decompose((Boolean) obj);
         else if (obj instanceof UUID)
             return ByteBufferUtil.bytes((UUID) obj);
         else if (obj instanceof InetAddress)
@@ -544,6 +575,42 @@ public class ByteBufferUtil
             return ByteBuffer.wrap((byte[]) obj);
         else if (obj instanceof ByteBuffer)
             return (ByteBuffer) obj;
+        else if (obj instanceof List)
+        {
+            List<?> list = (List<?>) obj;
+            // convert subtypes to BB
+            List<ByteBuffer> bbs = list.stream().map(ByteBufferUtil::objectToBytes).collect(Collectors.toList());
+            // decompose/serializer doesn't use the isMultiCell, so safe to do this
+            return ListType.getInstance(BytesType.instance, false).decompose(bbs);
+        }
+        else if (obj instanceof Map)
+        {
+            Map<?, ?> map = (Map<?, ?>) obj;
+            // convert subtypes to BB
+            Map<ByteBuffer, ByteBuffer> bbs = new LinkedHashMap<>();
+            for (Map.Entry<?, ?> e : map.entrySet())
+            {
+                Object key = e.getKey();
+                ByteBuffer previousValue = bbs.put(objectToBytes(key), objectToBytes(e.getValue()));
+                if (previousValue != null)
+                    throw new IllegalStateException("Key " + key + " already maps to value " + previousValue);
+            }
+            // decompose/serializer doesn't use the isMultiCell, so safe to do this
+            return MapType.getInstance(BytesType.instance, BytesType.instance, false).decompose(bbs);
+        }
+        else if (obj instanceof Set)
+        {
+            Set<?> set = (Set<?>) obj;
+            // convert subtypes to BB
+            Set<ByteBuffer> bbs = new LinkedHashSet<>();
+            for (Object o : set)
+                if (!bbs.add(objectToBytes(o)))
+                    throw new IllegalStateException("Object " + o + " maps to a buffer that already exists in the set");
+            // decompose/serializer doesn't use the isMultiCell, so safe to do this
+            return SetType.getInstance(BytesType.instance, false).decompose(bbs);
+        }
+        else if (obj instanceof Date)
+            return TimestampType.instance.decompose((Date) obj);
         else
             throw new IllegalArgumentException(String.format("Cannot convert value %s of type %s",
                                                              obj,
@@ -917,4 +984,138 @@ public class ByteBufferUtil
             position += read;
         }
     }
+
+    public static <T> ByteBuffer serialized(IVersionedSerializer<T> serializer, T value, int version)
+    {
+        try (DataOutputBuffer dob = new DataOutputBuffer())
+        {
+            serializer.serialize(value, dob, version);
+            return dob.buffer();
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static void writeLeastSignificantBytes(long register, int bytes, ByteBuffer out)
+    {
+        writeMostSignificantBytes(register << ((8 - bytes)*8), bytes, out);
+    }
+
+    public static void writeMostSignificantBytes(long register, int bytes, ByteBuffer out)
+    {
+        int position = out.position();
+        int limit = out.limit();
+        if (limit - position < Long.BYTES)
+        {
+            writeMostSignificantBytesSlow(register, bytes, out);
+        }
+        else
+        {
+            out.putLong(position, register);
+            out.position(position + bytes);
+        }
+    }
+
+    @DontInline
+    private static void writeMostSignificantBytesSlow(long register, int bytes, ByteBuffer out)
+    {
+        switch (bytes)
+        {
+            case 0:
+                break;
+            case 1:
+                out.put((byte)(register >>> 56));
+                break;
+            case 2:
+                out.putShort((short)(register >> 48));
+                break;
+            case 3:
+                out.putShort((short)(register >> 48));
+                out.put((byte)(register >> 40));
+                break;
+            case 4:
+                out.putInt((int)(register >> 32));
+                break;
+            case 5:
+                out.putInt((int)(register >> 32));
+                out.put((byte)(register >> 24));
+                break;
+            case 6:
+                out.putInt((int)(register >> 32));
+                out.putShort((short)(register >> 16));
+                break;
+            case 7:
+                out.putInt((int)(register >> 32));
+                out.putShort((short)(register >> 16));
+                out.put((byte)(register >> 8));
+                break;
+            case 8:
+                out.putLong(register);
+                break;
+            default:
+                throw new IllegalArgumentException();
+        }
+    }
+
+    public static long readLeastSignificantBytes(int bytes, ByteBuffer in)
+    {
+        if (bytes == 0)
+            return 0L;
+
+        int position = in.position();
+        int limit = in.limit();
+        if (limit - position < Long.BYTES)
+        {
+            return readLeastSignificantBytesSlow(bytes, in);
+        }
+        else
+        {
+            long result = in.getLong(position);
+            in.position(position + bytes);
+            return result >>> (64 - 8*bytes);
+        }
+    }
+
+    @DontInline
+    private static long readLeastSignificantBytesSlow(int bytes, ByteBuffer out)
+    {
+        switch (bytes)
+        {
+            case 0: return 0;
+            case 1: return out.get() & 0xffL;
+            case 2: return out.getShort() & 0xffffL;
+            case 3: return ((out.getShort() & 0xffffL) << 8) | (out.get() & 0xffL);
+            case 4: return out.getInt() & 0xffffffffL;
+            case 5: return ((out.getInt() & 0xffffffffL) << 8) | (out.get() & 0xffL);
+            case 6: return ((out.getInt() & 0xffffffffL) << 16) | (out.getShort() & 0xffffL);
+            case 7: return ((out.getInt() & 0xffffffffL) << 24) | ((out.getShort() & 0xffffL) << 8) | (out.get() & 0xffL);
+            case 8: return out.getLong();
+            default: throw new IllegalArgumentException();
+        }
+    }
+
+    public static final IVersionedSerializer<ByteBuffer> byteBufferSerializer = new IVersionedSerializer<ByteBuffer>()
+    {
+        @Override
+        public void serialize(ByteBuffer bytes, DataOutputPlus out, int version) throws IOException
+        {
+            writeWithVIntLength(bytes, out);
+        }
+
+        @Override
+        public ByteBuffer deserialize(DataInputPlus in, int version) throws IOException
+        {
+            return readWithVIntLength(in);
+        }
+
+        @Override
+        public long serializedSize(ByteBuffer bytes, int version)
+        {
+            return serializedSizeWithVIntLength(bytes);
+        }
+    };
+
+    public static final IVersionedSerializer<ByteBuffer> nullableByteBufferSerializer = NullableSerializer.wrap(byteBufferSerializer);
 }

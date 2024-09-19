@@ -64,6 +64,7 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.EndpointState;
@@ -106,8 +107,8 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.paxos.PaxosRepair;
 import org.apache.cassandra.service.paxos.cleanup.PaxosCleanup;
-import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.streaming.PreviewKind;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.MerkleTrees;
 import org.apache.cassandra.utils.Pair;
@@ -446,6 +447,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
      */
     public RepairSession submitRepairSession(TimeUUID parentRepairSession,
                                              CommonRange range,
+                                             boolean excludedDeadNodes,
                                              String keyspace,
                                              RepairParallelism parallelismDegree,
                                              boolean isIncremental,
@@ -454,6 +456,8 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                                              boolean optimiseStreams,
                                              boolean repairPaxos,
                                              boolean paxosOnly,
+                                             boolean accordOnly,
+                                             boolean isConsensusMigration,
                                              ExecutorPlus executor,
                                              Scheduler validationScheduler,
                                              String... cfnames)
@@ -467,9 +471,11 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         if (cfnames.length == 0)
             return null;
 
-        final RepairSession session = new RepairSession(ctx, validationScheduler, parentRepairSession, range, keyspace,
+        final RepairSession session = new RepairSession(ctx, validationScheduler, parentRepairSession,
+                                                        range, excludedDeadNodes, keyspace,
                                                         parallelismDegree, isIncremental, pullRepair,
-                                                        previewKind, optimiseStreams, repairPaxos, paxosOnly, cfnames);
+                                                        previewKind, optimiseStreams, repairPaxos, paxosOnly,
+                                                        accordOnly, isConsensusMigration, cfnames);
         repairs.getIfPresent(parentRepairSession).register(session.state);
 
         sessions.put(session.getId(), session);
@@ -729,10 +735,10 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
             }
 
             @Override
-            public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
+            public void onFailure(InetAddressAndPort from, RequestFailure failure)
             {
                 failedNodes.add(from.toString());
-                if (failureReason == RequestFailureReason.TIMEOUT)
+                if (failure.reason == RequestFailureReason.TIMEOUT)
                 {
                     pending.set(-1);
                     promise.setFailure(failRepairException(parentRepairSession, "Did not get replies from all endpoints."));
@@ -785,7 +791,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                         }
 
                         @Override
-                        public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
+                        public void onFailure(InetAddressAndPort from, RequestFailure failure)
                         {
                             logger.debug("Failed to clean up parent repair session {} on {}. The uncleaned sessions will " +
                                          "be removed on a node restart. This should not be a problem unless you see thousands " +

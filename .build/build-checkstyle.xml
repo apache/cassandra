@@ -19,7 +19,7 @@
     <project basedir="." name="apache-cassandra-checkstyle"
      xmlns:rat="antlib:org.apache.rat.anttasks">
 
-    <target name="init-checkstyle" depends="resolver-retrieve-build,build-project" unless="no-checkstyle">
+    <target name="init-checkstyle" depends="resolver-retrieve-build,_build_subprojects,build-project" unless="no-checkstyle">
         <path id="checkstyle.lib.path">
             <fileset dir="${test.lib}/jars" includes="*.jar"/>
         </path>
@@ -45,7 +45,7 @@
         </checkstyle>
     </target>
 
-    <target name="checkstyle-test" depends="init-checkstyle,resolver-retrieve-build,build-project" description="Run custom checkstyle code analysis on tests" unless="no-checkstyle">
+    <target name="checkstyle-test" depends="init-checkstyle,resolver-retrieve-build,_build_subprojects,build-project" description="Run custom checkstyle code analysis on tests" unless="no-checkstyle">
         <property name="checkstyle.log.dir" value="${build.dir}/checkstyle" />
         <property name="checkstyle_test.report.file" value="${checkstyle.log.dir}/checkstyle_report_test.xml"/>
         <mkdir  dir="${checkstyle.log.dir}" />

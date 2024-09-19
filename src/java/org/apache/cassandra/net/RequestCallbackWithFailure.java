@@ -18,7 +18,7 @@
 
 package org.apache.cassandra.net;
 
-import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.locator.InetAddressAndPort;
 
 public interface RequestCallbackWithFailure<T> extends RequestCallback<T>
@@ -26,7 +26,7 @@ public interface RequestCallbackWithFailure<T> extends RequestCallback<T>
     /**
      * Called when there is an exception on the remote node or timeout happens
      */
-    void onFailure(InetAddressAndPort from, RequestFailureReason failureReason);
+    void onFailure(InetAddressAndPort from, RequestFailure failure);
 
     /**
      * @return true if the callback should be invoked on failure

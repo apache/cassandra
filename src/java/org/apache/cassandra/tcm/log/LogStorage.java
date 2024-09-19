@@ -57,6 +57,12 @@ public interface LogStorage extends LogReader
         }
 
         @Override
+        public LogState getLogState(Epoch start, Epoch end)
+        {
+            return LogState.EMPTY;
+        }
+
+        @Override
         public LogState getPersistedLogState()
         {
             return LogState.EMPTY;
@@ -64,6 +70,12 @@ public interface LogStorage extends LogReader
 
         @Override
         public EntryHolder getEntries(Epoch since)
+        {
+            return null;
+        }
+
+        @Override
+        public EntryHolder getEntries(Epoch since, Epoch until)
         {
             return null;
         }

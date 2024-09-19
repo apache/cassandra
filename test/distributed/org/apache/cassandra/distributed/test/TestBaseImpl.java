@@ -33,12 +33,16 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableSet;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.ListenableFutureTask;
 import org.junit.After;
 import org.junit.BeforeClass;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.cql3.Duration;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BooleanType;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.ByteType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.DecimalType;
@@ -56,14 +60,21 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ICluster;
+import org.apache.cassandra.distributed.api.ICoordinator;
+import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.shared.DistributedTestBase;
+import org.apache.cassandra.service.accord.AccordStateCache;
 
+import static java.lang.System.currentTimeMillis;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JOIN_RING;
 import static org.apache.cassandra.config.CassandraRelevantProperties.RESET_BOOTSTRAP_PROGRESS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SKIP_GC_INSPECTOR;
 import static org.apache.cassandra.distributed.action.GossipHelper.withProperty;
+import static org.assertj.core.api.Assertions.fail;
 
 // checkstyle: suppress below 'blockSystemPropertyUsage'
 public class TestBaseImpl extends DistributedTestBase
@@ -79,8 +90,10 @@ public class TestBaseImpl extends DistributedTestBase
     @BeforeClass
     public static void beforeClass() throws Throwable
     {
+        CassandraRelevantProperties.SIMULATOR_STARTED.setString(Long.toString(MILLISECONDS.toSeconds(currentTimeMillis())));
         ICluster.setup();
         SKIP_GC_INSPECTOR.setBoolean(true);
+        AccordStateCache.validateLoadOnEvict(true);
     }
 
     @Override
@@ -130,13 +143,20 @@ public class TestBaseImpl extends DistributedTestBase
             bbs.add(value == null ? null : type.decompose(value));
         }
         TupleType tupleType = new TupleType(types);
-        return tupleType.pack(bbs);
+        return tupleType.pack(bbs, ByteBufferAccessor.instance);
     }
 
-    public static String batch(String... queries)
+    public static String unloggedBatch(String... queries)
+    {
+        return batch(false, queries);
+    }
+
+    public static String batch(boolean logged, String... queries)
     {
         StringBuilder sb = new StringBuilder();
-        sb.append("BEGIN UNLOGGED BATCH\n");
+        sb.append("BEGIN ");
+        sb.append(logged ? "" : "UNLOGGED ");
+        sb.append("BATCH\n");
         for (String q : queries)
             sb.append(q).append(";\n");
         sb.append("APPLY BATCH;");
@@ -239,5 +259,32 @@ public class TestBaseImpl extends DistributedTestBase
 
         // in real live repair is needed in this case, but in the test case it doesn't matter if the tables loose
         // anything, so ignoring repair to speed up the tests.
+    }
+
+    public static String nodetool(IInstance instance, String... commandAndArgs)
+    {
+        NodeToolResult nodetoolResult = instance.nodetoolResult(commandAndArgs);
+        if (!nodetoolResult.getStdout().isEmpty())
+            System.out.println(nodetoolResult.getStdout());
+        if (!nodetoolResult.getStderr().isEmpty())
+            System.err.println(nodetoolResult.getStderr());
+        if (nodetoolResult.getError() != null)
+            fail("Failed nodetool " + Arrays.asList(commandAndArgs), nodetoolResult.getError());
+        // TODO why does standard out end up in stderr in nodetool?
+        return nodetoolResult.getStdout();
+    }
+
+    public static String nodetool(ICoordinator coordinator, String... commandAndArgs)
+    {
+        return nodetool(coordinator.instance(), commandAndArgs);
+    }
+
+    public static ListenableFuture<String> nodetoolAsync(ICoordinator coordinator, String... commandAndArgs)
+    {
+        ListenableFutureTask<String> task = ListenableFutureTask.create(() -> nodetool(coordinator, commandAndArgs));
+        Thread asyncThread = new Thread(task, "NodeTool: " + Arrays.asList(commandAndArgs));
+        asyncThread.setDaemon(true);
+        asyncThread.start();
+        return task;
     }
 }

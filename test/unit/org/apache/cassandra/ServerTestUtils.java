@@ -21,11 +21,14 @@ import java.io.IOException;
 import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Function;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
+import java.util.function.Function;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -45,10 +48,12 @@ import org.apache.cassandra.io.sstable.format.big.BigTableReader;
 import org.apache.cassandra.io.sstable.indexsummary.IndexSummarySupport;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.AbstractEndpointSnitch;
+import org.apache.cassandra.locator.Endpoint;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.security.ThreadAwareSecurityManager;
 import org.apache.cassandra.service.EmbeddedCassandraService;
+import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.tcm.AtomicLongBackedProcessor;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
@@ -67,8 +72,11 @@ import org.apache.cassandra.tcm.transformations.Register;
 import org.apache.cassandra.tcm.transformations.UnsafeJoin;
 import org.apache.cassandra.tcm.transformations.cms.Initialize;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Sortable;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION;
+import static org.apache.cassandra.schema.SchemaConstants.ACCORD_KEYSPACE_NAME;
 
 /**
  * Utility methodes used by SchemaLoader and CQLTester to manage the server and its state.
@@ -119,6 +127,18 @@ public final class ServerTestUtils
             public int compareEndpoints(InetAddressAndPort target, Replica a1, Replica a2)
             {
                 return 0;
+            }
+
+            @Override
+            public boolean supportCompareByEndpoint()
+            {
+                return true;
+            }
+
+            @Override
+            public <C extends Sortable<? extends Endpoint, ? extends C>> Comparator<Endpoint> endpointComparator(InetAddressAndPort address, C addresses)
+            {
+                return (a, b) -> 0;
             }
         });
     }
@@ -217,6 +237,7 @@ public final class ServerTestUtils
         if (cdcDir != null)
             cleanupDirectory(cdcDir);
         cleanupDirectory(DatabaseDescriptor.getHintsDirectory());
+        cleanupDirectory(DatabaseDescriptor.getAccordJournalDirectory());
         cleanupSavedCaches();
 
         // clean up data directory which are stored as data directory/keyspace/data files
@@ -234,7 +255,7 @@ public final class ServerTestUtils
         }
     }
 
-    private static void cleanupDirectory(String dirName)
+    public static void cleanupDirectory(String dirName)
     {
         if (dirName != null)
             cleanupDirectory(new File(dirName));
@@ -330,6 +351,36 @@ public final class ServerTestUtils
         log.readyUnchecked();
         log.bootstrap(FBUtilities.getBroadcastAddressAndPort());
         cms.mark();
+    }
+
+    public static void recreateAccord(NodeId tcmid)
+    {
+        if (!DatabaseDescriptor.getAccordTransactionsEnabled())
+            return;
+        if (AccordService.isSetup())
+        {
+            try
+            {
+                AccordService.instance().shutdownAndWait(1, TimeUnit.MINUTES);
+            }
+            catch (InterruptedException e)
+            {
+                throw new UncheckedInterruptedException(e);
+            }
+            catch (TimeoutException e)
+            {
+                throw new RuntimeException(e);
+            }
+
+            Keyspace ks = Keyspace.open(ACCORD_KEYSPACE_NAME);
+            FBUtilities.waitOnFutures(ks.flush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
+            cleanupDirectory(DatabaseDescriptor.getAccordJournalDirectory());
+            for (ColumnFamilyStore t : ks.getColumnFamilyStores())
+                t.truncateBlockingWithoutSnapshot();
+
+            AccordService.unsafeSetNewAccordService();
+        }
+        AccordService.startup(tcmid);
     }
 
     public static void markCMS()

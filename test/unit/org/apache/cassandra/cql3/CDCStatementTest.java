@@ -22,7 +22,6 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 
 public class CDCStatementTest extends CQLTester
@@ -30,19 +29,18 @@ public class CDCStatementTest extends CQLTester
     @BeforeClass
     public static void enableCDC()
     {
-        ServerTestUtils.daemonInitialization();
         DatabaseDescriptor.setCDCEnabled(true);
     }
 
     @Test
-    public void testEnableOnCreate() throws Throwable
+    public void testEnableOnCreate()
     {
         createTable("CREATE TABLE %s (key text, val int, primary key(key)) WITH cdc = true;");
         Assert.assertTrue(currentTableMetadata().params.cdc);
     }
 
     @Test
-    public void testEnableOnAlter() throws Throwable
+    public void testEnableOnAlter()
     {
         createTable("CREATE TABLE %s (key text, val int, primary key(key));");
         Assert.assertFalse(currentTableMetadata().params.cdc);
@@ -51,7 +49,7 @@ public class CDCStatementTest extends CQLTester
     }
 
     @Test
-    public void testDisableOnAlter() throws Throwable
+    public void testDisableOnAlter()
     {
         createTable("CREATE TABLE %s (key text, val int, primary key(key)) WITH cdc = true;");
         Assert.assertTrue(currentTableMetadata().params.cdc);

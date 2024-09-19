@@ -22,7 +22,7 @@ import java.util.EnumSet;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.ParamType;
 
@@ -43,31 +43,31 @@ public class WarningContext
         return !Collections.disjoint(keys, SUPPORTED);
     }
 
-    public RequestFailureReason updateCounters(Map<ParamType, Object> params, InetAddressAndPort from)
+    public RequestFailure updateCounters(Map<ParamType, Object> params, InetAddressAndPort from)
     {
         for (Map.Entry<ParamType, Object> entry : params.entrySet())
         {
             WarnAbortCounter counter = null;
-            RequestFailureReason reason = null;
+            RequestFailure reason = null;
             switch (entry.getKey())
             {
                 case ROW_INDEX_READ_SIZE_FAIL:
-                    reason = RequestFailureReason.READ_SIZE;
+                    reason = RequestFailure.READ_SIZE;
                 case ROW_INDEX_READ_SIZE_WARN:
                     counter = rowIndexReadSize;
                     break;
                 case LOCAL_READ_SIZE_FAIL:
-                    reason = RequestFailureReason.READ_SIZE;
+                    reason = RequestFailure.READ_SIZE;
                 case LOCAL_READ_SIZE_WARN:
                     counter = localReadSize;
                     break;
                 case TOMBSTONE_FAIL:
-                    reason = RequestFailureReason.READ_TOO_MANY_TOMBSTONES;
+                    reason = RequestFailure.READ_TOO_MANY_TOMBSTONES;
                 case TOMBSTONE_WARNING:
                     counter = tombstones;
                     break;
                 case TOO_MANY_REFERENCED_INDEXES_FAIL:
-                    reason = RequestFailureReason.READ_TOO_MANY_INDEXES;
+                    reason = RequestFailure.READ_TOO_MANY_INDEXES;
                 case TOO_MANY_REFERENCED_INDEXES_WARN:
                     counter = indexReadSSTablesCount;
                     break;

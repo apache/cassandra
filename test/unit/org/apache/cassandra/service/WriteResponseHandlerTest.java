@@ -35,7 +35,7 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.dht.Murmur3Partitioner;
-import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -256,8 +256,8 @@ public class WriteResponseHandlerTest
 
 
         //Fail in remote DC
-        awr.onFailure(targets.get(3).endpoint(), RequestFailureReason.TIMEOUT);
-        awr.onFailure(targets.get(4).endpoint(), RequestFailureReason.TIMEOUT);
+        awr.onFailure(targets.get(3).endpoint(), RequestFailure.TIMEOUT);
+        awr.onFailure(targets.get(4).endpoint(), RequestFailure.TIMEOUT);
         awr.onResponse(createDummyMessage(5));
 
         assertEquals(startingCountForWriteFailedIdealCL + 1, ks.metric.writeFailedIdealCL.getCount());
@@ -299,14 +299,14 @@ public class WriteResponseHandlerTest
 
 
         //Fail in local DC
-        awr.onFailure(targets.get(0).endpoint(), RequestFailureReason.TIMEOUT);
-        awr.onFailure(targets.get(1).endpoint(), RequestFailureReason.TIMEOUT);
+        awr.onFailure(targets.get(0).endpoint(), RequestFailure.TIMEOUT);
+        awr.onFailure(targets.get(1).endpoint(), RequestFailure.TIMEOUT);
         awr.onResponse(createDummyMessage(2));
 
 
         //Fail in remote DC
-        awr.onFailure(targets.get(3).endpoint(), RequestFailureReason.TIMEOUT);
-        awr.onFailure(targets.get(4).endpoint(), RequestFailureReason.TIMEOUT);
+        awr.onFailure(targets.get(3).endpoint(), RequestFailure.TIMEOUT);
+        awr.onFailure(targets.get(4).endpoint(), RequestFailure.TIMEOUT);
         awr.onResponse(createDummyMessage(5));
 
         assertEquals(startingCountForWriteFailedIdealCL, ks.metric.writeFailedIdealCL.getCount());

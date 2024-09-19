@@ -19,28 +19,31 @@ package org.apache.cassandra.streaming;
 
 public enum StreamOperation
 {
-    OTHER("Other", true, false), // Fallback to avoid null types when deserializing from string
-    RESTORE_REPLICA_COUNT("Restore replica count", false, false), // Handles removeNode
-    DECOMMISSION("Unbootstrap", false, true),
-    RELOCATION("Relocation", false, true),
-    BOOTSTRAP("Bootstrap", false, true),
-    REBUILD("Rebuild", false, true),
-    BULK_LOAD("Bulk Load", true, false),
-    REPAIR("Repair", true, false);
+    OTHER("Other", true, false, false), // Fallback to avoid null types when deserializing from string
+    RESTORE_REPLICA_COUNT("Restore replica count", false, false, false), // Handles removeNode
+    DECOMMISSION("Unbootstrap", false, true, false),
+    RELOCATION("Relocation", false, true, false),
+    BOOTSTRAP("Bootstrap", false, true, false),
+    REBUILD("Rebuild", false, true, false),
+    BULK_LOAD("Bulk Load", true, false, false),
+    REPAIR("Repair", true, false, true);
 
     private final String description;
     private final boolean requiresViewBuild;
     private final boolean keepSSTableLevel;
+    private final boolean requiresBarrierTransaction;
 
     /**
      * @param description The operation description
      * @param requiresViewBuild Whether this operation requires views to be updated if it involves a base table
+     * @param requiresBarrierTransaction Requires barrier to ensure all data that was repaired is already committed by txn system
      */
-    StreamOperation(String description, boolean requiresViewBuild, boolean keepSSTableLevel)
+    StreamOperation(String description, boolean requiresViewBuild, boolean keepSSTableLevel, boolean requiresBarrierTransaction)
     {
         this.description = description;
         this.requiresViewBuild = requiresViewBuild;
         this.keepSSTableLevel = keepSSTableLevel;
+        this.requiresBarrierTransaction = requiresBarrierTransaction;
     }
 
     public static StreamOperation fromString(String text)
@@ -70,5 +73,10 @@ public enum StreamOperation
     public boolean keepSSTableLevel()
     {
         return keepSSTableLevel;
+    }
+
+    public boolean requiresBarrierTransaction()
+    {
+        return requiresBarrierTransaction;
     }
 }

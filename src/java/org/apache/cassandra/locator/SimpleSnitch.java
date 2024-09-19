@@ -17,6 +17,10 @@
  */
 package org.apache.cassandra.locator;
 
+import java.util.Comparator;
+
+import org.apache.cassandra.utils.Sortable;
+
 /**
  * A simple endpoint snitch implementation that treats Strategy order as proximity,
  * allowing non-read-repaired reads to prefer a single endpoint, which improves
@@ -50,5 +54,24 @@ public class SimpleSnitch extends AbstractEndpointSnitch
         // Making all endpoints equal ensures we won't change the original ordering (since
         // Collections.sort is guaranteed to be stable)
         return 0;
+    }
+
+    private int compareByEndpoint(Endpoint a, Endpoint b)
+    {
+        // Making all endpoints equal ensures we won't change the original ordering (since
+        // Collections.sort is guaranteed to be stable)
+        return 0;
+    }
+
+    @Override
+    public boolean supportCompareByEndpoint()
+    {
+        return true;
+    }
+
+    @Override
+    public <C extends Sortable<? extends Endpoint, ? extends C>> Comparator<Endpoint> endpointComparator(InetAddressAndPort address, C addresses)
+    {
+        return this::compareByEndpoint;
     }
 }

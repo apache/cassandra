@@ -94,6 +94,12 @@ public class ArrayCell extends AbstractCell<byte[]>
         return new ArrayCell(column, timestamp, ttl, localDeletionTimeUnsignedInteger, ByteBufferUtil.getArray(newValue), path);
     }
 
+    @Override
+    public Cell<?> withUpdatedTimestamp(long newTimestamp)
+    {
+        return new ArrayCell(column, newTimestamp, ttl, localDeletionTimeUnsignedInteger, value, path);
+    }
+    
     public Cell<?> withUpdatedTimestampAndLocalDeletionTime(long newTimestamp, long newLocalDeletionTime)
     {
         return new ArrayCell(column, newTimestamp, ttl, newLocalDeletionTime, value, path);
