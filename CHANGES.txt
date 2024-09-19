@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+4.1.3.12
  * [SO-34668] Register applySchemaChangesForCompactionParams as a nodetool
  * [SO-34068] Assign a separate queue for Hints which is different from Mutation queue
  * [SO-34354] InJvm dtest to verify AutoRepair scheduler basic functionality
