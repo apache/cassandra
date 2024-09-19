@@ -21,7 +21,6 @@ package org.apache.cassandra.service.snapshot;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -35,7 +34,6 @@ import org.junit.rules.TemporaryFolder;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.DefaultFSErrorHandler;
-import org.apache.cassandra.utils.Clock;
 
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -67,7 +65,7 @@ public class MetadataSnapshotsTest
     {
         if (manager != null)
         {
-            manager.clearSnapshots("", Set.of(), Clock.Global.currentTimeMillis());
+            manager.clearAllSnapshots();
             manager.close();
         }
     }

@@ -24,8 +24,8 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
+import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Callable;
 
@@ -36,7 +36,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
-import org.apache.cassandra.config.DurationSpec;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.DurationSpec.IntSecondsBound;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
@@ -44,6 +45,8 @@ import org.apache.cassandra.db.SchemaCQLHelper;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.db.memtable.Memtable;
+import org.apache.cassandra.index.Index;
+import org.apache.cassandra.index.internal.CassandraIndex;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -54,74 +57,175 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static java.lang.String.format;
-import static org.apache.cassandra.utils.FBUtilities.now;
 
-public class TakeSnapshotTask implements Callable<Set<TableSnapshot>>
+public class TakeSnapshotTask implements Callable<List<TableSnapshot>>
 {
+    public static final String SKIP_FLUSH = "skipFlush";
+    public static final String TTL = "ttl";
+
     private static final Logger logger = LoggerFactory.getLogger(TakeSnapshotTask.class);
 
     private final String tag;
-    private final Map<String, String> options;
-    private Predicate<SSTableReader> predicate;
+    private IntSecondsBound ttl;
+    private Instant creationTime;
+    private boolean skipFlush;
+    private boolean ephemeral;
+    private final Predicate<SSTableReader> predicate;
+    private final RateLimiter rateLimiter;
+    private final ColumnFamilyStore cfs;
     private final String[] entities;
 
-    public TakeSnapshotTask(String tag,
-                            Map<String, String> options,
-                            Predicate<SSTableReader> predicate,
-                            String... entities)
+    private TakeSnapshotTask(String tag,
+                             IntSecondsBound ttl,
+                             Instant creationTime,
+                             boolean skipFlush,
+                             boolean ephemeral,
+                             Predicate<SSTableReader> predicate,
+                             RateLimiter rateLimiter,
+                             ColumnFamilyStore cfs,
+                             String... entities)
     {
         this.tag = tag;
-        this.options = options;
+        this.ttl = ttl;
+        this.creationTime = creationTime;
+        this.skipFlush = skipFlush;
+        this.ephemeral = ephemeral;
         this.predicate = predicate;
+        this.rateLimiter = rateLimiter == null ? DatabaseDescriptor.getSnapshotRateLimiter() : rateLimiter;
+        this.cfs = cfs;
         this.entities = entities;
     }
 
-    public TakeSnapshotTask(String tag,
-                            Map<String, String> options,
-                            String... entities)
+    public static class Builder
     {
-        this(tag, options, null, entities);
+        private String tag;
+        private IntSecondsBound ttl;
+        private Instant creationTime;
+        private boolean skipFlush = false;
+        private boolean ephemeral = false;
+        private Predicate<SSTableReader> predicate;
+        private RateLimiter rateLimiter;
+        private String[] entities;
+        private ColumnFamilyStore cfs;
+
+        public Builder(String tag, String... entities)
+        {
+            this.tag = tag;
+            this.entities = entities;
+        }
+
+        public Builder predicate(Predicate<SSTableReader> predicate)
+        {
+            this.predicate = predicate;
+            return this;
+        }
+
+        public Builder rateLimiter(RateLimiter rateLimiter)
+        {
+            this.rateLimiter = rateLimiter;
+            return this;
+        }
+
+        public Builder ttl(String ttl)
+        {
+            if (ttl != null)
+                this.ttl = new IntSecondsBound(ttl);
+
+            return this;
+        }
+
+        public Builder ttl(IntSecondsBound ttl)
+        {
+            this.ttl = ttl;
+            return this;
+        }
+
+        public Builder creationTime(String creationTime)
+        {
+            if (creationTime != null)
+            {
+                try
+                {
+                    this.creationTime = Instant.ofEpochMilli(Long.parseLong(creationTime));
+                }
+                catch (Exception ex)
+                {
+                    throw new RuntimeException("Unable to parse creation time from " + creationTime);
+                }
+            }
+
+            return this;
+        }
+
+        public Builder creationTime(Instant creationTime)
+        {
+            this.creationTime = creationTime;
+            return this;
+        }
+
+        public Builder skipFlush()
+        {
+            skipFlush = true;
+            return this;
+        }
+
+        public Builder ephemeral()
+        {
+            ephemeral = true;
+            return this;
+        }
+
+        public Builder cfs(ColumnFamilyStore cfs)
+        {
+            this.cfs = cfs;
+            return this;
+        }
+
+        public TakeSnapshotTask build()
+        {
+            if (tag == null || tag.isEmpty())
+                throw new RuntimeException("You must supply a snapshot name.");
+
+            if (ttl != null)
+            {
+                int minAllowedTtlSecs = CassandraRelevantProperties.SNAPSHOT_MIN_ALLOWED_TTL_SECONDS.getInt();
+                if (ttl.toSeconds() < minAllowedTtlSecs)
+                    throw new IllegalArgumentException(format("ttl for snapshot must be at least %d seconds", minAllowedTtlSecs));
+            }
+
+            if (ephemeral && ttl != null)
+                throw new IllegalStateException(format("can not take ephemeral snapshot (%s) while ttl is specified too", tag));
+
+            return new TakeSnapshotTask(tag, ttl, creationTime, skipFlush, ephemeral, predicate, rateLimiter, cfs, entities);
+        }
     }
 
     @Override
-    public Set<TableSnapshot> call() throws IOException
+    public List<TableSnapshot> call()
     {
         if (StorageService.instance.operationMode() == StorageService.Mode.JOINING)
-            throw new IOException("Cannot snapshot until bootstrap completes");
+            throw new RuntimeException("Cannot snapshot until bootstrap completes");
 
-        if (tag == null || tag.isEmpty())
-            throw new IOException("You must supply a snapshot name.");
-
-        DurationSpec.IntSecondsBound ttl = options.containsKey("ttl") ? new DurationSpec.IntSecondsBound(options.get("ttl")) : null;
-        if (ttl != null)
-        {
-            int minAllowedTtlSecs = CassandraRelevantProperties.SNAPSHOT_MIN_ALLOWED_TTL_SECONDS.getInt();
-            if (ttl.toSeconds() < minAllowedTtlSecs)
-                throw new IllegalArgumentException(format("ttl for snapshot must be at least %d seconds", minAllowedTtlSecs));
-        }
-
-        boolean skipFlush = Boolean.parseBoolean(options.getOrDefault("skipFlush", "false"));
-
-        Set<ColumnFamilyStore> entitiesForSnapshot = parseEntitiesForSnapshot(entities);
+        Set<ColumnFamilyStore> entitiesForSnapshot = cfs == null ? parseEntitiesForSnapshot(entities) : Set.of(cfs);
 
         for (ColumnFamilyStore table : entitiesForSnapshot)
         {
             String keyspaceName = table.getKeyspaceName();
             String tableName = table.getTableName();
             if (SnapshotManager.instance.getSnapshot(table.getKeyspaceName(), table.getTableName(), tag).isPresent())
-                throw new IOException(format("Snapshot %s for %s.%s already exists.", tag, keyspaceName, tableName));
+                throw new RuntimeException(format("Snapshot %s for %s.%s already exists.", tag, keyspaceName, tableName));
         }
 
-        Instant creationTime = now();
+        List<TableSnapshot> snapshots = new LinkedList<>();
 
-        Set<TableSnapshot> snapshots = new HashSet<>();
+        // This is not in builder's build method on purpose in order to postpone the timestamp for as long as possible
+        // until the actual snapshot is taken. If we constructed a task and have not done anything with it for 5 minutes
+        // then by the time a snapshot would be taken the creation time would be quite off
+        if (creationTime == null)
+            creationTime = FBUtilities.now();
 
         for (ColumnFamilyStore cfs : entitiesForSnapshot)
         {
-            // predicate null
-            // ephemeral false
-            // skipMemtable = skipFlush
-            // TODO probably double check that cfs still exists at this point
             if (!skipFlush)
             {
                 Memtable current = cfs.getTracker().getView().getCurrentMemtable();
@@ -134,28 +238,20 @@ public class TakeSnapshotTask implements Callable<Set<TableSnapshot>>
                 }
             }
 
-            TableSnapshot snapshot = createSnapshot(cfs, tag, predicate, false, ttl, creationTime, SnapshotManager.instance.snapshotRateLimiter);
+            TableSnapshot snapshot = createSnapshot(cfs, tag, predicate, ephemeral, ttl, creationTime);
             snapshots.add(snapshot);
         }
 
         return snapshots;
     }
 
-    public TableSnapshot createSnapshot(ColumnFamilyStore cfs,
-                                        String tag,
-                                        Predicate<SSTableReader> predicate,
-                                        boolean ephemeral,
-                                        DurationSpec.IntSecondsBound ttl,
-                                        Instant creationTime,
-                                        RateLimiter rateLimiter)
+    private TableSnapshot createSnapshot(ColumnFamilyStore cfs,
+                                         String tag,
+                                         Predicate<SSTableReader> predicate,
+                                         boolean ephemeral,
+                                         IntSecondsBound ttl,
+                                         Instant creationTime)
     {
-        if (ephemeral && ttl != null)
-            throw new IllegalStateException(format("can not take ephemeral snapshot (%s) while ttl is specified too", tag));
-
-        RateLimiter limiter = rateLimiter;
-        if (limiter == null)
-            limiter = SnapshotManager.instance.snapshotRateLimiter;
-
         Set<SSTableReader> sstables = new LinkedHashSet<>();
         for (ColumnFamilyStore aCfs : cfs.concatWithIndexes())
         {
@@ -164,7 +260,7 @@ public class TakeSnapshotTask implements Callable<Set<TableSnapshot>>
                 for (SSTableReader ssTable : currentView.sstables)
                 {
                     File snapshotDirectory = Directories.getSnapshotDirectory(ssTable.descriptor, tag);
-                    ssTable.createLinks(snapshotDirectory.path(), limiter); // hard links
+                    ssTable.createLinks(snapshotDirectory.path(), rateLimiter); // hard links
                     if (logger.isTraceEnabled())
                         logger.trace("Snapshot for {} keyspace data file {} created in {}", cfs.keyspace, ssTable.getFilename(), snapshotDirectory);
                     sstables.add(ssTable);
@@ -201,7 +297,7 @@ public class TakeSnapshotTask implements Callable<Set<TableSnapshot>>
                                  ephemeral);
     }
 
-    private Set<ColumnFamilyStore> parseEntitiesForSnapshot(String... entities) throws IOException
+    private Set<ColumnFamilyStore> parseEntitiesForSnapshot(String... entities)
     {
         Set<ColumnFamilyStore> entitiesForSnapshot = new HashSet<>();
 
@@ -216,14 +312,35 @@ public class TakeSnapshotTask implements Callable<Set<TableSnapshot>>
                     String tableName = splitted[1];
 
                     if (keyspaceName == null)
-                        throw new IOException("You must supply a keyspace name");
+                        throw new RuntimeException("You must supply a keyspace name");
                     if (tableName == null)
-                        throw new IOException("You must supply a table name");
+                        throw new RuntimeException("You must supply a table name");
 
                     Keyspace validKeyspace = Keyspace.getValidKeyspace(keyspaceName);
                     ColumnFamilyStore existingTable = validKeyspace.getColumnFamilyStore(tableName);
 
                     entitiesForSnapshot.add(existingTable);
+                }
+                // special case for index which we can not normally create a snapshot for
+                // but a snapshot is apparently taken before a secondary index is scrubbed
+                // so we preserve this behavior
+                else if (splitted.length == 3)
+                {
+                    String keyspaceName = splitted[0];
+                    String tableName = splitted[1];
+
+                    Keyspace validKeyspace = Keyspace.getValidKeyspace(keyspaceName);
+                    ColumnFamilyStore existingTable = validKeyspace.getColumnFamilyStore(tableName);
+                    Index indexByName = existingTable.indexManager.getIndexByName(splitted[2]);
+                    if (indexByName instanceof CassandraIndex)
+                    {
+                        ColumnFamilyStore indexCfs = ((CassandraIndex) indexByName).getIndexCfs();
+                        entitiesForSnapshot.add(indexCfs);
+                    }
+                    else
+                    {
+                        throw new IllegalArgumentException("Unknown index " + entity);
+                    }
                 }
                 else
                 {

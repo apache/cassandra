@@ -127,7 +127,7 @@ public class PreviewRepairSnapshotTest extends TestBaseImpl
             String snapshotTag = await().atMost(1, MINUTES)
                                         .pollInterval(100, MILLISECONDS)
                                         .until(() -> {
-                                            for (String tag : cfs.listSnapshots().keySet())
+                                            for (String tag : Util.listSnapshots(cfs).keySet())
                                             {
                                                 // we create the snapshot schema file last, so when this exists we know the snapshot is complete;
                                                 if (cfs.getDirectories().getSnapshotSchemaFile(tag).exists())

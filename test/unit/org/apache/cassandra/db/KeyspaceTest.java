@@ -444,7 +444,6 @@ public class KeyspaceTest extends CQLTester
         Keyspace ks = Keyspace.open(KEYSPACE_PER_TEST);
         String table = getCurrentColumnFamilyStore().name;
         SnapshotManager.instance.takeSnapshot("test", Map.of(), ks.getName() + '.' + table);
-        //ks.snapshot("test", table);
 
         List<TableSnapshot> snapshots = SnapshotManager.instance.getSnapshots(ks.getName());
         assertEquals(1, snapshots.size());

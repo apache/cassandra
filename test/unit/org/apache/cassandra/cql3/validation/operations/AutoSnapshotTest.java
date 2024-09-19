@@ -30,6 +30,8 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import org.apache.cassandra.Util;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.cql3.CQLTester;
@@ -45,6 +47,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 @RunWith(Parameterized.class)
 public class AutoSnapshotTest extends CQLTester
 {
+    static
+    {
+        CassandraRelevantProperties.SNAPSHOT_MIN_ALLOWED_TTL_SECONDS.setInt(1);
+    }
+
     static int TTL_SECS = 1;
 
     public static Boolean enabledBefore;
@@ -97,7 +104,7 @@ public class AutoSnapshotTest extends CQLTester
         createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY(a, b))");
         // Check there are no snapshots
         ColumnFamilyStore tableDir = getCurrentColumnFamilyStore();
-        assertThat(tableDir.listSnapshots()).isEmpty();
+        assertThat(Util.listSnapshots(tableDir)).isEmpty();
 
         execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 0, 0, 0);
         execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 0, 1, 1);
@@ -115,7 +122,7 @@ public class AutoSnapshotTest extends CQLTester
         createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY(a, b))");
         // Check there are no snapshots
         ColumnFamilyStore tableDir = getCurrentColumnFamilyStore();
-        assertThat(tableDir.listSnapshots()).isEmpty();
+        assertThat(Util.listSnapshots(tableDir)).isEmpty();
 
         execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 0, 0, 0);
         execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 0, 1, 1);
@@ -136,8 +143,8 @@ public class AutoSnapshotTest extends CQLTester
         flush();
 
         // Check no snapshots
-        assertThat(tableA.listSnapshots()).isEmpty();
-        assertThat(tableB.listSnapshots()).isEmpty();
+        assertThat(Util.listSnapshots(tableA)).isEmpty();
+        assertThat(Util.listSnapshots(tableB)).isEmpty();
 
         // Drop keyspace, should have snapshot for table A and B
         execute(format("DROP KEYSPACE %s", keyspace()));
@@ -163,7 +170,7 @@ public class AutoSnapshotTest extends CQLTester
      */
     private void verifyAutoSnapshot(String snapshotPrefix, ColumnFamilyStore tableDir, String expectedTableName)
     {
-        Map<String, TableSnapshot> snapshots = tableDir.listSnapshots();
+        Map<String, TableSnapshot> snapshots = Util.listSnapshots(tableDir);
         if (autoSnapshotEnabled)
         {
             assertThat(snapshots).hasSize(1);

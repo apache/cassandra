@@ -25,6 +25,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -170,7 +171,7 @@ public class SystemKeyspaceTest
         Set<String> snapshottedTableNames = new HashSet<>();
         for (ColumnFamilyStore cfs : Keyspace.open(keyspace).getColumnFamilyStores())
         {
-            if (!cfs.listSnapshots().isEmpty())
+            if (!Util.listSnapshots(cfs).isEmpty())
                 snapshottedTableNames.add(cfs.getTableName());
         }
         return snapshottedTableNames;

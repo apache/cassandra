@@ -48,6 +48,7 @@ import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.snapshot.SnapshotManager;
+import org.apache.cassandra.service.snapshot.TakeSnapshotTask;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.config.CassandraRelevantProperties.DIAGNOSTIC_SNAPSHOT_INTERVAL_NANOS;
@@ -221,13 +222,9 @@ public class DiagnosticSnapshotService
                                                                sstable.getFirst().getToken(),
                                                                sstable.getLast().getToken());
 
-                cfs.snapshot(command.snapshot_name,
-                             predicate,
-                             false,
-                             false,
-                             null,
-                             null,
-                             FBUtilities.now());
+                SnapshotManager.instance.takeSnapshot(new TakeSnapshotTask.Builder(command.snapshot_name, cfs.getKeyspaceTableName())
+                                                      .predicate(predicate)
+                                                      .build());
             }
             catch (IllegalArgumentException e)
             {
