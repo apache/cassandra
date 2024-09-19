@@ -22,6 +22,8 @@ set -eo pipefail
 set -x
 
 PROJECT_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel)}"
+PROJECT_DIR="${PROJECT_ROOT}"
+export PROJECT_DIR
 
 # increase timeout for sonar scanner
 export SONAR_SCANNER_TIME_PER_WORK_UNIT_SECONDS=600
@@ -59,7 +61,15 @@ export PATH="$ANT_HOME/bin:$JAVA_HOME/bin:$PATH"
 
 ant realclean
 
-ant codecoverage -Dtaskname=test
+ant jacoco-run -Dtaskname=test
+
+
+cd "$PROJECT_ROOT"
+ant build
+./get_all_distributed_tests.sh
+selected_test_file="$PROJECT_ROOT/test/distributed/distributed_tests"
+ant jacoco-run -Dtaskname=testclasslist  -Dtest.timeout=900000  -Dtest.classlistfile="$selected_test_file"  -Dtest.classlistprefix=distributed
+ant jacoco-init jacoco-merge jacoco-report
 
 # End of script running cassandra tests with coverage report
 

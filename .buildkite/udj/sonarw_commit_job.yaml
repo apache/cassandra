@@ -31,4 +31,4 @@ vault_secrets:
 agent:
   queue: "odin-cassandra-ci"
 
-timeout_in_minutes: 180 # 3 hours, unit tests take ~2 hours to run
+timeout_in_minutes: 480 # 2.5 hours for unit tests + 3.5 hours jvm dtests + 2 hours buffer = 8 hours
