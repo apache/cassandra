@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -30,18 +31,20 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import accord.api.Key;
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.ListMultimap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.api.Agent;
 import accord.api.DataStore;
+import accord.api.Key;
 import accord.api.LocalListeners;
 import accord.api.ProgressLog;
-import accord.local.cfk.CommandsForKey;
 import accord.impl.TimestampsForKey;
 import accord.local.Command;
 import accord.local.CommandStore;
@@ -50,7 +53,9 @@ import accord.local.NodeTimeService;
 import accord.local.PreLoadContext;
 import accord.local.RedundantBefore;
 import accord.local.SafeCommandStore;
+import accord.local.cfk.CommandsForKey;
 import accord.primitives.Keys;
+import accord.primitives.Range;
 import accord.primitives.Ranges;
 import accord.primitives.RoutableKey;
 import accord.primitives.Timestamp;
@@ -59,25 +64,57 @@ import accord.utils.Invariants;
 import accord.utils.ReducingRangeMap;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
+import accord.utils.async.AsyncResult;
 import org.apache.cassandra.cache.CacheSize;
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.ColumnFamilyStore.FlushReason;
+import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.commitlog.CommitLogPosition;
+import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.memtable.Memtable;
+import org.apache.cassandra.db.memtable.TrieMemtable;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.sstable.SSTableReadsListener;
 import org.apache.cassandra.metrics.AccordStateCacheMetrics;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.async.AsyncOperation;
 import org.apache.cassandra.service.accord.events.CacheEvents;
 import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.FutureCombiner;
+import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
+import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.base.Preconditions.checkState;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 
 public class AccordCommandStore extends CommandStore implements CacheSize
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordCommandStore.class);
     private static final boolean CHECK_THREADS = CassandraRelevantProperties.TEST_ACCORD_STORE_THREAD_CHECKS_ENABLED.getBoolean();
+
+    private static final FieldPersister<RedundantBefore> redundantBeforePersister = new FieldPersister<RedundantBefore>()
+    {
+        @Override
+        public AsyncResult<?> persist(CommandStore store, Timestamp gcBefore, Ranges ranges, RedundantBefore redundantBefore)
+        {
+            return AccordKeyspace.updateRedundantBefore(store, gcBefore, ranges, redundantBefore);
+        }
+
+        @Override
+        public AsyncResult<?> persist(CommandStore store, RedundantBefore toPersist)
+        {
+            throw new UnsupportedOperationException();
+        }
+    };
 
     private static long getThreadId(ExecutorService executor)
     {
@@ -120,7 +157,17 @@ public class AccordCommandStore extends CommandStore implements CacheSize
                               IJournal journal,
                               AccordStateCacheMetrics cacheMetrics)
     {
-        this(id, time, agent, dataStore, progressLogFactory, listenerFactory, epochUpdateHolder, journal, Stage.READ.executor(), Stage.MUTATION.executor(), cacheMetrics);
+        this(id,
+             time,
+             agent,
+             dataStore,
+             progressLogFactory,
+             listenerFactory,
+             epochUpdateHolder,
+             journal,
+             Stage.READ.executor(),
+             Stage.MUTATION.executor(),
+             cacheMetrics);
     }
 
     private static <K, V> void registerJfrListener(int id, AccordStateCache.Instance<K, V, ?> instance, String name)
@@ -203,7 +250,7 @@ public class AccordCommandStore extends CommandStore implements CacheSize
                               ExecutorPlus saveExecutor,
                               AccordStateCacheMetrics cacheMetrics)
     {
-        super(id, time, agent, dataStore, progressLogFactory, listenerFactory, epochUpdateHolder);
+        super(id, time, agent, dataStore, progressLogFactory, listenerFactory, epochUpdateHolder, AccordKeyspace::updateDurableBefore, redundantBeforePersister, AccordKeyspace::updateBootstrapBeganAt, AccordKeyspace::updateSafeToRead);
         this.journal = journal;
         loggingId = String.format("[%s]", id);
         executor = executorFactory().sequential(CommandStore.class.getSimpleName() + '[' + id + ']');
@@ -245,9 +292,9 @@ public class AccordCommandStore extends CommandStore implements CacheSize
                 if (rejectBefore != null)
                     super.setRejectBefore(rejectBefore);
                 if (durableBefore != null)
-                    super.setDurableBefore(durableBefore);
+                    super.setDurableBefore(DurableBefore.merge(durableBefore, durableBefore()));
                 if (redundantBefore != null)
-                    super.setRedundantBefore(redundantBefore);
+                    super.setRedundantBefore(RedundantBefore.merge(redundantBefore, redundantBefore));
                 if (bootstrapBeganAt != null)
                     super.setBootstrapBeganAt(bootstrapBeganAt);
                 if (safeToRead != null)
@@ -260,7 +307,7 @@ public class AccordCommandStore extends CommandStore implements CacheSize
 
     static Factory factory(AccordJournal journal, AccordStateCacheMetrics cacheMetrics)
     {
-        return (id, time, agent, dataStore, progressLogFactory, listenerFactory, rangesForEpoch) ->
+        return (id, time, agent, dataStore, progressLogFactory, listenerFactory, rangesForEpoch, scheduler) ->
                new AccordCommandStore(id, time, agent, dataStore, progressLogFactory, listenerFactory, rangesForEpoch, journal, cacheMetrics);
     }
 
@@ -547,36 +594,6 @@ public class AccordCommandStore extends CommandStore implements CacheSize
         AccordKeyspace.updateRejectBefore(this, newRejectBefore);
     }
 
-    protected void setBootstrapBeganAt(NavigableMap<TxnId, Ranges> newBootstrapBeganAt)
-    {
-        super.setBootstrapBeganAt(newBootstrapBeganAt);
-        // TODO (required, correctness): rework to persist via journal once available, this can lose updates in some edge cases
-        AccordKeyspace.updateBootstrapBeganAt(this, newBootstrapBeganAt);
-    }
-
-    protected void setSafeToRead(NavigableMap<Timestamp, Ranges> newSafeToRead)
-    {
-        super.setSafeToRead(newSafeToRead);
-        // TODO (required, correctness): rework to persist via journal once available, this can lose updates in some edge cases
-        AccordKeyspace.updateSafeToRead(this, newSafeToRead);
-    }
-
-    @Override
-    public void setDurableBefore(DurableBefore newDurableBefore)
-    {
-        super.setDurableBefore(newDurableBefore);
-        AccordKeyspace.updateDurableBefore(this, newDurableBefore);
-    }
-
-    @Override
-    protected void setRedundantBefore(RedundantBefore newRedundantBefore)
-    {
-        super.setRedundantBefore(newRedundantBefore);
-        // TODO (required): this needs to be synchronous, or at least needs to take effect before we rely upon it
-        AccordKeyspace.updateRedundantBefore(this, newRedundantBefore);
-    }
-
-    public NavigableMap<TxnId, Ranges> bootstrapBeganAt() { return super.bootstrapBeganAt(); }
     public NavigableMap<Timestamp, Ranges> safeToRead() { return super.safeToRead(); }
 
     public void appendCommands(List<SavedCommand.Writer<TxnId>> commands, List<Command> sanityCheck, Runnable onFlush)
@@ -588,5 +605,87 @@ public class AccordCommandStore extends CommandStore implements CacheSize
     public Command loadCommand(TxnId txnId)
     {
         return journal.loadCommand(id, txnId);
+    }
+
+    public Future<?> prepareForGC(@Nonnull Timestamp gcBefore, @Nonnull Ranges ranges)
+    {
+        checkNotNull(gcBefore, "gcBefore should not be null");
+        checkNotNull(ranges, "ranges should not be null");
+        ListMultimap<TableId, org.apache.cassandra.dht.Range<Token>> toPrepare = ArrayListMultimap.create();
+        for (Range r : ranges)
+        {
+            TokenRange tr = (TokenRange)r;
+            TableId tableId = ((TokenRange) r).table();
+            toPrepare.put(tableId, tr.toKeyspaceRange());
+        }
+
+        List<Future<CommitLogPosition>> flushes = new ArrayList<>(toPrepare.keySet().size());
+        for (TableId tableId : toPrepare.keySet())
+        {
+            List<org.apache.cassandra.dht.Range<Token>> tableRanges = toPrepare.get(tableId);
+            ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(tableId);
+            if (cfs == null)
+            {
+                // TODO (review): Error handling?
+                logger.warn("Cannot prepare CFS with tableId {} for Accord GC because it does not exist", tableId);
+                continue;
+            }
+
+            Memtable currentMemtable = cfs.getCurrentMemtable();
+            if (currentMemtable.getMinTimestamp() > gcBefore.hlc())
+                continue;
+
+            boolean intersects = false;
+            // TrieMemtable doesn't support reverse iteration so can't find the last token
+            if (currentMemtable instanceof TrieMemtable)
+                intersects = true;
+            else
+            {
+                Token firstToken = null;
+                try (UnfilteredPartitionIterator iterator = currentMemtable.partitionIterator(ColumnFilter.all(cfs.metadata()), DataRange.allData(cfs.getPartitioner()), SSTableReadsListener.NOOP_LISTENER))
+                {
+                    if (iterator.hasNext())
+                        firstToken = iterator.next().partitionKey().getToken();
+                }
+                Token lastToken = currentMemtable.lastToken();
+
+                if (firstToken != null)
+                {
+                    checkState(lastToken != null);
+                    if (firstToken.equals(lastToken))
+                    {
+                        for (org.apache.cassandra.dht.Range<Token> tableRange : tableRanges)
+                        {
+                            if (tableRange.contains(firstToken))
+                            {
+                                intersects = true;
+                                break;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        checkState(firstToken.compareTo(lastToken) < 0);
+                        org.apache.cassandra.dht.Range<Token> memtableRange = new org.apache.cassandra.dht.Range<>(firstToken, lastToken);
+                        for (org.apache.cassandra.dht.Range<Token> tableRange : tableRanges)
+                        {
+                            if (tableRange.intersects(memtableRange))
+                            {
+                                intersects = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (intersects)
+                flushes.add(cfs.forceFlush(FlushReason.ACCORD_TXN_GC));
+        }
+
+        if (flushes.isEmpty())
+            return ImmediateFuture.success(null);
+        else
+            return FutureCombiner.allOf(flushes);
     }
 }
