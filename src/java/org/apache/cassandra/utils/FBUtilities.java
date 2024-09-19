@@ -65,11 +65,13 @@ import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
-import com.vdurmont.semver4j.Semver;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.utils.async.AsyncResult;
+import accord.utils.async.AsyncResults;
+import com.vdurmont.semver4j.Semver;
 import org.apache.cassandra.audit.IAuditLogger;
 import org.apache.cassandra.auth.AllowAllNetworkAuthorizer;
 import org.apache.cassandra.auth.IAuthenticator;
@@ -1480,5 +1482,17 @@ public class FBUtilities
         if (rc < 0) return Order.LT;
         if (rc == 0) return Order.EQ;
         return Order.GT;
+    }
+
+    public static <T> AsyncResult<T> futureToAsyncResult(org.apache.cassandra.utils.concurrent.Future<T> future)
+    {
+        AsyncResult.Settable<T> adapter = AsyncResults.settable();
+        future.addCallback((value, failure) -> {
+           if (failure != null)
+               adapter.tryFailure(failure);
+           else
+               adapter.trySuccess(value);
+        });
+        return adapter;
     }
 }
