@@ -330,11 +330,12 @@ public abstract class AccordTestBase extends TestBaseImpl
         // need to up the timeout else tests get flaky
         // disable vnode for now, but should enable before trunk
         Cluster.Builder builder = Cluster.build(nodes)
-                           .withoutVNodes()
-                           .withConfig(c -> c.with(Feature.GOSSIP).set("write_request_timeout", "10s")
-                                                                   .set("transaction_timeout", "15s")
-                                             .set("transaction_timeout", "15s"))
-                           .withInstanceInitializer(EnforceUpdateDoesNotPerformRead::install);
+                                         .withoutVNodes()
+                                         .withConfig(c -> c.with(Feature.GOSSIP)
+                                                           .set("write_request_timeout", "10s")
+                                                           .set("transaction_timeout", "15s")
+                                                           .set("native_transport_timeout", "30s"))
+                                         .withInstanceInitializer(EnforceUpdateDoesNotPerformRead::install);
         builder = options.apply(builder);
         return init(builder.start());
     }

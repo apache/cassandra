@@ -175,7 +175,7 @@ public class Config
 
     public volatile DurationSpec.LongMillisecondsBound stream_transfer_task_timeout = new DurationSpec.LongMillisecondsBound("12h");
 
-    public volatile DurationSpec.LongMillisecondsBound transaction_timeout = new DurationSpec.LongMillisecondsBound("30s");
+    public volatile DurationSpec.LongMillisecondsBound transaction_timeout = new DurationSpec.LongMillisecondsBound("10s");
 
     public volatile DurationSpec.LongMillisecondsBound cms_await_timeout = new DurationSpec.LongMillisecondsBound("120000ms");
     public volatile int cms_default_max_retries = 10;
