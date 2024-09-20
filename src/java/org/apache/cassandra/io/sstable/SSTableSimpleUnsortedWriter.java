@@ -122,6 +122,11 @@ class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
         };
     }
 
+    void flush() throws IOException
+    {
+        sync();
+    }
+
     @Override
     public void close() throws IOException
     {

@@ -74,6 +74,11 @@ class SSTableSimpleWriter extends AbstractSSTableSimpleWriter
         return update;
     }
 
+    void flush()
+    {
+        // Nothing to do here. This writer does not buffer.
+    }
+
     public void close()
     {
         try
