@@ -119,7 +119,7 @@ public abstract class ConsensusMigrationAdmin extends NodeTool.NodeToolCmd
             @Override
             public Integer start()
             {
-                return probe.getStorageService().finishConsensusMigration(keyspace, maybeTableNames, maybeRangesStr, target);
+                return probe.getStorageService().finishConsensusMigration(keyspace, maybeTableNames, maybeRangesStr, target.toString());
             }
         }
 

@@ -21,12 +21,15 @@ import java.io.IOException;
 import java.util.concurrent.locks.ReadWriteLock;
 
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.CloseableIterator;
 
 public class KeyIterator extends AbstractIterator<DecoratedKey> implements CloseableIterator<DecoratedKey>
 {
+    private final AbstractBounds<PartitionPosition> bounds;
     private final IPartitioner partitioner;
     private final KeyReader it;
     private final ReadWriteLock fileAccessLock;
@@ -34,8 +37,9 @@ public class KeyIterator extends AbstractIterator<DecoratedKey> implements Close
 
     private boolean initialized = false;
 
-    public KeyIterator(KeyReader it, IPartitioner partitioner, long totalBytes, ReadWriteLock fileAccessLock)
+    public KeyIterator(AbstractBounds<PartitionPosition> bounds, KeyReader it, IPartitioner partitioner, long totalBytes, ReadWriteLock fileAccessLock)
     {
+        this.bounds = bounds;
         this.it = it;
         this.partitioner = partitioner;
         this.totalBytes = totalBytes;
@@ -48,19 +52,26 @@ public class KeyIterator extends AbstractIterator<DecoratedKey> implements Close
             fileAccessLock.readLock().lock();
         try
         {
-            if (!initialized)
+            while (true)
             {
-                initialized = true;
-                return it.isExhausted()
-                       ? endOfData()
-                       : partitioner.decorateKey(it.key());
+                if (!initialized)
+                {
+                    initialized = true;
+                    if (it.isExhausted())
+                        break;
+                }
+                else if (!it.advance())
+                    break;
+
+                DecoratedKey key = partitioner.decorateKey(it.key());
+                if (bounds == null || bounds.contains(key))
+                    return key;
+
+                if (key.compareTo(bounds.right) >= 0)
+                    break;
             }
-            else
-            {
-                return it.advance()
-                       ? partitioner.decorateKey(it.key())
-                       : endOfData();
-            }
+
+            return endOfData();
         }
         catch (IOException e)
         {

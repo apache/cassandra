@@ -255,6 +255,12 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     }
 
     @Override
+    public KeyIterator keyIterator(AbstractBounds<PartitionPosition> range) throws IOException
+    {
+        return delegate.keyIterator(range);
+    }
+
+    @Override
     public DecoratedKey firstKeyBeyond(PartitionPosition token)
     {
         return delegate.firstKeyBeyond(token);

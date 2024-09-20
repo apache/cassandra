@@ -78,6 +78,7 @@ import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.LocalCompositePrefixPartitioner;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.OrderPreservingPartitioner;
@@ -1303,9 +1304,29 @@ public final class CassandraGenerators
         return AbstractTypeGenerators.safeTypeGen().map(LocalPartitioner::new);
     }
 
+    public static Gen<LocalCompositePrefixPartitioner> localCompositePrefixPartitioner()
+    {
+        return AbstractTypeGenerators.safeTypeGen().map(type -> {
+            if (type instanceof CompositeType)
+                return new LocalCompositePrefixPartitioner((CompositeType) type);
+            else
+                return new LocalCompositePrefixPartitioner(type);
+        });
+    }
+
     public static Gen<Token> localPartitionerToken()
     {
         var lpGen = localPartitioner();
+        return rs -> {
+            var lp = lpGen.generate(rs);
+            var bytes = AbstractTypeGenerators.getTypeSupport(lp.getTokenValidator()).bytesGen();
+            return lp.getToken(bytes.generate(rs));
+        };
+    }
+
+    public static Gen<Token> localCompositePrefixPartitionerToken()
+    {
+        var lpGen = localCompositePrefixPartitioner();
         return rs -> {
             var lp = lpGen.generate(rs);
             var bytes = AbstractTypeGenerators.getTypeSupport(lp.getTokenValidator()).bytesGen();
@@ -1348,7 +1369,8 @@ public final class CassandraGenerators
         ByteOrdered(ByteOrderedPartitioner.class,                       ignore -> ByteOrderedPartitioner.instance),
         Random(RandomPartitioner.class,                                 ignore -> RandomPartitioner.instance),
         Local(LocalPartitioner.class,                                   localPartitioner()),
-        OrderPreserving(OrderPreservingPartitioner.class,               ignore -> OrderPreservingPartitioner.instance);
+        OrderPreserving(OrderPreservingPartitioner.class,               ignore -> OrderPreservingPartitioner.instance),
+        LocalCompositePrefix(LocalCompositePrefixPartitioner.class,     localCompositePrefixPartitioner());
 
         private final Class<? extends IPartitioner> clazz;
         private final Gen<? extends IPartitioner> partitioner;
@@ -1388,7 +1410,8 @@ public final class CassandraGenerators
     public static Gen<IPartitioner> nonLocalPartitioners()
     {
         return SourceDSL.arbitrary().enumValues(SupportedPartitioners.class)
-                        .assuming(p -> p != SupportedPartitioners.Local)
+                        .assuming(p -> p != SupportedPartitioners.Local &&
+                                       p != SupportedPartitioners.LocalCompositePrefix)
                         .flatMap(SupportedPartitioners::partitioner);
     }
 
@@ -1420,6 +1443,7 @@ public final class CassandraGenerators
         if (partitioner instanceof Murmur3Partitioner) return murmurToken();
         if (partitioner instanceof ByteOrderedPartitioner) return byteOrderToken();
         if (partitioner instanceof RandomPartitioner) return randomPartitionerToken();
+        if (partitioner instanceof LocalCompositePrefixPartitioner) return localCompositePrefixPartitionerToken();
         if (partitioner instanceof LocalPartitioner) return localPartitionerToken((LocalPartitioner) partitioner);
         if (partitioner instanceof OrderPreservingPartitioner) return orderPreservingToken();
         throw new UnsupportedOperationException("Unsupported partitioner: " + partitioner.getClass());
