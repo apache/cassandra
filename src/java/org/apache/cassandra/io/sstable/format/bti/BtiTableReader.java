@@ -24,6 +24,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
@@ -43,21 +44,14 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.io.sstable.CorruptSSTableException;
-import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.ISSTableScanner;
-import org.apache.cassandra.io.sstable.IVerifier;
-import org.apache.cassandra.io.sstable.SSTable;
-import org.apache.cassandra.io.sstable.SSTableReadsListener;
+import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.sstable.SSTableReadsListener.SelectionReason;
 import org.apache.cassandra.io.sstable.SSTableReadsListener.SkippingReason;
 import org.apache.cassandra.io.sstable.format.SSTableReaderWithFilter;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.RandomAccessReader;
-import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.IFilter;
-import org.apache.cassandra.utils.OutputHandler;
+import org.apache.cassandra.utils.*;
 
 import static org.apache.cassandra.io.sstable.format.SSTableReader.Operator.EQ;
 import static org.apache.cassandra.io.sstable.format.SSTableReader.Operator.GE;
@@ -485,6 +479,24 @@ public class BtiTableReader extends SSTableReaderWithFilter
     public UnfilteredPartitionIterator partitionIterator(ColumnFilter columnFilter, DataRange dataRange, SSTableReadsListener listener)
     {
         return BtiTableScanner.getScanner(this, columnFilter, dataRange, listener);
+    }
+
+    @Override
+    public KeyIterator keyIterator(AbstractBounds<PartitionPosition> range)
+    {
+        PartitionIterator iter;
+        try
+        {
+            iter = PartitionIterator.create(partitionIndex, metadata().partitioner, rowIndexFile, dfile,
+                                            range.left, bounds.inclusiveLeft() ? -1 : 0,
+                                            null, 0, descriptor.version);
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+
+        return new KeyIterator(range, iter, metadata().partitioner, uncompressedLength(), new ReentrantReadWriteLock());
     }
 
     @Override

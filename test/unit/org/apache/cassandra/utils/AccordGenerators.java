@@ -70,7 +70,7 @@ import static org.apache.cassandra.service.accord.AccordTestUtils.createPartialT
 
 public class AccordGenerators
 {
-    private static final Gen<IPartitioner> PARTITIONER_GEN = fromQT(CassandraGenerators.partitioners());
+    private static final Gen<IPartitioner> PARTITIONER_GEN = fromQT(CassandraGenerators.nonLocalPartitioners());
 
     private AccordGenerators()
     {
