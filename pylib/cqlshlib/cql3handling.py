@@ -162,7 +162,7 @@ syntax_rules = r'''
 <CQL_Statement> ::= [statements]=<statementBody> ";"
                   ;
 
-# The order of these terminal productions is significant. The input string is matched to the rule 
+# The order of these terminal productions is significant. The input string is matched to the rule
 # specified first in the grammar.
 
 <endline> ::= /\n/ ;
