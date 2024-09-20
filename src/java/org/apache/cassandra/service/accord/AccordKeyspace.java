@@ -21,7 +21,6 @@ package org.apache.cassandra.service.accord;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -30,7 +29,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -43,12 +41,10 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.api.Key;
-import accord.local.cfk.CommandsForKey;
 import accord.impl.TimestampsForKey;
 import accord.local.Command;
 import accord.local.CommandStore;
@@ -58,17 +54,15 @@ import accord.local.RedundantBefore;
 import accord.local.SaveStatus;
 import accord.local.Status;
 import accord.local.Status.Durability;
+import accord.local.cfk.CommandsForKey;
 import accord.primitives.Ranges;
-import accord.primitives.Routable;
 import accord.primitives.Route;
 import accord.primitives.Timestamp;
-import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.topology.Topology;
 import accord.utils.Invariants;
 import accord.utils.ReducingRangeMap;
 import accord.utils.async.Observable;
-import org.apache.cassandra.concurrent.DebuggableTask;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.QueryOptions;
@@ -86,9 +80,11 @@ import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.LivenessInfo;
 import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
+import org.apache.cassandra.db.WriteContext;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.ClusteringIndexNamesFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
@@ -111,10 +107,16 @@ import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.Row.Deletion;
 import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.db.transform.FilteredPartitions;
+import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
+import org.apache.cassandra.dht.ExcludingBounds;
 import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.IncludingExcludingBounds;
+import org.apache.cassandra.dht.LocalCompositePrefixPartitioner;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.accord.RouteIndex;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -148,9 +150,11 @@ import org.apache.cassandra.service.accord.serializers.KeySerializers;
 import org.apache.cassandra.service.accord.serializers.TopologySerializers;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.Clock.Global;
+import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.btree.BTreeSet;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
+import org.apache.cassandra.utils.concurrent.OpOrder;
 
 import static accord.utils.Invariants.checkArgument;
 import static accord.utils.Invariants.checkState;
@@ -188,14 +192,22 @@ public class AccordKeyspace
     private static final TupleType KEY_TYPE = new TupleType(Arrays.asList(UUIDType.instance, BytesType.instance));
     private static final String KEY_TUPLE = KEY_TYPE.asCQL3Type().toString();
 
-    // shared LocalPartitioner for all *_for_key Accord tables with (store_id, key_token, key) partition key
-    private static final LocalPartitioner FOR_KEYS_LOCAL_PARTITIONER =
-        new LocalPartitioner(CompositeType.getInstance(Int32Type.instance, BytesType.instance, KEY_TYPE));
-
     private static final ClusteringIndexFilter FULL_PARTITION = new ClusteringIndexNamesFilter(BTreeSet.of(new ClusteringComparator(), Clustering.EMPTY), false);
 
     //TODO (now, performance): should this be partitioner rather than TableId?  As of this patch distributed tables should only have 1 partitioner...
     private static final ConcurrentMap<TableId, AccordRoutingKeyByteSource.Serializer> TABLE_SERIALIZERS = new ConcurrentHashMap<>();
+
+    private static AccordRoutingKeyByteSource.Serializer getRoutingKeySerializer(AccordRoutingKey key)
+    {
+        return TABLE_SERIALIZERS.computeIfAbsent(key.table(), ignore -> {
+            IPartitioner partitioner;
+            if (key.kindOfRoutingKey() == AccordRoutingKey.RoutingKeyKind.TOKEN)
+                partitioner = key.asTokenKey().token().getPartitioner();
+            else
+                partitioner = SchemaHolder.schema.getTablePartitioner(key.table());
+            return AccordRoutingKeyByteSource.variableLength(partitioner);
+        });
+    }
 
     // Schema needs all system keyspace, and this is a system keyspace!  So can not touch schema in init
     private static class SchemaHolder
@@ -475,14 +487,13 @@ public class AccordKeyspace
               + format("last_write_timestamp %s, ", TIMESTAMP_TUPLE)
               + "PRIMARY KEY((store_id, key_token, key))"
               + ')')
-        .partitioner(FOR_KEYS_LOCAL_PARTITIONER)
+        .partitioner(new LocalPartitioner(CompositeType.getInstance(Int32Type.instance, BytesType.instance, KEY_TYPE)))
         .build();
 
     public static class TimestampsForKeyColumns
     {
         static final ClusteringComparator keyComparator = TimestampsForKeys.partitionKeyAsClusteringComparator();
         static final CompositeType partitionKeyType = (CompositeType) TimestampsForKeys.partitionKeyType;
-        static final ColumnFilter allColumns = ColumnFilter.all(TimestampsForKeys);
         static final ColumnMetadata store_id = getColumn(TimestampsForKeys, "store_id");
         static final ColumnMetadata key_token = getColumn(TimestampsForKeys, "key_token");
         static final ColumnMetadata key = getColumn(TimestampsForKeys, "key");
@@ -579,22 +590,24 @@ public class AccordKeyspace
         }
     }
 
+    private static final LocalCompositePrefixPartitioner CFKPartitioner = new LocalCompositePrefixPartitioner(Int32Type.instance, UUIDType.instance, BytesType.instance, BytesType.instance);
     private static final TableMetadata CommandsForKeys = commandsForKeysTable(COMMANDS_FOR_KEY);
 
     private static TableMetadata commandsForKeysTable(String tableName)
     {
         return parse(tableName,
-              "accord commands per key",
-              "CREATE TABLE %s ("
-              + "store_id int, "
-              + "key_token blob, " // can't use "token" as this is restricted word in CQL
-              + format("key %s, ", KEY_TUPLE)
-              + "data blob, "
-              + "PRIMARY KEY((store_id, key_token, key))"
-              + ')'
-               + " WITH compression = {'class':'NoopCompressor'};")
-        .partitioner(FOR_KEYS_LOCAL_PARTITIONER)
-        .build();
+                     "accord commands per key",
+                     "CREATE TABLE %s ("
+                     + "store_id int, "
+                     + "table_id uuid, "
+                     + "key_token blob, " // can't use "token" as this is restricted word in CQL
+                     + "key blob, "
+                     + "data blob, "
+                     + "PRIMARY KEY((store_id, table_id, key_token, key))"
+                     + ')'
+                     + " WITH compression = {'class':'NoopCompressor'};")
+               .partitioner(CFKPartitioner)
+               .build();
     }
 
     public static class CommandsForKeyAccessor
@@ -604,6 +617,7 @@ public class AccordKeyspace
         final CompositeType partitionKeyType;
         final ColumnFilter allColumns;
         final ColumnMetadata store_id;
+        final ColumnMetadata table_id;
         final ColumnMetadata key_token;
         final ColumnMetadata key;
         final ColumnMetadata data;
@@ -617,6 +631,7 @@ public class AccordKeyspace
             this.partitionKeyType = (CompositeType) table.partitionKeyType;
             this.allColumns = ColumnFilter.all(table);
             this.store_id = getColumn(table, "store_id");
+            this.table_id = getColumn(table, "table_id");
             this.key_token = getColumn(table, "key_token");
             this.key = getColumn(table, "key");
             this.data = getColumn(table, "data");
@@ -633,6 +648,11 @@ public class AccordKeyspace
             return Int32Type.instance.compose(partitionKeyComponents[store_id.position()]);
         }
 
+        public TableId getTableId(ByteBuffer[] partitionKeyComponents)
+        {
+            return TableId.fromUUID(UUIDType.instance.compose(partitionKeyComponents[table_id.position()]));
+        }
+
         public PartitionKey getKey(DecoratedKey key)
         {
             return getKey(splitPartitionKey(key));
@@ -640,7 +660,12 @@ public class AccordKeyspace
 
         public PartitionKey getKey(ByteBuffer[] partitionKeyComponents)
         {
-            return deserializeKey(partitionKeyComponents[key.position()]);
+            TableId tableId = TableId.fromUUID(UUIDSerializer.instance.deserialize(partitionKeyComponents[table_id.position()]));
+            ByteBuffer keyBytes = partitionKeyComponents[key.position()];
+            IPartitioner partitioner = SchemaHolder.schema.getTablePartitioner(tableId);
+            if (partitioner == null)
+                throw new IllegalStateException("Table with id " + tableId + " could not be found; was it deleted?");
+            return new PartitionKey(tableId, partitioner.decorateKey(keyBytes));
         }
 
         public CommandsForKey getCommandsForKey(PartitionKey key, Row row)
@@ -650,6 +675,13 @@ public class AccordKeyspace
                 return null;
 
             return CommandsForKeySerializer.fromBytes(key, cell.buffer());
+        }
+
+        @VisibleForTesting
+        public ByteBuffer serializeKeyNoTable(AccordRoutingKey key)
+        {
+            byte[] bytes = getRoutingKeySerializer(key).serializeNoTable(key);
+            return ByteBuffer.wrap(bytes);
         }
 
         // TODO (expected): garbage-free filtering, reusing encoding
@@ -673,6 +705,19 @@ public class AccordKeyspace
 
             ByteBuffer buffer = CommandsForKeySerializer.toBytesWithoutKey(updated);
             return BTreeRow.singleCellRow(Clustering.EMPTY, BufferCell.live(data, cell.timestamp(), buffer));
+        }
+
+        public LocalCompositePrefixPartitioner.AbstractCompositePrefixToken getPrefixToken(int commandStore, AccordRoutingKey key)
+        {
+            if (key.kindOfRoutingKey() == AccordRoutingKey.RoutingKeyKind.TOKEN)
+            {
+                ByteBuffer tokenBytes = ByteBuffer.wrap(getRoutingKeySerializer(key).serializeNoTable(key));
+                return CFKPartitioner.createPrefixToken(commandStore, key.table().asUUID(), tokenBytes);
+            }
+            else
+            {
+                return CFKPartitioner.createPrefixToken(commandStore, key.table().asUUID());
+            }
         }
     }
 
@@ -940,201 +985,64 @@ public class AccordKeyspace
                                txnId.msb, txnId.lsb, txnId.node.id);
     }
 
-    private static abstract class TableWalk implements Runnable, DebuggableTask
-    {
-        private final long creationTimeNanos = Global.nanoTime();
-        private final Executor executor;
-        private final Observable<UntypedResultSet.Row> callback;
-        private long startTimeNanos = -1;
-        private int numQueries = 0;
-        private UntypedResultSet.Row lastSeen = null;
-
-        private TableWalk(Executor executor, Observable<UntypedResultSet.Row> callback)
-        {
-            this.executor = executor;
-            this.callback = callback;
-        }
-
-        protected abstract UntypedResultSet query(UntypedResultSet.Row lastSeen);
-
-        public final void schedule()
-        {
-            executor.execute(this);
-        }
-
-        @Override
-        public final void run()
-        {
-            try
-            {
-                if (startTimeNanos == -1)
-                    startTimeNanos = Global.nanoTime();
-                numQueries++;
-                UntypedResultSet result = query(lastSeen);
-                if (result.isEmpty())
-                {
-                    callback.onCompleted();
-                    return;
-                }
-                UntypedResultSet.Row lastRow = null;
-                for (UntypedResultSet.Row row : result)
-                {
-                    callback.onNext(row);
-                    lastRow = row;
-                }
-                lastSeen = lastRow;
-                schedule();
-            }
-            catch (Throwable t)
-            {
-                callback.onError(t);
-            }
-        }
-
-        @Override
-        public long creationTimeNanos()
-        {
-            return creationTimeNanos;
-        }
-
-        @Override
-        public long startTimeNanos()
-        {
-            return startTimeNanos;
-        }
-
-        @Override
-        public String description()
-        {
-            return format("Table Walker for %s; queries = %d", getClass().getSimpleName(), numQueries);
-        }
-    }
-
-    private static String selection(TableMetadata metadata, Set<String> requiredColumns, Set<String> forIteration)
-    {
-        StringBuilder selection = new StringBuilder();
-        if (requiredColumns.isEmpty())
-            selection.append("*");
-        else
-        {
-            Sets.SetView<String> other = Sets.difference(requiredColumns, forIteration);
-            for (String name : other)
-            {
-                ColumnMetadata meta = metadata.getColumn(new ColumnIdentifier(name, true));
-                if (meta == null)
-                    throw new IllegalArgumentException("Unknown column: " + name);
-            }
-            List<String> names = new ArrayList<>(forIteration.size() + other.size());
-            names.addAll(forIteration);
-            names.addAll(other);
-            // this sort is to make sure the CQL is determanistic
-            Collections.sort(names);
-            for (int i = 0; i < names.size(); i++)
-            {
-                if (i > 0)
-                    selection.append(", ");
-                selection.append(names.get(i));
-            }
-        }
-        return selection.toString();
-    }
-
-    private static class WalkCommandsForDomain extends TableWalk
-    {
-        private static final Set<String> COLUMNS_FOR_ITERATION = ImmutableSet.of("txn_id", "store_id", "domain");
-        private final String cql;
-        private final int storeId, domain;
-
-        private WalkCommandsForDomain(int commandStore, Routable.Domain domain, Set<String> requiredColumns, Executor executor, Observable<UntypedResultSet.Row> callback)
-        {
-            super(executor, callback);
-            this.storeId = commandStore;
-            this.domain = domain.ordinal();
-            cql = format("SELECT %s " +
-                                "FROM %s " +
-                                "WHERE store_id = ? " +
-                                "      AND domain = ? " +
-                                "      AND token(store_id, domain, txn_id) > token(?, ?, (?, ?, ?)) " +
-                                "ALLOW FILTERING", selection(Commands, requiredColumns, COLUMNS_FOR_ITERATION), Commands);
-        }
-
-        @Override
-        protected UntypedResultSet query(UntypedResultSet.Row lastSeen)
-        {
-            TxnId lastTxnId = lastSeen == null ?
-                              new TxnId(0, 0, Txn.Kind.Read, Routable.Domain.Key, Node.Id.NONE)
-                              : deserializeTxnId(lastSeen);
-            return executeInternal(cql, storeId, domain, storeId, domain, lastTxnId.msb, lastTxnId.lsb, lastTxnId.node.id);
-        }
-    }
-
+    /**
+     * Calculates token bounds based on key prefixes.
+     */
     public static void findAllKeysBetween(int commandStore,
                                           AccordRoutingKey start, boolean startInclusive,
                                           AccordRoutingKey end, boolean endInclusive,
                                           Observable<PartitionKey> callback)
     {
-        //TODO (optimize) : CQL doesn't look smart enough to only walk Index.db, and ends up walking the Data.db file for each row in the partitions found (for frequent keys, this cost adds up)
-        // it would be possible to find all SSTables that "could" intersect this range, then have a merge iterator over the Index.db (filtered to the range; index stores partition liveness)...
-        KeysBetween work = new KeysBetween(commandStore,
-                                           AccordKeyspace.serializeRoutingKey(start), startInclusive,
-                                           AccordKeyspace.serializeRoutingKey(end), endInclusive,
-                                           ImmutableSet.of("key"),
-                                           Stage.READ.executor(), Observable.distinct(callback).map(AccordKeyspace::deserializeKey));
-        work.schedule();
-    }
 
-    private static class KeysBetween extends TableWalk
-    {
-        private static final Set<String> COLUMNS_FOR_ITERATION = ImmutableSet.of("store_id", "key_token");
+        Token startToken = CommandsForKeysAccessor.getPrefixToken(commandStore, start);
+        Token endToken = CommandsForKeysAccessor.getPrefixToken(commandStore, end);
+        PartitionPosition startPosition = startInclusive ? startToken.minKeyBound() : startToken.maxKeyBound();
+        PartitionPosition endPosition = endInclusive ? endToken.maxKeyBound() : endToken.minKeyBound();
+        AbstractBounds<PartitionPosition> bounds;
+        if (startInclusive && endInclusive)
+            bounds = new Bounds<>(startPosition, endPosition);
+        else if (endInclusive)
+            bounds = new Range<>(startPosition, endPosition);
+        else if (startInclusive)
+            bounds = new IncludingExcludingBounds<>(startPosition, endPosition);
+        else
+            bounds = new ExcludingBounds<>(startPosition, endPosition);
 
-        private final int storeId;
-        private final ByteBuffer start, end;
-        private final String cqlFirst;
-        private final String cqlContinue;
-
-        private KeysBetween(int storeId,
-                            ByteBuffer start, boolean startInclusive,
-                            ByteBuffer end, boolean endInclusive,
-                            Set<String> requiredColumns,
-                            Executor executor, Observable<UntypedResultSet.Row> callback)
-        {
-            super(executor, callback);
-            this.storeId = storeId;
-            this.start = start;
-            this.end = end;
-
-            String selection = selection(CommandsForKeys, requiredColumns, COLUMNS_FOR_ITERATION);
-            this.cqlFirst = format("SELECT DISTINCT %s\n" +
-                                          "FROM %s\n" +
-                                          "WHERE store_id = ?\n" +
-                                          (startInclusive ? "  AND key_token >= ?\n" : "  AND key_token > ?\n") +
-                                          (endInclusive ? "  AND key_token <= ?\n" : "  AND key_token < ?\n") +
-                                          "ALLOW FILTERING",
-                                          selection, CommandsForKeys);
-            this.cqlContinue = format("SELECT DISTINCT %s\n" +
-                                             "FROM %s\n" +
-                                             "WHERE store_id = ?\n" +
-                                             "  AND key_token > ?\n" +
-                                             "  AND key > ?\n" +
-                                             (endInclusive ? "  AND key_token <= ?\n" : "  AND key_token < ?\n") +
-                                             "ALLOW FILTERING",
-                                             selection, CommandsForKeys);
-        }
-
-        @Override
-        protected UntypedResultSet query(UntypedResultSet.Row lastSeen)
-        {
-            if (lastSeen == null)
+        Stage.READ.executor().submit(() -> {
+            ColumnFamilyStore baseCfs = Keyspace.openAndGetStore(CommandsForKeys);
+            try (OpOrder.Group baseOp = baseCfs.readOrdering.start();
+                 WriteContext writeContext = baseCfs.keyspace.getWriteHandler().createContextForRead();
+                 CloseableIterator<DecoratedKey> iter = LocalCompositePrefixPartitioner.keyIterator(CommandsForKeys, bounds))
             {
-                return executeInternal(cqlFirst, storeId, start, end);
+                // Need the second try to handle callback errors vs read errors.
+                // Callback will see the read errors, but if the callback fails the outer try will see those errors
+                try
+                {
+                    while (iter.hasNext())
+                    {
+                        PartitionKey pk = CommandsForKeysAccessor.getKey(iter.next());
+                        callback.onNext(pk);
+                    }
+                    callback.onCompleted();
+                }
+                catch (Exception e)
+                {
+                    callback.onError(e);
+                }
             }
-            else
+            catch (IOException e)
             {
-                ByteBuffer previousToken = lastSeen.getBytes("key_token");
-                ByteBuffer previousKey = lastSeen.getBytes("key");
-                return executeInternal(cqlContinue, storeId, previousToken, previousKey, end);
+                try
+                {
+                    callback.onError(e);
+                }
+                catch (Throwable t)
+                {
+                    e.addSuppressed(t);
+                }
+                throw new RuntimeException(e);
             }
-        }
+        });
     }
 
     public static TxnId deserializeTxnId(UntypedResultSet.Row row)
@@ -1272,24 +1180,22 @@ public class AccordKeyspace
     private static DecoratedKey makeKey(CommandsForKeyAccessor accessor, int storeId, PartitionKey key)
     {
         ByteBuffer pk = accessor.keyComparator.make(storeId,
+                                                    UUIDSerializer.instance.serialize(key.table().asUUID()),
                                                     serializeRoutingKey(key.toUnseekable()),
-                                                    serializeKey(key)).serializeAsPartitionKey();
+                                                    key.partitionKey().getKey()).serializeAsPartitionKey();
         return accessor.table.partitioner.decorateKey(pk);
     }
 
     @VisibleForTesting
     public static ByteBuffer serializeRoutingKey(AccordRoutingKey routingKey)
     {
-        AccordRoutingKeyByteSource.Serializer serializer = TABLE_SERIALIZERS.computeIfAbsent(routingKey.table(), ignore -> {
-            IPartitioner partitioner;
-            if (routingKey.kindOfRoutingKey() == AccordRoutingKey.RoutingKeyKind.TOKEN)
-                partitioner = routingKey.asTokenKey().token().getPartitioner();
-            else
-                partitioner = SchemaHolder.schema.getTablePartitioner(routingKey.table());
-            return AccordRoutingKeyByteSource.variableLength(partitioner);
-        });
-        byte[] bytes = serializer.serialize(routingKey);
+        byte[] bytes = getRoutingKeySerializer(routingKey).serialize(routingKey);
         return ByteBuffer.wrap(bytes);
+    }
+
+    public static ByteBuffer serializeRoutingKeyNoTable(AccordRoutingKey key)
+    {
+        return CommandsForKeysAccessor.serializeKeyNoTable(key);
     }
 
     private static PartitionUpdate getCommandsForKeyPartitionUpdate(int storeId, PartitionKey key, CommandsForKey commandsForKey, long timestampMicros)
@@ -1475,7 +1381,7 @@ public class AccordKeyspace
 
     /**
      * Update the disk state for this epoch, if it's higher than the one we have one disk.
-     *
+     * <p>
      * This is meant to be called before any update involving the new epoch, not after. This way if the update
      * fails, we can detect and cleanup. If we updated disk state after an update and it failed, we could "forget"
      * about (now acked) topology updates after a restart.
@@ -1624,7 +1530,6 @@ public class AccordKeyspace
         Ranges redundant = row.has("redundant") ? blobMapToRanges(row.getMap("redundant", BytesType.instance, BytesType.instance)) : Ranges.EMPTY;
 
         consumer.load(epoch, topology, syncStatus, pendingSyncNotify, remoteSyncComplete, closed, redundant);
-
     }
 
     public static EpochDiskState loadTopologies(TopologyLoadConsumer consumer)
@@ -1710,8 +1615,8 @@ public class AccordKeyspace
     public interface CommandStoreMetadataConsumer
     {
         void accept(ReducingRangeMap<Timestamp> rejectBefore, DurableBefore durableBefore, RedundantBefore redundantBefore, NavigableMap<TxnId, Ranges> bootstrapBeganAt, NavigableMap<Timestamp, Ranges> safeToRead);
-
     }
+
     public static void loadCommandStoreMetadata(int id, CommandStoreMetadataConsumer consumer)
     {
         UntypedResultSet result = executeOnceInternal(format("SELECT * FROM %s.%s WHERE store_id=?", ACCORD_KEYSPACE_NAME, COMMAND_STORE_METADATA), id);
@@ -1758,5 +1663,4 @@ public class AccordKeyspace
         TABLE_SERIALIZERS.clear();
         SchemaHolder.schema = Schema.instance;
     }
-
 }

@@ -421,6 +421,23 @@ public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implem
     /** Accumulator that collects values of type A, and outputs a value of type B. */
     public static abstract class Reducer<In,Out>
     {
+        public static class Trivial<T> extends Reducer<T, T>
+        {
+            private T reduced = null;
+
+            @Override
+            public boolean trivialReduceIsTrivial() { return true; }
+
+            @Override
+            public void reduce(int idx, T current) { reduced = current; }
+
+            @Override
+            protected T getReduced() { return reduced; }
+
+            @Override
+            protected void onKeyChange() { reduced = null; }
+        }
+
         /**
          * @return true if Out is the same as In for the case of a single source iterator
          */
