@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.function.Function;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Longs;
 
 import accord.primitives.Ranges;
@@ -163,7 +164,8 @@ public class ReversedLongLocalPartitioner implements IPartitioner
         throw new UnsupportedOperationException("Accord is not supported by " + getClass().getName());
     }
 
-    private static class ReversedLongLocalToken extends Token
+    @VisibleForTesting
+    public static class ReversedLongLocalToken extends Token
     {
         private final long token;
 
