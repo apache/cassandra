@@ -25,25 +25,15 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiConsumer;
 
 import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import accord.coordinate.Timeout;
 import accord.local.Command;
 import accord.local.Node;
-import accord.messages.ReplyContext;
-import accord.messages.Request;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
-import org.agrona.collections.Long2ObjectHashMap;
-import org.agrona.collections.LongArrayList;
-import org.apache.cassandra.concurrent.InfiniteLoopExecutor;
-import org.apache.cassandra.concurrent.Interruptible;
-import org.apache.cassandra.concurrent.ManyToOneConcurrentLinkedQueue;
 import org.apache.cassandra.concurrent.Shutdownable;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.DataInputBuffer;
@@ -54,17 +44,11 @@ import org.apache.cassandra.journal.Journal;
 import org.apache.cassandra.journal.Params;
 import org.apache.cassandra.journal.RecordPointer;
 import org.apache.cassandra.journal.ValueSerializer;
-import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.net.ResponseContext;
-import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.concurrent.Condition;
 
 import static accord.local.Status.PreApplied;
-import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
-import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.SimulatorSafe.SAFE;
-import static org.apache.cassandra.concurrent.Interruptible.State.NORMAL;
 
 public class AccordJournal implements IJournal, Shutdownable
 {
@@ -82,9 +66,6 @@ public class AccordJournal implements IJournal, Shutdownable
 
     private final Journal<JournalKey, Object> journal;
     private final AccordJournalTable<JournalKey, Object> journalTable;
-    private final AccordEndpointMapper endpointMapper;
-
-    private final DelayedRequestProcessor delayedRequestProcessor = new DelayedRequestProcessor();
 
     Node node;
 
@@ -92,7 +73,7 @@ public class AccordJournal implements IJournal, Shutdownable
     private volatile Status status = Status.INITIALIZED;
 
     @VisibleForTesting
-    public AccordJournal(AccordEndpointMapper endpointMapper, Params params)
+    public AccordJournal(Params params)
     {
         File directory = new File(DatabaseDescriptor.getAccordJournalDirectory());
         this.journal = new Journal<>("AccordJournal", directory, params, JournalKey.SUPPORT,
@@ -115,7 +96,6 @@ public class AccordJournal implements IJournal, Shutdownable
                                          }
                                      },
                                      new AccordSegmentCompactor<>());
-        this.endpointMapper = endpointMapper;
         this.journalTable = new AccordJournalTable<>(journal, JournalKey.SUPPORT, params.userVersion());
     }
 
@@ -125,7 +105,6 @@ public class AccordJournal implements IJournal, Shutdownable
         this.node = node;
         status = Status.STARTING;
         journal.start();
-        delayedRequestProcessor.start();
         status = Status.STARTED;
         return this;
     }
@@ -141,7 +120,6 @@ public class AccordJournal implements IJournal, Shutdownable
     {
         Invariants.checkState(status == Status.STARTED);
         status = Status.TERMINATING;
-        delayedRequestProcessor.shutdown();
         journal.shutdown();
         status = Status.TERMINATED;
     }
@@ -165,18 +143,6 @@ public class AccordJournal implements IJournal, Shutdownable
         {
             return false;
         }
-    }
-
-    /**
-     * Accord protocol messages originating from remote nodes.
-     */
-    public void processRemoteRequest(Request request, ResponseContext context)
-    {
-        RemoteRequestContext requestContext = RemoteRequestContext.forLive(request, context);
-        if (node.topology().hasEpoch(request.waitForEpoch()))
-            requestContext.process(node, endpointMapper);
-        else
-            delayedRequestProcessor.delay(requestContext);
     }
 
     @Override
@@ -255,217 +221,6 @@ public class AccordJournal implements IJournal, Shutdownable
             // can only throw if serializer is buggy
             throw new RuntimeException(e);
         }
-    }
-
-    /*
-     * Context necessary to process log records
-     */
-
-    static abstract class RequestContext implements ReplyContext
-    {
-        final long waitForEpoch;
-
-        RequestContext(long waitForEpoch)
-        {
-            this.waitForEpoch = waitForEpoch;
-        }
-
-        public abstract void process(Node node, AccordEndpointMapper endpointMapper);
-    }
-
-    /**
-     * Barebones response context not holding a reference to the entire message
-     */
-    private abstract static class RemoteRequestContext extends RequestContext implements ResponseContext
-    {
-        private final Request request;
-
-        RemoteRequestContext(long waitForEpoch, Request request)
-        {
-            super(waitForEpoch);
-            this.request = request;
-        }
-
-        static LiveRemoteRequestContext forLive(Request request, ResponseContext context)
-        {
-            return new LiveRemoteRequestContext(request, context.id(), context.from(), context.verb(), context.expiresAtNanos());
-        }
-
-        @Override
-        public void process(Node node, AccordEndpointMapper endpointMapper)
-        {
-            this.request.process(node, endpointMapper.mappedId(from()), this);
-        }
-
-        @Override public abstract long id();
-        @Override public abstract InetAddressAndPort from();
-        @Override public abstract Verb verb();
-        @Override public abstract long expiresAtNanos();
-    }
-
-    // TODO: avoid distinguishing between live and non live
-    private static class LiveRemoteRequestContext extends RemoteRequestContext
-    {
-        private final long id;
-        private final InetAddressAndPort from;
-        private final Verb verb;
-        private final long expiresAtNanos;
-
-        LiveRemoteRequestContext(Request request, long id, InetAddressAndPort from, Verb verb, long expiresAtNanos)
-        {
-            super(request.waitForEpoch(), request);
-            this.id = id;
-            this.from = from;
-            this.verb = verb;
-            this.expiresAtNanos = expiresAtNanos;
-        }
-
-
-        @Override
-        public long id()
-        {
-            return id;
-        }
-        @Override
-        public InetAddressAndPort from()
-        {
-            return from;
-        }
-        @Override
-        public Verb verb()
-        {
-            return verb;
-        }
-        @Override
-        public long expiresAtNanos()
-        {
-            return expiresAtNanos;
-        }
-    }
-
-    /*
-     * Handling topology changes / epoch shift
-     */
-
-    private class DelayedRequestProcessor implements Interruptible.Task
-    {
-        private final ManyToOneConcurrentLinkedQueue<RequestContext> delayedRequests = new ManyToOneConcurrentLinkedQueue<>();
-        private final LongArrayList waitForEpochs = new LongArrayList();
-        private final Long2ObjectHashMap<List<RequestContext>> byEpoch = new Long2ObjectHashMap<>();
-        private final AtomicReference<Condition> signal = new AtomicReference<>(Condition.newOneTimeCondition());
-        private volatile Interruptible executor;
-
-        public void start()
-        {
-             executor = executorFactory().infiniteLoop("AccordJournal-delayed-request-processor", this, SAFE, InfiniteLoopExecutor.Daemon.NON_DAEMON, InfiniteLoopExecutor.Interrupts.SYNCHRONIZED);
-        }
-
-        private void delay(RequestContext requestContext)
-        {
-            delayedRequests.add(requestContext);
-            runOnce();
-        }
-
-        private void runOnce()
-        {
-            signal.get().signal();
-        }
-
-        @Override
-        public void run(Interruptible.State state)
-        {
-            if (state != NORMAL || Thread.currentThread().isInterrupted() || !isRunnable(status))
-                return;
-
-            try
-            {
-                Condition signal = Condition.newOneTimeCondition();
-                this.signal.set(signal);
-                // First, poll delayed requests, put them into by epoch
-                while (!delayedRequests.isEmpty())
-                {
-                    RequestContext context = delayedRequests.poll();
-                    long waitForEpoch = context.waitForEpoch;
-
-                    List<RequestContext> l = byEpoch.computeIfAbsent(waitForEpoch, (ignore) -> new ArrayList<>());
-                    if (l.isEmpty())
-                        waitForEpochs.pushLong(waitForEpoch);
-                    l.add(context);
-                    BiConsumer<Void, Throwable> withEpochCallback = new BiConsumer<>()
-                    {
-                        @Override
-                        public void accept(Void unused, Throwable withEpochFailure)
-                        {
-                            if (withEpochFailure != null)
-                            {
-                                // Nothing to do but keep waiting
-                                if (withEpochFailure instanceof Timeout)
-                                {
-                                    node.withEpoch(waitForEpoch, this);
-                                    return;
-                                }
-                                else
-                                    throw new RuntimeException(withEpochFailure);
-                            }
-                            runOnce();
-                        }
-                    };
-                    node.withEpoch(waitForEpoch, withEpochCallback);
-                }
-
-                // Next, process all delayed epochs
-                for (int i = 0; i < waitForEpochs.size(); i++)
-                {
-                    long epoch = waitForEpochs.getLong(i);
-                    if (node.topology().hasEpoch(epoch))
-                    {
-                        List<RequestContext> requests = byEpoch.remove(epoch);
-                        assert requests != null : String.format("%s %s (%d)", byEpoch, waitForEpochs, epoch);
-                        for (RequestContext request : requests)
-                        {
-                            try
-                            {
-                                request.process(node, endpointMapper);
-                            }
-                            catch (Throwable t)
-                            {
-                                logger.error("Caught an exception while processing a delayed request {}", request, t);
-                            }
-                        }
-                    }
-                }
-
-                waitForEpochs.removeIfLong(epoch -> !byEpoch.containsKey(epoch));
-
-                signal.await();
-            }
-            catch (InterruptedException e)
-            {
-                logger.info("Delayed request processor thread interrupted. Shutting down.");
-            }
-            catch (Throwable t)
-            {
-                logger.error("Caught an exception in delayed processor", t);
-            }
-        }
-
-        private void shutdown()
-        {
-            executor.shutdown();
-            try
-            {
-                executor.awaitTermination(1, TimeUnit.MINUTES);
-            }
-            catch (InterruptedException e)
-            {
-                throw new RuntimeException(e);
-            }
-        }
-    }
-
-    private boolean isRunnable(Status status)
-    {
-        return status != Status.TERMINATING && status != Status.TERMINATED;
     }
 
     @VisibleForTesting

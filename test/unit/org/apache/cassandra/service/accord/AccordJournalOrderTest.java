@@ -64,7 +64,7 @@ public class AccordJournalOrderTest
     {
         if (new File(DatabaseDescriptor.getAccordJournalDirectory()).exists())
             ServerTestUtils.cleanupDirectory(DatabaseDescriptor.getAccordJournalDirectory());
-        AccordJournal accordJournal = new AccordJournal(SimpleAccordEndpointMapper.INSTANCE, TestParams.INSTANCE);
+        AccordJournal accordJournal = new AccordJournal(TestParams.INSTANCE);
         accordJournal.start(null);
         RandomSource randomSource = RandomSource.wrap(new Random());
         TxnId id1 = AccordGens.txnIds().next(randomSource);

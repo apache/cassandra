@@ -33,13 +33,11 @@ public class AccordVerbHandler<T extends Request> implements IVerbHandler<T>
 
     private final Node node;
     private final AccordEndpointMapper endpointMapper;
-    private final AccordJournal journal;
 
-    public AccordVerbHandler(Node node, AccordEndpointMapper endpointMapper, AccordJournal journal)
+    public AccordVerbHandler(Node node, AccordEndpointMapper endpointMapper)
     {
         this.node = node;
         this.endpointMapper = endpointMapper;
-        this.journal = journal;
     }
 
     @Override
@@ -49,12 +47,6 @@ public class AccordVerbHandler<T extends Request> implements IVerbHandler<T>
 //        ClusterMetadataService.instance().maybeCatchup(message.epoch());
         logger.trace("Receiving {} from {}", message.payload, message.from());
         T request = message.payload;
-
-        if (request.type().hasSideEffects())
-        {
-            journal.processRemoteRequest(request, message);
-            return;
-        }
 
         /*
          * TODO (desired): messages without side-effects don't go through the journal,

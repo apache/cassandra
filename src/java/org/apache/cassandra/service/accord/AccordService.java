@@ -357,7 +357,7 @@ public class AccordService implements IAccordService, Shutdownable
         this.scheduler = new AccordScheduler();
         this.dataStore = new AccordDataStore();
         this.configuration = new AccordConfiguration(DatabaseDescriptor.getRawConfig());
-        this.journal = new AccordJournal(configService, DatabaseDescriptor.getAccord().journal);
+        this.journal = new AccordJournal(DatabaseDescriptor.getAccord().journal);
         this.node = new Node(localId,
                              messageSink,
                              configService,
@@ -379,7 +379,7 @@ public class AccordService implements IAccordService, Shutdownable
                              configuration);
         this.nodeShutdown = toShutdownable(node);
         this.durabilityScheduling = new CoordinateDurabilityScheduling(node);
-        this.requestHandler = new AccordVerbHandler<>(node, configService, journal);
+        this.requestHandler = new AccordVerbHandler<>(node, configService);
     }
 
     @Override
