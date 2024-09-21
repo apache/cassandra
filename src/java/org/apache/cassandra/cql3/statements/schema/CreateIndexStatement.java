@@ -33,7 +33,6 @@ import org.apache.cassandra.cql3.QualifiedName;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget.Type;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.marshal.MapType;
-import org.apache.cassandra.db.marshal.ReversedType;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.internal.CassandraIndex;
@@ -220,17 +219,10 @@ public final class CreateIndexStatement extends AlterSchemaStatement
         return ImmutableSet.of();
     }
 
-    private AbstractType<?> unwrapType(AbstractType<?> type) {
-        if (type instanceof ReversedType) {
-            return ((ReversedType<?>) type).baseType;
-        }
-        return type;
-    }
-
     private void validateIndexTarget(TableMetadata table, IndexMetadata.Kind kind, IndexTarget target)
     {
         ColumnMetadata column = table.getColumn(target.column);
-        AbstractType<?> baseType = unwrapType(column.type);
+        AbstractType<?> baseType = column.type.unwrap();
 
         if (null == column)
             throw ire(COLUMN_DOES_NOT_EXIST, target.column);
