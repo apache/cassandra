@@ -93,7 +93,7 @@ public class AccordJournalIntegrationTest extends TestBaseImpl
                                       .withoutVNodes()
                                       .start())
         {
-            cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': " + 1 + "} AND durable_writes = false;");
+            cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};");
             final String TABLE = KEYSPACE + ".test_table";
             cluster.schemaChange("CREATE TABLE " + TABLE + " (k int, c int, v int, primary key (k, c)) WITH transactional_mode='full'");
 
