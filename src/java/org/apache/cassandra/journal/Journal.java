@@ -255,6 +255,7 @@ public class Journal<K, V> implements Shutdownable
         try
         {
             allocator.shutdown();
+            wakeAllocator(); // Wake allocator to force it into shutdown
             allocator.awaitTermination(1, TimeUnit.MINUTES);
             compactor.shutdown();
             compactor.awaitTermination(1, TimeUnit.MINUTES);
