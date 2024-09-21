@@ -222,10 +222,11 @@ public final class CreateIndexStatement extends AlterSchemaStatement
     private void validateIndexTarget(TableMetadata table, IndexMetadata.Kind kind, IndexTarget target)
     {
         ColumnMetadata column = table.getColumn(target.column);
-        AbstractType<?> baseType = column.type.unwrap();
 
         if (null == column)
             throw ire(COLUMN_DOES_NOT_EXIST, target.column);
+
+        AbstractType<?> baseType = column.type.unwrap();
 
         if ((kind == IndexMetadata.Kind.CUSTOM) && !SchemaConstants.isValidName(target.column.toString()))
             throw ire(INVALID_CUSTOM_INDEX_TARGET, target.column, SchemaConstants.NAME_LENGTH);
