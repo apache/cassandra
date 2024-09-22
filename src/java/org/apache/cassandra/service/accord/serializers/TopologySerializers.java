@@ -152,7 +152,7 @@ public class TopologySerializers
         }
     };
 
-    public static final IVersionedSerializer<Topology> topology = new IVersionedSerializer<Topology>()
+    public static final IVersionedSerializer<Topology> topology = new IVersionedSerializer<>()
     {
         @Override
         public void serialize(Topology topology, DataOutputPlus out, int version) throws IOException
@@ -167,7 +167,7 @@ public class TopologySerializers
         {
             long epoch = in.readLong();
             Shard[] shards = ArraySerializers.deserializeArray(in, version, shard, Shard[]::new);
-            Set<Node.Id> staleIds = CollectionSerializers.deserializeSet(in, version, TopologySerializers.nodeId);
+            SortedArrayList<Node.Id> staleIds = CollectionSerializers.deserializeSortedArrayList(in, version, TopologySerializers.nodeId, Node.Id[]::new);
             return new Topology(epoch, staleIds, shards);
         }
 

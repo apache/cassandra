@@ -87,7 +87,6 @@ public class ReadDataSerializers
             DepsSerializer.partialDeps.serialize(msg.deps, out, version);
             CommandSerializers.writes.serialize(msg.writes, out, version);
             TxnResult.serializer.serialize((TxnResult) msg.result, out, version);
-            KeySerializers.nullableSeekables.serialize(msg.notify, out, version);
         }
 
         @Override
@@ -101,8 +100,7 @@ public class ReadDataSerializers
             CommandSerializers.partialTxn.deserialize(in, version),
             DepsSerializer.partialDeps.deserialize(in, version),
             CommandSerializers.writes.deserialize(in, version),
-            TxnResult.serializer.deserialize(in, version),
-            KeySerializers.nullableSeekables.deserialize(in, version));
+            TxnResult.serializer.deserialize(in, version));
         }
 
         @Override
@@ -115,8 +113,7 @@ public class ReadDataSerializers
                    + CommandSerializers.partialTxn.serializedSize(msg.txn, version)
                    + DepsSerializer.partialDeps.serializedSize(msg.deps, version)
                    + CommandSerializers.writes.serializedSize(msg.writes, version)
-                   + TxnResult.serializer.serializedSize((TxnData)msg.result, version)
-                   + KeySerializers.nullableSeekables.serializedSize(msg.notify, version);
+                   + TxnResult.serializer.serializedSize((TxnData)msg.result, version);
         }
     }
 

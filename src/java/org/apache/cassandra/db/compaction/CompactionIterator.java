@@ -35,9 +35,10 @@ import accord.local.Cleanup;
 import accord.local.CommandStores.RangesForEpoch;
 import accord.local.DurableBefore;
 import accord.local.RedundantBefore;
-import accord.local.SaveStatus;
-import accord.local.Status.Durability;
-import accord.primitives.Route;
+import accord.local.StoreParticipants;
+import accord.primitives.SaveStatus;
+import accord.primitives.Status;
+import accord.primitives.Status.Durability;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import org.agrona.collections.Int2ObjectHashMap;
@@ -85,19 +86,19 @@ import org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeyAccessor
 import org.apache.cassandra.service.accord.AccordKeyspace.TimestampsForKeyRows;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.IAccordService;
-import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.service.paxos.PaxosRepairHistory;
 import org.apache.cassandra.service.paxos.uncommitted.PaxosRows;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static accord.local.Cleanup.TRUNCATE_WITH_OUTCOME;
-import static accord.local.Cleanup.shouldCleanup;
+import static accord.local.Cleanup.shouldCleanupPartial;
 import static com.google.common.base.Preconditions.checkState;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
 import static org.apache.cassandra.config.Config.PaxosStatePurging.legacy;
 import static org.apache.cassandra.config.DatabaseDescriptor.paxosStatePurging;
-import static org.apache.cassandra.service.accord.AccordKeyspace.CommandRows.invalidated;
-import static org.apache.cassandra.service.accord.AccordKeyspace.CommandRows.maybeDropTruncatedCommandColumns;
+import static org.apache.cassandra.service.accord.AccordKeyspace.CommandRows.expungePartial;
+import static org.apache.cassandra.service.accord.AccordKeyspace.CommandRows.saveStatusOnly;
 import static org.apache.cassandra.service.accord.AccordKeyspace.CommandRows.truncatedApply;
 import static org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeysAccessor;
 import static org.apache.cassandra.service.accord.AccordKeyspace.TimestampsForKeyColumns.last_executed_micros;
@@ -105,7 +106,7 @@ import static org.apache.cassandra.service.accord.AccordKeyspace.TimestampsForKe
 import static org.apache.cassandra.service.accord.AccordKeyspace.TimestampsForKeyColumns.last_write_timestamp;
 import static org.apache.cassandra.service.accord.AccordKeyspace.TimestampsForKeyRows.truncateTimestampsForKeyRow;
 import static org.apache.cassandra.service.accord.AccordKeyspace.deserializeDurabilityOrNull;
-import static org.apache.cassandra.service.accord.AccordKeyspace.deserializeRouteOrNull;
+import static org.apache.cassandra.service.accord.AccordKeyspace.deserializeParticipantsOrNull;
 import static org.apache.cassandra.service.accord.AccordKeyspace.deserializeSaveStatusOrNull;
 import static org.apache.cassandra.service.accord.AccordKeyspace.deserializeTimestampOrNull;
 
@@ -816,33 +817,31 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
             if (redundantBefore == null)
                 return row;
 
-            // When commands end up being sliced by compaction we need this to discard tombstones and slices
-            // without enough information to run the rest of the cleanup logic
-            if (Cleanup.isSafeToCleanup(durableBefore, txnId, ranges.get(storeId).allAt(txnId.epoch())))
-                return null;
-
             Cell durabilityCell = row.getCell(CommandsColumns.durability);
             Durability durability = deserializeDurabilityOrNull(durabilityCell);
             Cell executeAtCell = row.getCell(CommandsColumns.execute_at);
-            Timestamp executeAt = deserializeTimestampOrNull(executeAtCell);
-            Cell routeCell = row.getCell(CommandsColumns.route);
-            Route<?> route = deserializeRouteOrNull(routeCell);
+            Cell participantsCell = row.getCell(CommandsColumns.participants);
+            StoreParticipants participants = deserializeParticipantsOrNull(participantsCell);
             Cell statusCell = row.getCell(CommandsColumns.status);
             SaveStatus saveStatus = deserializeSaveStatusOrNull(statusCell);
 
-            // With a sliced row we might not have enough columns to determine what to do so output the
-            // the row unmodified and we will try again later once it merges with the rest of the command state
-            // or is dropped by `durableBefore.min(txnId) == Universal`
-            if (executeAt == null || durability == null || saveStatus == null || route == null)
+            if (saveStatus == null)
                 return row;
 
-            Cleanup cleanup = shouldCleanup(txnId, saveStatus.status,
-                                            durability, executeAt, route,
-                                            redundantBefore, durableBefore,
-                                            false);
+            if (saveStatus.is(Status.Invalidated))
+                return saveStatusOnly(saveStatus, row, nowInSec);
+
+            Cleanup cleanup = shouldCleanupPartial(txnId, saveStatus, durability, participants,
+                                                   redundantBefore, durableBefore);
             switch (cleanup)
             {
                 default: throw new AssertionError(String.format("Unexpected cleanup task: %s", cleanup));
+                case EXPUNGE:
+                    return null;
+
+                case EXPUNGE_PARTIAL:
+                    return expungePartial(row, durabilityCell, executeAtCell, participantsCell);
+
                 case ERASE:
                     // Emit a tombstone so if this is slicing the command and making it not possible to determine if it
                     // can be truncated later it can still be dropped via the tombstone.
@@ -850,23 +849,19 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                     // We can still encounter sliced command state just because compaction inputs are random
                     return BTreeRow.emptyDeletedRow(row.clustering(), new Row.Deletion(DeletionTime.build(row.primaryKeyLivenessInfo().timestamp(), nowInSec), false));
 
+                case VESTIGIAL:
                 case INVALIDATE:
-                    return invalidated(cleanup.appliesIfNot, row, nowInSec);
+                    return saveStatusOnly(cleanup.appliesIfNot, row, nowInSec);
 
                 case TRUNCATE_WITH_OUTCOME:
                 case TRUNCATE:
-                    if (saveStatus.compareTo(cleanup.appliesIfNot) >= 0)
-                        return maybeDropTruncatedCommandColumns(row, durabilityCell, executeAtCell, routeCell, statusCell);
-                    return truncatedApply(cleanup.appliesIfNot,
-                                          row, nowInSec, durability, durabilityCell, executeAtCell, routeCell, cleanup == TRUNCATE_WITH_OUTCOME);
+                    return truncatedApply(cleanup.appliesIfNot, row, nowInSec, durability, durabilityCell, executeAtCell, participantsCell, cleanup == TRUNCATE_WITH_OUTCOME);
 
                 case NO:
+                    // TODO (required): when we port this to journal, make sure to expunge extra fields beyond those we need to retain
                     return row;
             }
         }
-
-
-
 
         @Override
         protected Row applyToStatic(Row row)
@@ -880,7 +875,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
     {
         final Int2ObjectHashMap<RedundantBefore> redundantBefores;
         int storeId;
-        PartitionKey partitionKey;
+        TokenKey partitionKey;
 
         AccordTimestampsForKeyPurger(Supplier<IAccordService> accordService)
         {
@@ -955,7 +950,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         final CommandsForKeyAccessor accessor;
         final Int2ObjectHashMap<RedundantBefore> redundantBefores;
         int storeId;
-        PartitionKey partitionKey;
+        TokenKey partitionKey;
 
         AccordCommandsForKeyPurger(CommandsForKeyAccessor accessor, Supplier<IAccordService> accordService)
         {

@@ -33,6 +33,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterators;
 
 import accord.local.CommandStores;
+import accord.local.StoreParticipants;
 import accord.primitives.Route;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.distributed.shared.WithProperties;
@@ -51,9 +52,9 @@ import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.DurableBefore;
 import accord.local.RedundantBefore;
-import accord.local.SaveStatus;
-import accord.local.Status;
-import accord.local.Status.Durability;
+import accord.primitives.SaveStatus;
+import accord.primitives.Status;
+import accord.primitives.Status.Durability;
 import accord.primitives.Ballot;
 import accord.primitives.Deps;
 import accord.primitives.FullRoute;
@@ -85,7 +86,7 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.service.accord.serializers.CommandsForKeySerializer;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
@@ -187,10 +188,10 @@ public class CompactionAccordIteratorsTest
         this.singleCompaction = singleCompaction;
         // Null redudnant before should make no change since we have no information on this CommandStore
         testAccordCommandsPurger(null, DurableBefore.EMPTY, expectAccordCommandsNoChange());
-        // Universally durable (and global to boot) should be erased since literally everyone knows about it
-        // The way Commands.shouldCleanup was implemented (when this was written) it doesn't check redundantBefore
-        // at all for this
-        testAccordCommandsPurger(redundantBefore(LT_TXN_ID), durableBefore(UNIVERSAL), expectAccordCommandsErase());
+        // Universally and locally durable (and global to boot) should be erased since literally everyone knows about it
+        testAccordCommandsPurger(redundantBefore(GT_TXN_ID), durableBefore(UNIVERSAL), expectAccordCommandsErase());
+        // Universally durable but not locally; we're stale, but shouldn't erase
+        testAccordCommandsPurger(redundantBefore(LT_TXN_ID), durableBefore(UNIVERSAL), expectAccordCommandsNoChange());
         // With redundantBefore at the txnId there should be no change because it is < not <=
         testAccordCommandsPurger(redundantBefore(TXN_ID), durableBefore(MAJORITY), expectAccordCommandsNoChange());
         testAccordCommandsPurger(redundantBefore(LT_TXN_ID), durableBefore(MAJORITY), expectAccordCommandsNoChange());
@@ -262,7 +263,7 @@ public class CompactionAccordIteratorsTest
         return partitions -> {
             assertEquals(1, partitions.size());
             Partition partition = partitions.get(0);
-            PartitionKey partitionKey = new PartitionKey(partition.metadata().id, partition.partitionKey());
+            TokenKey partitionKey = new TokenKey(partition.metadata().id, partition.partitionKey().getToken());
             CommandsForKey cfk = CommandsForKeysAccessor.getCommandsForKey(partitionKey, ((Row) partition.unfilteredIterator().next()));
             assertEquals(TXN_IDS.length, cfk.size());
             for (int i = 0; i < TXN_IDS.length; ++i)
@@ -469,19 +470,19 @@ public class CompactionAccordIteratorsTest
             PartialDeps partialDeps = Deps.NONE.intersecting(AccordTestUtils.fullRange(txn));
             PartialTxn partialTxn = txn.slice(commandStore.unsafeRangesForEpoch().currentRanges(), true);
             Route<?> partialRoute = route.slice(commandStore.unsafeRangesForEpoch().currentRanges());
-            getUninterruptibly(commandStore.execute(contextFor(txnId, txn.keys(), COMMANDS), safe -> {
+            getUninterruptibly(commandStore.execute(contextFor(txnId, route, COMMANDS), safe -> {
                 CheckedCommands.preaccept(safe, txnId, partialTxn, route, appendDiffToKeyspace(commandStore));
             }).beginAsResult());
             flush(commandStore);
-            getUninterruptibly(commandStore.execute(contextFor(txnId, txn.keys(), COMMANDS), safe -> {
-                CheckedCommands.accept(safe, txnId, Ballot.ZERO, partialRoute, partialTxn.keys(), txnId, partialDeps, appendDiffToKeyspace(commandStore));
+            getUninterruptibly(commandStore.execute(contextFor(txnId, route, COMMANDS), safe -> {
+                CheckedCommands.accept(safe, txnId, Ballot.ZERO, partialRoute, txnId, partialDeps, appendDiffToKeyspace(commandStore));
             }).beginAsResult());
             flush(commandStore);
-            getUninterruptibly(commandStore.execute(contextFor(txnId, txn.keys(), COMMANDS), safe -> {
+            getUninterruptibly(commandStore.execute(contextFor(txnId, route, COMMANDS), safe -> {
                 CheckedCommands.commit(safe, SaveStatus.Stable, Ballot.ZERO, txnId, route, partialTxn, txnId, partialDeps, appendDiffToKeyspace(commandStore));
             }).beginAsResult());
             flush(commandStore);
-            getUninterruptibly(commandStore.execute(contextFor(txnId, txn.keys(), COMMANDS), safe -> {
+            getUninterruptibly(commandStore.execute(contextFor(txnId, route, COMMANDS), safe -> {
                 Pair<Writes, Result> result = AccordTestUtils.processTxnResultDirect(safe, txnId, partialTxn, txnId);
                 CheckedCommands.apply(safe, txnId, route, txnId, partialDeps, partialTxn, result.left, result.right, appendDiffToKeyspace(commandStore));
             }).beginAsResult());
@@ -489,8 +490,9 @@ public class CompactionAccordIteratorsTest
             // The apply chain is asychronous, so it is easiest to just spin until it is applied
             // in order to have the updated state in the system table
             spinAssertEquals(true, 5, () -> {
-                return getUninterruptibly(commandStore.submit(contextFor(txnId, txn.keys(), COMMANDS), safe -> {
-                    Command command = safe.get(txnId, route.homeKey()).current();
+                return getUninterruptibly(commandStore.submit(contextFor(txnId, route, COMMANDS), safe -> {
+                    StoreParticipants participants = StoreParticipants.all(route);
+                    Command command = safe.get(txnId, participants).current();
                     appendDiffToKeyspace(commandStore).accept(null, command);
                     return command.hasBeen(Status.Applied);
                 }).beginAsResult());
@@ -506,7 +508,7 @@ public class CompactionAccordIteratorsTest
         UntypedResultSet commandsForKeyTable = QueryProcessor.executeInternal("SELECT * FROM " + ACCORD_KEYSPACE_NAME + "." + COMMANDS_FOR_KEY + ";");
         logger.info(commandsForKeyTable.toStringUnsafe());
         assertEquals(1, commandsForKeyTable.size());
-        CommandsForKey cfk = CommandsForKeySerializer.fromBytes((Key) key, commandsForKeyTable.iterator().next().getBytes("data"));
+        CommandsForKey cfk = CommandsForKeySerializer.fromBytes(((Key) key).toUnseekable(), commandsForKeyTable.iterator().next().getBytes("data"));
         assertEquals(txnIds.length, cfk.size());
         for (int i = 0; i < txnIds.length; ++i)
             assertEquals(txnIds[i], cfk.txnId(i));

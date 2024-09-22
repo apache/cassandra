@@ -24,6 +24,7 @@ import java.util.function.ToLongFunction;
 import accord.api.Key;
 import accord.api.Result;
 import accord.api.RoutingKey;
+import accord.local.StoreParticipants;
 import accord.local.cfk.CommandsForKey;
 import accord.local.cfk.CommandsForKey.TxnInfo;
 import accord.impl.TimestampsForKey;
@@ -32,8 +33,8 @@ import accord.local.Command.WaitingOn;
 import accord.local.cfk.CommandsForKey.TxnInfoExtra;
 import accord.local.CommonAttributes;
 import accord.local.Node;
-import accord.local.SaveStatus;
-import accord.local.Status;
+import accord.primitives.SaveStatus;
+import accord.primitives.Status;
 import accord.primitives.AbstractKeys;
 import accord.primitives.AbstractRanges;
 import accord.primitives.Ballot;
@@ -69,6 +70,7 @@ import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.service.accord.txn.TxnWrite;
 import org.apache.cassandra.utils.ObjectSizes;
 
+import static accord.local.cfk.CommandsForKey.InternalStatus.ACCEPTED;
 import static accord.primitives.TxnId.NO_TXNIDS;
 import static org.apache.cassandra.utils.ObjectSizes.measure;
 
@@ -235,7 +237,7 @@ public class AccordObjectSizes
         //      doesn't account for txnIdToKeys, txnIdToRanges, and searchable fields;
         //      fix to accunt for, in case caching isn't redone
         long size = EMPTY_DEPS_SIZE - EMPTY_KEYS_SIZE - ObjectSizes.sizeOfReferenceArray(0);
-        size += keys(dependencies.keyDeps.keys());
+        size += routingKeys(dependencies.keyDeps.keys());
         for (int i = 0 ; i < dependencies.rangeDeps.rangeCount() ; ++i)
             size += range(dependencies.rangeDeps.range(i));
         size += ObjectSizes.sizeOfReferenceArray(dependencies.rangeDeps.rangeCount());
@@ -273,7 +275,9 @@ public class AccordObjectSizes
 
         private static CommonAttributes attrs(boolean hasDeps, boolean hasTxn)
         {
-            CommonAttributes.Mutable attrs = new CommonAttributes.Mutable(EMPTY_TXNID).route(new FullKeyRoute(EMPTY_KEY, new RoutingKey[]{ EMPTY_KEY }));
+            FullKeyRoute route = new FullKeyRoute(EMPTY_KEY, new RoutingKey[]{ EMPTY_KEY });
+            CommonAttributes.Mutable attrs = new CommonAttributes.Mutable(EMPTY_TXNID)
+                                             .setParticipants(StoreParticipants.empty(EMPTY_TXNID, route));
             attrs.durability(Status.Durability.NotDurable);
             if (hasDeps)
                 attrs.partialDeps(PartialDeps.NONE);
@@ -284,14 +288,14 @@ public class AccordObjectSizes
             return attrs;
         }
 
-        private static final Writes EMPTY_WRITES = new Writes(EMPTY_TXNID, EMPTY_TXNID, Keys.EMPTY, (key, safeStore, executeAt, store, txn) -> null);
+        private static final Writes EMPTY_WRITES = new Writes(EMPTY_TXNID, EMPTY_TXNID, Keys.EMPTY, (key, safeStore, txnId, executeAt, store, txn) -> null);
         private static final Result EMPTY_RESULT = new Result() {};
 
         final static long NOT_DEFINED = measure(Command.SerializerSupport.notDefined(attrs(false, false), Ballot.ZERO));
         final static long PREACCEPTED = measure(Command.SerializerSupport.preaccepted(attrs(false, true), EMPTY_TXNID, null));;
         final static long ACCEPTED = measure(Command.SerializerSupport.accepted(attrs(true, false), SaveStatus.Accepted, EMPTY_TXNID, Ballot.ZERO, Ballot.ZERO));
         final static long COMMITTED = measure(Command.SerializerSupport.committed(attrs(true, true), SaveStatus.Committed, EMPTY_TXNID, Ballot.ZERO, Ballot.ZERO, null));
-        final static long EXECUTED = measure(Command.SerializerSupport.executed(attrs(true, true), SaveStatus.Applied, EMPTY_TXNID, Ballot.ZERO, Ballot.ZERO, WaitingOn.empty(EMPTY_TXNID.domain()), EMPTY_WRITES, EMPTY_RESULT));
+        final static long EXECUTED = measure(Command.SerializerSupport.executed(attrs(true, true), SaveStatus.Applied, EMPTY_TXNID, Ballot.ZERO, Ballot.ZERO, WaitingOn.empty(Domain.Key), EMPTY_WRITES, EMPTY_RESULT));
         final static long TRUNCATED = measure(Command.SerializerSupport.truncatedApply(attrs(false, false), SaveStatus.TruncatedApply,  EMPTY_TXNID, null, null));
         final static long INVALIDATED = measure(Command.SerializerSupport.invalidated(EMPTY_TXNID));
 
@@ -353,7 +357,7 @@ public class AccordObjectSizes
         return size;
     }
 
-    private static long EMPTY_TFK_SIZE = measure(TimestampsForKey.SerializerSupport.create(null, null, 0, null));
+    private static long EMPTY_TFK_SIZE = measure(TimestampsForKey.SerializerSupport.create(null, null, 0, null, null));
 
     public static long timestampsForKey(TimestampsForKey timestamps)
     {
@@ -364,8 +368,8 @@ public class AccordObjectSizes
     }
 
     private static long EMPTY_CFK_SIZE = measure(new CommandsForKey(null));
-    private static long EMPTY_INFO_SIZE = measure(TxnInfo.createMock(TxnId.NONE, null, null, NO_TXNIDS, Ballot.ZERO));
-    private static long EMPTY_INFO_EXTRA_ADDITIONAL_SIZE = EMPTY_INFO_SIZE - measure(TxnInfo.createMock(TxnId.NONE, null, null, null, null));
+    private static long EMPTY_INFO_SIZE = measure(CommandsForKey.NO_INFO);
+    private static long EMPTY_INFO_EXTRA_ADDITIONAL_SIZE = measure(TxnInfo.create(TxnId.NONE, ACCEPTED, false, TxnId.NONE, NO_TXNIDS, Ballot.MAX)) - EMPTY_INFO_SIZE;
     public static long commandsForKey(CommandsForKey cfk)
     {
         long size = EMPTY_CFK_SIZE;

@@ -23,12 +23,12 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
+import accord.local.Node.Id;
 import accord.primitives.Ranges;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 
-import accord.local.Node;
 import accord.topology.Shard;
 import accord.topology.Topology;
 import accord.utils.Invariants;
@@ -58,14 +58,14 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
  */
 public class AccordTopology
 {
-    public static Node.Id tcmIdToAccord(NodeId nodeId)
+    public static Id tcmIdToAccord(NodeId nodeId)
     {
-        return new Node.Id(nodeId.id());
+        return new Id(nodeId.id());
     }
 
     private static class ShardLookup extends HashMap<accord.primitives.Range, Shard>
     {
-        private Shard createOrReuse(boolean pendingRemoval, accord.primitives.Range range, SortedArrayList<Node.Id> nodes, Set<Node.Id> fastPathElectorate, Set<Node.Id> joining)
+        private Shard createOrReuse(boolean pendingRemoval, accord.primitives.Range range, SortedArrayList<Id> nodes, Set<Id> fastPathElectorate, Set<Id> joining)
         {
             Shard prev = get(range);
             if (prev != null
@@ -83,10 +83,10 @@ public class AccordTopology
     {
         private final KeyspaceMetadata keyspace;
         private final Range<Token> range;
-        private final SortedArrayList<Node.Id> nodes;
-        private final Set<Node.Id> pending;
+        private final SortedArrayList<Id> nodes;
+        private final Set<Id> pending;
 
-        private KeyspaceShard(KeyspaceMetadata keyspace, Range<Token> range, SortedArrayList<Node.Id> nodes, Set<Node.Id> pending)
+        private KeyspaceShard(KeyspaceMetadata keyspace, Range<Token> range, SortedArrayList<Id> nodes, Set<Id> pending)
         {
             this.keyspace = keyspace;
             this.range = range;
@@ -100,15 +100,15 @@ public class AccordTopology
             FastPathStrategy tableStrategy = metadata.params.fastPath;
             FastPathStrategy strategy = tableStrategy.kind() != FastPathStrategy.Kind.INHERIT_KEYSPACE
                                         ? tableStrategy : keyspace.params.fastPath;
-            Invariants.checkState(strategy.kind() != FastPathStrategy.Kind.INHERIT_KEYSPACE);;
+            Invariants.checkState(strategy.kind() != FastPathStrategy.Kind.INHERIT_KEYSPACE);
             return strategy;
         }
 
-        Shard createForTable(TableMetadata metadata, Set<Node.Id> unavailable, Map<Node.Id, String> dcMap, ShardLookup lookup)
+        Shard createForTable(TableMetadata metadata, Set<Id> unavailable, Map<Id, String> dcMap, ShardLookup lookup)
         {
             TokenRange tokenRange = AccordTopology.range(metadata.id, range);
 
-            SortedArrayList<Node.Id> fastPath = strategyFor(metadata).calculateFastPath(nodes, unavailable, dcMap);
+            SortedArrayList<Id> fastPath = strategyFor(metadata).calculateFastPath(nodes, unavailable, dcMap);
 
             return lookup.createOrReuse(metadata.params.pendingDrop, tokenRange, nodes, fastPath, pending);
         }
@@ -124,14 +124,14 @@ public class AccordTopology
             Sets.SetView<InetAddressAndPort> readOnly = Sets.difference(readEndpoints, writeEndpoints);
             Invariants.checkState(readOnly.isEmpty(), "Read only replicas detected: %s", readOnly);
 
-            SortedArrayList<Node.Id> nodes = new SortedArrayList<>(writes.endpoints().stream()
-                                        .map(directory::peerId)
-                                        .map(AccordTopology::tcmIdToAccord)
-                                        .sorted().toArray(Node.Id[]::new));
+            SortedArrayList<Id> nodes = new SortedArrayList<>(writes.endpoints().stream()
+                                                                    .map(directory::peerId)
+                                                                    .map(AccordTopology::tcmIdToAccord)
+                                                                    .sorted().toArray(Id[]::new));
 
-            Set<Node.Id> pending = readEndpoints.equals(writeEndpoints) ?
-                                   Collections.emptySet() :
-                                   writeEndpoints.stream()
+            Set<Id> pending = readEndpoints.equals(writeEndpoints) ?
+                              Collections.emptySet() :
+                              writeEndpoints.stream()
                                                  .filter(e -> !readEndpoints.contains(e))
                                                  .map(directory::peerId)
                                                  .map(AccordTopology::tcmIdToAccord)
@@ -156,7 +156,7 @@ public class AccordTopology
             return shards;
         }
 
-        public List<Node.Id> nodes()
+        public List<Id> nodes()
         {
             return nodes;
         }
@@ -213,9 +213,9 @@ public class AccordTopology
         return accordRanges;
     }
 
-    private static Map<Node.Id, String> createDCMap(Directory directory)
+    private static Map<Id, String> createDCMap(Directory directory)
     {
-        ImmutableMap.Builder<Node.Id, String> builder = ImmutableMap.builder();
+        ImmutableMap.Builder<Id, String> builder = ImmutableMap.builder();
         directory.knownDatacenters().forEach(dc -> {
             Set<InetAddressAndPort> dcEndpoints = directory.datacenterEndpoints(dc);
             // nodes aren't added to the endpointsToDCMap until they've joined
@@ -223,7 +223,7 @@ public class AccordTopology
                 return;
             dcEndpoints.forEach(ep -> {
                 NodeId tid = directory.peerId(ep);
-                Node.Id aid = tcmIdToAccord(tid);
+                Id aid = tcmIdToAccord(tid);
                 builder.put(aid, dc);
             });
         });
@@ -235,8 +235,8 @@ public class AccordTopology
                                                 AccordStaleReplicas staleReplicas)
     {
         List<Shard> shards = new ArrayList<>();
-        Set<Node.Id> unavailable = accordFastPath.unavailableIds();
-        Map<Node.Id, String> dcMap = createDCMap(directory);
+        Set<Id> unavailable = accordFastPath.unavailableIds();
+        Map<Id, String> dcMap = createDCMap(directory);
 
         for (KeyspaceMetadata keyspace : schema.getKeyspaces())
         {
@@ -249,7 +249,7 @@ public class AccordTopology
 
         shards.sort((a, b) -> a.range.compare(b.range));
 
-        return new Topology(epoch.getEpoch(), staleReplicas.ids(), shards.toArray(new Shard[0]));
+        return new Topology(epoch.getEpoch(), SortedArrayList.copyUnsorted(staleReplicas.ids(), Id[]::new), shards.toArray(new Shard[0]));
     }
 
     public static Topology createAccordTopology(ClusterMetadata metadata, ShardLookup lookup)
@@ -275,7 +275,7 @@ public class AccordTopology
 
         // There are cases where nodes are removed from the cluster (host replacement, decom, etc.), but inflight events may still be happening;
         // keep the ids around so pending events do not fail with a mapping error
-        for (Node.Id id : mapping.differenceIds(builder))
+        for (Id id : mapping.differenceIds(builder))
             builder.add(mapping.mappedEndpoint(id), id);
         return builder.build();
     }

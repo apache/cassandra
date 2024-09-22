@@ -27,14 +27,15 @@ import java.util.Map;
 
 import org.junit.Test;
 
-import accord.api.Key;
+import accord.api.RoutingKey;
 import accord.primitives.FullRangeRoute;
 import accord.primitives.FullRoute;
 import accord.primitives.Keys;
 import accord.primitives.Ranges;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
-import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
+import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 
 import static accord.utils.Property.qt;
 import static org.apache.cassandra.dht.Murmur3Partitioner.LongToken.keyForToken;
@@ -55,18 +56,18 @@ public class SimulatedRandomKeysWithRangeConflictTest extends SimulatedAccordCom
             AccordKeyspace.unsafeClear();
             try (var instance = new SimulatedAccordCommandStore(rs))
             {
-                Map<Key, List<TxnId>> keyConflicts = new HashMap<>();
+                Map<RoutingKey, List<TxnId>> keyConflicts = new HashMap<>();
                 List<TxnId> rangeConflicts = new ArrayList<>(numSamples);
                 for (int i = 0; i < numSamples; i++)
                 {
                     long token = rs.nextLong(Long.MIN_VALUE  + 1, Long.MAX_VALUE);
-                    Key key = new PartitionKey(tbl.id, tbl.partitioner.decorateKey(keyForToken(token)));
+                    RoutingKey key = new TokenKey(tbl.id, new LongToken(token));
                     Txn keyTxn = createTxn(wrapInTxn("INSERT INTO " + tbl + "(pk, value) VALUES (?, ?)"),
                                            Arrays.asList(keyForToken(token), 42));
                     Keys keys = (Keys) keyTxn.keys();
-                    FullRoute<?> keyRoute = keys.toRoute(keys.get(0).toUnseekable());
+                    FullRoute<RoutingKey> keyRoute = keys.toRoute(keys.get(0).toUnseekable());
 
-                    instance.maybeCacheEvict((Keys) keyTxn.keys(), wholeRange);
+                    instance.maybeCacheEvict(keyRoute, wholeRange);
 
                     // the full range is (-Inf, +Inf] but the store could be [(-Inf, Number], (Number, +Inf]], so need to slice to the store to get a matching range
                     Ranges wholeRangeSlicedShard = instance.slice(wholeRange);

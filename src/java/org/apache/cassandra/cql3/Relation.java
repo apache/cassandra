@@ -33,7 +33,6 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.*;
-import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
 
 /**
  * The parsed version of a {@code SimpleRestriction} as outputed by the CQL parser.

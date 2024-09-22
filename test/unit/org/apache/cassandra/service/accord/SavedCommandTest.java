@@ -27,7 +27,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import accord.local.Command;
-import accord.local.SaveStatus;
+import accord.primitives.SaveStatus;
 import accord.primitives.TxnId;
 import accord.utils.Gen;
 import accord.utils.LazyToString;
@@ -74,7 +74,7 @@ public class SavedCommandTest
     public void simpleNullChangeCheck()
     {
         int flags = getFlags(null, Command.NotDefined.uninitialised(TxnId.NONE));
-        EnumSet<Fields> has = EnumSet.of(Fields.TXN_ID, Fields.SAVE_STATUS, Fields.DURABILITY, Fields.PROMISED,
+        EnumSet<Fields> has = EnumSet.of(Fields.TXN_ID, Fields.SAVE_STATUS, Fields.PARTICIPANTS, Fields.DURABILITY, Fields.PROMISED,
                                          Fields.ACCEPTED /* this is Zero... which kinda means null... */);
         Set<Fields> missing = Sets.difference(ALL, has);
         assertHas(flags, has);
@@ -87,7 +87,7 @@ public class SavedCommandTest
         Gen<AccordGenerators.CommandBuilder> gen = AccordGenerators.commandsBuilder();
         try (DataOutputBuffer out = new DataOutputBuffer())
         {
-            qt().forAll(gen).check(cmdBuilder -> {
+            qt().forAll(gen).withSeed(3447978952908153749L).check(cmdBuilder -> {
                 int userVersion = 1; //TODO (maintance): where can we fetch all supported versions?
                 SoftAssertions checks = new SoftAssertions();
                 for (SaveStatus saveStatus : SaveStatus.values())

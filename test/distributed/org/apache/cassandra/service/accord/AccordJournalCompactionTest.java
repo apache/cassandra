@@ -33,32 +33,24 @@ import accord.local.RedundantBefore;
 import accord.primitives.Deps;
 import accord.primitives.KeyDeps;
 import accord.primitives.Ranges;
-import accord.primitives.Routable;
 import accord.primitives.Timestamp;
-import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.utils.AccordGens;
 import accord.utils.DefaultRandom;
 import accord.utils.Gen;
-import accord.utils.Gens;
 import accord.utils.RandomSource;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.journal.TestParams;
-import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.AccordJournalValueSerializers.HistoricalTransactionsAccumulator;
-import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.utils.AccordGenerators;
 import org.apache.cassandra.utils.concurrent.Condition;
 
 import static accord.local.CommandStores.RangesForEpoch;
-import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.BootstrapBeganAtAccumulator;
 import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.DurableBeforeAccumulator;
 import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.IdentityAccumulator;
 import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.RedundantBeforeAccumulator;
@@ -90,14 +82,34 @@ public class AccordJournalCompactionTest
     @Test
     public void segmentMergeTest() throws InterruptedException
     {
-        Gen<RedundantBefore> redundantBeforeGen = AccordGenerators.redundantBefore(DatabaseDescriptor.getPartitioner());
+        RedundantBeforeAccumulator redundantBeforeAccumulator = new RedundantBeforeAccumulator();
+        DurableBeforeAccumulator durableBeforeAccumulator = new DurableBeforeAccumulator();
+        IdentityAccumulator<NavigableMap<TxnId, Ranges>> bootstrapBeganAtAccumulator = new IdentityAccumulator<>(ImmutableSortedMap.of(TxnId.NONE, Ranges.EMPTY));
+        IdentityAccumulator<NavigableMap<Timestamp, Ranges>> safeToReadAccumulator = new IdentityAccumulator<>(ImmutableSortedMap.of(Timestamp.NONE, Ranges.EMPTY));
+        IdentityAccumulator<RangesForEpoch.Snapshot> rangesForEpochAccumulator = new IdentityAccumulator<>(null);
+        HistoricalTransactionsAccumulator historicalTransactionsAccumulator = new HistoricalTransactionsAccumulator();
+
+        Gen<RedundantBefore> basicRedundantBeforeGen = AccordGenerators.redundantBefore(DatabaseDescriptor.getPartitioner());
+        Gen<RedundantBefore> redundantBeforeGen = rs -> {
+            // TODO: find a better way to generate consecutive redundant befores
+            while (true)
+            {
+                RedundantBefore next = basicRedundantBeforeGen.next(rs);
+                try
+                {
+                    RedundantBefore.merge(redundantBeforeAccumulator.get(), next);
+                    return next;
+                }
+                catch (Throwable t)
+                {
+                    // retry;
+                }
+            }
+        };
         Gen<DurableBefore> durableBeforeGen = AccordGenerators.durableBeforeGen(DatabaseDescriptor.getPartitioner());
-        Gen<Ranges> rangeGen = AccordGenerators.ranges(DatabaseDescriptor.getPartitioner());
-        Gen<TxnId> txnIdGen = AccordGens.txnIds(Gens.pick(Txn.Kind.SyncPoint, Txn.Kind.ExclusiveSyncPoint), ignore -> Routable.Domain.Range);
         Gen<NavigableMap<Timestamp, Ranges>> safeToReadGen = AccordGenerators.safeToReadGen(DatabaseDescriptor.getPartitioner());
         Gen<RangesForEpoch.Snapshot> rangesForEpochGen = AccordGenerators.rangesForEpoch(DatabaseDescriptor.getPartitioner());
         Gen<Deps> historicalTransactionsGen = depsGen();
-
 
         AccordJournal journal = new AccordJournal(new TestParams()
         {
@@ -119,22 +131,6 @@ public class AccordJournalCompactionTest
             Timestamp timestamp = Timestamp.NONE;
 
             RandomSource rs = new DefaultRandom();
-            Gen<TxnId> bootstrappedAtTxn = new Gen<TxnId>()
-            {
-                TxnId prev = txnIdGen.next(rs);
-                public TxnId next(RandomSource random)
-                {
-                    prev = new TxnId(prev.epoch() + 1, prev.hlc() + random.nextInt(1, 100), prev.kind(), prev.domain(), prev.node);
-                    return prev;
-                }
-            };
-
-            RedundantBeforeAccumulator redundantBeforeAccumulator = new RedundantBeforeAccumulator();
-            DurableBeforeAccumulator durableBeforeAccumulator = new DurableBeforeAccumulator();
-            BootstrapBeganAtAccumulator bootstrapBeganAtAccumulator = new BootstrapBeganAtAccumulator();
-            IdentityAccumulator<NavigableMap<Timestamp, Ranges>> safeToReadAccumulator = new IdentityAccumulator<>(ImmutableSortedMap.of(Timestamp.NONE, Ranges.EMPTY));
-            IdentityAccumulator<RangesForEpoch.Snapshot> rangesForEpochAccumulator = new IdentityAccumulator<>(null);
-            HistoricalTransactionsAccumulator historicalTransactionsAccumulator = new HistoricalTransactionsAccumulator();
 
             int count = 1_000;
             Condition condition = Condition.newOneTimeCondition();
@@ -144,8 +140,6 @@ public class AccordJournalCompactionTest
                 AccordSafeCommandStore.FieldUpdates updates = new AccordSafeCommandStore.FieldUpdates();
                 updates.durableBefore = durableBeforeGen.next(rs);
                 updates.redundantBefore = redundantBeforeGen.next(rs);
-                if (i % 100 == 0)
-                    updates.newBootstrapBeganAt = new AccordSafeCommandStore.Sync(bootstrappedAtTxn.next(rs), rangeGen.next(rs));
                 updates.safeToRead = safeToReadGen.next(rs);
                 updates.rangesForEpoch = rangesForEpochGen.next(rs);
                 updates.historicalTransactions = historicalTransactionsGen.next(rs);
@@ -157,8 +151,8 @@ public class AccordJournalCompactionTest
 
                 redundantBeforeAccumulator.update(updates.redundantBefore);
                 durableBeforeAccumulator.update(updates.durableBefore);
-                if (updates.newBootstrapBeganAt != null)
-                    bootstrapBeganAtAccumulator.update(updates.newBootstrapBeganAt);
+                if (updates.bootstrapBeganAt != null)
+                    bootstrapBeganAtAccumulator.update(updates.bootstrapBeganAt);
                 safeToReadAccumulator.update(updates.safeToRead);
                 rangesForEpochAccumulator.update(updates.rangesForEpoch);
                 historicalTransactionsAccumulator.update(updates.historicalTransactions);
@@ -184,23 +178,9 @@ public class AccordJournalCompactionTest
 
     public static Gen<Deps> depsGen()
     {
-        Gen<KeyDeps> keyDepsGen = AccordGens.keyDeps(keysForDeps());
-        return AccordGens.deps((rs) -> keyDepsGen.next(rs),
+        Gen<KeyDeps> keyDepsGen = AccordGenerators.keyDepsGen(DatabaseDescriptor.getPartitioner());
+        return AccordGens.deps(keyDepsGen::next,
                                (rs) -> Deps.NONE.rangeDeps,
                                (rs) -> Deps.NONE.directKeyDeps);
-    }
-
-    public static Gen<PartitionKey> keysForDeps()
-    {
-        Gen<Timestamp> timestampGen = AccordGens.timestamps();
-        return rs -> {
-            ColumnFamilyStore cfs = Keyspace.open(SchemaConstants.ACCORD_KEYSPACE_NAME).getColumnFamilyStore(AccordKeyspace.JOURNAL);
-            DecoratedKey dk = AccordJournalTable.makePartitionKey(cfs,
-                                                                  new JournalKey(timestampGen.next(rs), JournalKey.Type.COMMAND_DIFF, 1),
-                                                                  JournalKey.SUPPORT,
-                                                                  1);
-            return new PartitionKey(cfs.getTableId(),
-                                    dk);
-        };
     }
 }

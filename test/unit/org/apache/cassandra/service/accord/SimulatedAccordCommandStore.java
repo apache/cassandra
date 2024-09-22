@@ -31,6 +31,7 @@ import java.util.function.ToLongFunction;
 import accord.api.LocalListeners;
 import accord.api.ProgressLog;
 import accord.api.RemoteListeners;
+import accord.api.RoutingKey;
 import accord.impl.DefaultLocalListeners;
 import accord.impl.SizeOfIntersectionSorter;
 import accord.impl.TestAgent;
@@ -45,17 +46,18 @@ import accord.local.SafeCommandStore;
 import accord.messages.BeginRecovery;
 import accord.messages.PreAccept;
 import accord.messages.TxnRequest;
+import accord.primitives.AbstractUnseekableKeys;
 import accord.primitives.Ballot;
 import accord.primitives.FullRoute;
-import accord.primitives.Keys;
 import accord.primitives.Ranges;
 import accord.primitives.Routable;
 import accord.primitives.RoutableKey;
 import accord.primitives.Routables;
-import accord.primitives.Seekables;
+import accord.primitives.RoutingKeys;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
+import accord.primitives.Unseekables;
 import accord.topology.Topologies;
 import accord.topology.Topology;
 import accord.utils.Gens;
@@ -227,22 +229,22 @@ public class SimulatedAccordCommandStore implements AutoCloseable
         return new TxnId(timeService.epoch(), timeService.now(), kind, domain, nodeId);
     }
 
-    public void maybeCacheEvict(Seekables<?, ?> keysOrRanges)
+    public void maybeCacheEvict(Unseekables<?> keysOrRanges)
     {
         switch (keysOrRanges.domain())
         {
             case Key:
-                maybeCacheEvict((Keys) keysOrRanges, Ranges.EMPTY);
+                maybeCacheEvict((AbstractUnseekableKeys) keysOrRanges, Ranges.EMPTY);
                 break;
             case Range:
-                maybeCacheEvict(Keys.EMPTY, (Ranges) keysOrRanges);
+                maybeCacheEvict(RoutingKeys.EMPTY, (Ranges) keysOrRanges);
                 break;
             default:
                 throw new UnsupportedOperationException("Unknown domain: " + keysOrRanges.domain());
         }
     }
 
-    public void maybeCacheEvict(Keys keys, Ranges ranges)
+    public void maybeCacheEvict(Unseekables<RoutingKey> keys, Ranges ranges)
     {
         AccordStateCache cache = store.cache();
         cache.forEach(state -> {
@@ -294,14 +296,14 @@ public class SimulatedAccordCommandStore implements AutoCloseable
         }
     }
 
-    private static boolean intersects(ColumnFamilyStore store, Memtable memtable, Keys keys, Ranges ranges)
+    private static boolean intersects(ColumnFamilyStore store, Memtable memtable, Unseekables<RoutingKey> keys, Ranges ranges)
     {
         if (keys.isEmpty() && ranges.isEmpty()) // shouldn't happen, but just in case...
             return false;
         switch (store.name)
         {
             case "commands_for_key":
-                // pk = (store_id, key_token, key)
+                // pk = (store_id, routing_key)
                 // since this is simulating a single store, store_id is a constant, so check key
                 try (var it = memtable.partitionIterator(ColumnFilter.NONE, DataRange.allData(store.getPartitioner()), null))
                 {
@@ -365,7 +367,7 @@ public class SimulatedAccordCommandStore implements AutoCloseable
     {
         TxnId txnId = nextTxnId(txn.kind(), txn.keys().domain());
         Ballot ballot = Ballot.fromValues(timeService.epoch(), timeService.now(), nodeId);
-        BeginRecovery br = new BeginRecovery(nodeId, topologies, txnId, txn, route, ballot);
+        BeginRecovery br = new BeginRecovery(nodeId, topologies, txnId, null, txn, route, ballot);
 
         return Pair.create(txnId, processAsync(br, safe -> {
             var reply = br.apply(safe);

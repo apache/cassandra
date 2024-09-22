@@ -39,6 +39,8 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import accord.api.Key;
+import accord.api.RoutingKey;
+import accord.local.StoreParticipants;
 import accord.local.cfk.CommandsForKey;
 import accord.local.cfk.CommandsForKey.InternalStatus;
 import accord.local.Command;
@@ -47,8 +49,8 @@ import accord.local.cfk.CommandsForKey.Unmanaged;
 import accord.local.CommonAttributes;
 import accord.local.CommonAttributes.Mutable;
 import accord.local.Node;
-import accord.local.SaveStatus;
-import accord.local.Status;
+import accord.primitives.SaveStatus;
+import accord.primitives.Status;
 import accord.primitives.Ballot;
 import accord.primitives.KeyDeps;
 import accord.primitives.PartialDeps;
@@ -66,27 +68,28 @@ import accord.utils.RandomSource;
 import accord.utils.SortedArrays;
 import org.agrona.collections.Int2ObjectHashMap;
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.AccordTestUtils;
-import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.service.accord.txn.TxnWrite;
 import org.apache.cassandra.simulator.RandomSource.Choices;
 import org.apache.cassandra.utils.AccordGenerators;
 import org.apache.cassandra.utils.CassandraGenerators;
 
-import static accord.local.Status.Durability.NotDurable;
-import static accord.local.Status.KnownExecuteAt.ExecuteAtErased;
-import static accord.local.Status.KnownExecuteAt.ExecuteAtUnknown;
+import static accord.primitives.Status.Durability.NotDurable;
+import static accord.primitives.Known.KnownExecuteAt.ExecuteAtErased;
+import static accord.primitives.Known.KnownExecuteAt.ExecuteAtUnknown;
 import static accord.utils.Property.qt;
 import static accord.utils.SortedArrays.Search.FAST;
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
 import static org.apache.cassandra.service.accord.AccordTestUtils.createPartialTxn;
 
+// TODO (required): test statusOverrides
 public class CommandsForKeySerializerTest
 {
     @BeforeClass
@@ -125,14 +128,14 @@ public class CommandsForKeySerializerTest
             if (saveStatus.known.isDefinitionKnown())
                 mutable.partialTxn(txn);
 
-            mutable.route(txn.keys().toRoute(txn.keys().get(0).someIntersectingRoutingKey(null)));
+            mutable.setParticipants(StoreParticipants.all(txn.keys().toRoute(txn.keys().get(0).someIntersectingRoutingKey(null))));
             mutable.durability(NotDurable);
             if (saveStatus.known.deps.hasProposedOrDecidedDeps())
             {
                 try (KeyDeps.Builder builder = KeyDeps.builder();)
                 {
                     for (TxnId id : deps)
-                        builder.add((Key)txn.keys().get(0), id);
+                        builder.add(((Key)txn.keys().get(0)).toUnseekable(), id);
                     mutable.partialDeps(new PartialDeps(AccordTestUtils.fullRange(txn), builder.build(), RangeDeps.NONE, KeyDeps.NONE));
                 }
             }
@@ -183,7 +186,7 @@ public class CommandsForKeySerializerTest
                     else return Command.SerializerSupport.truncatedApply(attributes(), saveStatus, executeAt, new Writes(txnId, executeAt, txn.keys(), new TxnWrite(Collections.emptyList(), true)), new TxnData());
 
                 case Erased:
-                case ErasedOrInvalidOrVestigial:
+                case ErasedOrVestigial:
                 case Invalidated:
                     return Command.SerializerSupport.invalidated(txnId);
             }
@@ -356,7 +359,7 @@ public class CommandsForKeySerializerTest
     @Test
     public void serde()
     {
-        testOne(-8928257345122888710L);
+        testOne(3466420662549679178L);
         Random random = new Random();
         for (int i = 0 ; i < 10000 ; ++i)
         {
@@ -446,7 +449,7 @@ public class CommandsForKeySerializerTest
             }
 
             PartialTxn txn = createPartialTxn(0);
-            Key key = (Key) txn.keys().get(0);
+            RoutingKey key = ((Key) txn.keys().get(0)).toUnseekable();
             ObjectGraph graph = generateObjectGraph(source.nextInt(0, 100), () -> txnIdSupplier.apply(null), saveStatusSupplier, ignore -> txn, executeAtSupplier, ballotSupplier, missingCountSupplier, source);
             List<Command> commands = graph.toCommands();
             CommandsForKey cfk = new CommandsForKey(key);
@@ -471,7 +474,7 @@ public class CommandsForKeySerializerTest
                 if (expectStatus == null) expectStatus = InternalStatus.TRANSITIVELY_KNOWN;
                 if (expectStatus.hasExecuteAtOrDeps)
                     Assert.assertEquals(cmd.executeAt, info.executeAt);
-                Assert.assertEquals(expectStatus, info.status);
+                Assert.assertEquals(expectStatus, info.status());
                 Assert.assertArrayEquals(cmd.missing.toArray(TxnId[]::new), info.missing());
                 if (expectStatus.hasBallot)
                     Assert.assertEquals(cmd.ballot, info.ballot());
@@ -495,7 +498,7 @@ public class CommandsForKeySerializerTest
         var txnIdGen = AccordGens.txnIds(rs -> rs.nextLong(0, 100), rs -> rs.nextLong(100), rs -> rs.nextInt(10));
         qt().check(rs -> {
             TableId table = tableGen.next(rs);
-            PartitionKey pk = new PartitionKey(table, Murmur3Partitioner.instance.decorateKey(Murmur3Partitioner.LongToken.keyForToken(rs.nextLong())));
+            TokenKey pk = new TokenKey(table, new Murmur3Partitioner.LongToken(rs.nextLong()));
             var redudentBefore = txnIdGen.next(rs);
             TxnId[] ids = Gens.arrays(TxnId.class, rs0 -> {
                 TxnId next = txnIdGen.next(rs0);
@@ -508,7 +511,7 @@ public class CommandsForKeySerializerTest
             for (int i = 0; i < info.length; i++)
             {
                 InternalStatus status = rs.pick(InternalStatus.values());
-                info[i] = TxnInfo.create(ids[i], status, ids[i], TxnId.NO_TXNIDS, Ballot.ZERO);
+                info[i] = TxnInfo.create(ids[i], status, true, ids[i], TxnId.NO_TXNIDS, Ballot.ZERO);
             }
 
             Gen<Unmanaged.Pending> pendingGen = Gens.enums().allMixedDistribution(Unmanaged.Pending.class).next(rs);
@@ -527,7 +530,7 @@ public class CommandsForKeySerializerTest
                 {
                     int idx = Arrays.binarySearch(ids, u.txnId);
                     if (idx < 0)
-                        missing.add(TxnInfo.create(u.txnId, InternalStatus.TRANSITIVELY_KNOWN));
+                        missing.add(TxnInfo.create(u.txnId, InternalStatus.TRANSITIVELY_KNOWN, true, u.txnId, Ballot.ZERO));
                 }
                 if (!missing.isEmpty())
                 {
@@ -549,11 +552,11 @@ public class CommandsForKeySerializerTest
     public void thereAndBackAgain()
     {
         long tokenValue = -2311778975040348869L;
-        DecoratedKey key = Murmur3Partitioner.instance.decorateKey(Murmur3Partitioner.LongToken.keyForToken(tokenValue));
-        PartitionKey pk = new PartitionKey(TableId.fromString("1b255f4d-ef25-40a6-0000-000000000009"), key);
+        Token token = new Murmur3Partitioner.LongToken(tokenValue);
+        TokenKey pk = new TokenKey(TableId.fromString("1b255f4d-ef25-40a6-0000-000000000009"), token);
         TxnId txnId = TxnId.fromValues(11,34052499,2,1);
         CommandsForKey expected = CommandsForKey.SerializerSupport.create(pk,
-                                                     new TxnInfo[] { TxnInfo.create(txnId, InternalStatus.PREACCEPTED_OR_ACCEPTED_INVALIDATE, txnId, TxnId.NO_TXNIDS, Ballot.ZERO) },
+                                                     new TxnInfo[] { TxnInfo.create(txnId, InternalStatus.PREACCEPTED_OR_ACCEPTED_INVALIDATE, true, txnId, TxnId.NO_TXNIDS, Ballot.ZERO) },
                                                                           CommandsForKey.NO_PENDING_UNMANAGED, TxnId.NONE, TxnId.NONE);
 
         ByteBuffer buffer = CommandsForKeySerializer.toBytesWithoutKey(expected);

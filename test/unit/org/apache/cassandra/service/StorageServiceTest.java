@@ -71,6 +71,7 @@ public class StorageServiceTest extends TestBaseImpl
         ServerTestUtils.prepareServerNoRegister();
         DatabaseDescriptor.daemonInitialization();
         DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
+        DatabaseDescriptor.setAccordTransactionsEnabled(false);
 
         ClusterMetadataService.instance().commit(new Register(NodeAddresses.current(),
                                                               new Location(SimpleSnitch.DATA_CENTER_NAME, SimpleSnitch.RACK_NAME),

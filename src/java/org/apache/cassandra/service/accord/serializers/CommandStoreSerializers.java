@@ -26,6 +26,7 @@ import java.util.function.IntFunction;
 import accord.api.RoutingKey;
 import accord.local.DurableBefore;
 import accord.local.RedundantBefore;
+import accord.local.RejectBefore;
 import accord.primitives.Range;
 import accord.primitives.Ranges;
 import accord.primitives.Timestamp;
@@ -106,7 +107,8 @@ public class CommandStoreSerializers
         }
     }
 
-    public static IVersionedSerializer<DurableBefore> durableBefore = new ReducingRangeMapSerializer<>(NullableSerializer.wrap(new IVersionedSerializer<DurableBefore.Entry>()
+    public static IVersionedSerializer<RejectBefore> rejectBefore = new ReducingRangeMapSerializer<>(CommandSerializers.nullableTxnId, TxnId[]::new, RejectBefore.SerializerSupport::create);
+    public static IVersionedSerializer<DurableBefore> durableBefore = new ReducingRangeMapSerializer<>(NullableSerializer.wrap(new IVersionedSerializer<>()
     {
         @Override
         public void serialize(DurableBefore.Entry t, DataOutputPlus out, int version) throws IOException
@@ -137,12 +139,14 @@ public class CommandStoreSerializers
         public void serialize(RedundantBefore.Entry t, DataOutputPlus out, int version) throws IOException
         {
             TokenRange.serializer.serialize((TokenRange) t.range, out, version);
-            Invariants.checkState(t.startEpoch <= t.endEpoch);
-            out.writeUnsignedVInt(t.startEpoch);
-            if (t.endEpoch == Long.MAX_VALUE) out.writeUnsignedVInt(0L);
-            else out.writeUnsignedVInt(1 + t.endEpoch - t.startEpoch);
+            Invariants.checkState(t.startOwnershipEpoch <= t.endOwnershipEpoch);
+            out.writeUnsignedVInt(t.startOwnershipEpoch);
+            if (t.endOwnershipEpoch == Long.MAX_VALUE) out.writeUnsignedVInt(0L);
+            else out.writeUnsignedVInt(1 + t.endOwnershipEpoch - t.startOwnershipEpoch);
             CommandSerializers.txnId.serialize(t.locallyAppliedOrInvalidatedBefore, out, version);
+            CommandSerializers.txnId.serialize(t.locallyDecidedAndAppliedOrInvalidatedBefore, out, version);
             CommandSerializers.txnId.serialize(t.shardAppliedOrInvalidatedBefore, out, version);
+            CommandSerializers.txnId.serialize(t.shardOnlyAppliedOrInvalidatedBefore, out, version);
             CommandSerializers.txnId.serialize(t.gcBefore, out, version);
             CommandSerializers.txnId.serialize(t.bootstrappedAt, out, version);
             CommandSerializers.nullableTimestamp.serialize(t.staleUntilAtLeast, out, version);
@@ -157,21 +161,25 @@ public class CommandStoreSerializers
             if (endEpoch == 0) endEpoch = Long.MAX_VALUE;
             else endEpoch = endEpoch - 1 + startEpoch;
             TxnId locallyAppliedOrInvalidatedBefore = CommandSerializers.txnId.deserialize(in, version);
+            TxnId locallyDecidedAndAppliedOrInvalidatedBefore = CommandSerializers.txnId.deserialize(in, version);
             TxnId shardAppliedOrInvalidatedBefore = CommandSerializers.txnId.deserialize(in, version);
+            TxnId shardOnlyAppliedOrInvalidatedBefore = CommandSerializers.txnId.deserialize(in, version);
             TxnId gcBefore = CommandSerializers.txnId.deserialize(in, version);
             TxnId bootstrappedAt = CommandSerializers.txnId.deserialize(in, version);
             Timestamp staleUntilAtLeast = CommandSerializers.nullableTimestamp.deserialize(in, version);
-            return new RedundantBefore.Entry(range, startEpoch, endEpoch, locallyAppliedOrInvalidatedBefore, shardAppliedOrInvalidatedBefore, gcBefore, bootstrappedAt, staleUntilAtLeast);
+            return new RedundantBefore.Entry(range, startEpoch, endEpoch, locallyAppliedOrInvalidatedBefore, locallyDecidedAndAppliedOrInvalidatedBefore, shardAppliedOrInvalidatedBefore, shardOnlyAppliedOrInvalidatedBefore, gcBefore, bootstrappedAt, staleUntilAtLeast);
         }
 
         @Override
         public long serializedSize(RedundantBefore.Entry t, int version)
         {
             long size = TokenRange.serializer.serializedSize((TokenRange) t.range, version);
-            size += TypeSizes.sizeofUnsignedVInt(t.startEpoch);
-            size += TypeSizes.sizeofUnsignedVInt(t.endEpoch == Long.MAX_VALUE ? 0 : 1 + t.endEpoch - t.startEpoch);
+            size += TypeSizes.sizeofUnsignedVInt(t.startOwnershipEpoch);
+            size += TypeSizes.sizeofUnsignedVInt(t.endOwnershipEpoch == Long.MAX_VALUE ? 0 : 1 + t.endOwnershipEpoch - t.startOwnershipEpoch);
             size += CommandSerializers.txnId.serializedSize(t.locallyAppliedOrInvalidatedBefore, version);
+            size += CommandSerializers.txnId.serializedSize(t.locallyDecidedAndAppliedOrInvalidatedBefore, version);
             size += CommandSerializers.txnId.serializedSize(t.shardAppliedOrInvalidatedBefore, version);
+            size += CommandSerializers.txnId.serializedSize(t.shardOnlyAppliedOrInvalidatedBefore, version);
             size += CommandSerializers.txnId.serializedSize(t.gcBefore, version);
             size += CommandSerializers.txnId.serializedSize(t.bootstrappedAt, version);
             size += CommandSerializers.nullableTimestamp.serializedSize(t.staleUntilAtLeast, version);

@@ -29,10 +29,18 @@ import accord.api.Result;
 import accord.api.Update;
 import accord.coordinate.Infer;
 import accord.local.Node;
-import accord.local.SaveStatus;
-import accord.local.Status;
-import accord.local.Status.Durability;
-import accord.local.Status.Known;
+import accord.local.StoreParticipants;
+import accord.primitives.Known.Definition;
+import accord.primitives.Known.KnownDeps;
+import accord.primitives.Known.KnownExecuteAt;
+import accord.primitives.Known.KnownRoute;
+import accord.primitives.Known.Outcome;
+import accord.primitives.Participants;
+import accord.primitives.Route;
+import accord.primitives.SaveStatus;
+import accord.primitives.Status;
+import accord.primitives.Status.Durability;
+import accord.primitives.Known;
 import accord.primitives.Ballot;
 import accord.primitives.PartialTxn;
 import accord.primitives.ProgressToken;
@@ -47,7 +55,6 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.serializers.IVersionedWithKeysSerializer.AbstractWithKeysSerializer;
-import org.apache.cassandra.service.accord.serializers.IVersionedWithKeysSerializer.NullableWithKeysSerializer;
 import org.apache.cassandra.service.accord.serializers.SmallEnumSerializer.NullableSmallEnumSerializer;
 import org.apache.cassandra.service.accord.txn.AccordUpdate;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
@@ -71,11 +78,74 @@ public class CommandSerializers
     };
 
     public static final TimestampSerializer<TxnId> txnId = new TimestampSerializer<>(TxnId::fromBits);
+    public static final IVersionedSerializer<TxnId> nullableTxnId = NullableSerializer.wrap(txnId);
     public static final TimestampSerializer<Timestamp> timestamp = new TimestampSerializer<>(Timestamp::fromBits);
     public static final IVersionedSerializer<Timestamp> nullableTimestamp = NullableSerializer.wrap(timestamp);
     public static final TimestampSerializer<Ballot> ballot = new TimestampSerializer<>(Ballot::fromBits);
     public static final IVersionedSerializer<Ballot> nullableBallot = NullableSerializer.wrap(ballot);
     public static final EnumSerializer<Txn.Kind> kind = new EnumSerializer<>(Txn.Kind.class);
+    public static final StoreParticipantsSerializer participants = new StoreParticipantsSerializer();
+
+    // TODO (expected): optimise using subset serializers (but be careful for range txns, e.g. some collections have differently sliced sub ranges)
+    public static class StoreParticipantsSerializer implements IVersionedSerializer<StoreParticipants>
+    {
+        static final int HAS_ROUTE = 0x1;
+        static final int HAS_TOUCHED_EQUALS_ROUTE = 0x2;
+        static final int TOUCHES_EQUALS_HAS_TOUCHED = 0x4;
+        static final int OWNS_EQUALS_TOUCHES = 0x8;
+        @Override
+        public void serialize(StoreParticipants t, DataOutputPlus out, int version) throws IOException
+        {
+            boolean hasRoute = t.route() != null;
+            boolean hasTouchedEqualsRoute = t.route() == t.hasTouched();
+            boolean touchesEqualsHasTouched = t.touches() == t.hasTouched();
+            boolean ownsEqualsTouches = t.owns() == t.touches();
+            out.writeByte((hasRoute ? HAS_ROUTE : 0)
+                          | (hasTouchedEqualsRoute ? HAS_TOUCHED_EQUALS_ROUTE : 0)
+                          | (touchesEqualsHasTouched ? TOUCHES_EQUALS_HAS_TOUCHED : 0)
+                          | (ownsEqualsTouches ? OWNS_EQUALS_TOUCHES : 0)
+            );
+            if (hasRoute) KeySerializers.route.serialize(t.route(), out, version);
+            if (!hasTouchedEqualsRoute) KeySerializers.participants.serialize(t.hasTouched(), out, version);
+            if (!touchesEqualsHasTouched) KeySerializers.participants.serialize(t.touches(), out, version);
+            if (!ownsEqualsTouches) KeySerializers.participants.serialize(t.owns(), out, version);
+        }
+
+        @Override
+        public StoreParticipants deserialize(DataInputPlus in, int version) throws IOException
+        {
+            int flags = in.readByte();
+            Route<?> route = 0 == (flags & HAS_ROUTE) ? null : KeySerializers.route.deserialize(in, version);
+            Participants<?> hasTouched = 0 != (flags & HAS_TOUCHED_EQUALS_ROUTE) ? route : KeySerializers.participants.deserialize(in, version);
+            Participants<?> touches = 0 != (flags & TOUCHES_EQUALS_HAS_TOUCHED) ? hasTouched : KeySerializers.participants.deserialize(in, version);
+            Participants<?> owns = 0 != (flags & OWNS_EQUALS_TOUCHES) ? touches : KeySerializers.participants.deserialize(in, version);
+            return StoreParticipants.SerializationSupport.create(route, owns, touches, hasTouched);
+        }
+
+        public Route<?> deserializeRouteOnly(DataInputPlus in, int version) throws IOException
+        {
+            int flags = in.readByte();
+            if (0 == (flags & HAS_ROUTE))
+                return null;
+
+            return KeySerializers.route.deserialize(in, version);
+        }
+
+        @Override
+        public long serializedSize(StoreParticipants t, int version)
+        {
+            boolean hasRoute = t.route() != null;
+            boolean hasTouchedEqualsRoute = t.route() == t.hasTouched();
+            boolean touchesEqualsHasTouched = t.touches() == t.hasTouched();
+            boolean ownsEqualsTouches = t.owns() == t.touches();
+            long size = 1;
+            if (hasRoute) size += KeySerializers.route.serializedSize(t.route(), version);
+            if (!hasTouchedEqualsRoute) size += KeySerializers.participants.serializedSize(t.hasTouched(), version);
+            if (!touchesEqualsHasTouched) size += KeySerializers.participants.serializedSize(t.touches(), version);
+            if (!ownsEqualsTouches) size += KeySerializers.participants.serializedSize(t.owns(), version);
+            return size;
+        }
+    }
 
     public static class TimestampSerializer<T extends Timestamp> implements IVersionedSerializer<T>
     {
@@ -173,7 +243,7 @@ public class CommandSerializers
         }
     }
 
-    public static class PartialTxnSerializer extends AbstractWithKeysSerializer implements IVersionedWithKeysSerializer<Seekables<?, ?>, PartialTxn>
+    public static class PartialTxnSerializer extends AbstractWithKeysSerializer implements IVersionedSerializer<PartialTxn>
     {
         private final IVersionedSerializer<Read> readSerializer;
         private final IVersionedSerializer<Query> querySerializer;
@@ -208,28 +278,6 @@ public class CommandSerializers
             return size;
         }
 
-        @Override
-        public void serialize(Seekables<?, ?> superset, PartialTxn txn, DataOutputPlus out, int version) throws IOException
-        {
-            serializeSubset(txn.keys(), superset, out);
-            serializeWithoutKeys(txn, out, version);
-        }
-
-        @Override
-        public PartialTxn deserialize(Seekables<?, ?> superset, DataInputPlus in, int version) throws IOException
-        {
-            Seekables<?, ?> keys = deserializeSubset(superset, in);
-            return deserializeWithoutKeys(keys, in, version);
-        }
-
-        @Override
-        public long serializedSize(Seekables<?, ?> superset, PartialTxn txn, int version)
-        {
-            long size = serializedSubsetSize(txn.keys(), superset);
-            size += serializedSizeWithoutKeys(txn, version);
-            return size;
-        }
-
         private void serializeWithoutKeys(PartialTxn txn, DataOutputPlus out, int version) throws IOException
         {
             CommandSerializers.kind.serialize(txn.kind(), out, version);
@@ -249,7 +297,6 @@ public class CommandSerializers
             return new PartialTxn.InMemory(kind, keys, read, query, update);
         }
 
-
         private long serializedSizeWithoutKeys(PartialTxn txn, int version)
         {
             long size = CommandSerializers.kind.serializedSize(txn.kind(), version);
@@ -266,14 +313,14 @@ public class CommandSerializers
     private static final IVersionedSerializer<Query> query = new CastingSerializer<>(TxnQuery.class, TxnQuery.serializer);
     private static final IVersionedSerializer<Update> update = new CastingSerializer<>(AccordUpdate.class, AccordUpdate.serializer);
 
-    public static final IVersionedWithKeysSerializer<Seekables<?, ?>, PartialTxn> partialTxn = new PartialTxnSerializer(read, query, update);
-    public static final IVersionedWithKeysSerializer<Seekables<?, ?>, PartialTxn> nullablePartialTxn = new NullableWithKeysSerializer<>(partialTxn);
+    public static final IVersionedSerializer<PartialTxn> partialTxn = new PartialTxnSerializer(read, query, update);
+    public static final IVersionedSerializer<PartialTxn> nullablePartialTxn = NullableSerializer.wrap(partialTxn);
 
     public static final EnumSerializer<SaveStatus> saveStatus = new EnumSerializer<>(SaveStatus.class);
     public static final EnumSerializer<Status> status = new EnumSerializer<>(Status.class);
     public static final EnumSerializer<Durability> durability = new EnumSerializer<>(Durability.class);
 
-    public static final IVersionedSerializer<Writes> writes = new IVersionedSerializer<Writes>()
+    public static final IVersionedSerializer<Writes> writes = new IVersionedSerializer<>()
     {
         @Override
         public void serialize(Writes writes, DataOutputPlus out, int version) throws IOException
@@ -311,14 +358,13 @@ public class CommandSerializers
 
     public static final IVersionedSerializer<Writes> nullableWrites = NullableSerializer.wrap(writes);
 
-    public static final SmallEnumSerializer<Status.KnownRoute> knownRoute = new SmallEnumSerializer<>(Status.KnownRoute.class);
-    public static final SmallEnumSerializer<Status.Definition> definition = new SmallEnumSerializer<>(Status.Definition.class);
-    public static final SmallEnumSerializer<Status.KnownExecuteAt> knownExecuteAt = new SmallEnumSerializer<>(Status.KnownExecuteAt.class);
-    public static final SmallEnumSerializer<Status.KnownDeps> knownDeps = new SmallEnumSerializer<>(Status.KnownDeps.class);
-    public static final NullableSmallEnumSerializer<Status.KnownDeps> nullableKnownDeps = new NullableSmallEnumSerializer<>(knownDeps);
-    public static final SmallEnumSerializer<Status.Outcome> outcome = new SmallEnumSerializer<>(Status.Outcome.class);
-    public static final SmallEnumSerializer<Infer.InvalidIfNot> invalidIfNot = new SmallEnumSerializer<>(Infer.InvalidIfNot.class);
-    public static final SmallEnumSerializer<Infer.IsPreempted> isPreempted = new SmallEnumSerializer<>(Infer.IsPreempted.class);
+    public static final SmallEnumSerializer<KnownRoute> knownRoute = new SmallEnumSerializer<>(KnownRoute.class);
+    public static final SmallEnumSerializer<Definition> definition = new SmallEnumSerializer<>(Definition.class);
+    public static final SmallEnumSerializer<KnownExecuteAt> knownExecuteAt = new SmallEnumSerializer<>(KnownExecuteAt.class);
+    public static final SmallEnumSerializer<KnownDeps> knownDeps = new SmallEnumSerializer<>(KnownDeps.class);
+    public static final NullableSmallEnumSerializer<KnownDeps> nullableKnownDeps = new NullableSmallEnumSerializer<>(knownDeps);
+    public static final SmallEnumSerializer<Outcome> outcome = new SmallEnumSerializer<>(Outcome.class);
+    public static final SmallEnumSerializer<Infer.InvalidIf> invalidIf = new SmallEnumSerializer<>(Infer.InvalidIf.class);
 
     public static final IVersionedSerializer<Known> known = new IVersionedSerializer<>()
     {
@@ -352,4 +398,6 @@ public class CommandSerializers
                    + outcome.serializedSize(known.outcome, version);
         }
     };
+
+    public static final IVersionedSerializer<Known> nullableKnown = NullableSerializer.wrap(known);
 }

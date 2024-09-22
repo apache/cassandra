@@ -104,7 +104,7 @@ public class RangeMemoryIndex
         Route<?> route;
         try
         {
-            route = AccordKeyspace.deserializeRouteOrNull(value);
+            route = AccordKeyspace.deserializeParticipantsRouteOnlyOrNull(value);
         }
         catch (IOException e)
         {
@@ -117,7 +117,7 @@ public class RangeMemoryIndex
 
     public synchronized long add(DecoratedKey key, Route<?> route)
     {
-        if (route.domain() != Routable.Domain.Range)
+        if (route == null || route.domain() != Routable.Domain.Range)
             return 0;
         long sum = 0;
         for (var keyOrRange : route)
