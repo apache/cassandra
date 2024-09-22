@@ -2317,7 +2317,7 @@ public class BTree
      * Base class for AbstractFastBuilder.BranchBuilder, LeafBuilder and AbstractFastBuilder,
      * containing shared behaviour and declaring some useful abstract methods.
      */
-    private static abstract class LeafOrBranchBuilder
+    static abstract class LeafOrBranchBuilder
     {
         final int height;
         final LeafOrBranchBuilder child;
@@ -2783,6 +2783,7 @@ public class BTree
 
             Object[] newLeaf = new Object[count | 1];
             System.arraycopy(buffer, 0, newLeaf, 0, count);
+            Arrays.fill(buffer, 0, count, null);
             count = 0;
             return newLeaf;
         }
@@ -3062,6 +3063,8 @@ public class BTree
             {
                 System.arraycopy(buffer, 0, branch, 0, keys);
                 System.arraycopy(buffer, MAX_KEYS, branch, keys, keys + 1);
+                Arrays.fill(buffer, 0, keys, null);
+                Arrays.fill(buffer, MAX_KEYS, MAX_KEYS + keys + 1, null);
             }
             setDrainSizeMap(null, -1, branch, keys);
             return branch;
