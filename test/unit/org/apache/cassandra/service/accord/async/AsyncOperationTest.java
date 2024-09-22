@@ -27,6 +27,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
+import accord.local.StoreParticipants;
+import accord.primitives.Participants;
 import accord.primitives.Route;
 import accord.utils.DefaultRandom;
 import com.google.common.collect.Iterables;
@@ -48,7 +50,7 @@ import accord.local.Command;
 import accord.local.PreLoadContext;
 import accord.local.SafeCommand;
 import accord.local.SafeCommandStore;
-import accord.local.SaveStatus;
+import accord.primitives.SaveStatus;
 import accord.primitives.Ballot;
 import accord.primitives.FullRoute;
 import accord.primitives.Keys;
@@ -78,6 +80,7 @@ import org.apache.cassandra.service.accord.AccordSafeCommand;
 import org.apache.cassandra.service.accord.AccordSafeCommandStore;
 import org.apache.cassandra.service.accord.AccordStateCache;
 import org.apache.cassandra.service.accord.AccordTestUtils;
+import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.utils.AssertionUtils;
 import org.apache.cassandra.utils.FBUtilities;
@@ -150,7 +153,8 @@ public class AsyncOperationTest
         TxnId txnId = txnId(1, clock.incrementAndGet(), 1);
 
         getUninterruptibly(commandStore.execute(contextFor(txnId), safe -> {
-            SafeCommand command = safe.get(txnId, txnId, safe.ranges().currentRanges());
+            StoreParticipants participants = StoreParticipants.empty(txnId);
+            SafeCommand command = safe.get(txnId, participants);
             Assert.assertNotNull(command);
         }));
 
@@ -163,7 +167,7 @@ public class AsyncOperationTest
     {
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
         Txn txn = AccordTestUtils.createWriteTxn((int)clock.incrementAndGet());
-        PartitionKey key = (PartitionKey) Iterables.getOnlyElement(txn.keys());
+        TokenKey key = ((PartitionKey) Iterables.getOnlyElement(txn.keys())).toUnseekable();
 
         getUninterruptibly(commandStore.execute(contextFor(key), instance -> {
             SafeCommandsForKey cfk = ((AccordSafeCommandStore) instance).maybeCommandsForKey(key);
@@ -211,7 +215,7 @@ public class AsyncOperationTest
 
         try
         {
-            Command command = getUninterruptibly(commandStore.submit(contextFor(txnId, partialTxn.keys(), COMMANDS), safe -> {
+            Command command = getUninterruptibly(commandStore.submit(contextFor(txnId, route, COMMANDS), safe -> {
                 CheckedCommands.preaccept(safe, txnId, partialTxn, route, appendDiffToLog(commandStore));
                 CheckedCommands.commit(safe, SaveStatus.Stable, Ballot.ZERO, txnId, route, partialTxn, executeAt, deps, appendDiffToLog(commandStore));
                 return safe.ifInitialised(txnId).current();
@@ -258,9 +262,9 @@ public class AsyncOperationTest
 
         try
         {
-            Command command = getUninterruptibly(commandStore.submit(contextFor(txnId, partialTxn.keys(), COMMANDS), safe -> {
+            Command command = getUninterruptibly(commandStore.submit(contextFor(txnId, route, COMMANDS), safe -> {
                 CheckedCommands.preaccept(safe, txnId, partialTxn, route, appendDiffToLog(commandStore));
-                CheckedCommands.accept(safe, txnId, Ballot.ZERO, partialRoute, partialTxn.keys(), executeAt, deps, appendDiffToLog(commandStore));
+                CheckedCommands.accept(safe, txnId, Ballot.ZERO, partialRoute, executeAt, deps, appendDiffToLog(commandStore));
                 CheckedCommands.commit(safe, SaveStatus.Committed, Ballot.ZERO, txnId, route, partialTxn, executeAt, deps, appendDiffToLog(commandStore));
                 CheckedCommands.commit(safe, SaveStatus.Stable, Ballot.ZERO, txnId, route, partialTxn, executeAt, deps, appendDiffToLog(commandStore));
                 return safe.ifInitialised(txnId).current();
@@ -370,13 +374,13 @@ public class AsyncOperationTest
             .check((rs, ids) -> {
             before(); // truncate tables
 
-
-            assertNoReferences(commandStore, ids, keys);
+            Participants<RoutingKey> participants = keys.toParticipants();
+            assertNoReferences(commandStore, ids, participants);
             createCommand(commandStore, rs, ids);
-            awaitDone(commandStore, ids, keys);
-            assertNoReferences(commandStore, ids, keys);
+            awaitDone(commandStore, ids, participants);
+            assertNoReferences(commandStore, ids, participants);
 
-            PreLoadContext ctx = contextFor(null, ids, keys, COMMANDS);
+            PreLoadContext ctx = contextFor(null, ids, participants, COMMANDS);
             Consumer<SafeCommandStore> consumer = Mockito.mock(Consumer.class);
 
             Map<TxnId, Boolean> failed = selectFailedTxn(rs, ids);
@@ -396,10 +400,10 @@ public class AsyncOperationTest
 
             Mockito.verifyNoInteractions(consumer);
 
-            assertNoReferences(commandStore, ids, keys);
+            assertNoReferences(commandStore, ids, participants);
             // the first failed load causes the whole operation to fail, so some ids may still be pending
             // to make sure the next operation does not see a PENDING that will fail, wait for all loads to complete
-            awaitDone(commandStore, ids, keys);
+            awaitDone(commandStore, ids, participants);
 
             // can we recover?
             commandStore.commandCache().unsafeSetLoadFunction(txnId -> {
@@ -412,8 +416,8 @@ public class AsyncOperationTest
                 });
             });
             getUninterruptibly(o2);
-            awaitDone(commandStore, ids, keys);
-            assertNoReferences(commandStore, ids, keys);
+            awaitDone(commandStore, ids, participants);
+            assertNoReferences(commandStore, ids, participants);
 
         });
     }
@@ -432,10 +436,11 @@ public class AsyncOperationTest
             logger.info("Test #{}", counter.incrementAndGet());
             before(); // truncate tables
 
-            assertNoReferences(commandStore, ids, keys);
+            Participants<RoutingKey> participants = keys.toParticipants();
+            assertNoReferences(commandStore, ids, participants);
             createCommand(commandStore, rs, ids);
 
-            PreLoadContext ctx = contextFor(null, ids, keys, COMMANDS);
+            PreLoadContext ctx = contextFor(null, ids, participants, COMMANDS);
 
             Consumer<SafeCommandStore> consumer = Mockito.mock(Consumer.class);
             String errorMsg = "txn_ids " + ids;
@@ -449,7 +454,7 @@ public class AsyncOperationTest
                           .hasMessage(errorMsg)
                           .hasNoSuppressedExceptions();
 
-            assertNoReferences(commandStore, ids, keys);
+            assertNoReferences(commandStore, ids, participants);
         });
     }
 
@@ -482,7 +487,7 @@ public class AsyncOperationTest
         return failed;
     }
 
-    private static void assertNoReferences(AccordCommandStore commandStore, List<TxnId> ids, Keys keys)
+    private static void assertNoReferences(AccordCommandStore commandStore, List<TxnId> ids, Participants<RoutingKey> keys)
     {
         AssertionError error = null;
         try
@@ -533,7 +538,7 @@ public class AsyncOperationTest
         if (error != null) throw error;
     }
 
-    private static void awaitDone(AccordCommandStore commandStore, List<TxnId> ids, Keys keys)
+    private static void awaitDone(AccordCommandStore commandStore, List<TxnId> ids, Participants<RoutingKey> keys)
     {
         awaitDone(commandStore.commandCache(), ids);
         awaitDone(commandStore.commandsForKeyCache(), keys);

@@ -36,8 +36,8 @@ import com.google.common.collect.ImmutableMap;
 
 import accord.local.Command;
 import accord.local.DurableBefore;
-import accord.local.SaveStatus;
-import accord.local.Status;
+import accord.primitives.SaveStatus;
+import accord.primitives.Status;
 import accord.primitives.Range;
 import accord.primitives.Ranges;
 import accord.primitives.Routable;

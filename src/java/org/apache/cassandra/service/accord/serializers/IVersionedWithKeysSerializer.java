@@ -20,14 +20,16 @@ package org.apache.cassandra.service.accord.serializers;
 
 import java.io.IOException;
 
-import accord.api.Key;
+import accord.api.RoutingKey;
 import accord.primitives.AbstractKeys;
-import accord.primitives.Keys;
+import accord.primitives.AbstractRanges;
+import accord.primitives.AbstractUnseekableKeys;
 import accord.primitives.Range;
 import accord.primitives.Ranges;
 import accord.primitives.RoutableKey;
 import accord.primitives.Routables;
-import accord.primitives.Seekables;
+import accord.primitives.RoutingKeys;
+import accord.primitives.Unseekables;
 import net.nicoulaj.compilecommand.annotations.DontInline;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -123,7 +125,7 @@ public interface IVersionedWithKeysSerializer<K extends Routables<?>, T> extends
          * If both ends have a pre-shared superset of the columns we are serializing, we can send them much
          * more efficiently. Both ends must provide the identically same set of columns.
          */
-        protected void serializeSubset(Seekables<?, ?> serialize, Seekables<?, ?> superset, DataOutputPlus out) throws IOException
+        protected void serializeSubset(Routables<?> serialize, Routables<?> superset, DataOutputPlus out) throws IOException
         {
             /**
              * We weight this towards small sets, and sets where the majority of items are present, since
@@ -149,10 +151,10 @@ public interface IVersionedWithKeysSerializer<K extends Routables<?>, T> extends
                 {
                     default: throw new AssertionError("Unhandled domain: " + serialize.domain());
                     case Key:
-                        out.writeUnsignedVInt(encodeBitmap((Keys)serialize, (Keys)superset, supersetCount));
+                        out.writeUnsignedVInt(encodeBitmap((AbstractUnseekableKeys)serialize, (AbstractUnseekableKeys)superset, supersetCount));
                         break;
                     case Range:
-                        out.writeUnsignedVInt(encodeBitmap((Ranges)serialize, (Ranges)superset, supersetCount));
+                        out.writeUnsignedVInt(encodeBitmap((AbstractRanges)serialize, (AbstractRanges)superset, supersetCount));
                         break;
                 }
             }
@@ -162,16 +164,16 @@ public interface IVersionedWithKeysSerializer<K extends Routables<?>, T> extends
                 {
                     default: throw new AssertionError("Unhandled domain: " + serialize.domain());
                     case Key:
-                        serializeLargeSubset((Keys)serialize, serializeCount, (Keys)superset, supersetCount, out);
+                        serializeLargeSubset((AbstractUnseekableKeys)serialize, serializeCount, (AbstractUnseekableKeys)superset, supersetCount, out);
                         break;
                     case Range:
-                        serializeLargeSubset((Ranges)serialize, serializeCount, (Ranges)superset, supersetCount, out);
+                        serializeLargeSubset((AbstractRanges)serialize, serializeCount, (AbstractRanges)superset, supersetCount, out);
                         break;
                 }
             }
         }
 
-        public long serializedSubsetSize(Seekables<?, ?> serialize, Seekables<?, ?> superset)
+        public long serializedSubsetSize(Routables<?> serialize, Routables<?> superset)
         {
             int columnCount = serialize.size();
             int supersetCount = superset.size();
@@ -185,9 +187,9 @@ public interface IVersionedWithKeysSerializer<K extends Routables<?>, T> extends
                 {
                     default: throw new AssertionError("Unhandled domain: " + serialize.domain());
                     case Key:
-                        return TypeSizes.sizeofUnsignedVInt(encodeBitmap((Keys)serialize, (Keys)superset, supersetCount));
+                        return TypeSizes.sizeofUnsignedVInt(encodeBitmap((AbstractUnseekableKeys)serialize, (AbstractUnseekableKeys)superset, supersetCount));
                     case Range:
-                        return TypeSizes.sizeofUnsignedVInt(encodeBitmap((Ranges)serialize, (Ranges)superset, supersetCount));
+                        return TypeSizes.sizeofUnsignedVInt(encodeBitmap((AbstractRanges)serialize, (AbstractRanges)superset, supersetCount));
                 }
             }
             else
@@ -196,14 +198,14 @@ public interface IVersionedWithKeysSerializer<K extends Routables<?>, T> extends
                 {
                     default: throw new AssertionError("Unhandled domain: " + serialize.domain());
                     case Key:
-                        return serializeLargeSubsetSize((Keys)serialize, columnCount, (Keys)superset, supersetCount);
+                        return serializeLargeSubsetSize((AbstractUnseekableKeys)serialize, columnCount, (AbstractUnseekableKeys)superset, supersetCount);
                     case Range:
-                        return serializeLargeSubsetSize((Ranges)serialize, columnCount, (Ranges)superset, supersetCount);
+                        return serializeLargeSubsetSize((AbstractRanges)serialize, columnCount, (AbstractRanges)superset, supersetCount);
                 }
             }
         }
 
-        public Seekables<?, ?> deserializeSubset(Seekables<?, ?> superset, DataInputPlus in) throws IOException
+        public Unseekables<?> deserializeSubset(Unseekables<?> superset, DataInputPlus in) throws IOException
         {
             long encoded = in.readUnsignedVInt();
             int supersetCount = superset.size();
@@ -224,8 +226,8 @@ public interface IVersionedWithKeysSerializer<K extends Routables<?>, T> extends
                     default: throw new AssertionError("Unhandled domain: " + superset.domain());
                     case Key:
                     {
-                        Keys keys = (Keys)superset;
-                        Key[] out = new Key[deserializeCount];
+                        AbstractUnseekableKeys keys = (AbstractUnseekableKeys) superset;
+                        RoutingKey[] out = new RoutingKey[deserializeCount];
                         int count = 0;
                         while (encoded != 0)
                         {
@@ -233,11 +235,11 @@ public interface IVersionedWithKeysSerializer<K extends Routables<?>, T> extends
                             out[count++] = keys.get(Long.numberOfTrailingZeros(lowestBit));
                             encoded ^= lowestBit;
                         }
-                        return Keys.ofSortedUnique(out);
+                        return RoutingKeys.ofSortedUnique(out);
                     }
                     case Range:
                     {
-                        Ranges ranges = (Ranges)superset;
+                        AbstractRanges ranges = (AbstractRanges)superset;
                         Range[] out = new Range[deserializeCount];
                         int count = 0;
                         while (encoded != 0)
@@ -264,7 +266,7 @@ public interface IVersionedWithKeysSerializer<K extends Routables<?>, T> extends
             return bitmap;
         }
 
-        private static long encodeBitmap(Ranges serialize, Ranges superset, int supersetCount)
+        private static long encodeBitmap(AbstractRanges serialize, AbstractRanges superset, int supersetCount)
         {
             // the index we would encounter next if all columns are present
             long bitmap = superset.foldl(serialize, (k, p1, v, i) -> {
@@ -299,7 +301,7 @@ public interface IVersionedWithKeysSerializer<K extends Routables<?>, T> extends
         }
 
         @DontInline
-        private void serializeLargeSubset(Ranges serialize, int serializeCount, Ranges superset, int supersetCount, DataOutputPlus out) throws IOException
+        private void serializeLargeSubset(AbstractRanges serialize, int serializeCount, AbstractRanges superset, int supersetCount, DataOutputPlus out) throws IOException
         {
             out.writeUnsignedVInt32(supersetCount - serializeCount);
             int serializeIndex = 0, supersetIndex = 0;
@@ -323,7 +325,7 @@ public interface IVersionedWithKeysSerializer<K extends Routables<?>, T> extends
         }
 
         @DontInline
-        private Seekables<?, ?> deserializeLargeSubset(DataInputPlus in, Seekables<?, ?> superset, int supersetCount, int delta) throws IOException
+        private Unseekables<?> deserializeLargeSubset(DataInputPlus in, Unseekables<?> superset, int supersetCount, int delta) throws IOException
         {
             int deserializeCount = supersetCount - delta;
             switch (superset.domain())
@@ -331,8 +333,8 @@ public interface IVersionedWithKeysSerializer<K extends Routables<?>, T> extends
                 default: throw new AssertionError("Unhandled domain: " + superset.domain());
                 case Key:
                 {
-                    Keys keys = (Keys)superset;
-                    Key[] out = new Key[deserializeCount];
+                    RoutingKeys keys = (RoutingKeys) superset;
+                    RoutingKey[] out = new RoutingKey[deserializeCount];
                     int supersetIndex = 0;
                     int count = 0;
                     while (count < deserializeCount)
@@ -341,11 +343,11 @@ public interface IVersionedWithKeysSerializer<K extends Routables<?>, T> extends
                         while (takeCount-- > 0) out[count++] = keys.get(supersetIndex++);
                         supersetIndex += in.readUnsignedVInt32();
                     }
-                    return Keys.ofSortedUnique(out);
+                    return RoutingKeys.ofSortedUnique(out);
                 }
                 case Range:
                 {
-                    Ranges ranges = (Ranges)superset;
+                    AbstractRanges ranges = (AbstractRanges)superset;
                     Range[] out = new Range[deserializeCount];
                     int supersetIndex = 0;
                     int count = 0;
@@ -386,7 +388,7 @@ public interface IVersionedWithKeysSerializer<K extends Routables<?>, T> extends
         }
 
         @DontInline
-        private long serializeLargeSubsetSize(Ranges serialize, int serializeCount, Ranges superset, int supersetCount)
+        private long serializeLargeSubsetSize(AbstractRanges serialize, int serializeCount, AbstractRanges superset, int supersetCount)
         {
             long size = TypeSizes.sizeofUnsignedVInt(supersetCount - serializeCount);
             int serializeIndex = 0, supersetIndex = 0;

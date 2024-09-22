@@ -30,13 +30,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 
-import accord.api.Key;
+import accord.api.RoutingKey;
 import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.PreLoadContext;
 import accord.local.SafeCommandStore;
-import accord.primitives.Seekables;
 import accord.primitives.TxnId;
+import accord.primitives.Unseekables;
 import accord.utils.Invariants;
 import accord.utils.async.AsyncChains;
 import org.apache.cassandra.config.CassandraRelevantProperties;
@@ -72,8 +72,8 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
     static class Context
     {
         final HashMap<TxnId, AccordSafeCommand> commands = new HashMap<>();
-        final TreeMap<Key, AccordSafeTimestampsForKey> timestampsForKey = new TreeMap<>();
-        final TreeMap<Key, AccordSafeCommandsForKey> commandsForKey = new TreeMap<>();
+        final TreeMap<RoutingKey, AccordSafeTimestampsForKey> timestampsForKey = new TreeMap<>();
+        final TreeMap<RoutingKey, AccordSafeCommandsForKey> commandsForKey = new TreeMap<>();
         @Nullable
         AccordSafeCommandsForRanges commandsForRanges = null;
 
@@ -190,7 +190,7 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
     }
 
     @SuppressWarnings("unchecked")
-    Seekables<?, ?> keys()
+    Unseekables<?> keys()
     {
         return preLoadContext.keys();
     }

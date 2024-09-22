@@ -333,9 +333,9 @@ public class Directory implements MetadataValue<Directory>
         return ImmutableList.copyOf(peers.values());
     }
 
-    public ImmutableSet<NodeId> peerIds()
+    public NavigableSet<NodeId> peerIds()
     {
-        return ImmutableSet.copyOf(peers.keySet());
+        return peers.keySet();
     }
 
     public NodeAddresses getNodeAddresses(NodeId id)

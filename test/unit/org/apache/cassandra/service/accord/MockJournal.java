@@ -34,20 +34,19 @@ import accord.local.CommandStores;
 import accord.local.CommonAttributes;
 import accord.local.DurableBefore;
 import accord.local.RedundantBefore;
-import accord.local.SaveStatus;
-import accord.local.Status;
+import accord.local.StoreParticipants;
+import accord.primitives.Known;
+import accord.primitives.SaveStatus;
+import accord.primitives.Status;
 import accord.primitives.Ballot;
 import accord.primitives.Deps;
 import accord.primitives.PartialDeps;
 import accord.primitives.PartialTxn;
 import accord.primitives.Ranges;
-import accord.primitives.Route;
-import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.primitives.Writes;
 import accord.utils.Invariants;
-import org.apache.cassandra.service.accord.AccordJournalValueSerializers.BootstrapBeganAtAccumulator;
 import org.apache.cassandra.service.accord.AccordJournalValueSerializers.DurableBeforeAccumulator;
 import org.apache.cassandra.service.accord.AccordJournalValueSerializers.HistoricalTransactionsAccumulator;
 import org.apache.cassandra.service.accord.AccordJournalValueSerializers.IdentityAccumulator;
@@ -62,7 +61,7 @@ public class MockJournal implements IJournal
     {
         final RedundantBeforeAccumulator redundantBeforeAccumulator = new RedundantBeforeAccumulator();
         final DurableBeforeAccumulator durableBeforeAccumulator = new DurableBeforeAccumulator();
-        final BootstrapBeganAtAccumulator bootstrapBeganAtAccumulator = new BootstrapBeganAtAccumulator();
+        final IdentityAccumulator<NavigableMap<TxnId, Ranges>> bootstrapBeganAtAccumulator = new IdentityAccumulator<>(ImmutableSortedMap.of(TxnId.NONE, Ranges.EMPTY));
         final IdentityAccumulator<NavigableMap<Timestamp, Ranges>> safeToReadAccumulator = new IdentityAccumulator<>(ImmutableSortedMap.of(Timestamp.NONE, Ranges.EMPTY));
         final IdentityAccumulator<CommandStores.RangesForEpoch.Snapshot> rangesForEpochAccumulator = new IdentityAccumulator<>(null);
         final HistoricalTransactionsAccumulator historicalTransactionsAccumulator = new HistoricalTransactionsAccumulator();
@@ -142,8 +141,8 @@ public class MockJournal implements IJournal
             updates.redundantBeforeAccumulator.update(fieldUpdates.redundantBefore);
         if (fieldUpdates.durableBefore != null)
             updates.durableBeforeAccumulator.update(fieldUpdates.durableBefore);
-        if (fieldUpdates.newBootstrapBeganAt != null)
-            updates.bootstrapBeganAtAccumulator.update(fieldUpdates.newBootstrapBeganAt);
+        if (fieldUpdates.bootstrapBeganAt != null)
+            updates.bootstrapBeganAtAccumulator.update(fieldUpdates.bootstrapBeganAt);
         if (fieldUpdates.safeToRead != null)
             updates.safeToReadAccumulator.update(fieldUpdates.safeToRead);
         if (fieldUpdates.rangesForEpoch != null)
@@ -173,10 +172,9 @@ public class MockJournal implements IJournal
                              ifNotEqual(before, after, Command::acceptedOrCommitted, false),
                              ifNotEqual(before, after, Command::promised, false),
 
-                             ifNotEqual(before, after, Command::route, true),
+                             ifNotEqual(before, after, Command::participants, false),
                              ifNotEqual(before, after, Command::partialTxn, false),
                              ifNotEqual(before, after, Command::partialDeps, false),
-                             ifNotEqual(before, after, Command::additionalKeysOrRanges, false),
 
                              new NewValue<>((k, deps) -> waitingOn),
                              ifNotEqual(before, after, Command::writes, false));
@@ -205,10 +203,9 @@ public class MockJournal implements IJournal
         Ballot acceptedOrCommitted = Ballot.ZERO;
         Ballot promised = null;
 
-        Route<?> route = null;
+        StoreParticipants participants = null;
         PartialTxn partialTxn = null;
         PartialDeps partialDeps = null;
-        Seekables<?, ?> additionalKeysOrRanges = null;
 
         SavedCommand.WaitingOnProvider waitingOnProvider = null;
         Writes writes = null;
@@ -229,14 +226,12 @@ public class MockJournal implements IJournal
             if (diff.promised != null)
                 promised = diff.promised.get();
 
-            if (diff.route != null)
-                route = diff.route.get();
+            if (diff.participants != null)
+                participants = diff.participants.get();
             if (diff.partialTxn != null)
                 partialTxn = diff.partialTxn.get();
             if (diff.partialDeps != null)
                 partialDeps = diff.partialDeps.get();
-            if (diff.additionalKeysOrRanges != null)
-                additionalKeysOrRanges = diff.additionalKeysOrRanges.get();
 
             if (diff.waitingOn != null)
                 waitingOnProvider = diff.waitingOn.get();
@@ -249,15 +244,13 @@ public class MockJournal implements IJournal
             attrs.partialTxn(partialTxn);
         if (durability != null)
             attrs.durability(durability);
-        if (route != null)
-            attrs.route(route);
+        if (participants != null)
+            attrs.setParticipants(participants);
         if (partialDeps != null &&
-            (saveStatus.known.deps != Status.KnownDeps.NoDeps &&
-             saveStatus.known.deps != Status.KnownDeps.DepsErased &&
-             saveStatus.known.deps != Status.KnownDeps.DepsUnknown))
+            (saveStatus.known.deps != Known.KnownDeps.NoDeps &&
+             saveStatus.known.deps != Known.KnownDeps.DepsErased &&
+             saveStatus.known.deps != Known.KnownDeps.DepsUnknown))
             attrs.partialDeps(partialDeps);
-        if (additionalKeysOrRanges != null)
-            attrs.additionalKeysOrRanges(additionalKeysOrRanges);
 
         Command.WaitingOn waitingOn = null;
         if (waitingOnProvider != null)
@@ -362,10 +355,9 @@ public class MockJournal implements IJournal
         public final NewValue<Ballot> acceptedOrCommitted;
         public final NewValue<Ballot> promised;
 
-        public final NewValue<Route<?>> route;
+        public final NewValue<StoreParticipants> participants;
         public final NewValue<PartialTxn> partialTxn;
         public final NewValue<PartialDeps> partialDeps;
-        public final NewValue<Seekables<?, ?>> additionalKeysOrRanges;
 
         public final NewValue<Writes> writes;
         public final NewValue<WaitingOnProvider> waitingOn;
@@ -378,10 +370,9 @@ public class MockJournal implements IJournal
                           NewValue<Ballot> acceptedOrCommitted,
                           NewValue<Ballot> promised,
 
-                          NewValue<Route<?>> route,
+                          NewValue<StoreParticipants> participants,
                           NewValue<PartialTxn> partialTxn,
                           NewValue<PartialDeps> partialDeps,
-                          NewValue<Seekables<?, ?>> additionalKeysOrRanges,
 
                           NewValue<SavedCommand.WaitingOnProvider> waitingOn,
                           NewValue<Writes> writes)
@@ -394,10 +385,9 @@ public class MockJournal implements IJournal
             this.acceptedOrCommitted = acceptedOrCommitted;
             this.promised = promised;
 
-            this.route = route;
+            this.participants = participants;
             this.partialTxn = partialTxn;
             this.partialDeps = partialDeps;
-            this.additionalKeysOrRanges = additionalKeysOrRanges;
 
             this.writes = writes;
 

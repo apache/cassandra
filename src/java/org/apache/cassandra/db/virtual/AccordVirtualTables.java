@@ -37,7 +37,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.local.CommandStores;
-import accord.local.Status;
+import accord.primitives.Status;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
 import accord.utils.async.AsyncChain;
@@ -62,7 +62,7 @@ import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.AccordStateCache;
 import org.apache.cassandra.service.accord.CommandStoreTxnBlockedGraph;
-import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
 import org.apache.cassandra.service.consensus.migration.TableMigrationState;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -288,7 +288,7 @@ public class AccordVirtualTables
                                 Arrays.asList(UTF8Type.instance, UTF8Type.instance), false);
         }
 
-        private ByteBuffer pk(PartitionKey pk)
+        private ByteBuffer pk(TokenKey pk)
         {
             var tm = Schema.instance.getTableMetadata(pk.table());
             return partitionKeyType.pack(UTF8Type.instance.decompose(tm.toString()),
@@ -346,7 +346,7 @@ public class AccordVirtualTables
                     if (processed.contains(blockedBy)) continue; // already listed
                     process(ds, shard, processed, userTxn, depth + 1, blockedBy, Reason.Txn, null);
                 }
-                for (PartitionKey blockedBy : txn.blockedByKey)
+                for (TokenKey blockedBy : txn.blockedByKey)
                 {
                     TxnId blocking = shard.keys.get(blockedBy);
                     if (processed.contains(blocking)) continue; // already listed

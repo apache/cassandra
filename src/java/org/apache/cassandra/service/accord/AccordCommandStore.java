@@ -37,9 +37,10 @@ import org.slf4j.LoggerFactory;
 
 import accord.api.Agent;
 import accord.api.DataStore;
-import accord.api.Key;
 import accord.api.LocalListeners;
 import accord.api.ProgressLog;
+import accord.api.RoutingKey;
+import accord.local.cfk.CommandsForKey;
 import accord.impl.TimestampsForKey;
 import accord.local.Cleanup;
 import accord.local.Command;
@@ -53,12 +54,12 @@ import accord.local.PreLoadContext;
 import accord.local.RedundantBefore;
 import accord.local.SafeCommand;
 import accord.local.SafeCommandStore;
-import accord.local.Status;
-import accord.local.cfk.CommandsForKey;
 import accord.primitives.Deps;
-import accord.primitives.Keys;
+import accord.primitives.Participants;
 import accord.primitives.Ranges;
+import accord.primitives.Routable;
 import accord.primitives.RoutableKey;
+import accord.primitives.Status;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
@@ -71,7 +72,7 @@ import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.metrics.AccordStateCacheMetrics;
-import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.service.accord.async.AsyncOperation;
 import org.apache.cassandra.service.accord.events.CacheEvents;
 import org.apache.cassandra.utils.Clock;
@@ -79,11 +80,12 @@ import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Promise;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
-import static accord.local.SaveStatus.Applying;
-import static accord.local.Status.Applied;
-import static accord.local.Status.Invalidated;
-import static accord.local.Status.Stable;
-import static accord.local.Status.Truncated;
+import static accord.primitives.SaveStatus.Applying;
+import static accord.primitives.Status.Committed;
+import static accord.primitives.Status.Invalidated;
+import static accord.primitives.Status.PreApplied;
+import static accord.primitives.Status.Stable;
+import static accord.primitives.Status.Truncated;
 import static accord.utils.Invariants.checkState;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 
@@ -116,8 +118,8 @@ public class AccordCommandStore extends CommandStore implements CacheSize
     private final ExecutorService executor;
     private final AccordStateCache stateCache;
     private final AccordStateCache.Instance<TxnId, Command, AccordSafeCommand> commandCache;
-    private final AccordStateCache.Instance<Key, TimestampsForKey, AccordSafeTimestampsForKey> timestampsForKeyCache;
-    private final AccordStateCache.Instance<Key, CommandsForKey, AccordSafeCommandsForKey> commandsForKeyCache;
+    private final AccordStateCache.Instance<RoutingKey, TimestampsForKey, AccordSafeTimestampsForKey> timestampsForKeyCache;
+    private final AccordStateCache.Instance<RoutingKey, CommandsForKey, AccordSafeCommandsForKey> commandsForKeyCache;
     private AsyncOperation<?> currentOperation = null;
     private AccordSafeCommandStore current = null;
     private long lastSystemTimestampMicros = Long.MIN_VALUE;
@@ -242,7 +244,7 @@ public class AccordCommandStore extends CommandStore implements CacheSize
                                 AccordObjectSizes::command);
         registerJfrListener(id, commandCache, "Command");
         timestampsForKeyCache =
-            stateCache.instance(Key.class,
+            stateCache.instance(RoutingKey.class,
                                 AccordSafeTimestampsForKey.class,
                                 AccordSafeTimestampsForKey::new,
                                 this::loadTimestampsForKey,
@@ -251,7 +253,7 @@ public class AccordCommandStore extends CommandStore implements CacheSize
                                 AccordObjectSizes::timestampsForKey);
         registerJfrListener(id, timestampsForKeyCache, "TimestampsForKey");
         commandsForKeyCache =
-            stateCache.instance(Key.class,
+            stateCache.instance(RoutingKey.class,
                                 AccordSafeCommandsForKey.class,
                                 AccordSafeCommandsForKey::new,
                                 this::loadCommandsForKey,
@@ -345,12 +347,12 @@ public class AccordCommandStore extends CommandStore implements CacheSize
         return commandCache;
     }
 
-    public AccordStateCache.Instance<Key, TimestampsForKey, AccordSafeTimestampsForKey> timestampsForKeyCache()
+    public AccordStateCache.Instance<RoutingKey, TimestampsForKey, AccordSafeTimestampsForKey> timestampsForKeyCache()
     {
         return timestampsForKeyCache;
     }
 
-    public AccordStateCache.Instance<Key, CommandsForKey, AccordSafeCommandsForKey> commandsForKeyCache()
+    public AccordStateCache.Instance<RoutingKey, CommandsForKey, AccordSafeCommandsForKey> commandsForKeyCache()
     {
         return commandsForKeyCache;
     }
@@ -359,7 +361,7 @@ public class AccordCommandStore extends CommandStore implements CacheSize
     @VisibleForTesting
     public Runnable appendToKeyspace(Command before, Command after)
     {
-        if (after.keysOrRanges() != null && after.keysOrRanges() instanceof Keys)
+        if (after.txnId().is(Routable.Domain.Key))
             return null;
 
         Mutation mutation = AccordKeyspace.getCommandMutation(this.id, before, after, nextSystemTimestampMicros());
@@ -404,18 +406,18 @@ public class AccordCommandStore extends CommandStore implements CacheSize
         if (!Invariants.isParanoid())
             return true;
 
-        TimestampsForKey reloaded = AccordKeyspace.unsafeLoadTimestampsForKey(this, (PartitionKey) key);
+        TimestampsForKey reloaded = AccordKeyspace.unsafeLoadTimestampsForKey(this, (TokenKey) key);
         return Objects.equals(evicting, reloaded);
     }
 
     TimestampsForKey loadTimestampsForKey(RoutableKey key)
     {
-        return AccordKeyspace.loadTimestampsForKey(this, (PartitionKey) key);
+        return AccordKeyspace.loadTimestampsForKey(this, (TokenKey) key);
     }
 
     CommandsForKey loadCommandsForKey(RoutableKey key)
     {
-        return AccordKeyspace.loadCommandsForKey(this, (PartitionKey) key);
+        return AccordKeyspace.loadCommandsForKey(this, (TokenKey) key);
     }
 
     boolean validateCommandsForKey(RoutableKey key, CommandsForKey evicting)
@@ -423,7 +425,7 @@ public class AccordCommandStore extends CommandStore implements CacheSize
         if (!Invariants.isParanoid())
             return true;
 
-        CommandsForKey reloaded = AccordKeyspace.loadCommandsForKey(this, (PartitionKey) key);
+        CommandsForKey reloaded = AccordKeyspace.loadCommandsForKey(this, (TokenKey) key);
         return Objects.equals(evicting, reloaded);
     }
 
@@ -527,8 +529,8 @@ public class AccordCommandStore extends CommandStore implements CacheSize
 
     public AccordSafeCommandStore beginOperation(PreLoadContext preLoadContext,
                                                  Map<TxnId, AccordSafeCommand> commands,
-                                                 NavigableMap<Key, AccordSafeTimestampsForKey> timestampsForKeys,
-                                                 NavigableMap<Key, AccordSafeCommandsForKey> commandsForKeys,
+                                                 NavigableMap<RoutingKey, AccordSafeTimestampsForKey> timestampsForKeys,
+                                                 NavigableMap<RoutingKey, AccordSafeCommandsForKey> commandsForKeys,
                                                  @Nullable AccordSafeCommandsForRanges commandsForRanges)
     {
         checkState(current == null);
@@ -647,10 +649,10 @@ public class AccordCommandStore extends CommandStore implements CacheSize
             private PreLoadContext context(Command command, KeyHistory keyHistory)
             {
                 TxnId txnId = command.txnId();
-                Keys keys = null;
+                Participants<?> keys = null;
                 List<TxnId> deps = null;
                 if (CommandsForKey.manages(txnId))
-                    keys = (Keys) command.keysOrRanges();
+                    keys = command.hasBeen(Committed) ? command.participants().hasTouched() : command.participants().touches();
                 else if (!CommandsForKey.managesExecution(txnId) && command.hasBeen(Status.Stable) && !command.hasBeen(Status.Truncated))
                     keys = command.asCommitted().waitingOn.keys;
 
@@ -678,7 +680,7 @@ public class AccordCommandStore extends CommandStore implements CacheSize
                             Command local = command;
                             if (local.status() != Truncated && local.status() != Invalidated)
                             {
-                                Cleanup cleanup = Cleanup.shouldCleanup(AccordCommandStore.this, local, null, local.route(), false);
+                                Cleanup cleanup = Cleanup.shouldCleanup(AccordCommandStore.this, local, local.participants());
                                 switch (cleanup)
                                 {
                                     case NO:
@@ -687,7 +689,7 @@ public class AccordCommandStore extends CommandStore implements CacheSize
                                     case TRUNCATE_WITH_OUTCOME:
                                     case TRUNCATE:
                                     case ERASE:
-                                        local = Commands.purge(local, local.route(), cleanup);
+                                        local = Commands.purge(local, local.participants(), cleanup);
                                 }
                             }
 
@@ -714,9 +716,9 @@ public class AccordCommandStore extends CommandStore implements CacheSize
                          safeStore -> {
                              SafeCommand safeCommand = safeStore.unsafeGet(txnId);
                              Command local = safeCommand.current();
-                             if (local.is(Stable) && !local.hasBeen(Applied))
+                             if (local.is(Stable) || local.is(PreApplied))
                                  Commands.maybeExecute(safeStore, safeCommand, local, true, true);
-                             else if (local.saveStatus().compareTo(Applying) >= 0 && !local.is(Invalidated) && !local.is(Truncated))
+                             else if (local.saveStatus().compareTo(Applying) >= 0 && !local.hasBeen(Truncated))
                                  Commands.applyWrites(safeStore, context, local).begin(agent);
                          })
                 .begin((unused, throwable) -> {
@@ -751,7 +753,6 @@ public class AccordCommandStore extends CommandStore implements CacheSize
         if (bootstrapBeganAt != null)
             unsafeSetBootstrapBeganAt(bootstrapBeganAt);
     }
-
 
     void loadSafeToRead(NavigableMap<Timestamp, Ranges> safeToRead)
     {

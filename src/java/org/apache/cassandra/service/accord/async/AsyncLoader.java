@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.service.accord.async;
 
-import accord.api.Key;
+import accord.api.RoutingKey;
 import accord.local.cfk.CommandsForKey;
 import accord.local.KeyHistory;
 import accord.local.PreLoadContext;
@@ -32,7 +32,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import org.apache.cassandra.service.accord.*;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
-import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.utils.NoSpamLogger;
 
 import org.slf4j.Logger;
@@ -60,12 +60,12 @@ public class AsyncLoader
     private final AccordCommandStore commandStore;
 
     private final Iterable<TxnId> txnIds;
-    private final Seekables<?, ?> keysOrRanges;
+    private final Unseekables<?> keysOrRanges;
     private final KeyHistory keyHistory;
 
     protected AsyncResult<?> readResult;
 
-    public AsyncLoader(AccordCommandStore commandStore, Iterable<TxnId> txnIds, Seekables<?, ?> keysOrRanges, KeyHistory keyHistory)
+    public AsyncLoader(AccordCommandStore commandStore, Iterable<TxnId> txnIds, Unseekables<?> keysOrRanges, KeyHistory keyHistory)
     {
         this.commandStore = commandStore;
         this.txnIds = txnIds;
@@ -115,7 +115,7 @@ public class AsyncLoader
         }
     }
 
-    private void referenceAndAssembleReadsForKey(Key key,
+    private void referenceAndAssembleReadsForKey(RoutingKey key,
                                                  AsyncOperation.Context context,
                                                  List<AsyncChain<?>> listenChains)
     {
@@ -150,7 +150,7 @@ public class AsyncLoader
         switch (keysOrRanges.domain())
         {
             case Key:
-                AbstractKeys<Key> keys = (AbstractKeys<Key>) keysOrRanges;
+                AbstractKeys<RoutingKey> keys = (AbstractKeys<RoutingKey>) keysOrRanges;
                 keys.forEach(key -> referenceAndAssembleReadsForKey(key, context, chains));
                 break;
             case Range:
@@ -165,20 +165,20 @@ public class AsyncLoader
 
     private AsyncChain<?> referenceAndDispatchReadsForRange(AsyncOperation.Context context)
     {
-        Ranges ranges = (Ranges) keysOrRanges;
+        Ranges ranges = ((AbstractRanges) keysOrRanges).toRanges();
 
         List<AsyncChain<?>> root = new ArrayList<>(ranges.size() + 1);
-        class Watcher implements AccordStateCache.Listener<Key, CommandsForKey>
+        class Watcher implements AccordStateCache.Listener<RoutingKey, CommandsForKey>
         {
-            private final Set<PartitionKey> cached = commandStore.commandsForKeyCache().stream()
-                                                                 .map(n -> (PartitionKey) n.key())
+            private final Set<TokenKey> cached = commandStore.commandsForKeyCache().stream()
+                                                                 .map(n -> (TokenKey) n.key())
                                                                  .filter(ranges::contains)
                                                                  .collect(Collectors.toSet());
 
             @Override
-            public void onAdd(AccordCachingState<Key, CommandsForKey> state)
+            public void onAdd(AccordCachingState<RoutingKey, CommandsForKey> state)
             {
-                PartitionKey pk = (PartitionKey) state.key();
+                TokenKey pk = (TokenKey) state.key();
                 if (ranges.contains(pk))
                     cached.add(pk);
             }
@@ -189,7 +189,7 @@ public class AsyncLoader
             commandStore.commandsForKeyCache().unregister(watcher);
             if (keys.isEmpty() && watcher.cached.isEmpty())
                 return AsyncChains.success(null);
-            Set<? extends Key> set = ImmutableSet.<Key>builder().addAll(watcher.cached).addAll(keys).build();
+            Set<? extends RoutingKey> set = ImmutableSet.<RoutingKey>builder().addAll(watcher.cached).addAll(keys).build();
             List<AsyncChain<?>> chains = new ArrayList<>();
             set.forEach(key -> referenceAndAssembleReadsForKey(key, context, chains));
             return chains.isEmpty() ? AsyncChains.success(null) : AsyncChains.reduce(chains, (a, b) -> null);
@@ -202,7 +202,7 @@ public class AsyncLoader
         return AsyncChains.all(root);
     }
 
-    private AsyncChain<List<? extends Key>> findOverlappingKeys(Ranges ranges)
+    private AsyncChain<List<? extends RoutingKey>> findOverlappingKeys(Ranges ranges)
     {
         if (ranges.isEmpty())
         {
@@ -210,16 +210,16 @@ public class AsyncLoader
             return AsyncChains.success(Collections.emptyList());
         }
 
-        List<AsyncChain<List<PartitionKey>>> chains = new ArrayList<>(ranges.size());
+        List<AsyncChain<List<TokenKey>>> chains = new ArrayList<>(ranges.size());
         for (Range range : ranges)
             chains.add(findOverlappingKeys(range));
-        return AsyncChains.reduce(chains, (a, b) -> ImmutableList.<Key>builderWithExpectedSize(a.size() + b.size()).addAll(a).addAll(b).build());
+        return AsyncChains.reduce(chains, (a, b) -> ImmutableList.<RoutingKey>builderWithExpectedSize(a.size() + b.size()).addAll(a).addAll(b).build());
     }
 
-    private AsyncChain<List<PartitionKey>> findOverlappingKeys(Range range)
+    private AsyncChain<List<TokenKey>> findOverlappingKeys(Range range)
     {
         // save to a variable as java gets confused when `.map` is called on the result of asChain
-        AsyncChain<List<PartitionKey>> map = Observable.asChain(callback ->
+        AsyncChain<List<TokenKey>> map = Observable.asChain(callback ->
                                                                AccordKeyspace.findAllKeysBetween(commandStore.id(),
                                                                                                  (AccordRoutingKey) range.start(), range.startInclusive(),
                                                                                                  (AccordRoutingKey) range.end(), range.endInclusive(),

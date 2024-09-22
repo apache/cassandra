@@ -625,6 +625,7 @@ public abstract class LocalLog implements Closeable
 
     private void notifyPostCommit(ClusterMetadata before, ClusterMetadata after, boolean fromSnapshot)
     {
+        logger.error("Reporting {}", after.epoch);
         for (ChangeListener listener : changeListeners)
             listener.notifyPostCommit(before, after, fromSnapshot);
         for (ChangeListener.Async listener : asyncChangeListeners)

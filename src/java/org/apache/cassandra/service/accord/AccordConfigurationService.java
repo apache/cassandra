@@ -29,6 +29,9 @@ import javax.annotation.Nullable;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Sets;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import accord.impl.AbstractConfigurationService;
 import accord.local.Node;
 import accord.primitives.Ranges;
@@ -50,10 +53,14 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.accord.AccordKeyspace.EpochDiskState;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.listeners.ChangeListener;
+import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Simulate;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.Threads;
 
 import static org.apache.cassandra.utils.Simulate.With.MONITORS;
 
@@ -61,6 +68,8 @@ import static org.apache.cassandra.utils.Simulate.With.MONITORS;
 @Simulate(with=MONITORS)
 public class AccordConfigurationService extends AbstractConfigurationService<AccordConfigurationService.EpochState, AccordConfigurationService.EpochHistory> implements ChangeListener, AccordEndpointMapper, AccordSyncPropagator.Listener, Shutdownable
 {
+    private static final Logger logger = LoggerFactory.getLogger(AccordConfigurationService.class);
+
     private final AccordSyncPropagator syncPropagator;
     private final DiskStateManager diskStateManager;
 
@@ -303,6 +312,7 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
 
     private void reportMetadata(ClusterMetadata metadata)
     {
+        logger.error("Reporting {} at {}", metadata.epoch, Threads.prettyPrintStackTrace(Thread.currentThread(), true, ";"));
         Stage.MISC.submit(() -> reportMetadataInternal(metadata));
     }
 
@@ -393,8 +403,16 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
     @Override
     protected void fetchTopologyInternal(long epoch)
     {
-        // TODO: need a non-blocking way to inform CMS of an unknown epoch
-//        ClusterMetadataService.instance().maybeCatchup(Epoch.create(epoch));
+        ClusterMetadata metadata = ClusterMetadata.current();
+        if (metadata.directory.peerIds().size() < 2)
+            return; // just let CMS handle it when it's ready
+
+        // TODO (desired): randomise
+        NodeId first = metadata.directory.peerIds().first();
+        InetAddressAndPort peer = metadata.directory.getNodeAddresses(first).broadcastAddress;
+        if (FBUtilities.getBroadcastAddressAndPort().equals(peer))
+            peer = metadata.directory.getNodeAddresses(metadata.directory.peerIds().higher(first)).broadcastAddress;;
+        ClusterMetadataService.instance().fetchLogFromPeerOrCMSAsync(metadata, peer, Epoch.create(epoch));
     }
 
     @Override

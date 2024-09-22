@@ -40,9 +40,11 @@ import accord.impl.progresslog.DefaultProgressLogs;
 import accord.local.Node;
 import accord.local.PreLoadContext;
 import accord.local.SafeCommand;
-import accord.local.Status;
+import accord.local.StoreParticipants;
 import accord.local.cfk.CommandsForKey;
+import accord.local.cfk.SafeCommandsForKey;
 import accord.primitives.Seekables;
+import accord.primitives.Status;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.async.AsyncChains;
@@ -51,6 +53,7 @@ import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
@@ -61,13 +64,14 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.accord.AccordSafeCommandStore;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.api.AccordAgent;
-import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
+import static accord.local.KeyHistory.COMMANDS;
 import static java.lang.String.format;
 
 public class AccordIncrementalRepairTest extends AccordTestBase
@@ -100,9 +104,9 @@ public class AccordIncrementalRepairTest extends AccordTestBase
         private final List<ExecutedBarrier> barriers = new ArrayList<>();
 
         @Override
-        public void onLocalBarrier(@Nonnull Seekables<?, ?> keysOrRanges, @Nonnull TxnId txnId)
+        public void onSuccessfulBarrier(@Nonnull TxnId txnId, @Nonnull Seekables<?, ?> keysOrRanges)
         {
-            super.onLocalBarrier(keysOrRanges, txnId);
+            super.onSuccessfulBarrier(txnId, keysOrRanges);
             synchronized (barriers)
             {
                 barriers.add(new ExecutedBarrier(keysOrRanges, txnId));
@@ -215,19 +219,27 @@ public class AccordIncrementalRepairTest extends AccordTestBase
         return getUninterruptibly(future, 1, TimeUnit.MINUTES);
     }
 
-    private static TxnId awaitLocalApplyOnKey(PartitionKey key)
+    private static TxnId awaitLocalApplyOnKey(TableMetadata metadata, int k)
+    {
+        return awaitLocalApplyOnKey(new TokenKey(metadata.id, metadata.partitioner.decorateKey(ByteBufferUtil.bytes(k)).getToken()));
+    }
+
+    private static TxnId awaitLocalApplyOnKey(TokenKey key)
     {
         Node node = accordService().node();
         AtomicReference<TxnId> waitFor = new AtomicReference<>(null);
-        AsyncChains.awaitUninterruptibly(node.commandStores().ifLocal(PreLoadContext.contextFor(key), key.toUnseekable(), 0, Long.MAX_VALUE, safeStore -> {
+        AsyncChains.awaitUninterruptibly(node.commandStores().ifLocal(PreLoadContext.contextFor(key, COMMANDS), key.toUnseekable(), 0, Long.MAX_VALUE, safeStore -> {
             AccordSafeCommandStore store = (AccordSafeCommandStore) safeStore;
-            CommandsForKey commands = store.maybeCommandsForKey(key).current();
-            int size = commands.size();
+            SafeCommandsForKey safeCfk = store.maybeCommandsForKey(key);
+            if (safeCfk == null)
+                return;
+            CommandsForKey cfk = safeCfk.current();
+            int size = cfk.size();
             if (size < 1)
                 return;
             // if txnId is an instance of CommandsForKey.TxnInfo, copying it into a
             // new txnId instance will prevent any issues related to TxnInfo#hashCode
-            waitFor.set(new TxnId(commands.txnId(size - 1)));
+            waitFor.set(new TxnId(cfk.txnId(size - 1)));
         }));
         Assert.assertNotNull(waitFor.get());
         TxnId txnId = waitFor.get();
@@ -239,7 +251,7 @@ public class AccordIncrementalRepairTest extends AccordTestBase
             if (now - start > TimeUnit.MINUTES.toMillis(1))
                 throw new AssertionError("Timeout");
             AsyncChains.awaitUninterruptibly(node.commandStores().ifLocal(PreLoadContext.contextFor(txnId), key.toUnseekable(), 0, Long.MAX_VALUE, safeStore -> {
-                SafeCommand command = safeStore.get(txnId, key.toUnseekable());
+                SafeCommand command = safeStore.get(txnId, StoreParticipants.empty(txnId));
                 Assert.assertNotNull(command.current());
                 if (command.current().status().hasBeen(Status.Applied))
                     applied.set(true);
@@ -267,7 +279,7 @@ public class AccordIncrementalRepairTest extends AccordTestBase
 
         SHARED_CLUSTER.get(1, 2).forEach(instance -> instance.runOnInstance(() -> {
             TableMetadata metadata = Schema.instance.getTableMetadata(keyspace, table);
-            awaitLocalApplyOnKey(new PartitionKey(metadata.id, metadata.partitioner.decorateKey(ByteBufferUtil.bytes(1))));
+            awaitLocalApplyOnKey(metadata, 1);
         }));
 
         SHARED_CLUSTER.forEach(instance -> instance.runOnInstance(() -> agent().reset()));
@@ -299,14 +311,12 @@ public class AccordIncrementalRepairTest extends AccordTestBase
         awaitEndpointUp(SHARED_CLUSTER.get(1), SHARED_CLUSTER.get(3));
         nodetool(SHARED_CLUSTER.get(1), "repair", KEYSPACE);
 
-        SHARED_CLUSTER.forEach(instance -> {
-            instance.runOnInstance(() -> {
-                Assert.assertFalse( agent().executedBarriers().isEmpty());
-                ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
-                Assert.assertFalse(cfs.getLiveSSTables().isEmpty());
-                cfs.getLiveSSTables().forEach(sstable -> {
-                    Assert.assertTrue(sstable.isRepaired() || sstable.isPendingRepair());
-                });
+        SHARED_CLUSTER.get(1).runOnInstance(() -> {
+            Assert.assertFalse( agent().executedBarriers().isEmpty());
+            ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
+            Assert.assertFalse(cfs.getLiveSSTables().isEmpty());
+            cfs.getLiveSSTables().forEach(sstable -> {
+                Assert.assertTrue(sstable.isRepaired() || sstable.isPendingRepair());
             });
         });
     }
@@ -351,7 +361,7 @@ public class AccordIncrementalRepairTest extends AccordTestBase
         }));
 
         nodetool(SHARED_CLUSTER.get(1), "repair", KEYSPACE);
-        SHARED_CLUSTER.forEach(instance -> instance.runOnInstance(() -> {
+        SHARED_CLUSTER.get(1).runOnInstance(() -> {
             Assert.assertFalse( agent().executedBarriers().isEmpty());
             ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
             Assert.assertFalse(cfs.getLiveSSTables().isEmpty());
@@ -364,7 +374,7 @@ public class AccordIncrementalRepairTest extends AccordTestBase
             UntypedResultSet.Row row = Iterables.getOnlyElement(result);
             Assert.assertEquals(1, row.getInt("k"));
             Assert.assertEquals(2, row.getInt("v"));
-        }));
+        });
     }
 
     /**
@@ -402,7 +412,7 @@ public class AccordIncrementalRepairTest extends AccordTestBase
 
         SHARED_CLUSTER.get(1, 2).forEach(instance -> instance.runOnInstance(() -> {
             TableMetadata metadata = Schema.instance.getTableMetadata(keyspace, table);
-            awaitLocalApplyOnKey(new PartitionKey(metadata.id, metadata.partitioner.decorateKey(ByteBufferUtil.bytes(1))));
+            awaitLocalApplyOnKey(metadata, 1);
         }));
 
         SHARED_CLUSTER.forEach(instance -> instance.runOnInstance(() -> agent().reset()));
@@ -411,11 +421,8 @@ public class AccordIncrementalRepairTest extends AccordTestBase
         awaitEndpointUp(SHARED_CLUSTER.get(1), SHARED_CLUSTER.get(3));
         nodetool(SHARED_CLUSTER.get(1), "repair", "--accord-only", KEYSPACE);
 
-        SHARED_CLUSTER.forEach(instance -> {
-            logger().info("checking instance {}", instance.broadcastAddress());
-            instance.runOnInstance(() -> {
-                Assert.assertFalse( agent().executedBarriers().isEmpty());
-            });
+        SHARED_CLUSTER.get(1).runOnInstance(() -> {
+            Assert.assertFalse( agent().executedBarriers().isEmpty());
         });
     }
 }

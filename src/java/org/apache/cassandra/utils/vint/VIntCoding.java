@@ -331,6 +331,11 @@ public class VIntCoding
         return decodeZigZag64(readUnsignedVInt(input));
     }
 
+    public static long readVInt(ByteBuffer input)
+    {
+        return decodeZigZag64(readUnsignedVInt(input));
+    }
+
     /**
      * Read up to a signed 32-bit integer back.
      *

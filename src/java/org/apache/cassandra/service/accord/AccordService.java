@@ -78,6 +78,8 @@ import org.slf4j.LoggerFactory;
 import accord.api.BarrierType;
 import accord.api.LocalConfig;
 import accord.api.Result;
+import accord.coordinate.Barrier.AsyncSyncPoint;
+import accord.coordinate.CoordinationAdapter.Adapters.SyncPointAdapter;
 import accord.coordinate.CoordinationFailed;
 import accord.coordinate.Preempted;
 import accord.coordinate.Timeout;
@@ -93,15 +95,14 @@ import accord.impl.SizeOfIntersectionSorter;
 import accord.impl.progresslog.DefaultProgressLogs;
 import accord.local.CommandStore;
 import accord.local.CommandStores;
+import accord.local.CommandStores.RangesForEpoch;
 import accord.local.DurableBefore;
 import accord.local.KeyHistory;
 import accord.local.Node;
 import accord.local.Node.Id;
 import accord.local.NodeTimeService;
 import accord.local.RedundantBefore;
-import accord.local.SaveStatus;
 import accord.local.ShardDistributor.EvenSplit;
-import accord.local.Status;
 import accord.local.cfk.CommandsForKey;
 import accord.messages.Callback;
 import accord.messages.ReadData;
@@ -110,6 +111,10 @@ import accord.messages.WaitUntilApplied;
 import accord.primitives.Keys;
 import accord.primitives.Seekable;
 import accord.primitives.Seekables;
+import accord.primitives.FullRoute;
+import accord.primitives.RoutingKeys;
+import accord.primitives.SaveStatus;
+import accord.primitives.Status;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.Txn.Kind;
@@ -142,6 +147,7 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.AccordSyncPropagator.Notification;
 import org.apache.cassandra.service.accord.api.AccordAgent;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.KeyspaceSplitter;
+import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.service.accord.api.AccordScheduler;
 import org.apache.cassandra.service.accord.api.AccordTopologySorter;
 import org.apache.cassandra.service.accord.api.CompositeTopologySorter;
@@ -174,6 +180,7 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordReadMetrics;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordWriteMetrics;
+import static org.apache.cassandra.service.consensus.migration.ConsensusKeyMigrationState.maybeSaveAccordKeyMigrationLocally;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class AccordService implements IAccordService, Shutdownable
@@ -207,19 +214,19 @@ public class AccordService implements IAccordService, Shutdownable
         }
 
         @Override
-        public Seekables barrierWithRetries(Seekables keysOrRanges, long minEpoch, BarrierType barrierType, boolean isForWrite) throws InterruptedException
+        public Seekables<?, ?> barrierWithRetries(Seekables<?, ?> keysOrRanges, long minEpoch, BarrierType barrierType, boolean isForWrite) throws InterruptedException
         {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        public Seekables barrier(@Nonnull Seekables keysOrRanges, long minEpoch, Dispatcher.RequestTime requestTime, long timeoutNanos, BarrierType barrierType, boolean isForWrite)
+        public Seekables<?, ?> barrier(@Nonnull Seekables<?, ?> keysOrRanges, long minEpoch, Dispatcher.RequestTime requestTime, long timeoutNanos, BarrierType barrierType, boolean isForWrite)
         {
             throw new UnsupportedOperationException("No accord barriers should be executed when accord.enabled = false in cassandra.yaml");
         }
 
         @Override
-        public Seekables repair(@Nonnull Seekables keysOrRanges, long epoch, Dispatcher.RequestTime requestTime, long timeoutNanos, BarrierType barrierType, boolean isForWrite, List<InetAddressAndPort> allEndpoints)
+        public Seekables<?, ?> repair(@Nonnull Seekables<?, ?> keysOrRanges, long epoch, Dispatcher.RequestTime requestTime, long timeoutNanos, BarrierType barrierType, boolean isForWrite, List<InetAddressAndPort> allEndpoints)
         {
             throw new UnsupportedOperationException("No accord repairs should be executed when accord.enabled = false in cassandra.yaml");
         }
@@ -553,10 +560,10 @@ public class AccordService implements IAccordService, Shutdownable
         return requestHandler;
     }
 
-    private <S extends Seekables<?, ?>> Seekables barrier(@Nonnull S keysOrRanges, long epoch, Dispatcher.RequestTime requestTime, long timeoutNanos, BarrierType barrierType, boolean isForWrite, BiFunction<Node, S, AsyncResult<SyncPoint<S>>> syncPoint)
+    private Seekables<?, ?> barrier(@Nonnull Seekables<?, ?> keysOrRanges, long epoch, Dispatcher.RequestTime requestTime, long timeoutNanos, BarrierType barrierType, boolean isForWrite, BiFunction<Node, FullRoute<?>, AsyncSyncPoint> syncPoint)
     {
         Stopwatch sw = Stopwatch.createStarted();
-        keysOrRanges = (S) intersectionWithAccordManagedRanges(keysOrRanges);
+        keysOrRanges = intersectionWithAccordManagedRanges(keysOrRanges);
         // It's possible none of them were Accord managed and we aren't going to treat that as an error
         if (keysOrRanges.isEmpty())
         {
@@ -564,15 +571,22 @@ public class AccordService implements IAccordService, Shutdownable
             return keysOrRanges;
         }
 
+        FullRoute<?> route = node.computeRoute(epoch, keysOrRanges);
         AccordClientRequestMetrics metrics = isForWrite ? accordWriteMetrics : accordReadMetrics;
         try
         {
             logger.debug("Starting barrier key: {} epoch: {} barrierType: {} isForWrite {}", keysOrRanges, epoch, barrierType, isForWrite);
             AsyncResult<TxnId> asyncResult = syncPoint == null
-                                                 ? Barrier.barrier(node, keysOrRanges, epoch, barrierType)
-                                                 : Barrier.barrier(node, keysOrRanges, epoch, barrierType, syncPoint);
+                                                 ? Barrier.barrier(node, keysOrRanges, route, epoch, barrierType)
+                                                 : Barrier.barrier(node, keysOrRanges, route, epoch, barrierType, syncPoint);
+            if (keysOrRanges.domain() == Key)
+            {
+                PartitionKey key = (PartitionKey)keysOrRanges.get(0);
+                asyncResult.accept(txnId -> maybeSaveAccordKeyMigrationLocally(key, Epoch.create(txnId.epoch())));
+            }
             long deadlineNanos = requestTime.startedAtNanos() + timeoutNanos;
-            Timestamp barrierExecuteAt = AsyncChains.getBlocking(asyncResult, deadlineNanos - nanoTime(), NANOSECONDS);
+            TxnId txnId = AsyncChains.getBlocking(asyncResult, deadlineNanos - nanoTime(), NANOSECONDS);
+            ((AccordAgent) node.agent()).onSuccessfulBarrier(txnId, keysOrRanges);
             logger.debug("Completed barrier attempt in {}ms, {}ms since attempts start, barrier key: {} epoch: {} barrierType: {} isForWrite {}",
                          sw.elapsed(MILLISECONDS),
                          NANOSECONDS.toMillis(nanoTime() - requestTime.startedAtNanos()),
@@ -629,33 +643,37 @@ public class AccordService implements IAccordService, Shutdownable
     }
 
     @Override
-    public Seekables barrier(@Nonnull Seekables keysOrRanges, long epoch, Dispatcher.RequestTime requestTime, long timeoutNanos, BarrierType barrierType, boolean isForWrite)
+    public Seekables<?, ?> barrier(@Nonnull Seekables<?, ?> keysOrRanges, long epoch, Dispatcher.RequestTime requestTime, long timeoutNanos, BarrierType barrierType, boolean isForWrite)
     {
         return barrier(keysOrRanges, epoch, requestTime, timeoutNanos, barrierType, isForWrite, null);
     }
 
-    public static <S extends Seekables<?, ?>> BiFunction<Node, S, AsyncResult<SyncPoint<S>>> repairSyncPoint(Set<Node.Id> allNodes)
+    public static BiFunction<Node, FullRoute<?>, AsyncSyncPoint> repairSyncPoint(Set<Node.Id> allNodes)
     {
-        return (node, seekables) -> CoordinateSyncPoint.coordinate(node, Kind.SyncPoint, seekables, RepairSyncPointAdapter.create(allNodes));
+        return (node, route) -> {
+            TxnId txnId = node.nextTxnId(Kind.SyncPoint, route.domain());
+            AsyncResult<SyncPoint<?>> async = CoordinateSyncPoint.coordinate(node, Kind.SyncPoint, route, (SyncPointAdapter)RepairSyncPointAdapter.create(allNodes));
+            return new AsyncSyncPoint(txnId, async);
+        };
     }
 
     @Override
-    public Seekables repair(@Nonnull Seekables keysOrRanges, long epoch, Dispatcher.RequestTime requestTime, long timeoutNanos, BarrierType barrierType, boolean isForWrite, List<InetAddressAndPort> allEndpoints)
+    public Seekables<?, ?> repair(@Nonnull Seekables<?, ?> keysOrRanges, long epoch, Dispatcher.RequestTime requestTime, long timeoutNanos, BarrierType barrierType, boolean isForWrite, List<InetAddressAndPort> allEndpoints)
     {
         Set<Node.Id> allNodes = allEndpoints.stream().map(configService::mappedId).collect(Collectors.toUnmodifiableSet());
         return barrier(keysOrRanges, epoch, requestTime, timeoutNanos, barrierType, isForWrite, repairSyncPoint(allNodes));
     }
 
-    private static <S extends Seekables<?, ?>> Seekables intersectionWithAccordManagedRanges(Seekables<?, ?> keysOrRanges)
+    private static Seekables<?, ?> intersectionWithAccordManagedRanges(Seekables<?, ?> keysOrRanges)
     {
         TableId tableId = null;
-        for (Seekable seekable : keysOrRanges)
+        for (Seekable keyOrRange : keysOrRanges)
         {
             TableId newTableId;
             if (keysOrRanges.domain() == Key)
-                newTableId = ((PartitionKey) seekable).table();
+                newTableId = ((PartitionKey)keyOrRange).table();
             else if (keysOrRanges.domain() == Range)
-                newTableId = ((TokenRange) seekable).table();
+                newTableId = ((TokenRange) keyOrRange).table();
             else
                 throw new IllegalStateException("Unexpected domain " + keysOrRanges.domain());
 
@@ -782,7 +800,7 @@ public class AccordService implements IAccordService, Shutdownable
     }
 
     @Override
-    public Seekables repairWithRetries(Seekables keysOrRanges, long minEpoch, BarrierType barrierType, boolean isForWrite, List<InetAddressAndPort> allEndpoints) throws InterruptedException
+    public Seekables<?, ?> repairWithRetries(Seekables<?, ?> keysOrRanges, long minEpoch, BarrierType barrierType, boolean isForWrite, List<InetAddressAndPort> allEndpoints) throws InterruptedException
     {
         return doWithRetries(Blocking.Default.instance, () -> AccordService.instance().repair(keysOrRanges, minEpoch, Dispatcher.RequestTime.forImmediateExecution(), DatabaseDescriptor.getAccordRangeBarrierTimeoutNanos(), barrierType, isForWrite, allEndpoints),
                              DatabaseDescriptor.getAccordBarrierRetryAttempts(),
@@ -1032,9 +1050,9 @@ public class AccordService implements IAccordService, Shutdownable
         return submit.flatMap(Function.identity());
     }
 
-    private static AsyncChain<Void> populate(CommandStoreTxnBlockedGraph.Builder state, CommandStore commandStore, PartitionKey blockedBy, TxnId txnId, Timestamp executeAt)
+    private static AsyncChain<Void> populate(CommandStoreTxnBlockedGraph.Builder state, CommandStore commandStore, TokenKey blockedBy, TxnId txnId, Timestamp executeAt)
     {
-        AsyncChain<AsyncChain<Void>> submit = commandStore.submit(PreLoadContext.contextFor(txnId, Keys.of(blockedBy), KeyHistory.COMMANDS), in -> {
+        AsyncChain<AsyncChain<Void>> submit = commandStore.submit(PreLoadContext.contextFor(txnId, RoutingKeys.of(blockedBy.toUnseekable()), KeyHistory.COMMANDS), in -> {
             AsyncChain<Void> chain = populate(state, (AccordSafeCommandStore) in, blockedBy, txnId, executeAt);
             return chain == null ? AsyncChains.success(null) : chain;
         });
@@ -1069,7 +1087,7 @@ public class AccordService implements IAccordService, Shutdownable
                 chains.add(populate(state, safeStore.commandStore(), blockedBy));
             }
         }
-        for (PartitionKey blockedBy : cmdTxnState.blockedByKey)
+        for (TokenKey blockedBy : cmdTxnState.blockedByKey)
         {
             if (state.keys.containsKey(blockedBy)) continue;
             if (safeStore.getCommandsForKeyIfLoaded(blockedBy) != null)
@@ -1089,7 +1107,7 @@ public class AccordService implements IAccordService, Shutdownable
         return AsyncChains.all(chains).map(ignore -> null);
     }
 
-    private static AsyncChain<Void> populate(CommandStoreTxnBlockedGraph.Builder state, AccordSafeCommandStore safeStore, PartitionKey pk, TxnId txnId, Timestamp executeAt)
+    private static AsyncChain<Void> populate(CommandStoreTxnBlockedGraph.Builder state, AccordSafeCommandStore safeStore, TokenKey pk, TxnId txnId, Timestamp executeAt)
     {
         AccordSafeCommandsForKey commandsForKey = safeStore.getCommandsForKeyIfLoaded(pk);
         TxnId blocking = commandsForKey.current().blockedOnTxnId(txnId, executeAt);
@@ -1117,7 +1135,7 @@ public class AccordService implements IAccordService, Shutdownable
                 else
                 {
                     // blocked on key
-                    cmdTxnState.blockedByKey.add((PartitionKey) waitingOn.keys.get(i - waitingOn.txnIdCount()));
+                    cmdTxnState.blockedByKey.add((TokenKey) waitingOn.keys.get(i - waitingOn.txnIdCount()));
                 }
             });
         }
@@ -1140,9 +1158,9 @@ public class AccordService implements IAccordService, Shutdownable
         tryMarkRemoved(ranges, 0).begin(node().agent());
     }
 
-    private AsyncChain<SyncPoint<Ranges>> tryMarkRemoved(Ranges ranges, int attempt)
+    private AsyncChain<SyncPoint<accord.primitives.Range>> tryMarkRemoved(Ranges ranges, int attempt)
     {
-        return CoordinateSyncPoint.exclusive(node, ranges)
+        return CoordinateSyncPoint.exclusiveSyncPoint(node, ranges)
                                   .recover(t ->
                                            //TODO (operability): make this configurable / monitorable?
                                            attempt <= 3 && t instanceof Invalidated || t instanceof Preempted || t instanceof Timeout ? tryMarkRemoved(ranges, attempt + 1) : null);
@@ -1236,7 +1254,7 @@ public class AccordService implements IAccordService, Shutdownable
     public CompactionInfo getCompactionInfo()
     {
         Int2ObjectHashMap<RedundantBefore> redundantBefores = new Int2ObjectHashMap<>();
-        Int2ObjectHashMap<CommandStores.RangesForEpoch> ranges = new Int2ObjectHashMap<>();
+        Int2ObjectHashMap<RangesForEpoch> ranges = new Int2ObjectHashMap<>();
         AtomicReference<DurableBefore> durableBefore = new AtomicReference<>(DurableBefore.EMPTY);
         AsyncChains.getBlockingAndRethrow(node.commandStores().forEach(safeStore -> {
             synchronized (redundantBefores)
@@ -1336,10 +1354,10 @@ public class AccordService implements IAccordService, Shutdownable
                .flatMap(s -> s == null ? AsyncChains.success(null) : Await.coordinate(node, s));
     }
 
-    private AsyncChain<SyncPoint<Ranges>> exclusiveSyncPoint(Ranges ranges, int attempt)
+    private AsyncChain<SyncPoint<accord.primitives.Range>> exclusiveSyncPoint(Ranges ranges, int attempt)
     {
         //TODO (on merge): CASSANDRA-19769 has the same logic... should this be refactored?  Would make it nice so we could split the range on retries?
-        return CoordinateSyncPoint.exclusive(node, ranges)
+        return CoordinateSyncPoint.exclusiveSyncPoint(node, ranges)
                                   .recover(t -> {
                                       //TODO (operability): make this configurable / monitorable?
                                       if (attempt > 3) return null;
@@ -1370,21 +1388,21 @@ public class AccordService implements IAccordService, Shutdownable
     // TODO (duplication): this is 95% of accord.coordinate.CoordinateShardDurable
     //   we already report all this information to EpochState; would be better to use that
     //   Taken from ListStore...
-    private static class Await extends AsyncResults.SettableResult<SyncPoint<Ranges>> implements Callback<ReadData.ReadReply>
+    private static class Await extends AsyncResults.SettableResult<SyncPoint<?>> implements Callback<ReadData.ReadReply>
     {
         private final Node node;
         private final AllTracker tracker;
-        private final SyncPoint<Ranges> exclusiveSyncPoint;
+        private final SyncPoint<?> exclusiveSyncPoint;
 
-        private Await(Node node, SyncPoint<Ranges> exclusiveSyncPoint)
+        private Await(Node node, SyncPoint<?> exclusiveSyncPoint)
         {
-            Topologies topologies = node.topology().forEpoch(exclusiveSyncPoint.keysOrRanges, exclusiveSyncPoint.sourceEpoch());
+            Topologies topologies = node.topology().forEpoch(exclusiveSyncPoint.route, exclusiveSyncPoint.sourceEpoch());
             this.node = node;
             this.tracker = new AllTracker(topologies);
             this.exclusiveSyncPoint = exclusiveSyncPoint;
         }
 
-        public static AsyncChain<Void> coordinate(Node node, SyncPoint<Ranges> sp)
+        public static AsyncChain<Void> coordinate(Node node, SyncPoint<?> sp)
         {
             return node.withEpoch(sp.sourceEpoch(), () -> {
                 Await coordinate = new Await(node, sp);
@@ -1404,7 +1422,7 @@ public class AccordService implements IAccordService, Shutdownable
 
         private void start()
         {
-            node.send(tracker.nodes(), to -> new WaitUntilApplied(to, tracker.topologies(), exclusiveSyncPoint.syncId, exclusiveSyncPoint.keysOrRanges, exclusiveSyncPoint.syncId.epoch()), this);
+            node.send(tracker.nodes(), to -> new WaitUntilApplied(to, tracker.topologies(), exclusiveSyncPoint.syncId, exclusiveSyncPoint.route, exclusiveSyncPoint.syncId.epoch()), this);
         }
         @Override
         public void onSuccess(Node.Id from, ReadData.ReadReply reply)
@@ -1425,7 +1443,7 @@ public class AccordService implements IAccordService, Shutdownable
                         tryFailure(new ExecuteSyncPoint.SyncPointErased());
                         return;
                     case Invalid:
-                        tryFailure(new Invalidated(exclusiveSyncPoint.syncId, exclusiveSyncPoint.homeKey));
+                        tryFailure(new Invalidated(exclusiveSyncPoint.syncId, exclusiveSyncPoint.route.homeKey()));
                         return;
                 }
             }
@@ -1433,7 +1451,7 @@ public class AccordService implements IAccordService, Shutdownable
             {
                 if (tracker.recordSuccess(from) == RequestStatus.Success)
                 {
-                    node.configService().reportEpochRedundant(exclusiveSyncPoint.keysOrRanges, exclusiveSyncPoint.syncId.epoch());
+                    node.configService().reportEpochRedundant(exclusiveSyncPoint.route.toRanges(), exclusiveSyncPoint.syncId.epoch());
                     trySuccess(exclusiveSyncPoint);
                 }
             }

@@ -35,8 +35,7 @@ import accord.api.RoutingKey;
 import accord.local.Command;
 import accord.local.CommonAttributes;
 import accord.local.Node;
-import accord.local.SaveStatus;
-import accord.local.Status;
+import accord.local.StoreParticipants;
 import accord.primitives.Ballot;
 import accord.primitives.Deps;
 import accord.primitives.FullRoute;
@@ -46,6 +45,8 @@ import accord.primitives.PartialTxn;
 import accord.primitives.RangeDeps;
 import accord.primitives.Ranges;
 import accord.primitives.Routable;
+import accord.primitives.SaveStatus;
+import accord.primitives.Status;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
@@ -67,7 +68,7 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaProvider;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
-import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.utils.CassandraGenerators;
 import org.assertj.core.api.Assertions;
 import org.mockito.Mockito;
@@ -109,11 +110,12 @@ public class AccordKeyspaceTest extends CQLTester.InMemory
         PartialTxn partialTxn = txn.slice(scope, true);
         RoutingKey routingKey = partialTxn.keys().get(0).asKey().toUnseekable();
         FullRoute<?> route = partialTxn.keys().toRoute(routingKey);
-        Deps deps = new Deps(KeyDeps.none((Keys) txn.keys()), RangeDeps.NONE, KeyDeps.NONE);
+        StoreParticipants participants = StoreParticipants.all(route);
+        Deps deps = new Deps(KeyDeps.none(((Keys) txn.keys()).toParticipants()), RangeDeps.NONE, KeyDeps.NONE);
 
         CommonAttributes.Mutable common = new CommonAttributes.Mutable(id);
         common.partialTxn(partialTxn);
-        common.route(route);
+        common.setParticipants(participants);
         common.partialDeps(deps.intersecting(scope));
         common.durability(Status.Durability.NotDurable);
         Command.WaitingOn waitingOn = null;
@@ -171,13 +173,13 @@ public class AccordKeyspaceTest extends CQLTester.InMemory
             int numStores = rs.nextInt(1, 3);
 
             // The model of the DB
-            TreeMap<Integer, SortedSet<PartitionKey>> storesToKeys = new TreeMap<>();
+            TreeMap<Integer, SortedSet<TokenKey>> storesToKeys = new TreeMap<>();
             // write to the table and the model
             for (int i = 0, numKeys = rs.nextInt(10, 20); i < numKeys; i++)
             {
                 int store = rs.nextInt(0, numStores);
                 var keys = storesToKeys.computeIfAbsent(store, ignore -> new TreeSet<>());
-                PartitionKey pk = null;
+                TokenKey pk = null;
                 // LocalPartitioner may have a type with a very small domain (boolean, vector<boolean, 1>, etc.), so need to bound the attempts
                 // else this will loop forever...
                 for (int attempt = 0; attempt < 10; attempt++)
@@ -191,7 +193,7 @@ public class AccordKeyspaceTest extends CQLTester.InMemory
                         data = fromQT(getTypeSupport(partitioner.getTokenValidator()).bytesGen()).next(rs);
                     else
                         data = Int32Type.instance.decompose(rs.nextInt());
-                    PartitionKey key = new PartitionKey(tableId, tables.get(tableId).decorateKey(data));
+                    TokenKey key = new TokenKey(tableId, tables.get(tableId).decorateKey(data).getToken());
                     if (keys.add(key))
                     {
                         pk = key;
@@ -206,8 +208,8 @@ public class AccordKeyspaceTest extends CQLTester.InMemory
                         // The memtable will allow the write, but it will be dropped when writing to the SSTable...
                         //TODO (now, correctness): since we store the user token + user key, if a key is close to the PK limits then we could tip over and loose our CFK
 //                        new Mutation(AccordKeyspace.getCommandsForKeyPartitionUpdate(store, pk, 42, ByteBufferUtil.EMPTY_BYTE_BUFFER)).apply();
-                        execute("INSERT INTO system_accord.commands_for_key (store_id, table_id, key_token, key) VALUES (?, ?, ?, ?)",
-                                store, pk.table().asUUID(), AccordKeyspace.serializeRoutingKeyNoTable(pk.toUnseekable()), pk.partitionKey().getKey());
+                        execute("INSERT INTO system_accord.commands_for_key (store_id, table_id, key_token) VALUES (?, ?, ?)",
+                                store, pk.table().asUUID(), AccordKeyspace.serializeRoutingKeyNoTable(pk));
                     }
                     catch (IllegalArgumentException | InvalidRequestException e)
                     {
@@ -241,10 +243,10 @@ public class AccordKeyspaceTest extends CQLTester.InMemory
                     for (var e : storesToKeys.entrySet())
                     {
                         int store = e.getKey();
-                        SortedSet<PartitionKey> keys = e.getValue();
+                        SortedSet<TokenKey> keys = e.getValue();
                         if (keys.isEmpty())
                             continue;
-                        expectedCqlStoresToKeys.put(store, new TreeSet<>(keys.stream().map(p -> AccordKeyspace.serializeRoutingKeyNoTable(p.toUnseekable())).collect(Collectors.toList())));
+                        expectedCqlStoresToKeys.put(store, new TreeSet<>(keys.stream().map(AccordKeyspace::serializeRoutingKeyNoTable).collect(Collectors.toList())));
                     }
 
                     // make sure no data loss... when this test was written sstable had all the rows but the sstable didn't... this
@@ -255,7 +257,6 @@ public class AccordKeyspaceTest extends CQLTester.InMemory
                     {
                         int storeId = row.getInt("store_id");
                         ByteBuffer bb = row.getBytes("key_token");
-                        // FIXME: include table_id
                         cqlStoresToKeys.computeIfAbsent(storeId, ignore -> new TreeSet<>()).add(bb);
                     }
                     Assertions.assertThat(cqlStoresToKeys).isEqualTo(expectedCqlStoresToKeys);
@@ -280,12 +281,12 @@ public class AccordKeyspaceTest extends CQLTester.InMemory
                         offset = rs.nextInt(0, keysForStore.size());
                         offsetEnd = rs.nextInt(offset, keysForStore.size()) + 1;
                     }
-                    List<PartitionKey> expected = keysForStore.subList(offset, offsetEnd);
-                    PartitionKey start = expected.get(0);
-                    PartitionKey end = expected.get(expected.size() - 1);
+                    List<TokenKey> expected = keysForStore.subList(offset, offsetEnd);
+                    TokenKey start = expected.get(0);
+                    TokenKey end = expected.get(expected.size() - 1);
 
-                    AsyncChain<List<PartitionKey>> map = Observable.asChain(callback -> AccordKeyspace.findAllKeysBetween(store, start.toUnseekable(), true, end.toUnseekable(), true, callback));
-                    List<PartitionKey> actual = AsyncChains.getUnchecked(map);
+                    AsyncChain<List<TokenKey>> map = Observable.asChain(callback -> AccordKeyspace.findAllKeysBetween(store, start, true, end, true, callback));
+                    List<TokenKey> actual = AsyncChains.getUnchecked(map);
                     Assertions.assertThat(actual).isEqualTo(expected);
                 }
 

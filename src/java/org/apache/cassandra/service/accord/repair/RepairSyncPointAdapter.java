@@ -30,11 +30,11 @@ import accord.coordinate.ExecuteSyncPoint;
 import accord.local.Node;
 import accord.primitives.Deps;
 import accord.primitives.FullRoute;
-import accord.primitives.Seekables;
 import accord.primitives.SyncPoint;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
+import accord.primitives.Unseekable;
 import accord.primitives.Writes;
 import accord.topology.Topologies;
 
@@ -48,7 +48,7 @@ import accord.topology.Topologies;
  * adapter requires responses from all of the supplied endpoints before completing. Note that shards only block on the
  * intersection of the provided replicas and their own endpoints.
  */
-public class RepairSyncPointAdapter<S extends Seekables<?, ?>> extends CoordinationAdapter.Adapters.AbstractSyncPointAdapter<S>
+public class RepairSyncPointAdapter<U extends Unseekable> extends CoordinationAdapter.Adapters.AbstractInclusiveSyncPointAdapter<U>
 {
     private final ImmutableSet<Node.Id> requiredResponses;
 
@@ -58,21 +58,27 @@ public class RepairSyncPointAdapter<S extends Seekables<?, ?>> extends Coordinat
     }
 
     @Override
-    public void execute(Node node, Topologies all, FullRoute<?> route, ExecutePath path, TxnId txnId, Txn txn, Timestamp executeAt, Deps deps, BiConsumer<? super SyncPoint<S>, Throwable> callback)
+    public void execute(Node node, Topologies all, FullRoute<?> route, ExecutePath path, TxnId txnId, Txn txn, Timestamp executeAt, Deps deps, BiConsumer<? super SyncPoint<U>, Throwable> callback)
     {
         RequiredResponseTracker tracker = new RequiredResponseTracker(requiredResponses, all);
-        ExecuteSyncPoint.ExecuteBlocking<S> execute = new ExecuteSyncPoint.ExecuteBlocking<>(node, tracker, new SyncPoint<>(txnId, deps, (S) txn.keys(), route), executeAt);
+        ExecuteSyncPoint.ExecuteBlocking<U> execute = new ExecuteSyncPoint.ExecuteBlocking<>(node, new SyncPoint<U>(txnId, deps, (FullRoute<U>) route), tracker, executeAt);
         execute.addCallback(callback);
         execute.start();
     }
 
     @Override
-    public void persist(Node node, Topologies all, FullRoute<?> route, TxnId txnId, Txn txn, Timestamp executeAt, Deps deps, Writes writes, Result result, BiConsumer<? super SyncPoint<S>, Throwable> callback)
+    protected void addOrExecuteCallback(ExecuteSyncPoint.ExecuteBlocking<U> execute, BiConsumer<? super SyncPoint<U>, Throwable> callback)
+    {
+        execute.addCallback(callback);
+    }
+
+    @Override
+    public void persist(Node node, Topologies all, FullRoute<?> route, TxnId txnId, Txn txn, Timestamp executeAt, Deps deps, Writes writes, Result result, BiConsumer<? super SyncPoint<U>, Throwable> callback)
     {
         throw new UnsupportedOperationException();
     }
 
-    public static <S extends Seekables<?, ?>> CoordinationAdapter<SyncPoint<S>> create(Collection<Node.Id> requiredResponses)
+    public static <U extends Unseekable> CoordinationAdapter<SyncPoint<U>> create(Collection<Node.Id> requiredResponses)
     {
         return new RepairSyncPointAdapter<>(requiredResponses);
     }

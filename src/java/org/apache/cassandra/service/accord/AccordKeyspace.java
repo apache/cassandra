@@ -24,7 +24,6 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.NavigableMap;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -41,17 +40,17 @@ import com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import accord.api.Key;
+import accord.api.RoutingKey;
+import accord.local.StoreParticipants;
+import accord.local.cfk.CommandsForKey;
 import accord.impl.TimestampsForKey;
 import accord.local.Command;
 import accord.local.CommandStore;
-import accord.local.DurableBefore;
 import accord.local.Node;
 import accord.local.RedundantBefore;
-import accord.local.SaveStatus;
-import accord.local.Status;
-import accord.local.Status.Durability;
-import accord.local.cfk.CommandsForKey;
+import accord.primitives.SaveStatus;
+import accord.primitives.Status;
+import accord.primitives.Status.Durability;
 import accord.primitives.Ranges;
 import accord.primitives.Route;
 import accord.primitives.Timestamp;
@@ -113,6 +112,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.accord.RouteIndex;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.LocalVersionedSerializer;
+import org.apache.cassandra.io.MessageVersionProvider;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -132,10 +132,9 @@ import org.apache.cassandra.schema.Views;
 import org.apache.cassandra.serializers.UUIDSerializer;
 import org.apache.cassandra.service.accord.AccordConfigurationService.SyncStatus;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
-import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.service.accord.serializers.AccordRoutingKeyByteSource;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
-import org.apache.cassandra.service.accord.serializers.CommandStoreSerializers;
 import org.apache.cassandra.service.accord.serializers.CommandsForKeySerializer;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
 import org.apache.cassandra.service.accord.serializers.TopologySerializers;
@@ -155,6 +154,7 @@ import static org.apache.cassandra.db.rows.BTreeRow.singleCellRow;
 import static org.apache.cassandra.db.rows.BufferCell.live;
 import static org.apache.cassandra.db.rows.BufferCell.tombstone;
 import static org.apache.cassandra.schema.SchemaConstants.ACCORD_KEYSPACE_NAME;
+import static org.apache.cassandra.service.accord.serializers.AccordRoutingKeyByteSource.currentVersion;
 import static org.apache.cassandra.service.accord.serializers.KeySerializers.blobMapToRanges;
 import static org.apache.cassandra.utils.ByteBufferUtil.EMPTY_BYTE_BUFFER;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
@@ -249,26 +249,22 @@ public class AccordKeyspace
               + "domain int," // this is stored as part of txn_id, used currently for cheaper scans of the table
               + format("txn_id %s,", TIMESTAMP_TUPLE)
               + "status int,"
-              + "route blob,"
+              + "participants blob,"
               + "durability int,"
               + format("execute_at %s,", TIMESTAMP_TUPLE)
               + "PRIMARY KEY((store_id, domain, txn_id))"
               + ')')
         .partitioner(new LocalPartitioner(CompositeType.getInstance(Int32Type.instance, Int32Type.instance, TIMESTAMP_TYPE)))
         .indexes(Indexes.builder()
-                        .add(IndexMetadata.fromSchemaMetadata("route", IndexMetadata.Kind.CUSTOM, ImmutableMap.of("class_name", RouteIndex.class.getCanonicalName(), "target", "route")))
+                        .add(IndexMetadata.fromSchemaMetadata("route", IndexMetadata.Kind.CUSTOM, ImmutableMap.of("class_name", RouteIndex.class.getCanonicalName(), "target", "participants")))
                         .build())
         .build();
 
     // TODO: naming is not very clearly distinct from the base serializers
     public static class LocalVersionedSerializers
     {
-        static final LocalVersionedSerializer<Route<?>> route = localSerializer(KeySerializers.route);
+        static final LocalVersionedSerializer<StoreParticipants> participants = localSerializer(CommandSerializers.participants);
         static final LocalVersionedSerializer<Topology> topology = localSerializer(TopologySerializers.topology);
-        static final LocalVersionedSerializer<DurableBefore> durableBefore = localSerializer(CommandStoreSerializers.durableBefore);
-        static final LocalVersionedSerializer<RedundantBefore> redundantBefore = localSerializer(CommandStoreSerializers.redundantBefore);
-        static final LocalVersionedSerializer<NavigableMap<TxnId, Ranges>> bootstrapBeganAt = localSerializer(CommandStoreSerializers.bootstrapBeganAt);
-        static final LocalVersionedSerializer<NavigableMap<Timestamp, Ranges>> safeToRead = localSerializer(CommandStoreSerializers.safeToRead);
 
         private static <T> LocalVersionedSerializer<T> localSerializer(IVersionedSerializer<T> serializer)
         {
@@ -291,12 +287,12 @@ public class AccordKeyspace
         public static final ColumnMetadata txn_id = getColumn(Commands, "txn_id");
         public static final ColumnMetadata store_id = getColumn(Commands, "store_id");
         public static final ColumnMetadata status = getColumn(Commands, "status");
-        public static final ColumnMetadata route = getColumn(Commands, "route");
+        public static final ColumnMetadata participants = getColumn(Commands, "participants");
         public static final ColumnMetadata durability = getColumn(Commands, "durability");
         public static final ColumnMetadata execute_at = getColumn(Commands, "execute_at");
 
-        public static final ColumnMetadata[] TRUNCATE_FIELDS = new ColumnMetadata[] { durability, execute_at, route, status };
-        public static final ColumnMetadata[] INVALIDATE_FIELDS = new ColumnMetadata[] { status };
+        public static final ColumnMetadata[] TRUNCATE_FIELDS = new ColumnMetadata[] { durability, execute_at, participants, status };
+        public static final ColumnMetadata[] SAVE_STATUS_ONLY_FIELDS = new ColumnMetadata[] { status };
 
         static
         {
@@ -360,33 +356,67 @@ public class AccordKeyspace
         @Nullable
         public static Route<?> getRoute(Row row)
         {
-            Cell<?> cell = row.getCell(route);
-            return deserializeRouteOrNull(cell);
+            Cell<?> cell = row.getCell(participants);
+            StoreParticipants participants = deserializeParticipantsOrNull(cell);
+            return participants == null ? null : participants.route();
         }
 
-        private static Object[] truncatedApplyLeaf(long newTimestamp, SaveStatus newSaveStatus, Cell<?> durabilityCell, Cell<?> executeAtCell, Cell<?> routeCell, boolean updateTimestamps)
+        private static Object[] truncatedApplyLeaf(long newTimestamp, SaveStatus newSaveStatus, @Nullable Cell<?> durabilityCell, @Nullable Cell<?> executeAtCell, @Nullable Cell<?> participantsCell, boolean updateTimestamps)
         {
-            checkArgument(durabilityCell.column() == CommandsColumns.durability);
-            checkArgument(executeAtCell.column() == CommandsColumns.execute_at);
-            checkArgument(routeCell.column() == CommandsColumns.route);
-            Object[] newLeaf = BTree.unsafeAllocateNonEmptyLeaf(TRUNCATE_FIELDS.length);
+            int count = 1 + (durabilityCell != null ? 1 : 0) + (executeAtCell != null ? 1 : 0) + (participantsCell != null ? 1 : 0);
+            Object[] newLeaf = BTree.unsafeAllocateNonEmptyLeaf(count);
             int colIndex = 0;
-            newLeaf[colIndex++] = updateTimestamps ? durabilityCell.withUpdatedTimestamp(newTimestamp) : durabilityCell;
-            newLeaf[colIndex++] = updateTimestamps ? executeAtCell.withUpdatedTimestamp(newTimestamp) : executeAtCell;
-            newLeaf[colIndex++] = updateTimestamps ? routeCell.withUpdatedTimestamp(newTimestamp) : routeCell;
-            // Status always needs to use the new timestamp since we are replacing the existing value
-            // All the other columns are being retained unmodified with at most updated timestamps to accomdate deletion
-            //noinspection UnusedAssignment
-            newLeaf[colIndex++] = BufferCell.live(status, newTimestamp, ByteBufferAccessor.instance.valueOf(newSaveStatus.ordinal()));
+            if (durabilityCell != null)
+            {
+                checkArgument(durabilityCell.column() == CommandsColumns.durability);
+                newLeaf[colIndex++] = updateTimestamps ? durabilityCell.withUpdatedTimestamp(newTimestamp) : durabilityCell;
+            }
+            if (executeAtCell != null)
+            {
+                checkArgument(executeAtCell.column() == CommandsColumns.execute_at);
+                newLeaf[colIndex++] = updateTimestamps ? executeAtCell.withUpdatedTimestamp(newTimestamp) : executeAtCell;
+            }
+            if (participantsCell != null)
+            {
+                checkArgument(participantsCell.column() == CommandsColumns.participants);
+                newLeaf[colIndex++] = updateTimestamps ? participantsCell.withUpdatedTimestamp(newTimestamp) : participantsCell;
+            }
+            newLeaf[colIndex] = BufferCell.live(status, newTimestamp, ByteBufferAccessor.instance.valueOf(newSaveStatus.ordinal()));
             return newLeaf;
         }
 
-        public static Row invalidated(SaveStatus newSaveStatus, Row row, long nowInSec)
+        private static Object[] expungePartialLeaf(Cell<?> durabilityCell, Cell<?> executeAtCell, Cell<?> participantsCell)
+        {
+            int count = (durabilityCell != null ? 1 : 0) + (executeAtCell != null ? 1 : 0) + (participantsCell != null ? 1 : 0);
+            if (count == 0)
+                return null;
+
+            Object[] newLeaf = BTree.unsafeAllocateNonEmptyLeaf(count);
+            int colIndex = 0;
+            if (durabilityCell != null)
+            {
+                checkArgument(durabilityCell.column() == CommandsColumns.durability);
+                newLeaf[colIndex++] = durabilityCell;
+            }
+            if (executeAtCell != null)
+            {
+                checkArgument(executeAtCell.column() == CommandsColumns.execute_at);
+                newLeaf[colIndex++] = executeAtCell;
+            }
+            if (participantsCell != null)
+            {
+                checkArgument(participantsCell.column() == CommandsColumns.participants);
+                newLeaf[colIndex] = participantsCell;
+            }
+            return newLeaf;
+        }
+
+        public static Row saveStatusOnly(SaveStatus newSaveStatus, Row row, long nowInSec)
         {
             long oldTimestamp = row.primaryKeyLivenessInfo().timestamp();
             long newTimestamp = oldTimestamp + 1;
 
-            Object[] newLeaf = invalidatedLeaf(newTimestamp, newSaveStatus);
+            Object[] newLeaf = saveStatusOnlyLeaf(newTimestamp, newSaveStatus);
 
             // Including a deletion allows future compactions to drop data before it gets to the purger
             // but it is pretty optional because maybeDropTruncatedCommandColumns will drop the extra columns
@@ -395,9 +425,9 @@ public class AccordKeyspace
             return BTreeRow.create(row.clustering(), LivenessInfo.create(newTimestamp, nowInSec), deletion, newLeaf);
         }
 
-        private static Object[] invalidatedLeaf(long newTimestamp, SaveStatus newSaveStatus)
+        private static Object[] saveStatusOnlyLeaf(long newTimestamp, SaveStatus newSaveStatus)
         {
-            Object[] newLeaf = BTree.unsafeAllocateNonEmptyLeaf(INVALIDATE_FIELDS.length);
+            Object[] newLeaf = BTree.unsafeAllocateNonEmptyLeaf(SAVE_STATUS_ONLY_FIELDS.length);
             int colIndex = 0;
             // Status always needs to use the new timestamp since we are replacing the existing value
             // All the other columns are being retained unmodified with at most updated timestamps to accomdate deletion
@@ -406,17 +436,10 @@ public class AccordKeyspace
             return newLeaf;
         }
 
-        public static Row truncatedApply(SaveStatus newSaveStatus, Row row, long nowInSec, Durability durability, Cell<?> durabilityCell, Cell<?> executeAtCell, Cell<?> routeCell, boolean withOutcome)
+        public static Row truncatedApply(SaveStatus newSaveStatus, Row row, long nowInSec, Durability durability, @Nullable Cell<?> durabilityCell, @Nullable Cell<?> executeAtCell, @Nullable Cell<?> participantsCell, boolean withOutcome)
         {
-            checkArgument(durabilityCell.column() == CommandsColumns.durability);
-            checkArgument(executeAtCell.column() == CommandsColumns.execute_at);
-            checkArgument(routeCell.column() == CommandsColumns.route);
             long oldTimestamp = row.primaryKeyLivenessInfo().timestamp();
             long newTimestamp = oldTimestamp + 1;
-            // If durability is not universal we don't want to delete older versions of the row that might have recorded
-            // a higher durability value. maybeDropTruncatedCommandColumns will take care of dropping things even if we don't drop via tombstones.
-            // durability should be the only column that could have an older value that is insufficient for propagating forward
-            // TODO (now): with UniversalOrInvalidated should this change?
             boolean doDeletion = durability == Durability.Universal;
 
             // We may not have what we need to generate a deletion and include the outcome in the truncated row
@@ -424,7 +447,7 @@ public class AccordKeyspace
             if (withOutcome)
                 doDeletion = false;
 
-            Object[] newLeaf = truncatedApplyLeaf(newTimestamp, newSaveStatus, durabilityCell, executeAtCell, routeCell, doDeletion);
+            Object[] newLeaf = truncatedApplyLeaf(newTimestamp, newSaveStatus, durabilityCell, executeAtCell, participantsCell, doDeletion);
 
             // Including a deletion allows future compactions to drop data before it gets to the purger
             // but it is pretty optional because maybeDropTruncatedCommandColumns will drop the extra columns
@@ -433,47 +456,26 @@ public class AccordKeyspace
             return BTreeRow.create(row.clustering(), LivenessInfo.create(newTimestamp, nowInSec), deletion, newLeaf);
         }
 
-        public static Row maybeDropTruncatedCommandColumns(Row row, Cell<?> durabilityCell, Cell<?> executeAtCell, Cell<?> routeCell, Cell<?> statusCell)
+        public static Row expungePartial(Row row, @Nullable Cell<?> durabilityCell, @Nullable Cell<?> executeAtCell, @Nullable Cell<?> participantsCell)
         {
-            checkArgument(durabilityCell.column() == CommandsColumns.durability);
-            checkArgument(executeAtCell.column() == CommandsColumns.execute_at);
-            checkArgument(routeCell.column() == CommandsColumns.route);
-            checkArgument(statusCell.column() == CommandsColumns.status);
-            int colCount = row.columnCount();
-            // If it's the exact length of the post truncate column count without outcome fields
-            // then it is exactly the columns needed for getting this far and withOutcome doesn't matter since
-            // nothing additional is available to include anyway
-            if (colCount == TRUNCATE_FIELDS.length)
-                return row;
-
-            // Construct a replacement with just the available columns that are still needed
-            Object[] newLeaf = BTree.unsafeAllocateNonEmptyLeaf(TRUNCATE_FIELDS.length);
-            int colIndex = 0;
-            newLeaf[colIndex++] = durabilityCell;
-            newLeaf[colIndex++] = executeAtCell;
-            newLeaf[colIndex++] = routeCell;
-            //noinspection UnusedAssignment
-            newLeaf[colIndex++] = statusCell;
-
-            return BTreeRow.create(row.clustering(), row.primaryKeyLivenessInfo(), row.deletion(), newLeaf);
+            Object[] newLeaf = expungePartialLeaf(durabilityCell, executeAtCell, participantsCell);
+            return BTreeRow.create(row.clustering(), row.primaryKeyLivenessInfo(), Deletion.LIVE, newLeaf);
         }
     }
 
-    //TODO (now, performance): do we actually care about the sort ordering?  We don't do range scans on this table
-    //TODO (now, performance): should we remove key_token?  We don't need it so its just added space
     private static final TableMetadata TimestampsForKeys =
         parse(TIMESTAMPS_FOR_KEY,
               "accord timestamps per key",
               "CREATE TABLE %s ("
               + "store_id int, "
-              + "key_token blob, " // can't use "token" as this is restricted word in CQL
-              + format("key %s, ", KEY_TUPLE)
+              + "routing_key blob, " // can't use "token" as this is restricted word in CQL
               + format("last_executed_timestamp %s, ", TIMESTAMP_TUPLE)
               + "last_executed_micros bigint, "
+              + format("last_write_id %s, ", TIMESTAMP_TUPLE)
               + format("last_write_timestamp %s, ", TIMESTAMP_TUPLE)
-              + "PRIMARY KEY((store_id, key_token, key))"
+              + "PRIMARY KEY((store_id, routing_key))"
               + ')')
-        .partitioner(new LocalPartitioner(CompositeType.getInstance(Int32Type.instance, BytesType.instance, KEY_TYPE)))
+        .partitioner(new LocalPartitioner(CompositeType.getInstance(Int32Type.instance, BytesType.instance)))
         .build();
 
     public static class TimestampsForKeyColumns
@@ -481,23 +483,22 @@ public class AccordKeyspace
         static final ClusteringComparator keyComparator = TimestampsForKeys.partitionKeyAsClusteringComparator();
         static final CompositeType partitionKeyType = (CompositeType) TimestampsForKeys.partitionKeyType;
         static final ColumnMetadata store_id = getColumn(TimestampsForKeys, "store_id");
-        static final ColumnMetadata key_token = getColumn(TimestampsForKeys, "key_token");
-        static final ColumnMetadata key = getColumn(TimestampsForKeys, "key");
+        static final ColumnMetadata routing_key = getColumn(TimestampsForKeys, "routing_key");
         public static final ColumnMetadata last_executed_timestamp = getColumn(TimestampsForKeys, "last_executed_timestamp");
         public static final ColumnMetadata last_executed_micros = getColumn(TimestampsForKeys, "last_executed_micros");
         public static final ColumnMetadata last_write_timestamp = getColumn(TimestampsForKeys, "last_write_timestamp");
 
         static final Columns columns = Columns.from(Lists.newArrayList(last_executed_timestamp, last_executed_micros, last_write_timestamp));
 
-        static ByteBuffer makePartitionKey(int storeId, Key key)
+        static ByteBuffer makeKey(int storeId, RoutingKey key)
         {
-            PartitionKey pk = (PartitionKey) key;
-            return keyComparator.make(storeId, serializeToken(pk.token()), serializeKey(pk)).serializeAsPartitionKey();
+            TokenKey pk = (TokenKey) key;
+            return keyComparator.make(storeId, serializeRoutingKey(pk)).serializeAsPartitionKey();
         }
 
-        static ByteBuffer makePartitionKey(int storeId, TimestampsForKey timestamps)
+        static ByteBuffer makeKey(int storeId, TimestampsForKey timestamps)
         {
-            return makePartitionKey(storeId, timestamps.key());
+            return makeKey(storeId, timestamps.key());
         }
     }
 
@@ -513,9 +514,9 @@ public class AccordKeyspace
             return Int32Type.instance.compose(partitionKeyComponents[store_id.position()]);
         }
 
-        public static PartitionKey getKey(ByteBuffer[] partitionKeyComponents)
+        public static TokenKey getKey(ByteBuffer[] partitionKeyComponents)
         {
-            return deserializeKey(partitionKeyComponents[key.position()]);
+            return (TokenKey) deserializeRoutingKey(partitionKeyComponents[routing_key.position()]);
         }
 
         @Nullable
@@ -582,18 +583,17 @@ public class AccordKeyspace
     private static TableMetadata commandsForKeysTable(String tableName)
     {
         return parse(tableName,
-                     "accord commands per key",
-                     "CREATE TABLE %s ("
-                     + "store_id int, "
-                     + "table_id uuid, "
-                     + "key_token blob, " // can't use "token" as this is restricted word in CQL
-                     + "key blob, "
-                     + "data blob, "
-                     + "PRIMARY KEY((store_id, table_id, key_token, key))"
-                     + ')'
-                     + " WITH compression = {'class':'NoopCompressor'};")
-               .partitioner(CFKPartitioner)
-               .build();
+              "accord commands per key",
+              "CREATE TABLE %s ("
+              + "store_id int, "
+              + "table_id uuid, "
+              + "key_token blob, " // can't use "token" as this is restricted word in CQL
+              + "data blob, "
+              + "PRIMARY KEY((store_id, table_id, key_token))"
+              + ')'
+               + " WITH compression = {'class':'NoopCompressor'};")
+        .partitioner(CFKPartitioner)
+        .build();
     }
 
     public static class CommandsForKeyAccessor
@@ -605,7 +605,6 @@ public class AccordKeyspace
         final ColumnMetadata store_id;
         final ColumnMetadata table_id;
         final ColumnMetadata key_token;
-        final ColumnMetadata key;
         final ColumnMetadata data;
 
         final RegularAndStaticColumns columns;
@@ -619,7 +618,6 @@ public class AccordKeyspace
             this.store_id = getColumn(table, "store_id");
             this.table_id = getColumn(table, "table_id");
             this.key_token = getColumn(table, "key_token");
-            this.key = getColumn(table, "key");
             this.data = getColumn(table, "data");
             this.columns = new RegularAndStaticColumns(Columns.NONE, Columns.from(Lists.newArrayList(data)));
         }
@@ -639,22 +637,18 @@ public class AccordKeyspace
             return TableId.fromUUID(UUIDType.instance.compose(partitionKeyComponents[table_id.position()]));
         }
 
-        public PartitionKey getKey(DecoratedKey key)
+        public TokenKey getKey(DecoratedKey key)
         {
             return getKey(splitPartitionKey(key));
         }
 
-        public PartitionKey getKey(ByteBuffer[] partitionKeyComponents)
+        public TokenKey getKey(ByteBuffer[] partitionKeyComponents)
         {
             TableId tableId = TableId.fromUUID(UUIDSerializer.instance.deserialize(partitionKeyComponents[table_id.position()]));
-            ByteBuffer keyBytes = partitionKeyComponents[key.position()];
-            IPartitioner partitioner = SchemaHolder.schema.getTablePartitioner(tableId);
-            if (partitioner == null)
-                throw new IllegalStateException("Table with id " + tableId + " could not be found; was it deleted?");
-            return new PartitionKey(tableId, partitioner.decorateKey(keyBytes));
+            return deserializeTokenKeySeparateTable(tableId, partitionKeyComponents[key_token.position()]);
         }
 
-        public CommandsForKey getCommandsForKey(PartitionKey key, Row row)
+        public CommandsForKey getCommandsForKey(TokenKey key, Row row)
         {
             Cell<?> cell = row.getCell(data);
             if (cell == null)
@@ -671,7 +665,7 @@ public class AccordKeyspace
         }
 
         // TODO (expected): garbage-free filtering, reusing encoding
-        public Row withoutRedundantCommands(PartitionKey key, Row row, RedundantBefore.Entry redundantBefore)
+        public Row withoutRedundantCommands(TokenKey key, Row row, RedundantBefore.Entry redundantBefore)
         {
             Invariants.checkState(row.columnCount() == 1);
             Cell<?> cell = row.getCell(data);
@@ -834,7 +828,7 @@ public class AccordKeyspace
             builder.addPrimaryKeyLivenessInfo(LivenessInfo.create(timestampMicros, nowInSeconds));
 
             addEnumCellIfModified(CommandsColumns.durability, Command::durability, builder, timestampMicros, nowInSeconds, original, command);
-            addCellIfModified(CommandsColumns.route, Command::route, LocalVersionedSerializers.route, builder, timestampMicros, nowInSeconds, original, command);
+            addCellIfModified(CommandsColumns.participants, Command::participants, LocalVersionedSerializers.participants, builder, timestampMicros, nowInSeconds, original, command);
             addEnumCellIfModified(CommandsColumns.status, Command::saveStatus, builder, timestampMicros, nowInSeconds, original, command);
             addCellIfModified(CommandsColumns.execute_at, Command::executeAt, AccordKeyspace::serializeTimestamp, builder, timestampMicros, nowInSeconds, original, command);
 
@@ -859,6 +853,13 @@ public class AccordKeyspace
         return serializeToken(token, ByteBufferAccessor.instance);
     }
 
+    public static ByteBuffer serializeTableId(TableId tableId)
+    {
+        ByteBuffer buffer = ByteBuffer.allocate(tableId.serializedSize());
+        tableId.serialize(buffer, ByteBufferAccessor.instance, 0);
+        return buffer;
+    }
+
     private static <V> V serializeToken(Token token, ValueAccessor<V> accessor)
     {
         TokenType type = TokenType.valueOf(token);
@@ -867,12 +868,6 @@ public class AccordKeyspace
         accessor.putByte(value, 0, type.value);
         ByteArrayAccessor.instance.copyTo(ordered, 0, value, accessor, 1, ordered.length);
         return value;
-    }
-
-    @VisibleForTesting
-    public static ByteBuffer serializeKey(PartitionKey key)
-    {
-        return KEY_TYPE.pack(UUIDSerializer.instance.serialize(key.table().asUUID()), key.partitionKey().getKey());
     }
 
     public static ByteBuffer serializeTimestamp(Timestamp timestamp)
@@ -962,7 +957,7 @@ public class AccordKeyspace
     public static void findAllKeysBetween(int commandStore,
                                           AccordRoutingKey start, boolean startInclusive,
                                           AccordRoutingKey end, boolean endInclusive,
-                                          Observable<PartitionKey> callback)
+                                          Observable<TokenKey> callback)
     {
 
         Token startToken = CommandsForKeysAccessor.getPrefixToken(commandStore, start);
@@ -997,7 +992,7 @@ public class AccordKeyspace
                 {
                     while (iter.hasNext())
                     {
-                        PartitionKey pk = CommandsForKeysAccessor.getKey(iter.next());
+                        TokenKey pk = CommandsForKeysAccessor.getKey(iter.next());
                         callback.onNext(pk);
                     }
                     callback.onCompleted();
@@ -1033,29 +1028,37 @@ public class AccordKeyspace
         return Status.Durability.values()[row.getInt("durability", 0)];
     }
 
-    public static Route<?> deserializeRouteOrNull(ByteBuffer bytes) throws IOException
+    public static StoreParticipants deserializeParticipantsOrNull(ByteBuffer bytes) throws IOException
     {
-        return bytes != null && !ByteBufferAccessor.instance.isEmpty(bytes) ? deserialize(bytes, LocalVersionedSerializers.route) : null;
+        return bytes != null && !ByteBufferAccessor.instance.isEmpty(bytes) ? deserialize(bytes, LocalVersionedSerializers.participants) : null;
     }
 
-    public static ByteBuffer serializeRoute(Route<?> route) throws IOException
+    public static Route<?> deserializeParticipantsRouteOnlyOrNull(ByteBuffer bytes) throws IOException
     {
-        return serialize(route, LocalVersionedSerializers.route);
+        if (bytes == null ||ByteBufferAccessor.instance.isEmpty(bytes))
+            return null;
+
+        try (DataInputBuffer in = new DataInputBuffer(bytes, true))
+        {
+            MessageVersionProvider versionProvider = LocalVersionedSerializers.participants.deserializeVersion(in);
+            return CommandSerializers.participants.deserializeRouteOnly(in, versionProvider.messageVersion());
+        }
+
     }
 
-    private static Route<?> deserializeRouteOrNull(UntypedResultSet.Row row) throws IOException
+    public static ByteBuffer serializeParticipants(StoreParticipants participants) throws IOException
     {
-        return deserializeRouteOrNull(row.getBlob("route"));
+        return serialize(participants, LocalVersionedSerializers.participants);
     }
 
-    public static Route<?> deserializeRouteOrNull(Cell<?> cell)
+    public static StoreParticipants deserializeParticipantsOrNull(Cell<?> cell)
     {
         if (cell == null)
             return null;
 
         try
         {
-            return deserializeRouteOrNull(cell.buffer());
+            return deserializeParticipantsOrNull(cell.buffer());
         }
         catch (IOException e)
         {
@@ -1063,21 +1066,9 @@ public class AccordKeyspace
         }
     }
 
-    public static PartitionKey deserializeKey(ByteBuffer buffer)
+    public static TokenKey deserializeTokenKeySeparateTable(TableId tableId, ByteBuffer tokenBytes)
     {
-        List<ByteBuffer> split = KEY_TYPE.unpack(buffer, ByteBufferAccessor.instance);
-        TableId tableId = TableId.fromUUID(UUIDSerializer.instance.deserialize(split.get(0)));
-        ByteBuffer key = split.get(1);
-
-        IPartitioner partitioner = SchemaHolder.schema.getTablePartitioner(tableId);
-        if (partitioner == null)
-            throw new IllegalStateException("Table with id " + tableId + " could not be found; was it deleted?");
-        return new PartitionKey(tableId, partitioner.decorateKey(key));
-    }
-
-    public static PartitionKey deserializeKey(UntypedResultSet.Row row)
-    {
-        return deserializeKey(row.getBytes("key"));
+        return (TokenKey) AccordRoutingKeyByteSource.Serializer.fromComparableBytes(ByteBufferAccessor.instance, tokenBytes, tableId, currentVersion, null);
     }
 
     public static Mutation getTimestampsForKeyMutation(int storeId, TimestampsForKey original, TimestampsForKey current, long timestampMicros)
@@ -1101,7 +1092,7 @@ public class AccordKeyspace
             if (row.columnCount() == 0)
                 return null;
 
-            ByteBuffer key = TimestampsForKeyColumns.makePartitionKey(storeId, current.key());
+            ByteBuffer key = TimestampsForKeyColumns.makeKey(storeId, current.key());
             PartitionUpdate update = singleRowUpdate(TimestampsForKeys, key, row);
             return new Mutation(update);
         }
@@ -1116,26 +1107,22 @@ public class AccordKeyspace
         return getTimestampsForKeyMutation(commandStore.id(), liveTimestamps.original(), liveTimestamps.current(), timestampMicros);
     }
 
-    public static UntypedResultSet loadTimestampsForKeyRow(CommandStore commandStore, PartitionKey key)
+    public static UntypedResultSet loadTimestampsForKeyRow(CommandStore commandStore, TokenKey key)
     {
         String cql = "SELECT * FROM " + ACCORD_KEYSPACE_NAME + '.' + TIMESTAMPS_FOR_KEY + ' ' +
                      "WHERE store_id = ? " +
-                     "AND key_token = ? " +
-                     "AND key=(?, ?)";
+                     "AND routing_key = ?";
 
-        return executeInternal(cql,
-                               commandStore.id(),
-                               serializeToken(key.token()),
-                               key.table().asUUID(), key.partitionKey().getKey());
+        return executeInternal(cql, commandStore.id(), serializeRoutingKey(key));
     }
 
-    public static TimestampsForKey loadTimestampsForKey(AccordCommandStore commandStore, PartitionKey key)
+    public static TimestampsForKey loadTimestampsForKey(AccordCommandStore commandStore, TokenKey key)
     {
         commandStore.checkNotInStoreThread();
         return unsafeLoadTimestampsForKey(commandStore, key);
     }
 
-    public static TimestampsForKey unsafeLoadTimestampsForKey(AccordCommandStore commandStore, PartitionKey key)
+    public static TimestampsForKey unsafeLoadTimestampsForKey(AccordCommandStore commandStore, TokenKey key)
     {
         UntypedResultSet rows = loadTimestampsForKeyRow(commandStore, key);
 
@@ -1145,21 +1132,22 @@ public class AccordKeyspace
         }
 
         UntypedResultSet.Row row = rows.one();
-        checkState(deserializeKey(row).equals(key));
+        TokenKey checkKey = (TokenKey) deserializeRoutingKey(row.getBytes("routing_key"));
+        checkState(checkKey.equals(key));
 
         Timestamp lastExecutedTimestamp = deserializeTimestampOrDefault(row, "last_executed_timestamp", Timestamp::fromBits, Timestamp.NONE);
         long lastExecutedMicros = row.has("last_executed_micros") ? row.getLong("last_executed_micros") : 0;
+        TxnId lastWriteId = deserializeTimestampOrDefault(row, "last_write_id", TxnId::fromBits, TxnId.NONE);
         Timestamp lastWriteTimestamp = deserializeTimestampOrDefault(row, "last_write_timestamp", Timestamp::fromBits, Timestamp.NONE);
 
-        return TimestampsForKey.SerializerSupport.create(key, lastExecutedTimestamp, lastExecutedMicros, lastWriteTimestamp);
+        return TimestampsForKey.SerializerSupport.create(key, lastExecutedTimestamp, lastExecutedMicros, lastWriteId, lastWriteTimestamp);
     }
 
-    private static DecoratedKey makeKey(CommandsForKeyAccessor accessor, int storeId, PartitionKey key)
+    private static DecoratedKey makeKeySeparateTable(CommandsForKeyAccessor accessor, int storeId, TokenKey key)
     {
         ByteBuffer pk = accessor.keyComparator.make(storeId,
                                                     UUIDSerializer.instance.serialize(key.table().asUUID()),
-                                                    serializeRoutingKey(key.toUnseekable()),
-                                                    key.partitionKey().getKey()).serializeAsPartitionKey();
+                                                    serializeRoutingKeyNoTable(key)).serializeAsPartitionKey();
         return accessor.table.partitioner.decorateKey(pk);
     }
 
@@ -1175,23 +1163,44 @@ public class AccordKeyspace
         return CommandsForKeysAccessor.serializeKeyNoTable(key);
     }
 
-    private static PartitionUpdate getCommandsForKeyPartitionUpdate(int storeId, PartitionKey key, CommandsForKey commandsForKey, long timestampMicros)
+    public static AccordRoutingKey deserializeRoutingKey(ByteBuffer buffer)
+    {
+        return AccordRoutingKeyByteSource.Serializer.fromComparableBytes(ByteBufferAccessor.instance, buffer, currentVersion, null);
+    }
+
+    private static AccordRoutingKeyByteSource.Serializer serializer(AccordRoutingKey routingKey)
+    {
+        return serializer(routingKey.table());
+    }
+
+    public static AccordRoutingKeyByteSource.Serializer serializer(TableId tableId)
+    {
+        return TABLE_SERIALIZERS.computeIfAbsent(tableId, id -> AccordRoutingKeyByteSource.variableLength(partitioner(tableId)));
+    }
+
+    public static IPartitioner partitioner(TableId tableId)
+    {
+
+        return SchemaHolder.schema.getTablePartitioner(tableId);
+    }
+
+    private static PartitionUpdate getCommandsForKeyPartitionUpdate(int storeId, TokenKey key, CommandsForKey commandsForKey, long timestampMicros)
     {
         ByteBuffer bytes = CommandsForKeySerializer.toBytesWithoutKey(commandsForKey);
         return getCommandsForKeyPartitionUpdate(storeId, key, timestampMicros, bytes);
     }
 
     @VisibleForTesting
-    public static PartitionUpdate getCommandsForKeyPartitionUpdate(int storeId, PartitionKey key, long timestampMicros, ByteBuffer bytes)
+    public static PartitionUpdate getCommandsForKeyPartitionUpdate(int storeId, TokenKey key, long timestampMicros, ByteBuffer bytes)
     {
         return singleRowUpdate(CommandsForKeysAccessor.table,
-                               makeKey(CommandsForKeysAccessor, storeId, key),
+                               makeKeySeparateTable(CommandsForKeysAccessor, storeId, key),
                                singleCellRow(Clustering.EMPTY, BufferCell.live(CommandsForKeysAccessor.data, timestampMicros, bytes)));
     }
 
     public static Mutation getCommandsForKeyMutation(int storeId, CommandsForKey update, long timestampMicros)
     {
-        return new Mutation(getCommandsForKeyPartitionUpdate(storeId, (PartitionKey) update.key(), update, timestampMicros));
+        return new Mutation(getCommandsForKeyPartitionUpdate(storeId, (TokenKey)update.key(), update, timestampMicros));
     }
 
     private static <T> ByteBuffer cellValue(Cell<T> cell)
@@ -1211,22 +1220,22 @@ public class AccordKeyspace
         return clustering.accessor().toBuffer(clustering.get(idx));
     }
 
-    private static SinglePartitionReadCommand getCommandsForKeyRead(CommandsForKeyAccessor accessor, int storeId, PartitionKey key, long nowInSeconds)
+    private static SinglePartitionReadCommand getCommandsForKeyRead(CommandsForKeyAccessor accessor, int storeId, TokenKey key, long nowInSeconds)
     {
         return SinglePartitionReadCommand.create(accessor.table, nowInSeconds,
                                                  accessor.allColumns,
                                                  RowFilter.none(),
                                                  DataLimits.NONE,
-                                                 makeKey(accessor, storeId, key),
+                                                 makeKeySeparateTable(accessor, storeId, key),
                                                  FULL_PARTITION);
     }
 
-    public static SinglePartitionReadCommand getCommandsForKeyRead(int storeId, PartitionKey key, int nowInSeconds)
+    public static SinglePartitionReadCommand getCommandsForKeyRead(int storeId, TokenKey key, int nowInSeconds)
     {
         return getCommandsForKeyRead(CommandsForKeysAccessor, storeId, key, nowInSeconds);
     }
 
-    static CommandsForKey unsafeLoadCommandsForKey(CommandsForKeyAccessor accessor, AccordCommandStore commandStore, PartitionKey key)
+    static CommandsForKey unsafeLoadCommandsForKey(CommandsForKeyAccessor accessor, AccordCommandStore commandStore, TokenKey key)
     {
         long timestampMicros = TimeUnit.MILLISECONDS.toMicros(Global.currentTimeMillis());
         int nowInSeconds = (int) TimeUnit.MICROSECONDS.toSeconds(timestampMicros);
@@ -1254,12 +1263,12 @@ public class AccordKeyspace
         }
     }
 
-    public static CommandsForKey unsafeLoadCommandsForKey(AccordCommandStore commandStore, PartitionKey key)
+    public static CommandsForKey unsafeLoadCommandsForKey(AccordCommandStore commandStore, TokenKey key)
     {
         return unsafeLoadCommandsForKey(CommandsForKeysAccessor, commandStore, key);
     }
 
-    public static CommandsForKey loadCommandsForKey(AccordCommandStore commandStore, PartitionKey key)
+    public static CommandsForKey loadCommandsForKey(AccordCommandStore commandStore, TokenKey key)
     {
         commandStore.checkNotInStoreThread();
         return unsafeLoadCommandsForKey(CommandsForKeysAccessor, commandStore, key);

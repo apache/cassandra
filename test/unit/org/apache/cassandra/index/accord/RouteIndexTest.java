@@ -36,8 +36,9 @@ import org.junit.Test;
 
 import accord.api.RoutingKey;
 import accord.local.Node;
-import accord.local.SaveStatus;
-import accord.local.Status.Durability;
+import accord.local.StoreParticipants;
+import accord.primitives.SaveStatus;
+import accord.primitives.Status.Durability;
 import accord.primitives.FullKeyRoute;
 import accord.primitives.Range;
 import accord.primitives.Ranges;
@@ -250,12 +251,12 @@ public class RouteIndexTest extends CQLTester.InMemory
 
     private class InsertTxn implements UnitCommand<State, ColumnFamilyStore>
     {
-        private static final String cql = "INSERT INTO system_accord.commands (store_id, domain, txn_id, status, route, durability) VALUES (?, ?, ?, ?, ?, ?)";
+        private static final String cql = "INSERT INTO system_accord.commands (store_id, domain, txn_id, status, participants, durability) VALUES (?, ?, ?, ?, ?, ?)";
         private final int storeId;
         private final TxnId txnId;
         private final SaveStatus saveStatus;
         private final Durability durability;
-        private final Route<?> route;
+        private final StoreParticipants participants;
 
         private InsertTxn(int storeId, TxnId txnId, SaveStatus saveStatus, Durability durability, Route<?> route)
         {
@@ -263,13 +264,13 @@ public class RouteIndexTest extends CQLTester.InMemory
             this.txnId = txnId;
             this.saveStatus = saveStatus;
             this.durability = durability;
-            this.route = route;
+            this.participants = StoreParticipants.all(route);
         }
 
         @Override
         public void applyUnit(State state)
         {
-            for (var u : route)
+            for (var u : participants.route())
             {
                 switch (u.domain())
                 {
@@ -302,7 +303,7 @@ public class RouteIndexTest extends CQLTester.InMemory
         @Override
         public void runUnit(ColumnFamilyStore sut) throws Throwable
         {
-            execute(cql, storeId, txnId.domain().ordinal(), AccordKeyspace.serializeTimestamp(txnId), saveStatus.ordinal(), AccordKeyspace.serializeRoute(route), durability.ordinal());
+            execute(cql, storeId, txnId.domain().ordinal(), AccordKeyspace.serializeTimestamp(txnId), saveStatus.ordinal(), AccordKeyspace.serializeParticipants(participants), durability.ordinal());
         }
 
         @Override
@@ -313,7 +314,7 @@ public class RouteIndexTest extends CQLTester.InMemory
                    ", txnId=" + txnId +
                    ", saveStatus=" + saveStatus +
                    ", durability=" + durability +
-                   ", route=" + route +
+                   ", participants=" + participants +
                    '}';
         }
     }

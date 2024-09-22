@@ -21,8 +21,8 @@ package org.apache.cassandra.service.accord;
 import org.junit.Test;
 
 import accord.local.PreLoadContext;
-import accord.local.SaveStatus;
-import accord.primitives.Ranges;
+import accord.local.StoreParticipants;
+import accord.primitives.SaveStatus;
 import accord.primitives.TxnId;
 import accord.utils.AccordGens;
 import org.assertj.core.api.Assertions;
@@ -42,7 +42,7 @@ public class SimpleSimulatedAccordCommandStoreTest extends SimulatedAccordComman
                 {
                     TxnId id = AccordGens.txnIds().next(rs);
                     instance.process(PreLoadContext.contextFor(id), (safe) -> {
-                        var safeCommand = safe.get(id, id, Ranges.EMPTY);
+                        var safeCommand = safe.get(id, StoreParticipants.empty(id));
                         var command = safeCommand.current();
                         Assertions.assertThat(command.saveStatus()).isEqualTo(SaveStatus.Uninitialised);
                         return null;

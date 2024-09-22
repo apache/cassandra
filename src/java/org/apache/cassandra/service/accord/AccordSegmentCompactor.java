@@ -22,7 +22,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.PriorityQueue;
 
-import com.google.common.base.Throwables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -75,7 +74,7 @@ public class AccordSegmentCompactor<V> implements SegmentCompactor<JournalKey, V
         // nothing to compact (all segments empty, should never happen, but it is theoretically possible?) - exit early
         // TODO: investigate how this comes to be, check if there is a cleanup issue
         if (readers.isEmpty())
-            return segments;
+            return null;
 
         ColumnFamilyStore cfs = Keyspace.open(AccordKeyspace.metadata().name).getColumnFamilyStore(AccordKeyspace.JOURNAL);
         Descriptor descriptor = cfs.newSSTableDescriptor(cfs.getDirectories().getDirectoryForNewSSTables());
@@ -122,8 +121,7 @@ public class AccordSegmentCompactor<V> implements SegmentCompactor<JournalKey, V
             catch (Throwable t)
             {
                 Throwable accumulate = writer.abort(t);
-                Throwables.throwIfUnchecked(accumulate);
-                throw new RuntimeException(accumulate);
+                throw new RuntimeException(String.format("Caught exception while serializing. Last seen key: %s", key), accumulate);
             }
 
             cfs.addSSTables(writer.finish(true));

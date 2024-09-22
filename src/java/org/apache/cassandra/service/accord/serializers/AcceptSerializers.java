@@ -22,8 +22,11 @@ import java.io.IOException;
 
 import accord.messages.Accept;
 import accord.messages.Accept.AcceptReply;
+import accord.primitives.Ballot;
 import accord.primitives.Route;
+import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
+import accord.utils.Invariants;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -35,14 +38,13 @@ public class AcceptSerializers
 {
     private AcceptSerializers() {}
 
-    public static final IVersionedSerializer<Accept> request = new TxnRequestSerializer.WithUnsyncedSerializer<Accept>()
+    public static final IVersionedSerializer<Accept> request = new TxnRequestSerializer.WithUnsyncedSerializer<>()
     {
         @Override
         public void serializeBody(Accept accept, DataOutputPlus out, int version) throws IOException
         {
             CommandSerializers.ballot.serialize(accept.ballot, out, version);
             CommandSerializers.timestamp.serialize(accept.executeAt, out, version);
-            KeySerializers.seekables.serialize(accept.keys, out, version);
             DepsSerializer.partialDeps.serialize(accept.partialDeps, out, version);
         }
 
@@ -52,7 +54,6 @@ public class AcceptSerializers
             return create(txnId, scope, waitForEpoch, minEpoch,
                           CommandSerializers.ballot.deserialize(in, version),
                           CommandSerializers.timestamp.deserialize(in, version),
-                          KeySerializers.seekables.deserialize(in, version),
                           DepsSerializer.partialDeps.deserialize(in, version));
         }
 
@@ -61,7 +62,6 @@ public class AcceptSerializers
         {
             return CommandSerializers.ballot.serializedSize(accept.ballot, version)
                    + CommandSerializers.timestamp.serializedSize(accept.executeAt, version)
-                   + KeySerializers.seekables.serializedSize(accept.keys, version)
                    + DepsSerializer.partialDeps.serializedSize(accept.partialDeps, version);
         }
     };
@@ -105,48 +105,50 @@ public class AcceptSerializers
                     if (reply.deps != null)
                     {
                         out.writeByte(1);
-                        DepsSerializer.partialDeps.serialize(reply.deps, out, version);
+                        DepsSerializer.deps.serialize(reply.deps, out, version);
                     }
                     else
                     {
+                        Invariants.checkState(reply == AcceptReply.ACCEPT_INVALIDATE);
                         out.writeByte(2);
                     }
                     break;
-                case Redundant:
+                case Truncated:
                     out.writeByte(3);
                     break;
-                case Truncated:
-                    out.writeByte(4);
-                    break;
                 case RejectedBallot:
-                    out.writeByte(5);
+                    out.writeByte(4);
                     CommandSerializers.ballot.serialize(reply.supersededBy, out, version);
                     break;
-                case Truncated:
-                    out.writeByte(5);
-                    break;
+                case Redundant:
+                    int flags = 5 | (reply.supersededBy == null ? 0x8 : 0) | (reply.committedExecuteAt == null ? 0x10 : 0);
+                    out.writeByte(flags);
+                    if (reply.supersededBy != null)
+                        CommandSerializers.ballot.serialize(reply.supersededBy, out, version);
+                    if (reply.committedExecuteAt != null)
+                        CommandSerializers.timestamp.serialize(reply.committedExecuteAt, out, version);
             }
         }
 
         @Override
         public AcceptReply deserialize(DataInputPlus in, int version) throws IOException
         {
-            int type = in.readByte();
-            switch (type)
+            int flags = in.readByte();
+            switch (flags & 0x7)
             {
-                default: throw new IllegalStateException("Unexpected AcceptNack type: " + type);
+                default: throw new IllegalStateException("Unexpected AcceptNack type: " + (flags & 0x7));
                 case 1:
-                    return new AcceptReply(DepsSerializer.partialDeps.deserialize(in, version));
+                    return new AcceptReply(DepsSerializer.deps.deserialize(in, version));
                 case 2:
                     return AcceptReply.ACCEPT_INVALIDATE;
                 case 3:
-                    return AcceptReply.REDUNDANT;
-                case 4:
                     return AcceptReply.TRUNCATED;
-                case 5:
+                case 4:
                     return new AcceptReply(CommandSerializers.ballot.deserialize(in, version));
                 case 5:
-                    return AcceptReply.TRUNCATED;
+                    Ballot supersededBy = (flags & 0x8) == 0 ? null : CommandSerializers.ballot.deserialize(in, version);
+                    Timestamp committedExecuteAt = (flags & 0x10) == 0 ? null : CommandSerializers.timestamp.deserialize(in, version);
+                    return new AcceptReply(supersededBy, committedExecuteAt);
             }
         }
 
@@ -159,13 +161,16 @@ public class AcceptSerializers
                 default: throw new AssertionError();
                 case Success:
                     if (reply.deps != null)
-                        size += DepsSerializer.partialDeps.serializedSize(reply.deps, version);
+                        size += DepsSerializer.deps.serializedSize(reply.deps, version);
                     break;
-                case Redundant:
                 case Truncated:
                     break;
                 case RejectedBallot:
                     size += CommandSerializers.ballot.serializedSize(reply.supersededBy, version);
+                    break;
+                case Redundant:
+                    if (reply.supersededBy != null) size += CommandSerializers.ballot.serializedSize(reply.supersededBy, version);
+                    if (reply.committedExecuteAt != null) size += CommandSerializers.timestamp.serializedSize(reply.committedExecuteAt, version);
             }
             return size;
         }
