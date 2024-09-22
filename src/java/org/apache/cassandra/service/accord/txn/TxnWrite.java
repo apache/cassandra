@@ -45,6 +45,7 @@ import accord.primitives.PartialTxn;
 import accord.primitives.RoutableKey;
 import accord.primitives.Seekable;
 import accord.primitives.Timestamp;
+import accord.primitives.TxnId;
 import accord.primitives.Writes;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
@@ -373,12 +374,12 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
     }
 
     @Override
-    public AsyncChain<Void> apply(Seekable key, SafeCommandStore safeStore, Timestamp executeAt, DataStore store, PartialTxn txn)
+    public AsyncChain<Void> apply(Seekable key, SafeCommandStore safeStore, TxnId txnId, Timestamp executeAt, DataStore store, PartialTxn txn)
     {
         // TODO (expected, efficiency): 99.9999% of the time we can just use executeAt.hlc(), so can avoid bringing
         //  cfk into memory by retaining at all times in memory key ranges that are dirty and must use this logic;
         //  any that aren't can just use executeAt.hlc
-        TimestampsForKey cfk = TimestampsForKeys.updateLastExecutionTimestamps((AbstractSafeCommandStore<?,?,?>) safeStore, (Key) key, executeAt, true);
+        TimestampsForKey cfk = TimestampsForKeys.updateLastExecutionTimestamps((AbstractSafeCommandStore<?,?,?>) safeStore, ((Key) key).toUnseekable(), txnId, executeAt, true);
         long timestamp = AccordSafeTimestampsForKey.timestampMicrosFor(cfk, executeAt, true);
         // TODO (low priority - do we need to compute nowInSeconds, or can we just use executeAt?)
         int nowInSeconds = AccordSafeTimestampsForKey.nowInSecondsFor(cfk, executeAt, true);

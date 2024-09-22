@@ -48,6 +48,11 @@ public class LocalVersionedSerializer<I>
         this.serializer = Objects.requireNonNull(serializer);
     }
 
+    public MessageVersionProvider deserializeVersion(DataInputPlus in) throws IOException
+    {
+        return versionSerializer.deserialize(in, currentVersion.messageVersion());
+    }
+
     public IVersionedSerializer<I> serializer()
     {
         return serializer;

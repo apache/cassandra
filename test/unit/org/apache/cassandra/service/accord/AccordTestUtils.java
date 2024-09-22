@@ -52,7 +52,8 @@ import accord.local.NodeTimeService;
 import accord.local.PreLoadContext;
 import accord.local.SafeCommand;
 import accord.local.SafeCommandStore;
-import accord.local.SaveStatus;
+import accord.local.StoreParticipants;
+import accord.primitives.SaveStatus;
 import accord.primitives.Ballot;
 import accord.primitives.FullKeyRoute;
 import accord.primitives.FullRoute;
@@ -123,7 +124,7 @@ public class AccordTestUtils
         {
             CommonAttributes.Mutable attrs = new CommonAttributes.Mutable(txnId);
             attrs.partialTxn(txn);
-            attrs.route(route(txn));
+            attrs.setParticipants(StoreParticipants.all(route(txn)));
             return Command.SerializerSupport.preaccepted(attrs, executeAt, Ballot.ZERO);
         }
 
@@ -131,7 +132,7 @@ public class AccordTestUtils
         {
             CommonAttributes.Mutable attrs = new CommonAttributes.Mutable(txnId).partialDeps(PartialDeps.NONE);
             attrs.partialTxn(txn);
-            attrs.route(route(txn));
+            attrs.setParticipants(StoreParticipants.all(route(txn)));
             return Command.SerializerSupport.committed(attrs,
                                                        SaveStatus.Committed,
                                                        executeAt,
@@ -144,7 +145,7 @@ public class AccordTestUtils
         {
             CommonAttributes.Mutable attrs = new CommonAttributes.Mutable(txnId).partialDeps(PartialDeps.NONE);
             attrs.partialTxn(txn);
-            attrs.route(route(txn));
+            attrs.setParticipants(StoreParticipants.all(route(txn)));
             return Command.SerializerSupport.committed(attrs,
                                                        SaveStatus.Stable,
                                                        executeAt,
@@ -228,7 +229,7 @@ public class AccordTestUtils
     public static Pair<Writes, Result> processTxnResult(AccordCommandStore commandStore, TxnId txnId, PartialTxn txn, Timestamp executeAt) throws Throwable
     {
         AtomicReference<Pair<Writes, Result>> result = new AtomicReference<>();
-        getUninterruptibly(commandStore.execute(PreLoadContext.contextFor(txn.keys()),
+        getUninterruptibly(commandStore.execute(PreLoadContext.contextFor(txn.keys().toParticipants()),
                            safeStore -> result.set(processTxnResultDirect(safeStore, txnId, txn, executeAt))));
         return result.get();
     }

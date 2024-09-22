@@ -26,18 +26,18 @@ import java.util.function.BooleanSupplier;
 import org.junit.Before;
 import org.junit.Test;
 
-import accord.api.Key;
+import accord.api.RoutingKey;
 import accord.impl.basic.SimulatedFault;
 import accord.local.PreLoadContext;
 import accord.local.SafeCommandStore;
 import accord.messages.PreAccept;
 import accord.primitives.FullRoute;
-import accord.primitives.Keys;
 import accord.primitives.Range;
 import accord.primitives.Ranges;
-import accord.primitives.Seekables;
+import accord.primitives.RoutingKeys;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
+import accord.primitives.Unseekables;
 import accord.utils.Gen;
 import accord.utils.Gens;
 import accord.utils.RandomSource;
@@ -51,7 +51,6 @@ import org.apache.cassandra.service.accord.SimulatedAccordCommandStore;
 import org.apache.cassandra.service.accord.SimulatedAccordCommandStoreTestBase;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
-import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.utils.Pair;
 import org.assertj.core.api.Assertions;
 
@@ -90,10 +89,10 @@ public class SimulatedAsyncOperationTest extends SimulatedAccordCommandStoreTest
         long minToken = 0;
         long maxToken = numKeys;
 
-        Gen<Key> keyGen = Gens.longs().between(minToken + 1, maxToken).map(t -> new PartitionKey(tbl.id, tbl.partitioner.decorateKey(LongToken.keyForToken(t))));
-        Gen<Keys> keysGen = Gens.lists(keyGen).unique().ofSizeBetween(1, 10).map(l -> Keys.of(l));
+        Gen<RoutingKey> keyGen = Gens.longs().between(minToken + 1, maxToken).map(t -> new TokenKey(tbl.id, new LongToken(t)));
+        Gen<RoutingKeys> keysGen = Gens.lists(keyGen).unique().ofSizeBetween(1, 10).map(l -> RoutingKeys.of(l));
         Gen<Ranges> rangesGen = Gens.lists(rangeInsideRange(tbl.id, minToken, maxToken)).uniqueBestEffort().ofSizeBetween(1, 10).map(l -> Ranges.of(l.toArray(Range[]::new)));
-        Gen<Seekables<?, ?>> seekablesGen = Gens.oneOf(keysGen, rangesGen);
+        Gen<Unseekables<?>> unseekablesGen = Gens.oneOf(keysGen, rangesGen);
         Gen<Pair<Txn, FullRoute<?>>> txnGen = randomTxn(mixedDomainGen.next(rs), mixedTokenGen.next(rs));
 
         try (var instance = new SimulatedAccordCommandStore(rs))
@@ -107,7 +106,7 @@ public class SimulatedAsyncOperationTest extends SimulatedAccordCommandStoreTest
                 {
                     case Task:
                     {
-                        PreLoadContext ctx = PreLoadContext.contextFor(seekablesGen.next(rs));
+                        PreLoadContext ctx = PreLoadContext.contextFor(unseekablesGen.next(rs));
                         instance.maybeCacheEvict(ctx.keys());
                         operation(instance, ctx, actionGen.next(rs), rs::nextBoolean).begin(counter);
                     }
@@ -129,7 +128,7 @@ public class SimulatedAsyncOperationTest extends SimulatedAccordCommandStoreTest
                                 return result;
                             }
                         };
-                        instance.maybeCacheEvict(txn.keys());
+                        instance.maybeCacheEvict(txn.keys().toParticipants());
                         instance.processAsync(preAccept).begin(counter);
                     }
                     break;

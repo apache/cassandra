@@ -21,7 +21,9 @@ package org.apache.cassandra.service.accord.serializers;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.UUID;
-import java.util.function.Function;
+import java.util.function.BiFunction;
+
+import javax.annotation.Nullable;
 
 import org.apache.cassandra.db.marshal.ByteArrayAccessor;
 import org.apache.cassandra.db.marshal.LongType;
@@ -29,6 +31,7 @@ import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
@@ -39,6 +42,8 @@ import static org.apache.cassandra.service.accord.api.AccordRoutingKey.RoutingKe
 
 public class AccordRoutingKeyByteSource
 {
+    public static final ByteComparable.Version currentVersion = ByteComparable.Version.OSS50;
+
     private static final byte[] MIN_ORDER = { -1 };
     private static final byte[] TOKEN_ORDER = { 0 };
     private static final byte[] MAX_ORDER = { 1 };
@@ -61,18 +66,18 @@ public class AccordRoutingKeyByteSource
     public static Serializer create(IPartitioner partitioner)
     {
         if (partitioner.isFixedLength())
-            return new FixedLength(partitioner, ByteComparable.Version.OSS50);
-        return new VariableLength(partitioner, ByteComparable.Version.OSS50);
+            return new FixedLength(partitioner, currentVersion);
+        return new VariableLength(partitioner, currentVersion);
     }
 
     public static FixedLength fixedLength(IPartitioner partitioner)
     {
-        return new FixedLength(partitioner, ByteComparable.Version.OSS50);
+        return new FixedLength(partitioner, currentVersion);
     }
 
     public static VariableLength variableLength(IPartitioner partitioner)
     {
-        return new VariableLength(partitioner, ByteComparable.Version.OSS50);
+        return new VariableLength(partitioner, currentVersion);
     }
 
     public static abstract class Serializer
@@ -149,6 +154,11 @@ public class AccordRoutingKeyByteSource
 
         public <V> AccordRoutingKey fromComparableBytes(ValueAccessor<V> accessor, V data) throws IOException
         {
+            return fromComparableBytes(accessor, data, version, partitioner);
+        }
+
+        public static <V> AccordRoutingKey fromComparableBytes(ValueAccessor<V> accessor, V data, ByteComparable.Version version, @Nullable IPartitioner partitioner)
+        {
             var bs = ByteSource.peekable(ByteSource.fixedLength(accessor, data));
             long[] uuidValues = new long[2];
             for (int i = 0; i < 2; i++)
@@ -160,47 +170,63 @@ public class AccordRoutingKeyByteSource
                 uuidValues[i] = value;
             }
             TableId tableId = TableId.fromUUID(new UUID(uuidValues[0], uuidValues[1]));
-            return fromComparableBytes(bs,
-                                       isMin -> isMin ? AccordRoutingKey.SentinelKey.min(tableId) : AccordRoutingKey.SentinelKey.max(tableId),
-                                       token -> new AccordRoutingKey.TokenKey(tableId, token));
+            return fromComparableBytes(bs, tableId, version, partitioner);
         }
 
-        private AccordRoutingKey fromComparableBytes(ByteSource.Peekable bs,
-                                                     Function<Boolean, AccordRoutingKey> onSentinel,
-                                                     Function<Token, AccordRoutingKey> onToken) throws IOException
+        public static <V> AccordRoutingKey fromComparableBytes(ValueAccessor<V> accessor, V data, TableId tableId, ByteComparable.Version version, @Nullable IPartitioner partitioner)
+        {
+            var bs = ByteSource.peekable(ByteSource.fixedLength(accessor, data));
+            return fromComparableBytes(bs, tableId, version, partitioner);
+        }
+
+        public static <V> AccordRoutingKey fromComparableBytes(ByteSource.Peekable bs, TableId tableId, ByteComparable.Version version, @Nullable IPartitioner partitioner)
+        {
+            if (partitioner == null)
+                partitioner = AccordKeyspace.partitioner(tableId);
+            return fromComparableBytes(bs, tableId,
+                                       (id, isMin) -> isMin ? AccordRoutingKey.SentinelKey.min(id) : AccordRoutingKey.SentinelKey.max(id),
+                                       AccordRoutingKey.TokenKey::new,
+                                       version, partitioner
+            );
+        }
+
+        public static AccordRoutingKey fromComparableBytes(ByteSource.Peekable bs, TableId tableId,
+                                                           BiFunction<TableId, Boolean, AccordRoutingKey> onSentinel,
+                                                           BiFunction<TableId, Token, AccordRoutingKey> onToken,
+                                                           ByteComparable.Version version, IPartitioner partitioner)
         {
             if (bs.peek() == ByteSource.TERMINATOR)
-                throw new IOException("Unable to read prefix");
+                throw new IllegalStateException("Unable to read prefix");
             ByteSource.Peekable component = progress(bs);
 
             var prefix = ByteSourceInverse.getOptionalSignedFixedLength(ByteArrayAccessor.instance, component, 1);
             if (prefix == null)
-                throw new IOException("Unable to read prefix; prefix was null");
+                throw new IllegalStateException("Unable to read prefix; prefix was null");
             if (Arrays.equals(TOKEN_ORDER, prefix))
             {
                 component = ByteSourceInverse.nextComponentSource(bs);
                 if (component == null)
-                    throw new IOException("Unable to read token; component was not found");
-                return onToken.apply(partitioner.getTokenFactory().fromComparableBytes(component, version));
+                    throw new IllegalStateException("Unable to read token; component was not found");
+                return onToken.apply(tableId, partitioner.getTokenFactory().fromComparableBytes(component, version));
             }
             if (Arrays.equals(MIN_ORDER, prefix))
-                return onSentinel.apply(true);
+                return onSentinel.apply(tableId, true);
             if (Arrays.equals(MAX_ORDER, prefix))
-                return onSentinel.apply(false);
+                return onSentinel.apply(tableId, false);
             throw new AssertionError("Unknown prefix");
         }
 
-        private static ByteSource.Peekable progress(ByteSource.Peekable bs) throws IOException
+        private static ByteSource.Peekable progress(ByteSource.Peekable bs)
         {
             ByteSource.Peekable component = ByteSourceInverse.nextComponentSource(bs);
             if (component == null)
-                throw new IOException("Unable to read prefix; component was not found");
+                throw new IllegalStateException("Unable to read prefix; component was not found");
             if (component.peek() == ByteSource.NEXT_COMPONENT)
             {
                 // this came from (table, token_or_sentinel)
                 component = ByteSourceInverse.nextComponentSource(bs);
                 if (component == null)
-                    throw new IOException("Unable to read prefix; component was not found");
+                    throw new IllegalStateException("Unable to read prefix; component was not found");
             }
             return component;
         }

@@ -30,7 +30,7 @@ import com.google.common.collect.Maps;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
-import accord.api.Key;
+import accord.api.RoutingKey;
 import accord.impl.SizeOfIntersectionSorter;
 import accord.local.Node;
 import accord.messages.BeginRecovery;
@@ -44,8 +44,10 @@ import accord.primitives.LatestDeps;
 import accord.primitives.Range;
 import accord.primitives.Ranges;
 import accord.primitives.Routable;
+import accord.primitives.RoutingKeys;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
+import accord.primitives.Unseekables;
 import accord.topology.Topologies;
 import accord.utils.Gen;
 import accord.utils.Gens;
@@ -148,11 +150,11 @@ public abstract class SimulatedAccordCommandStoreTestBase extends CQLTester
         return new AccordRoutingKey.TokenKey(id, new Murmur3Partitioner.LongToken(token));
     }
 
-    protected static Map<Key, List<TxnId>> keyConflicts(List<TxnId> list, Keys keys)
+    protected static Map<RoutingKey, List<TxnId>> keyConflicts(List<TxnId> list, Unseekables<RoutingKey> keys)
     {
         if (list.isEmpty()) return Collections.emptyMap();
-        Map<Key, List<TxnId>> kc = Maps.newHashMapWithExpectedSize(keys.size());
-        for (Key key : keys)
+        Map<RoutingKey, List<TxnId>> kc = Maps.newHashMapWithExpectedSize(keys.size());
+        for (RoutingKey key : keys)
             kc.put(key, list);
         return kc;
     }
@@ -169,7 +171,7 @@ public abstract class SimulatedAccordCommandStoreTestBase extends CQLTester
     protected static TxnId assertDepsMessage(SimulatedAccordCommandStore instance,
                                              DepsMessage messageType,
                                              Txn txn, FullRoute<?> route,
-                                             Map<Key, List<TxnId>> keyConflicts) throws ExecutionException, InterruptedException
+                                             Map<RoutingKey, List<TxnId>> keyConflicts) throws ExecutionException, InterruptedException
     {
         return assertDepsMessage(instance, messageType, txn, route, keyConflicts, Collections.emptyMap());
     }
@@ -177,7 +179,7 @@ public abstract class SimulatedAccordCommandStoreTestBase extends CQLTester
     protected static TxnId assertDepsMessage(SimulatedAccordCommandStore instance,
                                              DepsMessage messageType,
                                              Txn txn, FullRoute<?> route,
-                                             Map<Key, List<TxnId>> keyConflicts,
+                                             Map<RoutingKey, List<TxnId>> keyConflicts,
                                              Map<Range, List<TxnId>> rangeConflicts) throws ExecutionException, InterruptedException
     {
         var pair = assertDepsMessageAsync(instance, messageType, txn, route, keyConflicts, rangeConflicts);
@@ -190,7 +192,7 @@ public abstract class SimulatedAccordCommandStoreTestBase extends CQLTester
     protected static Pair<TxnId, AsyncResult<?>> assertDepsMessageAsync(SimulatedAccordCommandStore instance,
                                                                         DepsMessage messageType,
                                                                         Txn txn, FullRoute<?> route,
-                                                                        Map<Key, List<TxnId>> keyConflicts,
+                                                                        Map<RoutingKey, List<TxnId>> keyConflicts,
                                                                         Map<Range, List<TxnId>> rangeConflicts)
     {
         switch (messageType)
@@ -208,10 +210,10 @@ public abstract class SimulatedAccordCommandStoreTestBase extends CQLTester
 
     protected static Pair<TxnId, AsyncResult<?>> assertPreAcceptAsync(SimulatedAccordCommandStore instance,
                                                                       Txn txn, FullRoute<?> route,
-                                                                      Map<Key, List<TxnId>> keyConflicts,
+                                                                      Map<RoutingKey, List<TxnId>> keyConflicts,
                                                                       Map<Range, List<TxnId>> rangeConflicts)
     {
-        Map<Key, List<TxnId>> cloneKeyConflicts = keyConflicts.entrySet().stream()
+        Map<RoutingKey, List<TxnId>> cloneKeyConflicts = keyConflicts.entrySet().stream()
                                                               .filter(e -> !e.getValue().isEmpty())
                                                               .collect(Collectors.toMap(e -> e.getKey(), e -> new ArrayList(e.getValue())));
         Map<Range, List<TxnId>> cloneRangeConflicts = rangeConflicts.entrySet().stream()
@@ -226,10 +228,10 @@ public abstract class SimulatedAccordCommandStoreTestBase extends CQLTester
 
     protected static Pair<TxnId, AsyncResult<?>> assertBeginRecoveryAsync(SimulatedAccordCommandStore instance,
                                                                           Txn txn, FullRoute<?> route,
-                                                                          Map<Key, List<TxnId>> keyConflicts,
+                                                                          Map<RoutingKey, List<TxnId>> keyConflicts,
                                                                           Map<Range, List<TxnId>> rangeConflicts)
     {
-        Map<Key, List<TxnId>> cloneKeyConflicts = keyConflicts.entrySet().stream()
+        Map<RoutingKey, List<TxnId>> cloneKeyConflicts = keyConflicts.entrySet().stream()
                                                               .filter(e -> !e.getValue().isEmpty())
                                                               .collect(Collectors.toMap(e -> e.getKey(), e -> new ArrayList(e.getValue())));
         Map<Range, List<TxnId>> cloneRangeConflicts = rangeConflicts.entrySet().stream()
@@ -245,10 +247,10 @@ public abstract class SimulatedAccordCommandStoreTestBase extends CQLTester
 
     protected static Pair<TxnId, AsyncResult<?>> assertBeginRecoveryAfterPreAcceptAsync(SimulatedAccordCommandStore instance,
                                                                                         Txn txn, FullRoute<?> route,
-                                                                                        Map<Key, List<TxnId>> keyConflicts,
+                                                                                        Map<RoutingKey, List<TxnId>> keyConflicts,
                                                                                         Map<Range, List<TxnId>> rangeConflicts)
     {
-        Map<Key, List<TxnId>> cloneKeyConflicts = keyConflicts.entrySet().stream()
+        Map<RoutingKey, List<TxnId>> cloneKeyConflicts = keyConflicts.entrySet().stream()
                                                               .filter(e -> !e.getValue().isEmpty())
                                                               .collect(Collectors.toMap(e -> e.getKey(), e -> new ArrayList(e.getValue())));
         Map<Range, List<TxnId>> cloneRangeConflicts = rangeConflicts.entrySet().stream()
@@ -267,7 +269,7 @@ public abstract class SimulatedAccordCommandStoreTestBase extends CQLTester
         });
         var delay = preAcceptAsync.flatMap(ignore -> AsyncChains.ofCallable(instance.unorderedScheduled, () -> {
             Ballot ballot = Ballot.fromValues(instance.timeService.epoch(), instance.timeService.now(), nodeId);
-            return new BeginRecovery(nodeId, new Topologies.Single(SizeOfIntersectionSorter.SUPPLIER, instance.topology), txnId, txn, route, ballot);
+            return new BeginRecovery(nodeId, new Topologies.Single(SizeOfIntersectionSorter.SUPPLIER, instance.topology), txnId, null, txn, route, ballot);
         }));
         var recoverAsync = delay.flatMap(br -> instance.processAsync(br, safe -> {
             var reply = br.apply(safe);
@@ -282,7 +284,7 @@ public abstract class SimulatedAccordCommandStoreTestBase extends CQLTester
     }
 
     protected static void assertDeps(TxnId txnId, Deps deps,
-                                     Map<Key, List<TxnId>> keyConflicts,
+                                     Map<RoutingKey, List<TxnId>> keyConflicts,
                                      Map<Range, List<TxnId>> rangeConflicts)
     {
         if (rangeConflicts.isEmpty())
@@ -291,7 +293,7 @@ public abstract class SimulatedAccordCommandStoreTestBase extends CQLTester
         }
         else
         {
-            List<Range> actualRanges = IntStream.range(0, deps.rangeDeps.rangeCount()).mapToObj(i -> deps.rangeDeps.range(i)).collect(Collectors.toList());
+            List<Range> actualRanges = IntStream.range(0, deps.rangeDeps.rangeCount()).mapToObj(deps.rangeDeps::range).collect(Collectors.toList());
 //            Assertions.assertThat(deps.rangeDeps.rangeCount()).describedAs("Txn %s Expected ranges size; %s", txnId, deps.rangeDeps).isEqualTo(rangeConflicts.size());
             Assertions.assertThat(Ranges.of(actualRanges.toArray(Range[]::new)))
                       .describedAs("Txn %s had different ranges than expected", txnId)
@@ -324,7 +326,7 @@ public abstract class SimulatedAccordCommandStoreTestBase extends CQLTester
         }
         else
         {
-            Assertions.assertThat(deps.keyDeps.keys()).describedAs("Txn %s Keys", txnId).isEqualTo(Keys.of(keyConflicts.keySet()));
+            Assertions.assertThat(deps.keyDeps.keys()).describedAs("Txn %s Keys", txnId).isEqualTo(RoutingKeys.of(keyConflicts.keySet()));
             for (var key : keyConflicts.keySet())
                 Assertions.assertThat(deps.keyDeps.txnIds(key)).describedAs("Txn %s for key %s", txnId, key).isEqualTo(keyConflicts.get(key));
         }

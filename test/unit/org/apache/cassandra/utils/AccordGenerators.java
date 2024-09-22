@@ -36,7 +36,8 @@ import accord.local.Command;
 import accord.local.CommonAttributes;
 import accord.local.DurableBefore;
 import accord.local.RedundantBefore;
-import accord.local.SaveStatus;
+import accord.local.StoreParticipants;
+import accord.primitives.SaveStatus;
 import accord.primitives.Ballot;
 import accord.primitives.Deps;
 import accord.primitives.FullRoute;
@@ -72,7 +73,7 @@ import org.apache.cassandra.service.accord.txn.TxnWrite;
 import org.quicktheories.impl.JavaRandom;
 
 import static accord.local.CommandStores.RangesForEpoch;
-import static accord.local.Status.Durability.NotDurable;
+import static accord.primitives.Status.Durability.NotDurable;
 import static org.apache.cassandra.service.accord.AccordTestUtils.TABLE_ID1;
 import static org.apache.cassandra.service.accord.AccordTestUtils.createPartialTxn;
 
@@ -218,7 +219,7 @@ public class AccordGenerators
             if (saveStatus.known.deps.hasProposedOrDecidedDeps())
                 mutable.partialDeps(partialDeps);
 
-            mutable.route(route);
+            mutable.setParticipants(StoreParticipants.all(route));
             mutable.durability(NotDurable);
 
             return mutable;
@@ -269,7 +270,7 @@ public class AccordGenerators
                     else return Command.SerializerSupport.truncatedApply(attributes(saveStatus), saveStatus, executeAt, new Writes(txnId, executeAt, keysOrRanges, new TxnWrite(Collections.emptyList(), true)), new TxnData());
 
                 case Erased:
-                case ErasedOrInvalidOrVestigial:
+                case ErasedOrVestigial:
                 case Invalidated:
                     return Command.SerializerSupport.invalidated(txnId);
             }
@@ -291,6 +292,18 @@ public class AccordGenerators
     public static Gen<PartitionKey> keys(Gen<TableId> tableIdGen, Gen<DecoratedKey> key)
     {
         return rs -> new PartitionKey(tableIdGen.next(rs), key.next(rs));
+    }
+
+    public static Gen<AccordRoutingKey> routingKeys()
+    {
+        return routingKeyGen(fromQT(CassandraGenerators.TABLE_ID_GEN),
+                    fromQT(CassandraGenerators.token()));
+    }
+
+    public static Gen<AccordRoutingKey> routingKeys(IPartitioner partitioner)
+    {
+        return routingKeyGen(fromQT(CassandraGenerators.TABLE_ID_GEN),
+                             fromQT(CassandraGenerators.token(partitioner)));
     }
 
     public static Gen<AccordRoutingKey> routingKeyGen(Gen<TableId> tableIdGen, Gen<Token> tokenGen)
@@ -390,22 +403,22 @@ public class AccordGenerators
 
     public static Gen<KeyDeps> keyDepsGen()
     {
-        return AccordGens.keyDeps(AccordGenerators.keys());
+        return AccordGens.keyDeps(AccordGenerators.routingKeys());
     }
 
     public static Gen<KeyDeps> keyDepsGen(IPartitioner partitioner)
     {
-        return AccordGens.keyDeps(AccordGenerators.keys(partitioner));
+        return AccordGens.keyDeps(AccordGenerators.routingKeys(partitioner));
     }
 
     public static Gen<KeyDeps> directKeyDepsGen()
     {
-        return AccordGens.directKeyDeps(AccordGenerators.keys());
+        return AccordGens.directKeyDeps(AccordGenerators.routingKeys());
     }
 
     public static Gen<KeyDeps> directKeyDepsGen(IPartitioner partitioner)
     {
-        return AccordGens.directKeyDeps(AccordGenerators.keys(partitioner));
+        return AccordGens.directKeyDeps(AccordGenerators.routingKeys(partitioner));
     }
 
     public static Gen<RangeDeps> rangeDepsGen()
@@ -438,7 +451,9 @@ public class AccordGenerators
         return rs -> {
             Range range = rangeGen.next(rs);
             TxnId locallyAppliedOrInvalidatedBefore = emptyGen.next(rs) ? TxnId.NONE : txnIdGen.next(rs); // emptyable or range
+            TxnId locallyDecidedAndAppliedOrInvalidatedBefore = locallyAppliedOrInvalidatedBefore;
             TxnId shardAppliedOrInvalidatedBefore = emptyGen.next(rs) ? TxnId.NONE : txnIdGen.next(rs); // emptyable or range
+            TxnId shardOnlyAppliedOrInvalidatedBefore = shardAppliedOrInvalidatedBefore;
             TxnId gcBefore = shardAppliedOrInvalidatedBefore;
             TxnId bootstrappedAt = txnIdGen.next(rs);
             Timestamp staleUntilAtLeast = emptyGen.next(rs) ? null : txnIdGen.next(rs); // nullable
@@ -446,7 +461,7 @@ public class AccordGenerators
             long maxEpoch = Stream.of(locallyAppliedOrInvalidatedBefore, shardAppliedOrInvalidatedBefore, bootstrappedAt, staleUntilAtLeast).filter(t -> t != null).mapToLong(Timestamp::epoch).max().getAsLong();
             long startEpoch = rs.nextLong(maxEpoch);
             long endEpoch = emptyGen.next(rs) ? Long.MAX_VALUE : 1 + rs.nextLong(startEpoch, Long.MAX_VALUE);
-            return new RedundantBefore.Entry(range, startEpoch, endEpoch, locallyAppliedOrInvalidatedBefore, shardAppliedOrInvalidatedBefore, gcBefore, bootstrappedAt, staleUntilAtLeast);
+            return new RedundantBefore.Entry(range, startEpoch, endEpoch, locallyAppliedOrInvalidatedBefore, locallyDecidedAndAppliedOrInvalidatedBefore, shardAppliedOrInvalidatedBefore, shardOnlyAppliedOrInvalidatedBefore, gcBefore, bootstrappedAt, staleUntilAtLeast);
         };
     }
 

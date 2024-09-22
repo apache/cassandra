@@ -29,16 +29,16 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
-import accord.local.SaveStatus;
+import accord.primitives.SaveStatus;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
-import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 
 public class CommandStoreTxnBlockedGraph
 {
     public final int storeId;
     public final Map<TxnId, TxnState> txns;
-    public final Map<PartitionKey, TxnId> keys;
+    public final Map<TokenKey, TxnId> keys;
 
     public CommandStoreTxnBlockedGraph(Builder builder)
     {
@@ -53,7 +53,7 @@ public class CommandStoreTxnBlockedGraph
         public final Timestamp executeAt;
         public final SaveStatus saveStatus;
         public final List<TxnId> blockedBy;
-        public final Set<PartitionKey> blockedByKey;
+        public final Set<TokenKey> blockedByKey;
 
         public TxnState(Builder.TxnBuilder builder)
         {
@@ -79,7 +79,7 @@ public class CommandStoreTxnBlockedGraph
     {
         final int storeId;
         final Map<TxnId, TxnState> txns = new LinkedHashMap<>();
-        final Map<PartitionKey, TxnId> keys = new LinkedHashMap<>();
+        final Map<TokenKey, TxnId> keys = new LinkedHashMap<>();
 
         public Builder(int storeId)
         {
@@ -107,7 +107,7 @@ public class CommandStoreTxnBlockedGraph
             final Timestamp executeAt;
             final SaveStatus saveStatus;
             List<TxnId> blockedBy = new ArrayList<>();
-            Set<PartitionKey> blockedByKey = new LinkedHashSet<>();
+            Set<TokenKey> blockedByKey = new LinkedHashSet<>();
 
             public TxnBuilder(TxnId txnId, Timestamp executeAt, SaveStatus saveStatus)
             {
