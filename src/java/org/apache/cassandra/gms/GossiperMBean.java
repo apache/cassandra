@@ -61,4 +61,6 @@ public interface GossiperMBean
     public int getGossipServiceCacheMismatchFixConvictionThreshold();
 
     public void setGossipServiceCacheMismatchFixConvictionThreshold(int convictionThreshold);
+
+    public void forceNewerGeneration();
 }

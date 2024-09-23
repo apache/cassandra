@@ -135,6 +135,7 @@ public class NodeTool
                 EnableOldProtocolVersions.class,
                 FailureDetectorInfo.class,
                 Flush.class,
+                ForceNewerGossipGeneration.class,
                 GarbageCollect.class,
                 GcStats.class,
                 GetAuditLog.class,
