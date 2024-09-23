@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.transport.messages;
 
+import java.net.InetSocketAddress;
 import java.util.function.BiFunction;
 
 import org.apache.cassandra.auth.AuthEvents;
@@ -70,7 +71,22 @@ public final class AuthUtil
             byte[] challenge = negotiator.evaluateResponse(token);
             if (negotiator.isComplete())
             {
-                AuthenticatedUser user = negotiator.getAuthenticatedUser();
+                InetSocketAddress clientAddress = (InetSocketAddress) connection.channel().remoteAddress();
+
+                // if socket address is among banned ones, throw AuthenticationException
+
+                AuthenticatedUser user;
+
+                try
+                {
+                    user = negotiator.getAuthenticatedUser();
+                }
+                catch (AuthenticationException ex)
+                {
+                    // detect if this should be added among banned IPs
+                    throw ex;
+                }
+
                 queryState.getClientState().login(user);
                 ClientMetrics.instance.markAuthSuccess(user.getAuthenticationMode());
                 AuthEvents.instance.notifyAuthSuccess(queryState);
