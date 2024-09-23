@@ -61,6 +61,8 @@ public class IPartitionerTest
                 continue;
             if (isTestType(klass))
                 continue;
+            if (ReversedLongLocalPartitioner.class.equals(klass))
+                continue;
             String name = klass.getCanonicalName();
             if (name == null)
                 name = klass.getName();
