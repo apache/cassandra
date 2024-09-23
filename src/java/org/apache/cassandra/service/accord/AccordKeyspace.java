@@ -996,6 +996,12 @@ public class AccordKeyspace
 
         Token startToken = CommandsForKeysAccessor.getPrefixToken(commandStore, start);
         Token endToken = CommandsForKeysAccessor.getPrefixToken(commandStore, end);
+
+        if (start instanceof AccordRoutingKey.SentinelKey)
+            startInclusive = true;
+        if (end instanceof AccordRoutingKey.SentinelKey)
+            endInclusive = true;
+
         PartitionPosition startPosition = startInclusive ? startToken.minKeyBound() : startToken.maxKeyBound();
         PartitionPosition endPosition = endInclusive ? endToken.maxKeyBound() : endToken.minKeyBound();
         AbstractBounds<PartitionPosition> bounds;
