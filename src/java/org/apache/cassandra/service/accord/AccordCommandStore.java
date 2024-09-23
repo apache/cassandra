@@ -728,14 +728,15 @@ public class AccordCommandStore extends CommandStore implements CacheSize
                 TxnId txnId = command.txnId();
 
                 AsyncPromise<?> future = new AsyncPromise<>();
-                execute(context(command, KeyHistory.TIMESTAMPS),
+                PreLoadContext context = context(command, KeyHistory.TIMESTAMPS);
+                execute(context,
                          safeStore -> {
                              SafeCommand safeCommand = safeStore.unsafeGet(txnId);
                              Command local = safeCommand.current();
                              if (local.is(Stable) && !local.hasBeen(Applied))
                                  Commands.maybeExecute(safeStore, safeCommand, local, true, true);
                              else if (local.hasBeen(PreApplied) && !local.is(Invalidated) && !local.is(Truncated))
-                                 Commands.applyWrites(safeStore, local).begin(agent);
+                                 Commands.applyWrites(safeStore, context, local).begin(agent);
                          })
                 .begin((unused, throwable) -> {
                     if (throwable != null)
