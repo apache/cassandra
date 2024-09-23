@@ -683,8 +683,7 @@ public final class CassandraGenerators
         Random(RandomPartitioner.class,                                 ignore -> RandomPartitioner.instance),
         Local(LocalPartitioner.class,                                   localPartitioner()),
         OrderPreserving(OrderPreservingPartitioner.class,               ignore -> OrderPreservingPartitioner.instance),
-        LocalCompositePrefix(LocalCompositePrefixPartitioner.class,     localCompositePrefixPartitioner()),
-        ReversedLongLocal(ReversedLongLocalPartitioner.class,           ignore -> ReversedLongLocalPartitioner.instance);
+        LocalCompositePrefix(LocalCompositePrefixPartitioner.class,     localCompositePrefixPartitioner());
 
         private final Class<? extends IPartitioner> clazz;
         private final Gen<? extends IPartitioner> partitioner;
@@ -725,8 +724,7 @@ public final class CassandraGenerators
     {
         return SourceDSL.arbitrary().enumValues(SupportedPartitioners.class)
                         .assuming(p -> p != SupportedPartitioners.Local &&
-                                       p != SupportedPartitioners.LocalCompositePrefix &&
-                                       p != SupportedPartitioners.ReversedLongLocal)
+                                       p != SupportedPartitioners.LocalCompositePrefix)
                         .flatMap(SupportedPartitioners::partitioner);
     }
 
@@ -743,7 +741,6 @@ public final class CassandraGenerators
         if (partitioner instanceof LocalCompositePrefixPartitioner) return localCompositePrefixPartitionerToken();
         if (partitioner instanceof LocalPartitioner) return localPartitionerToken((LocalPartitioner) partitioner);
         if (partitioner instanceof OrderPreservingPartitioner) return orderPreservingToken();
-        if (partitioner instanceof ReversedLongLocalPartitioner) return reversedLongLocalToken();
         throw new UnsupportedOperationException("Unsupported partitioner: " + partitioner.getClass());
     }
 

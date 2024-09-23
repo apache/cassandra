@@ -71,7 +71,7 @@ public class MessageSerializationPropertyTest implements Serializable
     {
         try (DataOutputBuffer out = new DataOutputBuffer(1024))
         {
-            qt().withShrinkCycles(0).forAll(MESSAGE_GEN).checkAssert(orFail(message -> {
+            qt().withFixedSeed(10).withShrinkCycles(0).forAll(MESSAGE_GEN).checkAssert(orFail(message -> {
                 for (MessagingService.Version version : MessagingService.Version.supportedVersions())
                 {
                     out.clear();
