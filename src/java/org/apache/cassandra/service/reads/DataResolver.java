@@ -131,8 +131,7 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
 
     private boolean usesReplicaFilteringProtection()
     {
-        // Key columns are immutable and should never need to participate in replica filtering
-        if (!command.rowFilter().hasNonKeyExpressions())
+        if (command.rowFilter().isEmpty())
             return false;
 
         if (command.isTopK())
@@ -276,6 +275,10 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
 
     private  UnaryOperator<PartitionIterator> preCountFilterForReplicaFilteringProtection()
     {
+        // Key columns are immutable and should never need to participate in replica filtering
+        if (!command.rowFilter().hasNonKeyExpressions())
+            return results -> results;
+
         return results -> {
             Index.Searcher searcher = command.indexSearcher();
             // in case of "ALLOW FILTERING" without index
