@@ -33,6 +33,7 @@ import org.apache.cassandra.cql3.QualifiedName;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget.Type;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.marshal.MapType;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.internal.CassandraIndex;
 import org.apache.cassandra.index.sasi.SASIIndex;
@@ -225,6 +226,8 @@ public final class CreateIndexStatement extends AlterSchemaStatement
         if (null == column)
             throw ire(COLUMN_DOES_NOT_EXIST, target.column);
 
+        AbstractType<?> baseType = column.type.unwrap();
+
         if ((kind == IndexMetadata.Kind.CUSTOM) && !SchemaConstants.isValidName(target.column.toString()))
             throw ire(INVALID_CUSTOM_INDEX_TARGET, target.column, SchemaConstants.NAME_LENGTH);
 
@@ -254,16 +257,16 @@ public final class CreateIndexStatement extends AlterSchemaStatement
         if (column.isPartitionKey() && table.partitionKeyColumns().size() == 1)
             throw ire(ONLY_PARTITION_KEY, column);
 
-        if (column.type.isFrozenCollection() && target.type != Type.FULL)
+        if (baseType.isFrozenCollection() && target.type != Type.FULL)
             throw ire(CREATE_ON_FROZEN_COLUMN, target.type, column, column.name.toCQLString());
 
-        if (!column.type.isFrozenCollection() && target.type == Type.FULL)
+        if (!baseType.isFrozenCollection() && target.type == Type.FULL)
             throw ire(FULL_ON_FROZEN_COLLECTIONS);
 
-        if (!column.type.isCollection() && target.type != Type.SIMPLE)
+        if (!baseType.isCollection() && target.type != Type.SIMPLE)
             throw ire(NON_COLLECTION_SIMPLE_INDEX, target.type, column);
 
-        if (!(column.type instanceof MapType && column.type.isMultiCell()) && (target.type == Type.KEYS || target.type == Type.KEYS_AND_VALUES))
+        if (!(baseType instanceof MapType && baseType.isMultiCell()) && (target.type == Type.KEYS || target.type == Type.KEYS_AND_VALUES))
             throw ire(CREATE_WITH_NON_MAP_TYPE, target.type, column);
 
         if (column.type.isUDT() && column.type.isMultiCell())

@@ -1715,6 +1715,15 @@ public class SecondaryIndexTest extends CQLTester
         testIndexOnRegularColumnInsertExpiringColumn(true);
     }
 
+    @Test
+    public void testFullIndexOnClusteringColumn()
+    {
+        createTable("CREATE TABLE %s (pk int,ck frozen<list<int>>,value int,PRIMARY KEY(pk, ck)) WITH CLUSTERING ORDER BY (ck DESC)");
+        createIndex("CREATE INDEX ON %s(FULL(ck));");
+        execute("INSERT INTO %s (pk,ck,value) VALUES (1,[1,2,3],4)");
+        assertRows(execute("SELECT pk FROM %S WHERE CK=[1,2,3]"), row(1));
+    }
+
     private void testIndexOnRegularColumnInsertExpiringColumn(boolean flushBeforeUpdate) throws Throwable
     {
         createTable("CREATE TABLE %s (pk int, ck int, a int, b int, PRIMARY KEY (pk, ck))");
