@@ -558,6 +558,14 @@ public class AccordCommandStore extends CommandStore implements CacheSize
     public void shutdown()
     {
         executor.shutdown();
+        try
+        {
+            executor.awaitTermination(20, TimeUnit.SECONDS);
+        }
+        catch (InterruptedException t)
+        {
+            throw new RuntimeException("Could not shut down command store " + this);
+        }
     }
 
     public void registerHistoricalTransactions(Deps deps, SafeCommandStore safeStore)
