@@ -76,6 +76,7 @@ import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.stream.Collectors.toSet;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TCM_SKIP_CMS_RECONFIGURATION_AFTER_TOPOLOGY_CHANGE;
 import static org.apache.cassandra.tcm.ClusterMetadataService.State.GOSSIP;
 import static org.apache.cassandra.tcm.ClusterMetadataService.State.LOCAL;
 import static org.apache.cassandra.tcm.ClusterMetadataService.State.REMOTE;
@@ -382,6 +383,13 @@ public class ClusterMetadataService
 
     public void ensureCMSPlacement(ClusterMetadata metadata)
     {
+        if (TCM_SKIP_CMS_RECONFIGURATION_AFTER_TOPOLOGY_CHANGE.getBoolean())
+        {
+            logger.info("Not performing CMS reconfiguration as {} property is set. This should only be used for testing.",
+                        TCM_SKIP_CMS_RECONFIGURATION_AFTER_TOPOLOGY_CHANGE.getKey());
+            return;
+        }
+
         try
         {
             reconfigureCMS(ReplicationParams.meta(metadata));

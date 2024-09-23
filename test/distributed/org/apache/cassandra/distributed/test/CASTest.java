@@ -23,7 +23,6 @@ import java.util.Collections;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
-
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
@@ -31,7 +30,6 @@ import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
 
-import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.Cluster;
@@ -43,7 +41,6 @@ import org.apache.cassandra.distributed.api.IMessageFilters;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.exceptions.CasWriteTimeoutException;
-
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.SimpleSeedProvider;
 import org.apache.cassandra.net.Verb;
@@ -54,9 +51,11 @@ import org.apache.cassandra.tcm.sequences.InProgressSequences;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.PAXOS_USE_SELF_EXECUTION;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TCM_SKIP_CMS_RECONFIGURATION_AFTER_TOPOLOGY_CHANGE;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TCM_USE_ATOMIC_LONG_PROCESSOR;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ANY;
-import static org.apache.cassandra.distributed.api.ConsistencyLevel.ONE;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.LOCAL_QUORUM;
+import static org.apache.cassandra.distributed.api.ConsistencyLevel.ONE;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.QUORUM;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.SERIAL;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
@@ -76,10 +75,6 @@ import static org.junit.Assert.fail;
 
 public class CASTest extends CASCommonTestCases
 {
-    static
-    {
-        CassandraRelevantProperties.TCM_USE_ATOMIC_LONG_PROCESSOR.setBoolean(true);
-    }
 
     /**
      * The {@code cas_contention_timeout} used during the tests
@@ -98,6 +93,8 @@ public class CASTest extends CASCommonTestCases
     public static void beforeClass() throws Throwable
     {
         PAXOS_USE_SELF_EXECUTION.setBoolean(false);
+        TCM_SKIP_CMS_RECONFIGURATION_AFTER_TOPOLOGY_CHANGE.setBoolean(true);
+        TCM_USE_ATOMIC_LONG_PROCESSOR.setBoolean(true);
         TestBaseImpl.beforeClass();
         // At times during these tests, node1 is going to be blocked from appending entries to its local metadata
         // log in order to induce divergent views of cluster topology between instances. This precludes it from
