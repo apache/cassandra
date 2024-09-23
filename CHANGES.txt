@@ -1,4 +1,5 @@
 5.1
+ * Add constraints framework (CASSANDRA-19947)
  * Add total space used for a keyspace to nodetool tablestats (CASSANDRA-19671)
  * Ensure Relation#toRestriction() handles ReversedType properly (CASSANDRA-19950)
  * Add JSON and YAML output option to nodetool gcstats (CASSANDRA-19771)
