@@ -485,7 +485,7 @@ public final class StatementRestrictions
      * @param kind the column type
      * @return the <code>Restrictions</code> for the specified type of columns
      */
-    private Restrictions getRestrictions(ColumnMetadata.Kind kind)
+    public Restrictions getRestrictions(ColumnMetadata.Kind kind)
     {
         switch (kind)
         {

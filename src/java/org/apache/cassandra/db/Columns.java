@@ -62,6 +62,7 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
                            SetType.getInstance(UTF8Type.instance, true),
                            ColumnMetadata.NO_POSITION,
                            ColumnMetadata.Kind.STATIC,
+                           null,
                            null);
 
     public static final ColumnMetadata FIRST_COMPLEX_REGULAR =
@@ -71,6 +72,7 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
                            SetType.getInstance(UTF8Type.instance, true),
                            ColumnMetadata.NO_POSITION,
                            ColumnMetadata.Kind.REGULAR,
+                           null,
                            null);
 
     private final Object[] columns;

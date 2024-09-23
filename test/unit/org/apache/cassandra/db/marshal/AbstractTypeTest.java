@@ -923,7 +923,7 @@ public class AbstractTypeTest
                 assertThat(leftDecomposed.hasRemaining()).describedAs(typeRelDesc(".decompose", left, right)).isEqualTo(rightDecomposed.hasRemaining());
 
                 // serialization compatibility means that we can read a cell written using right's type serializer with left's type serializer;
-                // this additinoally imposes the requirement for storing the buffer lenght in the serialized form if the value is of variable length
+                // this additinoally imposes the requirement for storing the buffer length in the serialized form if the value is of variable length
                 // as well as, either both types serialize into a single or multiple cells
                 if (left.isSerializationCompatibleWith(right))
                 {
