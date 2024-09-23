@@ -31,11 +31,11 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -48,7 +48,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.api.Key;
-import accord.local.cfk.CommandsForKey;
 import accord.impl.TimestampsForKey;
 import accord.local.Command;
 import accord.local.CommandStore;
@@ -58,6 +57,7 @@ import accord.local.RedundantBefore;
 import accord.local.SaveStatus;
 import accord.local.Status;
 import accord.local.Status.Durability;
+import accord.local.cfk.CommandsForKey;
 import accord.primitives.Ranges;
 import accord.primitives.Routable;
 import accord.primitives.Route;
@@ -67,6 +67,7 @@ import accord.primitives.TxnId;
 import accord.topology.Topology;
 import accord.utils.Invariants;
 import accord.utils.ReducingRangeMap;
+import accord.utils.async.AsyncResult;
 import accord.utils.async.Observable;
 import org.apache.cassandra.concurrent.DebuggableTask;
 import org.apache.cassandra.concurrent.Stage;
@@ -151,9 +152,12 @@ import org.apache.cassandra.utils.Clock.Global;
 import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.btree.BTreeSet;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
+import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.FutureCombiner;
 
 import static accord.utils.Invariants.checkArgument;
 import static accord.utils.Invariants.checkState;
+import static com.google.common.base.Preconditions.checkNotNull;
 import static java.lang.String.format;
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 import static org.apache.cassandra.cql3.QueryProcessor.executeOnceInternal;
@@ -165,6 +169,7 @@ import static org.apache.cassandra.schema.SchemaConstants.ACCORD_KEYSPACE_NAME;
 import static org.apache.cassandra.service.accord.serializers.KeySerializers.blobMapToRanges;
 import static org.apache.cassandra.utils.ByteBufferUtil.EMPTY_BYTE_BUFFER;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
+import static org.apache.cassandra.utils.FBUtilities.futureToAsyncResult;
 
 public class AccordKeyspace
 {
@@ -1687,24 +1692,28 @@ public class AccordKeyspace
         return updateCommandStoreMetadata(commandStore, "reject_before", rejectBefore, LocalVersionedSerializers.rejectBefore);
     }
 
-    public static Future<?> updateDurableBefore(CommandStore commandStore, DurableBefore durableBefore)
+    public static AsyncResult<?> updateDurableBefore(CommandStore commandStore, DurableBefore durableBefore)
     {
-        return updateCommandStoreMetadata(commandStore, "durable_before", durableBefore, LocalVersionedSerializers.durableBefore);
+        return futureToAsyncResult(updateCommandStoreMetadata(commandStore, "durable_before", durableBefore, LocalVersionedSerializers.durableBefore));
     }
 
-    public static Future<?> updateRedundantBefore(CommandStore commandStore, RedundantBefore redundantBefore)
+    public static AsyncResult<?> updateRedundantBefore(CommandStore commandStore, @Nonnull Timestamp gcBefore, @Nonnull Ranges ranges, RedundantBefore redundantBefore)
     {
-        return updateCommandStoreMetadata(commandStore, "redundant_before", redundantBefore, LocalVersionedSerializers.redundantBefore);
+        checkNotNull(gcBefore, "gcBefore should not be null");
+        checkNotNull(ranges, "ranges should not be null");
+        Future<?> tableUpdateFuture = updateCommandStoreMetadata(commandStore, "redundant_before", redundantBefore, LocalVersionedSerializers.redundantBefore);
+        Future<?> gcPrepareFuture = ((AccordCommandStore)commandStore).prepareForGC(gcBefore, ranges);
+        return futureToAsyncResult(FutureCombiner.allOf(tableUpdateFuture, gcPrepareFuture));
     }
 
-    public static Future<?> updateBootstrapBeganAt(CommandStore commandStore, NavigableMap<TxnId, Ranges> bootstrapBeganAt)
+    public static AsyncResult<?> updateBootstrapBeganAt(CommandStore commandStore, NavigableMap<TxnId, Ranges> bootstrapBeganAt)
     {
-        return updateCommandStoreMetadata(commandStore, "bootstrap_began_at", bootstrapBeganAt, LocalVersionedSerializers.bootstrapBeganAt);
+        return futureToAsyncResult(updateCommandStoreMetadata(commandStore, "bootstrap_began_at", bootstrapBeganAt, LocalVersionedSerializers.bootstrapBeganAt));
     }
 
-    public static Future<?> updateSafeToRead(CommandStore commandStore, NavigableMap<Timestamp, Ranges> safeToRead)
+    public static AsyncResult<?> updateSafeToRead(CommandStore commandStore, NavigableMap<Timestamp, Ranges> safeToRead)
     {
-        return updateCommandStoreMetadata(commandStore, "safe_to_read", safeToRead, LocalVersionedSerializers.safeToRead);
+        return futureToAsyncResult(updateCommandStoreMetadata(commandStore, "safe_to_read", safeToRead, LocalVersionedSerializers.safeToRead));
     }
 
     public interface CommandStoreMetadataConsumer

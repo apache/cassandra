@@ -24,6 +24,7 @@ import accord.api.ConfigurationService.EpochReady;
 import accord.api.DataStore;
 import accord.api.LocalListeners;
 import accord.api.ProgressLog;
+import accord.api.Scheduler;
 import accord.local.CommandStores;
 import accord.local.Node;
 import accord.local.NodeTimeService;
@@ -47,18 +48,18 @@ public class AccordCommandStores extends CommandStores implements CacheSize
 
     AccordCommandStores(NodeTimeService time, Agent agent, DataStore store, RandomSource random,
                         ShardDistributor shardDistributor, ProgressLog.Factory progressLogFactory, LocalListeners.Factory listenerFactory,
-                        AccordJournal journal)
+                        AccordJournal journal, Scheduler scheduler)
     {
         super(time, agent, store, random, shardDistributor, progressLogFactory, listenerFactory,
-              AccordCommandStore.factory(journal, new AccordStateCacheMetrics(ACCORD_STATE_CACHE)));
+              AccordCommandStore.factory(journal, new AccordStateCacheMetrics(ACCORD_STATE_CACHE)), scheduler);
         setCapacity(DatabaseDescriptor.getAccordCacheSizeInMiB() << 20);
         this.cacheSizeMetrics = new CacheSizeMetrics(ACCORD_STATE_CACHE, this);
     }
 
     static Factory factory(AccordJournal journal)
     {
-        return (time, agent, store, random, shardDistributor, progressLogFactory, listenerFactory) ->
-               new AccordCommandStores(time, agent, store, random, shardDistributor, progressLogFactory, listenerFactory, journal);
+        return (time, agent, store, random, shardDistributor, progressLogFactory, listenerFactory, scheduler) ->
+               new AccordCommandStores(time, agent, store, random, shardDistributor, progressLogFactory, listenerFactory, journal, scheduler);
     }
 
     @Override

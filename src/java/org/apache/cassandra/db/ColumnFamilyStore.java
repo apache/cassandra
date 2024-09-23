@@ -248,6 +248,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         SCHEMA_CHANGE,
         OWNED_RANGES_CHANGE,
         ACCORD,
+        ACCORD_TXN_GC,
         UNIT_TESTS // explicitly requested flush needed for a test
     }
 
