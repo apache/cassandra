@@ -20,9 +20,12 @@ package org.apache.cassandra.tools.nodetool;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import io.airlift.airline.Arguments;
 import io.airlift.airline.Command;
+import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool;
 
@@ -36,7 +39,7 @@ public class SetValueForConfig extends NodeTool.NodeToolCmd
 {
     @Arguments(title = "<configname> <type> <value>", usage = "<configname> <type> <value>",
                description = "The field name to be changed, the field type and target value to set the field to", required = true)
-    private List<String> args = new ArrayList<>();
+    protected List<String> args = new ArrayList<>();
 
     @Override
     public void execute(NodeProbe probe)
@@ -91,6 +94,44 @@ public class SetValueForConfig extends NodeTool.NodeToolCmd
                 catch (Exception e)
                 {
                     System.out.println("Unknow double value: " + valueString);
+                    return;
+                }
+                break;
+            case "durationspec":
+                try
+                {
+                    Matcher matcher = DurationSpec.UNITS_PATTERN.matcher(valueString);
+                    if (matcher.find())
+                    {
+                        long quantity = Long.parseLong(matcher.group(1));
+                        String unit = matcher.group(2);
+                        // Only support the long type for ns, ms abd s, and int type for m
+                        if (unit.equals("ns"))
+                        {
+                            value = new DurationSpec.LongNanosecondsBound(quantity);
+                        } else if (unit.equals("ms"))
+                        {
+                            value = new DurationSpec.LongMillisecondsBound(quantity);
+                        } else if (unit.equals("s"))
+                        {
+                            value = new DurationSpec.LongSecondsBound(quantity);
+                        } else if (unit.equals("m"))
+                        {
+                            value = new DurationSpec.IntMinutesBound(quantity);
+                        } else {
+                            // For all the left unit will use the LongMillisecondsBound
+                            value = new DurationSpec.LongMillisecondsBound(quantity, DurationSpec.fromSymbol(unit));
+                        }
+                    } else
+                    {
+                        System.out.println("Unknow durationspec value: " + valueString + " Accepted units:" +
+                                           DurationSpec.UNITS_PATTERN + " where case matters and only non-negative values");
+                        return;
+                    }
+                }
+                catch (Exception e)
+                {
+                    System.out.println("Unknow durationspec value: " + valueString);
                     return;
                 }
                 break;

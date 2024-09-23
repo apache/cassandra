@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.config;
 
+import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
@@ -39,12 +40,13 @@ import static java.util.concurrent.TimeUnit.SECONDS;
  * users the opportunity to be able to provide config with a unit of their choice in cassandra.yaml as per the available
  * options. (CASSANDRA-15234)
  */
-public abstract class DurationSpec
+public abstract class DurationSpec implements Serializable
 {
     /**
      * The Regexp used to parse the duration provided as String.
      */
-    private static final Pattern UNITS_PATTERN = Pattern.compile(("^(\\d+)(d|h|s|ms|us|µs|ns|m)$"));
+    private static final long serialVersionUID = 1L;
+    public static final Pattern UNITS_PATTERN = Pattern.compile(("^(\\d+)(d|h|s|ms|us|µs|ns|m)$"));
 
     private final long quantity;
 
@@ -139,7 +141,7 @@ public abstract class DurationSpec
      * @param symbol the time unit symbol
      * @return the time unit associated to the specified symbol
      */
-    static TimeUnit fromSymbol(String symbol)
+    public static TimeUnit fromSymbol(String symbol)
     {
         switch (symbol.toLowerCase())
         {
