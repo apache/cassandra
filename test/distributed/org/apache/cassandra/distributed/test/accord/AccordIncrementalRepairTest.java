@@ -148,7 +148,7 @@ public class AccordIncrementalRepairTest extends AccordTestBase
     public static void setupClass() throws Throwable
     {
         CassandraRelevantProperties.ACCORD_AGENT_CLASS.setString(BarrierRecordingAgent.class.getName());
-        setupCluster(opt -> opt.withConfig(conf -> conf.with(Feature.NETWORK, Feature.GOSSIP)), 3);
+        setupCluster(opt -> opt.withConfig(conf -> conf.with(Feature.NETWORK, Feature.GOSSIP).set("accord.recover_delay", "1s")), 3);
 //        setupCluster(opt -> opt, 3);
     }
 
