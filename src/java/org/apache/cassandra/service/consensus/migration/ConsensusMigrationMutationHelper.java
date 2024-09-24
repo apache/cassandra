@@ -42,6 +42,7 @@ import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RetryOnDifferentSystemException;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
@@ -235,6 +236,8 @@ public class ConsensusMigrationMutationHelper
 
     public static AsyncTxnResult mutateWithAccordAsync(ClusterMetadata cm, Collection<? extends IMutation> mutations, @Nullable ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
     {
+        if (consistencyLevel != null && !IAccordService.SUPPORTED_COMMIT_CONSISTENCY_LEVELS.contains(consistencyLevel))
+            throw new InvalidRequestException(consistencyLevel + " is not supported by Accord");
         int fragmentIndex = 0;
         List<TxnWrite.Fragment> fragments = new ArrayList<>(mutations.size());
         List<PartitionKey> partitionKeys = new ArrayList<>(mutations.size());

@@ -396,6 +396,13 @@ public class RowFilter implements Iterable<RowFilter.Expression>
         return withNewExpressions(newExpressions);
     }
 
+    public RowFilter withoutReconciliation()
+    {
+        if (needsReconciliation)
+            return new RowFilter(expressions, false);
+        return this;
+    }
+
     public boolean hasNonKeyExpression()
     {
         for (Expression e : expressions)

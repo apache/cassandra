@@ -29,24 +29,30 @@ import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
 public abstract class MultiNodeSAITestBase extends SingleNodeSAITestBase
 {
-    public MultiNodeSAITestBase()
+    public MultiNodeSAITestBase(boolean withAccord)
     {
-        super();
+        super(withAccord);
     }
 
     @BeforeClass
     public static void before() throws Throwable
     {
+        before(false);
+    }
+
+    @BeforeClass
+    public static void before(boolean withAccord) throws Throwable
+    {
         cluster = Cluster.build()
-                         .withNodes(2)
-                         // At lower fetch sizes, queries w/ hundreds or thousands of matches can take a very long time.
-                         .withConfig(defaultConfig().andThen(c -> c.set("range_request_timeout", "180s")
-                                                                   .set("read_request_timeout", "180s")
-                                                                   .set("write_request_timeout", "180s")
-                                                                   .set("native_transport_timeout", "180s")
-                                                                   .set("slow_query_log_timeout", "180s")
-                                                                   .with(GOSSIP).with(NETWORK)))
-                         .createWithoutStarting();
+                .withNodes(2)
+                // At lower fetch sizes, queries w/ hundreds or thousands of matches can take a very long time.
+                .withConfig(defaultConfig().andThen(c -> c.set("range_request_timeout", "180s")
+                        .set("read_request_timeout", "180s")
+                        .set("write_request_timeout", "180s")
+                        .set("native_transport_timeout", "180s")
+                        .set("slow_query_log_timeout", "180s")
+                        .with(GOSSIP).with(NETWORK)))
+                .createWithoutStarting();
         cluster.startup();
         cluster = init(cluster);
     }

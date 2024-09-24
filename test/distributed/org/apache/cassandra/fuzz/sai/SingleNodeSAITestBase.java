@@ -78,7 +78,12 @@ public abstract class SingleNodeSAITestBase extends TestBaseImpl
     protected static final Logger logger = LoggerFactory.getLogger(SingleNodeSAITest.class);
     protected static Cluster cluster;
 
-    protected SingleNodeSAITestBase() {}
+    protected boolean withAccord;
+
+    public SingleNodeSAITestBase(boolean withAccord)
+    {
+        this.withAccord = withAccord;
+    }
 
     @BeforeClass
     public static void before() throws Throwable

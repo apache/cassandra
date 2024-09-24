@@ -30,13 +30,14 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Sets;
 import com.google.common.collect.Streams;
-import org.apache.cassandra.config.AccordSpec;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.cql3.statements.schema.AlterSchemaStatement;
+import org.apache.cassandra.config.AccordSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.statements.schema.AlterSchemaStatement;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.AlreadyExistsException;
@@ -70,8 +71,9 @@ import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
-import static org.apache.cassandra.cql3.statements.schema.AlterSchemaStatement.NO_EXECUTION_TIMESTAMP;
+import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.collect.ImmutableSet.toImmutableSet;
+import static org.apache.cassandra.cql3.statements.schema.AlterSchemaStatement.NO_EXECUTION_TIMESTAMP;
 import static org.apache.cassandra.exceptions.ExceptionCode.ALREADY_EXISTS;
 import static org.apache.cassandra.exceptions.ExceptionCode.CONFIG_ERROR;
 import static org.apache.cassandra.exceptions.ExceptionCode.INVALID;
@@ -298,6 +300,9 @@ public class AlterSchema implements Transformation
                 .map(alt -> alt.after)
                 .collect(Collectors.toUnmodifiableSet());
 
+        Set<TableId> startedAndReversed = Sets.intersection(started.stream().map(TableMetadata::id).collect(Collectors.toSet()), reversals.keySet());
+        checkState(startedAndReversed.isEmpty(), "Set of tables starting migration and reversing migration should not intersect");
+
         if (!started.isEmpty())
         {
             List<Range<Token>> ranges;
@@ -314,8 +319,9 @@ public class AlterSchema implements Transformation
                     break;
             }
 
-            if (!ranges.isEmpty())
-                migrationState = migrationState.withRangesMigrating(started, ranges, true);
+            // Always create the migration state even if nothing is currently migrating, the empty state
+            // signals that a migration is in progress with no migrating ranges and corresponds to transactionalMigrationFrom != none
+            migrationState = migrationState.withRangesMigrating(started, ranges, true);
         }
 
         migrationState = migrationState.withReversedMigrations(reversals, next.epoch());

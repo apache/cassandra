@@ -335,6 +335,7 @@ public abstract class AccordTestBase extends TestBaseImpl
         Cluster.Builder builder = Cluster.build(nodes)
                                          .withoutVNodes()
                                          .withConfig(c -> c.with(Feature.GOSSIP)
+                                                           .set("sasi_indexes_enabled", "true")
                                                            .set("write_request_timeout", "10s")
                                                            .set("transaction_timeout", "15s")
                                                            .set("native_transport_timeout", "30s")

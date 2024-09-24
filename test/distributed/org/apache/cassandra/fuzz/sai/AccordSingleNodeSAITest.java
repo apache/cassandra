@@ -18,10 +18,10 @@
 
 package org.apache.cassandra.fuzz.sai;
 
-public class SingleNodeSAITest extends SingleNodeSAITestBase
+public class AccordSingleNodeSAITest extends SingleNodeSAITestBase
 {
-    public SingleNodeSAITest()
+    public AccordSingleNodeSAITest()
     {
-        super(false);
+        super(true);
     }
 }
