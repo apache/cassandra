@@ -1678,10 +1678,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public Integer finishConsensusMigration(@Nonnull String keyspace,
                                             @Nullable List<String> maybeTableNames,
                                             @Nullable String maybeRangesStr,
-                                            @Nonnull ConsensusMigrationTarget target)
+                                            @Nonnull String target)
     {
         checkArgument(!keyspace.equals(SchemaConstants.METADATA_KEYSPACE_NAME));
-        return finishMigrationToConsensusProtocol(keyspace, Optional.ofNullable(maybeTableNames), Optional.ofNullable(maybeRangesStr), target);
+        return finishMigrationToConsensusProtocol(keyspace, Optional.ofNullable(maybeTableNames), Optional.ofNullable(maybeRangesStr), ConsensusMigrationTarget.valueOf(target));
     }
 
     @Override

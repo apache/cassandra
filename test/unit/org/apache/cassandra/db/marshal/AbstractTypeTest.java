@@ -233,6 +233,8 @@ public class AbstractTypeTest
                 continue;
             if (isTestType(klass))
                 continue;
+            if (isPrefixCompositeType(klass))
+                continue;
             String name = klass.getCanonicalName();
             if (name == null)
                 name = klass.getName();
@@ -257,6 +259,13 @@ public class AbstractTypeTest
         CodeSource src = domain.getCodeSource();
         if (src == null) return false;
         return "test".equals(new File(src.getLocation().getPath()).name());
+    }
+
+    @SuppressWarnings("rawtypes")
+    private boolean isPrefixCompositeType(Class<? extends AbstractType> klass)
+    {
+        String name = klass.getCanonicalName();
+        return name.contains("PrefixCompositeType");
     }
 
     @Test

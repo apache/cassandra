@@ -40,7 +40,7 @@ public class LocalPartitioner implements IPartitioner
 {
     private static final long EMPTY_SIZE = ObjectSizes.measure(new LocalPartitioner(null).new LocalToken());
 
-    final AbstractType<?> comparator;   // package-private to avoid access workarounds in embedded LocalToken.
+    protected final AbstractType<?> comparator;
 
     public LocalPartitioner(AbstractType<?> comparator)
     {

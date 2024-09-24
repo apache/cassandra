@@ -88,6 +88,11 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
             ++i;
         }
 
+        return compareCustomRemainder(left, accessorL, offsetL, right, accessorR, offsetR);
+    }
+
+    protected  <VL, VR> int compareCustomRemainder(VL left, ValueAccessor<VL> accessorL, int offsetL, VR right, ValueAccessor<VR> accessorR, int offsetR)
+    {
         if (accessorL.isEmptyFromOffset(left, offsetL))
             return accessorR.sizeFromOffset(right, offsetR) == 0 ? 0 : -1;
 

@@ -825,8 +825,10 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
      */
     public KeyIterator keyIterator() throws IOException
     {
-        return new KeyIterator(keyReader(), getPartitioner(), uncompressedLength(), new ReentrantReadWriteLock());
+        return new KeyIterator(null, keyReader(), getPartitioner(), uncompressedLength(), new ReentrantReadWriteLock());
     }
+
+    public abstract KeyIterator keyIterator(AbstractBounds<PartitionPosition> range) throws IOException;
 
     /**
      * Finds and returns the first key beyond a given token in this SSTable or null if no such key exists.
