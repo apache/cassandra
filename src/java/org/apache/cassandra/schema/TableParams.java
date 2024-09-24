@@ -261,7 +261,7 @@ public final class TableParams
             && extensions.equals(p.extensions)
             && cdc == p.cdc
             && readRepair == p.readRepair
-            && automatedRepair == p.automatedRepair;
+            && automatedRepair.equals(p.automatedRepair);
     }
 
     @Override
