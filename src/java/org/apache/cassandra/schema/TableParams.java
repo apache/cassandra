@@ -313,7 +313,7 @@ public final class TableParams
             && transactionalMode == p.transactionalMode
             && transactionalMigrationFrom == p.transactionalMigrationFrom
             && pendingDrop == p.pendingDrop
-            && automatedRepair == p.automatedRepair;
+            && automatedRepair.equals(p.automatedRepair);
     }
 
     @Override
