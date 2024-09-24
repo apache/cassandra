@@ -1,4 +1,5 @@
 5.1
+ * Make sstabledump possible to show tombstones only (CASSANDRA-19939)
  * Ensure that RFP queries potentially stale replicas even with only key columns in the row filter (CASSANDRA-19938)
  * Allow nodes to change IP address while upgrading to TCM (CASSANDRA-19921)
  * Retain existing keyspace params on system tables after upgrade (CASSANDRA-19916)

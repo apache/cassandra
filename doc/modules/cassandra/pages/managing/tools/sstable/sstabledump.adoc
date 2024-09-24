@@ -17,9 +17,10 @@ sstabledump <options> <sstable file path>
 |-d |CQL row per line internal representation
 |-e |Enumerate partition keys only
 |-k <arg> |Partition key
-|-x <arg> |Excluded partition key(s)
-|-t |Print raw timestamps instead of iso8601 date strings
 |-l |Output each row as a separate JSON object
+|-o |Enumerate tombstones only
+|-t |Print raw timestamps instead of iso8601 date strings
+|-x <arg> |Excluded partition key(s)
 |===
 
 If necessary, use sstableutil first to find out the sstables used by a
@@ -237,6 +238,12 @@ cat eventlog_dump_2018Jul26_excludekeys
     ]
   }
 ....
+
+== Dump tombstones only
+
+It is possible to display only tombstones since CASSANDRA-19939. You enable this feature by `-o` flag. This option
+is useful to use if you are interested only in tombstones and the output is very long. This way, you find tombstones
+faster.
 
 == Display raw timestamps
 
