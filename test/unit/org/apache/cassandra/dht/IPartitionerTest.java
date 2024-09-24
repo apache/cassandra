@@ -81,6 +81,8 @@ public class IPartitionerTest
             name = klass.toString();
         if (name.contains("Test"))
             return true;
+        if (name.equals(LengthPartitioner.class.getCanonicalName()))
+            return true;
         ProtectionDomain domain = klass.getProtectionDomain();
         if (domain == null) return false;
         CodeSource src = domain.getCodeSource();

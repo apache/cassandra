@@ -241,7 +241,10 @@ public class AccordKeyspaceTest extends CQLTester.InMemory
                     for (var e : storesToKeys.entrySet())
                     {
                         int store = e.getKey();
-                        expectedCqlStoresToKeys.put(store, new TreeSet<>(e.getValue().stream().map(p -> AccordKeyspace.serializeRoutingKeyNoTable(p.toUnseekable())).collect(Collectors.toList())));
+                        SortedSet<PartitionKey> keys = e.getValue();
+                        if (keys.isEmpty())
+                            continue;
+                        expectedCqlStoresToKeys.put(store, new TreeSet<>(keys.stream().map(p -> AccordKeyspace.serializeRoutingKeyNoTable(p.toUnseekable())).collect(Collectors.toList())));
                     }
 
                     // make sure no data loss... when this test was written sstable had all the rows but the sstable didn't... this
@@ -262,6 +265,8 @@ public class AccordKeyspaceTest extends CQLTester.InMemory
                 {
                     int store = rs.pickOrderedSet(storesToKeys.navigableKeySet());
                     var keysForStore = new ArrayList<>(storesToKeys.get(store));
+                    if (keysForStore.isEmpty())
+                        continue;
 
                     int offset;
                     int offsetEnd;
