@@ -36,10 +36,10 @@ import accord.primitives.Participants;
 import accord.primitives.Ranges;
 import accord.primitives.Seekable;
 import accord.primitives.Timestamp;
-import org.apache.cassandra.db.SinglePartitionReadCommand;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -100,10 +100,13 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
         return new TxnRead(items, txnKeys, consistencyLevel);
     }
 
-    public static TxnRead createSerialRead(SinglePartitionReadCommand readCommand, ConsistencyLevel consistencyLevel)
+    public static TxnRead createSerialRead(List<SinglePartitionReadCommand> readCommands, ConsistencyLevel consistencyLevel)
     {
-        TxnNamedRead read = new TxnNamedRead(SERIAL_READ, readCommand);
-        return new TxnRead(ImmutableList.of(read), Keys.of(read.key()), consistencyLevel);
+        List<TxnNamedRead> reads = new ArrayList<>(readCommands.size());
+        for (int i = 0; i < readCommands.size(); i++)
+            reads.add(new TxnNamedRead(TxnDataName.user(String.valueOf(i)), readCommands.get(i)));
+        Keys keys = Keys.of(reads, TxnNamedRead::key);
+        return new TxnRead(reads, keys, consistencyLevel);
     }
 
     public static TxnRead createCasRead(SinglePartitionReadCommand readCommand, ConsistencyLevel consistencyLevel)
