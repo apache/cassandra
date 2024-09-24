@@ -92,6 +92,7 @@ Merged from 5.0:
  * Add java.base/java.lang.reflect among opens for jvm11-client.options (CASSANDRA-19780)
 Merged from 4.1:
 Merged from 4.0:
+ * Fix text containing "/*" being interpreted as multiline comment in cqlsh (CASSANDRA-17667)
  * Fix indexing of a frozen collection that is the clustering key and reversed (CASSANDRA-19889)
  * Emit error when altering a table with non-frozen UDTs with nested non-frozen collections the same way as done upon table creation (CASSANDRA-19925)
  * Safer handling of out-of-range tokens (CASSANDRA-13704)
