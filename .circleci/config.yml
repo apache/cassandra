@@ -9463,228 +9463,190 @@ workflows:
   java8_separate_tests:
     jobs:
     - start_j8_build:
-        type: approval
     - j8_build:
         requires:
         - start_j8_build
     - start_j8_unit_tests:
-        type: approval
     - j8_unit_tests:
         requires:
         - start_j8_unit_tests
         - j8_build
     - start_j8_jvm_dtests:
-        type: approval
     - j8_jvm_dtests:
         requires:
         - start_j8_jvm_dtests
         - j8_build
     - start_j8_jvm_dtests_vnode:
-        type: approval
     - j8_jvm_dtests_vnode:
         requires:
         - start_j8_jvm_dtests_vnode
         - j8_build
     - start_j11_jvm_dtests:
-        type: approval
     - j11_jvm_dtests:
         requires:
         - start_j11_jvm_dtests
         - j8_build
     - start_j11_jvm_dtests_vnode:
-        type: approval
     - j11_jvm_dtests_vnode:
         requires:
         - start_j11_jvm_dtests_vnode
         - j8_build
     - start_j8_simulator_dtests:
-        type: approval
     - j8_simulator_dtests:
         requires:
         - start_j8_simulator_dtests
         - j8_build
     - start_j8_cqlshlib_tests:
-        type: approval
     - j8_cqlshlib_tests:
         requires:
         - start_j8_cqlshlib_tests
         - j8_build
     - start_j8_cqlshlib_cython_tests:
-        type: approval
     - j8_cqlshlib_cython_tests:
         requires:
         - start_j8_cqlshlib_cython_tests
         - j8_build
     - start_j11_cqlshlib_tests:
-        type: approval
     - j11_cqlshlib_tests:
         requires:
         - start_j11_cqlshlib_tests
         - j8_build
     - start_j11_cqlshlib_cython_tests:
-        type: approval
     - j11_cqlshlib_cython_tests:
         requires:
         - start_j11_cqlshlib_cython_tests
         - j8_build
     - start_j11_unit_tests:
-        type: approval
     - j11_unit_tests:
         requires:
         - start_j11_unit_tests
         - j8_build
     - start_j8_utests_long:
-        type: approval
     - j8_utests_long:
         requires:
         - start_j8_utests_long
         - j8_build
     - start_j11_utests_long:
-        type: approval
     - j11_utests_long:
         requires:
         - start_j11_utests_long
         - j8_build
     - start_j8_utests_cdc:
-        type: approval
     - j8_utests_cdc:
         requires:
         - start_j8_utests_cdc
         - j8_build
     - start_j11_utests_cdc:
-        type: approval
     - j11_utests_cdc:
         requires:
         - start_j11_utests_cdc
         - j8_build
     - start_j8_utests_compression:
-        type: approval
     - j8_utests_compression:
         requires:
         - start_j8_utests_compression
         - j8_build
     - start_j11_utests_compression:
-        type: approval
     - j11_utests_compression:
         requires:
         - start_j11_utests_compression
         - j8_build
     - start_j8_utests_stress:
-        type: approval
     - j8_utests_stress:
         requires:
         - start_j8_utests_stress
         - j8_build
     - start_j11_utests_stress:
-        type: approval
     - j11_utests_stress:
         requires:
         - start_j11_utests_stress
         - j8_build
     - start_j8_utests_fqltool:
-        type: approval
     - j8_utests_fqltool:
         requires:
         - start_j8_utests_fqltool
         - j8_build
     - start_j11_utests_fqltool:
-        type: approval
     - j11_utests_fqltool:
         requires:
         - start_j11_utests_fqltool
         - j8_build
     - start_j8_utests_system_keyspace_directory:
-        type: approval
     - j8_utests_system_keyspace_directory:
         requires:
         - start_j8_utests_system_keyspace_directory
         - j8_build
     - start_j11_utests_system_keyspace_directory:
-        type: approval
     - j11_utests_system_keyspace_directory:
         requires:
         - start_j11_utests_system_keyspace_directory
         - j8_build
     - start_j8_dtest_jars_build:
-        type: approval
     - j8_dtest_jars_build:
         requires:
         - j8_build
         - start_j8_dtest_jars_build
     - start_jvm_upgrade_dtests:
-        type: approval
     - j8_jvm_upgrade_dtests:
         requires:
         - start_jvm_upgrade_dtests
         - j8_dtest_jars_build
     - start_j8_dtests:
-        type: approval
     - j8_dtests:
         requires:
         - start_j8_dtests
         - j8_build
     - start_j8_dtests_vnode:
-        type: approval
     - j8_dtests_vnode:
         requires:
         - start_j8_dtests_vnode
         - j8_build
     - start_j8_dtests_offheap:
-        type: approval
     - j8_dtests_offheap:
         requires:
         - start_j8_dtests_offheap
         - j8_build
     - start_j11_dtests:
-        type: approval
     - j11_dtests:
         requires:
         - start_j11_dtests
         - j8_build
     - start_j11_dtests_vnode:
-        type: approval
     - j11_dtests_vnode:
         requires:
         - start_j11_dtests_vnode
         - j8_build
     - start_j11_dtests_offheap:
-        type: approval
     - j11_dtests_offheap:
         requires:
         - start_j11_dtests_offheap
         - j8_build
     - start_j8_dtests_large:
-        type: approval
     - j8_dtests_large:
         requires:
         - start_j8_dtests_large
         - j8_build
     - start_j8_dtests_large_vnode:
-        type: approval
     - j8_dtests_large_vnode:
         requires:
         - start_j8_dtests_large_vnode
         - j8_build
     - start_j11_dtests_large:
-        type: approval
     - j11_dtests_large:
         requires:
         - start_j11_dtests_large
         - j8_build
     - start_j11_dtests_large_vnode:
-        type: approval
     - j11_dtests_large_vnode:
         requires:
         - start_j11_dtests_large_vnode
         - j8_build
     - start_upgrade_dtests:
-        type: approval
     - j8_upgrade_dtests:
         requires:
         - start_upgrade_dtests
         - j8_build
     - start_j8_cqlsh_tests:
-        type: approval
     - j8_cqlsh_dtests_py3:
         requires:
         - start_j8_cqlsh_tests
@@ -9710,7 +9672,6 @@ workflows:
         - start_j8_cqlsh_tests
         - j8_build
     - start_j8_cqlsh_tests_offheap:
-        type: approval
     - j8_cqlsh_dtests_py3_offheap:
         requires:
         - start_j8_cqlsh_tests_offheap
@@ -9724,7 +9685,6 @@ workflows:
         - start_j8_cqlsh_tests_offheap
         - j8_build
     - start_j11_cqlsh_tests:
-        type: approval
     - j11_cqlsh_dtests_py3:
         requires:
         - start_j11_cqlsh_tests
@@ -9750,7 +9710,6 @@ workflows:
         - start_j11_cqlsh_tests
         - j8_build
     - start_j11_cqlsh_tests_offheap:
-        type: approval
     - j11_cqlsh_dtests_py3_offheap:
         requires:
         - start_j11_cqlsh_tests_offheap
@@ -9766,7 +9725,6 @@ workflows:
   java8_pre-commit_tests:
     jobs:
     - start_pre-commit_tests:
-        type: approval
     - j8_build:
         requires:
         - start_pre-commit_tests
@@ -9804,7 +9762,6 @@ workflows:
         requires:
         - j8_build
     - start_utests_long:
-        type: approval
     - j8_utests_long:
         requires:
         - start_utests_long
@@ -9814,7 +9771,6 @@ workflows:
         - start_utests_long
         - j8_build
     - start_utests_cdc:
-        type: approval
     - j8_utests_cdc:
         requires:
         - start_utests_cdc
@@ -9824,7 +9780,6 @@ workflows:
         - start_utests_cdc
         - j8_build
     - start_utests_compression:
-        type: approval
     - j8_utests_compression:
         requires:
         - start_utests_compression
@@ -9834,7 +9789,6 @@ workflows:
         - start_utests_compression
         - j8_build
     - start_utests_stress:
-        type: approval
     - j8_utests_stress:
         requires:
         - start_utests_stress
@@ -9844,7 +9798,6 @@ workflows:
         - start_utests_stress
         - j8_build
     - start_utests_fqltool:
-        type: approval
     - j8_utests_fqltool:
         requires:
         - start_utests_fqltool
@@ -9854,7 +9807,6 @@ workflows:
         - start_utests_fqltool
         - j8_build
     - start_utests_system_keyspace_directory:
-        type: approval
     - j8_utests_system_keyspace_directory:
         requires:
         - j8_build
@@ -9863,7 +9815,6 @@ workflows:
         - start_utests_system_keyspace_directory
         - j8_build
     - start_jvm_upgrade_dtests:
-        type: approval
     - j8_dtest_jars_build:
         requires:
         - j8_build
@@ -9878,7 +9829,6 @@ workflows:
         requires:
         - j8_build
     - start_j8_dtests_offheap:
-        type: approval
     - j8_dtests_offheap:
         requires:
         - start_j8_dtests_offheap
@@ -9890,13 +9840,11 @@ workflows:
         requires:
         - j8_build
     - start_j11_dtests_offheap:
-        type: approval
     - j11_dtests_offheap:
         requires:
         - start_j11_dtests_offheap
         - j8_build
     - start_j8_dtests_large:
-        type: approval
     - j8_dtests_large:
         requires:
         - start_j8_dtests_large
@@ -9906,7 +9854,6 @@ workflows:
         - start_j8_dtests_large
         - j8_build
     - start_j11_dtests_large:
-        type: approval
     - j11_dtests_large:
         requires:
         - start_j11_dtests_large
@@ -9916,7 +9863,6 @@ workflows:
         - start_j11_dtests_large
         - j8_build
     - start_upgrade_dtests:
-        type: approval
     - j8_upgrade_dtests:
         requires:
         - j8_build
@@ -9940,7 +9886,6 @@ workflows:
         requires:
         - j8_build
     - start_j8_cqlsh_dtests_offheap:
-        type: approval
     - j8_cqlsh_dtests_py3_offheap:
         requires:
         - start_j8_cqlsh_dtests_offheap
@@ -9972,7 +9917,6 @@ workflows:
         requires:
         - j8_build
     - start_j11_cqlsh-dtests-offheap:
-        type: approval
     - j11_cqlsh_dtests_py3_offheap:
         requires:
         - start_j11_cqlsh-dtests-offheap
@@ -9988,72 +9932,60 @@ workflows:
   java11_separate_tests:
     jobs:
     - start_j11_build:
-        type: approval
     - j11_build:
         requires:
         - start_j11_build
     - start_j11_unit_tests:
-        type: approval
     - j11_unit_tests:
         requires:
         - start_j11_unit_tests
         - j11_build
     - start_j11_jvm_dtests:
-        type: approval
     - j11_jvm_dtests:
         requires:
         - start_j11_jvm_dtests
         - j11_build
     - start_j11_jvm_dtests_vnode:
-        type: approval
     - j11_jvm_dtests_vnode:
         requires:
         - start_j11_jvm_dtests_vnode
         - j11_build
     - start_j11_cqlshlib_tests:
-        type: approval
     - j11_cqlshlib_tests:
         requires:
         - start_j11_cqlshlib_tests
         - j11_build
     - start_j11_cqlshlib_cython_tests:
-        type: approval
     - j11_cqlshlib_cython_tests:
         requires:
         - start_j11_cqlshlib_cython_tests
         - j11_build
     - start_j11_dtests:
-        type: approval
     - j11_dtests:
         requires:
         - start_j11_dtests
         - j11_build
     - start_j11_dtests_vnode:
-        type: approval
     - j11_dtests_vnode:
         requires:
         - start_j11_dtests_vnode
         - j11_build
     - start_j11_dtests_offheap:
-        type: approval
     - j11_dtests_offheap:
         requires:
         - start_j11_dtests_offheap
         - j11_build
     - start_j11_dtests_large:
-        type: approval
     - j11_dtests_large:
         requires:
         - start_j11_dtests_large
         - j11_build
     - start_j11_dtests_large_vnode:
-        type: approval
     - j11_dtests_large_vnode:
         requires:
         - start_j11_dtests_large_vnode
         - j11_build
     - start_j11_cqlsh_tests:
-        type: approval
     - j11_cqlsh_dtests_py3:
         requires:
         - start_j11_cqlsh_tests
@@ -10079,7 +10011,6 @@ workflows:
         - start_j11_cqlsh_tests
         - j11_build
     - start_j11_cqlsh-dtests-offheap:
-        type: approval
     - j11_cqlsh_dtests_py3_offheap:
         requires:
         - start_j11_cqlsh-dtests-offheap
@@ -10093,37 +10024,31 @@ workflows:
         - start_j11_cqlsh-dtests-offheap
         - j11_build
     - start_j11_utests_long:
-        type: approval
     - j11_utests_long:
         requires:
         - start_j11_utests_long
         - j11_build
     - start_j11_utests_cdc:
-        type: approval
     - j11_utests_cdc:
         requires:
         - start_j11_utests_cdc
         - j11_build
     - start_j11_utests_compression:
-        type: approval
     - j11_utests_compression:
         requires:
         - start_j11_utests_compression
         - j11_build
     - start_j11_utests_stress:
-        type: approval
     - j11_utests_stress:
         requires:
         - start_j11_utests_stress
         - j11_build
     - start_j11_utests_fqltool:
-        type: approval
     - j11_utests_fqltool:
         requires:
         - start_j11_utests_fqltool
         - j11_build
     - start_j11_utests_system_keyspace_directory:
-        type: approval
     - j11_utests_system_keyspace_directory:
         requires:
         - start_j11_utests_system_keyspace_directory
@@ -10131,7 +10056,6 @@ workflows:
   java11_pre-commit_tests:
     jobs:
     - start_pre-commit_tests:
-        type: approval
     - j11_build:
         requires:
         - start_pre-commit_tests
@@ -10157,13 +10081,11 @@ workflows:
         requires:
         - j11_build
     - start_j11_dtests_offheap:
-        type: approval
     - j11_dtests_offheap:
         requires:
         - start_j11_dtests_offheap
         - j11_build
     - start_j11_dtests_large:
-        type: approval
     - j11_dtests_large:
         requires:
         - start_j11_dtests_large
@@ -10191,7 +10113,6 @@ workflows:
         requires:
         - j11_build
     - start_j11_cqlsh-dtests-offheap:
-        type: approval
     - j11_cqlsh_dtests_py3_offheap:
         requires:
         - start_j11_cqlsh-dtests-offheap
@@ -10205,37 +10126,31 @@ workflows:
         - start_j11_cqlsh-dtests-offheap
         - j11_build
     - start_utests_long:
-        type: approval
     - j11_utests_long:
         requires:
         - start_utests_long
         - j11_build
     - start_utests_cdc:
-        type: approval
     - j11_utests_cdc:
         requires:
         - start_utests_cdc
         - j11_build
     - start_utests_compression:
-        type: approval
     - j11_utests_compression:
         requires:
         - start_utests_compression
         - j11_build
     - start_utests_stress:
-        type: approval
     - j11_utests_stress:
         requires:
         - start_utests_stress
         - j11_build
     - start_utests_fqltool:
-        type: approval
     - j11_utests_fqltool:
         requires:
         - start_utests_fqltool
         - j11_build
     - start_utests_system_keyspace_directory:
-        type: approval
     - j11_utests_system_keyspace_directory:
         requires:
         - start_utests_system_keyspace_directory
