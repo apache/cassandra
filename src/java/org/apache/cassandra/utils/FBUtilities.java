@@ -73,11 +73,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.audit.IAuditLogger;
-import org.apache.cassandra.auth.AllowAllNetworkAuthorizer;
-import org.apache.cassandra.auth.IAuthenticator;
-import org.apache.cassandra.auth.IAuthorizer;
-import org.apache.cassandra.auth.INetworkAuthorizer;
-import org.apache.cassandra.auth.IRoleManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -648,40 +643,6 @@ public class FBUtilities
             return new LocalPartitioner(comparator.get());
         }
         return FBUtilities.instanceOrConstruct(partitionerClassName, "partitioner");
-    }
-
-    public static IAuthorizer newAuthorizer(String className) throws ConfigurationException
-    {
-        if (!className.contains("."))
-            className = "org.apache.cassandra.auth." + className;
-        return FBUtilities.construct(className, "authorizer");
-    }
-
-    public static IAuthenticator newAuthenticator(String className) throws ConfigurationException
-    {
-        if (!className.contains("."))
-            className = "org.apache.cassandra.auth." + className;
-        return FBUtilities.construct(className, "authenticator");
-    }
-
-    public static IRoleManager newRoleManager(String className) throws ConfigurationException
-    {
-        if (!className.contains("."))
-            className = "org.apache.cassandra.auth." + className;
-        return FBUtilities.construct(className, "role manager");
-    }
-
-    public static INetworkAuthorizer newNetworkAuthorizer(String className)
-    {
-        if (className == null)
-        {
-            return new AllowAllNetworkAuthorizer();
-        }
-        if (!className.contains("."))
-        {
-            className = "org.apache.cassandra.auth." + className;
-        }
-        return FBUtilities.construct(className, "network authorizer");
     }
 
     public static IAuditLogger newAuditLogger(String className, Map<String, String> parameters) throws ConfigurationException
