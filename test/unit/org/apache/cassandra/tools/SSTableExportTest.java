@@ -63,6 +63,7 @@ public class SSTableExportTest extends OfflineToolUtils
                        " -e         enumerate partition keys only\n" +
                        " -k <arg>   List of included partition keys\n" +
                        " -l         Output json lines, by partition\n" +
+                       " -o         enumerate tombstones only\n" +
                        " -t         Print raw timestamps instead of iso8601 date strings\n" +
                        " -x <arg>   List of excluded partition keys\n";
         Assertions.assertThat(tool.getStdout()).isEqualTo(help);
