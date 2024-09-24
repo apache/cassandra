@@ -32,6 +32,7 @@ import org.slf4j.LoggerFactory;
 
 import accord.local.Command;
 import accord.local.Node;
+import accord.local.SaveStatus;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
 import org.apache.cassandra.concurrent.Shutdownable;
@@ -48,7 +49,8 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.concurrent.Condition;
 
-import static accord.local.Status.PreApplied;
+import static accord.local.Status.Invalidated;
+import static accord.local.Status.Truncated;
 
 public class AccordJournal implements IJournal, Shutdownable
 {
@@ -269,7 +271,7 @@ public class AccordJournal implements IJournal, Shutdownable
                 Command command = builder.construct();
                 AccordCommandStore commandStore = (AccordCommandStore) node.commandStores().forId(key.commandStoreId);
                 commandStore.loader().load(command).get();
-                if (command.hasBeen(PreApplied))
+                if (command.saveStatus().compareTo(SaveStatus.Applying) >= 0 && !command.is(Invalidated) && !command.is(Truncated))
                     toApply.add(new ToApply(key, command));
             }
         }
