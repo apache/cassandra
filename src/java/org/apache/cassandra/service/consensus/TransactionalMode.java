@@ -19,7 +19,15 @@
 package org.apache.cassandra.service.consensus;
 
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.IAccordService;
+import org.apache.cassandra.service.consensus.migration.TableMigrationState;
+import org.apache.cassandra.service.consensus.migration.TransactionalMigrationFromMode;
+import org.apache.cassandra.tcm.ClusterMetadata;
+
+import static com.google.common.base.Preconditions.checkState;
 
 /*
  * Configure the transactional behavior of a table. Enables accord on a table and defines how it mixes with non-serial writes
@@ -57,46 +65,47 @@ import org.apache.cassandra.service.accord.IAccordService;
 public enum TransactionalMode
 {
     // Running on Paxos V1 or V2 with Accord disabled
-    off(false, false, false, false),
+    off(false, false, false, false, false),
 
     /*
      * Execute writes through Cassandra via StorageProxy's normal write path. This can lead Accord to compute
      * multiple outcomes for a transaction that depends on data written by non-SERIAL writes.
      */
-    unsafe(true, false, false, false),
+    unsafe(true, false, false, false, false),
 
     /*
      * Allow mixing of non-SERIAL writes and Accord, but still force BRR through Accord.
      * This mode makes it safe to perform non-SERIAL or SERIAL reads of Accord data, but unsafe
      * to write data that Accord may attempt to read.
      */
-    unsafe_writes(true, false, false, true),
+    unsafe_writes(true, false, false, false, true),
 
     /*
      * Execute writes through Accord skipping StorageProxy's normal write path, but commit
      * writes at the provided consistency level so they can be read via non-SERIAL consistency levels.
      * This mode makes it safe to read/write data that Accord will read/write.
      */
-    mixed_reads(true, false, true, true),
+    mixed_reads(true, false, true, false, true),
 
     /*
      * Execute writes through Accord skipping StorageProxy's normal write path. Ignores the provided consistency level
      * which makes Accord commit writes at ANY similar to Paxos with commit consistency level ANY.
      */
-    full(true, true, true, true);
+    full(true, true, true, true, true);
 
     public final boolean accordIsEnabled;
     public final boolean ignoresSuppliedConsistencyLevel;
     public final boolean writesThroughAccord;
-
+    public final boolean readsThroughAccord;
     public final boolean blockingReadRepairThroughAccord;
     private final String cqlParam;
 
-    TransactionalMode(boolean accordIsEnabled, boolean ignoresSuppliedConsistencyLevel, boolean writesThroughAccord, boolean blockingReadRepairThroughAccord)
+    TransactionalMode(boolean accordIsEnabled, boolean ignoresSuppliedConsistencyLevel, boolean writesThroughAccord, boolean readsThroughAccord, boolean blockingReadRepairThroughAccord)
     {
         this.accordIsEnabled = accordIsEnabled;
         this.ignoresSuppliedConsistencyLevel = ignoresSuppliedConsistencyLevel;
         this.writesThroughAccord = writesThroughAccord;
+        this.readsThroughAccord = readsThroughAccord;
         this.blockingReadRepairThroughAccord = blockingReadRepairThroughAccord;
         this.cqlParam = String.format("transactional_mode = '%s'", this.name().toLowerCase());
     }
@@ -112,14 +121,25 @@ public enum TransactionalMode
         return consistencyLevel;
     }
 
-    // TODO (required): This won't work for migration directly from none to full because there is no safe system to read from
-    // during the first phase (repair). Accord won't read correctly beacuse it won't honor the CL and miss non-transactional writes that haven't been repaired and non-transactional
-    // reads will miss all the writes being routed through Accord since they occur asynchronously. Something has to give here where either writes routed through are Accord are synchronous at CL
-    // or reads are routed through Accord and read at quorum as long as the range has not completed the first phase (repair).
-    public ConsistencyLevel readCLForStrategy(ConsistencyLevel consistencyLevel)
+    private boolean ignoresSuppliedReadCL()
     {
-        if (ignoresSuppliedConsistencyLevel)
-            return null;
+        return writesThroughAccord && blockingReadRepairThroughAccord;
+    }
+
+    public ConsistencyLevel readCLForStrategy(TransactionalMigrationFromMode fromMode, ConsistencyLevel consistencyLevel, ClusterMetadata cm, TableId tableId, Token token)
+    {
+        if (ignoresSuppliedReadCL())
+        {
+            TableMigrationState tms = cm.consensusMigrationState.tableStates.get(tableId);
+            checkState(tms != null || fromMode == TransactionalMigrationFromMode.none);
+
+            // Only ignore the supplied consistency level if the token is not migrating
+            // otherwise honor it because we might read through Accord for non-SERIAL reads before repair is run
+            // this is OK to do because BRR still works and Accord isn't computing a write so recovery
+            // determinism isn't an issue
+            if (tms == null || Range.isInNormalizedRanges(token, tms.migratedRanges))
+                return null;
+        }
 
         if (!IAccordService.SUPPORTED_READ_CONSISTENCY_LEVELS.contains(consistencyLevel))
             throw new UnsupportedOperationException("Consistency level " + consistencyLevel + " is unsupported with Accord for read, supported are ONE, QUORUM, and SERIAL");
