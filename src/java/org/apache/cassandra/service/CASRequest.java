@@ -25,6 +25,7 @@ import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.service.paxos.Ballot;
+import org.apache.cassandra.tcm.ClusterMetadata;
 
 import static org.apache.cassandra.service.StorageProxy.ConsensusAttemptResult;
 
@@ -50,7 +51,7 @@ public interface CASRequest
      */
     PartitionUpdate makeUpdates(FilteredPartition current, ClientState clientState, Ballot ballot) throws InvalidRequestException;
 
-    Txn toAccordTxn(ConsistencyLevel consistencyLevel, ConsistencyLevel commitConsistencyLevel, ClientState clientState, long nowInSecs);
+    Txn toAccordTxn(ClusterMetadata cm, ConsistencyLevel consistencyLevel, ConsistencyLevel commitConsistencyLevel, ClientState clientState, long nowInSecs);
 
     ConsensusAttemptResult toCasResult(TxnResult txnResult);
 }
