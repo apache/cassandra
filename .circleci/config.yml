@@ -9477,15 +9477,18 @@ workflows:
   java11_separate_tests:
     jobs:
     - start_j11_build:
+        type: approval
     - j11_build:
         requires:
         - start_j11_build
     - start_j11_unit_tests:
+        type: approval
     - j11_unit_tests:
         requires:
         - start_j11_unit_tests
         - j11_build
     - start_j11_jvm_dtests:
+        type: approval
     - j11_jvm_dtests:
         requires:
         - start_j11_jvm_dtests
@@ -9515,11 +9518,13 @@ workflows:
         - start_j11_simulator_dtests
         - j11_build
     - start_j11_cqlshlib_tests:
+        type: approval
     - j11_cqlshlib_tests:
         requires:
         - start_j11_cqlshlib_tests
         - j11_build
     - start_j11_cqlshlib_cython_tests:
+        type: approval
     - j11_cqlshlib_cython_tests:
         requires:
         - start_j11_cqlshlib_cython_tests
@@ -9651,11 +9656,13 @@ workflows:
         - start_jvm_upgrade_dtests
         - j11_dtest_jars_build
     - start_j11_dtests:
+        type: approval
     - j11_dtests:
         requires:
         - start_j11_dtests
         - j11_build
     - start_j11_dtests_vnode:
+        type: approval
     - j11_dtests_vnode:
         requires:
         - start_j11_dtests_vnode
@@ -9685,11 +9692,13 @@ workflows:
         - start_j17_dtests_latest
         - j11_build
     - start_j11_dtests_large:
+        type: approval
     - j11_dtests_large:
         requires:
         - start_j11_dtests_large
         - j11_build
     - start_j11_dtests_large_vnode:
+        type: approval
     - j11_dtests_large_vnode:
         requires:
         - start_j11_dtests_large_vnode
@@ -9771,6 +9780,7 @@ workflows:
   java11_pre-commit_tests:
     jobs:
     - start_pre-commit_tests:
+        type: approval
     - j11_build:
         requires:
         - start_pre-commit_tests
@@ -9906,6 +9916,7 @@ workflows:
         requires:
         - j11_build
     - start_j11_dtests_large:
+        type: approval
     - j11_dtests_large:
         requires:
         - start_j11_dtests_large
