@@ -103,8 +103,8 @@ public class TlsTestUtils
         config.authenticator = new ParameterizedClass("MutualTlsWithPasswordFallbackAuthenticator", parameters);
         // Configure client encryption such that we can optionally connect with SSL.
         config.client_encryption_options = TlsTestUtils.getClientEncryptionOptions();
-        config.role_manager = "CassandraRoleManager";
-        config.authorizer = "CassandraAuthorizer";
+        config.role_manager = new ParameterizedClass("CassandraRoleManager");
+        config.authorizer = new ParameterizedClass("CassandraAuthorizer");
     }
 
     public static ISslContextFactory getClientSslContextFactory(boolean provideClientCert)

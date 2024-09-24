@@ -18,7 +18,7 @@
 
 package org.apache.cassandra.auth;
 
-import java.util.Arrays;
+import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,7 +27,6 @@ import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * Only purpose is to Initialize authentication/authorization via {@link #applyAuth()}.
@@ -49,14 +48,10 @@ public final class AuthConfig
 
         Config conf = DatabaseDescriptor.getRawConfig();
 
-        IAuthenticator authenticator = new AllowAllAuthenticator();
 
-        /* Authentication, authorization and role management backend, implementing IAuthenticator, IAuthorizer & IRoleMapper*/
-        if (conf.authenticator != null)
-        {
-            authenticator = ParameterizedClass.newInstance(conf.authenticator,
-                                                           Arrays.asList("", AuthConfig.class.getPackage().getName()));
-        }
+        /* Authentication, authorization and role management backend, implementing IAuthenticator, I*Authorizer & IRoleManager */
+
+        IAuthenticator authenticator = authInstantiate(conf.authenticator, AllowAllAuthenticator.class);
 
         // the configuration options regarding credentials caching are only guaranteed to
         // work with PasswordAuthenticator, so log a message if some other authenticator
@@ -75,10 +70,7 @@ public final class AuthConfig
 
         // authorizer
 
-        IAuthorizer authorizer = new AllowAllAuthorizer();
-
-        if (conf.authorizer != null)
-            authorizer = FBUtilities.newAuthorizer(conf.authorizer);
+        IAuthorizer authorizer = authInstantiate(conf.authorizer, AllowAllAuthorizer.class);
 
         if (!authenticator.requireAuthentication() && authorizer.requireAuthorization())
             throw new ConfigurationException(conf.authenticator.class_name + " can't be used with " + conf.authorizer, false);
@@ -87,11 +79,7 @@ public final class AuthConfig
 
         // role manager
 
-        IRoleManager roleManager;
-        if (conf.role_manager != null)
-            roleManager = FBUtilities.newRoleManager(conf.role_manager);
-        else
-            roleManager = new CassandraRoleManager();
+        IRoleManager roleManager = authInstantiate(conf.role_manager, CassandraRoleManager.class);
 
         if (authenticator instanceof PasswordAuthenticator && !(roleManager instanceof CassandraRoleManager))
             throw new ConfigurationException("CassandraRoleManager must be used with PasswordAuthenticator", false);
@@ -100,28 +88,31 @@ public final class AuthConfig
 
         // authenticator
 
-        if (conf.internode_authenticator != null)
-        {
-            DatabaseDescriptor.setInternodeAuthenticator(ParameterizedClass.newInstance(conf.internode_authenticator,
-                                                                                        Arrays.asList("", AuthConfig.class.getPackage().getName())));
-        }
-
+        IInternodeAuthenticator internodeAuthenticator = authInstantiate(conf.internode_authenticator,
+                                                                         AllowAllInternodeAuthenticator.class);
+        DatabaseDescriptor.setInternodeAuthenticator(internodeAuthenticator);
 
         // network authorizer
-        INetworkAuthorizer networkAuthorizer = FBUtilities.newNetworkAuthorizer(conf.network_authorizer);
-        DatabaseDescriptor.setNetworkAuthorizer(networkAuthorizer);
+
+        INetworkAuthorizer networkAuthorizer = authInstantiate(conf.network_authorizer, AllowAllNetworkAuthorizer.class);
+
         if (networkAuthorizer.requireAuthorization() && !authenticator.requireAuthentication())
         {
             throw new ConfigurationException(conf.network_authorizer + " can't be used with " + conf.authenticator.class_name, false);
         }
 
+        DatabaseDescriptor.setNetworkAuthorizer(networkAuthorizer);
+
         // cidr authorizer
-        ICIDRAuthorizer cidrAuthorizer = ICIDRAuthorizer.newCIDRAuthorizer(conf.cidr_authorizer);
-        DatabaseDescriptor.setCIDRAuthorizer(cidrAuthorizer);
+
+        ICIDRAuthorizer cidrAuthorizer = authInstantiate(conf.cidr_authorizer, AllowAllCIDRAuthorizer.class);
+
         if (cidrAuthorizer.requireAuthorization() && !authenticator.requireAuthentication())
         {
             throw new ConfigurationException(conf.cidr_authorizer + " can't be used with " + conf.authenticator, false);
         }
+
+        DatabaseDescriptor.setCIDRAuthorizer(cidrAuthorizer);
 
         // Validate at last to have authenticator, authorizer, role-manager and internode-auth setup
         // in case these rely on each other.
@@ -132,5 +123,22 @@ public final class AuthConfig
         networkAuthorizer.validateConfiguration();
         cidrAuthorizer.validateConfiguration();
         DatabaseDescriptor.getInternodeAuthenticator().validateConfiguration();
+    }
+
+    private static <T> T authInstantiate(ParameterizedClass authCls, Class<T> defaultCls) {
+        if (authCls != null && authCls.class_name != null)
+        {
+            String authPackage = AuthConfig.class.getPackage().getName();
+            return ParameterizedClass.newInstance(authCls, List.of("", authPackage));
+        }
+
+        try
+        {
+            return defaultCls.newInstance();
+        }
+        catch (InstantiationException | IllegalAccessException  e)
+        {
+            throw new ConfigurationException("Failed to instantiate " + defaultCls.getName(), e);
+        }
     }
 }
