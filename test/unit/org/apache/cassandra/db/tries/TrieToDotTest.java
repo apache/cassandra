@@ -36,6 +36,7 @@ public class TrieToDotTest
 
         System.out.println(trie.process(new TrieToDot(Object::toString,
                                                       x -> Character.toString((char) ((int) x)),
-                                                      true)));
+                                                      true),
+                           Direction.FORWARD));
     }
 }
