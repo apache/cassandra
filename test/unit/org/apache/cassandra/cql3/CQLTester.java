@@ -3052,7 +3052,7 @@ public abstract class CQLTester
             return SEED;
         }
 
-        protected static void setupSeed()
+        public static void setupSeed()
         {
             if (RANDOM != null) return;
             SEED = TEST_RANDOM_SEED.getLong(new DefaultRandom().nextLong());
@@ -3065,7 +3065,7 @@ public abstract class CQLTester
             RANDOM.setSeed(SEED);
         }
 
-        protected static void updateConfigs()
+        public static void updateConfigs()
         {
             if (CONFIG_GEN == null)
                 CONFIG_GEN = new ConfigGenBuilder().build();
