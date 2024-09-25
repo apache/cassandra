@@ -287,4 +287,23 @@ public class AccordJournal implements IJournal, Shutdownable
         }
     }
 
+    public
+    private static class AccordValueSerializer<K, V> implements org.apache.cassandra.journal.ValueSerializer<K, V>
+    {
+
+        public int serializedSize(K key, V value, int userVersion)
+        {
+            return 0;
+        }
+
+        public void serialize(K key, V value, DataOutputPlus out, int userVersion) throws IOException
+        {
+
+        }
+
+        public V deserialize(K key, DataInputPlus in, int userVersion) throws IOException
+        {
+            return null;
+        }
+    }
 }

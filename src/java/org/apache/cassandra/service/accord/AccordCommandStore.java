@@ -95,6 +95,9 @@ import org.apache.cassandra.service.accord.async.AsyncOperation;
 import org.apache.cassandra.service.accord.events.CacheEvents;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
+import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.FutureCombiner;
+import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import org.apache.cassandra.utils.concurrent.Promise;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
@@ -103,6 +106,7 @@ import static accord.local.Status.Applied;
 import static accord.local.Status.Invalidated;
 import static accord.local.Status.Stable;
 import static accord.local.Status.Truncated;
+import static accord.utils.Invariants.checkState;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 
 public class AccordCommandStore extends CommandStore implements CacheSize
@@ -110,7 +114,7 @@ public class AccordCommandStore extends CommandStore implements CacheSize
     private static final Logger logger = LoggerFactory.getLogger(AccordCommandStore.class);
     private static final boolean CHECK_THREADS = CassandraRelevantProperties.TEST_ACCORD_STORE_THREAD_CHECKS_ENABLED.getBoolean();
 
-    private static final FieldPersister<RedundantBefore> redundantBeforePersister = new FieldPersister<RedundantBefore>()
+    private static final FieldPersister<RedundantBefore> redundantBeforePersister = new FieldPersister<>()
     {
         @Override
         public AsyncResult<?> persist(CommandStore store, Timestamp gcBefore, Ranges ranges, RedundantBefore redundantBefore)
@@ -325,10 +329,12 @@ public class AccordCommandStore extends CommandStore implements CacheSize
         return commandsForRangesLoader;
     }
 
-    public void markShardDurable(SafeCommandStore safeStore, TxnId globalSyncId, Ranges ranges)
+    public AsyncChain<Void> markShardDurable(SafeCommandStore safeStore, TxnId globalSyncId, Ranges ranges)
     {
-        store.snapshot();
-        super.markShardDurable(safeStore, globalSyncId, ranges);
+        return super.markShardDurable(safeStore, globalSyncId, ranges).flatMap(unused -> {
+            store.snapshot();
+            return null;
+        });
     }
 
     @Override
@@ -366,14 +372,14 @@ public class AccordCommandStore extends CommandStore implements CacheSize
 
     public void checkInStoreThread()
     {
-        Invariants.checkState(inStore());
+        checkState(inStore());
     }
 
     public void checkNotInStoreThread()
     {
         if (!CHECK_THREADS)
             return;
-        Invariants.checkState(!inStore());
+        checkState(!inStore());
     }
 
     public ExecutorService executor()
@@ -486,19 +492,19 @@ public class AccordCommandStore extends CommandStore implements CacheSize
 
     public void setCurrentOperation(AsyncOperation<?> operation)
     {
-        Invariants.checkState(currentOperation == null);
+        checkState(currentOperation == null);
         currentOperation = operation;
     }
 
     public AsyncOperation<?> getContext()
     {
-        Invariants.checkState(currentOperation != null);
+        checkState(currentOperation != null);
         return currentOperation;
     }
 
     public void unsetCurrentOperation(AsyncOperation<?> operation)
     {
-        Invariants.checkState(currentOperation == operation);
+        checkState(currentOperation == operation);
         currentOperation = null;
     }
 
@@ -562,7 +568,7 @@ public class AccordCommandStore extends CommandStore implements CacheSize
                                                  NavigableMap<Key, AccordSafeCommandsForKey> commandsForKeys,
                                                  @Nullable AccordSafeCommandsForRanges commandsForRanges)
     {
-        Invariants.checkState(current == null);
+        checkState(current == null);
         commands.values().forEach(AccordSafeState::preExecute);
         commandsForKeys.values().forEach(AccordSafeState::preExecute);
         timestampsForKeys.values().forEach(AccordSafeState::preExecute);
@@ -580,7 +586,7 @@ public class AccordCommandStore extends CommandStore implements CacheSize
 
     public void completeOperation(AccordSafeCommandStore store)
     {
-        Invariants.checkState(current == store);
+        checkState(current == store);
         try
         {
             current.postExecute();
@@ -672,8 +678,8 @@ public class AccordCommandStore extends CommandStore implements CacheSize
 
     public Future<?> prepareForGC(@Nonnull Timestamp gcBefore, @Nonnull Ranges ranges)
     {
-        checkNotNull(gcBefore, "gcBefore should not be null");
-        checkNotNull(ranges, "ranges should not be null");
+        Invariants.nonNull(gcBefore, "gcBefore should not be null");
+        Invariants.nonNull(ranges, "ranges should not be null");
         ListMultimap<TableId, org.apache.cassandra.dht.Range<Token>> toPrepare = ArrayListMultimap.create();
         for (Range r : ranges)
         {

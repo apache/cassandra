@@ -28,6 +28,7 @@ import accord.primitives.Timestamp;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.journal.KeySupport;
+import org.apache.cassandra.journal.ValueSerializer;
 import org.apache.cassandra.utils.ByteArrayUtil;
 
 import static org.apache.cassandra.db.TypeSizes.INT_SIZE;
@@ -36,6 +37,7 @@ import static org.apache.cassandra.db.TypeSizes.SHORT_SIZE;
 
 public final class JournalKey
 {
+    final AccordJournal.Type type;
     public final Timestamp timestamp;
     // TODO: command store id _before_ timestamp
     public final int commandStoreId;
@@ -229,4 +231,39 @@ public final class JournalKey
                ", commandStoreId=" + commandStoreId +
                '}';
     }
+
+    public enum Type implements ValueSerializer<JournalKey, Object>
+    {
+        COMMAND_DIFF                 (1, new NoOpSerializer()),
+        ;
+
+        final int id;
+        final ValueSerializer<JournalKey, Object> serializer;
+
+        Type(int id, ValueSerializer<JournalKey, Object> serializer)
+        {
+            this.id = id;
+            this.serializer = serializer;
+        }
+        // TODO: merger
+    }
+
+    private static class NoOpSerializer implements ValueSerializer<JournalKey, Object>
+    {
+            public int serializedSize(JournalKey key, Object value, int userVersion)
+            {
+                throw new UnsupportedOperationException();
+            }
+
+            public void serialize(JournalKey key, Object value, DataOutputPlus out, int userVersion)
+            {
+                throw new UnsupportedOperationException();
+            }
+
+            public Object deserialize(JournalKey key, DataInputPlus in, int userVersion)
+            {
+                throw new UnsupportedOperationException();
+            }
+        }
+
 }
