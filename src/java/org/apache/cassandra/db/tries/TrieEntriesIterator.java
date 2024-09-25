@@ -33,9 +33,9 @@ public abstract class TrieEntriesIterator<T, V> extends TriePathReconstructor im
     T next;
     boolean gotNext;
 
-    protected TrieEntriesIterator(Trie<T> trie)
+    protected TrieEntriesIterator(Trie<T> trie, Direction direction)
     {
-        cursor = trie.cursor();
+        cursor = trie.cursor(direction);
         assert cursor.depth() == 0;
         next = cursor.content();
         gotNext = next != null;
@@ -67,9 +67,9 @@ public abstract class TrieEntriesIterator<T, V> extends TriePathReconstructor im
      */
     static class AsEntries<T> extends TrieEntriesIterator<T, Map.Entry<ByteComparable, T>>
     {
-        public AsEntries(Trie<T> trie)
+        public AsEntries(Trie<T> trie, Direction direction)
         {
-            super(trie);
+            super(trie, direction);
         }
 
         @Override
