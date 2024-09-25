@@ -114,12 +114,11 @@ CREATE TABLE reservation.guests (
   first_name text,
   last_name text,
   title text,
-  emails set,
-  phone_numbers list,
-  addresses map<text,
-  frozen<address>,
-  confirm_number text )
-  WITH comment = 'Q9. Find guest by ID';
+  emails set<text>,
+  phone_numbers list<text>,
+  addresses map<text, frozen<address>>,
+  confirm_number text
+) WITH comment = 'Q9. Find guest by ID';
 ----
 
 You now have a complete Cassandra schema for storing data for a hotel
