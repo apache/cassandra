@@ -351,11 +351,6 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         return operations.staticOperations();
     }
 
-    public Iterable<Operation> allOperations()
-    {
-        return operations;
-    }
-
     public Iterable<ColumnMetadata> getColumnsWithConditions()
     {
          return conditions.getColumns();

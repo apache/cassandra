@@ -18,11 +18,17 @@
 
 package org.apache.cassandra.fuzz.topology;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
-
 import javax.annotation.Nullable;
+
+import com.google.common.base.Throwables;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import accord.utils.Gen;
 import accord.utils.Property;
@@ -32,16 +38,30 @@ import accord.utils.Property.SimpleCommand;
 import accord.utils.RandomSource;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
-import org.apache.cassandra.harry.HarryHelper;
+import org.apache.cassandra.exceptions.RequestTimeoutException;
+import org.apache.cassandra.harry.SchemaSpec;
+import org.apache.cassandra.harry.dsl.HistoryBuilder;
 import org.apache.cassandra.harry.dsl.ReplayingHistoryBuilder;
-import org.apache.cassandra.harry.sut.SystemUnderTest;
-import org.apache.cassandra.harry.sut.TokenPlacementModel;
-import org.apache.cassandra.harry.sut.injvm.InJvmSut;
+import org.apache.cassandra.harry.execution.InJvmDTestVisitExecutor;
+import org.apache.cassandra.harry.gen.EntropySource;
+import org.apache.cassandra.harry.gen.Generator;
+import org.apache.cassandra.harry.gen.Generators;
+import org.apache.cassandra.harry.gen.SchemaGenerators;
+import org.apache.cassandra.harry.gen.rng.JdkRandomEntropySource;
+import org.apache.cassandra.utils.AssertionUtils;
+import org.assertj.core.api.Condition;
 
 import static org.apache.cassandra.distributed.shared.ClusterUtils.waitForCMSToQuiesce;
 
 public class HarryTopologyMixupTest extends TopologyMixupTestBase<HarryTopologyMixupTest.Spec>
 {
+    protected static final Condition<Object> TIMEOUT_CHECKER = AssertionUtils.isInstanceof(RequestTimeoutException.class);
+    private static final Logger logger = LoggerFactory.getLogger(HarryTopologyMixupTest.class);
+
+    public HarryTopologyMixupTest()
+    {
+    }
+
     @Override
     protected Gen<State<Spec>> stateGen()
     {
@@ -61,48 +81,72 @@ public class HarryTopologyMixupTest extends TopologyMixupTestBase<HarryTopologyM
         if (cause != null) return;
         if (((HarryState) state).numInserts > 0)
         {
-            // do one last read just to make sure we validate the data...
-            var harry = state.schemaSpec.harry;
-            harry.validateAll(harry.quiescentLocalChecker());
+            for (Integer pkIdx : state.schema.pkGen.generated())
+                state.schema.harry.selectPartition(pkIdx);
         }
     }
 
-    private static Spec createSchemaSpec(RandomSource rs, Cluster cluster)
+    private static BiFunction<RandomSource, Cluster, Spec> createSchemaSpec()
     {
-        ReplayingHistoryBuilder harry = HarryHelper.dataGen(rs.nextLong(),
-                                                            new InJvmSut(cluster),
-                                                            new TokenPlacementModel.SimpleReplicationFactor(3),
-                                                            SystemUnderTest.ConsistencyLevel.ALL);
-        cluster.schemaChange(String.format("CREATE KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor' : 3};", HarryHelper.KEYSPACE));
-        var schema = harry.schema();
-        cluster.schemaChange(schema.compile().cql());
-        waitForCMSToQuiesce(cluster, cluster.get(1));
-        return new Spec(harry);
+        return (rs, cluster) -> {
+            EntropySource rng = new JdkRandomEntropySource(rs.nextLong());
+            Generator<SchemaSpec> schemaGen = SchemaGenerators.schemaSpecGen("harry", "table", 1000);;
+            SchemaSpec schema = schemaGen.generate(rng);
+
+            HistoryBuilder harry = new ReplayingHistoryBuilder(schema.valueGenerators,
+                    hb -> {
+                        InJvmDTestVisitExecutor.Builder builder = InJvmDTestVisitExecutor.builder();
+                        return builder.nodeSelector(new InJvmDTestVisitExecutor.NodeSelector()
+                                {
+                                    private final AtomicLong cnt = new AtomicLong();
+
+                                    @Override
+                                    public int select(long lts)
+                                    {
+                                        for (int i = 0; i < 42; i++)
+                                        {
+                                            int selected = (int) (cnt.getAndIncrement() % cluster.size() + 1);
+                                            if (!cluster.get(selected).isShutdown())
+                                                return selected;
+                                        }
+                                        throw new IllegalStateException("Unable to find an alive instance");
+                                    }
+                                })
+                                .retryPolicy(t -> {
+                                    t = Throwables.getRootCause(t);
+                                    if (!TIMEOUT_CHECKER.matches(t))
+                                        return false;
+                                    return false;
+                                })
+                                .build(schema, hb, cluster);
+                    });
+            cluster.schemaChange(String.format("CREATE KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor' : 3};", schema.keyspace));
+            cluster.schemaChange(schema.compile());
+            waitForCMSToQuiesce(cluster, cluster.get(1));
+            return new Spec(harry, schema);
+        };
     }
 
-    private static BiFunction<RandomSource, State<Spec>, Command<State<Spec>, Void, ?>> cqlOperations(Spec spec)
+    private static class HarryCommand extends SimpleCommand<State<Spec>>
     {
-        class HarryCommand extends SimpleCommand<State<Spec>>
+        HarryCommand(Function<State<Spec>, String> name, Consumer<State<Spec>> fn)
         {
-            HarryCommand(Function<State<Spec>, String> name, Consumer<State<Spec>> fn)
-            {
-                super(name, fn);
-            }
-
-            @Override
-            public PreCheckResult checkPreconditions(State<Spec> state)
-            {
-                int clusterSize = state.topologyHistory.up().length;
-                return clusterSize >= 3 ? PreCheckResult.Ok : PreCheckResult.Ignore;
-            }
+            super(name, fn);
         }
+
+        @Override
+        public PreCheckResult checkPreconditions(State<Spec> state)
+        {
+            int clusterSize = state.topologyHistory.up().length;
+            return clusterSize >= 3 ? PreCheckResult.Ok : PreCheckResult.Ignore;
+        }
+    }
+
+    private static CommandGen<Spec> cqlOperations(Spec spec)
+    {
         Command<State<Spec>, Void, ?> insert = new HarryCommand(state -> "Harry Insert" + state.commandNamePostfix(), state -> {
             spec.harry.insert();
             ((HarryState) state).numInserts++;
-        });
-        Command<State<Spec>, Void, ?> validateAll = new HarryCommand(state -> "Harry Validate All" + state.commandNamePostfix(), state -> {
-            spec.harry.validateAll(spec.harry.quiescentLocalChecker());
-            ((HarryState) state).numInserts = 0;
         });
         return (rs, state) -> {
             HarryState harryState = (HarryState) state;
@@ -111,43 +155,68 @@ public class HarryTopologyMixupTest extends TopologyMixupTestBase<HarryTopologyM
             if (harryState.generation != history.generation())
             {
                 harryState.generation = history.generation();
-                return validateAll;
+                return validateAll(state);
             }
             if ((harryState.numInserts > 0 && rs.decide(0.2))) // 20% of the time do reads
-                return validateAll;
+                return validateAll(state);
             return insert;
         };
     }
 
-    public static class Spec implements TopologyMixupTestBase.SchemaSpec
+    private static Command<State<Spec>, Void, ?> validateAll(State<Spec> state)
     {
-        private final ReplayingHistoryBuilder harry;
+        Spec spec = state.schema;
+        List<Command<State<Spec>, Void, ?>> reads = new ArrayList<>();
 
-        public Spec(ReplayingHistoryBuilder harry)
+        for (Integer pkIdx : spec.pkGen.generated())
+        {
+            long pd = spec.harry.valueGenerators().pkGen().descriptorAt(pkIdx);
+            reads.add(new HarryCommand(s -> String.format("Harry Validate pd=%d%s", pd, state.commandNamePostfix()), s -> spec.harry.selectPartition(pkIdx)));
+        }
+        reads.add(new HarryCommand(s -> "Reset Harry Write State" + state.commandNamePostfix(), s -> ((HarryState) s).numInserts = 0));
+        return Property.multistep(reads);
+    }
+
+    public static class Spec implements Schema
+    {
+        private final Generators.TrackingGenerator<Integer> pkGen;
+        private final HistoryBuilder harry;
+        private final SchemaSpec schema;
+
+        public Spec(HistoryBuilder harry, SchemaSpec schema)
         {
             this.harry = harry;
+            this.schema = schema;
+            this.pkGen = Generators.tracking(Generators.int32(0, schema.valueGenerators.pkPopulation()));
         }
 
         @Override
-        public String name()
+        public String table()
         {
-            return harry.schema().table;
+            return schema.table;
         }
 
         @Override
-        public String keyspaceName()
+        public String keyspace()
         {
-            return HarryHelper.KEYSPACE;
+            return schema.keyspace;
+        }
+
+        @Override
+        public String createSchema()
+        {
+            return schema.compile();
         }
     }
 
-    public static class HarryState extends State<Spec>
+    public class HarryState extends State<Spec>
     {
         private long generation;
         private int numInserts = 0;
+
         public HarryState(RandomSource rs)
         {
-            super(rs, HarryTopologyMixupTest::createSchemaSpec, HarryTopologyMixupTest::cqlOperations);
+            super(rs, createSchemaSpec(), HarryTopologyMixupTest::cqlOperations);
         }
 
         @Override

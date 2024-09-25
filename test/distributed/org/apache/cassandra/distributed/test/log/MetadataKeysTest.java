@@ -33,7 +33,7 @@ import org.apache.cassandra.harry.gen.EntropySource;
 import org.apache.cassandra.harry.gen.Generator;
 import org.apache.cassandra.harry.gen.Generators;
 import org.apache.cassandra.harry.gen.rng.JdkRandomEntropySource;
-import org.apache.cassandra.harry.sut.TokenPlacementModel;
+import org.apache.cassandra.harry.model.TokenPlacementModel;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.tcm.AtomicLongBackedProcessor;
 import org.apache.cassandra.tcm.ClusterMetadata;

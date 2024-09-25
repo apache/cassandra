@@ -43,7 +43,7 @@ import org.apache.cassandra.harry.gen.Surjections;
 import org.apache.cassandra.harry.gen.rng.PCGFastPure;
 import org.apache.cassandra.harry.gen.rng.PcgRSUFast;
 import org.apache.cassandra.harry.gen.rng.RngUtils;
-import org.apache.cassandra.harry.sut.TokenPlacementModel;
+import org.apache.cassandra.harry.model.TokenPlacementModel;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.net.ConnectionType;
