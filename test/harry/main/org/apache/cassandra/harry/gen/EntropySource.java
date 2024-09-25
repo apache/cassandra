@@ -42,6 +42,7 @@ public interface EntropySource
     int nextInt(int max);
     int nextInt(int min, int max);
     float nextFloat();
+    double nextDouble();
 
     /**
      * Code is adopted from a similar method in JDK 17, and has to be removed as soon as we migrate to JDK 17.

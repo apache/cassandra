@@ -29,7 +29,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 
 import static org.apache.cassandra.distributed.test.log.MetadataChangeSimulationTest.simulate;
-import static org.apache.cassandra.harry.sut.TokenPlacementModel.SimpleReplicationFactor;
+import static org.apache.cassandra.harry.model.TokenPlacementModel.SimpleReplicationFactor;
 
 public class SimpleStrategySimulationTest extends CMSTestBase
 {

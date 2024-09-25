@@ -24,7 +24,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
-import org.apache.cassandra.harry.sut.TokenPlacementModel;
+import org.apache.cassandra.harry.model.TokenPlacementModel;
 import org.apache.cassandra.locator.MetaStrategy;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.KeyspaceMetadata;

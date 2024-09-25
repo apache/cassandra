@@ -19,6 +19,7 @@
 package accord.utils;
 
 import accord.utils.async.TimeoutUtils;
+import org.agrona.collections.LongArrayList;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -32,6 +33,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -212,9 +214,21 @@ public class Property
         String stateStr = state == null ? null : state.toString().replace("\n", "\n\t\t");
         sb.append("\tState: ").append(stateStr).append(": ").append(state == null ? "unknown type" : state.getClass().getCanonicalName()).append('\n');
         sb.append("\tHistory:").append('\n');
+        addList(sb, "\t\t", history);
+        return sb.toString();
+    }
+
+    private static void addList(StringBuilder sb, String prefix, List<String> list)
+    {
         int idx = 0;
-        for (var event : history)
-            sb.append("\t\t").append(++idx).append(": ").append(event).append('\n');
+        for (var event : list)
+            sb.append(prefix).append(++idx).append(": ").append(event).append('\n');
+    }
+
+    public static String formatList(String prefix, List<String> list)
+    {
+        StringBuilder sb = new StringBuilder();
+        addList(sb, prefix, list);
         return sb.toString();
     }
 
@@ -432,6 +446,7 @@ public class Property
             {
                 State state = null;
                 List<String> history = new ArrayList<>(steps);
+                LongArrayList historyTiming = stepTimeout == null ? null : new LongArrayList();
                 try
                 {
                     checkInterrupted();
@@ -456,17 +471,18 @@ public class Property
                                 for (Command<State, SystemUnderTest, ?> sub : ((MultistepCommand<State, SystemUnderTest>) cmd))
                                 {
                                     history.add(sub.detailed(state));
-                                    process(sub, state, sut, history.size());
+                                    process(sub, state, sut, history.size(), historyTiming);
                                 }
                             }
                             else
                             {
                                 history.add(cmd.detailed(state));
-                                process(cmd, state, sut, history.size());
+                                process(cmd, state, sut, history.size(), historyTiming);
                             }
                         }
                         commands.destroySut(sut, null);
                         commands.destroyState(state, null);
+                        commands.onSuccess(state, sut, maybeRewriteHistory(history, historyTiming));
                     }
                     catch (Throwable t)
                     {
@@ -484,7 +500,8 @@ public class Property
                 }
                 catch (Throwable t)
                 {
-                    throw new PropertyError(statefulPropertyError(this, t, state, history), t);
+
+                    throw new PropertyError(statefulPropertyError(this, t, state, maybeRewriteHistory(history, historyTiming)), t);
                 }
                 if (pure)
                 {
@@ -494,14 +511,35 @@ public class Property
             }
         }
 
-        private <State, SystemUnderTest> void process(Command cmd, State state, SystemUnderTest sut, int id) throws Throwable
+        private static List<String> maybeRewriteHistory(List<String> history, @Nullable LongArrayList historyTiming)
+        {
+            if (historyTiming == null) return history;
+            List<String> newHistory = new ArrayList<>(history.size());
+            for (int i = 0; i < history.size(); i++)
+            {
+                String step = history.get(i);
+                long timeNanos = historyTiming.getLong(i);
+                newHistory.add(step + ";\tDuration " + Duration.ofNanos(timeNanos));
+            }
+            return newHistory;
+        }
+
+        private <State, SystemUnderTest> void process(Command cmd, State state, SystemUnderTest sut, int id, @Nullable LongArrayList stepTiming) throws Throwable
         {
             if (stepTimeout == null)
             {
                 cmd.process(state, sut);
                 return;
             }
-            TimeoutUtils.runBlocking(stepTimeout, "Stateful Step " + id, () -> cmd.process(state, sut));
+            long startNanos = System.nanoTime();
+            try
+            {
+                TimeoutUtils.runBlocking(stepTimeout, "Stateful Step " + id + ": " + cmd.detailed(state), () -> cmd.process(state, sut));
+            }
+            finally
+            {
+                stepTiming.add(System.nanoTime() - startNanos);
+            }
         }
     }
 
@@ -517,7 +555,59 @@ public class Property
         default void process(State state, SystemUnderTest sut) throws Throwable
         {
             checkPostconditions(state, apply(state),
-                                sut, run(sut));
+                    sut, run(sut));
+        }
+    }
+
+    public static class ForwardingCommand<State, SystemUnderTest, Result> implements Command<State, SystemUnderTest, Result>
+    {
+        private final Command<State, SystemUnderTest, Result> delegate;
+
+        public ForwardingCommand(Command<State, SystemUnderTest, Result> delegate)
+        {
+            this.delegate = delegate;
+        }
+
+        protected Command<State, SystemUnderTest, Result> delegate()
+        {
+            return delegate;
+        }
+
+        @Override
+        public PreCheckResult checkPreconditions(State state)
+        {
+            return delegate().checkPreconditions(state);
+        }
+
+        @Override
+        public Result apply(State state) throws Throwable
+        {
+            return delegate().apply(state);
+        }
+
+        @Override
+        public Result run(SystemUnderTest sut) throws Throwable
+        {
+            return delegate().run(sut);
+        }
+
+        @Override
+        public void checkPostconditions(State state, Result expected, SystemUnderTest sut, Result actual) throws Throwable
+        {
+            delegate().checkPostconditions(state, expected, sut, actual);
+        }
+
+        @Override
+        public String detailed(State state)
+        {
+            return delegate().detailed(state);
+        }
+
+        @Override
+        public void process(State state, SystemUnderTest sut) throws Throwable
+        {
+            // don't call delegate here else the process function calls the delegate and not this class
+            Command.super.process(state, sut);
         }
     }
 
@@ -682,6 +772,7 @@ public class Property
     {
         Gen<State> genInitialState() throws Throwable;
         SystemUnderTest createSut(State state) throws Throwable;
+        default void onSuccess(State state, SystemUnderTest sut, List<String> history) throws Throwable {}
         default void destroyState(State state, @Nullable Throwable cause) throws Throwable {}
         default void destroySut(SystemUnderTest sut, @Nullable Throwable cause) throws Throwable {}
         Gen<Command<State, SystemUnderTest, ?>> commands(State state) throws Throwable;
@@ -697,6 +788,11 @@ public class Property
         return new CommandsBuilder<>(stateGen, ignore -> null);
     }
 
+    public interface StatefulSuccess<State, SystemUnderTest>
+    {
+        void apply(State state, SystemUnderTest sut, List<String> history) throws Throwable;
+    }
+
     public static class CommandsBuilder<State, SystemUnderTest>
     {
         public interface Setup<State, SystemUnderTest>
@@ -708,6 +804,8 @@ public class Property
         private final Map<Setup<State, SystemUnderTest>, Integer> knownWeights = new LinkedHashMap<>();
         @Nullable
         private Set<Setup<State, SystemUnderTest>> unknownWeights = null;
+        @Nullable
+        private Map<Predicate<State>, List<Setup<State, SystemUnderTest>>> conditionalCommands = null;
         private Gen.IntGen unknownWeightGen = Gens.ints().between(1, 10);
         @Nullable
         private FailingConsumer<State> preCommands = null;
@@ -715,6 +813,9 @@ public class Property
         private FailingBiConsumer<State, Throwable> destroyState = null;
         @Nullable
         private FailingBiConsumer<SystemUnderTest, Throwable> destroySut = null;
+        @Nullable
+        private BiFunction<State, Gen<Command<State, SystemUnderTest, ?>>, Gen<Command<State, SystemUnderTest, ?>>> commandsTransformer = null;
+        private final List<StatefulSuccess<State, SystemUnderTest>> onSuccess = new ArrayList<>();
 
         public CommandsBuilder(Supplier<Gen<State>> stateGen, Function<State, SystemUnderTest> sutFactory)
         {
@@ -792,18 +893,15 @@ public class Property
 
         public CommandsBuilder<State, SystemUnderTest> addIf(Predicate<State> predicate, Gen<Command<State, SystemUnderTest, ?>> cmd)
         {
-            return add((rs, state) -> {
-                if (!predicate.test(state)) return ignoreCommand();
-                return cmd.next(rs);
-            });
+            return addIf(predicate, (rs, state) -> cmd.next(rs));
         }
 
         public CommandsBuilder<State, SystemUnderTest> addIf(Predicate<State> predicate, Setup<State, SystemUnderTest> cmd)
         {
-            return add((rs, state) -> {
-                if (!predicate.test(state)) return ignoreCommand();
-                return cmd.setup(rs, state);
-            });
+            if (conditionalCommands == null)
+                conditionalCommands = new LinkedHashMap<>();
+            conditionalCommands.computeIfAbsent(predicate, i -> new ArrayList<>()).add(cmd);
+            return this;
         }
 
         public CommandsBuilder<State, SystemUnderTest> addAllIf(Predicate<State> predicate, Consumer<IfBuilder<State, SystemUnderTest>> sub)
@@ -816,6 +914,12 @@ public class Property
                     CommandsBuilder.this.addIf(predicate, cmd);
                     return this;
                 }
+
+                @Override
+                public IfBuilder<State, SystemUnderTest> addIf(Predicate<State> nextPredicate, Setup<State, SystemUnderTest> cmd) {
+                    CommandsBuilder.this.addIf(predicate.and(nextPredicate), cmd);
+                    return this;
+                }
             });
             return this;
         }
@@ -823,6 +927,7 @@ public class Property
         public interface IfBuilder<State, SystemUnderTest>
         {
             IfBuilder<State, SystemUnderTest> add(Setup<State, SystemUnderTest> cmd);
+            IfBuilder<State, SystemUnderTest> addIf(Predicate<State> predicate, Setup<State, SystemUnderTest> cmd);
         }
 
         public CommandsBuilder<State, SystemUnderTest> unknownWeight(Gen.IntGen unknownWeightGen)
@@ -831,10 +936,22 @@ public class Property
             return this;
         }
 
+        public CommandsBuilder<State, SystemUnderTest> commandsTransformer(BiFunction<State, Gen<Command<State, SystemUnderTest, ?>>, Gen<Command<State, SystemUnderTest, ?>>> commandsTransformer)
+        {
+            this.commandsTransformer = commandsTransformer;
+            return this;
+        }
+
+        public CommandsBuilder<State, SystemUnderTest> onSuccess(StatefulSuccess<State, SystemUnderTest> fn)
+        {
+            onSuccess.add(fn);
+            return this;
+        }
+
         public Commands<State, SystemUnderTest> build()
         {
             Gen<Setup<State, SystemUnderTest>> commandsGen;
-            if (unknownWeights == null)
+            if (unknownWeights == null && conditionalCommands == null)
             {
                 commandsGen = Gens.pick(new LinkedHashMap<>(knownWeights));
             }
@@ -842,25 +959,52 @@ public class Property
             {
                 class DynamicWeightsGen implements Gen<Setup<State, SystemUnderTest>>, Gens.Reset
                 {
-                    Gen<Setup<State, SystemUnderTest>> gen;
+                    LinkedHashMap<Setup<State, SystemUnderTest>, Integer> weights;
+                    LinkedHashMap<Setup<State, SystemUnderTest>, Integer> conditionalWeights;
+                    Gen<Setup<State, SystemUnderTest>> nonConditional;
                     @Override
                     public Setup<State, SystemUnderTest> next(RandomSource rs)
                     {
-                        if (gen == null)
+                        if (weights == null)
                         {
                             // create random weights
-                            LinkedHashMap<Setup<State, SystemUnderTest>, Integer> clone = new LinkedHashMap<>(knownWeights);
-                            for (Setup<State, SystemUnderTest> s : unknownWeights)
-                                clone.put(s, unknownWeightGen.nextInt(rs));
-                            gen = Gens.pick(clone);
+                            weights = new LinkedHashMap<>(knownWeights);
+                            if (unknownWeights != null)
+                            {
+                                for (Setup<State, SystemUnderTest> s : unknownWeights)
+                                    weights.put(s, unknownWeightGen.nextInt(rs));
+                            }
+                            nonConditional = Gens.pick(weights);
+                            if (conditionalCommands != null)
+                            {
+                                conditionalWeights = new LinkedHashMap<>();
+                                for (List<Setup<State, SystemUnderTest>> commands : conditionalCommands.values())
+                                {
+                                    for (Setup<State, SystemUnderTest> c : commands)
+                                        conditionalWeights.put(c, unknownWeightGen.nextInt(rs));
+                                }
+                            }
                         }
-                        return gen.next(rs);
+                        if (conditionalWeights == null) return nonConditional.next(rs);
+                        return (r, s) -> {
+                            // need to figure out what conditions apply...
+                            LinkedHashMap<Setup<State, SystemUnderTest>, Integer> clone = new LinkedHashMap<>(weights);
+                            for (Map.Entry<Predicate<State>, List<Setup<State, SystemUnderTest>>> e : conditionalCommands.entrySet())
+                            {
+                                if (e.getKey().test(s))
+                                    e.getValue().forEach(c -> clone.put(c, conditionalWeights.get(c)));
+                            }
+                            Setup<State, SystemUnderTest> select = Gens.pick(clone).next(r);
+                            return select.setup(r, s);
+                        };
                     }
 
                     @Override
                     public void reset()
                     {
-                        gen = null;
+                        weights = null;
+                        nonConditional = null;
+                        conditionalWeights = null;
                     }
                 }
                 commandsGen = new DynamicWeightsGen();
@@ -884,7 +1028,8 @@ public class Property
                 {
                     if (preCommands != null)
                         preCommands.accept(state);
-                    return commandsGen.map((rs, setup) -> setup.setup(rs, state));
+                    Gen<Command<State, SystemUnderTest, ?>> map = commandsGen.map((rs, setup) -> setup.setup(rs, state));
+                    return commandsTransformer == null ? map : commandsTransformer.apply(state, map);
                 }
 
                 @Override
@@ -900,6 +1045,13 @@ public class Property
                 {
                     if (destroySut != null)
                         destroySut.accept(sut, cause);
+                }
+
+                @Override
+                public void onSuccess(State state, SystemUnderTest sut, List<String> history) throws Throwable
+                {
+                    for (var fn : onSuccess)
+                        fn.apply(state, sut, history);
                 }
             };
         }

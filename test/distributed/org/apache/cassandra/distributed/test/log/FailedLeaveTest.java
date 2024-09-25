@@ -22,46 +22,43 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 
 import org.junit.Assert;
 import org.junit.Test;
 
-import org.apache.cassandra.harry.core.Configuration;
-import org.apache.cassandra.harry.core.Run;
-import org.apache.cassandra.harry.sut.SystemUnderTest;
-import org.apache.cassandra.harry.sut.TokenPlacementModel;
-import org.apache.cassandra.harry.sut.injvm.InJVMTokenAwareVisitExecutor;
-import org.apache.cassandra.harry.sut.injvm.InJvmSut;
-import org.apache.cassandra.harry.sut.injvm.QuiescentLocalStateChecker;
-import org.apache.cassandra.harry.visitors.GeneratingVisitor;
-import org.apache.cassandra.harry.visitors.MutatingRowVisitor;
-import org.apache.cassandra.harry.visitors.Visitor;
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
 import net.bytebuddy.implementation.bind.annotation.SuperCall;
 import org.apache.cassandra.distributed.Cluster;
-import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
-import org.apache.cassandra.harry.HarryHelper;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.shared.ClusterUtils.SerializableBiPredicate;
+import org.apache.cassandra.harry.SchemaSpec;
+import org.apache.cassandra.harry.dsl.HistoryBuilder;
+import org.apache.cassandra.harry.dsl.ReplayingHistoryBuilder;
+import org.apache.cassandra.harry.execution.InJvmDTestVisitExecutor;
+import org.apache.cassandra.harry.gen.Generator;
+import org.apache.cassandra.harry.gen.Generators;
+import org.apache.cassandra.harry.gen.SchemaGenerators;
+import org.apache.cassandra.streaming.IncomingStream;
+import org.apache.cassandra.streaming.StreamReceiveTask;
 import org.apache.cassandra.tcm.Commit;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.transformations.CancelInProgressSequence;
 import org.apache.cassandra.tcm.transformations.PrepareLeave;
-import org.apache.cassandra.streaming.IncomingStream;
-import org.apache.cassandra.streaming.StreamReceiveTask;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.cancelInProgressSequences;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.decommission;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.getClusterMetadataVersion;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.getSequenceAfterCommit;
+import static org.apache.cassandra.harry.checker.TestHelper.withRandom;
 
 public class FailedLeaveTest extends FuzzTestBase
 {
@@ -89,7 +86,7 @@ public class FailedLeaveTest extends FuzzTestBase
                                  SerializableBiPredicate<Transformation, Commit.Result> actionCommitted)
     throws Exception
     {
-        ExecutorService es = Executors.newSingleThreadExecutor();
+        Generator<SchemaSpec> schemaGen = SchemaGenerators.schemaSpecGen(KEYSPACE, "failed_leave_test", 1000);
         try (Cluster cluster = builder().withNodes(3)
                                         .withInstanceInitializer(BB::install)
                                         .appendConfig(c -> c.with(Feature.NETWORK))
@@ -98,64 +95,72 @@ public class FailedLeaveTest extends FuzzTestBase
             IInvokableInstance cmsInstance = cluster.get(1);
             IInvokableInstance leavingInstance = cluster.get(2);
 
-            Configuration.ConfigurationBuilder configBuilder = HarryHelper.defaultConfiguration()
-                                                                          .setSUT(() -> new InJvmSut(cluster));
-            Run run = configBuilder.build().createRun();
+            withRandom(rng -> {
+                SchemaSpec schema = schemaGen.generate(rng);
+                Generators.TrackingGenerator<Integer> pkGen = Generators.tracking(Generators.int32(0, Math.min(schema.valueGenerators.pkPopulation(), 1000)));
+                Generator<Integer> ckGen = Generators.int32(0, Math.min(schema.valueGenerators.ckPopulation(), 1000));
 
-            cluster.coordinator(1).execute("CREATE KEYSPACE " + run.schemaSpec.keyspace +
-                                           " WITH replication = {'class': 'SimpleStrategy', 'replication_factor' : 2};",
-                                           ConsistencyLevel.ALL);
-            cluster.coordinator(1).execute(run.schemaSpec.compile().cql(), ConsistencyLevel.ALL);
-            ClusterUtils.waitForCMSToQuiesce(cluster, cmsInstance);
+                HistoryBuilder history = new ReplayingHistoryBuilder(schema.valueGenerators,
+                                                                     (hb) -> InJvmDTestVisitExecutor.builder()
+                                                                                                    .nodeSelector(i -> 1)
+                                                                                                    .build(schema, hb, cluster));
+                history.custom(() -> {
+                    cluster.schemaChange("CREATE KEYSPACE " + schema.keyspace +
+                                         " WITH replication = {'class': 'SimpleStrategy', 'replication_factor' : 2};");
+                    cluster.schemaChange(schema.compile());
+                }, "Setup");
 
-            TokenPlacementModel.ReplicationFactor rf = new TokenPlacementModel.SimpleReplicationFactor(2);
-            QuiescentLocalStateChecker model = new QuiescentLocalStateChecker(run, rf);
-            Visitor visitor = new GeneratingVisitor(run, new InJVMTokenAwareVisitExecutor(run,
-                                                                                          MutatingRowVisitor::new,
-                                                                                          SystemUnderTest.ConsistencyLevel.ALL,
-                                                                                          rf));
-            for (int i = 0; i < WRITES; i++)
-                visitor.visit();
+                Runnable writeAndValidate = () -> {
+                    for (int i = 0; i < WRITES; i++)
+                        history.insert(pkGen.generate(rng), ckGen.generate(rng));
 
-            Epoch startEpoch = getClusterMetadataVersion(cmsInstance);
-            // Configure node 3 to fail when receiving streams, then start decommissioning node 2
-            cluster.get(3).runOnInstance(() -> BB.failReceivingStream.set(true));
-            Future<Boolean> success = es.submit(() -> decommission(leavingInstance));
-            Assert.assertFalse(success.get());
+                    for (int pk : pkGen.generated())
+                        history.selectPartition(pk);
+                };
+                writeAndValidate.run();
 
-            // metadata event log should have advanced by 2 entries, PREPARE_LEAVE & START_LEAVE
-            ClusterUtils.waitForCMSToQuiesce(cluster, cmsInstance);
-            Epoch currentEpoch = getClusterMetadataVersion(cmsInstance);
-            Assert.assertEquals(startEpoch.getEpoch() + 2, currentEpoch.getEpoch());
+                history.customThrowing(() -> {
+                    ExecutorService es = Executors.newSingleThreadExecutor();
+                    Epoch startEpoch = getClusterMetadataVersion(cmsInstance);
+                    // Configure node 3 to fail when receiving streams, then start decommissioning node 2
+                    cluster.get(3).runOnInstance(() -> BB.failReceivingStream.set(true));
+                    Future<Boolean> success = es.submit(() -> decommission(leavingInstance));
+                    Assert.assertFalse(success.get());
 
-            // Node 2's leaving failed due to the streaming errors. If decommission is called again on the node, it should
-            // resume where it left off. Allow streaming to succeed this time and verify that the node is able to
-            // finish leaving.
-            cluster.get(3).runOnInstance(() -> BB.failReceivingStream.set(false));
+                    // metadata event log should have advanced by 2 entries, PREPARE_LEAVE & START_LEAVE
+                    ClusterUtils.waitForCMSToQuiesce(cluster, cmsInstance);
+                    Epoch currentEpoch = getClusterMetadataVersion(cmsInstance);
+                    Assert.assertEquals(startEpoch.getEpoch() + 2, currentEpoch.getEpoch());
 
-            // Run the desired action to mitigate the failure (i.e. retry or cancel)
-            success = runAfterFailure.apply(es, leavingInstance);
+                    // Node 2's leaving failed due to the streaming errors. If decommission is called again on the node, it should
+                    // resume where it left off. Allow streaming to succeed this time and verify that the node is able to
+                    // finish leaving.
+                    cluster.get(3).runOnInstance(() -> BB.failReceivingStream.set(false));
 
-            // get the Epoch of the event resulting from that action, so we can wait for it
-            Epoch nextEpoch = getSequenceAfterCommit(cmsInstance, actionCommitted).call();
+                    // Run the desired action to mitigate the failure (i.e. retry or cancel)
+                    success = runAfterFailure.apply(es, leavingInstance);
 
-            Assert.assertTrue(success.get());
+                    // get the Epoch of the event resulting from that action, so we can wait for it
+                    Epoch nextEpoch = getSequenceAfterCommit(cmsInstance, actionCommitted).call();
 
-            // wait for the cluster to all witness the event submitted after failure
-            // (i.e. the FINISH_JOIN or CANCEL_SEQUENCE).
-            ClusterUtils.waitForCMSToQuiesce(cluster, nextEpoch);
+                    Assert.assertTrue(success.get());
 
-            //validate the state of the cluster
-            for (int i = 0; i < WRITES; i++)
-                visitor.visit();
-            model.validateAll();
+                    es.shutdown();
+                    es.awaitTermination(1, TimeUnit.MINUTES);
+                    // wait for the cluster to all witness the event submitted after failure
+                    // (i.e. the FINISH_JOIN or CANCEL_SEQUENCE).
+                    ClusterUtils.waitForCMSToQuiesce(cluster, nextEpoch);
+                }, "Failed leave");
+
+                writeAndValidate.run();
+            });
         }
     }
-
 
     public static class BB
     {
         static AtomicBoolean failReceivingStream = new AtomicBoolean(false);
+
         public static void install(ClassLoader cl, int instance)
         {
             if (instance == 3)

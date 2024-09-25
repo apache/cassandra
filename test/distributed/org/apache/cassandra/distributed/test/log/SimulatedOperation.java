@@ -53,7 +53,7 @@ import org.apache.cassandra.tcm.transformations.UnsafeJoin;
 
 import static org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
 import static org.apache.cassandra.distributed.test.log.CMSTestBase.CMSSut;
-import static org.apache.cassandra.harry.sut.TokenPlacementModel.*;
+import static org.apache.cassandra.harry.model.TokenPlacementModel.Node;
 
 public abstract class SimulatedOperation
 {

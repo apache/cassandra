@@ -25,6 +25,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.NavigableSet;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
@@ -172,6 +173,22 @@ public class QueryController
         return partition.queryMemtableAndDisk(cfs, executionController);
     }
 
+    private static Runnable getIndexReleaser(Set<SSTableIndex> referencedIndexes)
+    {
+        return new Runnable()
+        {
+            boolean closed;
+            @Override
+            public void run()
+            {
+                if (closed)
+                    return;
+                closed = true;
+                referencedIndexes.forEach(SSTableIndex::releaseQuietly);
+            }
+        };
+    }
+
     /**
      * Build a {@link KeyRangeIterator.Builder} from the given list of {@link Expression}s.
      * <p>
@@ -200,7 +217,7 @@ public class QueryController
         expressions = expressions.stream().filter(e -> e.getIndexOperator() != Expression.IndexOperator.ANN).collect(Collectors.toList());
 
         QueryViewBuilder.QueryView queryView = new QueryViewBuilder(expressions, mergeRange).build();
-        Runnable onClose = () -> queryView.referencedIndexes.forEach(SSTableIndex::releaseQuietly);
+        Runnable onClose = getIndexReleaser(queryView.referencedIndexes);
         KeyRangeIterator.Builder builder = command.rowFilter().isStrict()
                                            ? KeyRangeIntersectionIterator.builder(expressions.size(), onClose)
                                            : KeyRangeUnionIterator.builder(expressions.size(), onClose);
@@ -319,7 +336,7 @@ public class QueryController
         KeyRangeIterator memtableResults = index.memtableIndexManager().searchMemtableIndexes(queryContext, planExpression, mergeRange);
 
         QueryViewBuilder.QueryView queryView = new QueryViewBuilder(Collections.singleton(planExpression), mergeRange).build();
-        Runnable onClose = () -> queryView.referencedIndexes.forEach(SSTableIndex::releaseQuietly);
+        Runnable onClose = getIndexReleaser(queryView.referencedIndexes);
 
         try
         {
@@ -359,7 +376,7 @@ public class QueryController
         // search memtable before referencing sstable indexes; otherwise we may miss newly flushed memtable index
         KeyRangeIterator memtableResults = index.memtableIndexManager().limitToTopResults(queryContext, sourceKeys, planExpression);
         QueryViewBuilder.QueryView queryView = new QueryViewBuilder(Collections.singleton(planExpression), mergeRange).build();
-        Runnable onClose = () -> queryView.referencedIndexes.forEach(SSTableIndex::releaseQuietly);
+        Runnable onClose = getIndexReleaser(queryView.referencedIndexes);
 
         try
         {

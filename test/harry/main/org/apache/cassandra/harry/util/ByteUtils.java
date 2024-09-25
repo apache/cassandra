@@ -18,13 +18,18 @@
 
 package org.apache.cassandra.harry.util;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.util.Date;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class ByteUtils
 {
@@ -78,6 +83,35 @@ public class ByteUtils
         return ByteBuffer.wrap(decompose(uuid));
     }
 
+    public static ByteBuffer bytes(Date date)
+    {
+        return ByteBufferUtil.bytes(date.getTime());
+    }
+
+    public static ByteBuffer bytes(BigInteger value)
+    {
+        if (value == null)
+            return ByteBufferUtil.EMPTY_BYTE_BUFFER;
+
+        return ByteBuffer.wrap(value.toByteArray());
+    }
+
+    public static ByteBuffer bytes(BigDecimal value)
+    {
+        if (value == null)
+            return ByteBufferUtil.EMPTY_BYTE_BUFFER;
+
+        BigInteger bi = value.unscaledValue();
+        int scale = value.scale();
+        byte[] bibytes = bi.toByteArray();
+
+        ByteBuffer bytes = ByteBuffer.allocate(4 + bibytes.length);
+        bytes.putInt(scale);
+        bytes.put(bibytes);
+        bytes.rewind();
+        return bytes;
+    }
+
     public static byte[] decompose(UUID uuid)
     {
         long most = uuid.getMostSignificantBits();
@@ -121,6 +155,12 @@ public class ByteUtils
             return bytes((InetAddress) obj);
         else if (obj instanceof String)
             return bytes((String) obj);
+        else if (obj instanceof Date)
+            return bytes((Date) obj);
+        else if (obj instanceof BigInteger)
+            return bytes((BigInteger) obj);
+        else if (obj instanceof BigDecimal)
+            return bytes((BigDecimal) obj);
         else if (obj instanceof List)
         {
             throw new UnsupportedOperationException("Please use ByteUtils from integration package");

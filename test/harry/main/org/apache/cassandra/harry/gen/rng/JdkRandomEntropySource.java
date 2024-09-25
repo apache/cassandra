@@ -36,34 +36,48 @@ public class JdkRandomEntropySource implements EntropySource
         this.rng = rng;
     }
 
+    @Override
     public long next()
     {
         return rng.nextLong();
     }
 
+    @Override
     public void seed(long seed)
     {
         rng.setSeed(seed);
     }
 
+    @Override
     public EntropySource derive()
     {
         return new JdkRandomEntropySource(new Random(rng.nextLong()));
     }
 
+    @Override
     public int nextInt()
     {
         return rng.nextInt();
     }
 
+    /**
+     * Generates int between [0, max).
+     */
+    @Override
     public int nextInt(int max)
     {
         return rng.nextInt(max);
     }
 
+    /**
+     * Generates a value between [min, max).
+     */
+    @Override
     public int nextInt(int min, int max)
     {
-        return rng.nextInt(max) + min;
+        if (min == max)
+            return min;
+        return rng.nextInt(max - min) + min;
     }
 
     public long nextLong()
@@ -71,11 +85,19 @@ public class JdkRandomEntropySource implements EntropySource
         return rng.nextLong();
     }
 
+    @Override
     public float nextFloat()
     {
         return rng.nextFloat();
     }
 
+    @Override
+    public double nextDouble()
+    {
+        return rng.nextDouble();
+    }
+
+    @Override
     public boolean nextBoolean()
     {
         return rng.nextBoolean();
