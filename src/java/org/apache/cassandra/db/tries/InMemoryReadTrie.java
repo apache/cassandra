@@ -542,10 +542,12 @@ public class InMemoryReadTrie<T> extends Trie<T>
         private int currentNode;
         private int incomingTransition;
         private T content;
-        private int depth = -1;
+        private final Direction direction;
+        int depth = -1;
 
-        MemtableCursor()
+        MemtableCursor(Direction direction)
         {
+            this.direction = direction;
             descendInto(root, -1);
         }
 
@@ -624,7 +626,7 @@ public class InMemoryReadTrie<T> extends Trie<T>
                 case SPLIT_OFFSET:
                     return descendInSplitSublevel(node, SPLIT_START_LEVEL_LIMIT, 0, SPLIT_LEVEL_SHIFT * 2);
                 case SPARSE_OFFSET:
-                    return nextValidSparseTransition(node, getUnsignedShort(node + SPARSE_ORDER_OFFSET));
+                    return nextValidSparseTransition(node, prepareOrderWord(node));
                 default:
                     return getChainTransition(node);
             }
@@ -657,7 +659,7 @@ public class InMemoryReadTrie<T> extends Trie<T>
          * @param shift This level's bit shift (6 for start, 3 for mid and 0 for tail).
          * @return the depth reached after descending.
          */
-        private int descendInSplitSublevel(int node, int limit, int collected, int shift)
+        int descendInSplitSublevel(int node, int limit, int collected, int shift)
         {
             while (true)
             {
@@ -665,7 +667,9 @@ public class InMemoryReadTrie<T> extends Trie<T>
                 int childIndex;
                 int child = NONE;
                 // find the first non-null child
-                for (childIndex = 0; childIndex < limit; ++childIndex)
+                for (childIndex = direction.select(0, limit - 1);
+                     direction.inLoop(childIndex, 0, limit - 1);
+                     childIndex += direction.increase)
                 {
                     child = getSplitBlockPointer(node, childIndex, limit);
                     if (!isNull(child))
@@ -693,11 +697,11 @@ public class InMemoryReadTrie<T> extends Trie<T>
         /**
          * Backtrack to a split sub-level. The level is identified by the lowest non-0 bits in trans.
          */
-        private int nextValidSplitTransition(int node, int trans)
+        int nextValidSplitTransition(int node, int trans)
         {
             assert trans >= 0 && trans <= 0xFF;
             int childIndex = splitNodeChildIndex(trans);
-            if (childIndex > 0)
+            if (childIndex != direction.select(0, SPLIT_OTHER_LEVEL_LIMIT - 1))
             {
                 maybeAddSplitBacktrack(node,
                                        childIndex,
@@ -708,7 +712,7 @@ public class InMemoryReadTrie<T> extends Trie<T>
                 return descendInto(child, trans);
             }
             int tailIndex = splitNodeTailIndex(trans);
-            if (tailIndex > 0)
+            if (tailIndex != direction.select(0, SPLIT_OTHER_LEVEL_LIMIT - 1))
             {
                 maybeAddSplitBacktrack(node,
                                        tailIndex,
@@ -718,11 +722,11 @@ public class InMemoryReadTrie<T> extends Trie<T>
                 int tail = getSplitBlockPointer(node, tailIndex, SPLIT_OTHER_LEVEL_LIMIT);
                 return descendInSplitSublevel(tail,
                                               SPLIT_OTHER_LEVEL_LIMIT,
-                                              trans,
+                                              trans & -(1 << SPLIT_LEVEL_SHIFT * 1),
                                               SPLIT_LEVEL_SHIFT * 0);
             }
             int midIndex = splitNodeMidIndex(trans);
-            assert midIndex > 0;
+            assert midIndex != direction.select(0, SPLIT_START_LEVEL_LIMIT - 1);
             maybeAddSplitBacktrack(node,
                                    midIndex,
                                    SPLIT_START_LEVEL_LIMIT,
@@ -731,7 +735,7 @@ public class InMemoryReadTrie<T> extends Trie<T>
             int mid = getSplitBlockPointer(node, midIndex, SPLIT_START_LEVEL_LIMIT);
             return descendInSplitSublevel(mid,
                                           SPLIT_OTHER_LEVEL_LIMIT,
-                                          trans,
+                                          trans & -(1 << SPLIT_LEVEL_SHIFT * 2),
                                           SPLIT_LEVEL_SHIFT * 1);
         }
 
@@ -741,14 +745,25 @@ public class InMemoryReadTrie<T> extends Trie<T>
         private void maybeAddSplitBacktrack(int node, int startAfter, int limit, int collected, int shift)
         {
             int nextChildIndex;
-            for (nextChildIndex = startAfter + 1; nextChildIndex < limit; ++nextChildIndex)
+            for (nextChildIndex = startAfter + direction.increase;
+                 direction.inLoop(nextChildIndex, 0, limit - 1);
+                 nextChildIndex += direction.increase)
             {
                 if (!isNull(getSplitBlockPointer(node, nextChildIndex, limit)))
                     break;
             }
-            if (nextChildIndex < limit)
-                addBacktrack(node, collected | (nextChildIndex << shift), depth);
+            if (direction.inLoop(nextChildIndex, 0, limit - 1))
+            {
+                if (direction.isForward())
+                    addBacktrack(node, collected | (nextChildIndex << shift), depth);
+                else
+                {
+                    // The (((x + 1) << shift) - 1) adjustment will put all 1s in all lower bits
+                    addBacktrack(node, collected | ((((nextChildIndex + 1) << shift)) - 1), depth);
+                }
+            }
         }
+
 
         private int nextValidSparseTransition(int node, int data)
         {
@@ -760,13 +775,60 @@ public class InMemoryReadTrie<T> extends Trie<T>
             data = data / SPARSE_CHILD_COUNT;
 
             // If there are remaining transitions, add backtracking entry.
-            if (data > 0)
+            if (data != exhaustedOrderWord())
                 addBacktrack(node, data, depth);
 
             // Follow the transition.
             int child = chunk.getInt(inChunkNode + SPARSE_CHILDREN_OFFSET + index * 4);
             int transition = chunk.getByte(inChunkNode + SPARSE_BYTES_OFFSET + index) & 0xFF;
             return descendInto(child, transition);
+        }
+
+        /**
+         * Prepare the sparse node order word for iteration. For forward iteration, this means just reading it.
+         * For reverse, we also invert the data so that the peeling code above still works.
+         */
+        int prepareOrderWord(int node)
+        {
+            int fwdState = getUnsignedShort(node + SPARSE_ORDER_OFFSET);
+            if (direction.isForward())
+                return fwdState;
+            else
+            {
+                // Produce an inverted state word.
+
+                // One subtlety is that in forward order we know we can terminate the iteration when the state becomes
+                // 0 because 0 cannot be the largest child (we enforce 10 order for the first two children and then can
+                // only insert other digits in the word, thus 0 is always preceded by a 1 (not necessarily immediately)
+                // in the order word) and thus we can't confuse a completed iteration with one that still has the child
+                // at 0 to present.
+                // In reverse order 0 can be the last child that needs to be iterated (e.g. for two children the order
+                // word is always 10, which is 01 inverted; if we treat it exactly as the forward iteration, we will
+                // only list child 1 because we will interpret the state 0 after peeling the first digit as a completed
+                // iteration). To know when to stop we must thus use a different marker - since we know 1 is never the
+                // last child to be iterated in reverse order (because it is preceded by a 0 in the reversed order
+                // word), we can use another 1 as the termination marker. The generated number may not fit a 16-bit word
+                // any more, but that does not matter as we don't need to store it.
+                // For example, the code below translates 120 to 1021, and to iterate we peel the lower order digits
+                // until the iteration state becomes just 1.
+
+                int revState = 1;   // 1 can't be the smallest child
+                while (fwdState != 0)
+                {
+                    revState = revState * SPARSE_CHILD_COUNT + fwdState % SPARSE_CHILD_COUNT;
+                    fwdState /= SPARSE_CHILD_COUNT;
+                }
+
+                return revState;
+            }
+        }
+
+        /**
+         * Returns the state which marks the exhaustion of the order word.
+         */
+        int exhaustedOrderWord()
+        {
+            return direction.select(0, 1);
         }
 
         private int getChainTransition(int node)
@@ -782,7 +844,7 @@ public class InMemoryReadTrie<T> extends Trie<T>
                 return descendInto(chunk.getInt(inChunkNode + 1), transition);
         }
 
-        private int descendInto(int child, int transition)
+        int descendInto(int child, int transition)
         {
             ++depth;
             incomingTransition = transition;
@@ -791,7 +853,7 @@ public class InMemoryReadTrie<T> extends Trie<T>
             return depth;
         }
 
-        private int descendIntoChain(int child, int transition)
+        int descendIntoChain(int child, int transition)
         {
             ++depth;
             incomingTransition = transition;
@@ -806,9 +868,9 @@ public class InMemoryReadTrie<T> extends Trie<T>
         return !isNullOrLeaf(node) && offset(node) <= CHAIN_MAX_OFFSET;
     }
 
-    public MemtableCursor cursor()
+    public MemtableCursor cursor(Direction direction)
     {
-        return new MemtableCursor();
+        return new MemtableCursor(direction);
     }
 
     /*
@@ -847,7 +909,7 @@ public class InMemoryReadTrie<T> extends Trie<T>
     @Override
     public String dump(Function<T, String> contentToString)
     {
-        MemtableCursor source = cursor();
+        MemtableCursor source = cursor(Direction.FORWARD);
         class TypedNodesCursor implements Cursor<String>
         {
             @Override

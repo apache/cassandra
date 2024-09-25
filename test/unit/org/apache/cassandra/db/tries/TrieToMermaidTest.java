@@ -36,6 +36,7 @@ public class TrieToMermaidTest
 
         System.out.println(trie.process(new TrieToMermaid(Object::toString,
                                                       x -> Character.toString((char) ((int) x)),
-                                                      false)));
+                                                      false),
+                                        Direction.FORWARD));
     }
 }

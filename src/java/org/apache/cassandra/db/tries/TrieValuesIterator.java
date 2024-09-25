@@ -30,7 +30,7 @@ class TrieValuesIterator<T> implements Iterator<T>
 
     protected TrieValuesIterator(Trie<T> trie)
     {
-        cursor = trie.cursor();
+        cursor = trie.cursor(Direction.FORWARD);
         assert cursor.depth() == 0;
         next = cursor.content();
         gotNext = next != null;

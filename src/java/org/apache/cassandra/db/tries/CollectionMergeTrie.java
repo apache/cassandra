@@ -48,9 +48,9 @@ class CollectionMergeTrie<T> extends Trie<T>
     }
 
     @Override
-    protected Cursor<T> cursor()
+    protected Cursor<T> cursor(Direction direction)
     {
-        return new CollectionMergeCursor<>(resolver, inputs);
+        return new CollectionMergeCursor<>(resolver, direction, inputs);
     }
 
     /**
@@ -58,13 +58,13 @@ class CollectionMergeTrie<T> extends Trie<T>
      * - its depth is greater, or
      * - its depth is equal, and the incoming transition is smaller.
      */
-    static <T> boolean greaterCursor(Cursor<T> c1, Cursor<T> c2)
+    static <T> boolean greaterCursor(Direction direction, Cursor<T> c1, Cursor<T> c2)
     {
         int c1depth = c1.depth();
         int c2depth = c2.depth();
         if (c1depth != c2depth)
             return c1depth < c2depth;
-        return c1.incomingTransition() > c2.incomingTransition();
+        return direction.lt(c2.incomingTransition(), c1.incomingTransition());
     }
 
     static <T> boolean equalCursor(Cursor<T> c1, Cursor<T> c2)
@@ -115,6 +115,7 @@ class CollectionMergeTrie<T> extends Trie<T>
     static class CollectionMergeCursor<T> implements Cursor<T>
     {
         private final CollectionMergeResolver<T> resolver;
+        private final Direction direction;
 
         /**
          * The smallest cursor, tracked separately to improve performance in single-source sections of the trie.
@@ -133,9 +134,10 @@ class CollectionMergeTrie<T> extends Trie<T>
          */
         private final List<T> contents;
 
-        public CollectionMergeCursor(CollectionMergeResolver<T> resolver, Collection<? extends Trie<T>> inputs)
+        public CollectionMergeCursor(CollectionMergeResolver<T> resolver, Direction direction, Collection<? extends Trie<T>> inputs)
         {
             this.resolver = resolver;
+            this.direction = direction;
             int count = inputs.size();
             // Get cursors for all inputs. Put one of them in head and the rest in the heap.
             heap = new Cursor[count - 1];
@@ -143,7 +145,7 @@ class CollectionMergeTrie<T> extends Trie<T>
             int i = -1;
             for (Trie<T> trie : inputs)
             {
-                Cursor<T> cursor = trie.cursor();
+                Cursor<T> cursor = trie.cursor(direction);
                 assert cursor.depth() == 0;
                 if (i >= 0)
                     heap[i] = cursor;
@@ -242,10 +244,10 @@ class CollectionMergeTrie<T> extends Trie<T>
                 if (next >= heap.length)
                     break;
                 // Select the smaller of the two children to push down to.
-                if (next + 1 < heap.length && greaterCursor(heap[next], heap[next + 1]))
+                if (next + 1 < heap.length && greaterCursor(direction, heap[next], heap[next + 1]))
                     ++next;
                 // If the child is greater or equal, the invariant has been restored.
-                if (!greaterCursor(item, heap[next]))
+                if (!greaterCursor(direction, item, heap[next]))
                     break;
                 heap[index] = heap[next];
                 index = next;
@@ -263,7 +265,7 @@ class CollectionMergeTrie<T> extends Trie<T>
         {
             int heap0Depth = heap[0].depth();
             if (headDepth > heap0Depth ||
-                (headDepth == heap0Depth && head.incomingTransition() <= heap[0].incomingTransition()))
+                (headDepth == heap0Depth && direction.le(head.incomingTransition(), heap[0].incomingTransition())))
                 return headDepth;   // head is still smallest
 
             // otherwise we need to swap heap and heap[0]

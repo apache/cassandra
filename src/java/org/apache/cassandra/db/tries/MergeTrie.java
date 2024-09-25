@@ -44,25 +44,27 @@ class MergeTrie<T> extends Trie<T>
     }
 
     @Override
-    protected Cursor<T> cursor()
+    protected Cursor<T> cursor(Direction direction)
     {
-        return new MergeCursor<>(resolver, t1, t2);
+        return new MergeCursor<>(resolver, direction, t1, t2);
     }
 
     static class MergeCursor<T> implements Cursor<T>
     {
         private final MergeResolver<T> resolver;
+        private final Direction direction;
         private final Cursor<T> c1;
         private final Cursor<T> c2;
 
         boolean atC1;
         boolean atC2;
 
-        MergeCursor(MergeResolver<T> resolver, Trie<T> t1, Trie<T> t2)
+        MergeCursor(MergeResolver<T> resolver, Direction direction, Trie<T> t1, Trie<T> t2)
         {
             this.resolver = resolver;
-            this.c1 = t1.cursor();
-            this.c2 = t2.cursor();
+            this.direction = direction;
+            this.c1 = t1.cursor(direction);
+            this.c2 = t2.cursor(direction);
             assert c1.depth() == 0;
             assert c2.depth() == 0;
             atC1 = atC2 = true;
@@ -116,8 +118,8 @@ class MergeTrie<T> extends Trie<T>
             // c1depth == c2depth
             int c1trans = c1.incomingTransition();
             int c2trans = c2.incomingTransition();
-            atC1 = c1trans <= c2trans;
-            atC2 = c1trans >= c2trans;
+            atC1 = direction.le(c1trans, c2trans);
+            atC2 = direction.le(c2trans, c1trans);
             return c1depth;
         }
 
