@@ -33,12 +33,12 @@ import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
 import org.apache.cassandra.concurrent.DebuggableTask;
 import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.db.partitions.PartitionIterator;
-import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -119,7 +119,7 @@ public class TxnNamedRead extends AbstractSerialized<ReadCommand>
         return key;
     }
 
-    public AsyncChain<Data> read(Timestamp executeAt)
+    public AsyncChain<Data> read(ConsistencyLevel consistencyLevel, Timestamp executeAt)
     {
         SinglePartitionReadCommand command = (SinglePartitionReadCommand) get();
         // TODO (required, safety): before release, double check reasoning that this is safe
@@ -129,7 +129,9 @@ public class TxnNamedRead extends AbstractSerialized<ReadCommand>
         // this simply looks like the transaction witnessed TTL'd data and the data then expired
         // immediately after the transaction executed, and this simplifies things a great deal
         int nowInSeconds = (int) TimeUnit.MICROSECONDS.toSeconds(executeAt.hlc());
-        return performLocalRead(command, nowInSeconds);
+        if (consistencyLevel == null || consistencyLevel == ConsistencyLevel.ONE)
+            command = command.withoutReconciliation();
+        return performLocalRead(command.withoutReconciliation(), nowInSeconds);
     }
 
     public ReadCommand command()
@@ -144,8 +146,7 @@ public class TxnNamedRead extends AbstractSerialized<ReadCommand>
             SinglePartitionReadCommand read = command.withNowInSec(nowInSeconds);
 
             try (ReadExecutionController controller = read.executionController();
-                 UnfilteredPartitionIterator partition = read.executeLocally(controller);
-                 PartitionIterator iterator = UnfilteredPartitionIterators.filter(partition, read.nowInSec()))
+                 PartitionIterator iterator = UnfilteredPartitionIterators.filter(read.executeLocally(controller), read.nowInSec()))
             {
                 TxnData result = new TxnData();
                 if (iterator.hasNext())

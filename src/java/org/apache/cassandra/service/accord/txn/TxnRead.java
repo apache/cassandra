@@ -200,7 +200,7 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
     public AsyncChain<Data> read(Seekable key, SafeCommandStore safeStore, Timestamp executeAt, DataStore store)
     {
         List<AsyncChain<Data>> results = new ArrayList<>();
-        forEachWithKey((PartitionKey) key, read -> results.add(read.read(executeAt)));
+        forEachWithKey((PartitionKey) key, read -> results.add(read.read(cassandraConsistencyLevel, executeAt)));
 
         if (results.isEmpty())
             // Result type must match everywhere
