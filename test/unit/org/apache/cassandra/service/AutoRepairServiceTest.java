@@ -48,10 +48,12 @@ import org.apache.cassandra.repair.AutoRepairConfig;
 import org.apache.cassandra.repair.AutoRepairConfig.RepairType;
 import org.apache.cassandra.repair.AutoRepairKeyspace;
 import org.apache.cassandra.repair.AutoRepairUtilsV2;
+import org.apache.cassandra.repair.AutoRepairV2;
 import org.apache.cassandra.schema.SchemaConstants;
 
 import static org.apache.cassandra.Util.setAutoRepairEnabled;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 
 @RunWith(Suite.class)
 @Suite.SuiteClasses({ AutoRepairServiceTest.BasicTests.class, AutoRepairServiceTest.SetterTests.class })
@@ -166,6 +168,64 @@ public class AutoRepairServiceTest
             System.setProperty("cassandra.streaming.requires_cdc_replay", "false");
 
             autoRepairService.setAutoRepairEnabled(RepairType.incremental, true);
+        }
+    }
+
+    @RunWith(Parameterized.class)
+    public static class RepairTypeTests extends CQLTester
+    {
+        @Parameterized.Parameter()
+        public RepairType repairType;
+
+        private final UUID host1 = UUID.fromString("00000000-0000-0000-0000-000000000001");
+        private final UUID host2 = UUID.fromString("00000000-0000-0000-0000-000000000002");
+
+        private AutoRepairService instance;
+
+        @Parameterized.Parameters(name = "repairType={0}")
+        public static Collection<RepairType> repairTypes()
+        {
+            return Arrays.asList(RepairType.values());
+        }
+
+
+        @BeforeClass
+        public static void setupClass() throws Exception
+        {
+            setAutoRepairEnabled(true);
+            requireNetwork();
+        }
+
+        @Before
+        public void setUpTest()
+        {
+            AutoRepairUtilsV2.setup();
+            instance = new AutoRepairService();
+        }
+
+        @Test
+        public void testGetOnGoingRepairHostIdsByGroupHash()
+        {
+            long now = System.currentTimeMillis();
+            AutoRepairUtilsV2.insertNewRepairHistory(repairType, host1, 1, now, now - 1000000);
+            AutoRepairUtilsV2.insertNewRepairHistory(repairType, host2, 1, now, now - 1000000);
+
+            Set<String> hosts = instance.getOnGoingRepairHostIdsByGroupHash(repairType, 1);
+
+            assertEquals(ImmutableSet.of(host1.toString(), host2.toString()), hosts);
+        }
+
+        @Test
+        public void testGetOnGoingForceRepairHostIdsByGroupHash()
+        {
+            long now = System.currentTimeMillis();
+            AutoRepairUtilsV2.insertNewRepairHistory(repairType, host1, 1, now, now - 1000000);
+            AutoRepairUtilsV2.insertNewRepairHistory(repairType, host2, 1, now, now - 1000000);
+            AutoRepairUtilsV2.setForceRepair(repairType, 1, host2);
+
+            Set<String> hosts = instance.getOnGoingForceRepairHostIdsByGroupHash(repairType, 1);
+
+            assertEquals(ImmutableSet.of(host2.toString()), hosts);
         }
     }
 

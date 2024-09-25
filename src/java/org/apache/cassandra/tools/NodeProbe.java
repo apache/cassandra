@@ -2367,6 +2367,11 @@ public class NodeProbe implements AutoCloseable
         autoRepairProxy.runAutoRepairOnce(millisToWait);
     }
 
+    public void runAutoRepairOnce(RepairType type, long millisToWait)
+    {
+        autoRepairProxy.runAutoRepairOnce(type, millisToWait);
+    }
+
     public void startAutoRepair()
     {
         autoRepairProxy.startAutoRepair();
@@ -2684,9 +2689,19 @@ public class NodeProbe implements AutoCloseable
         return autoRepairProxy.getOnGoingRepairHostIdsByGroupHash(groupHash);
     }
 
+    public Set<String> getOnGoingRepairHostIdsByGroupHash(RepairType type, int groupHash)
+    {
+        return autoRepairProxy.getOnGoingRepairHostIdsByGroupHash(type, groupHash);
+    }
+
     public Set<String> getOnGoingForceRepairHostIdsByGroupHash(int groupHash)
     {
         return autoRepairProxy.getOnGoingForceRepairHostIdsByGroupHash(groupHash);
+    }
+
+    public Set<String> getOnGoingForceRepairHostIdsByGroupHash(RepairType type, int groupHash)
+    {
+        return autoRepairProxy.getOnGoingForceRepairHostIdsByGroupHash(type, groupHash);
     }
 
     public void setDCGourps(Set<Set<String>> dcGourps) {

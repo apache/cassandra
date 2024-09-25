@@ -19,42 +19,60 @@
 package org.apache.cassandra.tools.nodetool;
 
 import java.io.PrintStream;
+import java.util.Arrays;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
-import java.util.UUID;
+import java.util.stream.Collectors;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.google.common.annotations.VisibleForTesting;
 
 import io.airlift.airline.Command;
-import org.apache.cassandra.repair.AutoRepairUtils;
-import org.apache.cassandra.service.AutoRepairService;
+import io.airlift.airline.Option;
+import org.apache.cassandra.repair.AutoRepairConfig;
+import org.apache.cassandra.repair.AutoRepairConfig.RepairType;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
 
+import static com.google.common.base.Preconditions.checkArgument;
+
 @Command(name = "autorepairstatus", description = "Print autorepair status")
 public class AutoRepairStatus extends NodeTool.NodeToolCmd
 {
+    @VisibleForTesting
+    @Option(title = "v2", name = { "--v2" }, description = "Use v2 repair framework")
+    protected boolean v2 = false;
+
+    @VisibleForTesting
+    @Option(title = "repair type", name = { "-t", "--repair-type" }, description = "Repair type")
+    protected RepairType repairType;
+
     @Override
     public void execute(NodeProbe probe)
     {
+        checkArgument(v2 || repairType == null, "--repair-type is only supported with the -v2 option.");
+        checkArgument(!v2 || repairType != null, "--repair-type is required when using -v2 option.");
+
+        AutoRepairConfig config = probe.getAutoRepairConfig();
+
         PrintStream out = probe.output().out;
         TableBuilder table = new TableBuilder();
 
         table.add("Data center group", "Active repairs", "Acitve force repairs");
         Set<String> allHosts = new HashSet<>();
         Set<String> allForceHosts = new HashSet<>();
-        Set<Set<String>> dcGroups = probe.getDCGroups();
-        if (dcGroups == null || dcGroups.isEmpty()) {
+        Set<Set<String>> dcGroups = v2 ? getDCGroups(config, repairType) : probe.getDCGroups();
+        if (dcGroups == null || dcGroups.isEmpty())
+        {
             dcGroups = new HashSet<>();
             dcGroups.add(new HashSet<>());
         }
         for (Set<String> group : dcGroups)
         {
-            Set<String> ongoingRepairHostIds = probe.getOnGoingRepairHostIdsByGroupHash(group.hashCode());
-            Set<String> ongoingForceRepairHostIds = probe.getOnGoingForceRepairHostIdsByGroupHash(group.hashCode());
+            Set<String> ongoingRepairHostIds = v2 ? probe.getOnGoingRepairHostIdsByGroupHash(repairType, group.hashCode())
+                                                  : probe.getOnGoingRepairHostIdsByGroupHash(group.hashCode());
+            Set<String> ongoingForceRepairHostIds = v2 ? probe.getOnGoingForceRepairHostIdsByGroupHash(repairType, group.hashCode())
+                                                       : probe.getOnGoingForceRepairHostIdsByGroupHash(group.hashCode());
             String groupName = group.isEmpty() ? "ALL NODES" : group.toString();
             table.add(groupName, getSetString(ongoingRepairHostIds), getSetString(ongoingForceRepairHostIds));
             allHosts.addAll(ongoingRepairHostIds);
@@ -64,12 +82,14 @@ public class AutoRepairStatus extends NodeTool.NodeToolCmd
         table.printTo(out);
     }
 
-    private String getSetString(Set<String> hostIds) {
-        if (hostIds.isEmpty()) {
+    private String getSetString(Set<String> hostIds)
+    {
+        if (hostIds.isEmpty())
+        {
             return "EMPTY";
         }
         StringBuilder sb = new StringBuilder();
-        for (String id :hostIds)
+        for (String id : hostIds)
         {
             sb.append(id);
             sb.append(",");
@@ -77,5 +97,11 @@ public class AutoRepairStatus extends NodeTool.NodeToolCmd
         // remove last ","
         sb.setLength(Math.max(sb.length() - 1, 0));
         return sb.toString();
+    }
+
+    private Set<Set<String>> getDCGroups(AutoRepairConfig config, RepairType repairType)
+    {
+        return config.getDCGroups(repairType).stream().map(
+        (String group) -> Arrays.stream(group.split(",")).collect(Collectors.toSet())).collect(Collectors.toSet());
     }
 }

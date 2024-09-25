@@ -26,6 +26,7 @@ import org.apache.cassandra.repair.AutoRepairConfig;
 import org.apache.cassandra.repair.AutoRepairConfig.RepairType;
 import org.apache.cassandra.repair.AutoRepairUtils;
 import org.apache.cassandra.repair.AutoRepairUtilsV2;
+import org.apache.cassandra.repair.AutoRepairV2;
 import org.apache.cassandra.utils.MBeanWrapper;
 
 import java.util.HashSet;
@@ -114,6 +115,12 @@ public class AutoRepairService implements AutoRepairServiceMBean
         AutoRepair.runRepair(millisToWait);
     }
 
+
+    public void runAutoRepairOnce(RepairType repairType, long millisToWait)
+    {
+        AutoRepairV2.instance.repairAsync(repairType, millisToWait);
+    }
+
     @Override
     public boolean isAutoRepairStarted()
     {
@@ -184,6 +191,23 @@ public class AutoRepairService implements AutoRepairServiceMBean
     }
 
     @Override
+    public Set<String> getOnGoingRepairHostIdsByGroupHash(RepairType rType, int groupHash)
+    {
+        Set<String> hostIds = new HashSet<>();
+        List<AutoRepairUtilsV2.AutoRepairHistory> histories = AutoRepairUtilsV2.getAutoRepairHistoryByGroupID(rType, groupHash);
+        if (histories == null)
+        {
+            return null;
+        }
+        AutoRepairUtilsV2.CurrentRepairStatus currentRepairStatus = new AutoRepairUtilsV2.CurrentRepairStatus(histories, AutoRepairUtilsV2.getPriorityHostIds(rType, groupHash));
+        for (UUID id : currentRepairStatus.hostIdsWithOnGoingRepair)
+        {
+            hostIds.add(id.toString());
+        }
+        return hostIds;
+    }
+
+    @Override
     public Set<String> getOnGoingForceRepairHostIdsByGroupHash(int groupHash)
     {
         Set<String> hostIds = new HashSet<>();
@@ -193,6 +217,23 @@ public class AutoRepairService implements AutoRepairServiceMBean
             return null;
         }
         AutoRepairUtils.CurrentRepairStatus currentRepairStatus = new AutoRepairUtils.CurrentRepairStatus(histories, AutoRepairUtils.getPriorityHostIds(groupHash));
+        for (UUID id : currentRepairStatus.hostIdsWithOnGoingForceRepair)
+        {
+            hostIds.add(id.toString());
+        }
+        return hostIds;
+    }
+
+    @Override
+    public Set<String> getOnGoingForceRepairHostIdsByGroupHash(RepairType rType, int groupHash)
+    {
+        Set<String> hostIds = new HashSet<>();
+        List<AutoRepairUtilsV2.AutoRepairHistory> histories = AutoRepairUtilsV2.getAutoRepairHistoryByGroupID(rType, groupHash);
+        if (histories == null)
+        {
+            return null;
+        }
+        AutoRepairUtilsV2.CurrentRepairStatus currentRepairStatus = new AutoRepairUtilsV2.CurrentRepairStatus(histories, AutoRepairUtilsV2.getPriorityHostIds(rType, groupHash));
         for (UUID id : currentRepairStatus.hostIdsWithOnGoingForceRepair)
         {
             hostIds.add(id.toString());

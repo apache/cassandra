@@ -47,6 +47,7 @@ public interface AutoRepairServiceMBean
      * run Auto repair once on this node
      */
     public void runAutoRepairOnce(long millisToWait);
+    public void runAutoRepairOnce(RepairType type, long millisToWait);
 
 
     /**
@@ -79,11 +80,13 @@ public interface AutoRepairServiceMBean
      * Get current ongoing repair host ids by group hash
      */
     public Set<String> getOnGoingRepairHostIdsByGroupHash(int groupHash);
+    public Set<String> getOnGoingRepairHostIdsByGroupHash(RepairType type, int groupHash);
 
     /**
      * Get current force repair host ids by group hash
      */
     public Set<String> getOnGoingForceRepairHostIdsByGroupHash(int groupHash);
+    public Set<String> getOnGoingForceRepairHostIdsByGroupHash(RepairType type, int groupHash);
 
     /**
      * Set repair priority for hosts

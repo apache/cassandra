@@ -195,6 +195,14 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
     }
 
 
+    @Test(expected = ConfigurationException.class)
+    public void testRepairAsyncWithRepairTypeDisabled()
+    {
+        AutoRepairService.instance.getAutoRepairConfig().setAutoRepairEnabled(repairType, false);
+
+        AutoRepairV2.instance.repairAsync(repairType, 60);
+    }
+
     @Test
     public void testRepairAsync()
     {

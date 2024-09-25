@@ -47,6 +47,7 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.repair.state.AutoRepairState;
 import org.apache.cassandra.repair.state.AutoRepairStateFactory;
@@ -117,6 +118,11 @@ public class AutoRepairV2
     // repairAsync runs a repair session of the given type asynchronously.
     public void repairAsync(AutoRepairConfig.RepairType repairType, long millisToWait)
     {
+        if (!AutoRepairService.instance.getAutoRepairConfig().isAutoRepairEnabled(repairType))
+        {
+            throw new ConfigurationException("Auto-repair is disabled for repair type " + repairType);
+        }
+
         repairExecutors.get(repairType).submit(() -> repair(repairType, millisToWait));
     }
 

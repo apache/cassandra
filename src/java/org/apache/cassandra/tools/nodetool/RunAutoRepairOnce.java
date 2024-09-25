@@ -18,20 +18,44 @@
 
 package org.apache.cassandra.tools.nodetool;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import io.airlift.airline.Arguments;
 import io.airlift.airline.Command;
+import io.airlift.airline.Option;
+import org.apache.cassandra.repair.AutoRepairConfig.RepairType;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool;
+
+import static com.google.common.base.Preconditions.checkArgument;
 
 @Command(name = "runautorepaironce", description =  "Trigger auto repair once, this is non-blocking call.")
 public class RunAutoRepairOnce extends NodeTool.NodeToolCmd
 {
+    @VisibleForTesting
     @Arguments(title = "millis_to_wait", usage = "<value>", description = "Millis seconds to wait if repair finished too fast", required = true)
-    private Long millisToWait = null;
+    protected Long millisToWait = null;
+
+    @VisibleForTesting
+    @Option(title = "v2", name = { "--v2" }, description = "Use v2 repair framework")
+    protected boolean v2 = false;
+
+    @VisibleForTesting
+    @Option(title = "repair type", name = { "-t", "--repair-type" }, description = "Repair type")
+    protected RepairType repairType;
 
     @Override
     public void execute(NodeProbe probe)
     {
-        probe.runAutoRepairOnce(millisToWait);
+        checkArgument(v2 || repairType == null, "--repair-type is only supported with the -v2 option.");
+        checkArgument(!v2 || repairType != null, "--repair-type is required when using -v2 option.");
+
+        if (!v2)
+        {
+            probe.runAutoRepairOnce(millisToWait);
+            return;
+        }
+
+        probe.runAutoRepairOnce(repairType, millisToWait);
     }
 }
