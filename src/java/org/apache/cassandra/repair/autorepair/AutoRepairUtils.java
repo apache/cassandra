@@ -32,6 +32,8 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
 import com.google.common.collect.Lists;
 
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.LocalStrategy;
 
 import org.slf4j.Logger;
@@ -777,7 +779,6 @@ public class AutoRepairUtils
         for (UUID hostId : getPriorityHostIds(repairType))
         {
             hosts.add(ClusterMetadata.current().directory.addresses.get(NodeId.fromUUID(hostId)).broadcastAddress);
-            //hosts.add(StorageService.instance.getTokenMetadata().getEndpointForHostId(hostId));
         }
         return hosts;
     }
@@ -843,5 +844,31 @@ public class AutoRepairUtils
                 if (repairConfig.isAutoRepairEnabled(rType) && repairConfig.getForceRepairNewNode(rType))
                     AutoRepairUtils.setForceRepairNewNode(rType);
         }
+    }
+
+    public static List<Range<Token>> splitEvenly(Range<Token> tokenRange, int numberOfSplits)
+    {
+        List<Range<Token>> splitRanges = new ArrayList<>();
+        long left = (Long) tokenRange.left.getTokenValue();
+        long right = (Long) tokenRange.right.getTokenValue();
+        long repairTokenWidth = (right - left) / numberOfSplits;
+        for (int i = 0; i < numberOfSplits; i++)
+        {
+            long curLeft = left + (i * repairTokenWidth);
+            long curRight = curLeft + repairTokenWidth;
+
+            if ((i + 1) == numberOfSplits)
+            {
+                curRight = right;
+            }
+
+            Token childStartToken = ClusterMetadata.current().partitioner.getTokenFactory().fromString("" + curLeft);
+            Token childEndToken = ClusterMetadata.current().partitioner.getTokenFactory().fromString("" + curRight);
+            logger.debug("Current Token Left side {}, right side {}", childStartToken
+                                                                      .toString(), childEndToken.toString());
+            Range<Token> splitRange = new Range<>(childStartToken, childEndToken);
+            splitRanges.add(splitRange);
+        }
+        return splitRanges;
     }
 }

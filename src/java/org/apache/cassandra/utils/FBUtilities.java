@@ -67,6 +67,7 @@ import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
 import com.vdurmont.semver4j.Semver;
 
+import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.repair.autorepair.IAutoRepairTokenRangeSplitter;
 import org.apache.commons.lang3.StringUtils;
@@ -719,11 +720,31 @@ public class FBUtilities
                 throw new ConfigurationException(String.format("Unable to create an instance of crypto provider for %s", className), e);
         }
     }
-    public static IAutoRepairTokenRangeSplitter newAutoRepairTokenRangeSplitter(String className) throws ConfigurationException
+    public static IAutoRepairTokenRangeSplitter newAutoRepairTokenRangeSplitter(ParameterizedClass parameterizedClass) throws ConfigurationException
     {
-        if (!className.contains("."))
-            className = "org.apache.cassandra.repair.autorepair." + className;
-        return FBUtilities.construct(className, "auto repair token splitter");
+        String className = parameterizedClass.class_name.contains(".") ?
+                           parameterizedClass.class_name :
+                           "org.apache.cassandra.repair.autorepair." + parameterizedClass.class_name;
+
+        try
+        {
+            Class<?> tokenRangeSplitterClass = Class.forName(className);
+            try
+            {
+                Map<String, String> parameters = parameterizedClass.parameters != null ? parameterizedClass.parameters : Collections.emptyMap();
+                // first attempt to initialize with Map arguments.
+                return (IAutoRepairTokenRangeSplitter) tokenRangeSplitterClass.getConstructor(Map.class).newInstance(parameters);
+            }
+            catch (NoSuchMethodException nsme)
+            {
+                // fall back on no argument constructor.
+                return (IAutoRepairTokenRangeSplitter)  tokenRangeSplitterClass.getConstructor().newInstance();
+            }
+        }
+        catch (Exception ex)
+        {
+            throw new ConfigurationException("Unable to create instance of IAutoRepairTokenRangeSplitter for " + className, ex);
+        }
     }
 
     /**
