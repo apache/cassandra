@@ -598,6 +598,9 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             if (!params.compression.isEnabled())
                 Guardrails.uncompressedTablesEnabled.ensureEnabled(state);
 
+            if (params.cdc && !DatabaseDescriptor.getRawConfig().cdc_enabled)
+                throw ire("cdc_enabled must be set to true to enable cdc on tables");
+
             return keyspace.withSwapped(keyspace.tables.withSwapped(table.withSwapped(params)));
         }
     }
