@@ -17,19 +17,17 @@
  */
 package org.apache.cassandra.service.accord;
 
-import java.nio.file.Files;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.google.common.collect.ImmutableMap;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import accord.local.Node;
 import accord.local.RedundantBefore;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
@@ -40,9 +38,7 @@ import accord.utils.Gens;
 import accord.utils.RandomSource;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.CassandraRelevantProperties;
-import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.io.util.DataInputBuffer;
@@ -153,11 +149,11 @@ public class AccordJournalTest
             {
                 RedundantBefore redundantBefore = redundantBeforeGen.next(rng);
                 expected = RedundantBefore.merge(expected, redundantBefore);
-                accordJournal.append(timestamp, JournalKey.Type.REDUNDANT_BEFORE, 1, redundantBefore, () -> {});
+                accordJournal.appendRedundantBefore(1, redundantBefore, () -> {});
             }
 
-            AccordJournalValueSerializers.RedundantBeforeAccumulator actual = accordJournal.readAll(timestamp, JournalKey.Type.REDUNDANT_BEFORE, 1);
-            Assert.assertEquals(expected, actual.get());
+            RedundantBefore actual = accordJournal.loadRedundantBefore(1);
+            Assert.assertEquals(expected, actual);
         }
         finally
         {

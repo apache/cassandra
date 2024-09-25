@@ -26,6 +26,7 @@ import com.google.common.annotations.VisibleForTesting;
 import accord.api.Result;
 import accord.local.Command;
 import accord.local.CommonAttributes;
+import accord.local.RedundantBefore;
 import accord.local.SaveStatus;
 import accord.local.Status;
 import accord.primitives.Ballot;
@@ -46,7 +47,7 @@ import java.util.Map;
 public class MockJournal implements IJournal
 {
     private final Map<JournalKey, List<LoadedDiff>> commands = new HashMap<>();
-
+    private final Map<Integer, RedundantBefore> redundantBefores = new HashMap<>();
     @Override
     public Command loadCommand(int commandStoreId, TxnId txnId)
     {
@@ -58,15 +59,29 @@ public class MockJournal implements IJournal
     }
 
     @Override
-    public void appendCommand(int commandStoreId, List<SavedCommand.DiffWriter> diffs, List<Command> sanityCheck, Runnable onFlush)
+    public RedundantBefore loadRedundantBefore(int commandStoreId)
     {
-        for (SavedCommand.DiffWriter diff : diffs)
-        {
-            JournalKey key = new JournalKey(diff.key(), JournalKey.Type.COMMAND_DIFF, commandStoreId);
-            commands.computeIfAbsent(key, (ignore_) -> new ArrayList<>())
-                    .add(diff(diff.before(), diff.after()));
-        }
-        onFlush.run();
+        return redundantBefores.get(commandStoreId);
+    }
+
+    @Override
+    public void appendCommand(int store, SavedCommand.DiffWriter value, Runnable onFlush)
+    {
+        append(new JournalKey(value.after().txnId(), JournalKey.Type.COMMAND_DIFF, store), value, onFlush);
+    }
+
+    @Override
+    public void appendRedundantBefore(int store, RedundantBefore value, Runnable onFlush)
+    {
+        append(new JournalKey(Timestamp.NONE, JournalKey.Type.REDUNDANT_BEFORE, store), value, onFlush);
+    }
+
+    @Override
+    public void append(JournalKey key, Object value, Runnable onFlush)
+    {
+        SavedCommand.DiffWriter diff = (SavedCommand.DiffWriter) value;
+        commands.computeIfAbsent(key, (ignore_) -> new ArrayList<>())
+                .add(diff(diff.before(), diff.after()));
     }
 
     /**

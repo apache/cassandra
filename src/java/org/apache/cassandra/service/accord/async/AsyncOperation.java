@@ -48,6 +48,7 @@ import org.apache.cassandra.service.accord.AccordSafeCommandsForRanges;
 import org.apache.cassandra.service.accord.AccordSafeState;
 import org.apache.cassandra.service.accord.AccordSafeTimestampsForKey;
 import org.apache.cassandra.service.accord.SavedCommand;
+import org.apache.cassandra.utils.concurrent.Condition;
 
 import static org.apache.cassandra.service.accord.async.AsyncLoader.txnIds;
 import static org.apache.cassandra.service.accord.async.AsyncOperation.State.COMPLETING;
@@ -273,7 +274,7 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
                 state(COMPLETING);
                 if (diffs != null)
                 {
-                    this.commandStore.appendCommands(diffs, sanityCheck, () -> finish(result, null));
+                    appendCommands(diffs, sanityCheck, () -> finish(result, null));
                     return false;
                 }
             case COMPLETING:
@@ -284,6 +285,26 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
         }
 
         return false;
+    }
+
+    private void appendCommands(List<SavedCommand.DiffWriter> commands, List<Command> sanityCheck, Runnable onFlush)
+    {
+        // If we need to perform sanity check, we can only rely on blocking flushes. Otherwise, we may see into the future.
+        if (sanityCheck != null)
+        {
+            Condition condition = Condition.newOneTimeCondition();
+            this.commandStore.appendCommands(commands, onFlush);
+            condition.awaitUninterruptibly();
+
+            for (Command check : sanityCheck)
+                this.commandStore.sanityCheckCommand(check);
+
+            onFlush.run();
+        }
+        else
+        {
+            this.commandStore.appendCommands(commands, onFlush);
+        }
     }
 
     @Override

@@ -32,6 +32,7 @@ import org.slf4j.LoggerFactory;
 
 import accord.local.Command;
 import accord.local.Node;
+import accord.local.RedundantBefore;
 import accord.local.SaveStatus;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
@@ -48,7 +49,6 @@ import org.apache.cassandra.journal.RecordPointer;
 import org.apache.cassandra.journal.ValueSerializer;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.ExecutorUtils;
-import org.apache.cassandra.utils.concurrent.Condition;
 
 import static accord.local.Status.Invalidated;
 import static accord.local.Status.Truncated;
@@ -160,6 +160,25 @@ public class AccordJournal implements IJournal, Shutdownable
     }
 
     @VisibleForTesting
+    public RedundantBefore loadRedundantBefore(int store)
+    {
+        AccordJournalValueSerializers.RedundantBeforeAccumulator accumulator = readAll(new JournalKey(Timestamp.NONE, JournalKey.Type.REDUNDANT_BEFORE, store));
+        return accumulator.get();
+    }
+
+    public void appendCommand(int store, SavedCommand.DiffWriter value, Runnable onFlush)
+    {
+
+    }
+
+    @Override
+    public void appendRedundantBefore(int store, RedundantBefore value, Runnable onFlush)
+    {
+        JournalKey key = new JournalKey(Timestamp.NONE, JournalKey.Type.REDUNDANT_BEFORE, store);
+        append(key, value, onFlush);
+    }
+
+    @VisibleForTesting
     public SavedCommand.Builder loadDiffs(int commandStoreId, TxnId txnId)
     {
         JournalKey key = new JournalKey(txnId, JournalKey.Type.COMMAND_DIFF, commandStoreId);
@@ -168,51 +187,22 @@ public class AccordJournal implements IJournal, Shutdownable
         return builder;
     }
 
-    public <BUILDER> BUILDER readAll(Timestamp timestamp, JournalKey.Type type, int commandStoreId)
+    private <BUILDER> BUILDER readAll(JournalKey key)
     {
-        JournalKey key = new JournalKey(timestamp, type, commandStoreId);
-        BUILDER builder = (BUILDER) type.serializer.mergerFor(key);
+        BUILDER builder = (BUILDER) key.type.serializer.mergerFor(key);
         // TODO: this can be further improved to avoid allocating lambdas
-        AccordJournalValueSerializers.FlyweightSerializer<?, BUILDER> serializer = (AccordJournalValueSerializers.FlyweightSerializer<?, BUILDER>) type.serializer;
+        AccordJournalValueSerializers.FlyweightSerializer<?, BUILDER> serializer = (AccordJournalValueSerializers.FlyweightSerializer<?, BUILDER>) key.type.serializer;
         journalTable.readAll(key, (in, userVersion) -> serializer.deserialize(key, builder, in, userVersion));
         return builder;
     }
 
-    public <WRITE> void append(Timestamp timestamp, JournalKey.Type type, int commandStoreId, WRITE write, Runnable onFlush)
+    @Override
+    public void append(JournalKey key, Object write, Runnable onFlush)
     {
-        JournalKey key = new JournalKey(timestamp, type, commandStoreId);
-        AccordJournalValueSerializers.FlyweightSerializer<WRITE, ?> serializer = (AccordJournalValueSerializers.FlyweightSerializer<WRITE, ?>) type.serializer;
+        AccordJournalValueSerializers.FlyweightSerializer<Object, ?> serializer = (AccordJournalValueSerializers.FlyweightSerializer<Object, ?>) key.type.serializer;
         RecordPointer pointer = journal.asyncWrite(key, (out, userVersion) -> serializer.serialize(key, write, out, userVersion), SENTINEL_HOSTS);
         if (onFlush != null)
             journal.onFlush(pointer, onFlush);
-    }
-
-    @Override
-    public void appendCommand(int commandStoreId, List<SavedCommand.DiffWriter> outcomes, List<Command> sanityCheck, Runnable onFlush)
-    {
-        RecordPointer pointer = null;
-        for (SavedCommand.DiffWriter outcome : outcomes)
-        {
-            JournalKey key = new JournalKey(outcome.key(), JournalKey.Type.COMMAND_DIFF, commandStoreId);
-            pointer = journal.asyncWrite(key, outcome, SENTINEL_HOSTS);
-        }
-
-        // If we need to perform sanity check, we can only rely on blocking flushes. Otherwise, we may see into the future.
-        if (sanityCheck != null)
-        {
-            Condition condition = Condition.newOneTimeCondition();
-            journal.onFlush(pointer, condition::signal);
-            condition.awaitUninterruptibly();
-
-            for (Command check : sanityCheck)
-                sanityCheck(commandStoreId, check);
-
-            onFlush.run();
-        }
-        else
-        {
-            journal.onFlush(pointer, onFlush);
-        }
     }
 
     @VisibleForTesting

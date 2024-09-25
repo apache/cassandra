@@ -255,7 +255,6 @@ public final class JournalKey
         Type(int id, AccordJournalValueSerializers.FlyweightSerializer<?, ?> serializer)
         {
             this.id = id;
-
             this.serializer = serializer;
         }
 

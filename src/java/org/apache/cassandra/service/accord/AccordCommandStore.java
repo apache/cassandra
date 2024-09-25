@@ -420,9 +420,10 @@ public class AccordCommandStore extends CommandStore implements CacheSize
 
     @Nullable
     @VisibleForTesting
-    public void appendToLog(Command before, Command after, Runnable runnable)
+    public void appendToLog(Command before, Command after, Runnable onFlush)
     {
-        journal.appendCommand(id, Collections.singletonList(SavedCommand.diff(before, after)), null, runnable);
+        JournalKey key = new JournalKey(after.txnId(), JournalKey.Type.COMMAND_DIFF, id);
+        journal.append(key, Collections.singletonList(SavedCommand.diff(before, after)), onFlush);
     }
 
     boolean validateCommand(TxnId txnId, Command evicting)
@@ -432,6 +433,12 @@ public class AccordCommandStore extends CommandStore implements CacheSize
 
         Command reloaded = loadCommand(txnId);
         return Objects.equals(evicting, reloaded);
+    }
+
+    @VisibleForTesting
+    public void sanityCheckCommand(Command command)
+    {
+        ((AccordJournal) journal).sanityCheck(id, command);
     }
 
     boolean validateTimestampsForKey(RoutableKey key, TimestampsForKey evicting)
@@ -663,9 +670,14 @@ public class AccordCommandStore extends CommandStore implements CacheSize
 
     public NavigableMap<Timestamp, Ranges> safeToRead() { return super.safeToRead(); }
 
-    public void appendCommands(List<SavedCommand.DiffWriter> commands, List<Command> sanityCheck, Runnable onFlush)
+    public void appendCommands(List<SavedCommand.DiffWriter> commands, Runnable onFlush)
     {
-        journal.appendCommand(id, commands, sanityCheck, onFlush);
+        for (int i = 0; i < commands.size(); i++)
+        {
+            JournalKey key = new JournalKey(commands.get(i).after().txnId(), JournalKey.Type.COMMAND_DIFF, id);
+            boolean isLast = i == commands.size() - 1;
+            journal.append(key, commands.get(i), isLast  ? onFlush : null);
+        }
     }
 
     @VisibleForTesting

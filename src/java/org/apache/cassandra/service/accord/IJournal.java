@@ -18,20 +18,18 @@
 
 package org.apache.cassandra.service.accord;
 
-import java.util.List;
-
 import accord.local.Command;
+import accord.local.RedundantBefore;
 import accord.primitives.TxnId;
 
 public interface IJournal
 {
     Command loadCommand(int commandStoreId, TxnId txnId);
+    RedundantBefore loadRedundantBefore(int commandStoreId);
 
-    /**
-     * Append outcomes to the log.
-     */
-    void appendCommand(int commandStoreId,
-                       List<SavedCommand.DiffWriter> command,
-                       List<Command> sanityCheck,
-                       Runnable onFlush);
+    void appendCommand(int store, SavedCommand.DiffWriter value, Runnable onFlush);
+    void appendRedundantBefore(int store, RedundantBefore value, Runnable onFlush);
+
+    // TODO: probably this does not need to be exposed
+    void append(JournalKey key, Object value, Runnable onFlush);
 }

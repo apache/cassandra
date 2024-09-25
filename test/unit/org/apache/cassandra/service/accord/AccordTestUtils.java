@@ -510,7 +510,7 @@ public class AccordTestUtils
         SavedCommand.DiffWriter diff = SavedCommand.diff(before, after);
         if (diff == null) return;
         Condition condition = Condition.newOneTimeCondition();
-        commandStore.appendCommands(Collections.singletonList(diff), null, condition::signal);
+        commandStore.appendCommands(Collections.singletonList(diff), condition::signal);
         condition.awaitUninterruptibly(30, TimeUnit.SECONDS);
     }
 }
