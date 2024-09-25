@@ -30,7 +30,22 @@ import org.assertj.core.api.Condition;
 public class AlterTableCassandraYamlPropertiesTest extends TestBaseImpl
 {
     @Test
-    public void testCdcFlag() throws IOException
+    public void testCdcFlagWithFlagDisabled() throws IOException
+    {
+        try (Cluster cluster = init(Cluster.build(3).withConfig(config -> config.set("cdc_enabled", false)).start()))
+        {
+            cluster.schemaChange("create table "+KEYSPACE+".tbl1 (id int primary key)");
+
+            Assertions.assertThatThrownBy(() -> cluster.get(1).schemaChangeInternal("alter table " + KEYSPACE + ".tbl1 WITH cdc=true"))
+                      .describedAs("Should not be able to enable cdc on a node")
+                      .hasRootCauseMessage("cdc_enabled must be set to true to enable cdc on tables")
+                      .rootCause().has(new Condition<Throwable>(t -> t.getClass().getCanonicalName()
+                                                                      .equals(InvalidRequestException.class.getCanonicalName()), "is instance of InvalidRequestException"));
+        }
+    }
+
+    @Test
+    public void testCdcFlagWithOnePodEnabled() throws IOException
     {
         try (Cluster cluster = init(Cluster.build(3).withConfig(config -> {
             if (config.num() == 3)
@@ -42,6 +57,26 @@ public class AlterTableCassandraYamlPropertiesTest extends TestBaseImpl
             cluster.schemaChange("create table "+KEYSPACE+".tbl1 (id int primary key)");
 
             Assertions.assertThatThrownBy(() -> cluster.get(1).schemaChangeInternal("alter table " + KEYSPACE + ".tbl1 WITH cdc=true"))
+                      .describedAs("Should not be able to enable cdc on a node")
+                      .hasRootCauseMessage("cdc_enabled must be set to true to enable cdc on tables")
+                      .rootCause().has(new Condition<Throwable>(t -> t.getClass().getCanonicalName()
+                                                                      .equals(InvalidRequestException.class.getCanonicalName()), "is instance of InvalidRequestException"));
+        }
+    }
+
+    @Test
+    public void testCdcFlagWithSamePodEnabled() throws IOException
+    {
+        try (Cluster cluster = init(Cluster.build(3).withConfig(config -> {
+            if (config.num() == 3)
+            {
+                config.set("cdc_enabled", true);
+            }
+        }).start()))
+        {
+            cluster.schemaChange("create table "+KEYSPACE+".tbl1 (id int primary key)");
+
+            Assertions.assertThatThrownBy(() -> cluster.get(3).schemaChangeInternal("alter table " + KEYSPACE + ".tbl1 WITH cdc=true"))
                       .describedAs("Should not be able to enable cdc on a node")
                       .hasRootCauseMessage("cdc_enabled must be set to true to enable cdc on tables")
                       .rootCause().has(new Condition<Throwable>(t -> t.getClass().getCanonicalName()
