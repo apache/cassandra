@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.cql3.statements;
 
-import org.apache.cassandra.transport.Dispatcher;
-import org.assertj.core.api.Assertions;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -32,14 +30,16 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.messages.ResultMessage;
+import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.cql3.statements.TransactionStatement.DUPLICATE_TUPLE_NAME_MESSAGE;
 import static org.apache.cassandra.cql3.statements.TransactionStatement.EMPTY_TRANSACTION_MESSAGE;
 import static org.apache.cassandra.cql3.statements.TransactionStatement.ILLEGAL_RANGE_QUERY_MESSAGE;
+import static org.apache.cassandra.cql3.statements.TransactionStatement.INCOMPLETE_PARTITION_KEY_SELECT_MESSAGE;
 import static org.apache.cassandra.cql3.statements.TransactionStatement.INCOMPLETE_PRIMARY_KEY_SELECT_MESSAGE;
 import static org.apache.cassandra.cql3.statements.TransactionStatement.NO_CONDITIONS_IN_UPDATES_MESSAGE;
-import static org.apache.cassandra.cql3.statements.TransactionStatement.NO_COUNTERS_IN_TXNS_MESSAGE;
 import static org.apache.cassandra.cql3.statements.TransactionStatement.NO_TIMESTAMPS_IN_UPDATES_MESSAGE;
 import static org.apache.cassandra.cql3.statements.TransactionStatement.SELECT_REFS_NEED_COLUMN_MESSAGE;
 import static org.apache.cassandra.cql3.statements.TransactionStatement.TRANSACTIONS_DISABLED_ON_TABLE_MESSAGE;
@@ -58,7 +58,6 @@ public class TransactionStatementTest
     private static final TableId TABLE4_ID = TableId.fromString("00000000-0000-0000-0000-000000000004");
     private static final TableId TABLE5_ID = TableId.fromString("00000000-0000-0000-0000-000000000005");
     private static final TableId TABLE6_ID = TableId.fromString("00000000-0000-0000-0000-000000000006");
-    private static final TableId TABLE7_ID = TableId.fromString("00000000-0000-0000-0000-000000000007");
 
     @BeforeClass
     public static void beforeClass() throws Exception
@@ -70,45 +69,7 @@ public class TransactionStatementTest
                                     parse("CREATE TABLE tbl3 (k int PRIMARY KEY, \"with spaces\" int, \"with\"\"quote\" int, \"MiXeD_CaSe\" int) WITH transactional_mode = 'full'", "ks").id(TABLE3_ID),
                                     parse("CREATE TABLE tbl4 (k int PRIMARY KEY, int_list list<int>) WITH transactional_mode = 'full'", "ks").id(TABLE4_ID),
                                     parse("CREATE TABLE tbl5 (k int PRIMARY KEY, v int) WITH transactional_mode = 'full'", "ks").id(TABLE5_ID),
-                                    parse("CREATE TABLE tbl6 (k int PRIMARY KEY, c counter) WITH transactional_mode = 'full'", "ks").id(TABLE6_ID),
-                                    parse("CREATE TABLE tbl7 (k int PRIMARY KEY, v int) WITH transactional_mode = 'off'", "ks").id(TABLE7_ID));
-    }
-
-    @Test
-    public void shouldRejectCounterMutation()
-    {
-        String query = "BEGIN TRANSACTION\n" +
-                       "    UPDATE ks.tbl6 SET c += 100 WHERE k = 0;\n" +
-                       "COMMIT TRANSACTION";
-
-        Assertions.assertThatThrownBy(() -> prepare(query))
-                  .isInstanceOf(InvalidRequestException.class)
-                  .hasMessageContaining(String.format(NO_COUNTERS_IN_TXNS_MESSAGE, "UPDATE", "at [2:5]"));
-    }
-
-    @Test
-    public void shouldRejectCounterReadInLet()
-    {
-        String query = "BEGIN TRANSACTION\n" +
-                       "  LET row1 = (SELECT * FROM ks.tbl6 WHERE k=0);\n" +
-                       "  SELECT row1.c;\n" +
-                       "COMMIT TRANSACTION";
-
-        Assertions.assertThatThrownBy(() -> prepare(query))
-                  .isInstanceOf(InvalidRequestException.class)
-                  .hasMessageContaining(String.format(NO_COUNTERS_IN_TXNS_MESSAGE, "SELECT", "at [2:15]"));
-    }
-
-    @Test
-    public void shouldRejectCounterReadInSelect()
-    {
-        String query = "BEGIN TRANSACTION\n" +
-                       "  SELECT * FROM ks.tbl6 WHERE k=0;\n" +
-                       "COMMIT TRANSACTION";
-
-        Assertions.assertThatThrownBy(() -> prepare(query))
-                  .isInstanceOf(InvalidRequestException.class)
-                  .hasMessageContaining(String.format(NO_COUNTERS_IN_TXNS_MESSAGE, "SELECT", "at [2:3]"));
+                                    parse("CREATE TABLE tbl6 (k int PRIMARY KEY, v int) WITH transactional_mode = 'off'", "ks").id(TABLE6_ID));
     }
 
     @Test
@@ -234,28 +195,6 @@ public class TransactionStatementTest
         Assertions.assertThatThrownBy(() -> prepare(query))
                   .isInstanceOf(InvalidRequestException.class)
                   .hasMessageContaining(String.format(INCOMPLETE_PRIMARY_KEY_SELECT_MESSAGE, "LET assignment row1", "at [2:15]"));
-    }
-
-    @Test
-    public void shouldRejectIllegalLimitInSelect()
-    {
-        String select = "SELECT * FROM ks.tbl1 WHERE k = 1 LIMIT 2";
-        String query = "BEGIN TRANSACTION\n" + select + ";\nCOMMIT TRANSACTION";
-
-        Assertions.assertThatThrownBy(() -> prepare(query))
-                  .isInstanceOf(InvalidRequestException.class)
-                  .hasMessageContaining(String.format(INCOMPLETE_PRIMARY_KEY_SELECT_MESSAGE, "returning select", "at [2:1]"));
-    }
-
-    @Test
-    public void shouldRejectIncompletePrimaryKeyInSelect()
-    {
-        String select = "SELECT * FROM ks.tbl1 WHERE k = 1";
-        String query = "BEGIN TRANSACTION\n" + select + ";\nCOMMIT TRANSACTION";
-
-        Assertions.assertThatThrownBy(() -> prepare(query))
-                  .isInstanceOf(InvalidRequestException.class)
-                  .hasMessageContaining(String.format(INCOMPLETE_PRIMARY_KEY_SELECT_MESSAGE, "returning select", "at [2:1]"));
     }
 
     @Test
@@ -386,7 +325,7 @@ public class TransactionStatementTest
 
         Assertions.assertThatThrownBy(() -> prepare(query))
                   .isInstanceOf(InvalidRequestException.class)
-                  .hasMessageContaining(String.format(ILLEGAL_RANGE_QUERY_MESSAGE, "returning select", "at [2:1]"));
+                  .hasMessageContaining(String.format(INCOMPLETE_PARTITION_KEY_SELECT_MESSAGE, "returning select", "at [2:1]"));
     }
 
     @Test
@@ -407,7 +346,7 @@ public class TransactionStatementTest
     public void shouldRejectLetSelectOnNonTransactionalTable()
     {
         String query = "BEGIN TRANSACTION\n" +
-                       "  LET row1 = (SELECT * FROM ks.tbl7 WHERE k = 0);\n" +
+                       "  LET row1 = (SELECT * FROM ks.tbl6 WHERE k = 0);\n" +
                        "  INSERT INTO ks.tbl5 (k, v) VALUES (1, 2);\n" +
                        "COMMIT TRANSACTION;";
 
@@ -420,7 +359,7 @@ public class TransactionStatementTest
     public void shouldRejectSelectOnNonTransactionalTable()
     {
         String query = "BEGIN TRANSACTION\n" +
-                       "  SELECT * FROM ks.tbl7 WHERE k = 0;\n" +
+                       "  SELECT * FROM ks.tbl6 WHERE k = 0;\n" +
                        "COMMIT TRANSACTION;";
 
         Assertions.assertThatThrownBy(() -> prepare(query))
@@ -432,7 +371,7 @@ public class TransactionStatementTest
     public void shouldRejectUpdateOnNonTransactionalTable()
     {
         String query = "BEGIN TRANSACTION\n" +
-                       "  INSERT INTO ks.tbl7 (k, v) VALUES (1, 2);\n" +
+                       "  INSERT INTO ks.tbl6 (k, v) VALUES (1, 2);\n" +
                        "COMMIT TRANSACTION;";
 
         Assertions.assertThatThrownBy(() -> prepare(query))

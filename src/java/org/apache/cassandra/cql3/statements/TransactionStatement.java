@@ -61,6 +61,7 @@ import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.SinglePartitionReadQuery;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.partitions.FilteredPartition;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.ClientState;
@@ -78,8 +79,8 @@ import org.apache.cassandra.service.accord.txn.TxnReference;
 import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.service.accord.txn.TxnUpdate;
 import org.apache.cassandra.service.accord.txn.TxnWrite;
-import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.service.consensus.TransactionalMode;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -97,6 +98,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
     private static final Logger logger = LoggerFactory.getLogger(TransactionStatement.class);
 
     public static final String DUPLICATE_TUPLE_NAME_MESSAGE = "The name '%s' has already been used by a LET assignment.";
+    public static final String INCOMPLETE_PARTITION_KEY_SELECT_MESSAGE = "SELECT must specify either all partition key elements. Partition key elements must be always specified with equality operators; %s %s";
     public static final String INCOMPLETE_PRIMARY_KEY_SELECT_MESSAGE = "SELECT must specify either all primary key elements or all partition key elements and LIMIT 1. In both cases partition key elements must be always specified with equality operators; %s %s";
     public static final String NO_CONDITIONS_IN_UPDATES_MESSAGE = "Updates within transactions may not specify their own conditions; %s statement %s";
     public static final String NO_TIMESTAMPS_IN_UPDATES_MESSAGE = "Updates within transactions may not specify custom timestamps; %s statement %s";
@@ -107,6 +109,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
     public static final String SELECT_REFS_NEED_COLUMN_MESSAGE = "SELECT references must specify a column.";
     public static final String TRANSACTIONS_DISABLED_MESSAGE = "Accord transactions are disabled. (See accord.enabled in cassandra.yaml)";
     public static final String ILLEGAL_RANGE_QUERY_MESSAGE = "Range queries are not allowed for reads within a transaction; %s %s";
+    public static final String UNSUPPORTED_MIGRATION = "Transaction Statement is unsupported when migrating away from Accord or before migration to Accord is complete for a range";
 
     static class NamedSelect
     {
@@ -383,14 +386,11 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
             for (NamedSelect assignment : assignments)
                 checkFalse(isSelectingMultipleClusterings(assignment.select, options), INCOMPLETE_PRIMARY_KEY_SELECT_MESSAGE, "LET assignment", assignment.select.source);
 
-            if (returningSelect != null)
-                checkFalse(isSelectingMultipleClusterings(returningSelect.select, options), INCOMPLETE_PRIMARY_KEY_SELECT_MESSAGE, "returning SELECT", returningSelect.select.source);
-
             Txn txn = createTxn(state.getClientState(), options);
 
             TxnResult txnResult = AccordService.instance().coordinate(txn, options.getConsistency(), requestTime);
             if (txnResult.kind() == retry_new_protocol)
-                throw new IllegalStateException("Transaction statement should never be required to switch consensus protocols");
+                throw new InvalidRequestException(UNSUPPORTED_MIGRATION);
             TxnData data = (TxnData)txnResult;
 
             if (returningSelect != null)
@@ -560,7 +560,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
                     throw invalidRequest(NO_COUNTERS_IN_TXNS_MESSAGE, "SELECT", prepared.source);
 
                 returningSelect = new NamedSelect(TxnDataName.returning(), prepared);
-                checkAtMostOneRowSpecified(returningSelect.select, "returning select");
+                checkAtMostOnePartitionSpecified(returningSelect.select, "returning select");
             }
 
             List<RowDataReference> returningReferences = null;
@@ -598,6 +598,15 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
                 preparedConditions.add(condition.prepare("[txn]", bindVariables));
 
             return new TransactionStatement(preparedAssignments, returningSelect, returningReferences, preparedUpdates, preparedConditions, bindVariables);
+        }
+
+        /**
+         * Do not use this method in execution!!! It is only allowed during prepare because it outputs a query raw text.
+         * We don't want it print it for a user who provided an identifier of someone's else prepared statement.
+         */
+        private static void checkAtMostOnePartitionSpecified(SelectStatement select, String name)
+        {
+            checkTrue(select.getRestrictions().hasPartitionKeyRestrictions(), INCOMPLETE_PARTITION_KEY_SELECT_MESSAGE, name, select.source);
         }
 
         /**
