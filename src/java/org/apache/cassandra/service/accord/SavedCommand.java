@@ -42,6 +42,7 @@ import accord.primitives.Writes;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.journal.Journal;
+import org.apache.cassandra.journal.ValueSerializer;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import org.apache.cassandra.service.accord.serializers.DepsSerializer;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
@@ -616,5 +617,27 @@ public class SavedCommand
     public interface WaitingOnProvider
     {
         Command.WaitingOn provide(TxnId txnId, PartialDeps deps);
+    }
+
+    public static class DiffSerializer implements ValueSerializer<JournalKey, Object>
+    {
+        public void serialize(JournalKey key, Object value, DataOutputPlus out, int userVersion)
+        {
+            try
+            {
+                DiffWriter writer = (DiffWriter) value;
+                writer.write(out, userVersion);
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
+
+        public DiffWriter deserialize(JournalKey key, DataInputPlus in, int userVersion)
+        {
+            // We do not use diff serializer for reading, since we use a flyweight pattern
+            throw new UnsupportedOperationException();
+        }
     }
 }

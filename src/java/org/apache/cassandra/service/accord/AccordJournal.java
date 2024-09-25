@@ -164,7 +164,7 @@ public class AccordJournal implements IJournal, Shutdownable
     @VisibleForTesting
     public SavedCommand.Builder loadDiffs(int commandStoreId, TxnId txnId)
     {
-        JournalKey key = new JournalKey(txnId, commandStoreId);
+        JournalKey key = new JournalKey(txnId, JournalKey.Type.COMMAND_DIFF, commandStoreId);
         SavedCommand.Builder builder = new SavedCommand.Builder();
         journalTable.readAll(key, builder::deserializeNext);
         return builder;
@@ -176,7 +176,7 @@ public class AccordJournal implements IJournal, Shutdownable
         RecordPointer pointer = null;
         for (SavedCommand.Writer<TxnId> outcome : outcomes)
         {
-            JournalKey key = new JournalKey(outcome.key(), commandStoreId);
+            JournalKey key = new JournalKey(outcome.key(), JournalKey.Type.COMMAND_DIFF, commandStoreId);
             pointer = journal.asyncWrite(key, outcome, SENTINEL_HOSTS);
         }
 
@@ -287,23 +287,9 @@ public class AccordJournal implements IJournal, Shutdownable
         }
     }
 
-    public
-    private static class AccordValueSerializer<K, V> implements org.apache.cassandra.journal.ValueSerializer<K, V>
+    private interface FlyweightSerializer<KEY, BUILDER>
     {
-
-        public int serializedSize(K key, V value, int userVersion)
-        {
-            return 0;
-        }
-
-        public void serialize(K key, V value, DataOutputPlus out, int userVersion) throws IOException
-        {
-
-        }
-
-        public V deserialize(K key, DataInputPlus in, int userVersion) throws IOException
-        {
-            return null;
-        }
+        void serialize(KEY key, BUILDER from, DataOutputPlus out, int userVersion) throws IOException;
+        void deserialize(KEY key, BUILDER into, DataInputPlus in, int userVersion) throws IOException;
     }
 }
