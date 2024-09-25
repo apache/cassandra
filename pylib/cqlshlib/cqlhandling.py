@@ -29,7 +29,7 @@ cql_keywords_reserved = {'add', 'allow', 'alter', 'and', 'apply', 'asc', 'author
                          'full', 'grant', 'if', 'in', 'index', 'infinity', 'insert', 'into', 'is', 'keyspace', 'limit',
                          'materialized', 'modify', 'nan', 'norecursive', 'not', 'null', 'of', 'on', 'or', 'order',
                          'primary', 'rename', 'revoke', 'schema', 'select', 'set', 'table', 'to', 'token', 'truncate',
-                         'unlogged', 'update', 'use', 'using', 'view', 'where', 'with'}
+                         'unlogged', 'update', 'use', 'using', 'view', 'where', 'with', 'check', 'length', 'constraint'}
 """
 Set of reserved keywords in CQL.
 

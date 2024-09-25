@@ -26,7 +26,7 @@ import org.apache.cassandra.cql3.CqlBuilder;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.transport.ProtocolVersion;
 
-public abstract class CqlConstraintValidationTest extends CQLTester
+public abstract class CqlConstraintValidationTester extends CQLTester
 {
     ResultSet executeDescribeNet(String cql) throws Throwable
     {

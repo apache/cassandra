@@ -22,7 +22,7 @@ import org.junit.Test;
 import org.apache.cassandra.cql3.ConstraintViolationException;
 
 
-public class AlterTableWithTableConstraintValidationTest extends CqlConstraintValidationTest
+public class AlterTableWithTableConstraintValidationTest extends CqlConstraintValidationTester
 {
 
     @Test

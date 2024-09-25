@@ -30,7 +30,7 @@ import org.apache.cassandra.exceptions.SyntaxException;
 
 import static org.junit.Assert.assertTrue;
 
-public class CreateTableWithTableCqlConstraintValidationTest extends CqlConstraintValidationTest
+public class CreateTableWithTableCqlConstraintValidationTest extends CqlConstraintValidationTester
 {
 
     @Test

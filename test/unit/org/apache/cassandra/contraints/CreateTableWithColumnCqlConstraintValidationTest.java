@@ -26,7 +26,7 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 
 import static org.junit.Assert.assertTrue;
 
-public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstraintValidationTest
+public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstraintValidationTester
 {
 
     @Test
