@@ -21,6 +21,7 @@ package org.apache.cassandra.repair.autorepair;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -37,11 +38,11 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.repair.RepairRunnable;
+import org.apache.cassandra.repair.autorepair.IAutoRepairTokenRangeSplitter.RepairAssignment;
 import org.apache.cassandra.schema.AutoRepairParams;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.Pair;
 
 import org.junit.After;
 import org.junit.Assert;
@@ -440,21 +441,26 @@ public class AutoRepairParameterizedTest extends CQLTester
         assertEquals(0, AutoRepairMetricsManager.getMetrics(repairType).skippedTokenRangesCount.getValue().intValue());
         state.setLastRepairTime(0);
         AutoRepair.instance.repair(repairType);
-        assertEquals(1, state.getTotalMVTablesConsideredForRepair());
-        assertEquals(1, AutoRepairMetricsManager.getMetrics(repairType).totalMVTablesConsideredForRepair.getValue().intValue());
-        // skipping one time for the base table and another time for MV table
-        assertEquals(2, state.getSkippedTokenRangesCount());
-        assertEquals(2, AutoRepairMetricsManager.getMetrics(repairType).skippedTokenRangesCount.getValue().intValue());
+        assertEquals(0, state.getTotalMVTablesConsideredForRepair());
+        assertEquals(0, AutoRepairMetricsManager.getMetrics(repairType).totalMVTablesConsideredForRepair.getValue().intValue());
+        // skipping both the tables - one table is due to its repair has been disabled, and another one due to high sstable count
+        assertEquals(0, state.getSkippedTokenRangesCount());
+        assertEquals(0, AutoRepairMetricsManager.getMetrics(repairType).skippedTokenRangesCount.getValue().intValue());
+        assertEquals(2, state.getSkippedTablesCount());
+        assertEquals(2, AutoRepairMetricsManager.getMetrics(repairType).skippedTablesCount.getValue().intValue());
 
         // set it to higher value, and this time, the tables should not be skipped
-        config.setRepairSSTableCountHigherThreshold(repairType, 11);
         config.setRepairSSTableCountHigherThreshold(repairType, beforeCount);
         state.setLastRepairTime(0);
+        state.setSkippedTablesCount(0);
+        state.setTotalMVTablesConsideredForRepair(0);
         AutoRepair.instance.repair(repairType);
         assertEquals(1, state.getTotalMVTablesConsideredForRepair());
-        assertEquals(0, state.getSkippedTokenRangesCount());
         assertEquals(1, AutoRepairMetricsManager.getMetrics(repairType).totalMVTablesConsideredForRepair.getValue().intValue());
+        assertEquals(0, state.getSkippedTokenRangesCount());
         assertEquals(0, AutoRepairMetricsManager.getMetrics(repairType).skippedTokenRangesCount.getValue().intValue());
+        assertEquals(1, state.getSkippedTablesCount());
+        assertEquals(1, AutoRepairMetricsManager.getMetrics(repairType).skippedTablesCount.getValue().intValue());
     }
 
     @Test
@@ -560,27 +566,12 @@ public class AutoRepairParameterizedTest extends CQLTester
     {
         Collection<Range<Token>> tokens = StorageService.instance.getPrimaryRanges(KEYSPACE);
         assertEquals(1, tokens.size());
-        List<Range<Token>> expectedToken = new ArrayList<>();
-        expectedToken.addAll(tokens);
+        List<Range<Token>> expectedToken = new ArrayList<>(tokens);
 
-        List<Pair<Token, Token>> ranges = new DefaultAutoRepairTokenSplitter().getRange(repairType, true, KEYSPACE, TABLE);
-        assertEquals(1, ranges.size());
-        assertEquals(expectedToken.get(0).left, ranges.get(0).left);
-        assertEquals(expectedToken.get(0).right, ranges.get(0).right);
-    }
-
-    @Test
-    public void testTokenRangesSplit()
-    {
-        Collection<Range<Token>> tokens = StorageService.instance.getPrimaryRanges(KEYSPACE);
-        assertEquals(1, tokens.size());
-        List<Range<Token>> expectedToken = new ArrayList<>();
-        expectedToken.addAll(tokens);
-
-        AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
-        config.setRepairSubRangeNum(repairType, 4);
-        List<Pair<Token, Token>> ranges = new DefaultAutoRepairTokenSplitter().getRange(repairType, true, KEYSPACE, TABLE);
-        assertEquals(4, ranges.size());
+        List<RepairAssignment> assignments = new DefaultAutoRepairTokenSplitter().getRepairAssignments(repairType, true, KEYSPACE, Collections.singletonList(TABLE));
+        assertEquals(1, assignments.size());
+        assertEquals(expectedToken.get(0).left, assignments.get(0).getTokenRange().left);
+        assertEquals(expectedToken.get(0).right, assignments.get(0).getTokenRange().right);
     }
 
     @Test

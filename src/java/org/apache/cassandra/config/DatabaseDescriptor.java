@@ -4531,4 +4531,10 @@ public class DatabaseDescriptor
     {
         conf.incremental_repair_disk_headroom_reject_ratio = value;
     }
+
+    @VisibleForTesting
+    public static void setInitialTokens(String initial_token)
+    {
+        conf.initial_token = initial_token;
+    }
 }
