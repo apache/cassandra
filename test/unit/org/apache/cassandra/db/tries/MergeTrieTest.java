@@ -20,7 +20,6 @@ package org.apache.cassandra.db.tries;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.Random;
 import java.util.SortedMap;
 import java.util.TreeMap;

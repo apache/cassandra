@@ -133,9 +133,9 @@ public enum Direction
         this.increase = increase;
     }
 
-    /** Returns the result of the operation corresponding to a<b for the forward direction */
+    /** Returns the result of the operation corresponding to a &lt; b for the forward direction */
     public abstract boolean lt(int a, int b);
-    /** Returns the result of the operation corresponding to a<=b for the forward direction */
+    /** Returns the result of the operation corresponding to a &le; b for the forward direction */
     public abstract boolean le(int a, int b);
     /** Returns the result of the operation corresponding to min(a, b) for the forward direction */
     public abstract int min(int a, int b);
