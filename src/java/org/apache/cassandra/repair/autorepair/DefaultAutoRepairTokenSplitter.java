@@ -20,69 +20,61 @@ package org.apache.cassandra.repair.autorepair;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
 import org.apache.cassandra.service.AutoRepairService;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.utils.Pair;
+
+import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.splitEvenly;
 
 public class DefaultAutoRepairTokenSplitter implements IAutoRepairTokenRangeSplitter
 {
-    private static final Logger logger = LoggerFactory.getLogger(DefaultAutoRepairTokenSplitter.class);
-
-
     @Override
-    public List<Pair<Token, Token>> getRange(AutoRepairConfig.RepairType repairType, boolean primaryRangeOnly, String keyspaceName, String tableName)
+    public List<RepairAssignment> getRepairAssignments(AutoRepairConfig.RepairType repairType, boolean primaryRangeOnly, String keyspaceName, List<String> tableNames)
     {
-        List<Pair<Token, Token>> range = new ArrayList<>();
+        AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
+        List<RepairAssignment> repairAssignments = new ArrayList<>();
 
         Collection<Range<Token>> tokens = StorageService.instance.getPrimaryRanges(keyspaceName);
         if (!primaryRangeOnly)
         {
             // if we need to repair non-primary token ranges, then change the tokens accrodingly
-            tokens = StorageService.instance.getLocalReplicas(keyspaceName).ranges();
+            tokens = StorageService.instance.getLocalReplicas(keyspaceName).onlyFull().ranges();
         }
-        AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
         int numberOfSubranges = config.getRepairSubRangeNum(repairType);
+
+        boolean byKeyspace = config.getRepairByKeyspace(repairType);
+
+        // collect all token ranges.
+        List<Range<Token>> allRanges = new ArrayList<>();
         for (Range<Token> token : tokens)
         {
-            Murmur3Partitioner.LongToken l = (Murmur3Partitioner.LongToken) (token.left);
-            Murmur3Partitioner.LongToken r = (Murmur3Partitioner.LongToken) (token.right);
-            //        Token.TokenFactory factory = ClusterMetadata.current().partitioner.getTokenFactory();
+            allRanges.addAll(splitEvenly(token, numberOfSubranges));
+        }
 
-            Token parentStartToken = ClusterMetadata.current().partitioner.getTokenFactory().fromString("" + l.getTokenValue());
-            Token parentEndToken = ClusterMetadata.current().partitioner.getTokenFactory().fromString("" + r.getTokenValue());
-            logger.debug("Parent Token Left side {}, right side {}", parentStartToken.toString(),
-                         parentEndToken.toString());
-
-            long left = (Long) l.getTokenValue();
-            long right = (Long) r.getTokenValue();
-            long repairTokenWidth = (right - left) / numberOfSubranges;
-            for (int i = 0; i < numberOfSubranges; i++)
+        if (byKeyspace)
+        {
+            for (Range<Token> splitRange : allRanges)
             {
-                long curLeft = left + (i * repairTokenWidth);
-                long curRight = curLeft + repairTokenWidth;
-
-                if ((i + 1) == numberOfSubranges)
-                {
-                    curRight = right;
-                }
-
-                Token childStartToken = ClusterMetadata.current().partitioner.getTokenFactory().fromString("" + curLeft);
-                Token childEndToken = ClusterMetadata.current().partitioner.getTokenFactory().fromString("" + curRight);
-                logger.debug("Current Token Left side {}, right side {}", childStartToken
-                                                                          .toString(), childEndToken.toString());
-                range.add(Pair.create(childStartToken, childEndToken));
+                // add repair assignment for each range entire keyspace's tables
+                repairAssignments.add(new RepairAssignment(splitRange, keyspaceName, tableNames));
             }
         }
-        return range;
+        else
+        {
+            // add repair assignment per table
+            for (String tableName : tableNames)
+            {
+                for (Range<Token> splitRange : allRanges)
+                {
+                    repairAssignments.add(new RepairAssignment(splitRange, keyspaceName, Collections.singletonList(tableName)));
+                }
+            }
+        }
+        return repairAssignments;
     }
 }
