@@ -56,7 +56,7 @@ public class AutoRepairConfig implements Serializable
     // global_settings overides Options.defaultOptions for all repair types
     public volatile Options global_settings;
 
-    public enum RepairType
+    public enum RepairType implements Serializable
     {
         full,
         incremental;
