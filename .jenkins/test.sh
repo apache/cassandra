@@ -91,7 +91,9 @@ if [[ -f "build/jacoco/report.xml" ]] && [[ "${ANT_TARGET:-test}" == "test" ]]; 
   echo "$comment" >> "$FILE_PHAB_COMMENT"
 fi
 
-# rename jacoco report xml+html file and upload it to buildkite artifact
+# upload code coverage xml , and the full jacoco tar to buildkite artifact
 mkdir "build/coverage"
 cp "build/jacoco/report.xml" "build/coverage/report-${ANT_TARGET:-test}.xml"
-cp "build/jacoco/index.html" "build/coverage/index-${ANT_TARGET:-test}.html"
+# rename directory
+cp -r build/jacoco build/jacoco-utest-${ANT_TARGET:-test}
+tar -czvf build/jacoco-utest-${ANT_TARGET:-test}.tar.gz build/jacoco-utest-${ANT_TARGET:-test}

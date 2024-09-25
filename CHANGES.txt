@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * [SO-34256] Report code coverage for in-jvm dtest
  * [SO-34935] Add nodetool command to force bump up gossip generation
  * [SO-34890] Add the DurationSpec type support in the setvalueforconfig nodetool
  * [SO-34888] Include jvm dtests in sonarqube code coverage

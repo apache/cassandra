@@ -63,4 +63,12 @@ if [ "$selected_java_files_to_test" -le 0 ]; then
     exit 1
 fi
 
-ant testclasslist -Dtest.timeout=900000 -Dtest.classlistfile="$selected_test_file" -Dtest.classlistprefix=distributed
+# run jvm dtest with jacoco report generated
+ant codecoverage -Dtaskname=testclasslist -Dtest.timeout=900000 -Dtest.classlistfile="$selected_test_file" -Dtest.classlistprefix=distributed
+
+# upload code coverage xml , and the full jacoco tar to buildkite artifact
+mkdir "build/coverage"
+cp "build/jacoco/report.xml" "build/coverage/report-dtest-group${DTEST_GROUP_ID}.xml"
+# rename directory
+cp -r build/jacoco build/jacoco-dtest-group${DTEST_GROUP_ID}
+tar -czvf build/jacoco-dtest-group${DTEST_GROUP_ID}.tar.gz build/jacoco-dtest-group${DTEST_GROUP_ID}
