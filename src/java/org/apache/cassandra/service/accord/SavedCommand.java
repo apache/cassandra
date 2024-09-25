@@ -42,7 +42,6 @@ import accord.primitives.Writes;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.journal.Journal;
-import org.apache.cassandra.journal.ValueSerializer;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import org.apache.cassandra.service.accord.serializers.DepsSerializer;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
@@ -71,13 +70,8 @@ public class SavedCommand
         WRITES,
     }
 
-    public interface Writer<K> extends Journal.Writer
-    {
-        void write(DataOutputPlus out, int userVersion) throws IOException;
-        K key();
-    }
-
-    public static class DiffWriter implements Writer<TxnId>
+    // TODO: maybe rename this and enclosing classes?
+    public static class DiffWriter implements Journal.Writer
     {
         private final Command before;
         private final Command after;
@@ -119,19 +113,13 @@ public class SavedCommand
     }
 
     @Nullable
-    public static Writer<TxnId> diff(Command original, Command current)
+    public static DiffWriter diff(Command original, Command current)
     {
         if (original == current
             || current == null
             || current.saveStatus() == SaveStatus.Uninitialised)
             return null;
         return new SavedCommand.DiffWriter(original, current);
-    }
-
-
-    public static Writer<TxnId> diffWriter(Command before, Command after)
-    {
-        return new DiffWriter(before, after);
     }
 
     public static void serialize(Command before, Command after, DataOutputPlus out, int userVersion) throws IOException
@@ -617,27 +605,5 @@ public class SavedCommand
     public interface WaitingOnProvider
     {
         Command.WaitingOn provide(TxnId txnId, PartialDeps deps);
-    }
-
-    public static class DiffSerializer implements ValueSerializer<JournalKey, Object>
-    {
-        public void serialize(JournalKey key, Object value, DataOutputPlus out, int userVersion)
-        {
-            try
-            {
-                DiffWriter writer = (DiffWriter) value;
-                writer.write(out, userVersion);
-            }
-            catch (IOException e)
-            {
-                throw new RuntimeException(e);
-            }
-        }
-
-        public DiffWriter deserialize(JournalKey key, DataInputPlus in, int userVersion)
-        {
-            // We do not use diff serializer for reading, since we use a flyweight pattern
-            throw new UnsupportedOperationException();
-        }
     }
 }

@@ -64,7 +64,7 @@ public class AccordJournalSimulationTest extends SimulationTestBase
                      ListenableFileSystem fs = new ListenableFileSystem(Jimfs.newFileSystem());
                      File.unsafeSetFilesystem(fs);
                      DatabaseDescriptor.daemonInitialization();
-                     DatabaseDescriptor.setCommitLogCompression(new ParameterizedClass("LZ4Compressor", ImmutableMap.of())); //
+                     DatabaseDescriptor.setCommitLogCompression(new ParameterizedClass("LZ4Compressor", ImmutableMap.of()));
                      DatabaseDescriptor.setCommitLogWriteDiskAccessMode(Config.DiskAccessMode.standard);
                      DatabaseDescriptor.initializeCommitLogDiskAccessMode();
                      DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
@@ -130,12 +130,6 @@ public class AccordJournalSimulationTest extends SimulationTestBase
     @Isolated
     public static class IdentityValueSerializer implements ValueSerializer<String, String>
     {
-        @Override
-        public int serializedSize(String key, String value, int userVersion)
-        {
-            return TypeSizes.INT_SIZE + key.length();
-        }
-
         @Override
         public void serialize(String key, String value, DataOutputPlus out, int userVersion) throws IOException
         {

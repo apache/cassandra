@@ -125,7 +125,7 @@ public class AccordSafeCommand extends SafeCommand implements AccordSafeState<Tx
         return original;
     }
 
-    public SavedCommand.Writer<TxnId> diff()
+    public SavedCommand.DiffWriter diff()
     {
         return SavedCommand.diff(original, current);
     }

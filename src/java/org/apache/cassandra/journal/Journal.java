@@ -494,7 +494,7 @@ public class Journal<K, V> implements Shutdownable
         return asyncWrite(id, (out, userVersion) -> valueSerializer.serialize(id, record, out, userVersion), hosts);
     }
 
-    private RecordPointer asyncWrite(K id, Writer writer, Set<Integer> hosts)
+    public RecordPointer asyncWrite(K id, Writer writer, Set<Integer> hosts)
     {
         RecordPointer recordPointer;
         try (DataOutputBuffer dob = DataOutputBuffer.scratchBuffer.get())

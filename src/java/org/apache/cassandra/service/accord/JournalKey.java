@@ -29,7 +29,6 @@ import accord.utils.Invariants;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.journal.KeySupport;
-import org.apache.cassandra.journal.ValueSerializer;
 import org.apache.cassandra.utils.ByteArrayUtil;
 
 import static org.apache.cassandra.db.TypeSizes.BYTE_SIZE;
@@ -41,7 +40,6 @@ public final class JournalKey
 {
     final Type type;
     public final Timestamp timestamp;
-    // TODO: command store id _before_ timestamp
     public final int commandStoreId;
 
     JournalKey(Timestamp timestamp, Type type, int commandStoreId)
@@ -246,19 +244,20 @@ public final class JournalKey
 
     public enum Type
     {
-        COMMAND_DIFF                 (1, new SavedCommand.DiffSerializer()),
-        //COMMAND_DIFF                 (1, new NoOpSerializer()),
+        COMMAND_DIFF                 (0, new AccordJournalValueSerializers.CommandDiffSerializer()),
+        REDUNDANT_BEFORE             (1, new AccordJournalValueSerializers.RedundantBeforeSerializer()),
+        DURABLE_BEFORE               (2, new AccordJournalValueSerializers.DurableBeforeSerializer()),
         ;
 
         final int id;
-        final ValueSerializer<JournalKey, Object> serializer;
+        final AccordJournalValueSerializers.FlyweightSerializer<?, ?> serializer;
 
-        Type(int id, ValueSerializer<JournalKey, Object> serializer)
+        Type(int id, AccordJournalValueSerializers.FlyweightSerializer<?, ?> serializer)
         {
             this.id = id;
+
             this.serializer = serializer;
         }
-        // TODO: merger
 
         private static final Type[] idToTypeMapping;
 
@@ -288,24 +287,6 @@ public final class JournalKey
             if (null == type)
                 throw new IllegalArgumentException("Unknown Type id " + id);
             return type;
-        }
-    }
-
-    private static class NoOpSerializer implements ValueSerializer<JournalKey, Object>
-    {
-        public int serializedSize(JournalKey key, Object value, int userVersion)
-        {
-            throw new UnsupportedOperationException();
-        }
-
-        public void serialize(JournalKey key, Object value, DataOutputPlus out, int userVersion)
-        {
-            throw new UnsupportedOperationException();
-        }
-
-        public Object deserialize(JournalKey key, DataInputPlus in, int userVersion)
-        {
-            throw new UnsupportedOperationException();
         }
     }
 

@@ -422,9 +422,7 @@ public class AccordCommandStore extends CommandStore implements CacheSize
     @VisibleForTesting
     public void appendToLog(Command before, Command after, Runnable runnable)
     {
-        journal.appendCommand(id,
-                              Collections.singletonList(SavedCommand.diffWriter(before, after)),
-                              null, runnable);
+        journal.appendCommand(id, Collections.singletonList(SavedCommand.diff(before, after)), null, runnable);
     }
 
     boolean validateCommand(TxnId txnId, Command evicting)
@@ -665,7 +663,7 @@ public class AccordCommandStore extends CommandStore implements CacheSize
 
     public NavigableMap<Timestamp, Ranges> safeToRead() { return super.safeToRead(); }
 
-    public void appendCommands(List<SavedCommand.Writer<TxnId>> commands, List<Command> sanityCheck, Runnable onFlush)
+    public void appendCommands(List<SavedCommand.DiffWriter> commands, List<Command> sanityCheck, Runnable onFlush)
     {
         journal.appendCommand(id, commands, sanityCheck, onFlush);
     }

@@ -31,7 +31,7 @@ public interface IJournal
      * Append outcomes to the log.
      */
     void appendCommand(int commandStoreId,
-                       List<SavedCommand.Writer<TxnId>> command,
+                       List<SavedCommand.DiffWriter> command,
                        List<Command> sanityCheck,
                        Runnable onFlush);
 }

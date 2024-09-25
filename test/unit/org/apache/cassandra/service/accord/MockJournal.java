@@ -50,7 +50,7 @@ public class MockJournal implements IJournal
     @Override
     public Command loadCommand(int commandStoreId, TxnId txnId)
     {
-        JournalKey key = new JournalKey(txnId, commandStoreId);
+        JournalKey key = new JournalKey(txnId, JournalKey.Type.COMMAND_DIFF, commandStoreId);
         List<LoadedDiff> saved = commands.get(key);
         if (saved == null)
             return null;
@@ -58,15 +58,13 @@ public class MockJournal implements IJournal
     }
 
     @Override
-    public void appendCommand(int commandStoreId, List<SavedCommand.Writer<TxnId>> diffs, List<Command> sanityCheck, Runnable onFlush)
+    public void appendCommand(int commandStoreId, List<SavedCommand.DiffWriter> diffs, List<Command> sanityCheck, Runnable onFlush)
     {
-        for (SavedCommand.Writer<TxnId> diff : diffs)
+        for (SavedCommand.DiffWriter diff : diffs)
         {
-            SavedCommand.DiffWriter writer = (SavedCommand.DiffWriter) diff;
-
-            JournalKey key = new JournalKey(diff.key(), commandStoreId);
+            JournalKey key = new JournalKey(diff.key(), JournalKey.Type.COMMAND_DIFF, commandStoreId);
             commands.computeIfAbsent(key, (ignore_) -> new ArrayList<>())
-                    .add(diff(writer.before(), writer.after()));
+                    .add(diff(diff.before(), diff.after()));
         }
         onFlush.run();
     }

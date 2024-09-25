@@ -74,7 +74,7 @@ public class AccordJournalOrderTest
         for (int i = 0; i < 10_000; i++)
         {
             TxnId txnId = randomSource.nextBoolean() ? id1 : id2;
-            JournalKey key = new JournalKey(txnId, randomSource.nextInt(5));
+            JournalKey key = new JournalKey(txnId, JournalKey.Type.COMMAND_DIFF, randomSource.nextInt(5));
             res.compute(key, (k, prev) -> prev == null ? 1 : prev + 1);
             accordJournal.appendCommand(key.commandStoreId,
                                         Collections.singletonList(new SavedCommand.DiffWriter(txnId, null, null)),

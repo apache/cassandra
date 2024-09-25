@@ -507,7 +507,7 @@ public class AccordTestUtils
 
     public static void appendCommandsBlocking(AccordCommandStore commandStore, Command before, Command after)
     {
-        SavedCommand.Writer<TxnId> diff = SavedCommand.diff(before, after);
+        SavedCommand.DiffWriter diff = SavedCommand.diff(before, after);
         if (diff == null) return;
         Condition condition = Condition.newOneTimeCondition();
         commandStore.appendCommands(Collections.singletonList(diff), null, condition::signal);

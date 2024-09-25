@@ -251,10 +251,10 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
 
                 result = apply(safeStore);
                 // TODO (required): currently, we are not very efficient about ensuring that we persist the absolute minimum amount of state. Improve that.
-                List<SavedCommand.Writer<TxnId>> diffs = null;
+                List<SavedCommand.DiffWriter> diffs = null;
                 for (AccordSafeCommand commandState : context.commands.values())
                 {
-                    SavedCommand.Writer<TxnId> diff = commandState.diff();
+                    SavedCommand.DiffWriter diff = commandState.diff();
                     if (diff == null)
                         continue;
                     if (diffs == null)

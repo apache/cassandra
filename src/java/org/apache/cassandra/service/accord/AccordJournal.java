@@ -33,6 +33,7 @@ import org.slf4j.LoggerFactory;
 import accord.local.Command;
 import accord.local.Node;
 import accord.local.SaveStatus;
+import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
 import org.apache.cassandra.concurrent.Shutdownable;
@@ -64,7 +65,7 @@ public class AccordJournal implements IJournal, Shutdownable
 
     private static final Set<Integer> SENTINEL_HOSTS = Collections.singleton(0);
 
-    static final ThreadLocal<byte[]> keyCRCBytes = ThreadLocal.withInitial(() -> new byte[22]);
+    static final ThreadLocal<byte[]> keyCRCBytes = ThreadLocal.withInitial(() -> new byte[23]);
 
     private final Journal<JournalKey, Object> journal;
     private final AccordJournalTable<JournalKey, Object> journalTable;
@@ -82,16 +83,13 @@ public class AccordJournal implements IJournal, Shutdownable
                                      // In Accord, we are using streaming serialization, i.e. Reader/Writer interfaces instead of materializing objects
                                      new ValueSerializer<>()
                                      {
-                                         public int serializedSize(JournalKey key, Object value, int userVersion)
-                                         {
-                                             throw new UnsupportedOperationException();
-                                         }
-
+                                         @Override
                                          public void serialize(JournalKey key, Object value, DataOutputPlus out, int userVersion)
                                          {
                                              throw new UnsupportedOperationException();
                                          }
 
+                                         @Override
                                          public Object deserialize(JournalKey key, DataInputPlus in, int userVersion)
                                          {
                                              throw new UnsupportedOperationException();
@@ -170,11 +168,30 @@ public class AccordJournal implements IJournal, Shutdownable
         return builder;
     }
 
+    public <BUILDER> BUILDER readAll(Timestamp timestamp, JournalKey.Type type, int commandStoreId)
+    {
+        JournalKey key = new JournalKey(timestamp, type, commandStoreId);
+        BUILDER builder = (BUILDER) type.serializer.mergerFor(key);
+        // TODO: this can be further improved to avoid allocating lambdas
+        AccordJournalValueSerializers.FlyweightSerializer<?, BUILDER> serializer = (AccordJournalValueSerializers.FlyweightSerializer<?, BUILDER>) type.serializer;
+        journalTable.readAll(key, (in, userVersion) -> serializer.deserialize(key, builder, in, userVersion));
+        return builder;
+    }
+
+    public <WRITE> void append(Timestamp timestamp, JournalKey.Type type, int commandStoreId, WRITE write, Runnable onFlush)
+    {
+        JournalKey key = new JournalKey(timestamp, type, commandStoreId);
+        AccordJournalValueSerializers.FlyweightSerializer<WRITE, ?> serializer = (AccordJournalValueSerializers.FlyweightSerializer<WRITE, ?>) type.serializer;
+        RecordPointer pointer = journal.asyncWrite(key, (out, userVersion) -> serializer.serialize(key, write, out, userVersion), SENTINEL_HOSTS);
+        if (onFlush != null)
+            journal.onFlush(pointer, onFlush);
+    }
+
     @Override
-    public void appendCommand(int commandStoreId, List<SavedCommand.Writer<TxnId>> outcomes, List<Command> sanityCheck, Runnable onFlush)
+    public void appendCommand(int commandStoreId, List<SavedCommand.DiffWriter> outcomes, List<Command> sanityCheck, Runnable onFlush)
     {
         RecordPointer pointer = null;
-        for (SavedCommand.Writer<TxnId> outcome : outcomes)
+        for (SavedCommand.DiffWriter outcome : outcomes)
         {
             JournalKey key = new JournalKey(outcome.key(), JournalKey.Type.COMMAND_DIFF, commandStoreId);
             pointer = journal.asyncWrite(key, outcome, SENTINEL_HOSTS);
@@ -254,6 +271,10 @@ public class AccordJournal implements IJournal, Shutdownable
             final SavedCommand.Builder builder = new SavedCommand.Builder();
             while ((key = iter.key()) != null)
             {
+                // TODO (now): we do need to replay other key types
+                if (key.type != JournalKey.Type.COMMAND_DIFF)
+                    return;
+
                 JournalKey finalKey = key;
                 iter.readAllForKey(key, (segment, position, local, buffer, hosts, userVersion) -> {
                     Invariants.checkState(finalKey.equals(local));
@@ -285,11 +306,5 @@ public class AccordJournal implements IJournal, Shutdownable
             AccordCommandStore commandStore = (AccordCommandStore) node.commandStores().forId(apply.key.commandStoreId);
             commandStore.loader().apply(apply.command);
         }
-    }
-
-    private interface FlyweightSerializer<KEY, BUILDER>
-    {
-        void serialize(KEY key, BUILDER from, DataOutputPlus out, int userVersion) throws IOException;
-        void deserialize(KEY key, BUILDER into, DataInputPlus in, int userVersion) throws IOException;
     }
 }
