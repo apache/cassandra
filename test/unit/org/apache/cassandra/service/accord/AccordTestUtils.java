@@ -398,7 +398,7 @@ public class AccordTestUtils
 
         if (new File(DatabaseDescriptor.getAccordJournalDirectory()).exists())
             ServerTestUtils.cleanupDirectory(DatabaseDescriptor.getAccordJournalDirectory());
-        AccordJournal journal = new AccordJournal(SimpleAccordEndpointMapper.INSTANCE, new AccordSpec.JournalSpec());
+        AccordJournal journal = new AccordJournal(new AccordSpec.JournalSpec());
         journal.start(null);
 
         SingleEpochRanges holder = new SingleEpochRanges(topology.rangesForNode(node));

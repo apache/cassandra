@@ -33,6 +33,7 @@ import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.Crc;
 
 import static org.apache.cassandra.journal.Journal.validateCRC;
@@ -197,6 +198,22 @@ final class OnDiskIndex<K> extends Index<K>
     public K lastId()
     {
         return lastId;
+    }
+
+    public AbstractIterator<K> keyIterator()
+    {
+        return new AbstractIterator<K>()
+        {
+            final OnDiskIndex<K>.IndexReader indexIterator = new IndexReader();
+
+            protected K computeNext()
+            {
+                if (!indexIterator.advance())
+                    return endOfData();
+
+                return indexIterator.key();
+            }
+        };
     }
 
     @Override

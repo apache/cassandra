@@ -144,7 +144,7 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
             if (!preserveTimestamps)
                 update = new PartitionUpdate.Builder(get(), 0).updateTimesAndPathsForAccord(cellToMaybeNewListPath, timestamp, nowInSeconds).build();
             Mutation mutation = new Mutation(update, true);
-            return AsyncChains.ofRunnable(Stage.MUTATION.executor(), mutation::apply);
+            return AsyncChains.ofRunnable(Stage.MUTATION.executor(), mutation::applyUnsafe);
         }
 
         @Override

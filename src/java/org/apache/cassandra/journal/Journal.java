@@ -17,12 +17,14 @@
  */
 package org.apache.cassandra.journal;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.file.FileStore;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -59,7 +61,6 @@ import org.apache.cassandra.utils.concurrent.WaitQueue;
 import org.jctools.queues.MpscUnboundedArrayQueue;
 
 import static java.lang.String.format;
-import static java.util.Comparator.comparing;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.Daemon.NON_DAEMON;
 import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.Interrupts.SYNCHRONIZED;
@@ -254,6 +255,7 @@ public class Journal<K, V> implements Shutdownable
         try
         {
             allocator.shutdown();
+            wakeAllocator(); // Wake allocator to force it into shutdown
             allocator.awaitTermination(1, TimeUnit.MINUTES);
             compactor.shutdown();
             compactor.awaitTermination(1, TimeUnit.MINUTES);
@@ -329,7 +331,6 @@ public class Journal<K, V> implements Shutdownable
         try (ReferencedSegments<K, V> segments = selectAndReference(id))
         {
             consumer.init();
-
             for (Segment<K, V> segment : segments.allSorted())
                 segment.readAll(id, holder, consumer);
         }
@@ -736,6 +737,17 @@ public class Journal<K, V> implements Shutdownable
         }
     }
 
+    @SuppressWarnings("unused")
+    ReferencedSegments<K, V> selectAndReference(Predicate<Segment<K,V>> selector)
+    {
+        while (true)
+        {
+            ReferencedSegments<K, V> referenced = segments().selectAndReference(selector);
+            if (null != referenced)
+                return referenced;
+        }
+    }
+
     Segments<K, V> segments()
     {
         return segments.get();
@@ -854,24 +866,6 @@ public class Journal<K, V> implements Shutdownable
         closer.execute(new CloseActiveSegmentRunnable(activeSegment));
     }
 
-    /*
-     * Replay logic
-     */
-
-    /**
-     * Iterate over and invoke the supplied callback on every record,
-     * with segments iterated in segment timestamp order. Only visits
-     * finished, on-disk segments.
-     */
-    public void replayStaticSegments(RecordConsumer<K> consumer)
-    {
-        List<StaticSegment<K, V>> staticSegments = new ArrayList<>();
-        segments().selectStatic(staticSegments);
-        staticSegments.sort(comparing(s -> s.descriptor));
-        for (StaticSegment<K, V> segment : staticSegments)
-            segment.forEachRecord(consumer);
-    }
-
     @VisibleForTesting
     public void closeCurrentSegmentForTesting()
     {
@@ -953,5 +947,60 @@ public class Journal<K, V> implements Shutdownable
     public interface Writer
     {
         void write(DataOutputPlus out, int userVersion) throws IOException;
+    }
+
+    public StaticSegmentIterator staticSegmentIterator()
+    {
+        return new StaticSegmentIterator();
+    }
+
+    /**
+     * Static segment iterator iterates all _static_ segments in _key_ order.
+     */
+    public class StaticSegmentIterator implements Closeable
+    {
+        private final PriorityQueue<StaticSegment.KeyOrderReader<K>> readers;
+        private final ReferencedSegments<K, V> segments;
+
+        private StaticSegmentIterator()
+        {
+            this.segments = selectAndReference(Segment::isStatic);
+            this.readers = new PriorityQueue<>((o1, o2) -> keySupport.compare(o1.key(), o2.key()));
+            for (Segment<K, V> segment : this.segments.all())
+            {
+                StaticSegment<K, V> staticSegment = (StaticSegment<K, V>)segment;
+                StaticSegment.KeyOrderReader<K> reader = staticSegment.keyOrderReader();
+                if (reader.advance())
+                    this.readers.add(reader);
+            }
+        }
+
+        public K key()
+        {
+            StaticSegment.KeyOrderReader<K> reader = readers.peek();
+            if (reader == null)
+                return null;
+            return reader.key();
+        }
+
+        public void readAllForKey(K key, RecordConsumer<K> reader)
+        {
+            while (true)
+            {
+                StaticSegment.KeyOrderReader<K> next = readers.peek();
+                if (next == null || !next.key().equals(key))
+                    break;
+                Invariants.checkState(next == readers.poll());
+
+                reader.accept(next.descriptor.timestamp, next.offset, next.key(), next.record(), next.hosts(), next.descriptor.userVersion);
+                if (next.advance())
+                    readers.add(next);
+            }
+        }
+
+        public void close()
+        {
+            segments.close();
+        }
     }
 }

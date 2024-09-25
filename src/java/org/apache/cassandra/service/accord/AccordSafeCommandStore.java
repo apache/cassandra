@@ -35,7 +35,6 @@ import accord.local.NodeTimeService;
 import accord.local.PreLoadContext;
 import accord.primitives.AbstractKeys;
 import accord.primitives.AbstractRanges;
-import accord.primitives.Deps;
 import accord.primitives.Ranges;
 import accord.primitives.Routables;
 import accord.primitives.Seekables;
@@ -173,42 +172,6 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     public RangesForEpoch ranges()
     {
         return commandStore().unsafeRangesForEpoch();
-    }
-
-    @Override
-    public void registerHistoricalTransactions(Deps deps)
-    {
-        if (deps.isEmpty()) return;
-        // used in places such as accord.local.CommandStore.fetchMajorityDeps
-        // We find a set of dependencies for a range then update CommandsFor to know about them
-        Ranges allRanges = ranges.all();
-        deps.keyDeps.keys().forEach(allRanges, key -> {
-            // TODO (now): batch register to minimise GC
-            deps.keyDeps.forEach(key, (txnId, txnIdx) -> {
-                // TODO (desired, efficiency): this can be made more efficient by batching by epoch
-                if (ranges.coordinates(txnId).contains(key))
-                    return; // already coordinates, no need to replicate
-                if (!ranges.allBefore(txnId.epoch()).contains(key))
-                    return;
-
-                get(key).registerHistorical(this, txnId);
-            });
-        });
-        for (int i = 0; i < deps.rangeDeps.rangeCount(); i++)
-        {
-            var range = deps.rangeDeps.range(i);
-            if (!allRanges.intersects(range))
-                continue;
-            deps.rangeDeps.forEach(range, txnId -> {
-                // TODO (desired, efficiency): this can be made more efficient by batching by epoch
-                if (ranges.coordinates(txnId).intersects(range))
-                    return; // already coordinates, no need to replicate
-                if (!ranges.allBefore(txnId.epoch()).intersects(range))
-                    return;
-
-                commandStore.diskCommandsForRanges().mergeHistoricalTransaction(txnId, Ranges.single(range).slice(allRanges), Ranges::with);
-            });
-        }
     }
 
     private <O> O mapReduce(Routables<?> keysOrRanges, Ranges slice, BiFunction<CommandsSummary, O, O> map, O accumulate)

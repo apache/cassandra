@@ -18,11 +18,21 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import accord.api.DataStore;
 import accord.local.Node;
 import accord.local.SafeCommandStore;
 import accord.primitives.Ranges;
 import accord.primitives.SyncPoint;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.utils.concurrent.Future;
 
 public class AccordDataStore implements DataStore
 {
@@ -32,5 +42,30 @@ public class AccordDataStore implements DataStore
         AccordFetchCoordinator coordinator = new AccordFetchCoordinator(node, ranges, syncPoint, callback, safeStore.commandStore());
         coordinator.start();
         return coordinator.result();
+    }
+
+    @Override
+    public void snapshot()
+    {
+        // TODO: maintain a list of Accord tables, perhaps in ClusterMetadata?
+        ClusterMetadata metadata = ClusterMetadata.current();
+        List<Future<?>> futures = new ArrayList<>();
+        for (KeyspaceMetadata ks : metadata.schema.getKeyspaces())
+        {
+            for (TableMetadata table : ks.tables)
+            {
+                if (table.isAccordEnabled())
+                    futures.add(Keyspace.open(ks.name).getColumnFamilyStore(table.id).forceFlush(ColumnFamilyStore.FlushReason.ACCORD));
+            }
+        }
+        try
+        {
+            for (Future<?> future : futures)
+                future.get();
+        }
+        catch (Throwable t)
+        {
+            throw new IllegalStateException("Could not snapshot table state.", t);
+        }
     }
 }
