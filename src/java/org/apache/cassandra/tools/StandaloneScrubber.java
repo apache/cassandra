@@ -23,6 +23,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.cli.CommandLine;
@@ -241,12 +242,12 @@ public class StandaloneScrubber
 
             static HeaderFixMode fromCommandLine(String value)
             {
-                return valueOf(value.replace('-', '_').toUpperCase().trim());
+                return valueOf(value.replace('-', '_').toUpperCase(Locale.US).trim());
             }
 
             String asCommandLineOption()
             {
-                return name().toLowerCase().replace('_', '-');
+                return name().toLowerCase(Locale.US).replace('_', '-');
             }
         }
 

@@ -251,7 +251,7 @@ public final class Duration
 
     private static Builder add(Builder builder, long number, String symbol)
     {
-        switch (symbol.toLowerCase())
+        switch (symbol.toLowerCase(Locale.US))
         {
             case "y": return builder.addYears(number);
             case "mo": return builder.addMonths(number);

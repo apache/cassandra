@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.RejectedExecutionException;
 
 import org.junit.AfterClass;
@@ -98,7 +99,7 @@ public class RepairCoordinatorBase extends TestBaseImpl
 
     protected String postfix()
     {
-        return repairType.name().toLowerCase() + "_" + parallelism.name().toLowerCase() + "_" + withNotifications;
+        return repairType.name().toLowerCase(Locale.US) + "_" + parallelism.name().toLowerCase(Locale.US) + "_" + withNotifications;
     }
 
     protected NodeToolResult repair(int node, String... args) {

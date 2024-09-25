@@ -38,6 +38,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.Spliterator;
+import java.util.Locale;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
@@ -755,11 +756,11 @@ public class Directories
      */
     public static boolean isStoredInLocalSystemKeyspacesDataLocation(String keyspace, String table)
     {
-        String keyspaceName = keyspace.toLowerCase();
+        String keyspaceName = keyspace.toLowerCase(Locale.US);
 
         return SchemaConstants.LOCAL_SYSTEM_KEYSPACE_NAMES.contains(keyspaceName)
                 && !(SchemaConstants.SYSTEM_KEYSPACE_NAME.equals(keyspaceName)
-                        && SystemKeyspace.TABLES_SPLIT_ACROSS_MULTIPLE_DISKS.contains(table.toLowerCase()));
+                        && SystemKeyspace.TABLES_SPLIT_ACROSS_MULTIPLE_DISKS.contains(table.toLowerCase(Locale.US)));
     }
 
     public static class DataDirectory

@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.service.reads.repair;
 
+import java.util.Locale;
+
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.ReplicaPlan;
@@ -45,6 +47,6 @@ public enum ReadRepairStrategy implements ReadRepair.Factory
 
     public static ReadRepairStrategy fromString(String s)
     {
-        return valueOf(s.toUpperCase());
+        return valueOf(s.toUpperCase(Locale.US));
     }
 }

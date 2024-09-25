@@ -19,6 +19,7 @@ package org.apache.cassandra.config;
 
 import java.util.Arrays;
 import java.util.Objects;
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -108,7 +109,7 @@ public abstract class DurationSpec
 
         if (minUnit.convert(quantity, sourceUnit) >= max)
             throw new IllegalArgumentException("Invalid duration: " + value + ". It shouldn't be more than " +
-                                             (max - 1) + " in " + minUnit.name().toLowerCase());
+                                             (max - 1) + " in " + minUnit.name().toLowerCase(Locale.ENGLISH));
     }
 
     private static void validateQuantity(long quantity, TimeUnit sourceUnit, TimeUnit minUnit, long max)
@@ -118,8 +119,8 @@ public abstract class DurationSpec
 
         if (minUnit.convert(quantity, sourceUnit) >= max)
             throw new IllegalArgumentException(String.format("Invalid duration: %d %s. It shouldn't be more than %d in %s",
-                                                           quantity, sourceUnit.name().toLowerCase(),
-                                                           max - 1, minUnit.name().toLowerCase()));
+                                                           quantity, sourceUnit.name().toLowerCase(Locale.ENGLISH),
+                                                           max - 1, minUnit.name().toLowerCase(Locale.ENGLISH)));
     }
 
     // get vs no-get prefix is not consistent in the code base, but for classes involved with config parsing, it is
@@ -141,7 +142,7 @@ public abstract class DurationSpec
      */
     static TimeUnit fromSymbol(String symbol)
     {
-        switch (symbol.toLowerCase())
+        switch (symbol.toLowerCase(Locale.ENGLISH))
         {
             case "d": return DAYS;
             case "h": return HOURS;

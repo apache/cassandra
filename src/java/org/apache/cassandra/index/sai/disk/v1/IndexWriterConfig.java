@@ -19,6 +19,7 @@ package org.apache.cassandra.index.sai.disk.v1;
 
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 import io.github.jbellis.jvector.vector.VectorSimilarityFunction;
@@ -151,7 +152,7 @@ public class IndexWriterConfig
             }
             if (options.containsKey(SIMILARITY_FUNCTION))
             {
-                String option = options.get(SIMILARITY_FUNCTION).toUpperCase();
+                String option = options.get(SIMILARITY_FUNCTION).toUpperCase(Locale.US);
                 try
                 {
                     similarityFunction = VectorSimilarityFunction.valueOf(option);
@@ -164,7 +165,7 @@ public class IndexWriterConfig
             }
             if (options.containsKey(OPTIMIZE_FOR))
             {
-                String option = options.get(OPTIMIZE_FOR).toUpperCase();
+                String option = options.get(OPTIMIZE_FOR).toUpperCase(Locale.US);
                 try
                 {
                     optimizeFor = OptimizeFor.valueOf(option);

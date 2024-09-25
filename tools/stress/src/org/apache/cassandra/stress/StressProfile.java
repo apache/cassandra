@@ -357,7 +357,7 @@ public class StressProfile implements Serializable
                               StressSettings settings,
                               boolean isWarmup)
     {
-        name = name.toLowerCase();
+        name = name.toLowerCase(Locale.US);
         if (!queries.containsKey(name))
             throw new IllegalArgumentException("No query defined with name " + name);
 
@@ -373,10 +373,10 @@ public class StressProfile implements Serializable
                     Map<String, SchemaStatement.ArgSelect> args = new HashMap<>();
                     for (Map.Entry<String, StressYaml.QueryDef> e : queries.entrySet())
                     {
-                        stmts.put(e.getKey().toLowerCase(), jclient.prepare(e.getValue().cql));
-                        args.put(e.getKey().toLowerCase(), e.getValue().fields == null
+                        stmts.put(e.getKey().toLowerCase(Locale.US), jclient.prepare(e.getValue().cql));
+                        args.put(e.getKey().toLowerCase(Locale.US), e.getValue().fields == null
                                 ? SchemaStatement.ArgSelect.MULTIROW
-                                : SchemaStatement.ArgSelect.valueOf(e.getValue().fields.toUpperCase()));
+                                : SchemaStatement.ArgSelect.valueOf(e.getValue().fields.toUpperCase(Locale.US)));
                     }
                     queryStatements = stmts;
                     argSelects = args;
@@ -395,7 +395,7 @@ public class StressProfile implements Serializable
         if (statement == null)
             return false;
 
-        if (!statement.getQueryString().toUpperCase().startsWith("UPDATE"))
+        if (!statement.getQueryString().toUpperCase(Locale.US).startsWith("UPDATE"))
             return false;
 
         ModificationStatement.Parsed modificationStatement;
@@ -758,7 +758,7 @@ public class StressProfile implements Serializable
 
         static Generator getGenerator(final String name, final String type, final String collectionType, GeneratorConfig config)
         {
-            switch (type.toUpperCase())
+            switch (type.toUpperCase(Locale.US))
             {
                 case "ASCII":
                 case "TEXT":
@@ -848,7 +848,7 @@ public class StressProfile implements Serializable
             }
         }
         for (Map.Entry<String, V> e : reinsert)
-            map.put(e.getKey().toLowerCase(), e.getValue());
+            map.put(e.getKey().toLowerCase(Locale.US), e.getValue());
     }
 
     /* Quote a identifier if it contains uppercase letters */

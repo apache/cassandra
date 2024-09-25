@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.cql3.functions.types;
 
+import java.util.Locale;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 
 /**
@@ -65,7 +66,7 @@ public class Metadata
         }
         if (isAlphanumeric)
         {
-            return id.toLowerCase();
+            return id.toLowerCase(Locale.US);
         }
 
         // Check if it's enclosed in quotes. If it is, remove them and unescape internal double quotes

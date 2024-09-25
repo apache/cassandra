@@ -19,6 +19,7 @@ package org.apache.cassandra.utils;
 
 import java.io.FileDescriptor;
 import java.io.IOException;
+import java.util.Locale;
 import java.lang.reflect.Field;
 import java.nio.channels.FileChannel;
 import java.util.concurrent.TimeUnit;
@@ -102,7 +103,7 @@ public final class NativeLibrary
             default: wrappedLibrary = new NativeLibraryLinux();
         }
 
-        if (OS_ARCH.getString().toLowerCase().contains("ppc"))
+        if (OS_ARCH.getString().toLowerCase(Locale.US).contains("ppc"))
         {
             if (osType == LINUX)
             {
@@ -134,7 +135,7 @@ public final class NativeLibrary
      */
     private static OSType getOsType()
     {
-        String osName = OS_NAME.getString().toLowerCase();
+        String osName = OS_NAME.getString().toLowerCase(Locale.US);
         if  (osName.contains("linux"))
             return LINUX;
         else if (osName.contains("mac"))

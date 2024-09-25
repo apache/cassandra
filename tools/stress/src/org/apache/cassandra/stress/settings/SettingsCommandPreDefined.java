@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 import org.apache.cassandra.stress.StressAction.MeasurementSink;
 import org.apache.cassandra.stress.generate.DistributionFactory;
@@ -146,12 +147,12 @@ public class SettingsCommandPreDefined extends SettingsCommand
 
     static void printHelp(Command type)
     {
-        printHelp(type.toString().toLowerCase());
+        printHelp(type.toString().toLowerCase(Locale.US));
     }
 
     static void printHelp(String type)
     {
-        GroupedOptions.printOptions(System.out, type.toLowerCase(), new Uncertainty(), new Count(), new Duration());
+        GroupedOptions.printOptions(System.out, type.toLowerCase(Locale.US), new Uncertainty(), new Count(), new Duration());
     }
 
     static Runnable helpPrinter(final Command type)

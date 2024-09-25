@@ -33,6 +33,7 @@ import org.apache.cassandra.utils.NoSpamLogger;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Locale;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -369,7 +370,7 @@ public class ContentionStrategy
         Type(String traceTitle)
         {
             this.traceTitle = traceTitle;
-            this.lowercase = name().toLowerCase();
+            this.lowercase = name().toLowerCase(Locale.US);
         }
     }
 

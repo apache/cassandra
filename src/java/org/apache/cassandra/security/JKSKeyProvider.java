@@ -22,6 +22,7 @@ import java.io.InputStream;
 import java.io.IOException;
 import java.security.Key;
 import java.security.KeyStore;
+import java.util.Locale;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -64,7 +65,7 @@ public class JKSKeyProvider implements KeyProvider
     {
         // there's a lovely behavior with jceks files that all aliases are lower-cased
         if (isJceks)
-            keyAlias = keyAlias.toLowerCase();
+            keyAlias = keyAlias.toLowerCase(Locale.US);
 
         Key key;
         try

@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.db.virtual;
 
+import java.util.Locale;
 import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.marshal.DoubleType;
@@ -74,11 +75,11 @@ final class SSTableTasksTable extends AbstractVirtualTable
                        task.getTable().orElse("*"),
                        task.getTaskId())
                   .column(COMPLETION_RATIO, completionRatio)
-                  .column(KIND, task.getTaskType().toString().toLowerCase())
+                  .column(KIND, task.getTaskType().toString().toLowerCase(Locale.US))
                   .column(PROGRESS, completed)
                   .column(SSTABLES, task.getSSTables().size())
                   .column(TOTAL, total)
-                  .column(UNIT, task.getUnit().toString().toLowerCase())
+                  .column(UNIT, task.getUnit().toString().toLowerCase(Locale.US))
                   .column(TARGET_DIRECTORY, task.targetDirectory());
         }
 

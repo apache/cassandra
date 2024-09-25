@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -385,7 +386,7 @@ public class LocalRepairTables
 
     private static String timestampColumnName(Enum<?> e)
     {
-        return timestampColumnName(e.name().toLowerCase());
+        return timestampColumnName(e.name().toLowerCase(Locale.US));
     }
 
     private static String timestampColumnName(String e)
@@ -431,7 +432,7 @@ public class LocalRepairTables
 
         T currentState = state.getStatus();
         State.Result result = state.getResult();
-        ds.column("status", result != null ? result.kind.name().toLowerCase() : currentState == null ? "init" : currentState.name().toLowerCase());
+        ds.column("status", result != null ? result.kind.name().toLowerCase(Locale.US) : currentState == null ? "init" : currentState.name().toLowerCase(Locale.US));
         for (Map.Entry<T, Long> e : state.getStateTimesMillis().entrySet())
         {
             if (e.getValue().longValue() != 0)

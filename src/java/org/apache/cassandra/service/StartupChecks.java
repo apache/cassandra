@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -217,7 +218,7 @@ public class StartupChecks
             {
                 try
                 {
-                    if (affectedFileSystemTypes.contains(Files.getFileStore(path).type().toLowerCase()))
+                    if (affectedFileSystemTypes.contains(Files.getFileStore(path).type().toLowerCase(Locale.US)))
                         affectedPaths.add(path);
                 }
                 catch (IOException e)

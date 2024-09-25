@@ -22,6 +22,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Locale;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Executors;
@@ -55,7 +56,7 @@ import static org.junit.Assert.assertTrue;
  */
 public class TopPartitionsTest
 {
-    public static String KEYSPACE = TopPartitionsTest.class.getSimpleName().toLowerCase();
+    public static String KEYSPACE = TopPartitionsTest.class.getSimpleName().toLowerCase(Locale.US);
     public static String TABLE = "test";
 
     @BeforeClass

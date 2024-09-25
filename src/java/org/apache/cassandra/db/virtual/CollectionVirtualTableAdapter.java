@@ -30,6 +30,7 @@ import java.util.NavigableMap;
 import java.util.Objects;
 import java.util.TreeMap;
 import java.util.UUID;
+import java.util.Locale;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicReference;
@@ -255,7 +256,7 @@ public class CollectionVirtualTableAdapter<R> implements VirtualTable
         Pattern pattern = Pattern.compile("^[A-Z1-9_]+$");
         // Contains only uppercase letters, numbers and underscores, so it's already snake case.
         if (pattern.matcher(camel).matches())
-            return camel.toLowerCase();
+            return camel.toLowerCase(Locale.US);
 
         // Some special cases must be handled manually.
         String modifiedCamel = camel;

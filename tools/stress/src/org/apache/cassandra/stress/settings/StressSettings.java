@@ -247,7 +247,7 @@ public class StressSettings implements Serializable
             {
                 if (i > 0)
                     putParam(key, params.toArray(new String[0]), r);
-                key = args[i].toLowerCase();
+                key = args[i].toLowerCase(Locale.US);
                 params.clear();
             }
             else

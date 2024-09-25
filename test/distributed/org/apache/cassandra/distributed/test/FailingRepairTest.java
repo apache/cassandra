@@ -31,6 +31,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -132,7 +133,7 @@ public class FailingRepairTest extends TestBaseImpl implements Serializable
 
     private static String getCfName(Verb type, RepairParallelism parallelism, boolean withTracing)
     {
-        return type.name().toLowerCase() + "_" + parallelism.name().toLowerCase() + "_" + withTracing;
+        return type.name().toLowerCase(Locale.US) + "_" + parallelism.name().toLowerCase(Locale.US) + "_" + withTracing;
     }
 
     @BeforeClass

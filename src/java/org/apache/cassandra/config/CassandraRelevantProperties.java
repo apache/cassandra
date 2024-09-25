@@ -20,6 +20,7 @@ package org.apache.cassandra.config;
 
 import java.util.HashSet;
 import java.util.Set;
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nullable;
@@ -910,7 +911,7 @@ public enum CassandraRelevantProperties
     }
 
     /**
-     * Gets the value of a system property as a enum, calling {@link String#toUpperCase()} first.
+     * Gets the value of a system property as a enum, calling {@link String#toUpperCase(Locale.US)} first.
      *
      * @param defaultValue to return when not defined
      * @param <T> type
@@ -922,7 +923,7 @@ public enum CassandraRelevantProperties
     }
 
     /**
-     * Gets the value of a system property as a enum, optionally calling {@link String#toUpperCase()} first.
+     * Gets the value of a system property as a enum, optionally calling {@link String#toUpperCase(Locale.US)} first.
      *
      * @param toUppercase before converting to enum
      * @param defaultValue to return when not defined
@@ -934,11 +935,11 @@ public enum CassandraRelevantProperties
         String value = System.getProperty(key);
         if (value == null)
             return defaultValue;
-        return Enum.valueOf(defaultValue.getDeclaringClass(), toUppercase ? value.toUpperCase() : value);
+        return Enum.valueOf(defaultValue.getDeclaringClass(), toUppercase ? value.toUpperCase(Locale.US) : value);
     }
 
     /**
-     * Gets the value of a system property as an enum, optionally calling {@link String#toUpperCase()} first.
+     * Gets the value of a system property as an enum, optionally calling {@link String#toUpperCase(Locale.US)} first.
      * If the value is missing, the default value for this property is used
      *
      * @param toUppercase before converting to enum
@@ -949,7 +950,7 @@ public enum CassandraRelevantProperties
     public <T extends Enum<T>> T getEnum(boolean toUppercase, Class<T> enumClass)
     {
         String value = System.getProperty(key, defaultVal);
-        return Enum.valueOf(enumClass, toUppercase ? value.toUpperCase() : value);
+        return Enum.valueOf(enumClass, toUppercase ? value.toUpperCase(Locale.US) : value);
     }
 
     /**

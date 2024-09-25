@@ -24,6 +24,7 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Optional;
 import java.util.Random;
+import java.util.Locale;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.ToDoubleFunction;
 import java.util.regex.Matcher;
@@ -281,7 +282,7 @@ public class SimulationRunner
             Optional.ofNullable(topologyChanges).ifPresent(topologyChanges -> {
                 builder.topologyChanges(stream(topologyChanges.split(","))
                                         .filter(v -> !v.isEmpty())
-                                        .map(v -> TopologyChange.valueOf(v.toUpperCase()))
+                                        .map(v -> TopologyChange.valueOf(v.toUpperCase(Locale.US)))
                                         .toArray(TopologyChange[]::new));
             });
             parseNanosRange(Optional.ofNullable(topologyChangeInterval)).ifPresent(builder::topologyChangeIntervalNanos);
@@ -289,7 +290,7 @@ public class SimulationRunner
             Optional.ofNullable(priority).ifPresent(kinds -> {
                 builder.scheduler(stream(kinds.split(","))
                                   .filter(v -> !v.isEmpty())
-                                  .map(v -> RunnableActionScheduler.Kind.valueOf(v.toUpperCase()))
+                                  .map(v -> RunnableActionScheduler.Kind.valueOf(v.toUpperCase(Locale.US)))
                                   .toArray(RunnableActionScheduler.Kind[]::new));
             });
 

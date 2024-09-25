@@ -25,6 +25,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.Locale;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -337,7 +338,7 @@ public final class SSLFactory
                     if (settingDescription != null)
                     {
                         logger.warn("Dropping unsupported cipher_suite {} from {} configuration",
-                                    c, settingDescription.toLowerCase());
+                                    c, settingDescription.toLowerCase(Locale.US));
                     }
                 }
             }

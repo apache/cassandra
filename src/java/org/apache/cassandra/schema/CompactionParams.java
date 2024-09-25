@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Locale;
 
 import com.google.common.base.MoreObjects;
 import com.google.common.collect.ImmutableMap;
@@ -58,7 +59,7 @@ public final class CompactionParams
         @Override
         public String toString()
         {
-            return name().toLowerCase();
+            return name().toLowerCase(Locale.US);
         }
     }
 
@@ -124,7 +125,7 @@ public final class CompactionParams
                           ? Boolean.parseBoolean(options.get(Option.ENABLED.toString()))
                           : DEFAULT_ENABLED;
         String overlappingTombstoneParm = options.getOrDefault(Option.PROVIDE_OVERLAPPING_TOMBSTONES.toString(),
-                                                               DEFAULT_PROVIDE_OVERLAPPING_TOMBSTONES_PROPERTY_VALUE.toString()).toUpperCase();
+                                                               DEFAULT_PROVIDE_OVERLAPPING_TOMBSTONES_PROPERTY_VALUE.toString()).toUpperCase(Locale.US);
         Optional<TombstoneOption> tombstoneOptional = TombstoneOption.forName(overlappingTombstoneParm);
         if (!tombstoneOptional.isPresent())
         {

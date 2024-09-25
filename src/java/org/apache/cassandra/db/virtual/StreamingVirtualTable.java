@@ -19,6 +19,7 @@ package org.apache.cassandra.db.virtual;
 
 import java.util.Date;
 import java.util.Map;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 import org.apache.cassandra.db.DecoratedKey;
@@ -60,7 +61,7 @@ public class StreamingVirtualTable extends AbstractVirtualTable
     {
         StringBuilder sb = new StringBuilder();
         for (StreamingState.Status state : StreamingState.Status.values())
-            sb.append("  status_").append(state.name().toLowerCase()).append("_timestamp timestamp,\n");
+            sb.append("  status_").append(state.name().toLowerCase(Locale.US)).append("_timestamp timestamp,\n");
         return sb.toString();
     }
 
@@ -91,13 +92,13 @@ public class StreamingVirtualTable extends AbstractVirtualTable
         ds.column("follower", state.follower());
         ds.column("operation", state.operation().getDescription());
         ds.column("peers", state.peers().stream().map(Object::toString).collect(Collectors.toList()));
-        ds.column("status", state.status().name().toLowerCase());
+        ds.column("status", state.status().name().toLowerCase(Locale.US));
         ds.column("progress_percentage", round(state.progress() * 100));
         ds.column("duration_millis", state.durationMillis());
         ds.column("failure_cause", state.failureCause());
         ds.column("success_message", state.successMessage());
         for (Map.Entry<StreamingState.Status, Long> e : state.stateTimesMillis().entrySet())
-            ds.column("status_" + e.getKey().name().toLowerCase() + "_timestamp", new Date(e.getValue()));
+            ds.column("status_" + e.getKey().name().toLowerCase(Locale.US) + "_timestamp", new Date(e.getValue()));
 
         state.sessions().update(ds);
     }

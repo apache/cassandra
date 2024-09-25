@@ -20,6 +20,7 @@ package org.apache.cassandra.utils;
 import java.nio.ByteBuffer;
 import java.security.SecureRandom;
 import java.util.Random;
+import java.util.Locale;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_SECURITY_EGD;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
@@ -101,7 +102,7 @@ public class GuidGenerator
 
     private static String convertToStandardFormat(String valueAfterMD5)
     {
-        String raw = valueAfterMD5.toUpperCase();
+        String raw = valueAfterMD5.toUpperCase(Locale.US);
         StringBuilder sb = new StringBuilder();
         sb.append(raw.substring(0, 8))
           .append("-")

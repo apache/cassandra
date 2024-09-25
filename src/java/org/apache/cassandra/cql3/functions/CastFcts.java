@@ -21,6 +21,7 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.Locale;
 
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -196,7 +197,7 @@ public final class CastFcts
 
     private static String toLowerCaseString(CQL3Type type)
     {
-        return type.toString().toLowerCase();
+        return type.toString().toLowerCase(Locale.US);
     }
 
     /**

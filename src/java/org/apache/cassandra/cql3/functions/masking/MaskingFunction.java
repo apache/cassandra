@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.cql3.functions.masking;
 
+import java.util.Locale;
+
 import com.google.common.collect.ObjectArrays;
 
 import org.apache.cassandra.cql3.functions.FunctionFactory;
@@ -56,7 +58,7 @@ public abstract class MaskingFunction extends NativeScalarFunction
     {
         public Factory(String name, FunctionParameter... parameters)
         {
-            super(NAME_PREFIX + name.toLowerCase(), parameters);
+            super(NAME_PREFIX + name.toLowerCase(Locale.US), parameters);
         }
     }
 }

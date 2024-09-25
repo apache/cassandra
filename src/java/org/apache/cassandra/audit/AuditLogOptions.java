@@ -23,6 +23,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 import com.google.common.base.Strings;
@@ -143,13 +144,13 @@ public class AuditLogOptions extends BinLogOptions
 
         public Builder withIncludedCategories(final String includedCategories)
         {
-            sanitise(includedCategories).map(v -> this.includedCategories = v.toUpperCase());
+            sanitise(includedCategories).map(v -> this.includedCategories = v.toUpperCase(Locale.US));
             return this;
         }
 
         public Builder withExcludedCategories(final String excludedCategories)
         {
-            sanitise(excludedCategories).map(v -> this.excludedCategories = v.toUpperCase());
+            sanitise(excludedCategories).map(v -> this.excludedCategories = v.toUpperCase(Locale.US));
             return this;
         }
 
@@ -173,7 +174,7 @@ public class AuditLogOptions extends BinLogOptions
 
         public Builder withRollCycle(final String rollCycle)
         {
-            sanitise(rollCycle).map(v -> this.rollCycle = v.toUpperCase());
+            sanitise(rollCycle).map(v -> this.rollCycle = v.toUpperCase(Locale.US));
             return this;
         }
 
@@ -230,8 +231,8 @@ public class AuditLogOptions extends BinLogOptions
             opts.logger = this.logger;
             sanitise(this.includedKeyspaces).map(v -> opts.included_keyspaces = v);
             sanitise(this.excludedKeyspaces).map(v -> opts.excluded_keyspaces = v);
-            sanitise(this.includedCategories).map(v -> opts.included_categories = v.toUpperCase());
-            sanitise(this.excludedCategories).map(v -> opts.excluded_categories = v.toUpperCase());
+            sanitise(this.includedCategories).map(v -> opts.included_categories = v.toUpperCase(Locale.US));
+            sanitise(this.excludedCategories).map(v -> opts.excluded_categories = v.toUpperCase(Locale.US));
             sanitise(this.includedUsers).map(v -> opts.included_users = v);
             sanitise(this.excludedUsers).map(v -> opts.excluded_users = v);
             opts.roll_cycle = this.rollCycle;

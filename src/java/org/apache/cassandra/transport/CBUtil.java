@@ -32,6 +32,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.Locale;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.ByteBufUtil;
@@ -285,7 +286,7 @@ public abstract class CBUtil
         String value = CBUtil.readString(cb);
         try
         {
-            return Enum.valueOf(enumType, value.toUpperCase());
+            return Enum.valueOf(enumType, value.toUpperCase(Locale.US));
         }
         catch (IllegalArgumentException e)
         {
@@ -399,7 +400,7 @@ public abstract class CBUtil
         Map<String, List<String>> m = new HashMap<String, List<String>>(length);
         for (int i = 0; i < length; i++)
         {
-            String k = readString(cb).toUpperCase();
+            String k = readString(cb).toUpperCase(Locale.US);
             List<String> v = readStringList(cb);
             m.put(k, v);
         }

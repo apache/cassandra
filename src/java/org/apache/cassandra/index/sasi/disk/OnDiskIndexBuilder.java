@@ -62,7 +62,7 @@ public class OnDiskIndexBuilder
 
         public static Mode mode(String mode)
         {
-            return Mode.valueOf(mode.toUpperCase());
+            return Mode.valueOf(mode.toUpperCase(Locale.US));
         }
 
         public boolean supports(Op op)

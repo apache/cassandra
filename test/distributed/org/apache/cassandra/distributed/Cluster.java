@@ -19,6 +19,7 @@
 package org.apache.cassandra.distributed;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.function.Consumer;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -81,7 +82,7 @@ public class Cluster extends AbstractCluster<IInvokableInstance>
             {
                 get(1).acceptsOnInstance((IIsolatedExecutor.SerializableConsumer<IMessage>) (msgPassed) -> {
                     Message decoded = Instance.deserializeMessage(msgPassed);
-                    if (!decoded.verb().toString().toLowerCase().contains("gossip"))
+                    if (!decoded.verb().toString().toLowerCase(Locale.US).contains("gossip"))
                         System.out.println(String.format("MSG %d -> %d: %s | %s", from, to, decoded, decoded.payload));
                 }).accept(msg);
             }

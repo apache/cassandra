@@ -22,6 +22,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
+import java.util.Locale;
 
 import javax.annotation.Nullable;
 
@@ -46,7 +47,7 @@ public final class FunctionResolver
     {
         return new ColumnSpecification(receiverKeyspace,
                                        receiverTable,
-                                       new ColumnIdentifier("arg" + i + '(' + fun.name().toString().toLowerCase() + ')', true),
+                                       new ColumnIdentifier("arg" + i + '(' + fun.name().toString().toLowerCase(Locale.US) + ')', true),
                                        fun.argTypes().get(i));
     }
 

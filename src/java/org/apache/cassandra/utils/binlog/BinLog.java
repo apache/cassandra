@@ -24,6 +24,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
@@ -389,7 +390,7 @@ public class BinLog implements Runnable
         public Builder rollCycle(String rollCycle)
         {
             Preconditions.checkNotNull(rollCycle, "rollCycle was null");
-            rollCycle = rollCycle.toUpperCase();
+            rollCycle = rollCycle.toUpperCase(Locale.US);
             Preconditions.checkNotNull(RollCycles.valueOf(rollCycle), "unrecognized roll cycle");
             this.rollCycle = rollCycle;
             return this;

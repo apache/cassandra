@@ -447,7 +447,7 @@ public interface Selectable extends AssignmentTestable
         @Override
         public String toString()
         {
-            return String.format("cast(%s as %s)", arg, type.toString().toLowerCase());
+            return String.format("cast(%s as %s)", arg, type.toString().toLowerCase(Locale.US));
         }
 
         public Selector.Factory newSelectorFactory(TableMetadata table, AbstractType<?> expectedType, List<ColumnMetadata> defs, VariableSpecifications boundNames)

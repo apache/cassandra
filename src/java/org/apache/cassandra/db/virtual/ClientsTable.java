@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.db.virtual;
 
+import java.util.Locale;
 import java.net.InetSocketAddress;
 import java.util.Map.Entry;
 import java.util.stream.Collectors;
@@ -88,7 +89,7 @@ final class ClientsTable extends AbstractVirtualTable
             result.row(remoteAddress.getAddress(), remoteAddress.getPort())
                   .column(HOSTNAME, remoteAddress.getHostName())
                   .column(USERNAME, client.username().orElse(null))
-                  .column(CONNECTION_STAGE, client.stage().toString().toLowerCase())
+                  .column(CONNECTION_STAGE, client.stage().toString().toLowerCase(Locale.US))
                   .column(PROTOCOL_VERSION, client.protocolVersion())
                   .column(CLIENT_OPTIONS, client.clientOptions().orElse(null))
                   .column(DRIVER_NAME, client.driverName().orElse(null))

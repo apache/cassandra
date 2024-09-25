@@ -20,6 +20,7 @@ package org.apache.cassandra.concurrent;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Locale;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -79,7 +80,7 @@ public enum Stage
     private static String normalizeName(String stageName)
     {
         // Handle discrepancy between JMX names and actual pool names
-        String upperStageName = stageName.toUpperCase();
+        String upperStageName = stageName.toUpperCase(Locale.US);
         if (upperStageName.endsWith("STAGE"))
         {
             upperStageName = upperStageName.substring(0, stageName.length() - 5);

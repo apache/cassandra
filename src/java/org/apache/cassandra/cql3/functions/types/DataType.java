@@ -122,7 +122,7 @@ public abstract class DataType
         @Override
         public String toString()
         {
-            return super.toString().toLowerCase();
+            return super.toString().toLowerCase(Locale.US);
         }
     }
 

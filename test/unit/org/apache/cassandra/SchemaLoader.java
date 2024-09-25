@@ -23,6 +23,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Locale;
 
 import org.junit.After;
 
@@ -745,7 +746,7 @@ public static TableMetadata.Builder clusteringSASICFMD(String ksName, String cfN
 
     private static CompressionParams compressionParams(int chunkLength)
     {
-        String algo = TEST_COMPRESSION_ALGO.getString().toLowerCase();
+        String algo = TEST_COMPRESSION_ALGO.getString().toLowerCase(Locale.US);
         switch (algo)
         {
             case "deflate":

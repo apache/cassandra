@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.cql3.functions.types;
 
+import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -237,7 +238,7 @@ public final class Duration
 
     private static Builder add(Builder builder, long number, String symbol)
     {
-        String s = symbol.toLowerCase();
+        String s = symbol.toLowerCase(Locale.US);
         if (s.equals("y"))
         {
             return builder.addYears(number);

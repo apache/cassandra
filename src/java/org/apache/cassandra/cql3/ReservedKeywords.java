@@ -24,6 +24,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Set;
+import java.util.Locale;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
@@ -58,6 +59,6 @@ public final class ReservedKeywords
 
     public static boolean isReserved(String text)
     {
-        return reservedKeywords.contains(text.toUpperCase());
+        return reservedKeywords.contains(text.toUpperCase(Locale.US));
     }
 }

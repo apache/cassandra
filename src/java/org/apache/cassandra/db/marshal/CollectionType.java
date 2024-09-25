@@ -142,7 +142,7 @@ public abstract class CollectionType<T> extends MultiElementType<T>
     public <V> void validate(V value, ValueAccessor<V> accessor) throws MarshalException
     {
         if (accessor.isEmpty(value))
-            throw new MarshalException("Not enough bytes to read a " + kind.name().toLowerCase());
+            throw new MarshalException("Not enough bytes to read a " + kind.name().toLowerCase(Locale.US));
         super.validate(value, accessor);
     }
 

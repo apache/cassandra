@@ -48,6 +48,7 @@ import java.util.NavigableSet;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.TreeSet;
+import java.util.Locale;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -123,7 +124,7 @@ public class FBUtilities
     public static final BigInteger TWO = new BigInteger("2");
     private static final String DEFAULT_TRIGGER_DIR = "triggers";
 
-    private static final String OPERATING_SYSTEM = OS_NAME.getString().toLowerCase();
+    private static final String OPERATING_SYSTEM = OS_NAME.getString().toLowerCase(Locale.US);
     public static final boolean isLinux = OPERATING_SYSTEM.contains("linux");
 
     private static volatile InetAddress localInetAddress;
@@ -1403,7 +1404,7 @@ public class FBUtilities
     public static String camelToSnake(String camel)
     {
         if (camel.chars().allMatch(Character::isUpperCase))
-            return camel.toLowerCase();
+            return camel.toLowerCase(Locale.US);
 
         StringBuilder sb = new StringBuilder();
         for (char c : camel.toCharArray())

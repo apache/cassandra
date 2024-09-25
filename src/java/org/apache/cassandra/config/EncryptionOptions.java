@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.Locale;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -78,7 +79,7 @@ public class EncryptionOptions
             for (ClientAuth clientAuth : ClientAuth.values())
             {
                 VALUES.put(clientAuth.value, clientAuth);
-                VALUES.put(clientAuth.name().toLowerCase(), clientAuth);
+                VALUES.put(clientAuth.name().toLowerCase(Locale.US), clientAuth);
             }
         }
 
@@ -89,9 +90,9 @@ public class EncryptionOptions
 
         public static ClientAuth from(String value)
         {
-            if (VALUES.containsKey(value.toLowerCase()))
+            if (VALUES.containsKey(value.toLowerCase(Locale.US)))
             {
-                return VALUES.get(value.toLowerCase());
+                return VALUES.get(value.toLowerCase(Locale.US));
             }
             throw new ConfigurationException(value + " is not a valid ClientAuth option");
         }
@@ -183,7 +184,7 @@ public class EncryptionOptions
             Set<String> valueSet = new HashSet<>();
             ConfigKey[] values = values();
             for(ConfigKey key: values) {
-                valueSet.add(key.getKeyName().toLowerCase());
+                valueSet.add(key.getKeyName().toLowerCase(Locale.US));
             }
             return valueSet;
         }
@@ -302,7 +303,7 @@ public class EncryptionOptions
             Set<String> configKeys = ConfigKey.asSet();
             for (Map.Entry<String, String> entry : ssl_context_factory.parameters.entrySet())
             {
-                if(configKeys.contains(entry.getKey().toLowerCase()))
+                if(configKeys.contains(entry.getKey().toLowerCase(Locale.US)))
                 {
                     throw new IllegalArgumentException("SslContextFactory "+ssl_context_factory.class_name+" should " +
                                                        "configure '"+entry.getKey()+"' as encryption_options instead of" +

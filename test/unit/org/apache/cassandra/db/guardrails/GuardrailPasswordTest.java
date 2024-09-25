@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Locale;
 
 import org.junit.After;
 import org.junit.Test;
@@ -121,7 +122,7 @@ public class GuardrailPasswordTest extends GuardrailTester
 
     private String getEntityName(String name)
     {
-        return (name + entity).toLowerCase();
+        return (name + entity).toLowerCase(Locale.US);
     }
 
     private void testPasswordGuardrailInternal() throws Throwable

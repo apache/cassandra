@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
+import java.util.Locale;
 import javax.annotation.Nullable;
 import javax.management.openmbean.CompositeData;
 
@@ -387,7 +388,7 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
         {
             for (String query : queries)
             {
-                if (query.toLowerCase().contains(PasswordObfuscator.PASSWORD_TOKEN))
+                if (query.toLowerCase(Locale.ENGLISH).contains(PasswordObfuscator.PASSWORD_TOKEN))
                     return "Syntax Exception. Obscured for security reasons.";
             }
         }

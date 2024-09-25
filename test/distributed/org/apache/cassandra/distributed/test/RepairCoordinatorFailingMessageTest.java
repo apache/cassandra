@@ -23,6 +23,7 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 
 import org.junit.AfterClass;
 import org.junit.Assume;
@@ -100,7 +101,7 @@ public class RepairCoordinatorFailingMessageTest extends TestBaseImpl implements
 
     private String postfix()
     {
-        return repairType.name().toLowerCase();
+        return repairType.name().toLowerCase(Locale.US);
     }
 
     private NodeToolResult repair(int node, String... args) {

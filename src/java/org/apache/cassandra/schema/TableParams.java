@@ -20,6 +20,7 @@ package org.apache.cassandra.schema;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Map;
+import java.util.Locale;
 import java.util.Map.Entry;
 
 import com.google.common.base.MoreObjects;
@@ -73,7 +74,7 @@ public final class TableParams
         @Override
         public String toString()
         {
-            return name().toLowerCase();
+            return name().toLowerCase(Locale.US);
         }
     }
 

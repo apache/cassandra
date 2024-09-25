@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Joiner;
@@ -494,7 +495,7 @@ public class CompactionAllocationTest
 
     private static void testTinyPartitions(String name, int numSSTable, int sstablePartitions, boolean overlap) throws Throwable
     {
-        String ksname = "ks_" + name.toLowerCase();
+        String ksname = "ks_" + name.toLowerCase(Locale.US);
 
         SchemaLoader.createKeyspace(ksname, KeyspaceParams.simple(1),
                                     CreateTableStatement.parse("CREATE TABLE tbl (k INT PRIMARY KEY, v INT)", ksname).build());
@@ -603,7 +604,7 @@ public class CompactionAllocationTest
 
     private static void testMediumPartitions(String name, int numSSTable, int sstablePartitions, boolean overlap, boolean overlapCK) throws Throwable
     {
-        String ksname = "ks_" + name.toLowerCase();
+        String ksname = "ks_" + name.toLowerCase(Locale.US);
 
         SchemaLoader.createKeyspace(ksname, KeyspaceParams.simple(1),
                                     CreateTableStatement.parse("CREATE TABLE tbl (k text, c text, v1 text, v2 text, v3 text, v4 text, PRIMARY KEY (k, c))", ksname).build());
@@ -702,7 +703,7 @@ public class CompactionAllocationTest
 
     private static void testWidePartitions(String name, int numSSTable, int sstablePartitions, boolean overlap, boolean overlapCK) throws Throwable
     {
-        String ksname = "ks_" + name.toLowerCase();
+        String ksname = "ks_" + name.toLowerCase(Locale.US);
 
         SchemaLoader.createKeyspace(ksname, KeyspaceParams.simple(1),
                                     CreateTableStatement.parse("CREATE TABLE tbl (k text, c text, v1 text, v2 text, v3 text, v4 text, PRIMARY KEY (k, c))", ksname).build());
@@ -806,7 +807,7 @@ public class CompactionAllocationTest
                                                    int sstablePartitions,
                                                    IndexDef...indexes) throws Throwable
     {
-        String ksname = "ks_" + name.toLowerCase();
+        String ksname = "ks_" + name.toLowerCase(Locale.US);
         SchemaLoader.createKeyspace(ksname, KeyspaceParams.simple(1),
                 CreateTableStatement.parse("CREATE TABLE tbl (k text, c text, v1 text, v2 text, v3 text, v4 text, PRIMARY KEY (k, c))", ksname).build());
 

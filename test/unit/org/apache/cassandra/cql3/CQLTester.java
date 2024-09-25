@@ -1329,7 +1329,7 @@ public abstract class CQLTester
 
         index = ParseUtils.isQuoted(index, '\"')
                 ? ParseUtils.unDoubleQuote(index)
-                : index.toLowerCase();
+                : index.toLowerCase(Locale.US);
 
         return Pair.create(keyspace, index);
     }
@@ -2738,7 +2738,7 @@ public abstract class CQLTester
 
     private String getTestMethodName()
     {
-        return decorateCQLWithTestNames && testName.getMethodName() != null ? '_' + testName.getMethodName().toLowerCase().replaceAll("[^\\w]", "_")
+        return decorateCQLWithTestNames && testName.getMethodName() != null ? '_' + testName.getMethodName().toLowerCase(Locale.US).replaceAll("[^\\w]", "_")
                                                                             : "";
     }
 

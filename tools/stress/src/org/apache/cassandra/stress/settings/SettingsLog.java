@@ -25,6 +25,7 @@ import java.io.*;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Locale;
 
 import org.apache.cassandra.stress.util.MultiResultLogger;
 import org.apache.cassandra.stress.util.ResultLogger;
@@ -66,7 +67,7 @@ public class SettingsLog implements Serializable
             intervalMillis = 1000 * Integer.parseInt(interval);
         if (intervalMillis <= 0)
             throw new IllegalArgumentException("Log interval must be greater than zero");
-        level = Level.valueOf(options.level.value().toUpperCase());
+        level = Level.valueOf(options.level.value().toUpperCase(Locale.US));
     }
 
     public MultiResultLogger getOutput() throws FileNotFoundException

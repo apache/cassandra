@@ -19,6 +19,7 @@ package org.apache.cassandra.schema;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Locale;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
@@ -57,7 +58,7 @@ public final class KeyspaceParams
         @Override
         public String toString()
         {
-            return name().toLowerCase();
+            return name().toLowerCase(Locale.US);
         }
     }
 

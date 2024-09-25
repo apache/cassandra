@@ -22,6 +22,7 @@ import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.Locale;
 
 import com.google.common.math.DoubleMath;
 import com.google.common.primitives.Ints;
@@ -76,7 +77,7 @@ public abstract class DataRateSpec
         // negatives are not allowed by the regex pattern
         if (minUnit.convert(quantity, unit) >= max)
             throw new IllegalArgumentException("Invalid data rate: " + value + ". It shouldn't be more than " +
-                                             (max - 1) + " in " + minUnit.name().toLowerCase());
+                                             (max - 1) + " in " + minUnit.name().toLowerCase(Locale.ENGLISH));
     }
 
     private static void validateQuantity(double quantity, DataRateUnit unit, DataRateUnit minUnit, long max)
@@ -86,8 +87,8 @@ public abstract class DataRateSpec
 
         if (minUnit.convert(quantity, unit) >= max)
             throw new IllegalArgumentException(String.format("Invalid data rate: %s %s. It shouldn't be more than %d in %s",
-                                                       quantity, unit.name().toLowerCase(),
-                                                       max - 1, minUnit.name().toLowerCase()));
+                                                       quantity, unit.name().toLowerCase(Locale.ENGLISH),
+                                                       max - 1, minUnit.name().toLowerCase(Locale.ENGLISH)));
     }
 
     // get vs no-get prefix is not consistent in the code base, but for classes involved with config parsing, it is

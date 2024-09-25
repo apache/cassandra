@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.SetType;
@@ -59,7 +60,7 @@ public class DelimiterAnalyzerTest
             output.append(ByteBufferUtil.string(analyzer.next()) + (analyzer.hasNext() ? ' ' : ""));
 
         Assert.assertEquals(testString, output.toString());
-        Assert.assertFalse(testString.toLowerCase().equals(output.toString()));
+        Assert.assertFalse(testString.toLowerCase(Locale.US).equals(output.toString()));
     }
 
     @Test
@@ -82,7 +83,7 @@ public class DelimiterAnalyzerTest
             output.append(ByteBufferUtil.string(analyzer.next()) + (analyzer.hasNext() ? ',' : ""));
 
         Assert.assertEquals("Nip,it,in,the,bud", output.toString());
-        Assert.assertFalse(testString.toLowerCase().equals(output.toString()));
+        Assert.assertFalse(testString.toLowerCase(Locale.US).equals(output.toString()));
     }
 
     @Test(expected = ConfigurationException.class)

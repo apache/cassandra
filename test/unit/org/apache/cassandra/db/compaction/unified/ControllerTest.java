@@ -21,6 +21,7 @@ package org.apache.cassandra.db.compaction.unified;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -142,7 +143,7 @@ public class ControllerTest
         options.putIfAbsent(Controller.TARGET_SSTABLE_SIZE_OPTION, FBUtilities.prettyPrintMemory(100 << 20));
         // The below value is based on the value in the above statement. Decreasing the above statement should result in a decrease below.
         options.putIfAbsent(Controller.MIN_SSTABLE_SIZE_OPTION, "70.710MiB");
-        options.putIfAbsent(Controller.OVERLAP_INCLUSION_METHOD_OPTION, Overlaps.InclusionMethod.SINGLE.toString().toLowerCase());
+        options.putIfAbsent(Controller.OVERLAP_INCLUSION_METHOD_OPTION, Overlaps.InclusionMethod.SINGLE.toString().toLowerCase(Locale.US));
         options.putIfAbsent(Controller.SSTABLE_GROWTH_OPTION, "0.5");
     }
 

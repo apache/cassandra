@@ -44,6 +44,7 @@ import java.util.OptionalDouble;
 import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.UUID;
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -1778,7 +1779,7 @@ public class DatabaseDescriptor
         if (cidrAuthorizerMode == null || cidrAuthorizerMode.isEmpty())
             return defaultCidrAuthorizerMode;
 
-        return ICIDRAuthorizer.CIDRAuthorizerMode.valueOf(cidrAuthorizerMode.toUpperCase());
+        return ICIDRAuthorizer.CIDRAuthorizerMode.valueOf(cidrAuthorizerMode.toUpperCase(Locale.US));
     }
 
     public static int getCidrGroupsCacheRefreshInterval()

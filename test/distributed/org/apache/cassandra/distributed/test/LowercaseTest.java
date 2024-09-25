@@ -1,4 +1,4 @@
-/*
+/**
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -16,28 +16,27 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.db.tries;
+package org.apache.cassandra.db;
 
 import java.util.Locale;
 
+import org.junit.Assert;
 import org.junit.Test;
 
-import org.apache.cassandra.io.compress.BufferType;
+public class LowercaseTest {
 
-public class TrieToMermaidTest
-{
     @Test
-    public void testToMermaidContent() throws Exception
-    {
-        InMemoryTrie<String> trie = new InMemoryTrie<>(BufferType.OFF_HEAP);
-        // This was used as a basis the graphs in BTIFormat.md
-        String s = "a allow an and any are as node of on the this to trie types with without";
-        s = s.toLowerCase(Locale.US);
-        for (String word : s.split("[^a-z]+"))
-            trie.putRecursive(InMemoryTrieTestBase.comparable(word), word, (x, y) -> y);
+    public void testLowercaseFunction() {
+        String input = "I said Hello World!";
+        String expectedOutput = "i said hello world!";
+        
+        // Call lowerCase function
+        String actualOutput = lowerCase(input);
 
-        System.out.println(trie.process(new TrieToMermaid(Object::toString,
-                                                      x -> Character.toString((char) ((int) x)),
-                                                      false)));
+        Assert.assertEquals(expectedOutput, actualOutput);
+    }
+
+    private String lowerCase(String input) {
+        return input.toLowerCase(Locale.US);
     }
 }

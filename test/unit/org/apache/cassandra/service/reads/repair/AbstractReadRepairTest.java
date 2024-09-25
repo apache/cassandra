@@ -21,6 +21,7 @@ package org.apache.cassandra.service.reads.repair;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
@@ -288,7 +289,7 @@ public abstract  class AbstractReadRepairTest
         String ksName = "ks";
 
         String ddl = String.format("CREATE TABLE tbl (k int primary key, v text) WITH read_repair='%s'",
-                                   repairStrategy.toString().toLowerCase());
+                                   repairStrategy.toString().toLowerCase(Locale.US));
 
         cfm = CreateTableStatement.parse(ddl, ksName).build();
         assert cfm.params.readRepair == repairStrategy;

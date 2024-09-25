@@ -694,9 +694,9 @@ public final class SchemaKeyspace
         builder.update(Columns)
                .row(table.name, column.name.toString())
                .add("column_name_bytes", column.name.bytes)
-               .add("kind", column.kind.toString().toLowerCase())
+               .add("kind", column.kind.toString().toLowerCase(Locale.US))
                .add("position", column.position())
-               .add("clustering_order", column.clusteringOrder().toString().toLowerCase())
+               .add("clustering_order", column.clusteringOrder().toString().toLowerCase(Locale.US))
                .add("type", type.asCQL3Type().toString());
 
         ColumnMask mask = column.getMask();
@@ -758,7 +758,7 @@ public final class SchemaKeyspace
                .row(table.name, column.column.name.toString())
                .add("dropped_time", new Date(TimeUnit.MICROSECONDS.toMillis(column.droppedTime)))
                .add("type", column.column.type.asCQL3Type().toString())
-               .add("kind", column.column.kind.toString().toLowerCase());
+               .add("kind", column.column.kind.toString().toLowerCase(Locale.US));
     }
 
     private static void dropDroppedColumnFromSchemaMutation(TableMetadata table, DroppedColumn column, Mutation.SimpleBuilder builder)
@@ -1075,10 +1075,10 @@ public final class SchemaKeyspace
         String keyspace = row.getString("keyspace_name");
         String table = row.getString("table_name");
 
-        ColumnMetadata.Kind kind = ColumnMetadata.Kind.valueOf(row.getString("kind").toUpperCase());
+        ColumnMetadata.Kind kind = ColumnMetadata.Kind.valueOf(row.getString("kind").toUpperCase(Locale.US));
 
         int position = row.getInt("position");
-        ClusteringOrder order = ClusteringOrder.valueOf(row.getString("clustering_order").toUpperCase());
+        ClusteringOrder order = ClusteringOrder.valueOf(row.getString("clustering_order").toUpperCase(Locale.US));
 
         AbstractType<?> type = CQLTypeParser.parse(keyspace, row.getString("type"), types);
         if (order == ClusteringOrder.DESC)
@@ -1159,7 +1159,7 @@ public final class SchemaKeyspace
          */
         AbstractType<?> type = CQLTypeParser.parse(keyspace, row.getString("type"), org.apache.cassandra.schema.Types.none());
         ColumnMetadata.Kind kind = row.has("kind")
-                                 ? ColumnMetadata.Kind.valueOf(row.getString("kind").toUpperCase())
+                                 ? ColumnMetadata.Kind.valueOf(row.getString("kind").toUpperCase(Locale.US))
                                  : ColumnMetadata.Kind.REGULAR;
         assert kind == ColumnMetadata.Kind.REGULAR || kind == ColumnMetadata.Kind.STATIC
             : "Unexpected dropped column kind: " + kind;

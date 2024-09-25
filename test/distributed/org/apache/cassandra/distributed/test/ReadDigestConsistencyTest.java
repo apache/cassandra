@@ -19,6 +19,7 @@
 package org.apache.cassandra.distributed.test;
 
 import java.util.Arrays;
+import java.util.Locale;
 import java.util.UUID;
 
 import org.junit.Assert;
@@ -101,7 +102,7 @@ public class ReadDigestConsistencyTest extends TestBaseImpl
                                              Arrays.toString(boundValues),
                                              coordinator.instance().broadcastAddress(),
                                              coordinator.instance().getReleaseVersionString()),
-                               activity.toLowerCase().contains("mismatch for key"));
+                               activity.toLowerCase(Locale.US).contains("mismatch for key"));
         }
     }
 

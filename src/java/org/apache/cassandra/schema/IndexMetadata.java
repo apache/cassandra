@@ -72,7 +72,7 @@ public final class IndexMetadata
     static
     {
         indexNameAliases.put(StorageAttachedIndex.NAME, StorageAttachedIndex.class.getCanonicalName());
-        indexNameAliases.put(StorageAttachedIndex.class.getSimpleName().toLowerCase(), StorageAttachedIndex.class.getCanonicalName());
+        indexNameAliases.put(StorageAttachedIndex.class.getSimpleName().toLowerCase(Locale.US), StorageAttachedIndex.class.getCanonicalName());
         indexNameAliases.put(SASIIndex.class.getSimpleName(), SASIIndex.class.getCanonicalName());
     }
 
@@ -159,7 +159,7 @@ public final class IndexMetadata
         if (isCustom())
         {
             String className = options.get(IndexTarget.CUSTOM_INDEX_OPTION_NAME);
-            return indexNameAliases.getOrDefault(className.toLowerCase(), className);
+            return indexNameAliases.getOrDefault(className.toLowerCase(Locale.US), className);
         }
         return CassandraIndex.class.getName();
     }

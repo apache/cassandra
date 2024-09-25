@@ -1456,6 +1456,22 @@
     <testhelper testdelegate="testlist-system-keyspace-directory" />
   </target>
 
+  <target name="test-lowercase-locale-issue" depends="maybe-build-test" description="Test the toLowerCase localization problem.">
+    <path id="all-test-classes-path">
+      <fileset dir="${test.unit.src}" includes="**/${test.name}.java" excludes="**/distributed/test/LowercaseTest*.java" />
+    </path>
+    <property name="all-test-classes" refid="all-test-classes-path"/>
+    <testhelper testdelegate="testlist-lowercase-uppercase"/>
+  </target>
+
+  <target name="test-uppercase-locale-issue" depends="maybe-build-test" description="Test the toUpperCase localization problem.">
+    <path id="all-test-classes-path">
+      <fileset dir="${test.unit.src}" includes="**/${test.name}.java" excludes="**/distributed/test/UppercaseTest*.java" />
+    </path>
+    <property name="all-test-classes" refid="all-test-classes-path"/>
+    <testhelper testdelegate="testlist-lowercase-uppercase"/>
+  </target>
+
   <target name="msg-ser-gen-test" depends="maybe-build-test" description="Generates message serializations">
     <testmacro inputdir="${test.unit.src}"
         timeout="${test.timeout}" filter="**/SerializationsTest.java">

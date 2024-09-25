@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Locale;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -139,7 +140,7 @@ public interface CQL3Type
         @Override
         public String toString()
         {
-            return super.toString().toLowerCase();
+            return super.toString().toLowerCase(Locale.US);
         }
     }
 

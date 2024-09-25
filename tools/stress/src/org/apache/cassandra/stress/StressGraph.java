@@ -28,6 +28,7 @@ import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -200,7 +201,7 @@ public class StressGraph
                         continue;
                     }
                     // the graphing js expects lower case names
-                    json.put(parts[0].trim().toLowerCase(), parts[1].trim());
+                    json.put(parts[0].trim().toLowerCase(Locale.US), parts[1].trim());
                 }
                 else if (mode == ReadingMode.NEXTITERATION)
                 {

@@ -19,6 +19,7 @@
 package org.apache.cassandra.db.virtual;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -91,7 +92,7 @@ public class SSTableTasksTableTest extends CQLTester
         CompactionManager.instance.active.beginCompaction(compactionHolder);
         UntypedResultSet result = execute("SELECT * FROM vts.sstable_tasks");
         assertRows(result, row(CQLTester.KEYSPACE, currentTable(), compactionId, 1.0 * bytesCompacted / bytesTotal,
-                OperationType.COMPACTION.toString().toLowerCase(), bytesCompacted, sstables.size(),
+                OperationType.COMPACTION.toString().toLowerCase(Locale.US), bytesCompacted, sstables.size(),
                 directory, bytesTotal, CompactionInfo.Unit.BYTES.toString()));
 
         CompactionManager.instance.active.finishCompaction(compactionHolder);

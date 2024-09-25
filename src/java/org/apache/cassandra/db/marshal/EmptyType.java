@@ -18,6 +18,7 @@
 package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
@@ -59,7 +60,7 @@ public class EmptyType extends AbstractType<Void>
             return NonEmptyWriteBehavior.FAIL;
         try
         {
-            return NonEmptyWriteBehavior.valueOf(value.toUpperCase().trim());
+            return NonEmptyWriteBehavior.valueOf(value.toUpperCase(Locale.US).trim());
         }
         catch (Exception e)
         {
