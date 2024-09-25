@@ -88,6 +88,10 @@ public abstract class AutoRepairState implements ProgressListener
     protected int succeededTokenRangesCount = 0;
     @VisibleForTesting
     protected int skippedTokenRangesCount = 0;
+
+    @VisibleForTesting
+    protected int skippedTablesCount = 0;
+
     @VisibleForTesting
     protected AutoRepairHistory longestUnrepairedNode;
     @VisibleForTesting
@@ -258,6 +262,16 @@ public abstract class AutoRepairState implements ProgressListener
     public int getSkippedTokenRangesCount()
     {
         return skippedTokenRangesCount;
+    }
+
+    public void setSkippedTablesCount(int count)
+    {
+        skippedTablesCount = count;
+    }
+
+    public int getSkippedTablesCount()
+    {
+        return skippedTablesCount;
     }
 
     public boolean isSuccess()

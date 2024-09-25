@@ -5335,4 +5335,10 @@ public class DatabaseDescriptor
     {
         conf.incremental_repair_disk_headroom_reject_ratio = value;
     }
+
+    @VisibleForTesting
+    public static void setPartitioner(String name)
+    {
+        partitioner = FBUtilities.newPartitioner(name);
+    }
 }
