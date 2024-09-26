@@ -51,11 +51,9 @@ import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.CommandStores;
 import accord.local.Commands;
-import accord.local.DurableBefore;
 import accord.local.KeyHistory;
 import accord.local.NodeTimeService;
 import accord.local.PreLoadContext;
-import accord.local.RedundantBefore;
 import accord.local.SafeCommand;
 import accord.local.SafeCommandStore;
 import accord.local.Status;
@@ -68,10 +66,8 @@ import accord.primitives.RoutableKey;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
-import accord.utils.ReducingRangeMap;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
-import accord.utils.async.AsyncResult;
 import org.apache.cassandra.cache.CacheSize;
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.concurrent.Stage;
@@ -113,21 +109,6 @@ public class AccordCommandStore extends CommandStore implements CacheSize
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordCommandStore.class);
     private static final boolean CHECK_THREADS = CassandraRelevantProperties.TEST_ACCORD_STORE_THREAD_CHECKS_ENABLED.getBoolean();
-
-    private static final FieldPersister<RedundantBefore> redundantBeforePersister = new FieldPersister<>()
-    {
-        @Override
-        public AsyncResult<?> persist(CommandStore store, Timestamp gcBefore, Ranges ranges, RedundantBefore redundantBefore)
-        {
-            return AccordKeyspace.updateRedundantBefore(store, gcBefore, ranges, redundantBefore);
-        }
-
-        @Override
-        public AsyncResult<?> persist(CommandStore store, RedundantBefore toPersist)
-        {
-            throw new UnsupportedOperationException();
-        }
-    };
 
     private static long getThreadId(ExecutorService executor)
     {
@@ -263,7 +244,7 @@ public class AccordCommandStore extends CommandStore implements CacheSize
                               ExecutorPlus saveExecutor,
                               AccordStateCacheMetrics cacheMetrics)
     {
-        super(id, time, agent, dataStore, progressLogFactory, listenerFactory, epochUpdateHolder, AccordKeyspace::updateDurableBefore, redundantBeforePersister, AccordKeyspace::updateBootstrapBeganAt, AccordKeyspace::updateSafeToRead);
+        super(id, time, agent, dataStore, progressLogFactory, listenerFactory, epochUpdateHolder);
         this.journal = journal;
         loggingId = String.format("[%s]", id);
         executor = executorFactory().sequential(CommandStore.class.getSimpleName() + '[' + id + ']');
@@ -300,27 +281,27 @@ public class AccordCommandStore extends CommandStore implements CacheSize
 
         this.commandsForRangesLoader = new CommandsForRangesLoader(this);
 
-        AccordKeyspace.loadCommandStoreMetadata(id, ((rejectBefore, durableBefore, redundantBefore, bootstrapBeganAt, safeToRead) -> {
-            executor.submit(() -> {
-                if (rejectBefore != null)
-                    super.setRejectBefore(rejectBefore);
-                if (durableBefore != null)
-                    super.setDurableBefore(DurableBefore.merge(durableBefore, durableBefore()));
-                if (redundantBefore != null)
-                    super.setRedundantBefore(RedundantBefore.merge(redundantBefore, redundantBefore));
-                if (bootstrapBeganAt != null)
-                    super.setBootstrapBeganAt(bootstrapBeganAt);
-                if (safeToRead != null)
-                    super.setSafeToRead(safeToRead);
-            });
-        }));
+//        AccordKeyspace.loadCommandStoreMetadata(id, ((rejectBefore, durableBefore, redundantBefore, bootstrapBeganAt, safeToRead) -> {
+//            executor.submit(() -> {
+//                if (rejectBefore != null)
+//                    super.setRejectBefore(rejectBefore);
+//                if (durableBefore != null)
+//                    super.setDurableBefore(DurableBefore.merge(durableBefore, durableBefore()));
+//                if (redundantBefore != null)
+//                    super.setRedundantBefore(RedundantBefore.merge(redundantBefore, redundantBefore));
+//                if (bootstrapBeganAt != null)
+//                    super.setBootstrapBeganAt(bootstrapBeganAt);
+//                if (safeToRead != null)
+//                    super.setSafeToRead(safeToRead);
+//            });
+//        }));
 
         executor.execute(() -> CommandStore.register(this));
     }
 
     static Factory factory(AccordJournal journal, AccordStateCacheMetrics cacheMetrics)
     {
-        return (id, time, agent, dataStore, progressLogFactory, listenerFactory, rangesForEpoch, scheduler) ->
+        return (id, time, agent, dataStore, progressLogFactory, listenerFactory, rangesForEpoch) ->
                new AccordCommandStore(id, time, agent, dataStore, progressLogFactory, listenerFactory, rangesForEpoch, journal, cacheMetrics);
     }
 
@@ -329,12 +310,10 @@ public class AccordCommandStore extends CommandStore implements CacheSize
         return commandsForRangesLoader;
     }
 
-    public AsyncChain<Void> markShardDurable(SafeCommandStore safeStore, TxnId globalSyncId, Ranges ranges)
+    public void markShardDurable(SafeCommandStore safeStore, TxnId globalSyncId, Ranges ranges)
     {
-        return super.markShardDurable(safeStore, globalSyncId, ranges).flatMap(unused -> {
-            store.snapshot();
-            return null;
-        });
+        store.snapshot(ranges, globalSyncId);
+        super.markShardDurable(safeStore, globalSyncId, ranges);
     }
 
     @Override
@@ -418,6 +397,10 @@ public class AccordCommandStore extends CommandStore implements CacheSize
         return null;
     }
 
+    public void persistStoreState()
+    {
+        journal.appendRedundantBefore(id, redundantBefore());
+    }
     @Nullable
     @VisibleForTesting
     public void appendToLog(Command before, Command after, Runnable onFlush)
@@ -659,13 +642,6 @@ public class AccordCommandStore extends CommandStore implements CacheSize
                 diskCommandsForRanges().mergeHistoricalTransaction(txnId, Ranges.single(range).slice(allRanges), Ranges::with);
             });
         }
-    }
-
-    protected void setRejectBefore(ReducingRangeMap<Timestamp> newRejectBefore)
-    {
-        super.setRejectBefore(newRejectBefore);
-        // TODO (required, correctness): rework to persist via journal once available, this can lose updates in some edge cases
-        AccordKeyspace.updateRejectBefore(this, newRejectBefore);
     }
 
     public NavigableMap<Timestamp, Ranges> safeToRead() { return super.safeToRead(); }

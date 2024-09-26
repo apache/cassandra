@@ -270,11 +270,13 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
                 }
 
                 commandStore.completeOperation(safeStore);
+
                 context.releaseResources(commandStore);
                 state(COMPLETING);
                 if (diffs != null)
                 {
-                    appendCommands(diffs, sanityCheck, () -> finish(result, null));
+                    appendCommands(diffs, sanityCheck);
+                    commandStore.persistStoreState();
                     return false;
                 }
             case COMPLETING:
@@ -287,23 +289,20 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
         return false;
     }
 
-    private void appendCommands(List<SavedCommand.DiffWriter> commands, List<Command> sanityCheck, Runnable onFlush)
+    private void appendCommands(List<SavedCommand.DiffWriter> diffs, List<Command> commands)
     {
-        // If we need to perform sanity check, we can only rely on blocking flushes. Otherwise, we may see into the future.
-        if (sanityCheck != null)
+        if (commands != null)
         {
             Condition condition = Condition.newOneTimeCondition();
-            this.commandStore.appendCommands(commands, onFlush);
+            this.commandStore.appendCommands(diffs, condition::signal);
             condition.awaitUninterruptibly();
 
-            for (Command check : sanityCheck)
+            for (Command check : commands)
                 this.commandStore.sanityCheckCommand(check);
-
-            onFlush.run();
         }
         else
         {
-            this.commandStore.appendCommands(commands, onFlush);
+            this.commandStore.appendCommands(diffs, null);
         }
     }
 
