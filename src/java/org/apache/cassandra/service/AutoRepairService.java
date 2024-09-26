@@ -17,7 +17,9 @@
  */
 package org.apache.cassandra.service;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
 import org.apache.cassandra.repair.autorepair.AutoRepairConfig.RepairType;
@@ -52,6 +54,21 @@ public class AutoRepairService implements AutoRepairServiceMBean
         MBeanWrapper.instance.registerMBean(instance, MBEAN_NAME);
     }
 
+    public void checkCanRun(RepairType repairType)
+    {
+        if (!config.isAutoRepairSchedulingEnabled())
+            throw new ConfigurationException("Auto-repair scheduller is disabled.");
+
+        if (repairType != RepairType.incremental)
+            return;
+
+        if (CassandraRelevantProperties.STREAMING_REQUIRES_VIEW_BUILD_DURING_REPAIR.getBoolean())
+            throw new ConfigurationException("Cannot run incremental repair while materialized view replay is enabled.");
+
+        if (CassandraRelevantProperties.STREAMING_REQUIRES_CDC_REPLAY.getBoolean())
+            throw new ConfigurationException("Cannot run incremental repair while CDC replay is enabled.");
+    }
+
     @Override
     public AutoRepairConfig getAutoRepairConfig()
     {
@@ -61,6 +78,7 @@ public class AutoRepairService implements AutoRepairServiceMBean
     @Override
     public void setAutoRepairEnabled(RepairType repairType, boolean enabled)
     {
+        checkCanRun(repairType);
         config.setAutoRepairEnabled(repairType, enabled);
     }
 

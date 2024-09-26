@@ -632,6 +632,17 @@ public enum CassandraRelevantProperties
     /** Gossiper compute expiration timeout. Default value 3 days. */
     VERY_LONG_TIME_MS("cassandra.very_long_time_ms", "259200000"),
     WAIT_FOR_TRACING_EVENTS_TIMEOUT_SECS("cassandra.wait_for_tracing_events_timeout_secs", "0"),
+    /**
+     * If set to true, mutations streamed during anti-entropy repair will be replayed via the regular write path for associated views.
+     */
+    STREAMING_REQUIRES_VIEW_BUILD_DURING_REPAIR("cassandra.streaming.requires_view_build_during_repair", "true"),
+
+    /**
+     * If set to true, streamed mutations via the regular write path for CDC.
+     * Deprecate this property in trunk (or 5.0) as a new config has been added to control this https://issues.apache.org/jira/browse/CASSANDRA-17666
+     */
+    STREAMING_REQUIRES_CDC_REPLAY("cassandra.streaming.requires_cdc_replay", "true"),
+
     ;
 
     static
