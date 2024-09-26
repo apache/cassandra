@@ -28,11 +28,14 @@ import accord.api.DataStore;
 import accord.api.Key;
 import accord.api.ProgressLog;
 import accord.impl.AbstractSafeCommandStore;
-import accord.local.cfk.CommandsForKey;
 import accord.impl.CommandsSummary;
+import accord.local.CommandStores;
 import accord.local.CommandStores.RangesForEpoch;
+import accord.local.DurableBefore;
 import accord.local.NodeTimeService;
 import accord.local.PreLoadContext;
+import accord.local.RedundantBefore;
+import accord.local.cfk.CommandsForKey;
 import accord.primitives.AbstractKeys;
 import accord.primitives.AbstractRanges;
 import accord.primitives.Ranges;
@@ -50,6 +53,7 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     private final @Nullable AccordSafeCommandsForRanges commandsForRanges;
     private final AccordCommandStore commandStore;
     private final RangesForEpoch ranges;
+    private final FieldUpdates fieldUpdates = new FieldUpdates();
 
     private AccordSafeCommandStore(PreLoadContext context,
                                    Map<TxnId, AccordSafeCommand> commands,
@@ -64,7 +68,8 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
         this.commandsForKeys = commandsForKey;
         this.commandsForRanges = commandsForRanges;
         this.commandStore = commandStore;
-        this.ranges = commandStore.updateRangesForEpoch();
+        commandStore.updateRangesForEpoch(this);
+        this.ranges = commandStore.unsafeRangesForEpoch();
     }
 
     public static AccordSafeCommandStore create(PreLoadContext preLoadContext,
@@ -265,5 +270,74 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     public String toString()
     {
         return "AccordSafeCommandStore(id=" + commandStore().id() + ")";
+    }
+
+    @Override
+    public void upsertRedundantBefore(RedundantBefore addRedundantBefore)
+    {
+        fieldUpdates.redundantBefore = addRedundantBefore;
+        super.upsertRedundantBefore(addRedundantBefore);
+    }
+
+    @Override
+    public void upsertSetBootstrapBeganAt(TxnId globalSyncId, Ranges ranges)
+    {
+        fieldUpdates.newBootstrapBeganAt = new Sync(globalSyncId, ranges);
+        super.upsertSetBootstrapBeganAt(globalSyncId, ranges);
+    }
+
+    @Override
+    public void upsertDurableBefore(DurableBefore addDurableBefore)
+    {
+        fieldUpdates.durableBefore = addDurableBefore;
+        super.upsertDurableBefore(addDurableBefore);
+    }
+
+    @Override
+    public void upsertSafeToRead(NavigableMap<Timestamp, Ranges> newSafeToRead)
+    {
+        fieldUpdates.newSafeToRead = newSafeToRead;
+        super.upsertSafeToRead(newSafeToRead);
+    }
+
+    @Override
+    public void setRangesForEpoch(CommandStores.RangesForEpoch rangesForEpoch)
+    {
+        fieldUpdates.rangesForEpoch = rangesForEpoch.snapshot();
+        super.setRangesForEpoch(rangesForEpoch);
+    }
+
+    @Override
+    public void upsertRejectBefore(TxnId txnId, Ranges ranges)
+    {
+        fieldUpdates.rejectBefore = new Sync(txnId, ranges);
+        super.upsertRejectBefore(txnId, ranges);
+    }
+
+    public FieldUpdates fieldUpdates()
+    {
+        return fieldUpdates;
+    }
+
+    public static class FieldUpdates
+    {
+        public RedundantBefore redundantBefore;
+        public DurableBefore durableBefore;
+        public Sync newBootstrapBeganAt;
+        public Sync rejectBefore;
+        public NavigableMap<Timestamp, Ranges> newSafeToRead;
+        public RangesForEpoch.Snapshot rangesForEpoch;
+    }
+
+    public static class Sync
+    {
+        public final TxnId txnId;
+        public final Ranges ranges;
+
+        public Sync(TxnId txnId, Ranges ranges)
+        {
+            this.txnId = txnId;
+            this.ranges = ranges;
+        }
     }
 }

@@ -141,6 +141,7 @@ public class CommandStoreSerializers
             else out.writeUnsignedVInt(1 + t.endEpoch - t.startEpoch);
             CommandSerializers.txnId.serialize(t.locallyAppliedOrInvalidatedBefore, out, version);
             CommandSerializers.txnId.serialize(t.shardAppliedOrInvalidatedBefore, out, version);
+            CommandSerializers.txnId.serialize(t.gcBefore, out, version);
             CommandSerializers.txnId.serialize(t.bootstrappedAt, out, version);
             CommandSerializers.nullableTimestamp.serialize(t.staleUntilAtLeast, out, version);
         }
@@ -155,9 +156,10 @@ public class CommandStoreSerializers
             else endEpoch = endEpoch - 1 + startEpoch;
             TxnId locallyAppliedOrInvalidatedBefore = CommandSerializers.txnId.deserialize(in, version);
             TxnId shardAppliedOrInvalidatedBefore = CommandSerializers.txnId.deserialize(in, version);
+            TxnId gcBefore = CommandSerializers.txnId.deserialize(in, version);
             TxnId bootstrappedAt = CommandSerializers.txnId.deserialize(in, version);
             Timestamp staleUntilAtLeast = CommandSerializers.nullableTimestamp.deserialize(in, version);
-            return new RedundantBefore.Entry(range, startEpoch, endEpoch, locallyAppliedOrInvalidatedBefore, shardAppliedOrInvalidatedBefore, bootstrappedAt, staleUntilAtLeast);
+            return new RedundantBefore.Entry(range, startEpoch, endEpoch, locallyAppliedOrInvalidatedBefore, shardAppliedOrInvalidatedBefore, gcBefore, bootstrappedAt, staleUntilAtLeast);
         }
 
         @Override

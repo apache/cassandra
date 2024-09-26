@@ -397,10 +397,12 @@ public class AccordCommandStore extends CommandStore implements CacheSize
         return null;
     }
 
-    public void persistStoreState()
+    public void persistFieldUpdates(AccordSafeCommandStore.FieldUpdates fieldUpdates, Runnable onFlush)
     {
-        journal.appendRedundantBefore(id, redundantBefore());
+        journal.persistStoreState(id, fieldUpdates, onFlush);
     }
+
+
     @Nullable
     @VisibleForTesting
     public void appendToLog(Command before, Command after, Runnable onFlush)
@@ -646,13 +648,13 @@ public class AccordCommandStore extends CommandStore implements CacheSize
 
     public NavigableMap<Timestamp, Ranges> safeToRead() { return super.safeToRead(); }
 
-    public void appendCommands(List<SavedCommand.DiffWriter> commands, Runnable onFlush)
+    public void appendCommands(List<SavedCommand.DiffWriter> diffs, Runnable onFlush)
     {
-        for (int i = 0; i < commands.size(); i++)
+        for (int i = 0; i < diffs.size(); i++)
         {
-            JournalKey key = new JournalKey(commands.get(i).after().txnId(), JournalKey.Type.COMMAND_DIFF, id);
-            boolean isLast = i == commands.size() - 1;
-            journal.append(key, commands.get(i), isLast  ? onFlush : null);
+            boolean isLast = i == diffs.size() - 1;
+            SavedCommand.DiffWriter writer = diffs.get(i);
+            journal.appendCommand(id, writer, isLast  ? onFlush : null);
         }
     }
 

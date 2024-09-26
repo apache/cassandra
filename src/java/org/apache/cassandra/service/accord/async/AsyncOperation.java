@@ -276,7 +276,8 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
                 if (diffs != null)
                 {
                     appendCommands(diffs, sanityCheck);
-                    commandStore.persistStoreState();
+
+                    commandStore.persistFieldUpdates(safeStore.fieldUpdates(), () -> finish(result, null));
                     return false;
                 }
             case COMPLETING:

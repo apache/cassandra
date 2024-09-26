@@ -26,12 +26,16 @@ import accord.local.Node;
 import accord.local.SafeCommandStore;
 import accord.primitives.Ranges;
 import accord.primitives.SyncPoint;
+import accord.primitives.TxnId;
+import accord.utils.async.AsyncResult;
+import accord.utils.async.AsyncResults;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.FutureCombiner;
 
 public class AccordDataStore implements DataStore
 {
@@ -44,27 +48,29 @@ public class AccordDataStore implements DataStore
     }
 
     @Override
-    public void snapshot()
+    public AsyncResult<Void> snapshot(Ranges ranges, TxnId before) // TODO: does this have to go to journal, too?
     {
+        AsyncResults.SettableResult<Void> result = new AsyncResults.SettableResult<>();
         // TODO: maintain a list of Accord tables, perhaps in ClusterMetadata?
         ClusterMetadata metadata = ClusterMetadata.current();
         List<Future<?>> futures = new ArrayList<>();
         for (KeyspaceMetadata ks : metadata.schema.getKeyspaces())
         {
+            // TODO: only flush intersecting ranges
             for (TableMetadata table : ks.tables)
             {
                 if (table.isAccordEnabled())
                     futures.add(Keyspace.open(ks.name).getColumnFamilyStore(table.id).forceFlush(ColumnFamilyStore.FlushReason.ACCORD));
             }
         }
-        try
-        {
-            for (Future<?> future : futures)
-                future.get();
-        }
-        catch (Throwable t)
-        {
-            throw new IllegalStateException("Could not snapshot table state.", t);
-        }
+
+        FutureCombiner.allOf(futures).addCallback((objects, throwable) -> {
+            if (throwable != null)
+                result.setFailure(throwable);
+            else
+                result.setSuccess(null);
+        });
+
+        return result;
     }
 }

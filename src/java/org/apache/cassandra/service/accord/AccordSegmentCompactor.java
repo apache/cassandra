@@ -138,7 +138,7 @@ public class AccordSegmentCompactor<V> implements SegmentCompactor<JournalKey, V
             SimpleBuilder partitionBuilder = PartitionUpdate.simpleBuilder(AccordKeyspace.Journal, AccordJournalTable.makePartitionKey(cfs, key, keySupport, userVersion));
             try (DataOutputBuffer out = DataOutputBuffer.scratchBuffer.get())
             {
-                serializer.serialize(key, serializer.toWriter(builder), out, userVersion);
+                serializer.reserialize(key, builder, out, userVersion);
                 partitionBuilder.row(descriptor, offset)
                                 .add("record", out.asNewBuffer())
                                 .add("user_version", userVersion);

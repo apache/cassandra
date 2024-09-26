@@ -374,7 +374,7 @@ public class AccordTestUtils
 
         SingleEpochRanges holder = new SingleEpochRanges(Ranges.of(range));
         InMemoryCommandStore.Synchronized result = new InMemoryCommandStore.Synchronized(0, time, new AccordAgent(),
-                                                     null, null, cs -> null, holder, null);
+                                                     null, null, cs -> null, holder);
         holder.set(result);
         return result;
     }

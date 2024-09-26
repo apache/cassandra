@@ -158,16 +158,43 @@ public class AccordJournal implements IJournal, Shutdownable
         return accumulator.get();
     }
 
+    @Override
     public void appendCommand(int store, SavedCommand.DiffWriter value, Runnable onFlush)
     {
-
+        // TODO: use same API for commands as for the other states?
+        JournalKey key = new JournalKey(value.key(), JournalKey.Type.COMMAND_DIFF, store);
+        RecordPointer pointer = journal.asyncWrite(key, value, SENTINEL_HOSTS);
+        if (onFlush != null)
+            journal.onFlush(pointer, onFlush);
     }
 
     @Override
-    public void appendRedundantBefore(int store, RedundantBefore value, Runnable onFlush)
+    public void appendRedundantBefore(int store, RedundantBefore redundantBefore, Runnable onFlush)
     {
         JournalKey key = new JournalKey(Timestamp.NONE, JournalKey.Type.REDUNDANT_BEFORE, store);
-        append(key, value, onFlush);
+        append(key, redundantBefore, onFlush);
+    }
+
+    @Override
+    public void persistStoreState(int store, AccordSafeCommandStore.FieldUpdates fieldUpdates, Runnable onFlush)
+    {
+        RecordPointer pointer = null;
+        if (fieldUpdates.redundantBefore != null)
+            pointer = appendInternal(new JournalKey(Timestamp.NONE, JournalKey.Type.REDUNDANT_BEFORE, store), fieldUpdates.redundantBefore);
+        if (fieldUpdates.durableBefore != null)
+            pointer = appendInternal(new JournalKey(Timestamp.NONE, JournalKey.Type.DURABLE_BEFORE, store), fieldUpdates.durableBefore);
+        if (fieldUpdates.newBootstrapBeganAt != null)
+            pointer = appendInternal(new JournalKey(Timestamp.NONE, JournalKey.Type.BOOTSTRAP_BEGAN_AT, store), fieldUpdates.newBootstrapBeganAt);
+        if (fieldUpdates.rejectBefore != null)
+            pointer = appendInternal(new JournalKey(Timestamp.NONE, JournalKey.Type.REJECT_BEFORE, store), fieldUpdates.rejectBefore);
+        if (fieldUpdates.newSafeToRead != null)
+            pointer = appendInternal(new JournalKey(Timestamp.NONE, JournalKey.Type.SAFE_TO_READ, store), fieldUpdates.newSafeToRead);
+        if (fieldUpdates.rangesForEpoch != null)
+            pointer = appendInternal(new JournalKey(Timestamp.NONE, JournalKey.Type.RANGES_FOR_EPOCH, store), fieldUpdates.rangesForEpoch);
+        if (pointer != null)
+            journal.onFlush(pointer, onFlush);
+        else
+            onFlush.run();
     }
 
     @VisibleForTesting
@@ -191,10 +218,15 @@ public class AccordJournal implements IJournal, Shutdownable
     @Override
     public void append(JournalKey key, Object write, Runnable onFlush)
     {
-        AccordJournalValueSerializers.FlyweightSerializer<Object, ?> serializer = (AccordJournalValueSerializers.FlyweightSerializer<Object, ?>) key.type.serializer;
-        RecordPointer pointer = journal.asyncWrite(key, (out, userVersion) -> serializer.serialize(key, write, out, userVersion), SENTINEL_HOSTS);
+        RecordPointer pointer = appendInternal(key, write);
         if (onFlush != null)
             journal.onFlush(pointer, onFlush);
+    }
+
+    private RecordPointer appendInternal(JournalKey key, Object write)
+    {
+        AccordJournalValueSerializers.FlyweightSerializer<Object, ?> serializer = (AccordJournalValueSerializers.FlyweightSerializer<Object, ?>) key.type.serializer;
+        return journal.asyncWrite(key, (out, userVersion) -> serializer.serialize(key, write, out, userVersion), SENTINEL_HOSTS);
     }
 
     @VisibleForTesting

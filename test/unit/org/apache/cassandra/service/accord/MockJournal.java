@@ -71,9 +71,19 @@ public class MockJournal implements IJournal
     }
 
     @Override
-    public void appendRedundantBefore(int store, RedundantBefore value, Runnable onFlush)
+    public void appendRedundantBefore(int store, RedundantBefore newValue, Runnable onFlush)
     {
-        append(new JournalKey(Timestamp.NONE, JournalKey.Type.REDUNDANT_BEFORE, store), value, onFlush);
+        redundantBefores.compute(store, (integer, oldValue) -> {
+            if (oldValue == null)
+                return newValue;
+            return RedundantBefore.merge(oldValue, newValue);
+        });
+    }
+
+    @Override
+    public void persistStoreState(int store, AccordSafeCommandStore.FieldUpdates fieldUpdates, Runnable onFlush)
+    {
+        throw new IllegalStateException();
     }
 
     @Override
