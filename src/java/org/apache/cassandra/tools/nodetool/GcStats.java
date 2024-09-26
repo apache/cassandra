@@ -21,7 +21,6 @@ import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 import org.apache.cassandra.tools.nodetool.stats.GcStatsHolder;
 import org.apache.cassandra.tools.nodetool.stats.GcStatsPrinter;
-import org.apache.cassandra.tools.nodetool.stats.StatsHolder;
 import org.apache.cassandra.tools.nodetool.stats.StatsPrinter;
 
 import io.airlift.airline.Command;
@@ -43,8 +42,8 @@ public class GcStats extends NodeToolCmd
             throw new IllegalArgumentException("arguments for -F are json, yaml only.");
         }
 
-        StatsHolder data = new GcStatsHolder(probe);
-        StatsPrinter printer = GcStatsPrinter.from(outputFormat);
+        GcStatsHolder data = new GcStatsHolder(probe);
+        StatsPrinter<GcStatsHolder> printer = GcStatsPrinter.from(outputFormat);
         printer.print(data, probe.output().out);
     }
 }

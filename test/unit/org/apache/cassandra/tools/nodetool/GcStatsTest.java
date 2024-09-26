@@ -89,12 +89,12 @@ public class GcStatsTest extends CQLTester
         ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("gcstats");
         tool.assertOnCleanExit();
         String output = tool.getStdout();
-        assertThat(output.contains("Interval (ms)"));
-        assertThat(output.contains("Max GC Elapsed (ms)"));
-        assertThat(output.contains("Total GC Elapsed (ms)"));
-        assertThat(output.contains("GC Reclaimed (MB)"));
-        assertThat(output.contains("Collections"));
-        assertThat(output.contains("Direct Memory Bytes"));
+        assertThat(output).contains("Interval (ms)");
+        assertThat(output).contains("Max GC Elapsed (ms)");
+        assertThat(output).contains("Total GC Elapsed (ms)");
+        assertThat(output).contains("GC Reclaimed (MB)");
+        assertThat(output).contains("Collections");
+        assertThat(output).contains("Direct Memory Bytes");
     }
 
     @Test

@@ -32,14 +32,14 @@ public class GcStatsPrinter
      * @param format The desired output format (e.g., json, yaml).
      * @return A StatsPrinter appropriate for the format.
      */
-    public static StatsPrinter from(String format)
+    public static StatsPrinter<GcStatsHolder> from(String format)
     {
         switch (format)
         {
             case "json":
-                return new StatsPrinter.JsonPrinter();
+                return new StatsPrinter.JsonPrinter<>();
             case "yaml":
-                return new StatsPrinter.YamlPrinter();
+                return new StatsPrinter.YamlPrinter<>();
             default:
                 return new DefaultPrinter();
         }
@@ -61,8 +61,11 @@ public class GcStatsPrinter
         {
             Map<String, Object> stats = data.convert2Map();
 
-            out.printf("%20s%20s%20s%20s%20s%20s%25s%n", "Interval (ms)", "Max GC Elapsed (ms)", "Total GC Elapsed (ms)", "Stdev GC Elapsed (ms)", "GC Reclaimed (MB)", "Collections", "Direct Memory Bytes");
-            out.printf("%20.0f%20.0f%20.0f%20.0f%20.0f%20.0f%25d%n", stats.get("interval_ms"), stats.get("max_gc_elapsed_ms"), stats.get("total_gc_elapsed_ms"), stats.get("stdev_gc_elapsed_ms"), stats.get("gc_reclaimed_mb"), stats.get("collections"), (long) stats.get("direct_memory_bytes"));
+            out.printf("%20s%20s%20s%20s%20s%20s%25s%n", "Interval (ms)", "Max GC Elapsed (ms)", "Total GC Elapsed (ms)",
+                    "Stdev GC Elapsed (ms)", "GC Reclaimed (MB)", "Collections", "Direct Memory Bytes");
+            out.printf("%20.0f%20.0f%20.0f%20.0f%20.0f%20.0f%25d%n", stats.get("interval_ms"), stats.get("max_gc_elapsed_ms"),
+                    stats.get("total_gc_elapsed_ms"), stats.get("stdev_gc_elapsed_ms"), stats.get("gc_reclaimed_mb"),
+                    stats.get("collections"), (long) stats.get("direct_memory_bytes"));
         }
     }
 }
