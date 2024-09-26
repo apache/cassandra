@@ -20,10 +20,15 @@ package org.apache.cassandra.tcm.transformations.cms;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
@@ -33,6 +38,8 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.CMSPlacementStrategy;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.ReplicationFactor;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
@@ -49,13 +56,30 @@ import org.apache.cassandra.tcm.serialization.Version;
 
 import static org.apache.cassandra.exceptions.ExceptionCode.INVALID;
 import static org.apache.cassandra.locator.MetaStrategy.entireRange;
+import static org.apache.cassandra.tcm.CMSOperations.REPLICATION_FACTOR;
 
-public class PrepareCMSReconfiguration
+public abstract class PrepareCMSReconfiguration implements Transformation
 {
     private static final Logger logger = LoggerFactory.getLogger(PrepareCMSReconfiguration.class);
+    final Set<NodeId> downNodes;
 
-    private static Transformation.Result executeInternal(ClusterMetadata prev, Function<ClusterMetadata.Transformer, ClusterMetadata.Transformer> transform, Diff diff)
+    public PrepareCMSReconfiguration(Set<NodeId> downNodes)
     {
+        this.downNodes = downNodes;
+    }
+
+    protected abstract Predicate<NodeId> additionalFilteringPredicate(Set<NodeId> downNodes);
+    protected abstract ReplicationParams newReplicationParams(ClusterMetadata prev);
+
+    protected Transformation.Result executeInternal(ClusterMetadata prev, Function<ClusterMetadata.Transformer, ClusterMetadata.Transformer> transform)
+    {
+        Diff diff = getDiff(prev);
+        if (!diff.hasChanges())
+        {
+            logger.info("Proposed CMS reconfiguration resulted in no required modifications at epoch {}", prev.epoch.getEpoch());
+            return Transformation.success(prev.transformer(), LockedRanges.AffectedRanges.EMPTY);
+        }
+
         LockedRanges.Key lockKey = LockedRanges.keyFor(prev.nextEpoch());
         Set<NodeId> cms = prev.fullCMSMembers().stream().map(prev.directory::peerId).collect(Collectors.toSet());
         Set<NodeId> tmp = new HashSet<>(cms);
@@ -71,15 +95,79 @@ public class PrepareCMSReconfiguration
         return Transformation.success(transform.apply(transformer), LockedRanges.AffectedRanges.EMPTY);
     }
 
-    public static class Simple implements Transformation
+    private Diff getDiff(ClusterMetadata prev)
+    {
+        Set<NodeId> currentCms = prev.fullCMSMemberIds();
+        Map<String, Integer> dcRF = extractRf(newReplicationParams(prev));
+        Set<NodeId> newCms = prepareNewCMS(dcRF, prev);
+        if (newCms.equals(currentCms))
+            return Diff.NOCHANGE;
+        return diff(currentCms, newCms);
+    }
+
+    private Set<NodeId> prepareNewCMS(Map<String, Integer> dcRf, ClusterMetadata prev)
+    {
+        CMSPlacementStrategy placementStrategy = new CMSPlacementStrategy(dcRf, additionalFilteringPredicate(downNodes));
+        return placementStrategy.reconfigure(prev);
+    }
+
+    public void verify(ClusterMetadata prev)
+    {
+        Map<String, Integer> dcRf = extractRf(newReplicationParams(prev));
+        int expectedSize = dcRf.values().stream().mapToInt(Integer::intValue).sum();
+        Set<NodeId> newCms = prepareNewCMS(dcRf, prev);
+        if (newCms.size() < (expectedSize / 2) + 1)
+            throw new IllegalStateException("Too many nodes are currently DOWN to safely perform the reconfiguration");
+    }
+
+    private static void serializeDownNodes(PrepareCMSReconfiguration transformation, DataOutputPlus out, Version version) throws IOException
+    {
+        out.writeUnsignedVInt32(transformation.downNodes.size());
+        for (NodeId nodeId : transformation.downNodes)
+            NodeId.serializer.serialize(nodeId, out, version);
+    }
+
+    private static Set<NodeId> deserializeDownNodes(DataInputPlus in, Version version) throws IOException
+    {
+        Set<NodeId> downNodes = new HashSet<>();
+        int count = in.readUnsignedVInt32();
+        for (int i = 0; i < count; i++)
+            downNodes.add(NodeId.serializer.deserialize(in, version));
+        return downNodes;
+    }
+
+    private static long serializedDownNodesSize(PrepareCMSReconfiguration transformation, Version version)
+    {
+        long size = TypeSizes.sizeofUnsignedVInt(transformation.downNodes.size());
+        for (NodeId nodeId : transformation.downNodes)
+            size += NodeId.serializer.serializedSize(nodeId, version);
+        return size;
+    }
+
+    public static class Simple extends PrepareCMSReconfiguration
     {
         public static final Simple.Serializer serializer = new Serializer();
 
         private final NodeId toReplace;
 
-        public Simple(NodeId toReplace)
+        public Simple(NodeId toReplace, Set<NodeId> downNodes)
         {
+            super(downNodes);
             this.toReplace = toReplace;
+        }
+
+        @Override
+        protected Predicate<NodeId> additionalFilteringPredicate(Set<NodeId> downNodes)
+        {
+            // exclude the node being replaced from the new CMS, and avoid any down nodes
+            return nodeId -> !nodeId.equals(toReplace) && !downNodes.contains(nodeId);
+        }
+
+        @Override
+        protected ReplicationParams newReplicationParams(ClusterMetadata prev)
+        {
+            // a simple reconfiguration retains the existing replication params
+            return ReplicationParams.meta(prev);
         }
 
         @Override
@@ -94,27 +182,16 @@ public class PrepareCMSReconfiguration
             if (!prev.fullCMSMembers().contains(prev.directory.getNodeAddresses(toReplace).broadcastAddress))
                 return new Rejected(INVALID, String.format("%s is not a member of CMS. Members: %s", toReplace, prev.fullCMSMembers()));
 
-            ReplicationParams metaParams = ReplicationParams.meta(prev);
-            CMSPlacementStrategy placementStrategy = CMSPlacementStrategy.fromReplicationParams(metaParams, nodeId -> !nodeId.equals(toReplace));
-            Set<NodeId> currentCms = prev.fullCMSMembers()
-                                         .stream()
-                                         .map(prev.directory::peerId)
-                                         .collect(Collectors.toSet());
-
-            Set<NodeId> newCms = placementStrategy.reconfigure(prev);
-            if (newCms.equals(currentCms))
-            {
-                logger.info("Proposed CMS reconfiguration resulted in no required modifications at epoch {}", prev.epoch.getEpoch());
-                return Transformation.success(prev.transformer(), LockedRanges.AffectedRanges.EMPTY);
-            }
-            Diff diff = diff(currentCms, newCms);
-            return executeInternal(prev, t -> t, diff);
+            // A simple reconfiguration only kicks off the sequence of membership changes, no additional metadata
+            // transformation is required.
+            return executeInternal(prev, t -> t);
         }
 
         public String toString()
         {
             return "PrepareCMSReconfiguration#Simple{" +
                    "toReplace=" + toReplace +
+                   ", downNodes=" + downNodes +
                    '}';
         }
 
@@ -122,32 +199,56 @@ public class PrepareCMSReconfiguration
         {
             public void serialize(Transformation t, DataOutputPlus out, Version version) throws IOException
             {
-                Simple tranformation = (Simple) t;
-                NodeId.serializer.serialize(tranformation.toReplace, out, version);
+                Simple transformation = (Simple) t;
+                NodeId.serializer.serialize(transformation.toReplace, out, version);
+                if (version.isAtLeast(Version.V3))
+                    PrepareCMSReconfiguration.serializeDownNodes(transformation, out, version);
             }
 
             public Simple deserialize(DataInputPlus in, Version version) throws IOException
             {
-                return new Simple(NodeId.serializer.deserialize(in, version));
+                NodeId replaceNode = NodeId.serializer.deserialize(in, version);
+                Set<NodeId> downNodes = version.isAtLeast(Version.V3)
+                                        ? PrepareCMSReconfiguration.deserializeDownNodes(in, version)
+                                        : Collections.emptySet();
+                return new Simple(replaceNode, downNodes);
             }
 
             public long serializedSize(Transformation t, Version version)
             {
-                Simple tranformation = (Simple) t;
-                return NodeId.serializer.serializedSize(tranformation.toReplace, version);
+                Simple transformation = (Simple) t;
+                long size = NodeId.serializer.serializedSize(transformation.toReplace, version);
+                if (version.isAtLeast(Version.V3))
+                    size += PrepareCMSReconfiguration.serializedDownNodesSize(transformation, version);
+                return size;
             }
         }
     }
 
-    public static class Complex implements Transformation
+    public static class Complex extends PrepareCMSReconfiguration
     {
         public static final Complex.Serializer serializer = new Complex.Serializer();
 
         private final ReplicationParams replicationParams;
 
-        public Complex(ReplicationParams replicationParams)
+        public Complex(ReplicationParams replicationParams, Set<NodeId> downNodes)
         {
+            super(downNodes);
             this.replicationParams = replicationParams;
+        }
+
+        @Override
+        protected Predicate<NodeId> additionalFilteringPredicate(Set<NodeId> downNodes)
+        {
+            // exclude any down nodes
+            return nodeId -> !downNodes.contains(nodeId);
+        }
+
+        @Override
+        protected ReplicationParams newReplicationParams(ClusterMetadata ignored)
+        {
+            // desired replication params are supplied, so just return them
+            return replicationParams;
         }
 
         @Override
@@ -159,34 +260,21 @@ public class PrepareCMSReconfiguration
         @Override
         public Result execute(ClusterMetadata prev)
         {
+            // In a complex reconfiguration, in addition to initiating the sequence of membership changes,
+            // we're modifying the replication params of the metadata keyspace so we supply a function to do that
             KeyspaceMetadata keyspace = prev.schema.getKeyspaceMetadata(SchemaConstants.METADATA_KEYSPACE_NAME);
             KeyspaceMetadata newKeyspace = keyspace.withSwapped(new KeyspaceParams(keyspace.params.durableWrites, replicationParams));
 
-            CMSPlacementStrategy placementStrategy = CMSPlacementStrategy.fromReplicationParams(replicationParams, nodeId -> true);
-
-            Set<NodeId> currentCms = prev.fullCMSMembers()
-                                         .stream()
-                                         .map(prev.directory::peerId)
-                                         .collect(Collectors.toSet());
-
-            Set<NodeId> newCms = placementStrategy.reconfigure(prev);
-            if (newCms.equals(currentCms))
-            {
-                logger.info("Proposed CMS reconfiguration resulted in no required modifications at epoch {}", prev.epoch.getEpoch());
-                return Transformation.success(prev.transformer(), LockedRanges.AffectedRanges.EMPTY);
-            }
-            Diff diff = diff(currentCms, newCms);
-
             return executeInternal(prev,
-                                   transformer -> transformer.with(prev.placements.replaceParams(prev.nextEpoch(),ReplicationParams.meta(prev), replicationParams))
-                                                             .with(new DistributedSchema(prev.schema.getKeyspaces().withAddedOrUpdated(newKeyspace))),
-                                   diff);
+                                   transformer -> transformer.with(prev.placements.replaceParams(prev.nextEpoch(), ReplicationParams.meta(prev), replicationParams))
+                                                             .with(new DistributedSchema(prev.schema.getKeyspaces().withAddedOrUpdated(newKeyspace))));
         }
 
         public String toString()
         {
             return "PrepareCMSReconfiguration#Complex{" +
                    "replicationParams=" + replicationParams +
+                   ", downNodes=" + downNodes +
                    '}';
         }
 
@@ -194,19 +282,28 @@ public class PrepareCMSReconfiguration
         {
             public void serialize(Transformation t, DataOutputPlus out, Version version) throws IOException
             {
-                Complex tranformation = (Complex) t;
-                ReplicationParams.serializer.serialize(tranformation.replicationParams, out, version);
+                Complex transformation = (Complex) t;
+                ReplicationParams.serializer.serialize(transformation.replicationParams, out, version);
+                if (version.isAtLeast(Version.V3))
+                    PrepareCMSReconfiguration.serializeDownNodes(transformation, out, version);
             }
 
             public Complex deserialize(DataInputPlus in, Version version) throws IOException
             {
-                return new Complex(ReplicationParams.serializer.deserialize(in, version));
+                ReplicationParams params = ReplicationParams.serializer.deserialize(in, version);
+                Set<NodeId> downNodes = version.isAtLeast(Version.V3)
+                                        ? PrepareCMSReconfiguration.deserializeDownNodes(in, version)
+                                        : Collections.emptySet();
+                return new Complex(params, downNodes);
             }
 
             public long serializedSize(Transformation t, Version version)
             {
-                Complex tranformation = (Complex) t;
-                return ReplicationParams.serializer.serializedSize(tranformation.replicationParams, version);
+                Complex transformation = (Complex) t;
+                long size = ReplicationParams.serializer.serializedSize(transformation.replicationParams, version);
+                if (version.isAtLeast(Version.V3))
+                    size += PrepareCMSReconfiguration.serializedDownNodesSize(transformation, version);
+                return size;
             }
         }
     }
@@ -233,8 +330,51 @@ public class PrepareCMSReconfiguration
         return new Diff(additions, removals);
     }
 
+    private static Map<String, Integer> extractRf(ReplicationParams params)
+    {
+        if (params.isMeta())
+        {
+            assert !params.options.containsKey(REPLICATION_FACTOR);
+            Map<String, Integer> dcRf = new HashMap<>();
+            for (Map.Entry<String, String> entry : params.options.entrySet())
+            {
+                String dc = entry.getKey();
+                ReplicationFactor rf = ReplicationFactor.fromString(entry.getValue());
+                dcRf.put(dc, rf.fullReplicas);
+            }
+            return dcRf;
+        }
+        else
+        {
+            throw new IllegalStateException("Can't parse the params: " + params);
+        }
+    }
+
+    public static boolean needsReconfiguration(ClusterMetadata metadata)
+    {
+        Map<String, Integer> dcRf = extractRf(ReplicationParams.meta(metadata));
+        Set<NodeId> currentCms = metadata.fullCMSMembers()
+                                         .stream()
+                                         .map(metadata.directory::peerId)
+                                         .collect(Collectors.toSet());
+        int expectedSize = dcRf.values().stream().mapToInt(Integer::intValue).sum();
+        if (currentCms.size() != expectedSize)
+            return true;
+        for (Map.Entry<String, Integer> dcRfEntry : dcRf.entrySet())
+        {
+            Collection<InetAddressAndPort> nodesInDc = metadata.directory.allDatacenterEndpoints().get(dcRfEntry.getKey());
+            if (nodesInDc.size() < dcRfEntry.getValue())
+                return true;
+        }
+
+        CMSPlacementStrategy placementStrategy = new CMSPlacementStrategy(dcRf, nodeId -> true);
+        Set<NodeId> newCms = placementStrategy.reconfigure(metadata);
+        return !currentCms.equals(newCms);
+    }
+
     public static class Diff
     {
+        public static final Diff NOCHANGE = new Diff(Collections.emptyList(), Collections.emptyList());
         public static final Serializer serializer = new Serializer();
 
         public final List<NodeId> additions;
@@ -244,6 +384,11 @@ public class PrepareCMSReconfiguration
         {
             this.additions = additions;
             this.removals = removals;
+        }
+
+        public boolean hasChanges()
+        {
+            return this != NOCHANGE;
         }
 
         public String toString()
