@@ -38,7 +38,6 @@ import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
@@ -118,62 +117,6 @@ public class AutoRepairConfigTest extends CQLTester
 
         assertTrue(config.repair_type_overrides.get(repairType).enabled);
     }
-
-    @Test
-    public void testSetAutoRepairEnabledWithMV()
-    {
-        DatabaseDescriptor.setCDCEnabled(false);
-        DatabaseDescriptor.setMaterializedViewsEnabled(true);
-
-        try
-        {
-            config.setAutoRepairEnabled(repairType, true);
-
-            if (repairType == AutoRepairConfig.RepairType.incremental)
-            {
-                assertFalse(config.repair_type_overrides.get(repairType).enabled); // IR should not be allowed with MV
-                assertNotEquals(AutoRepairConfig.RepairType.incremental, repairType); // should receive exception
-            }
-            else
-            {
-                assertTrue(config.repair_type_overrides.get(repairType).enabled);
-            }
-        }
-        catch (ConfigurationException e)
-        {
-            // should throw only if repairType is incremental
-            assertEquals(AutoRepairConfig.RepairType.incremental, repairType);
-        }
-    }
-
-    @Test
-    public void testSetAutoRepairEnabledWithCDC()
-    {
-        DatabaseDescriptor.setCDCEnabled(true);
-        DatabaseDescriptor.setMaterializedViewsEnabled(false);
-
-        try
-        {
-            config.setAutoRepairEnabled(repairType, true);
-
-
-            if (repairType == AutoRepairConfig.RepairType.incremental)
-            {
-                assertFalse(config.repair_type_overrides.get(repairType).enabled); // IR should not be allowed with CDC
-                assertNotEquals(AutoRepairConfig.RepairType.incremental, repairType); // should receive exception
-            }
-            else
-            {
-                assertTrue(config.repair_type_overrides.get(repairType).enabled);
-            }
-        }
-        catch (ConfigurationException e)
-        {
-            // should throw only if repairType is incremental
-            assertEquals(AutoRepairConfig.RepairType.incremental, repairType);
-        }
-    }
-
 
     @Test
     public void testSetRepairByKeyspace()

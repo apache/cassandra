@@ -25,6 +25,11 @@ import java.util.Set;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
+
+import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
+import org.apache.cassandra.io.sstable.SSTable;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -190,7 +195,7 @@ public class CassandraStreamReceiver implements StreamReceiver
      * For CDC-enabled tables and write path for CDC is enabled, we want to ensure that the mutations are
      * run through the CommitLog, so they can be archived by the CDC process on discard.
      */
-    private boolean requiresWritePath(ColumnFamilyStore cfs)
+    public boolean requiresWritePath(ColumnFamilyStore cfs)
     {
         return cdcRequiresWriteCommitLog(cfs)
                || cfs.streamToMemtable()
