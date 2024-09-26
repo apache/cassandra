@@ -1,4 +1,5 @@
 5.1
+ * Allow CMS reconfiguration to work around DOWN nodes (CASSANDRA-19943)
  * Make TableParams.Serializer set allowAutoSnapshots and incrementalBackups (CASSANDRA-19954)
  * Make sstabledump possible to show tombstones only (CASSANDRA-19939)
  * Ensure that RFP queries potentially stale replicas even with only key columns in the row filter (CASSANDRA-19938)

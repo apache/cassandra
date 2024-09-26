@@ -110,7 +110,7 @@ public class MetaStrategyTest
         rf.put("dc2", 2);
         rf.put("dc3", 2);
 
-        CMSPlacementStrategy placementStrategy = new CMSPlacementStrategy.DatacenterAware(rf, (cd, n) -> true);
+        CMSPlacementStrategy placementStrategy = new CMSPlacementStrategy(rf, (cd, n) -> true);
         Assert.assertEquals(nodeIds(metadata.directory,
                                     1, 2, 4, 5, 7, 8),
                             placementStrategy.reconfigure(metadata));
@@ -119,8 +119,8 @@ public class MetaStrategyTest
                                     1, 2, 4, 5, 7, 8),
                             placementStrategy.reconfigure(metadata));
 
-        placementStrategy = new CMSPlacementStrategy.DatacenterAware(rf, (cd, n) -> !n.equals(metadata.directory.peerId(addr(2).broadcastAddress)) &&
-                                                                                    !n.equals(metadata.directory.peerId(addr(2).broadcastAddress)));
+        placementStrategy = new CMSPlacementStrategy(rf, (cd, n) -> !n.equals(metadata.directory.peerId(addr(2).broadcastAddress)) &&
+                                                                    !n.equals(metadata.directory.peerId(addr(2).broadcastAddress)));
         Assert.assertEquals(nodeIds(metadata.directory,
                                     1, 3, 4, 5, 7, 8),
                             placementStrategy.reconfigure(metadata));
