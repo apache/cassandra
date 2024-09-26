@@ -55,6 +55,7 @@ public enum Stage
     INTERNAL_RESPONSE (false, "InternalResponseStage", "internal", FBUtilities::getAvailableProcessors,             null,                                            Stage::multiThreadedStage),
     IMMEDIATE         (false, "ImmediateStage",        "internal", () -> 0,                                         null,                                            Stage::immediateExecutor),
     PAXOS_REPAIR      (false, "PaxosRepairStage",      "internal", FBUtilities::getAvailableProcessors,             null,                                            Stage::multiThreadedStage),
+    HINT              (true,  "HintStage",             "request",  DatabaseDescriptor::getConcurrentHints,          DatabaseDescriptor::setConcurrentHints,          Stage::multiThreadedLowSignalStage),
     ;
 
     public final String jmxName;

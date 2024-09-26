@@ -1,3 +1,5 @@
+ * Assign a separate queue for Hints which is different from Mutation queue (CASSANDRA-19958)
+
 4.1.8
 Merged from 4.0:
  * Fix text containing "/*" being interpreted as multiline comment in cqlsh (CASSANDRA-17667)
