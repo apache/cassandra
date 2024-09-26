@@ -81,13 +81,14 @@ public class CollectionVirtualTableAdapterTest extends CQLTester
     @Before
     public void config() throws Exception
     {
-        tables.add(CollectionVirtualTableAdapter.create(
+        tables.add(CollectionVirtualTableAdapter.createVt(
             KS_NAME,
             VT_NAME,
             "The collection virtual table",
             new CollectionEntryTestRowWalker(),
             internalTestCollection,
-            CollectionEntryTestRow::new));
+            CollectionEntryTestRow::new,
+            m -> internalTestCollection.clear()));
         tables.add(CollectionVirtualTableAdapter.createSinglePartitionedKeyFiltered(
             KS_NAME,
             VT_NAME_1,
@@ -220,6 +221,17 @@ public class CollectionVirtualTableAdapterTest extends CQLTester
     {
         internalTestCollection.clear();
         assertRowsNet(executeNet(String.format("SELECT * FROM %s.%s", KS_NAME, VT_NAME)));
+    }
+
+    @Test
+    public void testTruncateCollection()
+    {
+        addSinglePartitionData(internalTestCollection);
+        ResultSet result = executeNet(String.format("SELECT * FROM %s.%s WHERE primary_key = ? AND secondary_key = ?",
+                                                    KS_NAME, VT_NAME), "1984", "key");
+        assertEquals(3, result.all().size());
+        executeNet(String.format("TRUNCATE %s.%s", KS_NAME, VT_NAME));
+        assertRowCountNet(executeNet(String.format("SELECT * FROM %s.%s", KS_NAME, VT_NAME)), 0);
     }
 
     private static class CollectionEntryExt extends CollectionEntry

@@ -19,6 +19,7 @@
 package org.apache.cassandra.db.virtual;
 
 import java.nio.ByteBuffer;
+import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumMap;
@@ -31,9 +32,9 @@ import java.util.Objects;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -60,6 +61,8 @@ import org.apache.cassandra.db.marshal.FloatType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.ShortType;
+import org.apache.cassandra.db.marshal.TimeUUIDType;
+import org.apache.cassandra.db.marshal.TimestampType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.db.partitions.AbstractUnfilteredPartitionIterator;
@@ -82,6 +85,7 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.db.rows.Cell.NO_DELETION_TIME;
 import static org.apache.cassandra.utils.FBUtilities.camelToSnake;
@@ -99,7 +103,11 @@ public class CollectionVirtualTableAdapter<R> implements VirtualTable
 {
     private static final Pattern ONLY_ALPHABET_PATTERN = Pattern.compile("[^a-zA-Z1-9]");
     private static final List<Pair<String, String>> knownAbbreviations = Arrays.asList(Pair.create("CAS", "Cas"),
-                                                                                       Pair.create("CIDR", "Cidr"));
+                                                                                       Pair.create("CIDR", "Cidr"),
+                                                                                       Pair.create("SSTables", "Sstables"));
+    private static final Consumer<TableMetadata> DEFAULT_TRUNCATE_CLAUSE = metadata -> {
+        throw new InvalidRequestException("Truncate is not supported by table " + metadata);
+    };
 
     /** The map of the supported converters for the column types. */
     private static final Map<Class<?>, ? extends AbstractType<?>> converters =
@@ -120,6 +128,8 @@ public class CollectionVirtualTableAdapter<R> implements VirtualTable
                     .put(Short.class, ShortType.instance)
                     .put(Short.TYPE, ShortType.instance)
                     .put(UUID.class, UUIDType.instance)
+                    .put(TimeUUID.class, TimeUUIDType.instance)
+                    .put(Timestamp.class, TimestampType.instance)
                     .build();
 
     /**
@@ -130,15 +140,7 @@ public class CollectionVirtualTableAdapter<R> implements VirtualTable
     private final Iterable<R> data;
     private final Function<DecoratedKey, R> decorateKeyToRowExtractor;
     private final TableMetadata metadata;
-
-    private CollectionVirtualTableAdapter(String keySpaceName,
-                                          String tableName,
-                                          String description,
-                                          RowWalker<R> walker,
-                                          Iterable<R> data)
-    {
-        this(keySpaceName, tableName, description, walker, data, null);
-    }
+    private final Consumer<TableMetadata> truncateClause;
 
     private CollectionVirtualTableAdapter(String keySpaceName,
                                           String tableName,
@@ -147,10 +149,40 @@ public class CollectionVirtualTableAdapter<R> implements VirtualTable
                                           Iterable<R> data,
                                           Function<DecoratedKey, R> keyToRowExtractor)
     {
+        this(keySpaceName, tableName, description, walker, data, keyToRowExtractor, DEFAULT_TRUNCATE_CLAUSE);
+    }
+
+    private CollectionVirtualTableAdapter(String keySpaceName,
+                                          String tableName,
+                                          String description,
+                                          RowWalker<R> walker,
+                                          Iterable<R> data,
+                                          Function<DecoratedKey, R> keyToRowExtractor,
+                                          Consumer<TableMetadata> truncateClause)
+    {
         this.walker = walker;
         this.data = data;
         this.metadata = buildMetadata(keySpaceName, tableName, description, walker);
         this.decorateKeyToRowExtractor = keyToRowExtractor;
+        this.truncateClause = truncateClause;
+    }
+
+    public static <C, R> CollectionVirtualTableAdapter<R> createVt(String keySpaceName,
+                                                                   String rawTableName,
+                                                                   String description,
+                                                                   RowWalker<R> walker,
+                                                                   Iterable<C> container,
+                                                                   Function<C, R> rowFunc,
+                                                                   Consumer<TableMetadata> truncateClause)
+    {
+        return new CollectionVirtualTableAdapter<>(keySpaceName,
+                                                   virtualTableNameStyle(rawTableName),
+                                                   description,
+                                                   walker,
+                                                   () -> StreamSupport.stream(container.spliterator(), false)
+                                                                      .map(rowFunc).iterator(),
+                                                   null,
+                                                   truncateClause);
     }
 
     public static <C, R> CollectionVirtualTableAdapter<R> create(String keySpaceName,
@@ -160,12 +192,7 @@ public class CollectionVirtualTableAdapter<R> implements VirtualTable
                                                                  Iterable<C> container,
                                                                  Function<C, R> rowFunc)
     {
-        return new CollectionVirtualTableAdapter<>(keySpaceName,
-                                                   virtualTableNameStyle(rawTableName),
-                                                   description,
-                                                   walker,
-                                                   () -> StreamSupport.stream(container.spliterator(), false)
-                                                                      .map(rowFunc).iterator());
+        return createVt(keySpaceName, rawTableName, description, walker, container, rowFunc, DEFAULT_TRUNCATE_CLAUSE);
     }
 
     public static <K, C, R> CollectionVirtualTableAdapter<R> createSinglePartitionedKeyFiltered(String keySpaceName,
@@ -363,7 +390,7 @@ public class CollectionVirtualTableAdapter<R> implements VirtualTable
             private Iterator<? extends UnfilteredRowIterator> buildDataRangeIterator(DataRange dataRange,
                                                                                      ColumnFilter columnFilter)
             {
-                NavigableMap<DecoratedKey, NavigableMap<Clustering<?>, Row>> partitionMap = new ConcurrentSkipListMap<>(DecoratedKey.comparator);
+                Map<DecoratedKey, NavigableMap<Clustering<?>, Row>> partitionMap = new ConcurrentHashMap<>();
                 StreamSupport.stream(data.spliterator(), true)
                              .map(row -> makeRow(row, columnFilter))
                              .filter(cr -> dataRange.keyRange().contains(cr.key.get()))
@@ -577,6 +604,6 @@ public class CollectionVirtualTableAdapter<R> implements VirtualTable
     @Override
     public void truncate()
     {
-        throw new InvalidRequestException("Truncate is not supported by table " + metadata);
+        truncateClause.accept(metadata);
     }
 }
