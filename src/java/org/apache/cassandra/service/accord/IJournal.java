@@ -18,15 +18,27 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.util.NavigableMap;
+
 import accord.local.Command;
+import accord.local.CommandStores;
+import accord.local.DurableBefore;
 import accord.local.RedundantBefore;
+import accord.primitives.Ranges;
+import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
+import accord.utils.ReducingRangeMap;
 
 public interface IJournal
 {
     Command loadCommand(int commandStoreId, TxnId txnId);
 
     RedundantBefore loadRedundantBefore(int commandStoreId);
+    DurableBefore loadDurableBefore(int commandStoreId);
+    NavigableMap<TxnId, Ranges> loadBootstrapBeganAt(int commandStoreId);
+    ReducingRangeMap<Timestamp> loadRejectBefore(int commandStoreId);
+    NavigableMap<Timestamp, Ranges> loadSafeToRead(int commandStoreId);
+    CommandStores.RangesForEpoch.Snapshot loadRangesForEpoch(int commandStoreId);
 
     void appendCommand(int store, SavedCommand.DiffWriter value, Runnable onFlush);
 

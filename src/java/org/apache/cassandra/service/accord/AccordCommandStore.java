@@ -51,9 +51,11 @@ import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.CommandStores;
 import accord.local.Commands;
+import accord.local.DurableBefore;
 import accord.local.KeyHistory;
 import accord.local.NodeTimeService;
 import accord.local.PreLoadContext;
+import accord.local.RedundantBefore;
 import accord.local.SafeCommand;
 import accord.local.SafeCommandStore;
 import accord.local.Status;
@@ -66,6 +68,7 @@ import accord.primitives.RoutableKey;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
+import accord.utils.ReducingRangeMap;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
 import org.apache.cassandra.cache.CacheSize;
@@ -103,6 +106,7 @@ import static accord.local.Status.Invalidated;
 import static accord.local.Status.Stable;
 import static accord.local.Status.Truncated;
 import static accord.utils.Invariants.checkState;
+import static accord.utils.Invariants.isNatural;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 
 public class AccordCommandStore extends CommandStore implements CacheSize
@@ -841,4 +845,45 @@ public class AccordCommandStore extends CommandStore implements CacheSize
             }
         };
     }
+
+    /**
+     * Replay/state reloading
+     */
+
+    void loadRedundantBefore(RedundantBefore redundantBefore)
+    {
+        if (redundantBefore != null)
+            unsafeSetRedundantBefore(redundantBefore);
+    }
+
+    void loadDurableBefore(DurableBefore durableBefore)
+    {
+        if (durableBefore != null)
+            unsafeSetDurableBefore(durableBefore);
+    }
+
+    void loadBootstrapBeganAt(NavigableMap<TxnId, Ranges> bootstrapBeganAt)
+    {
+        if (bootstrapBeganAt != null)
+            unsafeSetBootstrapBeganAt(bootstrapBeganAt);
+    }
+
+    void loadRejectBefore(ReducingRangeMap<Timestamp> rejectBefore)
+    {
+        if (rejectBefore != null)
+            unsafeSetRejectBefore(rejectBefore);
+    }
+
+    void loadSafeToRead(NavigableMap<Timestamp, Ranges> safeToRead)
+    {
+        if (safeToRead != null)
+            unsafeSetSafeToRead(safeToRead);
+    }
+
+    void loadRangesForEpoch(CommandStores.RangesForEpoch.Snapshot rangesForEpoch)
+    {
+        if (rangesForEpoch != null)
+            unsafeSetRangesForEpoch(new CommandStores.RangesForEpoch(rangesForEpoch.epochs, rangesForEpoch.ranges, this));
+    }
+
 }

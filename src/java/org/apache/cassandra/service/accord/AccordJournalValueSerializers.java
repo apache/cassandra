@@ -239,8 +239,7 @@ public class AccordJournalValueSerializers
         }
     }
 
-    public static class BootstrapBeganAtAccumulator
-    extends Accumulator<NavigableMap<TxnId, Ranges>, AccordSafeCommandStore.Sync>
+    public static class BootstrapBeganAtAccumulator extends Accumulator<NavigableMap<TxnId, Ranges>, AccordSafeCommandStore.Sync>
     {
         public BootstrapBeganAtAccumulator()
         {
@@ -303,8 +302,7 @@ public class AccordJournalValueSerializers
         }
     }
 
-    public static class RejectBeforeAccumulator
-    extends Accumulator<ReducingRangeMap<Timestamp>, AccordSafeCommandStore.Sync>
+    public static class RejectBeforeAccumulator extends Accumulator<ReducingRangeMap<Timestamp>, AccordSafeCommandStore.Sync>
     {
         public RejectBeforeAccumulator()
         {

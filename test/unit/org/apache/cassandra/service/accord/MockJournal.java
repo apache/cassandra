@@ -19,25 +19,30 @@
 package org.apache.cassandra.service.accord;
 
 import java.util.List;
+import java.util.NavigableMap;
 import java.util.function.Function;
 
 import com.google.common.annotations.VisibleForTesting;
 
 import accord.api.Result;
 import accord.local.Command;
+import accord.local.CommandStores;
 import accord.local.CommonAttributes;
+import accord.local.DurableBefore;
 import accord.local.RedundantBefore;
 import accord.local.SaveStatus;
 import accord.local.Status;
 import accord.primitives.Ballot;
 import accord.primitives.PartialDeps;
 import accord.primitives.PartialTxn;
+import accord.primitives.Ranges;
 import accord.primitives.Route;
 import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.primitives.Writes;
 import accord.utils.Invariants;
+import accord.utils.ReducingRangeMap;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 
 import java.util.ArrayList;
@@ -62,6 +67,36 @@ public class MockJournal implements IJournal
     public RedundantBefore loadRedundantBefore(int commandStoreId)
     {
         return redundantBefores.get(commandStoreId);
+    }
+
+    @Override
+    public DurableBefore loadDurableBefore(int commandStoreId)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public NavigableMap<TxnId, Ranges> loadBootstrapBeganAt(int commandStoreId)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public ReducingRangeMap<Timestamp> loadRejectBefore(int commandStoreId)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public NavigableMap<Timestamp, Ranges> loadSafeToRead(int commandStoreId)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public CommandStores.RangesForEpoch.Snapshot loadRangesForEpoch(int commandStoreId)
+    {
+        throw new UnsupportedOperationException();
     }
 
     @Override

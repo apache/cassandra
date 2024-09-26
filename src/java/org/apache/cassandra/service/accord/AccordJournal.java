@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.NavigableMap;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -31,12 +32,18 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.local.Command;
+import accord.local.CommandStore;
+import accord.local.CommandStores;
+import accord.local.CommandStores.RangesForEpoch;
+import accord.local.DurableBefore;
 import accord.local.Node;
 import accord.local.RedundantBefore;
 import accord.local.SaveStatus;
+import accord.primitives.Ranges;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
+import accord.utils.ReducingRangeMap;
 import org.apache.cassandra.concurrent.Shutdownable;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.DataInputBuffer;
@@ -159,6 +166,41 @@ public class AccordJournal implements IJournal, Shutdownable
     }
 
     @Override
+    public DurableBefore loadDurableBefore(int store)
+    {
+        AccordJournalValueSerializers.DurableBeforeAccumulator accumulator = readAll(new JournalKey(Timestamp.NONE, JournalKey.Type.DURABLE_BEFORE, store));
+        return accumulator.get();
+    }
+
+    @Override
+    public NavigableMap<TxnId, Ranges> loadBootstrapBeganAt(int store)
+    {
+        AccordJournalValueSerializers.BootstrapBeganAtAccumulator accumulator = readAll(new JournalKey(Timestamp.NONE, JournalKey.Type.BOOTSTRAP_BEGAN_AT, store));
+        return accumulator.get();
+    }
+
+    @Override
+    public ReducingRangeMap<Timestamp> loadRejectBefore(int store)
+    {
+        AccordJournalValueSerializers.RejectBeforeAccumulator accumulator = readAll(new JournalKey(Timestamp.NONE, JournalKey.Type.REJECT_BEFORE, store));
+        return accumulator.get();
+    }
+
+    @Override
+    public NavigableMap<Timestamp, Ranges> loadSafeToRead(int store)
+    {
+        AccordJournalValueSerializers.IdentityAccumulator<NavigableMap<Timestamp, Ranges>> accumulator = readAll(new JournalKey(Timestamp.NONE, JournalKey.Type.SAFE_TO_READ, store));
+        return accumulator.get();
+    }
+
+    @Override
+    public CommandStores.RangesForEpoch.Snapshot loadRangesForEpoch(int store)
+    {
+        AccordJournalValueSerializers.IdentityAccumulator<RangesForEpoch.Snapshot> accumulator = readAll(new JournalKey(Timestamp.NONE, JournalKey.Type.RANGES_FOR_EPOCH, store));
+        return accumulator.get();
+    }
+
+    @Override
     public void appendCommand(int store, SavedCommand.DiffWriter value, Runnable onFlush)
     {
         // TODO: use same API for commands as for the other states?
@@ -260,8 +302,20 @@ public class AccordJournal implements IJournal, Shutdownable
         journal.runCompactorForTesting();
     }
 
-    public void replay()
+    public void replay(CommandStore[] commandStores)
     {
+        for (CommandStore store : commandStores)
+        {
+            AccordCommandStore commandStore = (AccordCommandStore) store;
+            commandStore.loadRedundantBefore(loadRedundantBefore(store.id()));
+            commandStore.loadRedundantBefore(loadRedundantBefore(store.id()));
+            commandStore.loadDurableBefore(loadDurableBefore(store.id()));
+            commandStore.loadBootstrapBeganAt(loadBootstrapBeganAt(store.id()));
+            commandStore.loadRejectBefore(loadRejectBefore(store.id()));
+            commandStore.loadSafeToRead(loadSafeToRead(store.id()));
+            commandStore.loadRangesForEpoch(loadRangesForEpoch(store.id()));
+        }
+
         // TODO: optimize replay memory footprint
         class ToApply
         {
