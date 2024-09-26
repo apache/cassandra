@@ -128,9 +128,12 @@ recent_hit_rate_per_second, recent_request_rate_per_second, request_count, and s
 
 |clients |Lists information about all connected clients.
 
-|compaction_operations_history | All compaction operations that are currently running or have been completed since the
-node started. The default history size is 300, but can be changed by setting `cassandra.operations_history_size` system
-property.
+|compaction_operations_status | Management compaction operations that are currently running or have been completed since
+the node started. The default history size is 300, but can be changed by setting `cassandra.operations_history_size`
+system property.
+
+|compaction_operations_linked_tasks | Compaction operations that are currently running or have been completed since the
+node started, enriched with compaction tasks statics if a compaction was involved.
 
 |coordinator_read_latency |Records counts, keyspace_name, table_name, max, median, and per_second for coordinator reads.
 
