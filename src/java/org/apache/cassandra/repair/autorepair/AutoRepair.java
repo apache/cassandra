@@ -47,7 +47,6 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Tables;
@@ -105,29 +104,21 @@ public class AutoRepair
 
     public void setup()
     {
-        verifyIsSafeToEnable();
-
         AutoRepairConfig config = DatabaseDescriptor.getAutoRepairConfig();
         AutoRepairService.setup();
         AutoRepairUtils.setup();
 
         for (AutoRepairConfig.RepairType repairType : AutoRepairConfig.RepairType.values())
         {
+            if (config.isAutoRepairEnabled(repairType))
+                AutoRepairService.instance.checkCanRun(repairType);
+
             repairExecutors.get(repairType).scheduleWithFixedDelay(
             () -> repair(repairType, 5000),
             config.getInitialSchedulerDelay(repairType).toSeconds(),
             config.getRepairCheckInterval().toSeconds(),
             TimeUnit.SECONDS);
         }
-    }
-
-    @VisibleForTesting
-    protected void verifyIsSafeToEnable()
-    {
-        AutoRepairConfig config = DatabaseDescriptor.getAutoRepairConfig();
-        if (config.isAutoRepairEnabled(AutoRepairConfig.RepairType.incremental) &&
-            (DatabaseDescriptor.getMaterializedViewsEnabled() || DatabaseDescriptor.isCDCEnabled()))
-            throw new ConfigurationException("Cannot enable incremental repair with materialized views or CDC enabled");
     }
 
     // repairAsync runs a repair session of the given type asynchronously.
@@ -145,6 +136,7 @@ public class AutoRepair
             logger.debug("Auto-repair is disabled for repair type {}", repairType);
             return;
         }
+        AutoRepairService.instance.checkCanRun(repairType);
         AutoRepairState repairState = repairStates.get(repairType);
         try
         {

@@ -34,12 +34,14 @@ import com.google.common.collect.Sets;
 import org.apache.cassandra.cql3.statements.schema.TableAttributes;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.repair.RepairRunnable;
 import org.apache.cassandra.schema.AutoRepairParams;
 import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.Pair;
 
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -77,6 +79,7 @@ import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.RepairTurn.
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.doAnswer;
@@ -155,6 +158,8 @@ public class AutoRepairParameterizedTest extends CQLTester
     @Before
     public void setup()
     {
+        System.setProperty("cassandra.streaming.requires_cdc_replay", "false");
+        System.setProperty("cassandra.streaming.requires_view_build_during_repair", "false");
         MockitoAnnotations.initMocks(this);
 
         Keyspace.open(KEYSPACE).getColumnFamilyStore(TABLE).truncateBlocking();
@@ -178,6 +183,12 @@ public class AutoRepairParameterizedTest extends CQLTester
         AutoRepair.shuffleFunc = java.util.Collections::shuffle;
     }
 
+    @After
+    public void tearDown()
+    {
+        System.clearProperty("cassandra.streaming.requires_view_build_during_repair");
+        System.clearProperty("cassandra.streaming.requires_cdc_replay");
+    }
 
     private void resetCounters()
     {
@@ -676,5 +687,52 @@ public class AutoRepairParameterizedTest extends CQLTester
         verify(autoRepairState, Mockito.times(1)).setSucceededTokenRangesCount(14);
         verify(autoRepairState, Mockito.times(1)).setSkippedTokenRangesCount(0);
         verify(autoRepairState, Mockito.times(1)).setFailedTokenRangesCount(0);
+    }
+
+    @Test
+    public void testRepairThrowsForIRWithMVReplay()
+    {
+        AutoRepair.instance.setup();
+        System.setProperty("cassandra.streaming.requires_view_build_during_repair", "true");
+
+        if (repairType == AutoRepairConfig.RepairType.incremental)
+        {
+            try
+            {
+                AutoRepair.instance.repair(repairType, 0);
+                fail("Expected ConfigurationException");
+            }
+            catch (ConfigurationException ignored)
+            {
+            }
+        }
+        else
+        {
+            AutoRepair.instance.repair(repairType, 0);
+        }
+    }
+
+
+    @Test
+    public void testRepairThrowsForIRWithCDCReplay()
+    {
+        AutoRepair.instance.setup();
+        System.setProperty("cassandra.streaming.requires_cdc_replay", "true");
+
+        if (repairType == AutoRepairConfig.RepairType.incremental)
+        {
+            try
+            {
+                AutoRepair.instance.repair(repairType, 0);
+                fail("Expected ConfigurationException");
+            }
+            catch (ConfigurationException ignored)
+            {
+            }
+        }
+        else
+        {
+            AutoRepair.instance.repair(repairType, 0);
+        }
     }
 }

@@ -9463,30 +9463,36 @@ workflows:
   java8_separate_tests:
     jobs:
     - start_j8_build:
+        type: approval
     - j8_build:
         requires:
         - start_j8_build
     - start_j8_unit_tests:
+        type: approval
     - j8_unit_tests:
         requires:
         - start_j8_unit_tests
         - j8_build
     - start_j8_jvm_dtests:
+        type: approval
     - j8_jvm_dtests:
         requires:
         - start_j8_jvm_dtests
         - j8_build
     - start_j8_jvm_dtests_vnode:
+        type: approval
     - j8_jvm_dtests_vnode:
         requires:
         - start_j8_jvm_dtests_vnode
         - j8_build
     - start_j11_jvm_dtests:
+        type: approval
     - j11_jvm_dtests:
         requires:
         - start_j11_jvm_dtests
         - j8_build
     - start_j11_jvm_dtests_vnode:
+        type: approval
     - j11_jvm_dtests_vnode:
         requires:
         - start_j11_jvm_dtests_vnode

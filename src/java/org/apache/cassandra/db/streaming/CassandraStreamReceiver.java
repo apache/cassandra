@@ -26,6 +26,7 @@ import java.util.Set;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.io.sstable.SSTable;
 
@@ -181,9 +182,10 @@ public class CassandraStreamReceiver implements StreamReceiver
      * For CDC-enabled tables, we want to ensure that the mutations are run through the CommitLog so they
      * can be archived by the CDC process on discard.
      */
-    private boolean requiresWritePath(ColumnFamilyStore cfs)
+    public boolean requiresWritePath(ColumnFamilyStore cfs)
     {
-        return hasCDC(cfs) || cfs.streamToMemtable() || (session.streamOperation().requiresViewBuild() && hasViews(cfs));
+        // TODO: Deprecate STREAMING_REQUIRES_CDC_REPLAY property in trunk (or 5.0) as a new config has been added to control this https://issues.apache.org/jira/browse/CASSANDRA-17666
+        return (hasCDC(cfs) && CassandraRelevantProperties.STREAMING_REQUIRES_CDC_REPLAY.getBoolean()) || cfs.streamToMemtable() || (session.streamOperation().requiresViewBuild() && hasViews(cfs));
     }
 
     private void sendThroughWritePath(ColumnFamilyStore cfs, Collection<SSTableReader> readers)
