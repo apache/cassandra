@@ -23,12 +23,16 @@ import java.nio.ByteBuffer;
 import java.util.Objects;
 import java.util.zip.Checksum;
 
-import accord.local.Node;
+import accord.local.Node.Id;
 import accord.primitives.Timestamp;
 import accord.utils.Invariants;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.journal.KeySupport;
+import org.apache.cassandra.service.accord.AccordJournalValueSerializers.CommandDiffSerializer;
+import org.apache.cassandra.service.accord.AccordJournalValueSerializers.DurableBeforeSerializer;
+import org.apache.cassandra.service.accord.AccordJournalValueSerializers.FlyweightSerializer;
+import org.apache.cassandra.service.accord.AccordJournalValueSerializers.RedundantBeforeSerializer;
 import org.apache.cassandra.utils.ByteArrayUtil;
 
 import static org.apache.cassandra.db.TypeSizes.BYTE_SIZE;
@@ -42,7 +46,7 @@ public final class JournalKey
     public final Timestamp timestamp;
     public final int commandStoreId;
 
-    JournalKey(Timestamp timestamp, Type type, int commandStoreId)
+    public JournalKey(Timestamp timestamp, Type type, int commandStoreId)
     {
         Invariants.nonNull(type);
         Invariants.nonNull(timestamp);
@@ -123,7 +127,7 @@ public final class JournalKey
             long hlc = in.readLong();
             long epochAndFlags = in.readLong();
             int nodeId = in.readInt();
-            return Timestamp.fromValues(epoch(epochAndFlags), hlc, flags(epochAndFlags), new Node.Id(nodeId));
+            return Timestamp.fromValues(epoch(epochAndFlags), hlc, flags(epochAndFlags), new Id(nodeId));
         }
 
         private void serializeTimestamp(Timestamp timestamp, byte[] out)
@@ -138,7 +142,7 @@ public final class JournalKey
             long hlc = buffer.getLong(position + HLC_OFFSET);
             long epochAndFlags = buffer.getLong(position + EPOCH_AND_FLAGS_OFFSET);
             int nodeId = buffer.getInt(position + NODE_OFFSET);
-            return Timestamp.fromValues(epoch(epochAndFlags), hlc, flags(epochAndFlags), new Node.Id(nodeId));
+            return Timestamp.fromValues(epoch(epochAndFlags), hlc, flags(epochAndFlags), new Id(nodeId));
         }
 
         @Override
@@ -244,15 +248,15 @@ public final class JournalKey
 
     public enum Type
     {
-        COMMAND_DIFF                 (0, new AccordJournalValueSerializers.CommandDiffSerializer()),
-        REDUNDANT_BEFORE             (1, new AccordJournalValueSerializers.RedundantBeforeSerializer()),
-        DURABLE_BEFORE               (2, new AccordJournalValueSerializers.DurableBeforeSerializer()),
+        COMMAND_DIFF                 (0, new CommandDiffSerializer()),
+        REDUNDANT_BEFORE             (1, new RedundantBeforeSerializer()),
+        DURABLE_BEFORE               (2, new DurableBeforeSerializer()),
         ;
 
         final int id;
-        final AccordJournalValueSerializers.FlyweightSerializer<?, ?> serializer;
+        final FlyweightSerializer<?, ?> serializer;
 
-        Type(int id, AccordJournalValueSerializers.FlyweightSerializer<?, ?> serializer)
+        Type(int id, FlyweightSerializer<?, ?> serializer)
         {
             this.id = id;
             this.serializer = serializer;

@@ -18,10 +18,8 @@
 package org.apache.cassandra.journal;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.util.Collections;
-import java.util.Set;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -38,8 +36,6 @@ import static org.junit.Assert.assertEquals;
 
 public class JournalTest
 {
-    private static final Set<Integer> SENTINEL_HOSTS = Collections.singleton(0);
-
     @BeforeClass
     public static void setUp()
     {
@@ -85,29 +81,6 @@ public class JournalTest
         assertEquals(4L, (long) journal.readFirst(id4));
 
         journal.shutdown();
-    }
-
-    static class ByteBufferSerializer implements ValueSerializer<TimeUUID, ByteBuffer>
-    {
-        static final ByteBufferSerializer INSTANCE = new ByteBufferSerializer();
-
-        public int serializedSize(TimeUUID key, ByteBuffer value, int userVersion)
-        {
-            return Integer.BYTES + value.capacity();
-        }
-
-        public void serialize(TimeUUID key, ByteBuffer value, DataOutputPlus out, int userVersion) throws IOException
-        {
-            out.writeInt(value.capacity());
-            out.write(value);
-        }
-
-        public ByteBuffer deserialize(TimeUUID key, DataInputPlus in, int userVersion) throws IOException
-        {
-            byte[] bytes = new byte[in.readInt()];
-            in.readFully(bytes);
-            return ByteBuffer.wrap(bytes);
-        }
     }
 
     static class LongSerializer implements ValueSerializer<TimeUUID, Long>

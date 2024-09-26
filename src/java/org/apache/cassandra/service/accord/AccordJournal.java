@@ -95,7 +95,7 @@ public class AccordJournal implements IJournal, Shutdownable
                                              throw new UnsupportedOperationException();
                                          }
                                      },
-                                     new AccordSegmentCompactor<>());
+                                     new AccordSegmentCompactor<>(JournalKey.SUPPORT, params.userVersion()));
         this.journalTable = new AccordJournalTable<>(journal, JournalKey.SUPPORT, params.userVersion());
     }
 
@@ -148,15 +148,7 @@ public class AccordJournal implements IJournal, Shutdownable
     @Override
     public Command loadCommand(int commandStoreId, TxnId txnId)
     {
-        try
-        {
-            return loadDiffs(commandStoreId, txnId).construct();
-        }
-        catch (IOException e)
-        {
-            // can only throw if serializer is buggy
-            throw new RuntimeException(e);
-        }
+        return loadDiffs(commandStoreId, txnId).construct();
     }
 
     @VisibleForTesting
@@ -213,23 +205,15 @@ public class AccordJournal implements IJournal, Shutdownable
 
     public void sanityCheck(int commandStoreId, Command orig)
     {
-        try
-        {
-            SavedCommand.Builder diffs = loadDiffs(commandStoreId, orig.txnId());
-            diffs.forceResult(orig.result());
-            // We can only use strict equality if we supply result.
-            Command reconstructed = diffs.construct();
-            Invariants.checkState(orig.equals(reconstructed),
-                                  '\n' +
-                                  "Original:      %s\n" +
-                                  "Reconstructed: %s\n" +
-                                  "Diffs:         %s", orig, reconstructed, diffs);
-        }
-        catch (IOException e)
-        {
-            // can only throw if serializer is buggy
-            throw new RuntimeException(e);
-        }
+        SavedCommand.Builder diffs = loadDiffs(commandStoreId, orig.txnId());
+        diffs.forceResult(orig.result());
+        // We can only use strict equality if we supply result.
+        Command reconstructed = diffs.construct();
+        Invariants.checkState(orig.equals(reconstructed),
+                              '\n' +
+                              "Original:      %s\n" +
+                              "Reconstructed: %s\n" +
+                              "Diffs:         %s", orig, reconstructed, diffs);
     }
 
     @VisibleForTesting
@@ -239,6 +223,11 @@ public class AccordJournal implements IJournal, Shutdownable
     }
 
     @VisibleForTesting
+    public void runCompactorForTesting()
+    {
+        journal.runCompactorForTesting();
+    }
+
     public void replay()
     {
         // TODO: optimize replay memory footprint

@@ -33,6 +33,7 @@ public class AccordJournalValueSerializers
     public interface FlyweightSerializer<WRITE, BUILDER>
     {
         BUILDER mergerFor(JournalKey key);
+        WRITE toWriter(BUILDER write);
         void serialize(JournalKey key, WRITE from, DataOutputPlus out, int userVersion) throws IOException;
         void deserialize(JournalKey key, BUILDER into, DataInputPlus in, int userVersion) throws IOException;
     }
@@ -43,6 +44,12 @@ public class AccordJournalValueSerializers
         public SavedCommand.Builder mergerFor(JournalKey journalKey)
         {
             return new SavedCommand.Builder();
+        }
+
+        @Override
+        public SavedCommand.DiffWriter toWriter(SavedCommand.Builder write)
+        {
+            return new SavedCommand.DiffWriter(null, write.construct());
         }
 
         @Override
@@ -123,6 +130,11 @@ public class AccordJournalValueSerializers
             return new RedundantBeforeAccumulator();
         }
 
+        public RedundantBefore toWriter(RedundantBeforeAccumulator write)
+        {
+            return write.get();
+        }
+
         @Override
         public void serialize(JournalKey key, RedundantBefore entry, DataOutputPlus out, int userVersion)
         {
@@ -161,6 +173,11 @@ public class AccordJournalValueSerializers
         public DurableBeforeAccumulator mergerFor(JournalKey journalKey)
         {
             return new DurableBeforeAccumulator();
+        }
+
+        public DurableBefore toWriter(DurableBeforeAccumulator write)
+        {
+            return write.get();
         }
 
         @Override

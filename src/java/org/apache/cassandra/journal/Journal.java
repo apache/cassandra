@@ -230,7 +230,7 @@ public class Journal<K, V> implements Shutdownable
     }
 
     @VisibleForTesting
-    void runCompactorForTesting()
+    public void runCompactorForTesting()
     {
         compactor.run();
     }

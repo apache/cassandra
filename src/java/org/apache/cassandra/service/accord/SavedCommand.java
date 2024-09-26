@@ -510,7 +510,7 @@ public class SavedCommand
             this.result = newValue;
         }
 
-        public Command construct() throws IOException
+        public Command construct()
         {
             if (!nextCalled)
                 return null;
