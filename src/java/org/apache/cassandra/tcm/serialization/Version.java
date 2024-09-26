@@ -38,6 +38,10 @@ public enum Version
      *  - Serialize MemtableParams when serializing TableParams
      */
     V2(2),
+    /**
+     *  - Serialize allowAutoSnapshot and incrementalBackups when serializing TableParams
+     */
+    V3(3),
 
     UNKNOWN(Integer.MAX_VALUE);
 

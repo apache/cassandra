@@ -29,6 +29,7 @@ import org.junit.Test;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
@@ -37,6 +38,80 @@ import org.apache.cassandra.tcm.membership.NodeVersion;
 
 public class TableMetadataSerDeTest extends TestBaseImpl
 {
+    @Test
+    public void testCASSANDRA_19954() throws Throwable
+    {
+        try (Cluster cluster = builder().withNodes(1)
+                                        .start())
+        {
+            cluster.coordinator(1).execute("CREATE KEYSPACE ks WITH replication = {'class': 'SimpleStrategy', 'replication_factor' : 1};",
+                                           ConsistencyLevel.ALL);
+
+            cluster.coordinator(1).execute("CREATE TABLE ks.tbl (pk int,\n" +
+                                           "    ck int,\n" +
+                                           "    v1 int,\n" +
+                                           "    v2 text,\n" +
+                                           "    v3 text,\n" +
+                                           "    v4 text,\n" +
+                                           "    v5 text,\n" +
+                                           "    PRIMARY KEY (pk, ck))",
+                                           ConsistencyLevel.ALL);
+
+            assertTableState(cluster, true, true);
+
+            cluster.coordinator(1).execute("ALTER TABLE ks.tbl WITH allow_auto_snapshot = false", ConsistencyLevel.ALL);
+            assertTableState(cluster, false, true);
+
+            cluster.coordinator(1).execute("ALTER TABLE ks.tbl WITH allow_auto_snapshot = true", ConsistencyLevel.ALL);
+            assertTableState(cluster, true, true);
+
+            cluster.coordinator(1).execute("ALTER TABLE ks.tbl WITH incremental_backups = false", ConsistencyLevel.ALL);
+            assertTableState(cluster, true, false);
+
+            cluster.coordinator(1).execute("ALTER TABLE ks.tbl WITH incremental_backups = true", ConsistencyLevel.ALL);
+            assertTableState(cluster, true, true);
+
+            cluster.coordinator(1).execute("ALTER TABLE ks.tbl WITH incremental_backups = false AND allow_auto_snapshot = false", ConsistencyLevel.ALL);
+            assertTableState(cluster, false, false);
+        }
+    }
+
+    private void assertTableState(Cluster cluster, boolean expectedAllowAutoSnapshot, boolean expectedIncrementalBackups)
+    {
+        cluster.get(1).acceptsOnInstance((IIsolatedExecutor.SerializableBiConsumer<Boolean, Boolean>) (snapshots, backups) -> {
+            TableMetadata tableMetadata = ClusterMetadata.current().schema.getKeyspaceMetadata("ks").getTableOrViewNullable("tbl");
+
+            Assert.assertNotNull(tableMetadata);
+            Assert.assertEquals(snapshots, tableMetadata.params.allowAutoSnapshot);
+            Assert.assertEquals(backups, tableMetadata.params.incrementalBackups);
+
+            ByteBuffer out = null;
+            try (DataOutputBuffer dob = new DataOutputBuffer())
+            {
+                TableMetadata.serializer.serialize(tableMetadata, dob, NodeVersion.CURRENT_METADATA_VERSION);
+                out = dob.buffer();
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
+
+            Assert.assertEquals(out.limit(), TableMetadata.serializer.serializedSize(tableMetadata, NodeVersion.CURRENT_METADATA_VERSION));
+            TableMetadata rt = null;
+            try
+            {
+                rt = TableMetadata.serializer.deserialize(new DataInputBuffer(out, true), Types.builder().build(), UserFunctions.builder().build(), NodeVersion.CURRENT_METADATA_VERSION);
+            }
+            catch (IOException e)
+            {
+                e.printStackTrace();
+                throw new RuntimeException(e);
+            }
+
+            Assert.assertEquals(rt, tableMetadata);
+        }).accept(expectedAllowAutoSnapshot, expectedIncrementalBackups);
+    }
+
     @Test
     public void droppedColumnsTest() throws Throwable
     {
