@@ -40,6 +40,7 @@ public enum Version
     V2(2),
     /**
      *  - Serialize allowAutoSnapshot and incrementalBackups when serializing TableParams
+     * - down nodes serialized in PrepareCMSReconfiguration
      */
     V3(3),
 

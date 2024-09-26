@@ -25,13 +25,12 @@ import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.Timer;
 import org.apache.cassandra.gms.FailureDetector;
-import org.apache.cassandra.locator.CMSPlacementStrategy;
-import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
+import static org.apache.cassandra.tcm.transformations.cms.PrepareCMSReconfiguration.needsReconfiguration;
 
 public class TCMMetrics
 {
@@ -96,10 +95,7 @@ public class TCMMetrics
 
         needsCMSReconfiguration = Metrics.register(factory.createMetricName("NeedsCMSReconfiguration"), () -> {
             ClusterMetadata metadata =  ClusterMetadata.currentNullable();
-            if (metadata == null)
-                return 0;
-            CMSPlacementStrategy placementStrategy = CMSPlacementStrategy.fromReplicationParams(ReplicationParams.meta(metadata), nodeId -> true);
-            return placementStrategy.needsReconfiguration(metadata) ? 1 : 0;
+            return metadata != null && needsReconfiguration(metadata) ? 1 : 0;
         });
 
         fetchedPeerLogEntries = Metrics.histogram(factory.createMetricName("FetchedPeerLogEntries"), false);

@@ -31,7 +31,6 @@ import com.google.common.annotations.VisibleForTesting;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.membership.Directory;
@@ -39,123 +38,70 @@ import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.ownership.TokenMap;
 
-import static org.apache.cassandra.locator.SimpleStrategy.REPLICATION_FACTOR;
-
 /**
  * CMS Placement Strategy is how CMS keeps the number of its members at a configured level, given current
  * cluster topolgy. It allows to add and remove CMS members when cluster topology changes. For example, during
- * node replacement or decommission.
+ * node replacement or decommission. This attempts to achieve rack diversity, while keeping CMS placements
+ * close to how "regular" data would get replicated to keep the bounces safe, as long as the user
+ * bounces at most `f` members of the replica group, where `f = (RF - 1)/2`.
  */
-public interface CMSPlacementStrategy
+public class CMSPlacementStrategy
 {
-    Set<NodeId> reconfigure(ClusterMetadata metadata);
-    boolean needsReconfiguration(ClusterMetadata metadata);
+    public final Map<String, Integer> rf;
+    public final BiFunction<ClusterMetadata, NodeId, Boolean> filter;
 
-    static CMSPlacementStrategy fromReplicationParams(ReplicationParams params, Predicate<NodeId> filter)
+    public CMSPlacementStrategy(Map<String, Integer> rf, Predicate<NodeId> filter)
     {
-        if (params.isMeta())
-        {
-            assert !params.options.containsKey(REPLICATION_FACTOR);
-            Map<String, Integer> dcRf = new HashMap<>();
-            for (Map.Entry<String, String> entry : params.options.entrySet())
-            {
-                String dc = entry.getKey();
-                ReplicationFactor rf = ReplicationFactor.fromString(entry.getValue());
-                dcRf.put(dc, rf.fullReplicas);
-            }
-            return new DatacenterAware(dcRf, filter);
-        }
-        else
-        {
-            throw new IllegalStateException("Can't parse the params: " + params);
-        }
+        this(rf, new DefaultNodeFilter(filter));
     }
 
-    /**
-     * Default reconfiguration strategy: attempts to achieve rack diversity, while keeping CMS placements
-     * close to how "regular" data would get replicated to keep the bounces safe, as long as the user
-     * bounces at most `f` members of the replica group, where `f = RF/2`.
-     */
-    class DatacenterAware implements CMSPlacementStrategy
+    @VisibleForTesting
+    public CMSPlacementStrategy(Map<String, Integer> rf, BiFunction<ClusterMetadata, NodeId, Boolean> filter)
     {
-        public final Map<String, Integer> rf;
-        public final BiFunction<ClusterMetadata, NodeId, Boolean> filter;
-
-        public DatacenterAware(Map<String, Integer> rf, Predicate<NodeId> filter)
-        {
-            this(rf, new DefaultNodeFilter(filter));
-        }
-
-        @VisibleForTesting
-        public DatacenterAware(Map<String, Integer> rf,  BiFunction<ClusterMetadata, NodeId, Boolean> filter)
-        {
-            this.rf = rf;
-            this.filter = filter;
-        }
-
-        public Set<NodeId> reconfigure(ClusterMetadata metadata)
-        {
-            Map<String, ReplicationFactor> rf = new HashMap<>(this.rf.size());
-            for (Map.Entry<String, Integer> e : this.rf.entrySet())
-            {
-                Collection<InetAddressAndPort> nodesInDc = metadata.directory.allDatacenterEndpoints().get(e.getKey());
-                if (nodesInDc.isEmpty())
-                    throw new IllegalStateException(String.format("There are no nodes in %s datacenter", e.getKey()));
-                if (nodesInDc.size() < e.getValue())
-                    throw new Transformation.RejectedTransformationException(String.format("There are not enough nodes in %s datacenter to satisfy replication factor", e.getKey()));
-
-                rf.put(e.getKey(), ReplicationFactor.fullOnly(e.getValue()));
-            }
-            return reconfigure(metadata, rf);
-        }
-
-        public Set<NodeId> reconfigure(ClusterMetadata metadata, Map<String, ReplicationFactor> rf)
-        {
-            Directory tmpDirectory = metadata.directory;
-            TokenMap tokenMap = metadata.tokenMap;
-            for (NodeId peerId : metadata.directory.peerIds())
-            {
-                if (!filter.apply(metadata, peerId))
-                {
-                    tmpDirectory = tmpDirectory.without(peerId);
-                    tokenMap = tokenMap.unassignTokens(peerId);
-                }
-            }
-
-            // Although MetaStrategy has its own entireRange, it uses a custom partitioner which isn't compatible with
-            // regular, non-CMS placements. For that reason, we select replicas here using tokens provided by the
-            // globally configured partitioner.
-            Token minToken = DatabaseDescriptor.getPartitioner().getMinimumToken();
-            EndpointsForRange endpoints = NetworkTopologyStrategy.calculateNaturalReplicas(minToken,
-                                                                                           new Range<>(minToken, minToken),
-                                                                                           tmpDirectory,
-                                                                                           tokenMap,
-                                                                                           rf);
-
-            return endpoints.endpoints().stream().map(metadata.directory::peerId).collect(Collectors.toSet());
-        }
-
-        public boolean needsReconfiguration(ClusterMetadata metadata)
-        {
-            Map<String, ReplicationFactor> rf = new HashMap<>(this.rf.size());
-            for (Map.Entry<String, Integer> e : this.rf.entrySet())
-            {
-                Collection<InetAddressAndPort> nodesInDc = metadata.directory.allDatacenterEndpoints().get(e.getKey());
-                if (nodesInDc.size() < e.getValue())
-                    return true;
-                rf.put(e.getKey(), ReplicationFactor.fullOnly(e.getValue()));
-            }
-
-            Set<NodeId> currentCms = metadata.fullCMSMembers()
-                                             .stream()
-                                             .map(metadata.directory::peerId)
-                                             .collect(Collectors.toSet());
-            Set<NodeId> newCms = reconfigure(metadata, rf);
-            return !currentCms.equals(newCms);
-        }
+        // todo: verify only test uses with other filter
+        this.rf = rf;
+        this.filter = filter;
     }
 
-    class DefaultNodeFilter implements BiFunction<ClusterMetadata, NodeId, Boolean>
+    public Set<NodeId> reconfigure(ClusterMetadata metadata)
+    {
+        Map<String, ReplicationFactor> rf = new HashMap<>(this.rf.size());
+        for (Map.Entry<String, Integer> e : this.rf.entrySet())
+        {
+            Collection<InetAddressAndPort> nodesInDc = metadata.directory.allDatacenterEndpoints().get(e.getKey());
+            if (nodesInDc.isEmpty())
+                throw new IllegalStateException(String.format("There are no nodes in %s datacenter", e.getKey()));
+            if (nodesInDc.size() < e.getValue())
+                throw new Transformation.RejectedTransformationException(String.format("There are not enough nodes in %s datacenter to satisfy replication factor", e.getKey()));
+
+            rf.put(e.getKey(), ReplicationFactor.fullOnly(e.getValue()));
+        }
+
+        Directory tmpDirectory = metadata.directory;
+        TokenMap tmpTokenMap = metadata.tokenMap;
+        for (NodeId peerId : metadata.directory.peerIds())
+        {
+            if (!filter.apply(metadata, peerId))
+            {
+                tmpDirectory = tmpDirectory.without(peerId);
+                tmpTokenMap = tmpTokenMap.unassignTokens(peerId);
+            }
+        }
+
+        // Although MetaStrategy has its own entireRange, it uses a custom partitioner which isn't compatible with
+        // regular, non-CMS placements. For that reason, we select replicas here using tokens provided by the
+        // globally configured partitioner.
+        Token minToken = DatabaseDescriptor.getPartitioner().getMinimumToken();
+        EndpointsForRange endpoints = NetworkTopologyStrategy.calculateNaturalReplicas(minToken,
+                                                                                       new Range<>(minToken, minToken),
+                                                                                       tmpDirectory,
+                                                                                       tmpTokenMap,
+                                                                                       rf);
+
+        return endpoints.endpoints().stream().map(metadata.directory::peerId).collect(Collectors.toSet());
+    }
+
+    static class DefaultNodeFilter implements BiFunction<ClusterMetadata, NodeId, Boolean>
     {
         private final Predicate<NodeId> filter;
 

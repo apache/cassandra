@@ -529,7 +529,7 @@ public class MetadataChangeSimulationTest extends CMSTestBase
             for (String s : ntsRf.asMap().keySet())
                 cmsRf.put(s, 3);
 
-            simulateBounces(ntsRf, new CMSPlacementStrategy.DatacenterAware(cmsRf, (cm, n) -> random.nextInt(10) > 1), random);
+            simulateBounces(ntsRf, new CMSPlacementStrategy(cmsRf, (cm, n) -> random.nextInt(10) > 1), random);
         }
     }
 

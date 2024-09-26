@@ -21,6 +21,7 @@ package org.apache.cassandra.tcm.sequences;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -205,9 +206,15 @@ public class ReconfigureCMS extends MultiStepOperation<AdvanceCMSReconfiguration
     {
         if (!metadata.fullCMSMembers().contains(toRemove))
             return;
+        Set<NodeId> downNodes = new HashSet<>();
+        for (InetAddressAndPort ep : metadata.directory.allJoinedEndpoints())
+            if (!FailureDetector.instance.isAlive(ep))
+                downNodes.add(metadata.directory.peerId(ep));
 
+        PrepareCMSReconfiguration.Simple transformation = new PrepareCMSReconfiguration.Simple(metadata.directory.peerId(toRemove), downNodes);
+        transformation.verify(metadata);
         // We can force removal from the CMS as it doesn't alter the size of the service
-        ClusterMetadataService.instance().commit(new PrepareCMSReconfiguration.Simple(metadata.directory.peerId(toRemove)));
+        ClusterMetadataService.instance().commit(transformation);
 
         InProgressSequences.finishInProgressSequences(SequenceKey.instance);
         if (ClusterMetadata.current().isCMSMember(toRemove))
