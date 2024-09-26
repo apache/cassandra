@@ -1,7 +1,10 @@
-4.0.14
+4.0.15
  * Fix text containing "/*" being interpreted as multiline comment in cqlsh (CASSANDRA-17667)
  * Fix indexing of a frozen collection that is the clustering key and reversed (CASSANDRA-19889)
  * Emit error when altering a table with non-frozen UDTs with nested non-frozen collections the same way as done upon table creation (CASSANDRA-19925)
+
+
+4.0.14
  * Safer handling of out-of-range tokens (CASSANDRA-13704)
  * Fix memory leak in BTree.FastBuilder (CASSANDRA-19785)
  * Fix millisecond and microsecond precision for commit log replay (CASSANDRA-19448)
