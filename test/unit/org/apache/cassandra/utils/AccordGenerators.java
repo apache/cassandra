@@ -431,7 +431,7 @@ public class AccordGenerators
             Range range = rangeGen.next(rs);
             TxnId locallyAppliedOrInvalidatedBefore = emptyGen.next(rs) ? TxnId.NONE : txnIdGen.next(rs); // emptyable or range
             TxnId shardAppliedOrInvalidatedBefore = emptyGen.next(rs) ? TxnId.NONE : txnIdGen.next(rs); // emptyable or range
-            TxnId gcBefore = txnIdGen.next(rs);
+            TxnId gcBefore = shardAppliedOrInvalidatedBefore;
             TxnId bootstrappedAt = txnIdGen.next(rs);
             Timestamp staleUntilAtLeast = emptyGen.next(rs) ? null : txnIdGen.next(rs); // nullable
 
