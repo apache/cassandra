@@ -417,7 +417,6 @@ public class AccordTestUtils
                                                            saveExecutor,
                                                            new AccordStateCacheMetrics(AccordCommandStores.ACCORD_STATE_CACHE + System.currentTimeMillis()));
         holder.set(result);
-        result.updateRangesForEpoch();
         return result;
     }
 
