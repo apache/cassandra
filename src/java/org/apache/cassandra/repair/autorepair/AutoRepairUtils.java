@@ -298,7 +298,7 @@ public class AutoRepairUtils
     }
 
     @VisibleForTesting
-    public static List<AutoRepairHistory> getAutoRepairHistoryByGroupID(RepairType repairType)
+    public static List<AutoRepairHistory> getAutoRepairHistory(RepairType repairType)
     {
         UntypedResultSet repairHistoryResult;
 
@@ -327,11 +327,6 @@ public class AutoRepairUtils
         }
         logger.info("No repair history found");
         return null;
-    }
-
-    public static List<AutoRepairHistory> getAutoRepairHistoryForLocalGroup(RepairType repairType)
-    {
-        return getAutoRepairHistoryByGroupID(repairType);
     }
 
     // A host may add itself in delete hosts for some other hosts due to restart or some temp gossip issue. If a node's record
@@ -376,7 +371,7 @@ public class AutoRepairUtils
 
     public static CurrentRepairStatus getCurrentRepairStatus(RepairType repairType)
     {
-        List<AutoRepairHistory> autoRepairHistories = getAutoRepairHistoryForLocalGroup(repairType);
+        List<AutoRepairHistory> autoRepairHistories = getAutoRepairHistory(repairType);
         return getCurrentRepairStatus(repairType, autoRepairHistories);
     }
 
@@ -447,7 +442,7 @@ public class AutoRepairUtils
     // This function will return the host ID for the node which has not been repaired for longest time
     public static AutoRepairHistory getHostWithLongestUnrepairTime(RepairType repairType)
     {
-        List<AutoRepairHistory> autoRepairHistories = getAutoRepairHistoryForLocalGroup(repairType);
+        List<AutoRepairHistory> autoRepairHistories = getAutoRepairHistory(repairType);
         return getHostWithLongestUnrepairTime(autoRepairHistories);
     }
 
@@ -470,16 +465,16 @@ public class AutoRepairUtils
         return rst;
     }
 
-    public static int getMaxNumberOfNodeRunAutoRepairInGroup(RepairType repairType, int groupSize)
+    public static int getMaxNumberOfNodeRunAutoRepair(RepairType repairType, int groupSize)
     {
         AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
         if (groupSize == 0)
         {
-            return Math.max(config.getParallelRepairCountInGroup(repairType), 1);
+            return Math.max(config.getParallelRepairCount(repairType), 1);
         }
         // we will use the max number from config between auto_repair_parallel_repair_count_in_group and auto_repair_parallel_repair_percentage_in_group
-        int value = Math.max(groupSize * config.getParallelRepairPercentageInGroup(repairType) / 100,
-                             config.getParallelRepairCountInGroup(repairType));
+        int value = Math.max(groupSize * config.getParallelRepairPercentage(repairType) / 100,
+                             config.getParallelRepairCount(repairType));
         // make sure at least one node getting repaired
         return Math.max(1, value);
     }
@@ -494,7 +489,7 @@ public class AutoRepairUtils
             TreeSet<UUID> hostIdsInCurrentRing = getHostIdsInCurrentRing(repairType, allNodesInRing);
             logger.info("Total nodes qualified for repair {}", hostIdsInCurrentRing.size());
 
-            List<AutoRepairHistory> autoRepairHistories = getAutoRepairHistoryForLocalGroup(repairType);
+            List<AutoRepairHistory> autoRepairHistories = getAutoRepairHistory(repairType);
             Set<UUID> autoRepairHistoryIds = new HashSet<>();
 
             // 1. Remove any node that is not part of group based on goissip info
@@ -557,7 +552,7 @@ public class AutoRepairUtils
                 }
             }
 
-            int parallelRepairNumber = getMaxNumberOfNodeRunAutoRepairInGroup(repairType,
+            int parallelRepairNumber = getMaxNumberOfNodeRunAutoRepair(repairType,
                                                                               autoRepairHistories == null ? 0 : autoRepairHistories.size());
             logger.info("Will run repairs concurrently on {} node(s)", parallelRepairNumber);
 
@@ -572,7 +567,7 @@ public class AutoRepairUtils
                 else
                 {
                     // try to fetch again
-                    autoRepairHistories = getAutoRepairHistoryForLocalGroup(repairType);
+                    autoRepairHistories = getAutoRepairHistory(repairType);
                     currentRepairStatus = getCurrentRepairStatus(repairType, autoRepairHistories);
                     if (autoRepairHistories == null || currentRepairStatus == null)
                     {
@@ -636,7 +631,7 @@ public class AutoRepairUtils
 
     static void deleteAutoRepairHistory(RepairType repairType, UUID hostId)
     {
-        //delete the given hostId from current local group
+        //delete the given hostId
         delStatementRepairHistory.execute(QueryState.forInternalCalls(),
                                           QueryOptions.forInternalCalls(internalQueryCL,
                                                                         Lists.newArrayList(ByteBufferUtil.bytes(repairType.toString()),

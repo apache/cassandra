@@ -94,6 +94,7 @@ public class NodeTool
                 AbortBootstrap.class,
                 AlterTopology.class,
                 Assassinate.class,
+                AutoRepairStatus.class,
                 CassHelp.class,
                 CIDRFilteringStats.class,
                 Cleanup.class,

@@ -230,26 +230,26 @@ public class AutoRepairConfig implements Serializable
         repair_type_overrides.get(repairType).repair_primary_token_range_only = primaryTokenRangeOnly;
     }
 
-    public int getParallelRepairPercentageInGroup(RepairType repairType)
+    public int getParallelRepairPercentage(RepairType repairType)
     {
         return applyOverrides(repairType, opt -> opt.parallel_repair_percentage);
     }
 
-    public void setParallelRepairPercentageInGroup(RepairType repairType, int percentageInGroup)
+    public void setParallelRepairPercentage(RepairType repairType, int percentage)
     {
         ensureOverrides(repairType);
-        repair_type_overrides.get(repairType).parallel_repair_percentage = percentageInGroup;
+        repair_type_overrides.get(repairType).parallel_repair_percentage = percentage;
     }
 
-    public int getParallelRepairCountInGroup(RepairType repairType)
+    public int getParallelRepairCount(RepairType repairType)
     {
         return applyOverrides(repairType, opt -> opt.parallel_repair_count);
     }
 
-    public void setParallelRepairCountInGroup(RepairType repairType, int countInGroup)
+    public void setParallelRepairCount(RepairType repairType, int count)
     {
         ensureOverrides(repairType);
-        repair_type_overrides.get(repairType).parallel_repair_count = countInGroup;
+        repair_type_overrides.get(repairType).parallel_repair_count = count;
     }
 
     public boolean getMVRepairEnabled(RepairType repairType)
@@ -305,9 +305,6 @@ public class AutoRepairConfig implements Serializable
     // All fields can be modified dynamically.
     public static class Options implements Serializable
     {
-        // The separator separating different DCs in repair_dc_groups
-        public static final String DC_GROUP_SEPARATOR = "\\|";
-
         // defaultOptions defines the default auto-repair behavior when no overrides are defined
         @VisibleForTesting
         protected static final Options defaultOptions = getDefaultOptions();
@@ -414,8 +411,8 @@ public class AutoRepairConfig implements Serializable
                    ", repair_by_keyspace=" + repair_by_keyspace +
                    ", number_of_subranges=" + number_of_subranges +
                    ", number_of_repair_threads=" + number_of_repair_threads +
-                   ", parallel_repair_count_in_group=" + parallel_repair_count +
-                   ", parallel_repair_percentage_in_group=" + parallel_repair_percentage +
+                   ", parallel_repair_count=" + parallel_repair_count +
+                   ", parallel_repair_percentage=" + parallel_repair_percentage +
                    ", sstable_upper_threshold=" + sstable_upper_threshold +
                    ", min_repair_interval=" + min_repair_interval +
                    ", ignore_dcs=" + ignore_dcs +
