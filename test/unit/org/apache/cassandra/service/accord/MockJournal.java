@@ -148,6 +148,8 @@ public class MockJournal implements IJournal
             updates.safeToReadAccumulator.update(fieldUpdates.newSafeToRead);
         if (fieldUpdates.rangesForEpoch != null)
             updates.rangesForEpochAccumulator.update(fieldUpdates.rangesForEpoch);
+
+        onFlush.run();
     }
 
     @Override

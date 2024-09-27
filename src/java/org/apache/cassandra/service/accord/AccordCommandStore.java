@@ -285,10 +285,9 @@ public class AccordCommandStore extends CommandStore implements CacheSize
         this.commandsForRangesLoader = new CommandsForRangesLoader(this);
 
         loadRedundantBefore(journal.loadRedundantBefore(id()));
-        loadRedundantBefore(journal.loadRedundantBefore(id()));
         loadDurableBefore(journal.loadDurableBefore(id()));
-        loadBootstrapBeganAt(journal.loadBootstrapBeganAt(id()));
         loadRejectBefore(journal.loadRejectBefore(id()));
+        loadBootstrapBeganAt(journal.loadBootstrapBeganAt(id()));
         loadSafeToRead(journal.loadSafeToRead(id()));
         loadRangesForEpoch(journal.loadRangesForEpoch(id()));
 
