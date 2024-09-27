@@ -318,9 +318,12 @@ public class AccordJournal implements IJournal, Shutdownable
             final SavedCommand.Builder builder = new SavedCommand.Builder();
             while ((key = iter.key()) != null)
             {
-                // TODO (now): we do need to replay other key types
                 if (key.type != JournalKey.Type.COMMAND_DIFF)
-                    return;
+                {
+                    // TODO (required): add "skip" for the key to avoid getting stuck
+                    iter.readAllForKey(key, (segment, position, key1, buffer, hosts, userVersion) -> {});
+                    continue;
+                }
 
                 JournalKey finalKey = key;
                 iter.readAllForKey(key, (segment, position, local, buffer, hosts, userVersion) -> {
