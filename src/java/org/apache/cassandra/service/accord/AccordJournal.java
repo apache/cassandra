@@ -38,6 +38,7 @@ import accord.local.DurableBefore;
 import accord.local.Node;
 import accord.local.RedundantBefore;
 import accord.local.SaveStatus;
+import accord.primitives.Deps;
 import accord.primitives.Ranges;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
@@ -54,10 +55,13 @@ import org.apache.cassandra.journal.Params;
 import org.apache.cassandra.journal.RecordPointer;
 import org.apache.cassandra.journal.ValueSerializer;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.service.accord.AccordJournalValueSerializers.HistoricalTransactionsAccumulator;
+import org.apache.cassandra.service.accord.AccordJournalValueSerializers.IdentityAccumulator;
 import org.apache.cassandra.utils.ExecutorUtils;
 
 import static accord.local.Status.Invalidated;
 import static accord.local.Status.Truncated;
+import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.*;
 
 public class AccordJournal implements IJournal, Shutdownable
 {
@@ -160,42 +164,42 @@ public class AccordJournal implements IJournal, Shutdownable
     @VisibleForTesting
     public RedundantBefore loadRedundantBefore(int store)
     {
-        AccordJournalValueSerializers.RedundantBeforeAccumulator accumulator = readAll(new JournalKey(Timestamp.NONE, JournalKey.Type.REDUNDANT_BEFORE, store));
+        RedundantBeforeAccumulator accumulator = readAll(new JournalKey(Timestamp.NONE, JournalKey.Type.REDUNDANT_BEFORE, store));
         return accumulator.get();
     }
 
     @Override
     public DurableBefore loadDurableBefore(int store)
     {
-        AccordJournalValueSerializers.DurableBeforeAccumulator accumulator = readAll(new JournalKey(Timestamp.NONE, JournalKey.Type.DURABLE_BEFORE, store));
+        DurableBeforeAccumulator accumulator = readAll(new JournalKey(Timestamp.NONE, JournalKey.Type.DURABLE_BEFORE, store));
         return accumulator.get();
     }
 
     @Override
     public NavigableMap<TxnId, Ranges> loadBootstrapBeganAt(int store)
     {
-        AccordJournalValueSerializers.BootstrapBeganAtAccumulator accumulator = readAll(new JournalKey(Timestamp.NONE, JournalKey.Type.BOOTSTRAP_BEGAN_AT, store));
-        return accumulator.get();
-    }
-
-    @Override
-    public ReducingRangeMap<Timestamp> loadRejectBefore(int store)
-    {
-        AccordJournalValueSerializers.IdentityAccumulator<ReducingRangeMap<Timestamp>> accumulator = readAll(new JournalKey(Timestamp.NONE, JournalKey.Type.REJECT_BEFORE, store));
+        BootstrapBeganAtAccumulator accumulator = readAll(new JournalKey(Timestamp.NONE, JournalKey.Type.BOOTSTRAP_BEGAN_AT, store));
         return accumulator.get();
     }
 
     @Override
     public NavigableMap<Timestamp, Ranges> loadSafeToRead(int store)
     {
-        AccordJournalValueSerializers.IdentityAccumulator<NavigableMap<Timestamp, Ranges>> accumulator = readAll(new JournalKey(Timestamp.NONE, JournalKey.Type.SAFE_TO_READ, store));
+        IdentityAccumulator<NavigableMap<Timestamp, Ranges>> accumulator = readAll(new JournalKey(Timestamp.NONE, JournalKey.Type.SAFE_TO_READ, store));
         return accumulator.get();
     }
 
     @Override
     public CommandStores.RangesForEpoch.Snapshot loadRangesForEpoch(int store)
     {
-        AccordJournalValueSerializers.IdentityAccumulator<RangesForEpoch.Snapshot> accumulator = readAll(new JournalKey(Timestamp.NONE, JournalKey.Type.RANGES_FOR_EPOCH, store));
+        IdentityAccumulator<RangesForEpoch.Snapshot> accumulator = readAll(new JournalKey(Timestamp.NONE, JournalKey.Type.RANGES_FOR_EPOCH, store));
+        return accumulator.get();
+    }
+
+    @Override
+    public List<Deps> loadHistoricalTransactions(int store)
+    {
+        HistoricalTransactionsAccumulator accumulator = readAll(new JournalKey(Timestamp.NONE, JournalKey.Type.HISTORICAL_TRANSACTIONS, store));
         return accumulator.get();
     }
 
@@ -226,6 +230,8 @@ public class AccordJournal implements IJournal, Shutdownable
             pointer = appendInternal(new JournalKey(Timestamp.NONE, JournalKey.Type.SAFE_TO_READ, store), fieldUpdates.newSafeToRead);
         if (fieldUpdates.rangesForEpoch != null)
             pointer = appendInternal(new JournalKey(Timestamp.NONE, JournalKey.Type.RANGES_FOR_EPOCH, store), fieldUpdates.rangesForEpoch);
+        if (fieldUpdates.historicalTransactions != null)
+            pointer = appendInternal(new JournalKey(Timestamp.NONE, JournalKey.Type.HISTORICAL_TRANSACTIONS, store), fieldUpdates.historicalTransactions);
 
         if (onFlush == null)
             return;

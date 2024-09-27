@@ -19,7 +19,6 @@
 package org.apache.cassandra.service.accord;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
@@ -68,7 +67,6 @@ import accord.primitives.RoutableKey;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
-import accord.utils.ReducingRangeMap;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
 import org.apache.cassandra.cache.CacheSize;
@@ -286,11 +284,10 @@ public class AccordCommandStore extends CommandStore implements CacheSize
 
         loadRedundantBefore(journal.loadRedundantBefore(id()));
         loadDurableBefore(journal.loadDurableBefore(id()));
-        loadRejectBefore(journal.loadRejectBefore(id()));
         loadBootstrapBeganAt(journal.loadBootstrapBeganAt(id()));
         loadSafeToRead(journal.loadSafeToRead(id()));
         loadRangesForEpoch(journal.loadRangesForEpoch(id()));
-
+        loadHistoricalTransactions(journal.loadHistoricalTransactions(id()));
         executor.execute(() -> CommandStore.register(this));
     }
 
@@ -602,9 +599,6 @@ public class AccordCommandStore extends CommandStore implements CacheSize
 
     public void registerHistoricalTransactions(Deps deps, SafeCommandStore safeStore)
     {
-        // TODO:
-        // journal.registerHistoricalTransactions(id(), deps);
-
         if (deps.isEmpty()) return;
 
         CommandStores.RangesForEpoch ranges = safeStore.ranges();
@@ -858,11 +852,6 @@ public class AccordCommandStore extends CommandStore implements CacheSize
             unsafeSetBootstrapBeganAt(bootstrapBeganAt);
     }
 
-    void loadRejectBefore(ReducingRangeMap<Timestamp> rejectBefore)
-    {
-        if (rejectBefore != null)
-            unsafeSetRejectBefore(rejectBefore);
-    }
 
     void loadSafeToRead(NavigableMap<Timestamp, Ranges> safeToRead)
     {
@@ -876,4 +865,15 @@ public class AccordCommandStore extends CommandStore implements CacheSize
             unsafeSetRangesForEpoch(new CommandStores.RangesForEpoch(rangesForEpoch.epochs, rangesForEpoch.ranges, this));
     }
 
+    void loadHistoricalTransactions(List<Deps> deps)
+    {
+        if (deps != null)
+        {
+            execute(PreLoadContext.empty(),
+                    safeStore -> {
+                        for (Deps dep : deps)
+                            registerHistoricalTransactions(dep, safeStore);
+                    });
+        }
+    }
 }

@@ -38,13 +38,13 @@ import accord.local.RedundantBefore;
 import accord.local.cfk.CommandsForKey;
 import accord.primitives.AbstractKeys;
 import accord.primitives.AbstractRanges;
+import accord.primitives.Deps;
 import accord.primitives.Ranges;
 import accord.primitives.Routables;
 import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
-import accord.utils.ReducingRangeMap;
 
 public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeCommand, AccordSafeTimestampsForKey, AccordSafeCommandsForKey>
 {
@@ -54,7 +54,7 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     private final @Nullable AccordSafeCommandsForRanges commandsForRanges;
     private final AccordCommandStore commandStore;
     private final RangesForEpoch ranges;
-    private final FieldUpdates fieldUpdates = new FieldUpdates();
+    private FieldUpdates fieldUpdates;
 
     private AccordSafeCommandStore(PreLoadContext context,
                                    Map<TxnId, AccordSafeCommand> commands,
@@ -276,6 +276,7 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     @Override
     public void upsertRedundantBefore(RedundantBefore addRedundantBefore)
     {
+        if (fieldUpdates == null) fieldUpdates = new FieldUpdates();
         fieldUpdates.redundantBefore = addRedundantBefore;
         super.upsertRedundantBefore(addRedundantBefore);
     }
@@ -283,6 +284,7 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     @Override
     public void upsertSetBootstrapBeganAt(TxnId globalSyncId, Ranges ranges)
     {
+        if (fieldUpdates == null) fieldUpdates = new FieldUpdates();
         fieldUpdates.newBootstrapBeganAt = new Sync(globalSyncId, ranges);
         super.upsertSetBootstrapBeganAt(globalSyncId, ranges);
     }
@@ -290,29 +292,33 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     @Override
     public void upsertDurableBefore(DurableBefore addDurableBefore)
     {
+        if (fieldUpdates == null) fieldUpdates = new FieldUpdates();
         fieldUpdates.durableBefore = addDurableBefore;
         super.upsertDurableBefore(addDurableBefore);
     }
 
     @Override
-    public void upsertSafeToRead(NavigableMap<Timestamp, Ranges> newSafeToRead)
+    public void setSafeToRead(NavigableMap<Timestamp, Ranges> newSafeToRead)
     {
+        if (fieldUpdates == null) fieldUpdates = new FieldUpdates();
         fieldUpdates.newSafeToRead = newSafeToRead;
-        super.upsertSafeToRead(newSafeToRead);
+        super.setSafeToRead(newSafeToRead);
     }
 
     @Override
     public void setRangesForEpoch(CommandStores.RangesForEpoch rangesForEpoch)
     {
+        if (fieldUpdates == null) fieldUpdates = new FieldUpdates();
         fieldUpdates.rangesForEpoch = rangesForEpoch.snapshot();
         super.setRangesForEpoch(rangesForEpoch);
     }
 
     @Override
-    public void setRejectBefore(ReducingRangeMap<Timestamp> next)
+    protected void registerHistoricalTransactions(Deps deps)
     {
-        fieldUpdates.rejectBefore = next;
-        super.setRejectBefore(next);
+        if (fieldUpdates == null) fieldUpdates = new FieldUpdates();
+        fieldUpdates.historicalTransactions = deps;
+        super.registerHistoricalTransactions(deps);
     }
 
     public FieldUpdates fieldUpdates()
@@ -324,10 +330,10 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     {
         public RedundantBefore redundantBefore;
         public DurableBefore durableBefore;
-        public ReducingRangeMap<Timestamp> rejectBefore;
         public Sync newBootstrapBeganAt;
         public NavigableMap<Timestamp, Ranges> newSafeToRead;
         public RangesForEpoch.Snapshot rangesForEpoch;
+        public Deps historicalTransactions;
     }
 
     public static class Sync

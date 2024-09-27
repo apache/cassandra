@@ -33,6 +33,7 @@ import org.apache.cassandra.service.accord.AccordJournalValueSerializers.Bootstr
 import org.apache.cassandra.service.accord.AccordJournalValueSerializers.CommandDiffSerializer;
 import org.apache.cassandra.service.accord.AccordJournalValueSerializers.DurableBeforeSerializer;
 import org.apache.cassandra.service.accord.AccordJournalValueSerializers.FlyweightSerializer;
+import org.apache.cassandra.service.accord.AccordJournalValueSerializers.HistoricalTransactionsSerializer;
 import org.apache.cassandra.service.accord.AccordJournalValueSerializers.RedundantBeforeSerializer;
 import org.apache.cassandra.utils.ByteArrayUtil;
 
@@ -41,7 +42,6 @@ import static org.apache.cassandra.db.TypeSizes.INT_SIZE;
 import static org.apache.cassandra.db.TypeSizes.LONG_SIZE;
 import static org.apache.cassandra.db.TypeSizes.SHORT_SIZE;
 import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.RangesForEpochSerializer;
-import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.RejectBeforeSerializer;
 import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.SafeToReadSerializer;
 
 public final class JournalKey
@@ -255,10 +255,10 @@ public final class JournalKey
         COMMAND_DIFF                 (0, new CommandDiffSerializer()),
         REDUNDANT_BEFORE             (1, new RedundantBeforeSerializer()),
         DURABLE_BEFORE               (2, new DurableBeforeSerializer()),
-        REJECT_BEFORE                (3, new RejectBeforeSerializer()),
         SAFE_TO_READ                 (4, new SafeToReadSerializer()),
         BOOTSTRAP_BEGAN_AT           (5, new BootstrapBeganAtSerializer()),
-        RANGES_FOR_EPOCH             (6, new RangesForEpochSerializer())
+        RANGES_FOR_EPOCH             (6, new RangesForEpochSerializer()),
+        HISTORICAL_TRANSACTIONS      (7, new HistoricalTransactionsSerializer())
         ;
 
         final int id;

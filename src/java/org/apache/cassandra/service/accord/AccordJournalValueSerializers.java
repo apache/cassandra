@@ -19,6 +19,8 @@
 package org.apache.cassandra.service.accord;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.NavigableMap;
 
 import com.google.common.collect.ImmutableSortedMap;
@@ -26,10 +28,10 @@ import com.google.common.collect.ImmutableSortedMap;
 import accord.local.CommandStore;
 import accord.local.DurableBefore;
 import accord.local.RedundantBefore;
+import accord.primitives.Deps;
 import accord.primitives.Ranges;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
-import accord.utils.ReducingRangeMap;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
@@ -39,11 +41,12 @@ import static accord.local.CommandStores.RangesForEpoch;
 import static org.apache.cassandra.service.accord.AccordKeyspace.LocalVersionedSerializers.bootstrapBeganAt;
 import static org.apache.cassandra.service.accord.AccordKeyspace.LocalVersionedSerializers.durableBefore;
 import static org.apache.cassandra.service.accord.AccordKeyspace.LocalVersionedSerializers.redundantBefore;
-import static org.apache.cassandra.service.accord.AccordKeyspace.LocalVersionedSerializers.rejectBefore;
 import static org.apache.cassandra.service.accord.AccordKeyspace.LocalVersionedSerializers.safeToRead;
+import static org.apache.cassandra.service.accord.serializers.DepsSerializer.deps;
 
 // TODO (required): test with large collection values, and perhaps split out some fields if they have a tendency to grow larger
 // TODO (required): alert on metadata size
+// TODO (required): versioning
 public class AccordJournalValueSerializers
 {
     public interface FlyweightSerializer<ENTRY, IMAGE>
@@ -226,8 +229,6 @@ public class AccordJournalValueSerializers
         }
     }
 
-    // TODO: we should improve how these fields are serialized; we need to have distinction between "image" and "apply",
-    //  since not all types are homogenous like redundant and durable before
     public static class IdentityAccumulator<T> extends Accumulator<T, T>
     {
         public IdentityAccumulator(T initial)
@@ -275,7 +276,6 @@ public class AccordJournalValueSerializers
             // 0 for entry
             out.writeByte(0);
             CommandSerializers.txnId.serialize(entry.txnId, out);
-            // TODO: versioning
             KeySerializers.ranges.serialize(entry.ranges, out, userVersion);
         }
 
@@ -284,7 +284,6 @@ public class AccordJournalValueSerializers
         {
             // 1 for image
             out.writeByte(1);
-            // TODO: versioning
             bootstrapBeganAt.serialize(image.get(), out);
         }
 
@@ -303,34 +302,6 @@ public class AccordJournalValueSerializers
             }
         }
     }
-
-    public static class RejectBeforeSerializer
-    implements FlyweightSerializer<ReducingRangeMap<Timestamp>, IdentityAccumulator<ReducingRangeMap<Timestamp>>>
-    {
-        public IdentityAccumulator<ReducingRangeMap<Timestamp>>mergerFor(JournalKey key)
-        {
-            return new IdentityAccumulator<>(new ReducingRangeMap<>());
-        }
-
-        @Override
-        public void serialize(JournalKey key, ReducingRangeMap<Timestamp> entry, DataOutputPlus out, int userVersion) throws IOException
-        {
-            rejectBefore.serialize(entry, out);
-        }
-
-        @Override
-        public void reserialize(JournalKey key, IdentityAccumulator<ReducingRangeMap<Timestamp>> image, DataOutputPlus out, int userVersion) throws IOException
-        {
-            serialize(key, image.get(), out, userVersion);
-        }
-
-        @Override
-        public void deserialize(JournalKey key, IdentityAccumulator<ReducingRangeMap<Timestamp>> into, DataInputPlus in, int userVersion) throws IOException
-        {
-            into.update(rejectBefore.deserialize(in));
-        }
-    }
-
 
     public static class RangesForEpochSerializer
     implements FlyweightSerializer<RangesForEpoch.Snapshot, IdentityAccumulator<RangesForEpoch.Snapshot>>
@@ -392,6 +363,50 @@ public class AccordJournalValueSerializers
         public void deserialize(JournalKey key, IdentityAccumulator<NavigableMap<Timestamp, Ranges>> into, DataInputPlus in, int userVersion) throws IOException
         {
             into.update(safeToRead.deserialize(in));
+        }
+    }
+
+    public static class HistoricalTransactionsAccumulator extends Accumulator<List<Deps>, Deps>
+    {
+        public HistoricalTransactionsAccumulator()
+        {
+            super(new ArrayList<>());
+        }
+
+        @Override
+        protected List<Deps> accumulate(List<Deps> oldValue, Deps deps)
+        {
+            accumulated.add(deps); // we can keep it mutable
+            return accumulated;
+        }
+    }
+
+    public static class HistoricalTransactionsSerializer implements FlyweightSerializer<Deps, HistoricalTransactionsAccumulator>
+    {
+        @Override
+        public HistoricalTransactionsAccumulator mergerFor(JournalKey key)
+        {
+            return new HistoricalTransactionsAccumulator();
+        }
+
+        public void serialize(JournalKey key, Deps from, DataOutputPlus out, int userVersion) throws IOException
+        {
+            out.writeUnsignedVInt32(1);
+            deps.serialize(from, out, userVersion);
+        }
+
+        public void reserialize(JournalKey key, HistoricalTransactionsAccumulator from, DataOutputPlus out, int userVersion) throws IOException
+        {
+            out.writeUnsignedVInt32(from.get().size());
+            for (Deps d : from.get())
+                deps.serialize(d, out, userVersion);
+        }
+
+        public void deserialize(JournalKey key, HistoricalTransactionsAccumulator into, DataInputPlus in, int userVersion) throws IOException
+        {
+            int count = in.readUnsignedVInt32();
+            for (int i = 0; i < count; i++)
+                into.update(deps.deserialize(in, userVersion));
         }
     }
 }
