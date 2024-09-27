@@ -21,6 +21,7 @@ package org.apache.cassandra.tools.nodetool;
 import java.util.Arrays;
 
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.service.GCInspector;
 import org.apache.cassandra.tools.ToolRunner;
 import org.apache.cassandra.utils.JsonUtils;
 import org.junit.BeforeClass;
@@ -37,6 +38,7 @@ public class GcStatsTest extends CQLTester
     {
         requireNetwork();
         startJMXServer();
+        GCInspector.register();
     }
 
     @Test
