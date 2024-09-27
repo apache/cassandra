@@ -775,7 +775,7 @@ createTableStatement returns [CreateTableStatement.Raw stmt]
 
 tableDefinition[CreateTableStatement.Raw stmt]
     : '(' tableColumns[stmt] ( ',' tableColumns[stmt]? )* ')'
-      ( ',' K_CONSTRAINT (cn=ident)? K_CHECK expr=cqlConstraintExp[stmt] { $stmt.addTableConstraint(expr.prepareWithName(cn)); } )*
+      /*( ',' K_CONSTRAINT (cn=ident)? K_CHECK expr=cqlConstraintExp[stmt] { $stmt.addTableConstraint(expr.prepareWithName(cn)); } )* */
       ( K_WITH tableProperty[stmt] ( K_AND tableProperty[stmt] )*)?
     ;
 
@@ -784,6 +784,7 @@ tableColumns[CreateTableStatement.Raw stmt]
     : k=ident v=comparatorType (K_STATIC { isStatic = true; })? (mask=columnMask)? (K_CHECK kconst=cqlConstraintExp[stmt])? { $stmt.addColumn(k, v, isStatic, mask, kconst == null ? null : kconst.prepare(k)); }
         (K_PRIMARY K_KEY { $stmt.setPartitionKeyColumn(k); })?
     | K_PRIMARY K_KEY '(' tablePartitionKey[stmt] (',' c=ident { $stmt.markClusteringColumn(c); } )* ')'
+    | K_CONSTRAINT (cn=ident)? K_CHECK expr=cqlConstraintExp[stmt] { $stmt.addTableConstraint(expr.prepareWithName(cn)); }
     ;
 
 cqlConstraintExp[CreateTableStatement.Raw stmt] returns [CqlConstraint.Raw cqlConstraint]

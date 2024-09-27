@@ -1437,18 +1437,13 @@ public class TableMetadata implements SchemaElement
         if (!hasSingleColumnPrimaryKey)
             appendPrimaryKey(builder);
 
-        builder.decreaseIndent()
-               .append(')');
-
         if (!constraints().isEmpty())
         {
-            for(CqlConstraint constraint : constraints())
-            {
-                builder.append(", CONSTRAINT ").append(constraint.constraintName);
-                constraint.appendCqlTo(builder);
-                builder.newLine();
-            }
+            appendConstraints(builder);
         }
+
+        builder.decreaseIndent()
+               .newLine().append(')');
 
         builder.append(" WITH ")
                .increaseIndent();
@@ -1465,6 +1460,22 @@ public class TableMetadata implements SchemaElement
 
         if (includeDroppedColumns)
             appendDropColumns(builder);
+    }
+
+    private void appendConstraints(CqlBuilder builder)
+    {
+        Iterator<CqlConstraint> iterator = constraints().iterator();
+
+        while (iterator.hasNext())
+        {
+            CqlConstraint constraint = iterator.next();
+            builder.append("CONSTRAINT ")
+                   .append(constraint.constraintName)
+                   .append(" CHECK ")
+                   .append(constraint.toString());
+            if (iterator.hasNext())
+                builder.append(",").newLine();
+        }
     }
 
     private void appendColumnDefinitions(CqlBuilder builder,
@@ -1532,8 +1543,9 @@ public class TableMetadata implements SchemaElement
             builder.append(", ")
                    .appendWithSeparators(clusteringColumns, (b, c) -> b.append(c.name), ", ");
 
-        builder.append(')')
-               .newLine();
+        builder.append(')');
+        if (!constraints().isEmpty())
+            builder.append(",").newLine();
     }
 
     void appendTableOptions(CqlBuilder builder, boolean withInternals)

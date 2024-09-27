@@ -28,7 +28,7 @@ public class AlterTableWithTableConstraintValidationTest extends CqlConstraintVa
     @Test
     public void testCreateTableWithColumnNamedConstraintDescribeTableNonFunction() throws Throwable
     {
-        String table = createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)), CONSTRAINT cons1 CHECK ck1 < 100 WITH CLUSTERING ORDER BY (ck1 ASC);");
+        String table = createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT cons1 CHECK ck1 < 100) WITH CLUSTERING ORDER BY (ck1 ASC);");
 
         execute("ALTER TABLE %s DROP CONSTRAINT cons1");
 
@@ -58,7 +58,7 @@ public class AlterTableWithTableConstraintValidationTest extends CqlConstraintVa
     @Test
     public void testCreateTableWithColumnDropNonExistingConstraintWithAlternativeConstraint() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)), CONSTRAINT cons1 CHECK ck1 < 100 WITH CLUSTERING ORDER BY (ck1 ASC);");
+        createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT cons1 CHECK ck1 < 100) WITH CLUSTERING ORDER BY (ck1 ASC);");
         assertInvalidThrow(ConstraintViolationException.class, "ALTER TABLE %s DROP CONSTRAINT cons2");
     }
 
@@ -74,9 +74,9 @@ public class AlterTableWithTableConstraintValidationTest extends CqlConstraintVa
                                       "    ck1 int,\n" +
                                       "    ck2 int,\n" +
                                       "    v int,\n" +
-                                      "    PRIMARY KEY (pk, ck1, ck2)\n" +
-                                      "), CONSTRAINT cons1 CHECK ck1 < 100\n" +
-                                      " WITH CLUSTERING ORDER BY (ck1 ASC, ck2 ASC)\n" +
+                                      "    PRIMARY KEY (pk, ck1, ck2),\n" +
+                                      "    CONSTRAINT cons1 CHECK ck1 < 100\n" +
+                                      ") WITH CLUSTERING ORDER BY (ck1 ASC, ck2 ASC)\n" +
                                       "    AND " + tableParametersCql();
 
         assertRowsNet(executeDescribeNet(KEYSPACE, "DESCRIBE TABLE " + KEYSPACE + "." + table),
@@ -99,10 +99,10 @@ public class AlterTableWithTableConstraintValidationTest extends CqlConstraintVa
                                       "    ck1 int,\n" +
                                       "    ck2 int,\n" +
                                       "    v int,\n" +
-                                      "    PRIMARY KEY (pk, ck1, ck2)\n" +
-                                      "), CONSTRAINT cons1 CHECK ck1 < 100\n" +
-                                      ", CONSTRAINT cons2 CHECK ck2 > 10\n" +
-                                      " WITH CLUSTERING ORDER BY (ck1 ASC, ck2 ASC)\n" +
+                                      "    PRIMARY KEY (pk, ck1, ck2),\n" +
+                                      "    CONSTRAINT cons1 CHECK ck1 < 100,\n" +
+                                      "    CONSTRAINT cons2 CHECK ck2 > 10\n" +
+                                      ") WITH CLUSTERING ORDER BY (ck1 ASC, ck2 ASC)\n" +
                                       "    AND " + tableParametersCql();
 
         assertRowsNet(executeDescribeNet(KEYSPACE, "DESCRIBE TABLE " + KEYSPACE + "." + table),
@@ -124,9 +124,9 @@ public class AlterTableWithTableConstraintValidationTest extends CqlConstraintVa
                                       "    ck1 int,\n" +
                                       "    ck2 text,\n" +
                                       "    v int,\n" +
-                                      "    PRIMARY KEY (pk, ck1, ck2)\n" +
-                                      "), CONSTRAINT cons1 CHECK ck1 < 100\n" +
-                                      " WITH CLUSTERING ORDER BY (ck1 ASC, ck2 ASC)\n" +
+                                      "    PRIMARY KEY (pk, ck1, ck2),\n" +
+                                      "    CONSTRAINT cons1 CHECK ck1 < 100\n" +
+                                      ") WITH CLUSTERING ORDER BY (ck1 ASC, ck2 ASC)\n" +
                                       "    AND " + tableParametersCql();
 
         assertRowsNet(executeDescribeNet(KEYSPACE, "DESCRIBE TABLE " + KEYSPACE + "." + table),
@@ -142,10 +142,10 @@ public class AlterTableWithTableConstraintValidationTest extends CqlConstraintVa
                                       "    ck1 int,\n" +
                                       "    ck2 text,\n" +
                                       "    v int,\n" +
-                                      "    PRIMARY KEY (pk, ck1, ck2)\n" +
-                                      "), CONSTRAINT cons1 CHECK ck1 < 100\n" +
-                                      ", CONSTRAINT cons2 CHECK LENGTH(ck2) = 4\n" +
-                                      " WITH CLUSTERING ORDER BY (ck1 ASC, ck2 ASC)\n" +
+                                      "    PRIMARY KEY (pk, ck1, ck2),\n" +
+                                      "    CONSTRAINT cons1 CHECK ck1 < 100,\n" +
+                                      "    CONSTRAINT cons2 CHECK LENGTH(ck2) = 4\n" +
+                                      ") WITH CLUSTERING ORDER BY (ck1 ASC, ck2 ASC)\n" +
                                       "    AND " + tableParametersCql();
 
         assertRowsNet(executeDescribeNet(KEYSPACE, "DESCRIBE TABLE " + KEYSPACE + "." + table),
@@ -190,7 +190,7 @@ public class AlterTableWithTableConstraintValidationTest extends CqlConstraintVa
     @Test
     public void testCreateTableWithColumnAndConstraintAddExistingConstraint() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)), CONSTRAINT cons1 CHECK LENGTH(ck1) = 4 WITH CLUSTERING ORDER BY (ck1 ASC);");
+        createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT cons1 CHECK LENGTH(ck1) = 4) WITH CLUSTERING ORDER BY (ck1 ASC);");
         assertInvalidThrow(ConstraintViolationException.class, "ALTER TABLE %s ADD CONSTRAINT cons1 CHECK LENGTH(ck2) = 4");
     }
 }

@@ -36,16 +36,16 @@ public class CreateTableWithTableCqlConstraintValidationTest extends CqlConstrai
     @Test
     public void testCreateTableWithTableNamedConstraintDescribeTableNonFunction() throws Throwable
     {
-        String table = createTable(KEYSPACE_PER_TEST, "CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)), CONSTRAINT cons1 CHECK ck1 < 100 WITH CLUSTERING ORDER BY (ck1 ASC);");
+        String table = createTable(KEYSPACE_PER_TEST, "CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT cons1 CHECK ck1 < 100) WITH CLUSTERING ORDER BY (ck1 ASC);");
 
         String tableCreateStatement = "CREATE TABLE " + KEYSPACE_PER_TEST + "." + table + " (\n" +
                                       "    pk int,\n" +
                                       "    ck1 int,\n" +
                                       "    ck2 int,\n" +
                                       "    v int,\n" +
-                                      "    PRIMARY KEY (pk, ck1, ck2)\n" +
-                                      "), CONSTRAINT cons1 CHECK ck1 < 100\n" +
-                                      " WITH CLUSTERING ORDER BY (ck1 ASC, ck2 ASC)\n" +
+                                      "    PRIMARY KEY (pk, ck1, ck2),\n" +
+                                      "    CONSTRAINT cons1 CHECK ck1 < 100\n" +
+                                      ") WITH CLUSTERING ORDER BY (ck1 ASC, ck2 ASC)\n" +
                                       "    AND " + tableParametersCql();
 
         assertRowsNet(executeDescribeNet("DESCRIBE TABLE " + KEYSPACE_PER_TEST + "." + table),
@@ -58,7 +58,7 @@ public class CreateTableWithTableCqlConstraintValidationTest extends CqlConstrai
     @Test
     public void testCreateTableWithTableNotNamedConstraintDescribeTableNonFunction() throws Throwable
     {
-        String table = createTable(KEYSPACE_PER_TEST, "CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)), CONSTRAINT CHECK ck1 < 100 WITH CLUSTERING ORDER BY (ck1 ASC);");
+        String table = createTable(KEYSPACE_PER_TEST, "CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT CHECK ck1 < 100) WITH CLUSTERING ORDER BY (ck1 ASC);");
 
         Pattern p = Pattern.compile("(.*)CONSTRAINT (.+) CHECK(.*)");
 
@@ -71,9 +71,9 @@ public class CreateTableWithTableCqlConstraintValidationTest extends CqlConstrai
                                       "    pk int,\n" +
                                       "    ck1 int,\n" + "    ck2 int,\n" +
                                       "    v int,\n" +
-                                      "    PRIMARY KEY (pk, ck1, ck2)\n" +
-                                      "), CONSTRAINT %s CHECK ck1 < 100\n" +
-                                      " WITH CLUSTERING ORDER BY (ck1 ASC, ck2 ASC)\n" +
+                                      "    PRIMARY KEY (pk, ck1, ck2),\n" +
+                                      "    CONSTRAINT %s CHECK ck1 < 100\n" +
+                                      ") WITH CLUSTERING ORDER BY (ck1 ASC, ck2 ASC)\n" +
                                       "    AND " + tableParametersCql(), text);
 
         assertRowsContains(executeDescribeNet("DESCRIBE TABLE " + KEYSPACE_PER_TEST + "." + table),
@@ -86,16 +86,16 @@ public class CreateTableWithTableCqlConstraintValidationTest extends CqlConstrai
     @Test
     public void testCreateTableWithColumnNotNamedConstraintDescribeTableFunction() throws Throwable
     {
-        String table = createTable(KEYSPACE_PER_TEST, "CREATE TABLE %s (pk int, ck1 text, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)), CONSTRAINT cons1 CHECK LENGTH(ck1) = 4 WITH CLUSTERING ORDER BY (ck1 ASC);");
+        String table = createTable(KEYSPACE_PER_TEST, "CREATE TABLE %s (pk int, ck1 text, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT cons1 CHECK LENGTH(ck1) = 4) WITH CLUSTERING ORDER BY (ck1 ASC);");
 
         String tableCreateStatement = "CREATE TABLE " + KEYSPACE_PER_TEST + "." + table + " (\n" +
                                       "    pk int,\n" +
                                       "    ck1 text,\n" +
                                       "    ck2 int,\n" +
                                       "    v int,\n" +
-                                      "    PRIMARY KEY (pk, ck1, ck2)\n" +
-                                      "), CONSTRAINT cons1 CHECK LENGTH(ck1) = 4\n" +
-                                      " WITH CLUSTERING ORDER BY (ck1 ASC, ck2 ASC)\n" +
+                                      "    PRIMARY KEY (pk, ck1, ck2),\n" +
+                                      "    CONSTRAINT cons1 CHECK LENGTH(ck1) = 4\n" +
+                                      ") WITH CLUSTERING ORDER BY (ck1 ASC, ck2 ASC)\n" +
                                       "    AND " + tableParametersCql();
 
         assertRowsNet(executeDescribeNet("DESCRIBE TABLE " + KEYSPACE_PER_TEST + "." + table),
@@ -110,7 +110,7 @@ public class CreateTableWithTableCqlConstraintValidationTest extends CqlConstrai
     @Test
     public void testCreateTableWithColumnWithClusteringColumnLessThanScalarConstraint() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)), CONSTRAINT cons1 CHECK ck1 < 4 WITH CLUSTERING ORDER BY (ck1 ASC);");
+        createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT cons1 CHECK ck1 < 4) WITH CLUSTERING ORDER BY (ck1 ASC);");
 
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 2, 3)");
@@ -123,7 +123,7 @@ public class CreateTableWithTableCqlConstraintValidationTest extends CqlConstrai
     @Test
     public void testCreateTableWithColumnWithClusteringColumnBiggerThanScalarConstraint() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)), CONSTRAINT cons1 CHECK ck1 > 4 WITH CLUSTERING ORDER BY (ck1 ASC);");
+        createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT cons1 CHECK ck1 > 4) WITH CLUSTERING ORDER BY (ck1 ASC);");
 
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 5, 2, 3)");
@@ -136,7 +136,7 @@ public class CreateTableWithTableCqlConstraintValidationTest extends CqlConstrai
     @Test
     public void testCreateTableWithColumnWithClusteringColumnBiggerOrEqualThanScalarConstraint() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)), CONSTRAINT cons1 CHECK ck1 >= 4 WITH CLUSTERING ORDER BY (ck1 ASC);");
+        createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT cons1 CHECK ck1 >= 4) WITH CLUSTERING ORDER BY (ck1 ASC);");
 
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 5, 2, 3)");
@@ -149,7 +149,7 @@ public class CreateTableWithTableCqlConstraintValidationTest extends CqlConstrai
     @Test
     public void testCreateTableWithColumnWithClusteringColumnLessOrEqualThanScalarConstraint() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)), CONSTRAINT cons1 CHECK ck1 <= 4 WITH CLUSTERING ORDER BY (ck1 ASC);");
+        createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT cons1 CHECK ck1 <= 4) WITH CLUSTERING ORDER BY (ck1 ASC);");
 
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 3, 2, 3)");
@@ -162,7 +162,7 @@ public class CreateTableWithTableCqlConstraintValidationTest extends CqlConstrai
     @Test
     public void testCreateTableWithColumnWithClusteringColumnDifferentThanScalarConstraint() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)), CONSTRAINT cons1 CHECK ck1 != 4 WITH CLUSTERING ORDER BY (ck1 ASC);");
+        createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT cons1 CHECK ck1 != 4) WITH CLUSTERING ORDER BY (ck1 ASC);");
 
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 3, 2, 3)");
@@ -177,7 +177,7 @@ public class CreateTableWithTableCqlConstraintValidationTest extends CqlConstrai
     @Test
     public void testCreateTableWithTableLengthEqualToConstraint() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, ck1 text, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)), CONSTRAINT cons1 CHECK LENGTH(ck1) = 4 WITH CLUSTERING ORDER BY (ck1 ASC) ");
+        createTable("CREATE TABLE %s (pk int, ck1 text, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT cons1 CHECK LENGTH(ck1) = 4) WITH CLUSTERING ORDER BY (ck1 ASC) ");
 
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 'fooo', 2, 3)");
@@ -190,7 +190,7 @@ public class CreateTableWithTableCqlConstraintValidationTest extends CqlConstrai
     @Test
     public void testCreateTableWithColumnWithClusteringColumnLengthDifferentThanConstraint() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, ck1 text, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)), CONSTRAINT cons1 CHECK LENGTH(ck1) != 4 WITH CLUSTERING ORDER BY (ck1 ASC);");
+        createTable("CREATE TABLE %s (pk int, ck1 text, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT cons1 CHECK LENGTH(ck1) != 4) WITH CLUSTERING ORDER BY (ck1 ASC);");
 
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 'foo', 2, 3)");
@@ -203,7 +203,7 @@ public class CreateTableWithTableCqlConstraintValidationTest extends CqlConstrai
     @Test
     public void testCreateTableWithColumnWithClusteringColumnLengthBiggerThanConstraint() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, ck1 text, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)), CONSTRAINT cons1 CHECK LENGTH(ck1) > 4 WITH CLUSTERING ORDER BY (ck1 ASC);");
+        createTable("CREATE TABLE %s (pk int, ck1 text, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT cons1 CHECK LENGTH(ck1) > 4) WITH CLUSTERING ORDER BY (ck1 ASC);");
 
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 'foooo', 2, 3)");
@@ -216,7 +216,7 @@ public class CreateTableWithTableCqlConstraintValidationTest extends CqlConstrai
     @Test
     public void testCreateTableWithColumnWithClusteringColumnLengthBiggerOrEqualThanConstraint() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, ck1 text, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)), CONSTRAINT cons1 CHECK LENGTH(ck1) >= 4 WITH CLUSTERING ORDER BY (ck1 ASC);");
+        createTable("CREATE TABLE %s (pk int, ck1 text, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT cons1 CHECK LENGTH(ck1) >= 4) WITH CLUSTERING ORDER BY (ck1 ASC);");
 
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 'foooo', 2, 3)");
@@ -229,7 +229,7 @@ public class CreateTableWithTableCqlConstraintValidationTest extends CqlConstrai
     @Test
     public void testCreateTableWithColumnWithClusteringColumnLengthSmallerThanConstraint() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, ck1 text, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)), CONSTRAINT cons1 CHECK LENGTH(ck1) < 4 WITH CLUSTERING ORDER BY (ck1 ASC);");
+        createTable("CREATE TABLE %s (pk int, ck1 text, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT cons1 CHECK LENGTH(ck1) < 4) WITH CLUSTERING ORDER BY (ck1 ASC);");
 
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 'foo', 2, 3)");
@@ -242,7 +242,7 @@ public class CreateTableWithTableCqlConstraintValidationTest extends CqlConstrai
     @Test
     public void testCreateTableWithColumnWithClusteringColumnLengthSmallerOrEqualThanConstraint() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, ck1 text, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)), CONSTRAINT cons1 CHECK LENGTH(ck1) <= 4 WITH CLUSTERING ORDER BY (ck1 ASC);");
+        createTable("CREATE TABLE %s (pk int, ck1 text, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT cons1 CHECK LENGTH(ck1) <= 4) WITH CLUSTERING ORDER BY (ck1 ASC);");
 
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 'foo', 2, 3)");
@@ -256,7 +256,7 @@ public class CreateTableWithTableCqlConstraintValidationTest extends CqlConstrai
     @Test
     public void testCreateTableWithColumnWithPkColumnLengthEqualToConstraint() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk text, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)), CONSTRAINT cons1 CHECK LENGTH(pk) = 4 WITH CLUSTERING ORDER BY (ck1 ASC);");
+        createTable("CREATE TABLE %s (pk text, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT cons1 CHECK LENGTH(pk) = 4) WITH CLUSTERING ORDER BY (ck1 ASC);");
 
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES ('fooo', 1, 2, 3)");
@@ -269,7 +269,7 @@ public class CreateTableWithTableCqlConstraintValidationTest extends CqlConstrai
     @Test
     public void testCreateTableWithColumnWithPkColumnLengthDifferentThanConstraint() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk text, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)), CONSTRAINT cons1 CHECK LENGTH(pk) != 4 WITH CLUSTERING ORDER BY (ck1 ASC);");
+        createTable("CREATE TABLE %s (pk text, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT cons1 CHECK LENGTH(pk) != 4) WITH CLUSTERING ORDER BY (ck1 ASC);");
 
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES ('foo', 1, 2, 3)");
@@ -282,7 +282,7 @@ public class CreateTableWithTableCqlConstraintValidationTest extends CqlConstrai
     @Test
     public void testCreateTableWithColumnWithPkColumnLengthBiggerThanConstraint() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk text, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)), CONSTRAINT cons1 CHECK LENGTH(pk) > 4 WITH CLUSTERING ORDER BY (ck1 ASC);");
+        createTable("CREATE TABLE %s (pk text, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT cons1 CHECK LENGTH(pk) > 4) WITH CLUSTERING ORDER BY (ck1 ASC);");
 
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES ('foooo', 1, 2, 3)");
@@ -295,7 +295,7 @@ public class CreateTableWithTableCqlConstraintValidationTest extends CqlConstrai
     @Test
     public void testCreateTableWithColumnWithPkColumnLengthBiggerOrEqualThanConstraint() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk text, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)), CONSTRAINT cons1 CHECK LENGTH(pk) >= 4 WITH CLUSTERING ORDER BY (ck1 ASC);");
+        createTable("CREATE TABLE %s (pk text, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT cons1 CHECK LENGTH(pk) >= 4) WITH CLUSTERING ORDER BY (ck1 ASC);");
 
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES ('foooo', 1, 2, 3)");
@@ -308,7 +308,7 @@ public class CreateTableWithTableCqlConstraintValidationTest extends CqlConstrai
     @Test
     public void testCreateTableWithColumnWithPkColumnLengthSmallerThanConstraint() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk text, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)), CONSTRAINT cons1 CHECK LENGTH(pk) < 4 WITH CLUSTERING ORDER BY (ck1 ASC);");
+        createTable("CREATE TABLE %s (pk text, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT cons1 CHECK LENGTH(pk) < 4) WITH CLUSTERING ORDER BY (ck1 ASC);");
 
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES ('foo', 1, 2, 3)");
@@ -321,7 +321,7 @@ public class CreateTableWithTableCqlConstraintValidationTest extends CqlConstrai
     @Test
     public void testCreateTableWithColumnWithPkColumnLengthSmallerOrEqualThanConstraint() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk text, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)), CONSTRAINT cons1 CHECK LENGTH(pk) <= 4 WITH CLUSTERING ORDER BY (ck1 ASC);");
+        createTable("CREATE TABLE %s (pk text, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT cons1 CHECK LENGTH(pk) <= 4) WITH CLUSTERING ORDER BY (ck1 ASC);");
 
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES ('foo', 1, 2, 3)");
@@ -335,7 +335,7 @@ public class CreateTableWithTableCqlConstraintValidationTest extends CqlConstrai
     @Test
     public void testCreateTableWithColumnWithRegularColumnLengthEqualToConstraint() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v text, PRIMARY KEY ((pk),ck1, ck2)), CONSTRAINT cons1 CHECK LENGTH(v) = 4 WITH CLUSTERING ORDER BY (ck1 ASC);");
+        createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v text, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT cons1 CHECK LENGTH(v) = 4) WITH CLUSTERING ORDER BY (ck1 ASC);");
 
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, 'fooo')");
@@ -348,7 +348,7 @@ public class CreateTableWithTableCqlConstraintValidationTest extends CqlConstrai
     @Test
     public void testCreateTableWithColumnWithRegularColumnLengthDifferentThanConstraint() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v text, PRIMARY KEY ((pk),ck1, ck2)), CONSTRAINT cons1 CHECK LENGTH(v) != 4 WITH CLUSTERING ORDER BY (ck1 ASC);");
+        createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v text, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT cons1 CHECK LENGTH(v) != 4) WITH CLUSTERING ORDER BY (ck1 ASC);");
 
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, 'foo')");
@@ -361,7 +361,7 @@ public class CreateTableWithTableCqlConstraintValidationTest extends CqlConstrai
     @Test
     public void testCreateTableWithColumnWithRegularColumnLengthBiggerThanConstraint() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v text, PRIMARY KEY ((pk),ck1, ck2)), CONSTRAINT cons1 CHECK LENGTH(v) > 4 WITH CLUSTERING ORDER BY (ck1 ASC);");
+        createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v text, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT cons1 CHECK LENGTH(v) > 4) WITH CLUSTERING ORDER BY (ck1 ASC);");
 
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, 'foooo')");
@@ -374,7 +374,7 @@ public class CreateTableWithTableCqlConstraintValidationTest extends CqlConstrai
     @Test
     public void testCreateTableWithColumnWithRegularColumnLengthBiggerOrEqualThanConstraint() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v text, PRIMARY KEY ((pk),ck1, ck2)), CONSTRAINT cons1 CHECK LENGTH(v) >= 4 WITH CLUSTERING ORDER BY (ck1 ASC);");
+        createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v text, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT cons1 CHECK LENGTH(v) >= 4) WITH CLUSTERING ORDER BY (ck1 ASC);");
 
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, 'foooo')");
@@ -387,7 +387,7 @@ public class CreateTableWithTableCqlConstraintValidationTest extends CqlConstrai
     @Test
     public void testCreateTableWithColumnWithRegularColumnLengthSmallerThanConstraint() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v text, PRIMARY KEY ((pk),ck1, ck2)), CONSTRAINT cons1 CHECK LENGTH(v) < 4 WITH CLUSTERING ORDER BY (ck1 ASC);");
+        createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v text, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT cons1 CHECK LENGTH(v) < 4) WITH CLUSTERING ORDER BY (ck1 ASC);");
 
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, 'foo')");
@@ -400,7 +400,7 @@ public class CreateTableWithTableCqlConstraintValidationTest extends CqlConstrai
     @Test
     public void testCreateTableWithColumnWithRegularColumnLengthSmallerOrEqualThanConstraint() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v text, PRIMARY KEY ((pk),ck1, ck2)), CONSTRAINT cons1 CHECK LENGTH(v) <= 4 WITH CLUSTERING ORDER BY (ck1 ASC);");
+        createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v text, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT cons1 CHECK LENGTH(v) <= 4) WITH CLUSTERING ORDER BY (ck1 ASC);");
 
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, 'foo')");
@@ -414,14 +414,14 @@ public class CreateTableWithTableCqlConstraintValidationTest extends CqlConstrai
     public void testCreateTableWithColumnWithDuplicatedConstraintError() throws Throwable
     {
         // Invalid
-        assertInvalidThrow(SyntaxException.class, "CREATE TABLE %s (pk int, ck1 int, ck2 int, v text, PRIMARY KEY ((pk),ck1, ck2)), CONSTRAINT cons1 CHECK LENGTH(v) <= 4,  CONSTRAINT cons1 CHECK ck1 <= 4 WITH CLUSTERING ORDER BY (ck1 ASC);");
+        assertInvalidThrow(SyntaxException.class, "CREATE TABLE %s (pk int, ck1 int, ck2 int, v text, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT cons1 CHECK LENGTH(v) <= 4,  CONSTRAINT cons1 CHECK ck1 <= 4) WITH CLUSTERING ORDER BY (ck1 ASC);");
     }
 
 
     @Test
     public void testCreateTableWithColumnMixedColumnsLengthConstraint() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk text CHECK LENGTH(pk) = 4, ck1 int, ck2 int, v text, PRIMARY KEY ((pk),ck1, ck2)), CONSTRAINT cons1 CHECK LENGTH(v) = 4 WITH CLUSTERING ORDER BY (ck1 ASC);");
+        createTable("CREATE TABLE %s (pk text CHECK LENGTH(pk) = 4, ck1 int, ck2 int, v text, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT cons1 CHECK LENGTH(v) = 4) WITH CLUSTERING ORDER BY (ck1 ASC);");
 
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES ('fooo', 2, 3, 'fooo')");
@@ -441,11 +441,10 @@ public class CreateTableWithTableCqlConstraintValidationTest extends CqlConstrai
     {
         try
         {
-            createTable("CREATE TABLE %s (pk text, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)), CONSTRAINT cons1 CHECK LENGTH(pk) = 4 WITH CLUSTERING ORDER BY (ck1 ASC);");
+            createTable("CREATE TABLE %s (pk text, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT cons1 CHECK LENGTH(pk) = 4) WITH CLUSTERING ORDER BY (ck1 ASC);");
         }
         catch (InvalidRequestException e)
         {
-
             assertTrue(e.getMessage().contains("Error setting schema for test"));
         }
     }
@@ -456,7 +455,7 @@ public class CreateTableWithTableCqlConstraintValidationTest extends CqlConstrai
     {
         try
         {
-            createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)), CONSTRAINT cons1 CHECK LENGTH(ck1) = 4 WITH CLUSTERING ORDER BY (ck1 ASC);");
+            createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT cons1 CHECK LENGTH(ck1) = 4) WITH CLUSTERING ORDER BY (ck1 ASC);");
         }
         catch (InvalidRequestException e)
         {
@@ -468,7 +467,7 @@ public class CreateTableWithTableCqlConstraintValidationTest extends CqlConstrai
     @Test
     public void testCreateTableWithTableLengthDifferentConstraint() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, ck1 text, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)), CONSTRAINT cons1 CHECK LENGTH(ck1) = 4, CONSTRAINT cons2 CHECK ck2 > 4 WITH CLUSTERING ORDER BY (ck1 ASC) ");
+        createTable("CREATE TABLE %s (pk int, ck1 text, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT cons1 CHECK LENGTH(ck1) = 4, CONSTRAINT cons2 CHECK ck2 > 4) WITH CLUSTERING ORDER BY (ck1 ASC) ");
 
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 'fooo', 5, 3)");
