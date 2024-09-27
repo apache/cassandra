@@ -21,10 +21,9 @@ package org.apache.cassandra.db.commitlog;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
-import java.util.HashMap;
-import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 
+import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
@@ -37,6 +36,8 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.PathUtils;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 
 import static org.apache.cassandra.io.util.PathUtils.forEach;
 import static org.junit.Assert.assertTrue;
@@ -44,27 +45,44 @@ import static org.junit.Assert.assertTrue;
 public class CommitLogArchiverTest extends CQLTester
 {
     private static Path dirName;
-    private static final String rpiTime = "2024:03:22 20:43:12.633222";
+    // "2024:03:22 20:43:12.633222";
+    private static final long rpiTime = 1711140192633222L;
     private File dir;
 
     @ClassRule
     public static TemporaryFolder temporaryFolder = new TemporaryFolder();
 
+    private static MockedStatic<CommitLogArchiver> archiverMock;
+
     @BeforeClass
-    public static void beforeClass() throws IOException
+    public static void setUpClass()
     {
-        dirName = temporaryFolder.newFolder().toPath();
-        CommitLog commitLog = CommitLog.instance;
-        Properties properties = new Properties();
-        properties.putAll(new HashMap<String, String>()
-        {{
-            put("archive_command", "/bin/cp %path " + dirName);
-            put("restore_command", "/bin/cp -f %from %to");
-            put("restore_directories", dirName.toString());
-            put("restore_point_in_time", rpiTime);
-        }});
-        CommitLogArchiver commitLogArchiver = CommitLogArchiver.getArchiverFromProperties(properties);
-        commitLog.setCommitlogArchiver(commitLogArchiver);
+        try
+        {
+            dirName = temporaryFolder.newFolder().toPath();
+        }
+        catch (IOException ex)
+        {
+            throw new RuntimeException(ex);
+        }
+
+        archiverMock = Mockito.mockStatic(CommitLogArchiver.class);
+        archiverMock.when(CommitLogArchiver::construct)
+                    .thenReturn(new CommitLogArchiver("/bin/cp %path " + dirName,
+                                                      "/bin/cp -f %from %to",
+                                                      dirName.toString(),
+                                                      1711140192633222L,
+                                                      CommitLogPosition.NONE,
+                                                      TimeUnit.MICROSECONDS));
+
+        CQLTester.setUpClass();
+    }
+
+    @AfterClass
+    public static void tearDownClass()
+    {
+        CQLTester.tearDownClass();
+        archiverMock.close();
     }
 
     @Before
@@ -81,14 +99,13 @@ public class CommitLogArchiverTest extends CQLTester
     {
         String table = createTable(KEYSPACE, "CREATE TABLE %s (a TEXT PRIMARY KEY, b blob);");
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(table);
-        long ts = CommitLogArchiver.getRestorationPointInTimeInMicroseconds(rpiTime);
 
         ByteBuffer value = ByteBuffer.allocate(1024);
         // Make sure that new CommitLogSegment will be allocated as the CommitLogSegment size is 5M
         // and if new CommitLogSegment is allocated then the old CommitLogSegment will be archived.
         for (int i = 1; i <= 10; ++i)
         {
-            new RowUpdateBuilder(cfs.metadata(), ts - i, "name-" + i)
+            new RowUpdateBuilder(cfs.metadata(), rpiTime - i, "name-" + i)
             .add("b", value)
             .build()
             .apply();
@@ -97,7 +114,7 @@ public class CommitLogArchiverTest extends CQLTester
         CommitLog.instance.forceRecycleAllSegments();
         CommitLog.instance.segmentManager.awaitManagementTasksCompletion();
         // If the number of files that under backup dir is bigger than 1, that means the
-        // arhiver for commitlog is effective.
+        // archiver for commitlog is effective.
         assertTrue(dir.isDirectory() && dir.tryList().length > 0);
     }
 
@@ -106,7 +123,7 @@ public class CommitLogArchiverTest extends CQLTester
     {
         createTable(KEYSPACE, "CREATE TABLE %s (a INT , b INT, c INT, PRIMARY KEY(a, b));");
         // default level is microsecond
-        long timeInMicroSecond1 = CommitLogArchiver.getRestorationPointInTimeInMicroseconds(rpiTime);
+        long timeInMicroSecond1 = rpiTime;
         execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?) USING TIMESTAMP ? ", 3, 0, 0, timeInMicroSecond1);
         execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?) USING TIMESTAMP ? ", 3, 1, 1, timeInMicroSecond1);
 

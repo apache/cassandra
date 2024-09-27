@@ -82,7 +82,7 @@ public class CommitLog implements CommitLogMBean
 
     final public AbstractCommitLogSegmentManager segmentManager;
 
-    public CommitLogArchiver archiver;
+    public final CommitLogArchiver archiver;
     public final CommitLogMetrics metrics;
     final AbstractCommitLogService executor;
 
@@ -410,12 +410,6 @@ public class CommitLog implements CommitLogMBean
     public String getRestorePrecision()
     {
         return archiver.precision.toString();
-    }
-
-    @VisibleForTesting
-    public void setCommitlogArchiver(CommitLogArchiver archiver)
-    {
-        this.archiver = archiver;
     }
 
     public List<String> getActiveSegmentNames()
