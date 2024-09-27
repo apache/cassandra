@@ -1,4 +1,4 @@
 [submodule "modules/accord"]
 	path = modules/accord
 	url = https://github.com/ifesdjeen/cassandra-accord.git
-	branch = CASSANDRA-19944-persistent-fields
+	branch = CASSANDRA-19869
