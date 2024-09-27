@@ -118,10 +118,15 @@ public class MockJournal implements IJournal
     @Override
     public void appendCommand(int store, SavedCommand.DiffWriter diff, Runnable onFlush)
     {
-        commands.computeIfAbsent(new JournalKey(diff.after().txnId(), JournalKey.Type.COMMAND_DIFF, store),
-                                 (ignore_) -> new ArrayList<>())
-                .add(diff(diff.before(), diff.after()));
-        onFlush.run();
+        if (diff != null)
+        {
+            commands.computeIfAbsent(new JournalKey(diff.after().txnId(), JournalKey.Type.COMMAND_DIFF, store),
+                                     (ignore_) -> new ArrayList<>())
+                    .add(diff(diff.before(), diff.after()));
+        }
+
+        if (onFlush != null)
+            onFlush.run();
     }
 
     private FieldUpdates fieldUpdates(int store)
