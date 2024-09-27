@@ -43,7 +43,6 @@ import accord.primitives.Ranges;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
-import accord.utils.ReducingRangeMap;
 import org.apache.cassandra.concurrent.Shutdownable;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.DataInputBuffer;
@@ -61,7 +60,9 @@ import org.apache.cassandra.utils.ExecutorUtils;
 
 import static accord.local.Status.Invalidated;
 import static accord.local.Status.Truncated;
-import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.*;
+import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.BootstrapBeganAtAccumulator;
+import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.DurableBeforeAccumulator;
+import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.RedundantBeforeAccumulator;
 
 public class AccordJournal implements IJournal, Shutdownable
 {
@@ -224,8 +225,6 @@ public class AccordJournal implements IJournal, Shutdownable
             pointer = appendInternal(new JournalKey(Timestamp.NONE, JournalKey.Type.DURABLE_BEFORE, store), fieldUpdates.durableBefore);
         if (fieldUpdates.newBootstrapBeganAt != null)
             pointer = appendInternal(new JournalKey(Timestamp.NONE, JournalKey.Type.BOOTSTRAP_BEGAN_AT, store), fieldUpdates.newBootstrapBeganAt);
-        if (fieldUpdates.rejectBefore != null)
-            pointer = appendInternal(new JournalKey(Timestamp.NONE, JournalKey.Type.REJECT_BEFORE, store), fieldUpdates.rejectBefore);
         if (fieldUpdates.newSafeToRead != null)
             pointer = appendInternal(new JournalKey(Timestamp.NONE, JournalKey.Type.SAFE_TO_READ, store), fieldUpdates.newSafeToRead);
         if (fieldUpdates.rangesForEpoch != null)
