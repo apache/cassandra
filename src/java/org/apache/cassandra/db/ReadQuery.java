@@ -126,10 +126,15 @@ public interface ReadQuery
      */
     public TableMetadata metadata();
 
+    default DataRange dataRange()
+    {
+        throw new UnsupportedOperationException("dataRange() must be implemented by implementation class");
+    }
+
     /**
      * Starts a new read operation.
      * <p>
-     * This must be called before {@link executeInternal} and passed to it to protect the read.
+     * This must be called before {@link #executeInternal} and passed to it to protect the read.
      * The returned object <b>must</b> be closed on all path and it is thus strongly advised to
      * use it in a try-with-ressource construction.
      *
@@ -142,7 +147,7 @@ public interface ReadQuery
      *
      * @param consistency the consistency level to achieve for the query.
      * @param state client state
-     * @param state request enqueue / and start times
+     * @param requestTime request enqueue / and start times
      * @return the result of the query.
      */
     public PartitionIterator execute(ConsistencyLevel consistency, ClientState state, Dispatcher.RequestTime requestTime) throws RequestExecutionException;

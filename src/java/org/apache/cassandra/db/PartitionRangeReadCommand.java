@@ -64,7 +64,6 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
 {
     protected static final SelectionDeserializer selectionDeserializer = new Deserializer();
 
-    protected final DataRange dataRange;
     protected final Slices requestedSlices;
 
     @VisibleForTesting
@@ -81,8 +80,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
                                         Index.QueryPlan indexQueryPlan,
                                         boolean trackWarnings)
     {
-        super(serializedAtEpoch, Kind.PARTITION_RANGE, isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, indexQueryPlan, trackWarnings);
-        this.dataRange = dataRange;
+        super(serializedAtEpoch, Kind.PARTITION_RANGE, isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, indexQueryPlan, trackWarnings, dataRange);
         this.requestedSlices = dataRange.clusteringIndexFilter.getSlices(metadata());
     }
 
@@ -170,11 +168,6 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
                       DataRange.allData(metadata.partitioner),
                       null,
                       false);
-    }
-
-    public DataRange dataRange()
-    {
-        return dataRange;
     }
 
     public ClusteringIndexFilter clusteringIndexFilter(DecoratedKey key)

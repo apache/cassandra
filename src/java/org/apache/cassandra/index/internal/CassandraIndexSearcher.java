@@ -21,20 +21,36 @@
 package org.apache.cassandra.index.internal;
 
 import java.nio.ByteBuffer;
-import java.util.NavigableSet;
+import java.util.SortedSet;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.filter.*;
+import org.apache.cassandra.db.BufferClusteringBound;
+import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.ClusteringBound;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DataRange;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.db.ReadCommand;
+import org.apache.cassandra.db.ReadExecutionController;
+import org.apache.cassandra.db.SinglePartitionReadCommand;
+import org.apache.cassandra.db.Slice;
+import org.apache.cassandra.db.Slices;
+import org.apache.cassandra.db.filter.ClusteringIndexFilter;
+import org.apache.cassandra.db.filter.ClusteringIndexNamesFilter;
+import org.apache.cassandra.db.filter.ClusteringIndexSliceFilter;
+import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.Index;
+import org.apache.cassandra.index.internal.composites.CollectionValueIndex;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.btree.BTreeSet;
 
 public abstract class CassandraIndexSearcher implements Index.Searcher
@@ -90,17 +106,33 @@ public abstract class CassandraIndexSearcher implements Index.Searcher
     {
         if (command instanceof SinglePartitionReadCommand)
         {
-            // Note: as yet there's no route to get here - a 2i query *always* uses a
-            // PartitionRangeReadCommand. This is here in preparation for coming changes
-            // in SelectStatement.
             SinglePartitionReadCommand sprc = (SinglePartitionReadCommand)command;
             ByteBuffer pk = sprc.partitionKey().getKey();
             ClusteringIndexFilter filter = sprc.clusteringIndexFilter();
 
             if (filter instanceof ClusteringIndexNamesFilter)
             {
-                NavigableSet<Clustering<?>> requested = ((ClusteringIndexNamesFilter)filter).requestedRows();
-                BTreeSet<Clustering<?>> clusterings = BTreeSet.copy(requested, index.getIndexComparator());
+                if (index instanceof CollectionValueIndex)
+                {
+                    // Collection value indexes have an extra clustering key for the path, but we cannot construct an
+                    // index names filter from the filter on the backing table, because it has no path information.
+                    // Instead, we construct a slice from the clustering keys that are provided.
+                    Slices slices = filter.getSlices(index.baseCfs.metadata());
+                    ClusteringBound<?> start = BufferClusteringBound.BOTTOM;
+                    ClusteringBound<?> end = BufferClusteringBound.TOP;
+
+                    if (slices.size() > 0)
+                        start = slices.get(0).start();
+                    if (slices.size() > 0)
+                        end = slices.get(slices.size() - 1).end();
+
+                    Slice slice = Slice.make(makeIndexBound(pk, start), makeIndexBound(pk, end));
+                    return new ClusteringIndexSliceFilter(Slices.with(index.getIndexComparator(), slice), filter.isReversed());
+                }
+
+                SortedSet<Clustering<?>> requested = ((ClusteringIndexNamesFilter) filter).requestedRows();
+                // The partition key from the base table must be the first element of al clusterings of the index table.
+                BTreeSet<Clustering<?>> clusterings = BTreeSet.copy(requested, index.getIndexComparator(), clustering -> makeIndexClustering(pk, clustering));
                 return new ClusteringIndexNamesFilter(clusterings, filter.isReversed());
             }
             else
@@ -114,8 +146,7 @@ public abstract class CassandraIndexSearcher implements Index.Searcher
         }
         else
         {
-
-            DataRange dataRange = ((PartitionRangeReadCommand)command).dataRange();
+            DataRange dataRange = command.dataRange();
             AbstractBounds<PartitionPosition> range = dataRange.keyRange();
 
             Slice slice = Slice.ALL;
@@ -145,10 +176,8 @@ public abstract class CassandraIndexSearcher implements Index.Searcher
                      */
                     if (!dataRange.isNamesQuery() && !index.indexedColumn.isStatic())
                     {
-                        ClusteringIndexSliceFilter startSliceFilter = ((ClusteringIndexSliceFilter) dataRange.clusteringIndexFilter(
-                                                                                                                                   startKey));
-                        ClusteringIndexSliceFilter endSliceFilter = ((ClusteringIndexSliceFilter) dataRange.clusteringIndexFilter(
-                                                                                                                                 endKey));
+                        ClusteringIndexSliceFilter startSliceFilter = ((ClusteringIndexSliceFilter) dataRange.clusteringIndexFilter(startKey));
+                        ClusteringIndexSliceFilter endSliceFilter = ((ClusteringIndexSliceFilter) dataRange.clusteringIndexFilter(endKey));
 
                         // We can't effectively support reversed queries when we have a range, so we don't support it
                         // (or through post-query reordering) and shouldn't get there.

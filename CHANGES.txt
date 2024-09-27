@@ -1,4 +1,5 @@
 5.1
+ * Use SinglePartitionReadCommand for index queries that use strict filtering (CASSANDRA-19968)
  * Ensure Relation#toRestriction() handles ReversedType properly (CASSANDRA-19950)
  * Add JSON and YAML output option to nodetool gcstats (CASSANDRA-19771)
  * Introduce metadata serialization version V4 (CASSANDRA-19970)
