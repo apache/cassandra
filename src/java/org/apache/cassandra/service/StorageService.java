@@ -3556,11 +3556,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     static int calculateSplitCount(int keysPerSplit, long totalRowCountEstimate, int numberOfKeys)
     {
         int minSamplesPerSplit = 4;
-        int maxSplitCount = numberOfKeys / minSamplesPerSplit + 1;
-        int calculatedSplitCount = (int) (totalRowCountEstimate / keysPerSplit);
-        int splitCountMaxOrLess = Math.min(maxSplitCount, calculatedSplitCount);
-        int splitCountOneOrHigher = Math.max(1, splitCountMaxOrLess);
-        return splitCountOneOrHigher;
+        long maxSplitCount = numberOfKeys / minSamplesPerSplit + 1;
+        long calculatedSplitCount = totalRowCountEstimate / keysPerSplit;
+        int splitCountWithLimit = (int) Math.min(maxSplitCount, calculatedSplitCount);
+        return Math.max(1, splitCountWithLimit);
     }
 
     private List<Pair<Range<Token>, Long>> getSplits(List<Token> tokens, int splitCount, ColumnFamilyStore cfs)
