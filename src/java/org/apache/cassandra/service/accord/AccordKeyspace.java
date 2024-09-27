@@ -32,16 +32,13 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import org.slf4j.Logger;
@@ -67,15 +64,11 @@ import accord.primitives.TxnId;
 import accord.topology.Topology;
 import accord.utils.Invariants;
 import accord.utils.ReducingRangeMap;
-import accord.utils.async.AsyncResult;
 import accord.utils.async.Observable;
 import org.apache.cassandra.concurrent.DebuggableTask;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.cql3.ColumnIdentifier;
-import org.apache.cassandra.cql3.QueryOptions;
-import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
-import org.apache.cassandra.cql3.statements.ModificationStatement;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ClusteringComparator;
@@ -83,7 +76,6 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Columns;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionTime;
-import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.LivenessInfo;
 import org.apache.cassandra.db.Mutation;
@@ -137,7 +129,6 @@ import org.apache.cassandra.schema.Types;
 import org.apache.cassandra.schema.UserFunctions;
 import org.apache.cassandra.schema.Views;
 import org.apache.cassandra.serializers.UUIDSerializer;
-import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.accord.AccordConfigurationService.SyncStatus;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 import org.apache.cassandra.service.accord.api.PartitionKey;
@@ -147,20 +138,15 @@ import org.apache.cassandra.service.accord.serializers.CommandStoreSerializers;
 import org.apache.cassandra.service.accord.serializers.CommandsForKeySerializer;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
 import org.apache.cassandra.service.accord.serializers.TopologySerializers;
-import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.Clock.Global;
 import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.btree.BTreeSet;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
-import org.apache.cassandra.utils.concurrent.Future;
-import org.apache.cassandra.utils.concurrent.FutureCombiner;
 
 import static accord.utils.Invariants.checkArgument;
 import static accord.utils.Invariants.checkState;
-import static com.google.common.base.Preconditions.checkNotNull;
 import static java.lang.String.format;
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
-import static org.apache.cassandra.cql3.QueryProcessor.executeOnceInternal;
 import static org.apache.cassandra.db.partitions.PartitionUpdate.singleRowUpdate;
 import static org.apache.cassandra.db.rows.BTreeRow.singleCellRow;
 import static org.apache.cassandra.db.rows.BufferCell.live;
@@ -169,7 +155,6 @@ import static org.apache.cassandra.schema.SchemaConstants.ACCORD_KEYSPACE_NAME;
 import static org.apache.cassandra.service.accord.serializers.KeySerializers.blobMapToRanges;
 import static org.apache.cassandra.utils.ByteBufferUtil.EMPTY_BYTE_BUFFER;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
-import static org.apache.cassandra.utils.FBUtilities.futureToAsyncResult;
 
 public class AccordKeyspace
 {
@@ -181,11 +166,9 @@ public class AccordKeyspace
     public static final String COMMANDS_FOR_KEY = "commands_for_key";
     public static final String TOPOLOGIES = "topologies";
     public static final String EPOCH_METADATA = "epoch_metadata";
-    public static final String COMMAND_STORE_METADATA = "command_store_metadata";
 
     public static final Set<String> TABLE_NAMES = ImmutableSet.of(COMMANDS, TIMESTAMPS_FOR_KEY, COMMANDS_FOR_KEY,
                                                                   TOPOLOGIES, EPOCH_METADATA,
-                                                                  COMMAND_STORE_METADATA,
                                                                   JOURNAL);
 
     private static final TupleType TIMESTAMP_TYPE = new TupleType(Lists.newArrayList(LongType.instance, LongType.instance, Int32Type.instance));
@@ -705,21 +688,6 @@ public class AccordKeyspace
               "max_epoch bigint " +
               ')').build();
 
-    private static final TableMetadata CommandStoreMetadata =
-        parse(COMMAND_STORE_METADATA,
-              "command store state",
-              "CREATE TABLE %s (" +
-              "store_id int, " +
-              "reject_before blob, " +
-              "bootstrap_began_at blob, " +
-              "safe_to_read blob, " +
-              "redundant_before blob, " +
-              "durable_before blob, " +
-              "PRIMARY KEY(store_id)" +
-              ')').build();
-
-    private static final AtomicLong commandStoreMetadataTimestamp = new AtomicLong();
-
     private static TableMetadata.Builder parse(String name, String description, String cql)
     {
         return CreateTableStatement.parse(format(cql, name), ACCORD_KEYSPACE_NAME)
@@ -740,7 +708,7 @@ public class AccordKeyspace
 
     public static Tables tables()
     {
-        return Tables.of(Commands, TimestampsForKeys, CommandsForKeys, Topologies, EpochMetadata, CommandStoreMetadata, Journal);
+        return Tables.of(Commands, TimestampsForKeys, CommandsForKeys, Topologies, EpochMetadata, Journal);
     }
 
     private static <T> ByteBuffer serialize(T obj, LocalVersionedSerializer<T> serializer) throws IOException
@@ -1649,108 +1617,6 @@ public class AccordKeyspace
         {
             throw new UncheckedIOException(e);
         }
-    }
-
-    private static IMutation getCommandStoreMetadataMutation(String cql, ByteBuffer... values)
-    {
-        ClientState clientState = ClientState.forInternalCalls();
-        ModificationStatement statement = (ModificationStatement) QueryProcessor.parseStatement(cql).prepare(ClientState.forInternalCalls());
-        QueryOptions options = QueryOptions.forInternalCalls(Arrays.asList(values));
-
-        long tsMicros = TimeUnit.MILLISECONDS.toMicros(Global.currentTimeMillis());
-
-        while (true)
-        {
-            long prev = commandStoreMetadataTimestamp.get();
-            if (prev >= tsMicros)
-                tsMicros = prev + 1;
-
-            if (commandStoreMetadataTimestamp.compareAndSet(prev, tsMicros))
-                break;
-        }
-
-        return Iterables.getOnlyElement(statement.getMutations(clientState, options, true, tsMicros, (int) TimeUnit.MICROSECONDS.toSeconds(tsMicros), Dispatcher.RequestTime.forImmediateExecution(), false));
-    }
-
-
-    private static <T> Future<?> updateCommandStoreMetadata(CommandStore commandStore, String column, T value, LocalVersionedSerializer<T> serializer)
-    {
-        String cql = format("UPDATE %s.%s SET %s=? WHERE store_id=?", ACCORD_KEYSPACE_NAME, COMMAND_STORE_METADATA, column);
-        try
-        {
-            IMutation mutation = getCommandStoreMetadataMutation(cql, serialize(value, serializer), bytes(commandStore.id()));
-            return Stage.MUTATION.submit(mutation::apply);
-        }
-        catch (IOException e)
-        {
-            throw new UncheckedIOException(e);
-        }
-    }
-
-    public static Future<?> updateRejectBefore(CommandStore commandStore, ReducingRangeMap<Timestamp> rejectBefore)
-    {
-        return updateCommandStoreMetadata(commandStore, "reject_before", rejectBefore, LocalVersionedSerializers.rejectBefore);
-    }
-
-    public static AsyncResult<?> updateDurableBefore(CommandStore commandStore, DurableBefore durableBefore)
-    {
-        return futureToAsyncResult(updateCommandStoreMetadata(commandStore, "durable_before", durableBefore, LocalVersionedSerializers.durableBefore));
-    }
-
-    public static AsyncResult<?> updateRedundantBefore(CommandStore commandStore, @Nonnull Timestamp gcBefore, @Nonnull Ranges ranges, RedundantBefore redundantBefore)
-    {
-        checkNotNull(gcBefore, "gcBefore should not be null");
-        checkNotNull(ranges, "ranges should not be null");
-        Future<?> tableUpdateFuture = updateCommandStoreMetadata(commandStore, "redundant_before", redundantBefore, LocalVersionedSerializers.redundantBefore);
-        Future<?> gcPrepareFuture = ((AccordCommandStore)commandStore).prepareForGC(gcBefore, ranges);
-        return futureToAsyncResult(FutureCombiner.allOf(tableUpdateFuture, gcPrepareFuture));
-    }
-
-    public static AsyncResult<?> updateBootstrapBeganAt(CommandStore commandStore, NavigableMap<TxnId, Ranges> bootstrapBeganAt)
-    {
-        return futureToAsyncResult(updateCommandStoreMetadata(commandStore, "bootstrap_began_at", bootstrapBeganAt, LocalVersionedSerializers.bootstrapBeganAt));
-    }
-
-    public static AsyncResult<?> updateSafeToRead(CommandStore commandStore, NavigableMap<Timestamp, Ranges> safeToRead)
-    {
-        return futureToAsyncResult(updateCommandStoreMetadata(commandStore, "safe_to_read", safeToRead, LocalVersionedSerializers.safeToRead));
-    }
-
-    public interface CommandStoreMetadataConsumer
-    {
-        void accept(ReducingRangeMap<Timestamp> rejectBefore, DurableBefore durableBefore, RedundantBefore redundantBefore, NavigableMap<TxnId, Ranges> bootstrapBeganAt, NavigableMap<Timestamp, Ranges> safeToRead);
-
-    }
-    public static void loadCommandStoreMetadata(int id, CommandStoreMetadataConsumer consumer)
-    {
-        UntypedResultSet result = executeOnceInternal(format("SELECT * FROM %s.%s WHERE store_id=?", ACCORD_KEYSPACE_NAME, COMMAND_STORE_METADATA), id);
-        ReducingRangeMap<Timestamp> rejectBefore = null;
-        DurableBefore durableBefore = null;
-        RedundantBefore redundantBefore = null;
-        NavigableMap<TxnId, Ranges> bootstrapBeganAt = null;
-        NavigableMap<Timestamp, Ranges> safeToRead = null;
-        if (!result.isEmpty())
-        {
-            UntypedResultSet.Row row = Iterables.getOnlyElement(result);
-            try
-            {
-                if (row.has("reject_before"))
-                    rejectBefore = deserialize(row.getBlob("reject_before"), LocalVersionedSerializers.rejectBefore);
-                if (row.has("durable_before"))
-                    durableBefore = deserialize(row.getBlob("durable_before"), LocalVersionedSerializers.durableBefore);
-                if (row.has("redundant_before"))
-                    redundantBefore = deserialize(row.getBlob("redundant_before"), LocalVersionedSerializers.redundantBefore);
-                if (row.has("bootstrap_began_at"))
-                    bootstrapBeganAt = deserialize(row.getBlob("bootstrap_began_at"), LocalVersionedSerializers.bootstrapBeganAt);
-                if (row.has("safe_to_read"))
-                    safeToRead = deserialize(row.getBlob("safe_to_read"), LocalVersionedSerializers.safeToRead);
-            }
-            catch (IOException e)
-            {
-                throw new UncheckedIOException(e);
-            }
-        }
-        consumer.accept(rejectBefore, durableBefore, redundantBefore, bootstrapBeganAt, safeToRead);
     }
 
     @VisibleForTesting
