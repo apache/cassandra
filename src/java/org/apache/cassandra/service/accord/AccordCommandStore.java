@@ -402,8 +402,7 @@ public class AccordCommandStore extends CommandStore implements CacheSize
     @VisibleForTesting
     public void appendToLog(Command before, Command after, Runnable onFlush)
     {
-        JournalKey key = new JournalKey(after.txnId(), JournalKey.Type.COMMAND_DIFF, id);
-        journal.append(key, Collections.singletonList(SavedCommand.diff(before, after)), onFlush);
+        journal.appendCommand(id, SavedCommand.diff(before, after), onFlush);
     }
 
     boolean validateCommand(TxnId txnId, Command evicting)

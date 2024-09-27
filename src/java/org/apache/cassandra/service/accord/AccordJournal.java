@@ -254,14 +254,6 @@ public class AccordJournal implements IJournal, Shutdownable
         return builder;
     }
 
-    @Override
-    public void append(JournalKey key, Object write, Runnable onFlush)
-    {
-        RecordPointer pointer = appendInternal(key, write);
-        if (onFlush != null)
-            journal.onFlush(pointer, onFlush);
-    }
-
     private RecordPointer appendInternal(JournalKey key, Object write)
     {
         AccordJournalValueSerializers.FlyweightSerializer<Object, ?> serializer = (AccordJournalValueSerializers.FlyweightSerializer<Object, ?>) key.type.serializer;

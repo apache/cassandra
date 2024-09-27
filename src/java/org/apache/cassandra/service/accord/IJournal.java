@@ -46,7 +46,4 @@ public interface IJournal
                            // TODO: this class should not live under ASCS
                            AccordSafeCommandStore.FieldUpdates fieldUpdates,
                            Runnable onFlush);
-
-    // TODO: probably this does not need to be exposed
-    void append(JournalKey key, Object value, Runnable onFlush);
 }

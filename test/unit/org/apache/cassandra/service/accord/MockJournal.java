@@ -146,8 +146,7 @@ public class MockJournal implements IJournal
         onFlush.run();
     }
 
-    @Override
-    public void append(JournalKey key, Object value, Runnable onFlush)
+    protected void append(JournalKey key, Object value, Runnable onFlush)
     {
         SavedCommand.DiffWriter diff = (SavedCommand.DiffWriter) value;
         commands.computeIfAbsent(key, (ignore_) -> new ArrayList<>())

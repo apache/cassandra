@@ -75,9 +75,9 @@ public class AccordJournalOrderTest
             TxnId txnId = randomSource.nextBoolean() ? id1 : id2;
             JournalKey key = new JournalKey(txnId, JournalKey.Type.COMMAND_DIFF, randomSource.nextInt(5));
             res.compute(key, (k, prev) -> prev == null ? 1 : prev + 1);
-            accordJournal.append(key,
-                                 new SavedCommand.DiffWriter(txnId, null, null),
-                                 () -> {});
+            accordJournal.appendCommand(key.commandStoreId,
+                                        new SavedCommand.DiffWriter(txnId, null, null),
+                                        () -> {});
         }
 
         Runnable check = () -> {
