@@ -3555,7 +3555,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     static int calculateSplitCount(int keysPerSplit, long totalRowCountEstimate, int numberOfKeys)
     {
-        // splitCount should be much smaller than number of key samples, to avoid huge sampling error
         int minSamplesPerSplit = 4;
         int maxSplitCount = numberOfKeys / minSamplesPerSplit + 1;
         int splitCount = Math.max(1,
