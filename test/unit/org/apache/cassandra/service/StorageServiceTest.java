@@ -325,6 +325,13 @@ public class StorageServiceTest extends TestBaseImpl
     }
 
     @Test
+    public void calculateSplitCount_ZeroRowCount_ReturnsMinimumOfOne()
+    {
+        int result = StorageService.calculateSplitCount(1, 0, 40);
+        assertEquals(1, result);
+    }
+
+    @Test
     public void calculateSplitCount_ForLargeRowCount_LimitsResult()
     {
         int result = StorageService.calculateSplitCount(2, 100, 40);
