@@ -417,6 +417,11 @@ public class AccordTestUtils
                                                            saveExecutor,
                                                            new AccordStateCacheMetrics(AccordCommandStores.ACCORD_STATE_CACHE + System.currentTimeMillis()));
         holder.set(result);
+
+        // TODO: CompactionAccordIteratorsTest relies on this
+        result.execute(PreLoadContext.empty(),
+                       result::updateRangesForEpoch)
+              .beginAsResult();
         return result;
     }
 
