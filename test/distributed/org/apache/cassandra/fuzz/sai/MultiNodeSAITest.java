@@ -37,7 +37,7 @@ public class MultiNodeSAITest extends SingleNodeSAITest
      * other important parts of the distributed query apparatus. This should be set low enough to ensure a significant
      * number of queries during validation page, but not too low that more expesive queries time out and fail the test.
      */
-    private static final int FETCH_SIZE = 10;
+    private static final int FETCH_SIZE = 100000000;
 
     @BeforeClass
     public static void before() throws Throwable

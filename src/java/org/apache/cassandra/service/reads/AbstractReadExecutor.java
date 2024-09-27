@@ -431,7 +431,8 @@ public abstract class AbstractReadExecutor
         // return immediately, or begin a read repair
         if (digestResolver.responsesMatch())
         {
-            setResult(digestResolver.getData());
+            PartitionIterator data = digestResolver.getData();
+            setResult(command.filterForReplicaFilteringProtection().apply(data));
         }
         else
         {

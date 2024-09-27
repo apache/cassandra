@@ -48,9 +48,9 @@ import org.apache.cassandra.harry.tracker.DefaultDataTracker;
 
 public class SingleNodeSAITest extends IntegrationTestBase
 {
-    private static final int RUNS = 1;
+    private static final int RUNS = 3;
 
-    private static final int OPERATIONS_PER_RUN = 30_000;
+    private static final int OPERATIONS_PER_RUN = 100_000;
     private static final int REPAIR_SKIP = OPERATIONS_PER_RUN / 2;
     private static final int FLUSH_SKIP = OPERATIONS_PER_RUN / 7;
     private static final int VALIDATION_SKIP = OPERATIONS_PER_RUN / 100;
@@ -65,17 +65,18 @@ public class SingleNodeSAITest extends IntegrationTestBase
     public void basicSaiTest()
     {
         CassandraRelevantProperties.SAI_INTERSECTION_CLAUSE_LIMIT.setInt(6);
+        List<ColumnSpec<?>> clusteringKeys = Arrays.asList(ColumnSpec.ck("ck1", ColumnSpec.asciiType(4, 100)),
+                                                 ColumnSpec.ck("ck2", ColumnSpec.asciiType, true),
+                                                 ColumnSpec.ck("ck3", ColumnSpec.int64Type));
         SchemaSpec schema = new SchemaSpec(KEYSPACE, "tbl1",
                                            Arrays.asList(ColumnSpec.ck("pk1", ColumnSpec.int64Type),
                                                          ColumnSpec.ck("pk2", ColumnSpec.asciiType(4, 100)),
                                                          ColumnSpec.ck("pk3", ColumnSpec.int64Type)),
-                                           Arrays.asList(ColumnSpec.ck("ck1", ColumnSpec.asciiType(4, 100)),
-                                                         ColumnSpec.ck("ck2", ColumnSpec.asciiType, true),
-                                                         ColumnSpec.ck("ck3", ColumnSpec.int64Type)),
+                                           clusteringKeys,
                                            Arrays.asList(ColumnSpec.regularColumn("v1", ColumnSpec.asciiType(40, 100)),
                                                          ColumnSpec.regularColumn("v2", ColumnSpec.int64Type),
                                                          ColumnSpec.regularColumn("v3", ColumnSpec.int64Type)),
-                                           List.of(ColumnSpec.staticColumn("s1", ColumnSpec.asciiType(40, 100))))
+                                           List.of(ColumnSpec.staticColumn("s1", ColumnSpec.asciiType(40, 100))), DataGenerators.createKeyGenerator(clusteringKeys), false, false, null, false)
                             .withCompactionStrategy("LeveledCompactionStrategy");
 
         sut.schemaChange(schema.compile().cql());
