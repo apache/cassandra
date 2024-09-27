@@ -226,6 +226,13 @@ public class AutoRepairParameterizedTest extends CQLTester
                 .forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
     }
 
+    @Test(expected = ConfigurationException.class)
+    public void testRepairAsyncWithRepairTypeDisabled()
+    {
+        AutoRepairService.instance.getAutoRepairConfig().setAutoRepairEnabled(repairType, false);
+
+        AutoRepair.instance.repairAsync(repairType, 60);
+    }
 
     @Test
     public void testRepairAsync()

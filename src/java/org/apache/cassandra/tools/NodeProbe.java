@@ -2505,6 +2505,11 @@ public class NodeProbe implements AutoCloseable
     {
         autoRepairProxy.setRepairSessionTimeout(repairType, timeout);
     }
+
+    public Set<String> getOnGoingRepairHostIds(AutoRepairConfig.RepairType type)
+    {
+        return autoRepairProxy.getOnGoingRepairHostIds(type);
+    }
 }
 
 class ColumnFamilyStoreMBeanIterator implements Iterator<Map.Entry<String, ColumnFamilyStoreMBean>>
