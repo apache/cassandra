@@ -106,7 +106,6 @@ import static accord.local.Status.Invalidated;
 import static accord.local.Status.Stable;
 import static accord.local.Status.Truncated;
 import static accord.utils.Invariants.checkState;
-import static accord.utils.Invariants.isNatural;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 
 public class AccordCommandStore extends CommandStore implements CacheSize
@@ -285,20 +284,13 @@ public class AccordCommandStore extends CommandStore implements CacheSize
 
         this.commandsForRangesLoader = new CommandsForRangesLoader(this);
 
-//        AccordKeyspace.loadCommandStoreMetadata(id, ((rejectBefore, durableBefore, redundantBefore, bootstrapBeganAt, safeToRead) -> {
-//            executor.submit(() -> {
-//                if (rejectBefore != null)
-//                    super.setRejectBefore(rejectBefore);
-//                if (durableBefore != null)
-//                    super.setDurableBefore(DurableBefore.merge(durableBefore, durableBefore()));
-//                if (redundantBefore != null)
-//                    super.setRedundantBefore(RedundantBefore.merge(redundantBefore, redundantBefore));
-//                if (bootstrapBeganAt != null)
-//                    super.setBootstrapBeganAt(bootstrapBeganAt);
-//                if (safeToRead != null)
-//                    super.setSafeToRead(safeToRead);
-//            });
-//        }));
+        loadRedundantBefore(journal.loadRedundantBefore(id()));
+        loadRedundantBefore(journal.loadRedundantBefore(id()));
+        loadDurableBefore(journal.loadDurableBefore(id()));
+        loadBootstrapBeganAt(journal.loadBootstrapBeganAt(id()));
+        loadRejectBefore(journal.loadRejectBefore(id()));
+        loadSafeToRead(journal.loadSafeToRead(id()));
+        loadRangesForEpoch(journal.loadRangesForEpoch(id()));
 
         executor.execute(() -> CommandStore.register(this));
     }

@@ -322,8 +322,7 @@ public class AccordService implements IAccordService, Shutdownable
         }
         instance = as;
 
-        // TODO: do we even know command stores by that point?
-        as.journal().replay(as.node.commandStores().all());
+        as.journal().replay();
     }
 
     public static void shutdownServiceAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException

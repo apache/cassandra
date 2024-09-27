@@ -32,7 +32,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.local.Command;
-import accord.local.CommandStore;
 import accord.local.CommandStores;
 import accord.local.CommandStores.RangesForEpoch;
 import accord.local.DurableBefore;
@@ -182,7 +181,7 @@ public class AccordJournal implements IJournal, Shutdownable
     @Override
     public ReducingRangeMap<Timestamp> loadRejectBefore(int store)
     {
-        AccordJournalValueSerializers.RejectBeforeAccumulator accumulator = readAll(new JournalKey(Timestamp.NONE, JournalKey.Type.REJECT_BEFORE, store));
+        AccordJournalValueSerializers.IdentityAccumulator<ReducingRangeMap<Timestamp>> accumulator = readAll(new JournalKey(Timestamp.NONE, JournalKey.Type.REJECT_BEFORE, store));
         return accumulator.get();
     }
 
@@ -302,20 +301,8 @@ public class AccordJournal implements IJournal, Shutdownable
         journal.runCompactorForTesting();
     }
 
-    public void replay(CommandStore[] commandStores)
+    public void replay()
     {
-        for (CommandStore store : commandStores)
-        {
-            AccordCommandStore commandStore = (AccordCommandStore) store;
-            commandStore.loadRedundantBefore(loadRedundantBefore(store.id()));
-            commandStore.loadRedundantBefore(loadRedundantBefore(store.id()));
-            commandStore.loadDurableBefore(loadDurableBefore(store.id()));
-            commandStore.loadBootstrapBeganAt(loadBootstrapBeganAt(store.id()));
-            commandStore.loadRejectBefore(loadRejectBefore(store.id()));
-            commandStore.loadSafeToRead(loadSafeToRead(store.id()));
-            commandStore.loadRangesForEpoch(loadRangesForEpoch(store.id()));
-        }
-
         // TODO: optimize replay memory footprint
         class ToApply
         {
