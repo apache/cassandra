@@ -92,6 +92,7 @@ public class NodeTool
     public int execute(String... args)
     {
         List<Class<? extends NodeToolCmdRunnable>> commands = newArrayList(
+                AutoRepairStatus.class,
                 Assassinate.class,
                 CassHelp.class,
                 CfHistograms.class,

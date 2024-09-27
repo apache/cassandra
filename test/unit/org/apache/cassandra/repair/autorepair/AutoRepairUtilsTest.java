@@ -171,8 +171,7 @@ public class AutoRepairUtilsTest extends CQLTester
         SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, AutoRepairKeyspace.AUTO_REPAIR_HISTORY,
         repairType.toString(), hostId));
 
-        List<AutoRepairHistory> history = AutoRepairUtils.getAutoRepairHistoryForLocalGroup(repairType);
-
+        List<AutoRepairHistory> history = AutoRepairUtils.getAutoRepairHistory(repairType);
         assertNotNull(history);
         assertEquals(1, history.size());
         assertEquals(hostId, history.get(0).hostId);
@@ -181,7 +180,7 @@ public class AutoRepairUtilsTest extends CQLTester
     @Test
     public void testGetAutoRepairHistoryForLocalGroup_empty_history()
     {
-        List<AutoRepairHistory> history = AutoRepairUtils.getAutoRepairHistoryForLocalGroup(repairType);
+        List<AutoRepairHistory> history = AutoRepairUtils.getAutoRepairHistory(repairType);
 
         assertNull(history);
     }
@@ -270,9 +269,9 @@ public class AutoRepairUtilsTest extends CQLTester
     @Test
     public void testGetMaxNumberOfNodeRunAutoRepairInGroup_0_group_size()
     {
-        DatabaseDescriptor.getAutoRepairConfig().setParallelRepairCountInGroup(repairType, 2);
+        DatabaseDescriptor.getAutoRepairConfig().setParallelRepairCount(repairType, 2);
 
-        int count = AutoRepairUtils.getMaxNumberOfNodeRunAutoRepairInGroup(repairType, 0);
+        int count = AutoRepairUtils.getMaxNumberOfNodeRunAutoRepair(repairType, 0);
 
         assertEquals(2, count);
     }
@@ -281,11 +280,11 @@ public class AutoRepairUtilsTest extends CQLTester
     @Test
     public void testGetMaxNumberOfNodeRunAutoRepairInGroup_percentage()
     {
-        DatabaseDescriptor.getAutoRepairConfig().setParallelRepairCountInGroup(repairType, 2);
-        DatabaseDescriptor.getAutoRepairConfig().setParallelRepairPercentageInGroup(repairType, 50);
+        DatabaseDescriptor.getAutoRepairConfig().setParallelRepairCount(repairType, 2);
+        DatabaseDescriptor.getAutoRepairConfig().setParallelRepairPercentage(repairType, 50);
 
 
-        int count = AutoRepairUtils.getMaxNumberOfNodeRunAutoRepairInGroup(repairType, 10);
+        int count = AutoRepairUtils.getMaxNumberOfNodeRunAutoRepair(repairType, 10);
 
         assertEquals(5, count);
     }
@@ -464,7 +463,7 @@ public class AutoRepairUtilsTest extends CQLTester
     {
         UUID myID = UUID.randomUUID();
         UUID otherID = UUID.randomUUID();
-        DatabaseDescriptor.getAutoRepairConfig().setParallelRepairCountInGroup(repairType, 5);
+        DatabaseDescriptor.getAutoRepairConfig().setParallelRepairCount(repairType, 5);
         long currentMillis = System.currentTimeMillis();
         // finish time less than start time means that repair is ongoing
         AutoRepairUtils.insertNewRepairHistory(repairType, myID, currentMillis, currentMillis - 100);

@@ -49,6 +49,7 @@ import org.apache.cassandra.repair.autorepair.AutoRepairUtils;
 import org.apache.cassandra.schema.SchemaConstants;
 
 import static org.apache.cassandra.Util.setAutoRepairEnabled;
+import static org.apache.cassandra.config.CassandraRelevantProperties.SYSTEM_DISTRIBUTED_DEFAULT_RF;
 import static org.junit.Assert.assertEquals;
 
 @RunWith(Suite.class)
@@ -170,6 +171,52 @@ public class AutoRepairServiceTest
     }
 
     @RunWith(Parameterized.class)
+    public static class RepairTypeTests extends CQLTester
+    {
+        @Parameterized.Parameter()
+        public AutoRepairConfig.RepairType repairType;
+
+        private final UUID host1 = UUID.fromString("00000000-0000-0000-0000-000000000001");
+        private final UUID host2 = UUID.fromString("00000000-0000-0000-0000-000000000002");
+
+        private AutoRepairService instance;
+
+        @Parameterized.Parameters(name = "repairType={0}")
+        public static Collection<AutoRepairConfig.RepairType> repairTypes()
+        {
+            return Arrays.asList(AutoRepairConfig.RepairType.values());
+        }
+
+
+        @BeforeClass
+        public static void setupClass() throws Exception
+        {
+            SYSTEM_DISTRIBUTED_DEFAULT_RF.setInt(1);
+            setAutoRepairEnabled(true);
+            requireNetwork();
+        }
+
+        @Before
+        public void setUpTest()
+        {
+            AutoRepairUtils.setup();
+            instance = new AutoRepairService();
+        }
+
+        @Test
+        public void testGetOnGoingRepairHostIds()
+        {
+            long now = System.currentTimeMillis();
+            AutoRepairUtils.insertNewRepairHistory(repairType, host1, now, now - 1000000);
+            AutoRepairUtils.insertNewRepairHistory(repairType, host2, now, now - 1000000);
+
+            Set<String> hosts = instance.getOnGoingRepairHostIds(repairType);
+
+            assertEquals(ImmutableSet.of(host1.toString(), host2.toString()), hosts);
+        }
+    }
+
+    @RunWith(Parameterized.class)
     public static class SetterTests<T> extends CQLTester
     {
         private static final AutoRepairConfig config = new AutoRepairConfig(true);
@@ -196,8 +243,8 @@ public class AutoRepairServiceTest
             forEachRepairType(400, AutoRepairService.instance::setRepairSSTableCountHigherThreshold, config::getRepairSSTableCountHigherThreshold),
             forEachRepairType(ImmutableSet.of("dc1", "dc2"), AutoRepairService.instance::setIgnoreDCs, config::getIgnoreDCs),
             forEachRepairType(true, AutoRepairService.instance::setPrimaryTokenRangeOnly, config::getRepairPrimaryTokenRangeOnly),
-            forEachRepairType(600, AutoRepairService.instance::setParallelRepairPercentageInGroup, config::getParallelRepairPercentageInGroup),
-            forEachRepairType(700, AutoRepairService.instance::setParallelRepairCountInGroup, config::getParallelRepairCountInGroup),
+            forEachRepairType(600, AutoRepairService.instance::setParallelRepairPercentageInGroup, config::getParallelRepairPercentage),
+            forEachRepairType(700, AutoRepairService.instance::setParallelRepairCountInGroup, config::getParallelRepairCount),
             forEachRepairType(true, AutoRepairService.instance::setMVRepairEnabled, config::getMVRepairEnabled),
             forEachRepairType(ImmutableSet.of(InetAddressAndPort.getLocalHost()), AutoRepairService.instance::setRepairPriorityForHosts, AutoRepairUtils::getPriorityHosts),
             forEachRepairType(ImmutableSet.of(InetAddressAndPort.getLocalHost()), AutoRepairService.instance::setForceRepairForHosts, SetterTests::isLocalHostForceRepair)

@@ -35,6 +35,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.Uninterruptibles;
 
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.repair.RepairRunnable;
 import org.apache.cassandra.utils.Pair;
 
@@ -124,6 +125,10 @@ public class AutoRepair
     // repairAsync runs a repair session of the given type asynchronously.
     public void repairAsync(AutoRepairConfig.RepairType repairType, long millisToWait)
     {
+        if (!AutoRepairService.instance.getAutoRepairConfig().isAutoRepairEnabled(repairType))
+        {
+            throw new ConfigurationException("Auto-repair is disabled for repair type " + repairType);
+        }
         repairExecutors.get(repairType).submit(() -> repair(repairType, millisToWait));
     }
 
