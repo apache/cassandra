@@ -324,8 +324,8 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     {
         public RedundantBefore redundantBefore;
         public DurableBefore durableBefore;
-        public Sync newBootstrapBeganAt;
         public ReducingRangeMap<Timestamp> rejectBefore;
+        public Sync newBootstrapBeganAt;
         public NavigableMap<Timestamp, Ranges> newSafeToRead;
         public RangesForEpoch.Snapshot rangesForEpoch;
     }

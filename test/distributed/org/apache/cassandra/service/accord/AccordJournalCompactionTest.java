@@ -20,17 +20,26 @@ package org.apache.cassandra.service.accord;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.util.NavigableMap;
 
+import com.google.common.collect.ImmutableSortedMap;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import accord.local.DurableBefore;
 import accord.local.RedundantBefore;
+import accord.primitives.Ranges;
+import accord.primitives.Routable;
 import accord.primitives.Timestamp;
+import accord.primitives.Txn;
+import accord.primitives.TxnId;
 import accord.utils.AccordGens;
 import accord.utils.DefaultRandom;
 import accord.utils.Gen;
+import accord.utils.Gens;
 import accord.utils.RandomSource;
+import accord.utils.ReducingRangeMap;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
@@ -40,6 +49,12 @@ import org.apache.cassandra.journal.TestParams;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.AccordGenerators;
 import org.apache.cassandra.utils.concurrent.Condition;
+
+import static accord.local.CommandStores.RangesForEpoch;
+import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.BootstrapBeganAtAccumulator;
+import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.DurableBeforeAccumulator;
+import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.IdentityAccumulator;
+import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.RedundantBeforeAccumulator;
 
 
 public class AccordJournalCompactionTest
@@ -66,6 +81,12 @@ public class AccordJournalCompactionTest
         directory.deleteOnExit();
 
         Gen<RedundantBefore> redundantBeforeGen = AccordGenerators.redundantBefore(DatabaseDescriptor.getPartitioner());
+        Gen<DurableBefore> durableBeforeGen = AccordGenerators.durableBeforeGen(DatabaseDescriptor.getPartitioner());
+        Gen<ReducingRangeMap<Timestamp>> rejectBeforeGen = AccordGenerators.rejectBeforeGen(DatabaseDescriptor.getPartitioner());
+        Gen<Ranges> rangeGen = AccordGenerators.ranges(DatabaseDescriptor.getPartitioner());
+        Gen<TxnId> txnIdGen = AccordGens.txnIds(Gens.pick(Txn.Kind.SyncPoint, Txn.Kind.ExclusiveSyncPoint), ignore -> Routable.Domain.Range);
+        Gen<NavigableMap<Timestamp, Ranges>> safeToReadGen = AccordGenerators.safeToReadGen(DatabaseDescriptor.getPartitioner());
+        Gen<RangesForEpoch.Snapshot> rangesForEpochGen = AccordGenerators.rangesForEpoch(DatabaseDescriptor.getPartitioner());
 
         AccordJournal journal = new AccordJournal(new TestParams()
         {
@@ -85,33 +106,69 @@ public class AccordJournalCompactionTest
         {
             journal.start(null);
             Timestamp timestamp = Timestamp.NONE;
-            RandomSource rng = new DefaultRandom();
-            RedundantBefore prev = RedundantBefore.EMPTY;
-            for (int i = 0; i < 2_000; i++)
+
+            RandomSource rs = new DefaultRandom();
+            Gen<TxnId> bootstrappedAtTxn = new Gen<TxnId>()
+            {
+                TxnId prev = txnIdGen.next(rs);
+                public TxnId next(RandomSource random)
+                {
+                    prev = new TxnId(prev.epoch() + 1, prev.hlc() + random.nextInt(1, 100), prev.kind(), prev.domain(), prev.node);
+                    return prev;
+                }
+            };
+
+            RedundantBeforeAccumulator redundantBeforeAccumulator = new RedundantBeforeAccumulator();
+            DurableBeforeAccumulator durableBeforeAccumulator = new DurableBeforeAccumulator();
+            IdentityAccumulator<ReducingRangeMap<Timestamp>> rejectBeforeAccumulator = new IdentityAccumulator<>(new ReducingRangeMap<>());
+            BootstrapBeganAtAccumulator bootstrapBeganAtAccumulator = new BootstrapBeganAtAccumulator();
+            IdentityAccumulator<NavigableMap<Timestamp, Ranges>> safeToReadAccumulator = new IdentityAccumulator<>(ImmutableSortedMap.of(Timestamp.NONE, Ranges.EMPTY));
+            IdentityAccumulator<RangesForEpoch.Snapshot> rangesForEpochAccumulator = new IdentityAccumulator<>(null);
+            int count = 1_000;
+            Condition condition = Condition.newOneTimeCondition();
+            for (int i = 0; i <= count; i++)
             {
                 timestamp = timestamp.next();
-                RedundantBefore next = redundantBeforeGen.next(rng);
-                journal.appendRedundantBefore(1, next, null);
-                prev = RedundantBefore.merge(prev, next);
+                AccordSafeCommandStore.FieldUpdates updates = new AccordSafeCommandStore.FieldUpdates();
+                updates.durableBefore = durableBeforeGen.next(rs);
+                updates.redundantBefore = redundantBeforeGen.next(rs);
+                updates.rejectBefore = rejectBeforeGen.next(rs);
+                if (i % 100 == 0)
+                    updates.newBootstrapBeganAt = new AccordSafeCommandStore.Sync(bootstrappedAtTxn.next(rs), rangeGen.next(rs));
+                updates.newSafeToRead = safeToReadGen.next(rs);
+                updates.rangesForEpoch = rangesForEpochGen.next(rs);
+
+                if (i == count)
+                    journal.persistStoreState(1, updates, condition::signal);
+                else
+                    journal.persistStoreState(1, updates, null);
+
+                redundantBeforeAccumulator.update(updates.redundantBefore);
+                durableBeforeAccumulator.update(updates.durableBefore);
+                rejectBeforeAccumulator.update(updates.rejectBefore);
+                if (updates.newBootstrapBeganAt != null)
+                    bootstrapBeganAtAccumulator.update(updates.newBootstrapBeganAt);
+                safeToReadAccumulator.update(updates.newSafeToRead);
+                rangesForEpochAccumulator.update(updates.rangesForEpoch);
             }
 
-            RedundantBefore next = redundantBeforeGen.next(rng);
-            Condition condition = Condition.newOneTimeCondition();
-            journal.appendRedundantBefore(1, next, condition::signal);
-            prev = RedundantBefore.merge(prev, next);
             condition.await();
 
             journal.closeCurrentSegmentForTesting();
             journal.runCompactorForTesting();
 
-            Assert.assertEquals(prev, journal.loadRedundantBefore(1));
+            Assert.assertEquals(redundantBeforeAccumulator.get(), journal.loadRedundantBefore(1));
+            Assert.assertEquals(durableBeforeAccumulator.get(), journal.loadDurableBefore(1));
+            Assert.assertEquals(rejectBeforeAccumulator.get(), journal.loadRejectBefore(1));
+            Assert.assertEquals(bootstrapBeganAtAccumulator.get(), journal.loadBootstrapBeganAt(1));
+            Assert.assertEquals(safeToReadAccumulator.get(), journal.loadSafeToRead(1));
+            Assert.assertEquals(rangesForEpochAccumulator.get(), journal.loadRangesForEpoch(1));
         }
         finally
         {
             journal.shutdown();
         }
     }
-
 
     @Test
     public void mergeKeysTest()
@@ -141,5 +198,10 @@ public class AccordJournalCompactionTest
         {
             accordJournal.shutdown();
         }
+    }
+
+    private static TxnId nextTxnId(TxnId txnId)
+    {
+        return new TxnId(txnId.next(), txnId.kind(), txnId.domain());
     }
 }

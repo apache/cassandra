@@ -220,6 +220,7 @@ public class AccordJournal implements IJournal, Shutdownable
     public void persistStoreState(int store, AccordSafeCommandStore.FieldUpdates fieldUpdates, Runnable onFlush)
     {
         RecordPointer pointer = null;
+        // TODO: avoid allocating keys
         if (fieldUpdates.redundantBefore != null)
             pointer = appendInternal(new JournalKey(Timestamp.NONE, JournalKey.Type.REDUNDANT_BEFORE, store), fieldUpdates.redundantBefore);
         if (fieldUpdates.durableBefore != null)
@@ -232,6 +233,10 @@ public class AccordJournal implements IJournal, Shutdownable
             pointer = appendInternal(new JournalKey(Timestamp.NONE, JournalKey.Type.SAFE_TO_READ, store), fieldUpdates.newSafeToRead);
         if (fieldUpdates.rangesForEpoch != null)
             pointer = appendInternal(new JournalKey(Timestamp.NONE, JournalKey.Type.RANGES_FOR_EPOCH, store), fieldUpdates.rangesForEpoch);
+
+        if (onFlush == null)
+            return;
+
         if (pointer != null)
             journal.onFlush(pointer, onFlush);
         else

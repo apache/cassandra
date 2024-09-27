@@ -69,7 +69,8 @@ public class CommandStoreSerializers
                 KeySerializers.routingKey.serialize(map.startAt(i), out, version);
                 valueSerializer.serialize(map.valueAt(i), out, version);
             }
-            KeySerializers.routingKey.serialize(map.startAt(size), out, version);
+            if (size > 0)
+                KeySerializers.routingKey.serialize(map.startAt(size), out, version);
         }
 
         public R deserialize(DataInputPlus in, int version) throws IOException
@@ -83,7 +84,8 @@ public class CommandStoreSerializers
                 keys[i] = KeySerializers.routingKey.deserialize(in, version);
                 values[i] = valueSerializer.deserialize(in, version);
             }
-            keys[size] = KeySerializers.routingKey.deserialize(in, version);
+            if (size > 0)
+                keys[size] = KeySerializers.routingKey.deserialize(in, version);
             return constructor.apply(inclusiveEnds, keys, values);
         }
 
@@ -97,7 +99,8 @@ public class CommandStoreSerializers
                 size += KeySerializers.routingKey.serializedSize(map.startAt(i), version);
                 size += valueSerializer.serializedSize(map.valueAt(i), version);
             }
-            size += KeySerializers.routingKey.serializedSize(map.startAt(mapSize), version);
+            if (size > 0)
+                size += KeySerializers.routingKey.serializedSize(map.startAt(mapSize), version);
 
             return size;
         }

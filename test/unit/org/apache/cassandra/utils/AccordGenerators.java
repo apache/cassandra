@@ -21,14 +21,20 @@ package org.apache.cassandra.utils;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.NavigableMap;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.stream.Stream;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSortedMap;
+
 import accord.local.Command;
 import accord.local.CommonAttributes;
+import accord.local.DurableBefore;
 import accord.local.RedundantBefore;
 import accord.local.SaveStatus;
 import accord.primitives.Ballot;
@@ -50,6 +56,7 @@ import accord.utils.AccordGens;
 import accord.utils.Gen;
 import accord.utils.Gens;
 import accord.utils.RandomSource;
+import accord.utils.ReducingRangeMap;
 import accord.utils.TriFunction;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.dht.AccordSplitter;
@@ -64,6 +71,7 @@ import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.service.accord.txn.TxnWrite;
 import org.quicktheories.impl.JavaRandom;
 
+import static accord.local.CommandStores.RangesForEpoch;
 import static accord.local.Status.Durability.NotDurable;
 import static org.apache.cassandra.service.accord.AccordTestUtils.TABLE_ID1;
 import static org.apache.cassandra.service.accord.AccordTestUtils.createPartialTxn;
@@ -448,6 +456,65 @@ public class AccordGenerators
         Gen<TxnId> txnIdGen = AccordGens.txnIds(Gens.pick(Txn.Kind.SyncPoint, Txn.Kind.ExclusiveSyncPoint), ignore -> Routable.Domain.Range);
         BiFunction<RandomSource, Range, RedundantBefore.Entry> entryGen = (rs, range) -> redundantBeforeEntry(Gens.bools().all(), i -> range, txnIdGen).next(rs);
         return AccordGens.redundantBefore(rangeGen, entryGen);
+    }
+
+    public static Gen<DurableBefore> durableBeforeGen(IPartitioner partitioner)
+    {
+        Gen<Ranges> rangeGen = rangesArbitrary(partitioner);
+        Gen<TxnId> txnIdGen = AccordGens.txnIds(Gens.pick(Txn.Kind.SyncPoint, Txn.Kind.ExclusiveSyncPoint), ignore -> Routable.Domain.Range);
+
+        return (rs) -> {
+            Ranges ranges = rangeGen.next(rs);
+            TxnId majority = txnIdGen.next(rs);
+            TxnId universal = majority;
+            return DurableBefore.create(ranges, majority, universal);
+        };
+    }
+
+    public static Gen<ReducingRangeMap<Timestamp>> rejectBeforeGen(IPartitioner partitioner)
+    {
+        Gen<Ranges> rangeGen = rangesArbitrary(partitioner);
+        Gen<Timestamp> timestampGen = AccordGens.timestamps();
+
+        return (rs) -> {
+            ReducingRangeMap<Timestamp> initial = new ReducingRangeMap<>();
+            int size = rs.nextInt(10);
+            for (int i = 0; i < size; i++)
+                initial = ReducingRangeMap.add(initial, rangeGen.next(rs), timestampGen.next(rs));
+
+            return initial;
+        };
+    }
+
+    public static Gen<NavigableMap<Timestamp, Ranges>> safeToReadGen(IPartitioner partitioner)
+    {
+        Gen<Ranges> rangeGen = ranges(partitioner);
+        Gen<Timestamp> timestampGen = AccordGens.timestamps();
+
+        return (rs) -> {
+            ImmutableMap.Builder<Timestamp, Ranges> initial = new ImmutableSortedMap.Builder<>(Comparator.comparing(o -> o));
+            int size = rs.nextInt(10);
+            for (int i = 0; i < size; i++)
+                initial.put(timestampGen.next(rs), rangeGen.next(rs));
+
+            return (NavigableMap<Timestamp, Ranges>) initial.build();
+        };
+    }
+
+    public static Gen<RangesForEpoch.Snapshot> rangesForEpoch(IPartitioner partitioner)
+    {
+        Gen<Ranges> rangesGen = ranges(partitioner);
+
+        return rs -> {
+            int size = rs.nextInt(1, 5);
+            long[] epochs = new long[size];
+            for (int i = 0; i < size; i++)
+                epochs[i] = rs.nextLong(1, 10_000);
+            Ranges[] ranges = new Ranges[size];
+            for (int i = 0; i < size; i++)
+                ranges[i] = rangesGen.next(rs);
+            return new RangesForEpoch.Snapshot(epochs, ranges);
+        };
     }
 
     public static <T> Gen<T> fromQT(org.quicktheories.core.Gen<T> qt)

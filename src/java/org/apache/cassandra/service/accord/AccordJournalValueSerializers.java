@@ -42,6 +42,8 @@ import static org.apache.cassandra.service.accord.AccordKeyspace.LocalVersionedS
 import static org.apache.cassandra.service.accord.AccordKeyspace.LocalVersionedSerializers.rejectBefore;
 import static org.apache.cassandra.service.accord.AccordKeyspace.LocalVersionedSerializers.safeToRead;
 
+// TODO (required): test with large collection values, and perhaps split out some fields if they have a tendency to grow larger
+// TODO (required): alert on metadata size
 public class AccordJournalValueSerializers
 {
     public interface FlyweightSerializer<ENTRY, IMAGE>
@@ -341,10 +343,11 @@ public class AccordJournalValueSerializers
 
         public void serialize(JournalKey key, RangesForEpoch.Snapshot from, DataOutputPlus out, int userVersion) throws IOException
         {
-            out.writeInt(from.ranges.length);
+            out.writeUnsignedVInt32(from.ranges.length);
             for (Ranges ranges : from.ranges)
                 KeySerializers.ranges.serialize(ranges, out, userVersion);
-            out.writeInt(from.epochs.length);
+
+            out.writeUnsignedVInt32(from.epochs.length);
             for (long epoch : from.epochs)
                 out.writeLong(epoch);
         }
@@ -356,11 +359,11 @@ public class AccordJournalValueSerializers
 
         public void deserialize(JournalKey key, IdentityAccumulator<RangesForEpoch.Snapshot> into, DataInputPlus in, int userVersion) throws IOException
         {
-            Ranges[] ranges = new Ranges[in.readInt()];
+            Ranges[] ranges = new Ranges[in.readUnsignedVInt32()];
             for (int i = 0; i < ranges.length; i++)
                 ranges[i] = KeySerializers.ranges.deserialize(in, userVersion);
 
-            long[] epochs = new long[in.readInt()];
+            long[] epochs = new long[in.readUnsignedVInt32()];
             for (int i = 0; i < epochs.length; i++)
                 epochs[i] = in.readLong(); // TODO: assert lengths equal?
 
