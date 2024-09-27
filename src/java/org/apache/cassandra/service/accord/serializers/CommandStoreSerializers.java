@@ -173,6 +173,7 @@ public class CommandStoreSerializers
             size += TypeSizes.sizeofUnsignedVInt(t.endEpoch == Long.MAX_VALUE ? 0 : 1 + t.endEpoch - t.startEpoch);
             size += CommandSerializers.txnId.serializedSize(t.locallyAppliedOrInvalidatedBefore, version);
             size += CommandSerializers.txnId.serializedSize(t.shardAppliedOrInvalidatedBefore, version);
+            size += CommandSerializers.txnId.serializedSize(t.gcBefore, version);
             size += CommandSerializers.txnId.serializedSize(t.bootstrappedAt, version);
             size += CommandSerializers.nullableTimestamp.serializedSize(t.staleUntilAtLeast, version);
             return size;
