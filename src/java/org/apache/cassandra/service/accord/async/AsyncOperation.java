@@ -274,9 +274,9 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
                 context.releaseResources(commandStore);
                 state(COMPLETING);
                 if (diffs != null)
+                    appendCommands(diffs);
+                if (safeStore.fieldUpdates() != null)
                 {
-                    appendCommands(diffs, sanityCheck);
-
                     commandStore.persistFieldUpdates(safeStore.fieldUpdates(), () -> finish(result, null));
                     return false;
                 }
@@ -290,15 +290,16 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
         return false;
     }
 
-    private void appendCommands(List<SavedCommand.DiffWriter> diffs, List<Command> commands)
+    private void appendCommands(List<SavedCommand.DiffWriter> diffs)
     {
-        if (commands != null)
+        if (sanityCheck != null)
         {
+            Invariants.checkState(CassandraRelevantProperties.DTEST_ACCORD_JOURNAL_SANITY_CHECK_ENABLED.getBoolean());
             Condition condition = Condition.newOneTimeCondition();
             this.commandStore.appendCommands(diffs, condition::signal);
             condition.awaitUninterruptibly();
 
-            for (Command check : commands)
+            for (Command check : sanityCheck)
                 this.commandStore.sanityCheckCommand(check);
         }
         else
