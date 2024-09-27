@@ -61,31 +61,31 @@ public class CommandStoreSerializers
         public void serialize(R map, DataOutputPlus out, int version) throws IOException
         {
             out.writeBoolean(map.inclusiveEnds());
-            int size = map.size();
-            out.writeUnsignedVInt32(size);
+            int mapSize = map.size();
+            out.writeUnsignedVInt32(mapSize);
 
-            for (int i=0; i<size; i++)
+            for (int i=0; i<mapSize; i++)
             {
                 KeySerializers.routingKey.serialize(map.startAt(i), out, version);
                 valueSerializer.serialize(map.valueAt(i), out, version);
             }
-            if (size > 0)
-                KeySerializers.routingKey.serialize(map.startAt(size), out, version);
+            if (mapSize > 0)
+                KeySerializers.routingKey.serialize(map.startAt(mapSize), out, version);
         }
 
         public R deserialize(DataInputPlus in, int version) throws IOException
         {
             boolean inclusiveEnds = in.readBoolean();
-            int size = in.readUnsignedVInt32();
-            RoutingKey[] keys = new RoutingKey[size + 1];
-            T[] values = newValueArray.apply(size);
-            for (int i=0; i<size; i++)
+            int mapSize = in.readUnsignedVInt32();
+            RoutingKey[] keys = new RoutingKey[mapSize + 1];
+            T[] values = newValueArray.apply(mapSize);
+            for (int i=0; i<mapSize; i++)
             {
                 keys[i] = KeySerializers.routingKey.deserialize(in, version);
                 values[i] = valueSerializer.deserialize(in, version);
             }
-            if (size > 0)
-                keys[size] = KeySerializers.routingKey.deserialize(in, version);
+            if (mapSize > 0)
+                keys[mapSize] = KeySerializers.routingKey.deserialize(in, version);
             return constructor.apply(inclusiveEnds, keys, values);
         }
 
@@ -99,7 +99,7 @@ public class CommandStoreSerializers
                 size += KeySerializers.routingKey.serializedSize(map.startAt(i), version);
                 size += valueSerializer.serializedSize(map.valueAt(i), version);
             }
-            if (size > 0)
+            if (mapSize > 0)
                 size += KeySerializers.routingKey.serializedSize(map.startAt(mapSize), version);
 
             return size;
