@@ -24,18 +24,13 @@ import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import accord.local.RedundantBefore;
-import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.AccordGens;
-import accord.utils.DefaultRandom;
 import accord.utils.Gen;
 import accord.utils.Gens;
-import accord.utils.RandomSource;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -44,9 +39,7 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.journal.TestParams;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.AccordGenerators;
 import org.apache.cassandra.utils.AsymmetricOrdering;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.FBUtilities.Order;
@@ -129,36 +122,6 @@ public class AccordJournalTest
                 }
             }
         });
-    }
-
-    @Test
-    public void mergeKeysTest()
-    {
-        AccordJournal accordJournal = new AccordJournal(TestParams.INSTANCE);
-        try
-        {
-            accordJournal.start(null);
-            Gen<Timestamp> timestampGen = AccordGens.timestamps();
-            // TODO: we might benefit from some unification of generators
-            Gen<RedundantBefore> redundantBeforeGen = AccordGenerators.redundantBefore(DatabaseDescriptor.getPartitioner());
-            RandomSource rng = new DefaultRandom();
-            // Probably all redundant befores will be written with the same timestamp?
-            Timestamp timestamp = timestampGen.next(rng);
-            RedundantBefore expected = RedundantBefore.EMPTY;
-            for (int i = 0; i < 10; i++)
-            {
-                RedundantBefore redundantBefore = redundantBeforeGen.next(rng);
-                expected = RedundantBefore.merge(expected, redundantBefore);
-                accordJournal.appendRedundantBefore(1, redundantBefore, () -> {});
-            }
-
-            RedundantBefore actual = accordJournal.loadRedundantBefore(1);
-            Assert.assertEquals(expected, actual);
-        }
-        finally
-        {
-            accordJournal.shutdown();
-        }
     }
 
     private static ByteBuffer toBuffer(JournalKey k)

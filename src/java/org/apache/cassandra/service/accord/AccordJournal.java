@@ -210,13 +210,6 @@ public class AccordJournal implements IJournal, Shutdownable
     }
 
     @Override
-    public void appendRedundantBefore(int store, RedundantBefore redundantBefore, Runnable onFlush)
-    {
-        JournalKey key = new JournalKey(Timestamp.NONE, JournalKey.Type.REDUNDANT_BEFORE, store);
-        append(key, redundantBefore, onFlush);
-    }
-
-    @Override
     public void persistStoreState(int store, AccordSafeCommandStore.FieldUpdates fieldUpdates, Runnable onFlush)
     {
         RecordPointer pointer = null;

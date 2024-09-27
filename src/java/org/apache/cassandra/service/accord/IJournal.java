@@ -42,8 +42,6 @@ public interface IJournal
 
     void appendCommand(int store, SavedCommand.DiffWriter value, Runnable onFlush);
 
-    void appendRedundantBefore(int store, RedundantBefore redundantBefore, Runnable onFlush);
-
     void persistStoreState(int store,
                            // TODO: this class should not live under ASCS
                            AccordSafeCommandStore.FieldUpdates fieldUpdates,

@@ -18,12 +18,13 @@
 
 package org.apache.cassandra.service.accord;
 
-import java.io.IOException;
 import java.nio.file.Files;
 import java.util.NavigableMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.collect.ImmutableSortedMap;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -67,19 +68,22 @@ public class AccordJournalCompactionTest
         StorageService.instance.setPartitionerUnsafe(Murmur3Partitioner.instance);
         ServerTestUtils.prepareServerNoRegister();
 
-        File directory = new File(Files.createTempDirectory(null));
-        directory.deleteRecursiveOnExit();
-        DatabaseDescriptor.setAccordJournalDirectory(directory.path());
         StorageService.instance.initServer();
         Keyspace.setInitialized();
     }
 
-    @Test
-    public void segmentMergeTest() throws IOException, InterruptedException
+    private AtomicInteger counter = new AtomicInteger();
+    @Before
+    public void beforeTest() throws Throwable
     {
-        File directory = new File(Files.createTempDirectory(null));
-        directory.deleteOnExit();
+        File directory = new File(Files.createTempDirectory(Integer.toString(counter.incrementAndGet())));
+        directory.deleteRecursiveOnExit();
+        DatabaseDescriptor.setAccordJournalDirectory(directory.path());
+    }
 
+    @Test
+    public void segmentMergeTest() throws InterruptedException
+    {
         Gen<RedundantBefore> redundantBeforeGen = AccordGenerators.redundantBefore(DatabaseDescriptor.getPartitioner());
         Gen<DurableBefore> durableBeforeGen = AccordGenerators.durableBeforeGen(DatabaseDescriptor.getPartitioner());
         Gen<ReducingRangeMap<Timestamp>> rejectBeforeGen = AccordGenerators.rejectBeforeGen(DatabaseDescriptor.getPartitioner());
@@ -168,40 +172,5 @@ public class AccordJournalCompactionTest
         {
             journal.shutdown();
         }
-    }
-
-    @Test
-    public void mergeKeysTest()
-    {
-        AccordJournal accordJournal = new AccordJournal(TestParams.INSTANCE);
-        try
-        {
-            accordJournal.start(null);
-            Gen<Timestamp> timestampGen = AccordGens.timestamps();
-            // TODO: we might benefit from some unification of generators
-            Gen<RedundantBefore> redundantBeforeGen = AccordGenerators.redundantBefore(DatabaseDescriptor.getPartitioner());
-            RandomSource rng = new DefaultRandom();
-            // Probably all redundant befores will be written with the same timestamp?
-            timestampGen.next(rng);
-            RedundantBefore expected = RedundantBefore.EMPTY;
-            for (int i = 0; i < 10; i++)
-            {
-                RedundantBefore redundantBefore = redundantBeforeGen.next(rng);
-                expected = RedundantBefore.merge(expected, redundantBefore);
-                accordJournal.appendRedundantBefore(1, redundantBefore, () -> {});
-            }
-
-            RedundantBefore actual = accordJournal.loadRedundantBefore(1);
-            Assert.assertEquals(expected, actual);
-        }
-        finally
-        {
-            accordJournal.shutdown();
-        }
-    }
-
-    private static TxnId nextTxnId(TxnId txnId)
-    {
-        return new TxnId(txnId.next(), txnId.kind(), txnId.domain());
     }
 }

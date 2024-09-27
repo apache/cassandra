@@ -121,12 +121,6 @@ public class MockJournal implements IJournal
         append(new JournalKey(value.after().txnId(), JournalKey.Type.COMMAND_DIFF, store), value, onFlush);
     }
 
-    @Override
-    public void appendRedundantBefore(int store, RedundantBefore newValue, Runnable onFlush)
-    {
-        fieldUpdates(store).redundantBeforeAccumulator.update(newValue);
-    }
-
     private FieldUpdates fieldUpdates(int store)
     {
         return fieldUpdates.computeIfAbsent(store, (o) -> new FieldUpdates());
