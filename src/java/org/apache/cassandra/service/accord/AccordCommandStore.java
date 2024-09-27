@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.service.accord;
 
-import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
@@ -30,12 +29,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.ListMultimap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -61,7 +57,6 @@ import accord.local.Status;
 import accord.local.cfk.CommandsForKey;
 import accord.primitives.Deps;
 import accord.primitives.Keys;
-import accord.primitives.Range;
 import accord.primitives.Ranges;
 import accord.primitives.RoutableKey;
 import accord.primitives.Timestamp;
@@ -74,27 +69,13 @@ import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.ColumnFamilyStore.FlushReason;
-import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.Mutation;
-import org.apache.cassandra.db.commitlog.CommitLogPosition;
-import org.apache.cassandra.db.filter.ColumnFilter;
-import org.apache.cassandra.db.memtable.Memtable;
-import org.apache.cassandra.db.memtable.TrieMemtable;
-import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
-import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.io.sstable.SSTableReadsListener;
 import org.apache.cassandra.metrics.AccordStateCacheMetrics;
-import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.async.AsyncOperation;
 import org.apache.cassandra.service.accord.events.CacheEvents;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
-import org.apache.cassandra.utils.concurrent.Future;
-import org.apache.cassandra.utils.concurrent.FutureCombiner;
-import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import org.apache.cassandra.utils.concurrent.Promise;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
@@ -288,6 +269,7 @@ public class AccordCommandStore extends CommandStore implements CacheSize
         loadSafeToRead(journal.loadSafeToRead(id()));
         loadRangesForEpoch(journal.loadRangesForEpoch(id()));
         loadHistoricalTransactions(journal.loadHistoricalTransactions(id()));
+
         executor.execute(() -> CommandStore.register(this));
     }
 
@@ -650,88 +632,6 @@ public class AccordCommandStore extends CommandStore implements CacheSize
     public Command loadCommand(TxnId txnId)
     {
         return journal.loadCommand(id, txnId);
-    }
-
-    public Future<?> prepareForGC(@Nonnull Timestamp gcBefore, @Nonnull Ranges ranges)
-    {
-        Invariants.nonNull(gcBefore, "gcBefore should not be null");
-        Invariants.nonNull(ranges, "ranges should not be null");
-        ListMultimap<TableId, org.apache.cassandra.dht.Range<Token>> toPrepare = ArrayListMultimap.create();
-        for (Range r : ranges)
-        {
-            TokenRange tr = (TokenRange)r;
-            TableId tableId = ((TokenRange) r).table();
-            toPrepare.put(tableId, tr.toKeyspaceRange());
-        }
-
-        List<Future<CommitLogPosition>> flushes = new ArrayList<>(toPrepare.keySet().size());
-        for (TableId tableId : toPrepare.keySet())
-        {
-            List<org.apache.cassandra.dht.Range<Token>> tableRanges = toPrepare.get(tableId);
-            ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(tableId);
-            if (cfs == null)
-            {
-                // TODO (review): Error handling?
-                logger.warn("Cannot prepare CFS with tableId {} for Accord GC because it does not exist", tableId);
-                continue;
-            }
-
-            Memtable currentMemtable = cfs.getCurrentMemtable();
-            if (currentMemtable.getMinTimestamp() > gcBefore.hlc())
-                continue;
-
-            boolean intersects = false;
-            // TrieMemtable doesn't support reverse iteration so can't find the last token
-            if (currentMemtable instanceof TrieMemtable)
-                intersects = true;
-            else
-            {
-                Token firstToken = null;
-                try (UnfilteredPartitionIterator iterator = currentMemtable.partitionIterator(ColumnFilter.all(cfs.metadata()), DataRange.allData(cfs.getPartitioner()), SSTableReadsListener.NOOP_LISTENER))
-                {
-                    if (iterator.hasNext())
-                        firstToken = iterator.next().partitionKey().getToken();
-                }
-                Token lastToken = currentMemtable.lastToken();
-
-                if (firstToken != null)
-                {
-                    checkState(lastToken != null);
-                    if (firstToken.equals(lastToken))
-                    {
-                        for (org.apache.cassandra.dht.Range<Token> tableRange : tableRanges)
-                        {
-                            if (tableRange.contains(firstToken))
-                            {
-                                intersects = true;
-                                break;
-                            }
-                        }
-                    }
-                    else
-                    {
-                        checkState(firstToken.compareTo(lastToken) < 0);
-                        org.apache.cassandra.dht.Range<Token> memtableRange = new org.apache.cassandra.dht.Range<>(firstToken, lastToken);
-                        for (org.apache.cassandra.dht.Range<Token> tableRange : tableRanges)
-                        {
-                            if (tableRange.intersects(memtableRange))
-                            {
-                                intersects = true;
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-
-            if (intersects)
-                flushes.add(cfs.forceFlush(FlushReason.ACCORD_TXN_GC));
-        }
-
-        if (flushes.isEmpty())
-            return ImmediateFuture.success(null);
-        else
-            return FutureCombiner.allOf(flushes);
     }
 
     public interface Loader
