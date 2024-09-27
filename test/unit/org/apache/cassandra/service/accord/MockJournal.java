@@ -23,6 +23,7 @@ import java.util.NavigableMap;
 import java.util.function.Function;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableSortedMap;
 
 import accord.api.Result;
 import accord.local.Command;
@@ -43,6 +44,10 @@ import accord.primitives.TxnId;
 import accord.primitives.Writes;
 import accord.utils.Invariants;
 import accord.utils.ReducingRangeMap;
+import org.apache.cassandra.service.accord.AccordJournalValueSerializers.BootstrapBeganAtAccumulator;
+import org.apache.cassandra.service.accord.AccordJournalValueSerializers.DurableBeforeAccumulator;
+import org.apache.cassandra.service.accord.AccordJournalValueSerializers.IdentityAccumulator;
+import org.apache.cassandra.service.accord.AccordJournalValueSerializers.RedundantBeforeAccumulator;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 
 import java.util.ArrayList;
@@ -52,11 +57,22 @@ import java.util.Map;
 public class MockJournal implements IJournal
 {
     private final Map<JournalKey, List<LoadedDiff>> commands = new HashMap<>();
-    private final Map<Integer, RedundantBefore> redundantBefores = new HashMap<>();
-    @Override
-    public Command loadCommand(int commandStoreId, TxnId txnId)
+
+    private static class FieldUpdates
     {
-        JournalKey key = new JournalKey(txnId, JournalKey.Type.COMMAND_DIFF, commandStoreId);
+        final RedundantBeforeAccumulator redundantBeforeAccumulator = new RedundantBeforeAccumulator();
+        final DurableBeforeAccumulator durableBeforeAccumulator = new DurableBeforeAccumulator();
+        final IdentityAccumulator<ReducingRangeMap<Timestamp>> rejectBeforeAccumulator = new IdentityAccumulator<>(new ReducingRangeMap<>());
+        final BootstrapBeganAtAccumulator bootstrapBeganAtAccumulator = new BootstrapBeganAtAccumulator();
+        final IdentityAccumulator<NavigableMap<Timestamp, Ranges>> safeToReadAccumulator = new IdentityAccumulator<>(ImmutableSortedMap.of(Timestamp.NONE, Ranges.EMPTY));
+        final IdentityAccumulator<CommandStores.RangesForEpoch.Snapshot> rangesForEpochAccumulator = new IdentityAccumulator<>(null);
+    }
+
+    private final Map<Integer, FieldUpdates> fieldUpdates = new HashMap<>();
+    @Override
+    public Command loadCommand(int store, TxnId txnId)
+    {
+        JournalKey key = new JournalKey(txnId, JournalKey.Type.COMMAND_DIFF, store);
         List<LoadedDiff> saved = commands.get(key);
         if (saved == null)
             return null;
@@ -64,39 +80,39 @@ public class MockJournal implements IJournal
     }
 
     @Override
-    public RedundantBefore loadRedundantBefore(int commandStoreId)
+    public RedundantBefore loadRedundantBefore(int store)
     {
-        return redundantBefores.get(commandStoreId);
+        return fieldUpdates(store).redundantBeforeAccumulator.get();
     }
 
     @Override
-    public DurableBefore loadDurableBefore(int commandStoreId)
+    public DurableBefore loadDurableBefore(int store)
     {
-        throw new UnsupportedOperationException();
+        return fieldUpdates(store).durableBeforeAccumulator.get();
     }
 
     @Override
-    public NavigableMap<TxnId, Ranges> loadBootstrapBeganAt(int commandStoreId)
+    public NavigableMap<TxnId, Ranges> loadBootstrapBeganAt(int store)
     {
-        throw new UnsupportedOperationException();
+        return fieldUpdates(store).bootstrapBeganAtAccumulator.get();
     }
 
     @Override
-    public ReducingRangeMap<Timestamp> loadRejectBefore(int commandStoreId)
+    public ReducingRangeMap<Timestamp> loadRejectBefore(int store)
     {
-        throw new UnsupportedOperationException();
+        return fieldUpdates(store).rejectBeforeAccumulator.get();
     }
 
     @Override
-    public NavigableMap<Timestamp, Ranges> loadSafeToRead(int commandStoreId)
+    public NavigableMap<Timestamp, Ranges> loadSafeToRead(int store)
     {
-        throw new UnsupportedOperationException();
+        return fieldUpdates(store).safeToReadAccumulator.get();
     }
 
     @Override
-    public CommandStores.RangesForEpoch.Snapshot loadRangesForEpoch(int commandStoreId)
+    public CommandStores.RangesForEpoch.Snapshot loadRangesForEpoch(int store)
     {
-        throw new UnsupportedOperationException();
+        return fieldUpdates(store).rangesForEpochAccumulator.get();
     }
 
     @Override
@@ -108,17 +124,30 @@ public class MockJournal implements IJournal
     @Override
     public void appendRedundantBefore(int store, RedundantBefore newValue, Runnable onFlush)
     {
-        redundantBefores.compute(store, (integer, oldValue) -> {
-            if (oldValue == null)
-                return newValue;
-            return RedundantBefore.merge(oldValue, newValue);
-        });
+        fieldUpdates(store).redundantBeforeAccumulator.update(newValue);
+    }
+
+    private FieldUpdates fieldUpdates(int store)
+    {
+        return fieldUpdates.computeIfAbsent(store, (o) -> new FieldUpdates());
     }
 
     @Override
     public void persistStoreState(int store, AccordSafeCommandStore.FieldUpdates fieldUpdates, Runnable onFlush)
     {
-        throw new IllegalStateException();
+        FieldUpdates updates = fieldUpdates(store);
+        if (fieldUpdates.redundantBefore != null)
+            updates.redundantBeforeAccumulator.update(fieldUpdates.redundantBefore);
+        if (fieldUpdates.durableBefore != null)
+            updates.durableBeforeAccumulator.update(fieldUpdates.durableBefore);
+        if (fieldUpdates.rejectBefore != null)
+            updates.rejectBeforeAccumulator.update(fieldUpdates.rejectBefore);
+        if (fieldUpdates.newBootstrapBeganAt != null)
+            updates.bootstrapBeganAtAccumulator.update(fieldUpdates.newBootstrapBeganAt);
+        if (fieldUpdates.newSafeToRead != null)
+            updates.safeToReadAccumulator.update(fieldUpdates.newSafeToRead);
+        if (fieldUpdates.rangesForEpoch != null)
+            updates.rangesForEpochAccumulator.update(fieldUpdates.rangesForEpoch);
     }
 
     @Override
