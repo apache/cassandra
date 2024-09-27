@@ -18,7 +18,10 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.NavigableMap;
 import java.util.function.Function;
 
@@ -44,17 +47,12 @@ import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.primitives.Writes;
 import accord.utils.Invariants;
-import accord.utils.ReducingRangeMap;
 import org.apache.cassandra.service.accord.AccordJournalValueSerializers.BootstrapBeganAtAccumulator;
 import org.apache.cassandra.service.accord.AccordJournalValueSerializers.DurableBeforeAccumulator;
 import org.apache.cassandra.service.accord.AccordJournalValueSerializers.HistoricalTransactionsAccumulator;
 import org.apache.cassandra.service.accord.AccordJournalValueSerializers.IdentityAccumulator;
 import org.apache.cassandra.service.accord.AccordJournalValueSerializers.RedundantBeforeAccumulator;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
-
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
 
 public class MockJournal implements IJournal
 {
@@ -139,8 +137,6 @@ public class MockJournal implements IJournal
             updates.redundantBeforeAccumulator.update(fieldUpdates.redundantBefore);
         if (fieldUpdates.durableBefore != null)
             updates.durableBeforeAccumulator.update(fieldUpdates.durableBefore);
-        if (fieldUpdates.rejectBefore != null)
-            updates.rejectBeforeAccumulator.update(fieldUpdates.rejectBefore);
         if (fieldUpdates.newBootstrapBeganAt != null)
             updates.bootstrapBeganAtAccumulator.update(fieldUpdates.newBootstrapBeganAt);
         if (fieldUpdates.newSafeToRead != null)
