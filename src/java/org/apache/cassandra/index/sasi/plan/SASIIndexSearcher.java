@@ -38,7 +38,7 @@ public class SASIIndexSearcher implements Index.Searcher
     public SASIIndexSearcher(ColumnFamilyStore cfs, ReadCommand command, long executionQuotaMs)
     {
         this.command = command;
-        this.controller = new QueryController(cfs, (PartitionRangeReadCommand) command, executionQuotaMs);
+        this.controller = new QueryController(cfs, command, executionQuotaMs);
     }
 
     @Override
