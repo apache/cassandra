@@ -146,7 +146,7 @@ public class AccordJournalCompactionTest
                 updates.redundantBefore = redundantBeforeGen.next(rs);
                 if (i % 100 == 0)
                     updates.newBootstrapBeganAt = new AccordSafeCommandStore.Sync(bootstrappedAtTxn.next(rs), rangeGen.next(rs));
-                updates.newSafeToRead = safeToReadGen.next(rs);
+                updates.safeToRead = safeToReadGen.next(rs);
                 updates.rangesForEpoch = rangesForEpochGen.next(rs);
                 updates.historicalTransactions = historicalTransactionsGen.next(rs);
 
@@ -159,7 +159,7 @@ public class AccordJournalCompactionTest
                 durableBeforeAccumulator.update(updates.durableBefore);
                 if (updates.newBootstrapBeganAt != null)
                     bootstrapBeganAtAccumulator.update(updates.newBootstrapBeganAt);
-                safeToReadAccumulator.update(updates.newSafeToRead);
+                safeToReadAccumulator.update(updates.safeToRead);
                 rangesForEpochAccumulator.update(updates.rangesForEpoch);
                 historicalTransactionsAccumulator.update(updates.historicalTransactions);
             }

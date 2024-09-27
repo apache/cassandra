@@ -118,6 +118,19 @@ public class AccordJournalValueSerializers
         }
     }
 
+    public static class IdentityAccumulator<T> extends Accumulator<T, T>
+    {
+        public IdentityAccumulator(T initial)
+        {
+            super(initial);
+        }
+
+        protected T accumulate(T oldValue, T newValue)
+        {
+            return newValue;
+        }
+    }
+
     public static class RedundantBeforeAccumulator extends Accumulator<RedundantBefore, RedundantBefore>
     {
         public RedundantBeforeAccumulator()
@@ -129,20 +142,6 @@ public class AccordJournalValueSerializers
         protected RedundantBefore accumulate(RedundantBefore oldValue, RedundantBefore newValue)
         {
             return RedundantBefore.merge(oldValue, newValue);
-        }
-    }
-
-    public static class DurableBeforeAccumulator extends Accumulator<DurableBefore, DurableBefore>
-    {
-        public DurableBeforeAccumulator()
-        {
-            super(DurableBefore.EMPTY);
-        }
-
-        @Override
-        protected DurableBefore accumulate(DurableBefore oldValue, DurableBefore newValue)
-        {
-            return DurableBefore.merge(oldValue, newValue);
         }
     }
 
@@ -194,6 +193,20 @@ public class AccordJournalValueSerializers
         }
     }
 
+    public static class DurableBeforeAccumulator extends Accumulator<DurableBefore, DurableBefore>
+    {
+        public DurableBeforeAccumulator()
+        {
+            super(DurableBefore.EMPTY);
+        }
+
+        @Override
+        protected DurableBefore accumulate(DurableBefore oldValue, DurableBefore newValue)
+        {
+            return DurableBefore.merge(oldValue, newValue);
+        }
+    }
+
     public static class DurableBeforeSerializer implements FlyweightSerializer<DurableBefore, DurableBeforeAccumulator>
     {
         public DurableBeforeAccumulator mergerFor(JournalKey journalKey)
@@ -226,19 +239,6 @@ public class AccordJournalValueSerializers
             // TODO: maybe using local serializer is not the best call here, but how do we distinguish
             // between messaging and disk versioning?
             into.update(durableBefore.deserialize(in));
-        }
-    }
-
-    public static class IdentityAccumulator<T> extends Accumulator<T, T>
-    {
-        public IdentityAccumulator(T initial)
-        {
-            super(initial);
-        }
-
-        protected T accumulate(T oldValue, T newValue)
-        {
-            return newValue;
         }
     }
 
@@ -303,6 +303,30 @@ public class AccordJournalValueSerializers
         }
     }
 
+    public static class SafeToReadSerializer implements FlyweightSerializer<NavigableMap<Timestamp, Ranges>, IdentityAccumulator<NavigableMap<Timestamp, Ranges>>>
+    {
+        @Override
+        public IdentityAccumulator<NavigableMap<Timestamp, Ranges>> mergerFor(JournalKey key)
+        {
+            return new IdentityAccumulator<>(ImmutableSortedMap.of(Timestamp.NONE, Ranges.EMPTY));
+        }
+
+        public void serialize(JournalKey key, NavigableMap<Timestamp, Ranges> from, DataOutputPlus out, int userVersion) throws IOException
+        {
+            safeToRead.serialize(from, out);
+        }
+
+        public void reserialize(JournalKey key, IdentityAccumulator<NavigableMap<Timestamp, Ranges>> from, DataOutputPlus out, int userVersion) throws IOException
+        {
+            serialize(key, from.get(), out, userVersion);
+        }
+
+        public void deserialize(JournalKey key, IdentityAccumulator<NavigableMap<Timestamp, Ranges>> into, DataInputPlus in, int userVersion) throws IOException
+        {
+            into.update(safeToRead.deserialize(in));
+        }
+    }
+
     public static class RangesForEpochSerializer
     implements FlyweightSerializer<RangesForEpoch.Snapshot, IdentityAccumulator<RangesForEpoch.Snapshot>>
     {
@@ -341,31 +365,7 @@ public class AccordJournalValueSerializers
             into.update(new RangesForEpoch.Snapshot(epochs, ranges));
         }
     }
-
-    public static class SafeToReadSerializer implements FlyweightSerializer<NavigableMap<Timestamp, Ranges>, IdentityAccumulator<NavigableMap<Timestamp, Ranges>>>
-    {
-        @Override
-        public IdentityAccumulator<NavigableMap<Timestamp, Ranges>> mergerFor(JournalKey key)
-        {
-            return new IdentityAccumulator<>(ImmutableSortedMap.of(Timestamp.NONE, Ranges.EMPTY));
-        }
-
-        public void serialize(JournalKey key, NavigableMap<Timestamp, Ranges> from, DataOutputPlus out, int userVersion) throws IOException
-        {
-            safeToRead.serialize(from, out);
-        }
-
-        public void reserialize(JournalKey key, IdentityAccumulator<NavigableMap<Timestamp, Ranges>> from, DataOutputPlus out, int userVersion) throws IOException
-        {
-            serialize(key, from.get(), out, userVersion);
-        }
-
-        public void deserialize(JournalKey key, IdentityAccumulator<NavigableMap<Timestamp, Ranges>> into, DataInputPlus in, int userVersion) throws IOException
-        {
-            into.update(safeToRead.deserialize(in));
-        }
-    }
-
+    
     public static class HistoricalTransactionsAccumulator extends Accumulator<List<Deps>, Deps>
     {
         public HistoricalTransactionsAccumulator()

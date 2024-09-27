@@ -225,8 +225,8 @@ public class AccordJournal implements IJournal, Shutdownable
             pointer = appendInternal(new JournalKey(Timestamp.NONE, JournalKey.Type.DURABLE_BEFORE, store), fieldUpdates.durableBefore);
         if (fieldUpdates.newBootstrapBeganAt != null)
             pointer = appendInternal(new JournalKey(Timestamp.NONE, JournalKey.Type.BOOTSTRAP_BEGAN_AT, store), fieldUpdates.newBootstrapBeganAt);
-        if (fieldUpdates.newSafeToRead != null)
-            pointer = appendInternal(new JournalKey(Timestamp.NONE, JournalKey.Type.SAFE_TO_READ, store), fieldUpdates.newSafeToRead);
+        if (fieldUpdates.safeToRead != null)
+            pointer = appendInternal(new JournalKey(Timestamp.NONE, JournalKey.Type.SAFE_TO_READ, store), fieldUpdates.safeToRead);
         if (fieldUpdates.rangesForEpoch != null)
             pointer = appendInternal(new JournalKey(Timestamp.NONE, JournalKey.Type.RANGES_FOR_EPOCH, store), fieldUpdates.rangesForEpoch);
         if (fieldUpdates.historicalTransactions != null)

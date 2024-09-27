@@ -298,11 +298,11 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     }
 
     @Override
-    public void unsafeSetSafeToRead(NavigableMap<Timestamp, Ranges> newSafeToRead)
+    public void setSafeToRead(NavigableMap<Timestamp, Ranges> newSafeToRead)
     {
         if (fieldUpdates == null) fieldUpdates = new FieldUpdates();
-        fieldUpdates.newSafeToRead = newSafeToRead;
-        super.unsafeSetSafeToRead(newSafeToRead);
+        fieldUpdates.safeToRead = newSafeToRead;
+        super.setSafeToRead(newSafeToRead);
     }
 
     @Override
@@ -331,7 +331,7 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
         public RedundantBefore redundantBefore;
         public DurableBefore durableBefore;
         public Sync newBootstrapBeganAt;
-        public NavigableMap<Timestamp, Ranges> newSafeToRead;
+        public NavigableMap<Timestamp, Ranges> safeToRead;
         public RangesForEpoch.Snapshot rangesForEpoch;
         public Deps historicalTransactions;
     }
