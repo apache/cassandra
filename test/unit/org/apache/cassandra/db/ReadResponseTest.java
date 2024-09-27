@@ -264,7 +264,8 @@ public class ReadResponseTest
                   metadata.partitioner.decorateKey(ByteBufferUtil.bytes(key)),
                   null,
                   null,
-                  false);
+                  false,
+                  null);
            
         }
 

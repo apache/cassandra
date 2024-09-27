@@ -63,6 +63,7 @@ import org.apache.cassandra.db.transform.RTBoundValidator;
 import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.db.virtual.VirtualTable;
+import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.io.sstable.SSTableReadsListener;
@@ -106,9 +107,10 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                          DecoratedKey partitionKey,
                                          ClusteringIndexFilter clusteringIndexFilter,
                                          Index.QueryPlan indexQueryPlan,
-                                         boolean trackWarnings)
+                                         boolean trackWarnings,
+                                         DataRange dataRange)
     {
-        super(serializedAtEpoch, Kind.SINGLE_PARTITION, isDigest, digestVersion, acceptsTransient, allowsOutOfRangeReads, metadata, nowInSec, columnFilter, rowFilter, limits, indexQueryPlan, trackWarnings);
+        super(serializedAtEpoch, Kind.SINGLE_PARTITION, isDigest, digestVersion, acceptsTransient, allowsOutOfRangeReads, metadata, nowInSec, columnFilter, rowFilter, limits, indexQueryPlan, trackWarnings, dataRange);
         assert partitionKey.getPartitioner() == metadata.partitioner;
         this.partitionKey = partitionKey;
         this.clusteringIndexFilter = clusteringIndexFilter;
@@ -129,6 +131,8 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                                      Index.QueryPlan indexQueryPlan,
                                                      boolean trackWarnings)
     {
+        DataRange dataRange = new DataRange(new Bounds<>(partitionKey, partitionKey), clusteringIndexFilter);
+
         if (metadata.isVirtual())
         {
             return new VirtualTableSinglePartitionReadCommand(isDigest,
@@ -142,7 +146,8 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                                               partitionKey,
                                                               clusteringIndexFilter,
                                                               indexQueryPlan,
-                                                              trackWarnings);
+                                                              trackWarnings,
+                                                              dataRange);
         }
         return new SinglePartitionReadCommand(serializedAtEpoch,
                                               isDigest,
@@ -157,7 +162,8 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                               partitionKey,
                                               clusteringIndexFilter,
                                               indexQueryPlan,
-                                              trackWarnings);
+                                              trackWarnings,
+                                              dataRange);
     }
 
     /**
@@ -1400,9 +1406,10 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                                          DecoratedKey partitionKey,
                                                          ClusteringIndexFilter clusteringIndexFilter,
                                                          Index.QueryPlan indexQueryPlan,
-                                                         boolean trackWarnings)
+                                                         boolean trackWarnings,
+                                                         DataRange dataRange)
         {
-            super(metadata.epoch, isDigest, digestVersion, true, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, partitionKey, clusteringIndexFilter, indexQueryPlan, trackWarnings);
+            super(metadata.epoch, isDigest, digestVersion, true, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, partitionKey, clusteringIndexFilter, indexQueryPlan, trackWarnings, dataRange);
         }
 
         @Override
