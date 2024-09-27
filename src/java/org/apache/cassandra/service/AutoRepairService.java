@@ -26,7 +26,10 @@ import org.apache.cassandra.repair.autorepair.AutoRepairConfig.RepairType;
 import org.apache.cassandra.repair.autorepair.AutoRepairUtils;
 import org.apache.cassandra.utils.MBeanWrapper;
 
+import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -161,13 +164,13 @@ public class AutoRepairService implements AutoRepairServiceMBean
     @Override
     public void setParallelRepairPercentageInGroup(RepairType repairType, int percentageInGroup)
     {
-        config.setParallelRepairPercentageInGroup(repairType, percentageInGroup);
+        config.setParallelRepairPercentage(repairType, percentageInGroup);
     }
 
     @Override
     public void setParallelRepairCountInGroup(RepairType repairType, int countInGroup)
     {
-        config.setParallelRepairCountInGroup(repairType, countInGroup);
+        config.setParallelRepairCount(repairType, countInGroup);
     }
 
     public void setMVRepairEnabled(RepairType repairType, boolean enabled)
@@ -178,5 +181,26 @@ public class AutoRepairService implements AutoRepairServiceMBean
     public void setRepairSessionTimeout(RepairType repairType, String timeout)
     {
         config.setRepairSessionTimeout(repairType, timeout);
+    }
+
+    @Override
+    public Set<String> getOnGoingRepairHostIds(RepairType rType)
+    {
+        Set<String> hostIds = new HashSet<>();
+        List<AutoRepairUtils.AutoRepairHistory> histories = AutoRepairUtils.getAutoRepairHistory(rType);
+        if (histories == null)
+        {
+            return null;
+        }
+        AutoRepairUtils.CurrentRepairStatus currentRepairStatus = new AutoRepairUtils.CurrentRepairStatus(histories, AutoRepairUtils.getPriorityHostIds(rType));
+        for (UUID id : currentRepairStatus.hostIdsWithOnGoingRepair)
+        {
+            hostIds.add(id.toString());
+        }
+        for (UUID id : currentRepairStatus.hostIdsWithOnGoingForceRepair)
+        {
+            hostIds.add(id.toString());
+        }
+        return hostIds;
     }
 }

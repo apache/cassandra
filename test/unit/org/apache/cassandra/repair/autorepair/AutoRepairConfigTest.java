@@ -285,7 +285,7 @@ public class AutoRepairConfigTest extends CQLTester
     {
         config.global_settings.parallel_repair_percentage = 5;
 
-        int result = config.getParallelRepairPercentageInGroup(repairType);
+        int result = config.getParallelRepairPercentage(repairType);
 
         assertEquals(5, result);
     }
@@ -293,7 +293,7 @@ public class AutoRepairConfigTest extends CQLTester
     @Test
     public void testSetParallelRepairPercentageInGroup()
     {
-        config.setParallelRepairPercentageInGroup(repairType, 5);
+        config.setParallelRepairPercentage(repairType, 5);
 
         assert config.repair_type_overrides.get(repairType).parallel_repair_percentage == 5;
     }
@@ -303,7 +303,7 @@ public class AutoRepairConfigTest extends CQLTester
     {
         config.global_settings.parallel_repair_count = 5;
 
-        int result = config.getParallelRepairCountInGroup(repairType);
+        int result = config.getParallelRepairCount(repairType);
 
         assertEquals(5, result);
     }
@@ -311,7 +311,7 @@ public class AutoRepairConfigTest extends CQLTester
     @Test
     public void testSetParallelRepairCountInGroup()
     {
-        config.setParallelRepairCountInGroup(repairType, 5);
+        config.setParallelRepairCount(repairType, 5);
 
         assert config.repair_type_overrides.get(repairType).parallel_repair_count == 5;
     }

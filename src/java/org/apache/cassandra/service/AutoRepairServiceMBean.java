@@ -45,15 +45,19 @@ public interface AutoRepairServiceMBean
     public void setAutoRepairHistoryClearDeleteHostsBufferDuration(String duration);
 
     public void setAutoRepairMaxRetriesCount(int retries);
+
     public void setAutoRepairRetryBackoff(String interval);
+
     public void setRepairSSTableCountHigherThreshold(RepairType repairType, int ssTableHigherThreshold);
 
     public void setAutoRepairTableMaxRepairTime(RepairType repairType, String autoRepairTableMaxRepairTime);
+
     public void setIgnoreDCs(RepairType repairType, Set<String> ignorDCs);
 
     public void setPrimaryTokenRangeOnly(RepairType repairType, boolean primaryTokenRangeOnly);
 
     public void setParallelRepairPercentageInGroup(RepairType repairType, int percentageInGroup);
+
     public void setParallelRepairCountInGroup(RepairType repairType, int countInGroup);
 
     public void setMVRepairEnabled(RepairType repairType, boolean enabled);
@@ -61,4 +65,6 @@ public interface AutoRepairServiceMBean
     public AutoRepairConfig getAutoRepairConfig();
 
     public void setRepairSessionTimeout(RepairType repairType, String timeout);
+
+    public Set<String> getOnGoingRepairHostIds(RepairType rType);
 }
