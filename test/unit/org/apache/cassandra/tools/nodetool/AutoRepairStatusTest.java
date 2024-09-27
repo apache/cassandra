@@ -85,7 +85,7 @@ public class AutoRepairStatusTest
 
         cmd.execute(probe);
         assertEquals("Active Repairs\n" +
-        "EMPTY         \n", cmdOutput.toString());
+        "NONE          \n", cmdOutput.toString());
     }
 
     @Test

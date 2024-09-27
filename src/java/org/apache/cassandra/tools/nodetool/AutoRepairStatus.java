@@ -55,7 +55,7 @@ public class AutoRepairStatus extends NodeTool.NodeToolCmd
     {
         if (hostIds.isEmpty())
         {
-            return "EMPTY";
+            return "NONE";
         }
         StringBuilder sb = new StringBuilder();
         for (String id : hostIds)
