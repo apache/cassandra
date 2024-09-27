@@ -3557,8 +3557,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         int minSamplesPerSplit = 4;
         long maxSplitCount = numberOfKeys / minSamplesPerSplit + 1;
-        long calculatedSplitCount = totalRowCountEstimate / keysPerSplit;
-        int splitCountWithLimit = (int) Math.min(maxSplitCount, calculatedSplitCount);
+        long splitCount = totalRowCountEstimate / keysPerSplit;
+        int splitCountWithLimit = (int) Math.min(maxSplitCount, splitCount);
         return Math.max(1, splitCountWithLimit);
     }
 
