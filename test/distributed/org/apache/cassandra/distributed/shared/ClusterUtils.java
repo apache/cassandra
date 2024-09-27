@@ -77,6 +77,7 @@ import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Commit;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.Transformation;
+import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.ownership.ReplicaGroups;
 import org.apache.cassandra.utils.Isolated;
@@ -303,7 +304,9 @@ public class ClusterUtils
             properties.set(BOOTSTRAP_SCHEMA_DELAY_MS, TimeUnit.SECONDS.toMillis(10));
 
             // state which node to replace
-            properties.set(REPLACE_ADDRESS_FIRST_BOOT, toReplace.config().broadcastAddress().getAddress().getHostAddress());
+            InetSocketAddress address = toReplace.config().broadcastAddress();
+            // when port isn't defined we use the default port, but in jvm-dtest the port might change!
+            properties.set(REPLACE_ADDRESS_FIRST_BOOT, address.getAddress().getHostAddress() + ":" + address.getPort());
 
             fn.accept(inst, properties);
         });
@@ -433,6 +436,16 @@ public class ClusterUtils
     public static void waitForCMSToQuiesce(ICluster<IInvokableInstance> cluster, IInvokableInstance leader, int...ignored)
     {
         ClusterUtils.waitForCMSToQuiesce(cluster, getClusterMetadataVersion(leader), ignored);
+    }
+
+    public static void dropAllEntriesBeginningAt(IInvokableInstance instance, Epoch epoch)
+    {
+        instance.runOnInstance(() -> ClusterMetadataService.instance().log().addFilter(e -> e.epoch.isEqualOrAfter(epoch)));
+    }
+
+    public static void clearEntryFilters(IInvokableInstance instance)
+    {
+        instance.runOnInstance(() -> ClusterMetadataService.instance().log().clearFilters());
     }
 
     public static Callable<Void> pauseBeforeEnacting(IInvokableInstance instance, Epoch epoch)
@@ -572,13 +585,11 @@ public class ClusterUtils
     {
         public final int node;
         public final Epoch epoch;
-        public final Epoch replicated;
 
-        private ClusterMetadataVersion(int node, Epoch epoch, Epoch replicated)
+        private ClusterMetadataVersion(int node, Epoch epoch)
         {
             this.node = node;
             this.epoch = epoch;
-            this.replicated = replicated;
         }
 
         public String toString()
@@ -586,9 +597,30 @@ public class ClusterUtils
             return "Version{" +
                    "node=" + node +
                    ", epoch=" + epoch +
-                   ", replicated=" + replicated +
                    '}';
         }
+    }
+
+    public static void waitForCMSToQuiesce(ICluster<IInvokableInstance> cluster, int[] cmsNodes)
+    {
+        // first step; find the largest epoch
+        waitForCMSToQuiesce(cluster, maxEpoch(cluster, cmsNodes));
+    }
+
+    private static Epoch maxEpoch(ICluster<IInvokableInstance> cluster, int[] cmsNodes)
+    {
+        Epoch max = null;
+        for (int id : cmsNodes)
+        {
+            IInvokableInstance inst = cluster.get(id);
+            if (inst.isShutdown()) continue;
+            Epoch version = getClusterMetadataVersion(inst);
+            if (max == null || version.getEpoch() > max.getEpoch())
+                max = version;
+        }
+        if (max == null)
+            throw new AssertionError("Unable to find max epoch from " + cmsNodes);
+        return max;
     }
 
     public static void waitForCMSToQuiesce(ICluster<IInvokableInstance> cluster, Epoch awaitedEpoch, int...ignored)
@@ -611,8 +643,8 @@ public class ClusterUtils
                 if (cluster.get(j).isShutdown())
                     continue;
                 Epoch version = getClusterMetadataVersion(cluster.get(j));
-                if (!awaitedEpoch.equals(version))
-                    notMatching.add(new ClusterMetadataVersion(j, version, getClusterMetadataVersion(cluster.get(j))));
+                if (version.getEpoch() < awaitedEpoch.getEpoch())
+                    notMatching.add(new ClusterMetadataVersion(j, version));
             }
             if (notMatching.isEmpty())
                 return;

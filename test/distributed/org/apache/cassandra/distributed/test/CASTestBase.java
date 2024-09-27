@@ -35,11 +35,11 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
+import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IMessageFilters;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.gms.ApplicationState;
-import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.gms.HeartBeatState;
 import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessagingService;
@@ -188,28 +188,9 @@ public abstract class CASTestBase extends TestBaseImpl
         Assert.assertTrue(Gossiper.instance.isAlive(endpoint));
     }
 
-    // reset gossip state so we know of the node being alive only
-    public static void removeFromRing(IInstance peer)
+    public static void removeFromRing(IInvokableInstance peer)
     {
-        try
-        {
-            IInstanceConfig config = peer.config();
-            IPartitioner partitioner = FBUtilities.newPartitioner(config.getString("partitioner"));
-            Token token = partitioner.getTokenFactory().fromString(config.getString("initial_token"));
-            InetAddressAndPort address = InetAddressAndPort.getByAddress(config.broadcastAddress());
-
-            Gossiper.runInGossipStageBlocking(() -> {
-                StorageService.instance.onChange(address,
-                                                 ApplicationState.STATUS,
-                                                 new VersionedValue.VersionedValueFactory(partitioner).left(Collections.singleton(token), 0L, 0));
-                Gossiper.instance.unsafeAnnulEndpoint(address);
-                Gossiper.instance.realMarkAlive(address, new EndpointState(new HeartBeatState(0, 0)));
-            });
-        }
-        catch (Throwable e) // UnknownHostException
-        {
-            throw new RuntimeException(e);
-        }
+        peer.runOnInstance(() -> ClusterMetadataTestHelper.leave(FBUtilities.getBroadcastAddressAndPort()));
     }
 
     public static void assertNotVisibleInRing(IInstance peer)

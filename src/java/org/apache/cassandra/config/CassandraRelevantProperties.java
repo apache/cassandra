@@ -534,6 +534,10 @@ public enum CassandraRelevantProperties
     TCM_RECENTLY_SEALED_PERIOD_INDEX_SIZE("cassandra.recently_sealed_period_index_size", "10"),
 
     /**
+     * for testing purposes disable the automatic CMS reconfiguration after a bootstrap/replace/move operation
+     */
+    TCM_SKIP_CMS_RECONFIGURATION_AFTER_TOPOLOGY_CHANGE("cassandra.test.skip_cms_reconfig_after_topology_change", "false"),
+    /**
      * should replica groups in data placements be sorted to ensure the primary replica is first in the list
      */
     TCM_SORT_REPLICA_GROUPS("cassandra.sorted_replica_groups_enabled", "true"),

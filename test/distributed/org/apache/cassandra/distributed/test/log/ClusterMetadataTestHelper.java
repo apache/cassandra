@@ -252,7 +252,12 @@ public class ClusterMetadataTestHelper
 
     public static NodeId nodeId(int nodeIdx)
     {
-        return ClusterMetadata.current().directory.peerId(addr(nodeIdx));
+        return nodeId(addr(nodeIdx));
+    }
+
+    public static NodeId nodeId(InetAddressAndPort addr)
+    {
+        return ClusterMetadata.current().directory.peerId(addr);
     }
 
     public static InetAddressAndPort addr(int nodeIdx)
@@ -365,10 +370,15 @@ public class ClusterMetadataTestHelper
 
     public static void leave(int nodeIdx)
     {
+            leave(addr(nodeIdx));
+    }
+
+    public static void leave(InetAddressAndPort endpoint)
+    {
         try
         {
-            NodeId nodeId = ClusterMetadata.current().directory.peerId(InetAddressAndPort.getByName("127.0.0." + nodeIdx));
-            LeaveProcess process = lazyLeave(nodeIdx, false);
+            NodeId nodeId = nodeId(endpoint);
+            LeaveProcess process = lazyLeave(endpoint, false);
             process.prepareLeave()
                    .startLeave()
                    .midLeave()
@@ -817,7 +827,7 @@ public class ClusterMetadataTestHelper
 
     public static void reconfigureCms(ReplicationParams replication)
     {
-        ClusterMetadata metadata = ClusterMetadataService.instance().commit(new PrepareCMSReconfiguration.Complex(replication));
+        ClusterMetadata metadata = ClusterMetadataService.instance().commit(new PrepareCMSReconfiguration.Complex(replication, Collections.emptySet()));
         while (metadata.inProgressSequences.contains(ReconfigureCMS.SequenceKey.instance))
         {
             AdvanceCMSReconfiguration next = ((ReconfigureCMS) metadata.inProgressSequences.get(ReconfigureCMS.SequenceKey.instance)).next;

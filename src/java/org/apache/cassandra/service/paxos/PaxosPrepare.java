@@ -33,7 +33,6 @@ import javax.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
@@ -55,6 +54,7 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.paxos.PaxosPrepare.Status.Outcome;
 import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
@@ -459,26 +459,42 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
         }
 
         Permitted permitted = response.permitted();
-        if (permitted.gossipInfo.isEmpty())
-            // we agree about the electorate, so can simply accept the promise/permission
-            permitted(permitted, from);
-        else if (!needsGossipUpdate(permitted.gossipInfo))
-            // our gossip is up-to-date, but our original electorate could have been built with stale gossip, so verify it
-            permittedOrTerminateIfElectorateMismatch(permitted, from);
-        else
-            // otherwise our beliefs about the ring potentially diverge, so update gossip with the peer's information
-            Stage.GOSSIP.executor().execute(() -> {
-                Gossiper.instance.notifyFailureDetector(permitted.gossipInfo);
-                Gossiper.instance.applyStateLocally(permitted.gossipInfo);
-                // TODO: We should also wait for schema pulls/pushes, however this would be quite an involved change to MigrationManager
-                //       (which currently drops some migration tasks on the floor).
-                //       Note it would be fine for us to fail to complete the migration task and simply treat this response as a failure/timeout.
 
-                // once any pending ranges have been calculated, refresh our Participants list and submit the promise
-                // todo: verify that this is correct, we no longer have any pending ranges, just call this immediately
-                // PendingRangeCalculatorService.instance.executeWhenFinished(() -> permittedOrTerminateIfElectorateMismatch(permitted, from));
-                permittedOrTerminateIfElectorateMismatch(permitted, from);
-            });
+        // If the peer's local electorate disagreed with ours it will be signalled in the permitted response.
+        // Pre 5.1 this used gossip state to assess the relative currency of either peer's view of the ring/placements
+        // from which the electorate is derived. Post 5.1, this is driven by cluster metadata rather than gossip but we
+        // preserve the signalling via gossip state for continuity during upgrades
+        Epoch remoteElectorateEpoch = permitted.electorateEpoch;
+
+        if (remoteElectorateEpoch.is(Epoch.EMPTY) && permitted.gossipInfo.isEmpty())
+        {
+            // we agree about the electorate, so can simply accept the promise/permission
+            // TODO: once 5.1 is the minimum supported version, we can stop sending and checking gossipInfo and just
+            //       use the electorateEpoch
+            permitted(permitted, from);
+        }
+        else if (remoteElectorateEpoch.isAfter(Epoch.EMPTY))
+        {
+            // The remote peer sent back an epoch for its local electorate, implying that it did not match our original.
+            // That epoch may be after the one we built the original from, so catch up if we need to and haven't
+            // already. Either way, verify the electorate is still valid according to the current topology.
+            ClusterMetadataService.instance().fetchLogFromPeerOrCMS(ClusterMetadata.current(), from, remoteElectorateEpoch);
+            permittedOrTerminateIfElectorateMismatch(permitted, from);
+        }
+        else
+        {
+            // The remote peer indicated a mismatch, but is either still running a pre-5.1 version or we have not yet
+            // initialized the CMS following upgrade to 5.1. Topology changes while in this state are not supported,
+            // failed nodes must be DOWN during upgrade and should be replaced after the CMS has been initialized.
+            if (needsGossipUpdate(permitted.gossipInfo))
+            {
+                // Our gossip state is lagging behind that of our peer, however topology changes are no longer driven
+                // by gossip. We can notify the FD using the peer's gossip state and re-assert that the electorate
+                // is still valid.
+                Gossiper.runInGossipStageBlocking(() -> Gossiper.instance.notifyFailureDetector(permitted.gossipInfo));
+            }
+            permittedOrTerminateIfElectorateMismatch(permitted, from);
+        }
     }
 
     private synchronized void permittedOrTerminateIfElectorateMismatch(Permitted permitted, InetAddressAndPort from)
@@ -981,8 +997,9 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
         // it would be great if we could get rid of this, but probably we need to preserve for migration purposes
         final Map<InetAddressAndPort, EndpointState> gossipInfo;
         @Nullable final Ballot supersededBy;
+        final Epoch electorateEpoch;
 
-        Permitted(MaybePromise.Outcome outcome, long lowBound, @Nullable Accepted latestAcceptedButNotCommitted, Committed latestCommitted, @Nullable ReadResponse readResponse, boolean hadProposalStability, Map<InetAddressAndPort, EndpointState> gossipInfo, @Nullable Ballot supersededBy)
+        Permitted(MaybePromise.Outcome outcome, long lowBound, @Nullable Accepted latestAcceptedButNotCommitted, Committed latestCommitted, @Nullable ReadResponse readResponse, boolean hadProposalStability, Map<InetAddressAndPort, EndpointState> gossipInfo, Epoch electorateEpoch, @Nullable Ballot supersededBy)
         {
             super(outcome);
             this.lowBound = lowBound;
@@ -991,13 +1008,14 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
             this.hadProposalStability = hadProposalStability;
             this.readResponse = readResponse;
             this.gossipInfo = gossipInfo;
+            this.electorateEpoch = electorateEpoch;
             this.supersededBy = supersededBy;
         }
 
         @Override
         public String toString()
         {
-            return "Promise(" + latestAcceptedButNotCommitted + ", " + latestCommitted + ", " + hadProposalStability + ", " + gossipInfo + ')';
+            return "Promise(" + latestAcceptedButNotCommitted + ", " + latestCommitted + ", " + hadProposalStability + ", " + gossipInfo + ", " + electorateEpoch.getEpoch() + ')';
         }
     }
 
@@ -1055,8 +1073,15 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
             {
                 case PROMISE:
                 case PERMIT_READ:
-                    // verify electorates; if they differ, send back gossip info for superset of two participant sets
-                    Map<InetAddressAndPort, EndpointState> gossipInfo = verifyElectorate(request.electorate, Electorate.get(request.table, request.partitionKey, consistency(request.ballot)));
+                    // verify electorates; if they differ, send back indication of the mismatch. For use during an
+                    // upgrade this includes gossip info for the superset of thes two participant sets. For ongoing
+                    // usage we just include the epoch of the data placements used to construct the local electorate.
+                    Electorate.Local localElectorate = Electorate.get(request.table,
+                                                                      request.partitionKey,
+                                                                      consistency(request.ballot));
+                    Map<InetAddressAndPort, EndpointState> gossipInfo = verifyElectorate(request.electorate, localElectorate);
+                    // TODO when 5.1 is the minimum supported version we can modify verifyElectorate to just return this epoch
+                    Epoch electorateEpoch = gossipInfo.isEmpty() ? Epoch.EMPTY : localElectorate.createdAt;
                     ReadResponse readResponse = null;
 
                     // Check we cannot race with a proposal, i.e. that we have not made a promise that
@@ -1100,7 +1125,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
 
                     ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(request.table.id);
                     long lowBound = cfs.getPaxosRepairLowBound(request.partitionKey).uuidTimestamp();
-                    return new Permitted(result.outcome, lowBound, acceptedButNotCommitted, committed, readResponse, hasProposalStability, gossipInfo, supersededBy);
+                    return new Permitted(result.outcome, lowBound, acceptedButNotCommitted, committed, readResponse, hasProposalStability, gossipInfo, electorateEpoch, supersededBy);
 
                 case REJECT:
                     return new Rejected(result.supersededBy());
@@ -1208,6 +1233,8 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
                 if (promised.readResponse != null)
                     ReadResponse.serializer.serialize(promised.readResponse, out, version);
                 serializeMap(inetAddressAndPortSerializer, EndpointState.nullableSerializer, promised.gossipInfo, out, version);
+                if (version >= MessagingService.VERSION_51)
+                    Epoch.messageSerializer.serialize(promised.electorateEpoch, out, version);
                 if (promised.outcome == PERMIT_READ)
                     promised.supersededBy.serialize(out);
             }
@@ -1228,12 +1255,13 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
                 Committed committed = Committed.serializer.deserialize(in, version);
                 ReadResponse readResponse = (flags & 4) != 0 ? ReadResponse.serializer.deserialize(in, version) : null;
                 Map<InetAddressAndPort, EndpointState> gossipInfo = deserializeMap(inetAddressAndPortSerializer, EndpointState.nullableSerializer, newHashMap(), in, version);
+                Epoch electorateEpoch = version >= MessagingService.VERSION_51 ? Epoch.messageSerializer.deserialize(in, version) : Epoch.EMPTY;
                 MaybePromise.Outcome outcome = (flags & 16) != 0 ? PERMIT_READ : PROMISE;
                 boolean hasProposalStability = (flags & 8) != 0;
                 Ballot supersededBy = null;
                 if (outcome == PERMIT_READ)
                     supersededBy = Ballot.deserialize(in);
-                return new Permitted(outcome, lowBound, acceptedNotCommitted, committed, readResponse, hasProposalStability, gossipInfo, supersededBy);
+                return new Permitted(outcome, lowBound, acceptedNotCommitted, committed, readResponse, hasProposalStability, gossipInfo, electorateEpoch, supersededBy);
             }
         }
 
@@ -1252,6 +1280,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
                         + Committed.serializer.serializedSize(permitted.latestCommitted, version)
                         + (permitted.readResponse == null ? 0 : ReadResponse.serializer.serializedSize(permitted.readResponse, version))
                         + serializedSizeMap(inetAddressAndPortSerializer, EndpointState.nullableSerializer, permitted.gossipInfo, version)
+                        + (version >= MessagingService.VERSION_51 ? Epoch.messageSerializer.serializedSize(permitted.electorateEpoch, version) : 0)
                         + (permitted.outcome == PERMIT_READ ? Ballot.sizeInBytes() : 0);
             }
         }

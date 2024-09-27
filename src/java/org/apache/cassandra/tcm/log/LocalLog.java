@@ -21,6 +21,7 @@ package org.apache.cassandra.tcm.log;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -31,6 +32,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -60,15 +62,14 @@ import org.apache.cassandra.tcm.listeners.MetadataSnapshotListener;
 import org.apache.cassandra.tcm.listeners.PlacementsChangeListener;
 import org.apache.cassandra.tcm.listeners.SchemaListener;
 import org.apache.cassandra.tcm.listeners.UpgradeMigrationListener;
+import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.transformations.ForceSnapshot;
 import org.apache.cassandra.tcm.transformations.cms.PreInitialize;
 import org.apache.cassandra.utils.Closeable;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
-import static java.util.Comparator.comparing;
 import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.Daemon.NON_DAEMON;
 import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.Interrupts.UNSYNCHRONIZED;
 import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.SimulatorSafe.SAFE;
@@ -257,6 +258,9 @@ public abstract class LocalLog implements Closeable
     protected final Set<ChangeListener.Async> asyncChangeListeners;
     protected final LogSpec spec;
 
+    // for testing - used to inject filters which cause entries to be dropped before appending
+    protected final List<Predicate<Entry>> entryFilters;
+
     private LocalLog(LogSpec logSpec)
     {
         this.spec = logSpec;
@@ -272,6 +276,7 @@ public abstract class LocalLog implements Closeable
         listeners = Sets.newConcurrentHashSet();
         changeListeners = Sets.newConcurrentHashSet();
         asyncChangeListeners = Sets.newConcurrentHashSet();
+        entryFilters = Lists.newCopyOnWriteArrayList();
     }
 
     public void bootstrap(InetAddressAndPort addr)
@@ -338,7 +343,7 @@ public abstract class LocalLog implements Closeable
 
     public LogState getCommittedEntries(Epoch since)
     {
-        return storage.getLogState(since);
+        return storage.getLogState(since, false);
     }
 
     public ClusterMetadata waitForHighestConsecutive()
@@ -351,18 +356,24 @@ public abstract class LocalLog implements Closeable
     {
         if (!entries.isEmpty())
         {
-            if (logger.isDebugEnabled())
-                logger.debug("Appending entries to the pending buffer: {}", entries.stream().map(e -> e.epoch).collect(Collectors.toList()));
-            pending.addAll(entries);
+            if (!entryFilters.isEmpty())
+            {
+                logger.debug("Appending batch of entries to the pending buffer individually due to presence of entry filters");
+                entries.forEach(this::maybeAppend);
+            }
+            else
+            {
+                if (logger.isDebugEnabled())
+                    logger.debug("Appending entries to the pending buffer: {}", entries.stream().map(e -> e.epoch).collect(Collectors.toList()));
+                pending.addAll(entries);
+            }
             processPending();
         }
     }
 
     public void append(Entry entry)
     {
-        logger.debug("Appending entry to the pending buffer: {}", entry.epoch);
-        pending.add(entry);
-        processPending();
+        maybeAppend(entry);
     }
 
     /**
@@ -383,15 +394,30 @@ public abstract class LocalLog implements Closeable
             // Create a synthetic "force snapshot" transformation to instruct the log to pick up given metadata
             ForceSnapshot transformation = new ForceSnapshot(logState.baseState);
             Entry newEntry = new Entry(Entry.Id.NONE, epoch, transformation);
-            pending.add(newEntry);
+            maybeAppend(newEntry);
         }
 
         // Finally, append any additional transformations in the snapshot. Some or all of these could be earlier than the
         // currently enacted epoch (if we'd already moved on beyond the epoch of the base state for instance, or if newer
         // entries have been received via normal replication), but this is fine as entries will be put in the reorder
         // log, and duplicates will be dropped.
-        pending.addAll(logState.entries);
+        append(logState.entries);
         processPending();
+    }
+
+    private void maybeAppend(Entry entry)
+    {
+        for(Predicate<Entry> filter :  entryFilters)
+        {
+            if (filter.test(entry))
+            {
+                logger.debug("Not appending entry to the pending buffer due to configured filters: {}", entry.epoch);
+                return;
+            }
+        }
+
+        logger.debug("Appending entry to the pending buffer: {}", entry.epoch);
+        pending.add(entry);
     }
 
     public abstract ClusterMetadata awaitAtLeast(Epoch epoch) throws InterruptedException, TimeoutException;
@@ -598,6 +624,18 @@ public abstract class LocalLog implements Closeable
             listener.notifyPostCommit(before, after, fromSnapshot);
         for (ChangeListener.Async listener : asyncChangeListeners)
             ScheduledExecutors.optionalTasks.submit(() -> listener.notifyPostCommit(before, after, fromSnapshot));
+    }
+
+    public void addFilter(Predicate<Entry> filter)
+    {
+        logger.debug("Adding filter to pending entry buffer");
+        entryFilters.add(filter);
+    }
+
+    public void clearFilters()
+    {
+        logger.debug("Clearing filters from pending entry buffer");
+        entryFilters.removeAll(entryFilters);
     }
 
     /**
@@ -894,9 +932,9 @@ public abstract class LocalLog implements Closeable
 
             if ((entry.epoch.getEpoch() % DatabaseDescriptor.getMetadataSnapshotFrequency()) == 0)
             {
-                List<InetAddressAndPort> list = new ArrayList<>(ClusterMetadata.current().fullCMSMembers());
-                list.sort(comparing(i -> i.addressBytes[i.addressBytes.length - 1]));
-                if (list.get(0).equals(FBUtilities.getBroadcastAddressAndPort()))
+                List<NodeId> list = new ArrayList<>(metadata.success().metadata.fullCMSMemberIds());
+                list.sort(Comparator.comparingInt(NodeId::id));
+                if (list.get(0).equals(metadata.success().metadata.myNodeId()))
                     ScheduledExecutors.nonPeriodicTasks.submit(() -> ClusterMetadataService.instance().triggerSnapshot());
             }
         };

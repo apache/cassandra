@@ -18,10 +18,10 @@
 
 package org.apache.cassandra.utils;
 
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
+
+import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableMap;
 
@@ -37,6 +37,7 @@ public class ConfigGenBuilder
     public enum Memtable
     {SkipListMemtable, TrieMemtable, ShardedSkipListMemtable}
 
+    @Nullable
     Gen<IPartitioner> partitionerGen = Generators.toGen(CassandraGenerators.nonLocalPartitioners());
     Gen<Config.DiskAccessMode> commitLogDiskAccessModeGen = Gens.enums().all(Config.DiskAccessMode.class)
                                                                 .filter(m -> m != Config.DiskAccessMode.standard
@@ -70,7 +71,7 @@ public class ConfigGenBuilder
     /**
      * When loading the {@link Config} from a yaml its possible that some configs set will conflict with the configs that get generated here, to avoid that set them to a good default
      */
-    public static Config santize(Config config)
+    public static Config sanitize(Config config)
     {
         Config defaults = new Config();
         config.commitlog_sync = defaults.commitlog_sync;
@@ -82,6 +83,12 @@ public class ConfigGenBuilder
     public ConfigGenBuilder withPartitioner(IPartitioner instance)
     {
         this.partitionerGen = ignore -> instance;
+        return this;
+    }
+
+    public ConfigGenBuilder withPartitionerGen(@Nullable Gen<IPartitioner> gen)
+    {
+        this.partitionerGen = gen;
         return this;
     }
 
@@ -114,6 +121,7 @@ public class ConfigGenBuilder
 
     private void updateConfigPartitioner(RandomSource rs, Map<String, Object> config)
     {
+        if (partitionerGen == null) return;;
         IPartitioner partitioner = partitionerGen.next(rs);
         config.put("partitioner", partitioner.getClass().getSimpleName());
     }
@@ -138,24 +146,65 @@ public class ConfigGenBuilder
         config.put("commitlog_disk_access_mode", commitLogDiskAccessModeGen.next(rs));
     }
 
-    private void updateConfigMemtable(RandomSource rs, Map<String, Object> config)
+    public Gen<Map<String, Object>> buildMemtable()
+    {
+        return rs -> {
+            LinkedHashMap<String, Object> config = new LinkedHashMap<>();
+            updateConfigMemtable(rs, config);
+            return config;
+        };
+    }
+
+    private enum MemtableConfigShape { Single, Simple, Nested}
+    public void updateConfigMemtable(RandomSource rs, Map<String, Object> config)
     {
         config.put("memtable_allocation_type", memtableAllocationTypeGen.next(rs));
         Memtable defaultMemtable = memtableGen.next(rs);
-        Map<String, Map<String, Object>> memtables = new LinkedHashMap<>();
-        if (rs.nextBoolean())
+        LinkedHashMap<String, Map<String, Object>> memtables = new LinkedHashMap<>();
+        switch (rs.pick(MemtableConfigShape.values()))
         {
-            // use inherits
-            for (Memtable m : Memtable.values())
-                memtables.put(m.name(), createConfig(m).next(rs));
-            memtables.put("default", ImmutableMap.of("inherits", defaultMemtable.name()));
+            case Single:
+                // define inline
+                memtables.put("default", createConfig(defaultMemtable).next(rs));
+                break;
+            case Simple:
+                // use inherits
+                for (Memtable m : Memtable.values())
+                    memtables.put(m.name(), createConfig(m).next(rs));
+                memtables.put("default", ImmutableMap.of("inherits", defaultMemtable.name()));
+                break;
+            case Nested:
+            {
+                for (Memtable m : Memtable.values())
+                {
+                    int levels = rs.nextInt(0, 4);
+                    String prev = m.name() + "_base";
+                    memtables.put(prev, createConfig(m).next(rs));
+                    for (int i = 0; i < levels; i++)
+                    {
+                        String next = m.name() + '_' + i;
+                        memtables.put(next, ImmutableMap.of("inherits", prev));
+                        prev = next;
+                    }
+                    memtables.put(m.name(), ImmutableMap.of("inherits", prev));
+                }
+                memtables.put("default", ImmutableMap.of("inherits", defaultMemtable.name()));
+            }
+            break;
+            default:
+                throw new UnsupportedOperationException();
         }
-        else
-        {
-            // define inline
-            memtables.put("default", createConfig(defaultMemtable).next(rs));
-        }
-        config.put("memtable", ImmutableMap.of("configurations", memtables));
+        config.put("memtable", ImmutableMap.of("configurations", scrable(rs, memtables)));
+    }
+
+    private static <K, V> LinkedHashMap<K, V> scrable(RandomSource rs, LinkedHashMap<K, V> map)
+    {
+        List<K> keys = new ArrayList<>(map.keySet());
+        Collections.shuffle(keys, rs.asJdkRandom());
+        LinkedHashMap<K, V> copy = new LinkedHashMap<>();
+        for (K key : keys)
+            copy.put(key, map.get(key));
+        return copy;
     }
 
     private static Gen<Map<String, Object>> createConfig(Memtable type)

@@ -29,7 +29,6 @@ import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -51,11 +50,11 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Sets;
 import org.junit.Assume;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -163,7 +162,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
     // mutated by user-facing API
     private final MessageFilters filters;
-    private final INodeProvisionStrategy.Strategy nodeProvisionStrategy;
+    private final INodeProvisionStrategy.Factory nodeProvisionStrategy;
     private final IInstanceInitializer instanceInitializer;
     private final int datadirCount;
     private volatile Thread.UncaughtExceptionHandler previousHandler = null;
@@ -181,7 +180,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
     public static abstract class AbstractBuilder<I extends IInstance, C extends ICluster, B extends AbstractBuilder<I, C, B>>
         extends org.apache.cassandra.distributed.shared.AbstractBuilder<I, C, B>
     {
-        private INodeProvisionStrategy.Strategy nodeProvisionStrategy = INodeProvisionStrategy.Strategy.MultipleNetworkInterfaces;
+        private INodeProvisionStrategy.Factory nodeProvisionStrategy = INodeProvisionStrategy.Strategy.MultipleNetworkInterfaces;
         private ShutdownExecutor shutdownExecutor = DEFAULT_SHUTDOWN_EXECUTOR;
         private boolean dynamicPortAllocation = false;
 
@@ -206,7 +205,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
             return (B) this;
         }
 
-        public B withNodeProvisionStrategy(INodeProvisionStrategy.Strategy nodeProvisionStrategy)
+        public B withNodeProvisionStrategy(INodeProvisionStrategy.Factory nodeProvisionStrategy)
         {
             this.nodeProvisionStrategy = nodeProvisionStrategy;
             return self();
@@ -280,7 +279,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         protected IInvokableInstance delegate()
         {
             if (delegate == null)
-                throw new IllegalStateException("Can't use shutdown instances, delegate is null");
+                throw new IllegalStateException("Can't use shutdown node" + config.num() + ", delegate is null");
             return delegate;
         }
 
@@ -649,7 +648,12 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
     public I bootstrap(IInstanceConfig config)
     {
-        I instance = newInstanceWrapperInternal(initialVersion, config);
+        return bootstrap(config, initialVersion);
+    }
+
+    public I bootstrap(IInstanceConfig config, Versions.Version version)
+    {
+        I instance = newInstanceWrapperInternal(version, config);
         instances.add(instance);
         I prev = instanceMap.put(config.broadcastAddress(), instance);
 
@@ -1033,17 +1037,23 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
             // Start any instances with auto_bootstrap enabled first, and in series to avoid issues
             // with multiple nodes bootstrapping with consistent range movement enabled,
             // and then start any instances with it disabled in parallel.
+            // Whichever instance starts first will be the initial CMS for the cluster.
             List<I> startSequentially = new ArrayList<>();
             List<I> startParallel = new ArrayList<>();
             for (int i = 0; i < instances.size(); i++)
             {
                 I instance = instances.get(i);
 
-                if (i == 0 || (boolean) instance.config().get("auto_bootstrap"))
+                if ((boolean) instance.config().get("auto_bootstrap"))
                     startSequentially.add(instance);
                 else
                     startParallel.add(instance);
             }
+
+            // If no instances have auto_bootstrap enabled, start the first in the list
+            // so it can become the initial CMS member.
+            if (startSequentially.isEmpty())
+                startSequentially.add(startParallel.remove(0));
 
             forEach(startSequentially, i -> {
                 i.startup(this);
@@ -1101,7 +1111,12 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         }
         catch (Throwable t)
         {
-            checkForThreadLeaks();
+            IllegalStateException leak = checkForThreadLeaks();
+            if (leak != null)
+            {
+                leak.initCause(t);
+                throw leak;
+            }
             throw t;
         }
         instances.clear();
@@ -1128,36 +1143,33 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
             return true;
         });
         if (!drain.isEmpty())
-            throw new ShutdownException(drain);
+        {
+            ShutdownException shutdownException = new ShutdownException(drain);
+            // also log as java will truncate log lists
+            logger.error("Unexpected errors", shutdownException);
+            throw shutdownException;
+        }
     }
 
-    private void checkForThreadLeaks()
+    @Nullable
+    private IllegalStateException checkForThreadLeaks()
     {
         //This is an alternate version of the thread leak check that just checks to see if any threads are still alive
         // with the context classloader.
-        Set<Thread> threadSet = Thread.getAllStackTraces().keySet();
-        threadSet.stream().filter(t->t.getContextClassLoader() instanceof InstanceClassLoader).forEach(t->{
-            t.setContextClassLoader(null);
-            throw new RuntimeException("Unterminated thread detected " + t.getName() + " in group " + t.getThreadGroup().getName());
-        });
-    }
-
-    // We do not want this check to run every time until we fix problems with tread stops
-    private void withThreadLeakCheck(List<Future<?>> futures)
-    {
-        FBUtilities.waitOnFutures(futures);
-
-        Set<Thread> threadSet = Thread.getAllStackTraces().keySet();
-        threadSet = Sets.difference(threadSet, Collections.singletonMap(Thread.currentThread(), null).keySet());
-        if (!threadSet.isEmpty())
+        Map<Thread, StackTraceElement[]> allThreads = Thread.getAllStackTraces();
+        StringBuilder sb = new StringBuilder();
+        for (Map.Entry<Thread, StackTraceElement[]> e : allThreads.entrySet())
         {
-            for (Thread thread : threadSet)
-            {
-                System.out.println(thread);
-                System.out.println(Arrays.toString(thread.getStackTrace()));
-            }
-            throw new RuntimeException(String.format("Not all threads have shut down. %d threads are still running: %s", threadSet.size(), threadSet));
+
+            if (!(e.getKey().getContextClassLoader() instanceof InstanceClassLoader)) continue;
+            e.getKey().setContextClassLoader(null);
+            sb.append(e.getKey().getName()).append(":\n");
+            for (StackTraceElement s : e.getValue())
+                sb.append("\t").append(s).append("\n");
         }
+        return sb.length() > 0
+               ? new IllegalStateException("Unterminated threads detected; active threads:\n" + sb)
+               : null;
     }
 
     public List<Token> tokens()
@@ -1212,8 +1224,8 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
                 return false;
 
             return shared.contains(s) ||
-                   InstanceClassLoader.getDefaultLoadSharedFilter().test(s) ||
-                   s.startsWith("org.jboss.byteman");
+                   InstanceClassLoader.getDefaultLoadSharedFilter().test(s)
+                    || s.startsWith("org.jboss.byteman.");
         };
     }
 

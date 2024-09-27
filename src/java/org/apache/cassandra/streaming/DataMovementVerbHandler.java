@@ -36,6 +36,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.tcm.ClusterMetadata;
 
 public class DataMovementVerbHandler implements IVerbHandler<DataMovement>
 {
@@ -47,8 +48,9 @@ public class DataMovementVerbHandler implements IVerbHandler<DataMovement>
     {
         MessagingService.instance().respond(NoPayload.noPayload, message); // let coordinator know we received the message
         StreamPlan streamPlan = new StreamPlan(StreamOperation.fromString(message.payload.streamOperation));
+        ClusterMetadata metadata = ClusterMetadata.current();
         Schema.instance.getNonLocalStrategyKeyspaces().stream().forEach((ksm) -> {
-            if (ksm.replicationStrategy.getReplicationFactor().allReplicas <= 1)
+            if (metadata.placements.get(ksm.params.replication).writes.byEndpoint().keySet().size() <= 1)
                 return;
 
             message.payload.movements.get(ksm.params.replication).asMap().forEach((local, endpoints) -> {

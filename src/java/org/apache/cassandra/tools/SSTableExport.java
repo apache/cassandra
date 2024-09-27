@@ -36,6 +36,7 @@ import org.apache.commons.cli.PosixParser;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
@@ -67,6 +68,7 @@ public class SSTableExport
     private static final String DEBUG_OUTPUT_OPTION = "d";
     private static final String EXCLUDE_KEY_OPTION = "x";
     private static final String ENUMERATE_KEYS_OPTION = "e";
+    private static final String ENUMERATE_TOMBSTONES_OPTION = "o";
     private static final String RAW_TIMESTAMPS = "t";
     private static final String PARTITION_JSON_LINES = "l";
 
@@ -87,8 +89,11 @@ public class SSTableExport
         excludeKey.setArgs(500);
         options.addOption(excludeKey);
 
-        Option optEnumerate = new Option(ENUMERATE_KEYS_OPTION, false, "enumerate partition keys only");
+        Option optEnumerate = new Option(ENUMERATE_KEYS_OPTION, false, "Enumerate partition keys only");
         options.addOption(optEnumerate);
+
+        Option optTombstones = new Option(ENUMERATE_TOMBSTONES_OPTION, false, "Enumerate tombstones only");
+        options.addOption(optTombstones);
 
         Option debugOutput = new Option(DEBUG_OUTPUT_OPTION, false, "CQL row per line internal representation");
         options.addOption(debugOutput);
@@ -96,7 +101,7 @@ public class SSTableExport
         Option rawTimestamps = new Option(RAW_TIMESTAMPS, false, "Print raw timestamps instead of iso8601 date strings");
         options.addOption(rawTimestamps);
 
-        Option partitionJsonLines= new Option(PARTITION_JSON_LINES, false, "Output json lines, by partition");
+        Option partitionJsonLines = new Option(PARTITION_JSON_LINES, false, "Output json lines, by partition");
         options.addOption(partitionJsonLines);
     }
 
@@ -160,6 +165,11 @@ public class SSTableExport
                                                System.out);
                 }
             }
+            else if (cmd.hasOption(ENUMERATE_TOMBSTONES_OPTION))
+            {
+                final ISSTableScanner currentScanner = sstable.getScanner();
+                process(currentScanner, Util.iterToStream(currentScanner), metadata);
+            }
             else
             {
                 IPartitioner partitioner = sstable.getPartitioner();
@@ -179,43 +189,9 @@ public class SSTableExport
                 {
                     currentScanner = sstable.getScanner();
                 }
-                Stream<UnfilteredRowIterator> partitions = Util.iterToStream(currentScanner).filter(i ->
-                    excludes.isEmpty() || !excludes.contains(metadata.partitionKeyType.getString(i.partitionKey().getKey()))
-                );
-                if (cmd.hasOption(DEBUG_OUTPUT_OPTION))
-                {
-                    AtomicLong position = new AtomicLong();
-                    partitions.forEach(partition ->
-                    {
-                        position.set(currentScanner.getCurrentPosition());
 
-                        if (!partition.partitionLevelDeletion().isLive())
-                        {
-                            System.out.println("[" + metadata.partitionKeyType.getString(partition.partitionKey().getKey()) + "]@" +
-                                               position.get() + " " + partition.partitionLevelDeletion());
-                        }
-                        if (!partition.staticRow().isEmpty())
-                        {
-                            System.out.println("[" + metadata.partitionKeyType.getString(partition.partitionKey().getKey()) + "]@" +
-                                               position.get() + " " + partition.staticRow().toString(metadata, true));
-                        }
-                        partition.forEachRemaining(row ->
-                        {
-                            System.out.println(
-                            "[" + metadata.partitionKeyType.getString(partition.partitionKey().getKey()) + "]@"
-                            + position.get() + " " + row.toString(metadata, false, true));
-                            position.set(currentScanner.getCurrentPosition());
-                        });
-                    });
-                }
-                else if (cmd.hasOption(PARTITION_JSON_LINES))
-                {
-                    JsonTransformer.toJsonLines(currentScanner, partitions, cmd.hasOption(RAW_TIMESTAMPS), metadata, System.out);
-                }
-                else
-                {
-                    JsonTransformer.toJson(currentScanner, partitions, cmd.hasOption(RAW_TIMESTAMPS), metadata, System.out);
-                }
+                Stream<UnfilteredRowIterator> partitions = Util.iterToStream(currentScanner).filter(i -> excludes.isEmpty() || !excludes.contains(metadata.partitionKeyType.getString(i.partitionKey().getKey())));
+                process(currentScanner, partitions, metadata);
             }
         }
         catch (IOException e)
@@ -224,6 +200,54 @@ public class SSTableExport
         }
 
         System.exit(0);
+    }
+
+    private static void process(ISSTableScanner scanner, Stream<UnfilteredRowIterator> partitions, TableMetadata metadata) throws IOException
+    {
+        long nowInSeconds = FBUtilities.nowInSeconds();
+        boolean hasTombstoneOption = cmd.hasOption(ENUMERATE_TOMBSTONES_OPTION);
+
+        if (cmd.hasOption(DEBUG_OUTPUT_OPTION))
+        {
+            AtomicLong position = new AtomicLong();
+            partitions.forEach(partition ->
+            {
+                position.set(scanner.getCurrentPosition());
+
+                if (!partition.partitionLevelDeletion().isLive())
+                {
+                    System.out.println('[' + metadata.partitionKeyType.getString(partition.partitionKey().getKey()) + "]@" +
+                                       position.get() + ' ' + partition.partitionLevelDeletion());
+                }
+                if (!partition.staticRow().isEmpty())
+                {
+                    System.out.println('[' + metadata.partitionKeyType.getString(partition.partitionKey().getKey()) + "]@" +
+                                       position.get() + ' ' + partition.staticRow().toString(metadata, true));
+                }
+                partition.forEachRemaining(row ->
+                {
+                    boolean shouldPrint = true;
+                    if (hasTombstoneOption && row.isRow())
+                        shouldPrint = ((Row) row).hasDeletion(nowInSeconds);
+
+                    if (shouldPrint)
+                    {
+                        System.out.println('[' + metadata.partitionKeyType.getString(partition.partitionKey().getKey()) + "]@"
+                                           + position.get() + ' ' + row.toString(metadata, false, true));
+                    }
+
+                    position.set(scanner.getCurrentPosition());
+                });
+             });
+        }
+        else if (cmd.hasOption(PARTITION_JSON_LINES))
+        {
+            JsonTransformer.toJsonLines(scanner, partitions, cmd.hasOption(RAW_TIMESTAMPS), hasTombstoneOption, metadata, nowInSeconds, System.out);
+        }
+        else
+        {
+            JsonTransformer.toJson(scanner, partitions, cmd.hasOption(RAW_TIMESTAMPS), hasTombstoneOption, metadata, nowInSeconds, System.out);
+        }
     }
 
     private static void printUsage()

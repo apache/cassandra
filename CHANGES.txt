@@ -1,4 +1,17 @@
 5.1
+ * Allow CMS reconfiguration to work around DOWN nodes (CASSANDRA-19943)
+ * Make TableParams.Serializer set allowAutoSnapshots and incrementalBackups (CASSANDRA-19954)
+ * Make sstabledump possible to show tombstones only (CASSANDRA-19939)
+ * Ensure that RFP queries potentially stale replicas even with only key columns in the row filter (CASSANDRA-19938)
+ * Allow nodes to change IP address while upgrading to TCM (CASSANDRA-19921)
+ * Retain existing keyspace params on system tables after upgrade (CASSANDRA-19916)
+ * Deprecate use of gossip state for paxos electorate verification (CASSANDRA-19904)
+ * Update dtest-api to 0.0.17 to fix jvm17 crash in jvm-dtests (CASSANDRA-19239)
+ * Add resource leak test and Update Netty to 4.1.113.Final to fix leak (CASSANDRA-19783)
+ * Fix incorrect nodetool suggestion when gossip mode is running (CASSANDRA-19905)
+ * SAI support for BETWEEN operator (CASSANDRA-19688)
+ * Fix BETWEEN filtering for reversed clustering columns (CASSANDRA-19878)
+ * Retry if node leaves CMS while committing a transformation (CASSANDRA-19872)
  * Add support for NOT operators in WHERE clauses. Fixed Three Valued Logic (CASSANDRA-18584)
  * Allow getendpoints for system tables and make sure getNaturalReplicas work for MetaStrategy (CASSANDRA-19846)
  * On upgrade, handle pre-existing tables with unexpected table ids (CASSANDRA-19845)
@@ -69,6 +82,10 @@
  * Add the ability to disable bulk loading of SSTables (CASSANDRA-18781)
  * Clean up obsolete functions and simplify cql_version handling in cqlsh (CASSANDRA-18787)
 Merged from 5.0:
+ * Correct out-of-date metrics and configuration documentation for SAI (CASSANDRA-19898)
+ * Make configuration entries in memtable section order-independent (CASSANDRA-19906)
+ * Add guardrail for enabling usage of VectorType (CASSANDRA-19903)
+ * Set executable flag for shell scripts in .build directory for source artifact (CASSANDRA-19896)
  * Throw ConfigurationException when commitlog_disk_access_mode is direct but direct IO is not supported by filesystem (CASSANDRA-19812)
  * Memtable allocation type unslabbed_heap_buffers_logged will cause an assertion error for TrieMemtables and SegmentedTrieMemtables (CASSANDRA-19835)
  * Minor improvements in Cassandra shutdown and startup logs (CASSANDRA-19818)
@@ -76,6 +93,29 @@ Merged from 5.0:
  * Deprecate and ignore use_deterministic_table_id (CASSANDRA-19809)
  * Prioritize built indexes in IndexStatusManager (CASSANDRA-19400)
  * Add java.base/java.lang.reflect among opens for jvm11-client.options (CASSANDRA-19780)
+Merged from 4.1:
+Merged from 4.0:
+ * Ensure thread-safety for CommitLogArchiver in CommitLog (CASSANDRA-19960)
+ * Fix text containing "/*" being interpreted as multiline comment in cqlsh (CASSANDRA-17667)
+ * Fix indexing of a frozen collection that is the clustering key and reversed (CASSANDRA-19889)
+ * Emit error when altering a table with non-frozen UDTs with nested non-frozen collections the same way as done upon table creation (CASSANDRA-19925)
+ * Safer handling of out-of-range tokens (CASSANDRA-13704)
+ * Fix memory leak in BTree.FastBuilder (CASSANDRA-19785)
+ * Fix millisecond and microsecond precision for commit log replay (CASSANDRA-19448)
+ * Improve accuracy of memtable heap usage tracking (CASSANDRA-17298)
+ * Fix rendering UNSET collection types in query tracing (CASSANDRA-19880)
+ * Fix latency reported by ideal consistency level monitoring (CASSANDRA-19651)
+ * Do not spam log with SSLExceptions (CASSANDRA-18839)
+
+5.0.0
+5.0-rc2
+ * Fix direct IO support always being evaluated to false upon the first start of a node (CASSANDRA-19779)
+ * Memtable allocation type unslabbed_heap_buffers_logged will cause an assertion error for TrieMemtables and SegmentedTrieMemtables (CASSANDRA-19835)
+Merged from 4.0:
+ * Use default commitlog settings in test YAMLs (CASSANDRA-19830)
+
+
+5.0-rc1
  * Move bcpkix-jdk18on to build dependencies, update to 1.78 and explicitly enumerate transitive dependencies (CASSANDRA-19739)
  * Avoid streams in the common case for UpdateTransaction creation (CASSANDRA-19675)
  * Only wait until native_transport_timeout for dispatcher to finish (CASSANDRA-19697)
@@ -124,6 +164,23 @@ Merged from 4.1:
  * Refresh stale paxos commit (CASSANDRA-19617)
  * Reduce info logging from automatic paxos repair (CASSANDRA-19445)
  * Support legacy plain_text_auth section in credentials file removed unintentionally (CASSANDRA-19498)
+Merged from 4.0:
+ * Fix millisecond and microsecond precision for commit log replay (CASSANDRA-19448)
+ * Improve accuracy of memtable heap usage tracking (CASSANDRA-17298)
+ * Fix rendering UNSET collection types in query tracing (CASSANDRA-19880)
+ * Fix latency reported by ideal consistency level monitoring (CASSANDRA-19651)
+ * Use default commitlog settings in test YAMLs (CASSANDRA-19830)
+ * Do not spam log with SSLExceptions (CASSANDRA-18839)
+ * Fix schema.cql created by a snapshot after dropping more than one column (CASSANDRA-19747)
+ * UnsupportedOperationException when reducing scope for LCS compactions (CASSANDRA-19704)
+ * Make LWT conditions behavior on frozen and non-frozen columns consistent for null column values (CASSANDRA-19637)
+ * Add timeout specifically for bootstrapping nodes (CASSANDRA-15439)
+ * Bring Redhat packge dirs/ownership/perms in line with Debian package (CASSANDRA-19565)
+Merged from 3.0:
+ * Upgrade OWASP to 10.0.0 (CASSANDRA-19738)
+
+
+4.1.5
  * Make queries visible to the "system_views.queries" virtual table at the coordinator level (CASSANDRA-19577)
  * Fix hints delivery for a node going down repeatedly (CASSANDRA-19495)
  * Do not go to disk for reading hints file sizes (CASSANDRA-19477)
@@ -131,6 +188,8 @@ Merged from 4.1:
  * Fix StackOverflowError on ALTER after many previous schema changes (CASSANDRA-19166)
  * Memoize Cassandra verion (CASSANDRA-18902)
 Merged from 4.0:
+ * Fix millisecond and microsecond precision for commit log replay (CASSANDRA-19448)
+ * Improve accuracy of memtable heap usage tracking (CASSANDRA-17298)
  * Fix rendering UNSET collection types in query tracing (CASSANDRA-19880)
  * Fix latency reported by ideal consistency level monitoring (CASSANDRA-19651)
  * Use default commitlog settings in test YAMLs (CASSANDRA-19830)
@@ -220,12 +279,12 @@ Merged from 4.0:
 Merged from 3.11:
  * Revert CASSANDRA-18543 (CASSANDRA-18854)
 Merged from 3.0:
- * Suppress CVE-2023-6378 (CASSANDRA-19142) 
+ * Suppress CVE-2023-6378 (CASSANDRA-19142)
  * Do not set RPC_READY to false on transports shutdown in order to not fail counter updates for deployments with coordinator and storage nodes with transports turned off (CASSANDRA-18935)
  * Suppress CVE-2023-44487 (CASSANDRA-18943)
  * Implement the logic in bin/stop-server (CASSANDRA-18838)
  * Fix nodetool enable/disablebinary to correctly set rpc readiness in gossip (CASSANDRA-18935)
- * Implement the logic in bin/stop-server (CASSANDRA-18838) 
+ * Implement the logic in bin/stop-server (CASSANDRA-18838)
  * Upgrade snappy-java to 1.1.10.4 (CASSANDRA-18878)
  * Add cqlshrc.sample and credentials.sample into Debian package (CASSANDRA-18818)
 
