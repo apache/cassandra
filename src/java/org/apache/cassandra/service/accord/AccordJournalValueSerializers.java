@@ -302,66 +302,30 @@ public class AccordJournalValueSerializers
         }
     }
 
-    public static class RejectBeforeAccumulator extends Accumulator<ReducingRangeMap<Timestamp>, AccordSafeCommandStore.Sync>
-    {
-        public RejectBeforeAccumulator()
-        {
-            super(new ReducingRangeMap<>());
-        }
-
-        @Override
-        protected ReducingRangeMap<Timestamp> accumulate(ReducingRangeMap<Timestamp> oldValue, AccordSafeCommandStore.Sync newValue)
-        {
-            return ReducingRangeMap.add(oldValue, newValue.ranges, newValue.txnId, Timestamp::max);
-        }
-
-        void force(ReducingRangeMap<Timestamp> forced)
-        {
-            this.accumulated = forced;
-        }
-    }
-
-
     public static class RejectBeforeSerializer
-    implements FlyweightSerializer<AccordSafeCommandStore.Sync, RejectBeforeAccumulator>
+    implements FlyweightSerializer<ReducingRangeMap<Timestamp>, IdentityAccumulator<ReducingRangeMap<Timestamp>>>
     {
-        public RejectBeforeAccumulator mergerFor(JournalKey key)
+        public IdentityAccumulator<ReducingRangeMap<Timestamp>>mergerFor(JournalKey key)
         {
-            return new RejectBeforeAccumulator();
+            return new IdentityAccumulator<>(new ReducingRangeMap<>());
         }
 
         @Override
-        public void serialize(JournalKey key, AccordSafeCommandStore.Sync entry, DataOutputPlus out, int userVersion) throws IOException
+        public void serialize(JournalKey key, ReducingRangeMap<Timestamp> entry, DataOutputPlus out, int userVersion) throws IOException
         {
-            // 0 for entry
-            out.writeByte(0);
-            CommandSerializers.txnId.serialize(entry.txnId, out);
-            // TODO: versioning
-            KeySerializers.ranges.serialize(entry.ranges, out, userVersion);
+            rejectBefore.serialize(entry, out);
         }
 
         @Override
-        public void reserialize(JournalKey key, RejectBeforeAccumulator image, DataOutputPlus out, int userVersion) throws IOException
+        public void reserialize(JournalKey key, IdentityAccumulator<ReducingRangeMap<Timestamp>> image, DataOutputPlus out, int userVersion) throws IOException
         {
-            // 1 for image
-            out.writeByte(1);
-            // TODO: versioning
-            rejectBefore.serialize(image.get(), out);
+            serialize(key, image.get(), out, userVersion);
         }
 
         @Override
-        public void deserialize(JournalKey key, RejectBeforeAccumulator into, DataInputPlus in, int userVersion) throws IOException
+        public void deserialize(JournalKey key, IdentityAccumulator<ReducingRangeMap<Timestamp>> into, DataInputPlus in, int userVersion) throws IOException
         {
-            if (in.readByte() == 0)
-            {
-                TxnId txnId = CommandSerializers.txnId.deserialize(in);
-                Ranges ranges = KeySerializers.ranges.deserialize(in, userVersion);
-                into.update(new AccordSafeCommandStore.Sync(txnId, ranges));
-            }
-            else
-            {
-                into.force(rejectBefore.deserialize(in));
-            }
+            into.update(rejectBefore.deserialize(in));
         }
     }
 

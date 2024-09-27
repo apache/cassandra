@@ -44,6 +44,7 @@ import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
+import accord.utils.ReducingRangeMap;
 
 public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeCommand, AccordSafeTimestampsForKey, AccordSafeCommandsForKey>
 {
@@ -308,10 +309,10 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     }
 
     @Override
-    public void upsertRejectBefore(TxnId txnId, Ranges ranges)
+    public void setRejectBefore(ReducingRangeMap<Timestamp> next)
     {
-        fieldUpdates.rejectBefore = new Sync(txnId, ranges);
-        super.upsertRejectBefore(txnId, ranges);
+        fieldUpdates.rejectBefore = next;
+        super.setRejectBefore(next);
     }
 
     public FieldUpdates fieldUpdates()
@@ -324,7 +325,7 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
         public RedundantBefore redundantBefore;
         public DurableBefore durableBefore;
         public Sync newBootstrapBeganAt;
-        public Sync rejectBefore;
+        public ReducingRangeMap<Timestamp> rejectBefore;
         public NavigableMap<Timestamp, Ranges> newSafeToRead;
         public RangesForEpoch.Snapshot rangesForEpoch;
     }
