@@ -176,6 +176,13 @@ public interface SinglePartitionReadQuery extends ReadQuery
                 assert queries.get(i).nowInSec() == nowInSec;
         }
 
+        @Override
+        public void maybeValidateIndex()
+        {
+            for (ReadQuery query : queries)
+                query.maybeValidateIndex();
+        }
+
         public long nowInSec()
         {
             return nowInSec;
