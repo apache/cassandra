@@ -49,7 +49,7 @@ public class AutoRepairConfig implements Serializable
     // the maximum number of retries for a repair session.
     public volatile Integer repair_max_retries = 3;
     // the backoff time in seconds for retrying a repair session.
-    public volatile DurationSpec.LongSecondsBound repair_retry_backoff = new DurationSpec.LongSecondsBound("60s");
+    public volatile DurationSpec.LongSecondsBound repair_retry_backoff = new DurationSpec.LongSecondsBound("30s");
 
     // global_settings overides Options.defaultOptions for all repair types
     public volatile Options global_settings;
@@ -332,7 +332,7 @@ public class AutoRepairConfig implements Serializable
             opts.table_max_repair_time = new DurationSpec.IntSecondsBound("6h");
             opts.mv_repair_enabled = false;
             opts.token_range_splitter = DefaultAutoRepairTokenSplitter.class.getName();
-            opts.initial_scheduler_delay = new DurationSpec.IntSecondsBound("15m"); // 15 minutes
+            opts.initial_scheduler_delay = new DurationSpec.IntSecondsBound("5m"); // 5 minutes
             opts.repair_session_timeout = new DurationSpec.IntSecondsBound("3h"); // 3 hours
 
             return opts;
