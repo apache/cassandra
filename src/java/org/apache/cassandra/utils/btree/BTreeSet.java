@@ -18,7 +18,18 @@
  */
 package org.apache.cassandra.utils.btree;
 
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.List;
+import java.util.ListIterator;
+import java.util.NavigableSet;
+import java.util.NoSuchElementException;
+import java.util.Objects;
+import java.util.SortedSet;
+import java.util.Spliterator;
+import java.util.Spliterators;
+import java.util.function.Function;
 
 import com.google.common.collect.Ordering;
 
@@ -649,9 +660,14 @@ public class BTreeSet<V> implements NavigableSet<V>, List<V>
 
     public static <V> BTreeSet<V> copy(SortedSet<? extends V> copy, Comparator<? super V> comparator)
     {
+        return copy(copy, comparator, v -> v);
+    }
+
+    public static <V> BTreeSet<V> copy(SortedSet<? extends V> copy, Comparator<? super V> comparator, Function<V, V> modifier)
+    {
         try (BTree.FastBuilder<V> builder = BTree.fastBuilder())
         {
-            copy.forEach(builder::add);
+            copy.forEach(value -> builder.add(modifier.apply(value)));
             return wrap(builder.build(), comparator);
         }
     }
