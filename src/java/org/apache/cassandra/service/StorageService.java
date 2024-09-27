@@ -3546,6 +3546,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         long totalRowCountEstimate = cfs.estimatedKeysForRange(range);
 
+        // splitCount should be much smaller than number of key samples, to avoid huge sampling error
         int splitCount = calculateSplitCount(keysPerSplit, totalRowCountEstimate, keys.size());
 
         List<Token> tokens = keysToTokens(range, keys);
