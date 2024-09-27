@@ -210,7 +210,8 @@ public class ReadCommandVerbHandlerOutOfRangeTest
                   key(tmd, key),
                   null,
                   null,
-                  false);
+                  false,
+                  null);
 
             this.tmd = tmd;
         }

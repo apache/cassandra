@@ -1,4 +1,5 @@
 5.0.2
+ * Use SinglePartitionReadCommand for index queries that use strict filtering (CASSANDRA-19968)
  * Correct out-of-date metrics and configuration documentation for SAI (CASSANDRA-19898)
 Merged from 4.1:
  * Fix race condition in DecayingEstimatedHistogramReservoir during rescale (CASSANDRA-19365)
