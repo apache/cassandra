@@ -255,10 +255,10 @@ public final class JournalKey
         COMMAND_DIFF                 (0, new CommandDiffSerializer()),
         REDUNDANT_BEFORE             (1, new RedundantBeforeSerializer()),
         DURABLE_BEFORE               (2, new DurableBeforeSerializer()),
-        SAFE_TO_READ                 (4, new SafeToReadSerializer()),
-        BOOTSTRAP_BEGAN_AT           (5, new BootstrapBeganAtSerializer()),
-        RANGES_FOR_EPOCH             (6, new RangesForEpochSerializer()),
-        HISTORICAL_TRANSACTIONS      (7, new HistoricalTransactionsSerializer())
+        SAFE_TO_READ                 (3, new SafeToReadSerializer()),
+        BOOTSTRAP_BEGAN_AT           (4, new BootstrapBeganAtSerializer()),
+        RANGES_FOR_EPOCH             (5, new RangesForEpochSerializer()),
+        HISTORICAL_TRANSACTIONS      (6, new HistoricalTransactionsSerializer())
         ;
 
         final int id;
