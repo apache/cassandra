@@ -21,10 +21,11 @@ package org.apache.cassandra.service.accord;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.function.Function;
-
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import accord.api.Result;
 import accord.local.Command;
@@ -39,6 +40,7 @@ import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.primitives.Writes;
+import accord.utils.Invariants;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -53,6 +55,7 @@ import static accord.utils.Invariants.illegalState;
 
 public class SavedCommand
 {
+    private static final Logger logger = LoggerFactory.getLogger(SavedCommand.class);
     // This enum is order-dependent
     public enum Fields
     {
@@ -114,13 +117,14 @@ public class SavedCommand
     }
 
     @Nullable
-    public static DiffWriter diff(Command original, Command current)
+    public static DiffWriter diff(Command before, Command after)
     {
-        if (original == current
-            || current == null
-            || current.saveStatus() == SaveStatus.Uninitialised)
+        if (before == after
+            || after == null
+            || after.saveStatus() == SaveStatus.Uninitialised
+            || getFlags(before, after) == 0)
             return null;
-        return new SavedCommand.DiffWriter(original, current);
+        return new SavedCommand.DiffWriter(before, after);
     }
 
     public static void serialize(Command before, Command after, DataOutputPlus out, int userVersion) throws IOException
@@ -210,14 +214,16 @@ public class SavedCommand
         if (lo != null) l = convert.apply(lo);
         if (ro != null) r = convert.apply(ro);
 
-        if (r == null)
-            oldFlags = setFieldIsNull(field, oldFlags);
-
         if (l == r)
             return oldFlags; // no change
 
         if (l == null || r == null)
-            return setFieldChanged(field, oldFlags);
+        {
+            oldFlags = setFieldChanged(field, oldFlags);
+            if (r == null)
+                oldFlags = setFieldIsNull(field, oldFlags);
+            return oldFlags;
+        }
 
         assert allowClassMismatch || l.getClass() == r.getClass() : String.format("%s != %s", l.getClass(), r.getClass());
 
@@ -538,6 +544,8 @@ public class SavedCommand
             Command.WaitingOn waitingOn = null;
             if (this.waitingOn != null)
                 waitingOn = this.waitingOn.provide(txnId, partialDeps);
+
+            Invariants.checkState(saveStatus != null, "%s", this);
 
             switch (saveStatus.status)
             {

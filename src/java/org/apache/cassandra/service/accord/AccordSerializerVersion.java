@@ -52,7 +52,7 @@ public enum AccordSerializerVersion implements MessageVersionProvider
             case 1:
                 return V1;
             default:
-                throw new IllegalArgumentException();
+                throw new IllegalArgumentException("Unknown version: " + version);
         }
     }
 

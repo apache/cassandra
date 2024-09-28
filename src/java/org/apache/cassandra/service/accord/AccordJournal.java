@@ -315,7 +315,6 @@ public class AccordJournal implements IJournal, Shutdownable
         try (AccordJournalTable.KeyOrderIterator<JournalKey> iter = journalTable.readAll())
         {
             JournalKey key = null;
-            final SavedCommand.Builder builder = new SavedCommand.Builder();
             while ((key = iter.key()) != null)
             {
                 if (key.type != JournalKey.Type.COMMAND_DIFF)
@@ -325,6 +324,7 @@ public class AccordJournal implements IJournal, Shutdownable
                     continue;
                 }
 
+                final SavedCommand.Builder builder = new SavedCommand.Builder();
                 JournalKey finalKey = key;
                 iter.readAllForKey(key, (segment, position, local, buffer, hosts, userVersion) -> {
                     Invariants.checkState(finalKey.equals(local));
@@ -339,6 +339,7 @@ public class AccordJournal implements IJournal, Shutdownable
                     }
                 });
 
+                // TODO: reuse builder
                 Command command = builder.construct();
                 AccordCommandStore commandStore = (AccordCommandStore) node.commandStores().forId(key.commandStoreId);
                 commandStore.loader().load(command).get();
