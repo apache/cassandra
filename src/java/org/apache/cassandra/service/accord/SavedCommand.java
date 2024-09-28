@@ -392,20 +392,6 @@ public class SavedCommand
         public void deserializeNext(DataInputPlus in, int userVersion) throws IOException
         {
             final int flags = in.readInt();
-            // TODO: should be able to infer this from flags, but for that we need to flip null/changed order
-            boolean hadChanges = false;
-            for (Fields value : Fields.values())
-            {
-                if (getFieldChanged(value, flags))
-                {
-                    hadChanges = true;
-                    break;
-                }
-            }
-
-            if (!hadChanges)
-                return;
-
             nextCalled = true;
             count++;
 
