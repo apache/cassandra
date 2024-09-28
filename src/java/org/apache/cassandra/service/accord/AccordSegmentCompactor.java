@@ -20,7 +20,6 @@ package org.apache.cassandra.service.accord;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.PriorityQueue;
 
 import com.google.common.base.Throwables;
