@@ -68,6 +68,7 @@ public class AutoRepairStateTest extends CQLTester
 
     @Before
     public void setUp() {
+        AutoRepair.SLEEP_IF_REPAIR_FINISHES_QUICKLY = new DurationSpec.IntSecondsBound("0s");
         initMocks(this);
         createTable(String.format("CREATE TABLE IF NOT EXISTS %s.%s (pk int PRIMARY KEY, v int)", KEYSPACE, testTable));
     }

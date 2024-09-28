@@ -62,6 +62,7 @@ public class AutoRepairConfigTest extends CQLTester
     {
         config = new AutoRepairConfig(true);
         config.repair_type_overrides = null;
+        AutoRepair.SLEEP_IF_REPAIR_FINISHES_QUICKLY = new DurationSpec.IntSecondsBound("0s");
     }
 
     @Test
