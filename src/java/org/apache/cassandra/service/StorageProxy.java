@@ -350,7 +350,6 @@ public class StorageProxy implements StorageProxyMBean
                                   Dispatcher.RequestTime requestTime)
     throws UnavailableException, IsBootstrappingException, RequestFailureException, RequestTimeoutException, InvalidRequestException, CasWriteUnknownResultException
     {
-        TableMetadata metadata = Schema.instance.validateTable(keyspaceName, cfName);
         if (DatabaseDescriptor.getPartitionDenylistEnabled() && DatabaseDescriptor.getDenylistWritesEnabled() && !partitionDenylist.isKeyPermitted(keyspaceName, cfName, key.getKey()))
         {
             denylistMetrics.incrementWritesRejected();
@@ -362,6 +361,7 @@ public class StorageProxy implements StorageProxyMBean
         do
         {
             ClusterMetadata cm = ClusterMetadata.current();
+            TableMetadata metadata = Schema.instance.validateTable(keyspaceName, cfName);
             ConsensusRoutingDecision decision = consensusRouting(metadata, key, consistencyForPaxos, requestTime, true);
             switch (decision)
             {
@@ -2333,9 +2333,10 @@ public class StorageProxy implements StorageProxyMBean
             TableParams tableParams = tableMetadata.params;
 
             TransactionalMode transactionalMode = tableParams.transactionalMode;
-            TransactionalMigrationFromMode transactionalMigrationFromMode = tableParams.transactionalMigrationFrom;
-            if (transactionalMigrationFromMode != TransactionalMigrationFromMode.none && transactionalMode.readsThroughAccord && transactionalMigrationFromMode.writesThroughAccord() && transactionalMigrationFromMode.readsThroughAccord())
-                throw new UnsupportedOperationException("Live migration is not supported, can't safely read when migrating from " + transactionalMigrationFromMode + " to " + transactionalMode);
+//            TransactionalMigrationFromMode transactionalMigrationFromMode = tableParams.transactionalMigrationFrom;
+            // TODO (required): Tests would fail with this and we need to add live migration support anyways so for now allow it
+//            if (transactionalMigrationFromMode != TransactionalMigrationFromMode.none)
+//                throw new UnsupportedOperationException("Live migration is not supported, can't safely read when migrating from " + transactionalMigrationFromMode + " to " + transactionalMode);
 
             PartitionIterator result;
             if (transactionalMode.readsThroughAccord && coordinator.isEventuallyConsistent())

@@ -94,16 +94,16 @@ public enum TransactionalMode
     full(true, true, true, true, true);
 
     public final boolean accordIsEnabled;
-    public final boolean ignoresSuppliedConsistencyLevel;
+    public final boolean ignoresSuppleidCommitCL;
     public final boolean writesThroughAccord;
     public final boolean readsThroughAccord;
     public final boolean blockingReadRepairThroughAccord;
     private final String cqlParam;
 
-    TransactionalMode(boolean accordIsEnabled, boolean ignoresSuppliedConsistencyLevel, boolean writesThroughAccord, boolean readsThroughAccord, boolean blockingReadRepairThroughAccord)
+    TransactionalMode(boolean accordIsEnabled, boolean ignoresSuppleidCommitCL, boolean writesThroughAccord, boolean readsThroughAccord, boolean blockingReadRepairThroughAccord)
     {
         this.accordIsEnabled = accordIsEnabled;
-        this.ignoresSuppliedConsistencyLevel = ignoresSuppliedConsistencyLevel;
+        this.ignoresSuppleidCommitCL = ignoresSuppleidCommitCL;
         this.writesThroughAccord = writesThroughAccord;
         this.readsThroughAccord = readsThroughAccord;
         this.blockingReadRepairThroughAccord = blockingReadRepairThroughAccord;
@@ -112,7 +112,7 @@ public enum TransactionalMode
 
     public ConsistencyLevel commitCLForStrategy(ConsistencyLevel consistencyLevel)
     {
-        if (ignoresSuppliedConsistencyLevel)
+        if (ignoresSuppleidCommitCL)
             return null;
 
         if (!IAccordService.SUPPORTED_COMMIT_CONSISTENCY_LEVELS.contains(consistencyLevel))
