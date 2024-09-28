@@ -172,6 +172,7 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.schema.ViewMetadata;
+import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationTarget;
 import org.apache.cassandra.service.disk.usage.DiskUsageBroadcaster;
@@ -3959,6 +3960,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             else
                 logger.debug(msg);
             transientMode = Optional.of(Mode.DRAINING);
+
+            AccordService.instance().shutdownAndWait(1, MINUTES);
 
             try
             {
