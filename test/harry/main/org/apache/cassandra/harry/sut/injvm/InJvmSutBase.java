@@ -33,6 +33,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import com.google.common.collect.Iterators;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -165,7 +166,11 @@ public class InJvmSutBase<NODE extends IInstance, CLUSTER extends ICluster<NODE>
                 }
                 else if (StringUtils.startsWithIgnoreCase(statement, "SELECT"))
                 {
-                    return cluster.coordinator(coordinator).execute(statement, toApiCl(cl), bindings);
+                    return Iterators.toArray(cluster
+                                             // round-robin
+                                             .coordinator(coordinator)
+                                             .executeWithPaging(statement, toApiCl(cl), pageSize, bindings),
+                                             Object[].class);
                 }
                 else
                 {
