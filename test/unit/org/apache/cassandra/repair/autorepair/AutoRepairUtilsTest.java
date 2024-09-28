@@ -31,6 +31,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.marshal.UTF8Type;
@@ -99,6 +100,7 @@ public class AutoRepairUtilsTest extends CQLTester
     @Before
     public void setup()
     {
+        AutoRepair.SLEEP_IF_REPAIR_FINISHES_QUICKLY = new DurationSpec.IntSecondsBound("0s");
         MockitoAnnotations.initMocks(this);
         DatabaseDescriptor.setEndpointSnitch(defaultSnitch);
         QueryProcessor.executeInternal(String.format(
