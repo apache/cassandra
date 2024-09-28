@@ -27,6 +27,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
+import java.util.function.BiPredicate;
 import javax.management.openmbean.*;
 
 import org.apache.cassandra.locator.Replica;
@@ -74,6 +75,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
 
     public static final IFailureDetector instance = newFailureDetector();
     public static final Predicate<InetAddressAndPort> isEndpointAlive = instance::isAlive;
+    public static final BiPredicate<InetAddressAndPort, InetAddressAndPort> isEpASlowerThanEpB = instance::isEpAResponseTimeSlowerThanEpB;
     public static final Predicate<Replica> isReplicaAlive = r -> isEndpointAlive.test(r.endpoint());
 
     // this is useless except to provide backwards compatibility in phi_convict_threshold,
@@ -363,6 +365,17 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
             logger.trace("PHI for {} : {}", ep, phi);
             logger.trace("mean for {} : {}ns", ep, hbWnd.mean());
         }
+    }
+
+    public boolean isEpAResponseTimeSlowerThanEpB(InetAddressAndPort epA, InetAddressAndPort epB)
+    {
+        ArrivalWindow hbWndA = arrivalSamples.get(epA);
+        ArrivalWindow hbWndB = arrivalSamples.get(epB);
+        
+        if (hbWndA == null || hbWndB == null)
+            return false;
+        
+        return hbWndA.getLastReportedPhi() > hbWndB.getLastReportedPhi();
     }
 
     public void forceConviction(InetAddressAndPort ep)
