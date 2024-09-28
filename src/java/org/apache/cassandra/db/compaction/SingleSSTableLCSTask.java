@@ -50,6 +50,11 @@ public class SingleSSTableLCSTask extends AbstractCompactionTask
         this.level = level;
     }
 
+    protected int getLevel()
+    {
+        return level;
+    }
+
     @Override
     public CompactionAwareWriter getCompactionAwareWriter(ColumnFamilyStore cfs, Directories directories, LifecycleTransaction txn, Set<SSTableReader> nonExpiredSSTables)
     {
