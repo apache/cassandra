@@ -20,6 +20,7 @@ package org.apache.cassandra.service.accord;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.PriorityQueue;
 
 import com.google.common.base.Throwables;
@@ -75,7 +76,7 @@ public class AccordSegmentCompactor<V> implements SegmentCompactor<JournalKey, V
         // nothing to compact (all segments empty, should never happen, but it is theoretically possible?) - exit early
         // TODO: investigate how this comes to be, check if there is a cleanup issue
         if (readers.isEmpty())
-            return segments;
+            return null;
 
         ColumnFamilyStore cfs = Keyspace.open(AccordKeyspace.metadata().name).getColumnFamilyStore(AccordKeyspace.JOURNAL);
         Descriptor descriptor = cfs.newSSTableDescriptor(cfs.getDirectories().getDirectoryForNewSSTables());

@@ -33,6 +33,7 @@ import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
 
 import static accord.local.CommandStores.RangesForEpoch;
@@ -47,6 +48,7 @@ import static org.apache.cassandra.service.accord.serializers.DepsSerializer.dep
 // TODO (required): versioning
 public class AccordJournalValueSerializers
 {
+    private static final int messagingVersion = MessagingService.VERSION_40;
     public interface FlyweightSerializer<ENTRY, IMAGE>
     {
         IMAGE mergerFor(JournalKey key);
@@ -83,8 +85,9 @@ public class AccordJournalValueSerializers
         @Override
         public void reserialize(JournalKey key, SavedCommand.Builder from, DataOutputPlus out, int userVersion) throws IOException
         {
-            SavedCommand.DiffWriter writer = new SavedCommand.DiffWriter(null, from.construct());
-            writer.write(out, userVersion);
+            SavedCommand.DiffWriter writer = SavedCommand.diff(null, from.construct());
+            if (writer != null)
+                writer.write(out, userVersion);
         }
 
         @Override
@@ -312,7 +315,7 @@ public class AccordJournalValueSerializers
         {
             out.writeUnsignedVInt32(from.ranges.length);
             for (Ranges ranges : from.ranges)
-                KeySerializers.ranges.serialize(ranges, out, userVersion);
+                KeySerializers.ranges.serialize(ranges, out, messagingVersion);
 
             out.writeUnsignedVInt32(from.epochs.length);
             for (long epoch : from.epochs)
@@ -321,14 +324,14 @@ public class AccordJournalValueSerializers
 
         public void reserialize(JournalKey key, IdentityAccumulator<RangesForEpoch.Snapshot> from, DataOutputPlus out, int userVersion) throws IOException
         {
-            serialize(key, from.get(), out, userVersion);
+            serialize(key, from.get(), out, messagingVersion);
         }
 
         public void deserialize(JournalKey key, IdentityAccumulator<RangesForEpoch.Snapshot> into, DataInputPlus in, int userVersion) throws IOException
         {
             Ranges[] ranges = new Ranges[in.readUnsignedVInt32()];
             for (int i = 0; i < ranges.length; i++)
-                ranges[i] = KeySerializers.ranges.deserialize(in, userVersion);
+                ranges[i] = KeySerializers.ranges.deserialize(in, messagingVersion);
 
             long[] epochs = new long[in.readUnsignedVInt32()];
             for (int i = 0; i < epochs.length; i++)
@@ -364,21 +367,21 @@ public class AccordJournalValueSerializers
         public void serialize(JournalKey key, Deps from, DataOutputPlus out, int userVersion) throws IOException
         {
             out.writeUnsignedVInt32(1);
-            deps.serialize(from, out, userVersion);
+            deps.serialize(from, out, messagingVersion);
         }
 
         public void reserialize(JournalKey key, HistoricalTransactionsAccumulator from, DataOutputPlus out, int userVersion) throws IOException
         {
             out.writeUnsignedVInt32(from.get().size());
             for (Deps d : from.get())
-                deps.serialize(d, out, userVersion);
+                deps.serialize(d, out, messagingVersion);
         }
 
         public void deserialize(JournalKey key, HistoricalTransactionsAccumulator into, DataInputPlus in, int userVersion) throws IOException
         {
             int count = in.readUnsignedVInt32();
             for (int i = 0; i < count; i++)
-                into.update(deps.deserialize(in, userVersion));
+                into.update(deps.deserialize(in, messagingVersion));
         }
     }
 }

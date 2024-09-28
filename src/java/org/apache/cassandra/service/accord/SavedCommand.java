@@ -81,11 +81,14 @@ public class SavedCommand
         private final Command after;
         private final TxnId txnId;
 
+        // TODO: improve encapsulationd
+        @VisibleForTesting
         public DiffWriter(Command before, Command after)
         {
             this(after.txnId(), before, after);
         }
 
+        @VisibleForTesting
         public DiffWriter(TxnId txnId, Command before, Command after)
         {
             this.txnId = txnId;
@@ -214,16 +217,14 @@ public class SavedCommand
         if (lo != null) l = convert.apply(lo);
         if (ro != null) r = convert.apply(ro);
 
+        if (r == null)
+            oldFlags = setFieldIsNull(field, oldFlags);
+
         if (l == r)
             return oldFlags; // no change
 
         if (l == null || r == null)
-        {
-            oldFlags = setFieldChanged(field, oldFlags);
-            if (r == null)
-                oldFlags = setFieldIsNull(field, oldFlags);
-            return oldFlags;
-        }
+            return setFieldChanged(field, oldFlags);
 
         assert allowClassMismatch || l.getClass() == r.getClass() : String.format("%s != %s", l.getClass(), r.getClass());
 
@@ -390,10 +391,23 @@ public class SavedCommand
         @SuppressWarnings({ "rawtypes", "unchecked" })
         public void deserializeNext(DataInputPlus in, int userVersion) throws IOException
         {
+            final int flags = in.readInt();
+            // TODO: should be able to infer this from flags, but for that we need to flip null/changed order
+            boolean hadChanges = false;
+            for (Fields value : Fields.values())
+            {
+                if (getFieldChanged(value, flags))
+                {
+                    hadChanges = true;
+                    break;
+                }
+            }
+
+            if (!hadChanges)
+                return;
+
             nextCalled = true;
             count++;
-
-            final int flags = in.readInt();
 
             if (getFieldChanged(Fields.TXN_ID, flags))
             {

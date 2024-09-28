@@ -207,8 +207,16 @@ public class AccordJournal implements IJournal, Shutdownable
     @Override
     public void appendCommand(int store, SavedCommand.DiffWriter value, Runnable onFlush)
     {
+        if (value == null)
+        {
+            if (onFlush != null)
+                onFlush.run();
+            return;
+        }
+
         // TODO: use same API for commands as for the other states?
         JournalKey key = new JournalKey(value.key(), JournalKey.Type.COMMAND_DIFF, store);
+        logger.info("Appending {} to {}", key, store);
         RecordPointer pointer = journal.asyncWrite(key, value, SENTINEL_HOSTS);
         if (onFlush != null)
             journal.onFlush(pointer, onFlush);
@@ -315,8 +323,10 @@ public class AccordJournal implements IJournal, Shutdownable
         try (AccordJournalTable.KeyOrderIterator<JournalKey> iter = journalTable.readAll())
         {
             JournalKey key = null;
+            SavedCommand.Builder builder = new SavedCommand.Builder();
             while ((key = iter.key()) != null)
             {
+                builder.clear();
                 if (key.type != JournalKey.Type.COMMAND_DIFF)
                 {
                     // TODO (required): add "skip" for the key to avoid getting stuck
@@ -324,7 +334,6 @@ public class AccordJournal implements IJournal, Shutdownable
                     continue;
                 }
 
-                final SavedCommand.Builder builder = new SavedCommand.Builder();
                 JournalKey finalKey = key;
                 iter.readAllForKey(key, (segment, position, local, buffer, hosts, userVersion) -> {
                     Invariants.checkState(finalKey.equals(local));
@@ -339,12 +348,14 @@ public class AccordJournal implements IJournal, Shutdownable
                     }
                 });
 
-                // TODO: reuse builder
-                Command command = builder.construct();
-                AccordCommandStore commandStore = (AccordCommandStore) node.commandStores().forId(key.commandStoreId);
-                commandStore.loader().load(command).get();
-                if (command.saveStatus().compareTo(SaveStatus.Applying) >= 0 && !command.is(Invalidated) && !command.is(Truncated))
-                    toApply.add(new ToApply(key, command));
+                if (builder.nextCalled)
+                {
+                    Command command = builder.construct();
+                    AccordCommandStore commandStore = (AccordCommandStore) node.commandStores().forId(key.commandStoreId);
+                    commandStore.loader().load(command).get();
+                    if (command.saveStatus().compareTo(SaveStatus.Applying) >= 0 && !command.is(Invalidated) && !command.is(Truncated))
+                        toApply.add(new ToApply(key, command));
+                }
             }
         }
         catch (Throwable t)
