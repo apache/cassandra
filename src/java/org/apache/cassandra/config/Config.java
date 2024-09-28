@@ -287,6 +287,7 @@ public class Config
 
     public EncryptionOptions.ServerEncryptionOptions server_encryption_options = new EncryptionOptions.ServerEncryptionOptions();
     public EncryptionOptions client_encryption_options = new EncryptionOptions();
+    public ParameterizedClass jmx_encryption_options;
 
     public InternodeCompression internode_compression = InternodeCompression.none;
 
@@ -684,6 +685,7 @@ public class Config
     private static final List<String> SENSITIVE_KEYS = new ArrayList<String>() {{
         add("client_encryption_options");
         add("server_encryption_options");
+        add("jmx_encryption_options");
     }};
 
     public static void log(Config config)
