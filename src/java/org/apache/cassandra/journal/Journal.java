@@ -204,7 +204,8 @@ public class Journal<K, V> implements Shutdownable
 
     public void onFlush(RecordPointer recordPointer, Runnable runnable)
     {
-        flusherCallbacks.submit(recordPointer, runnable);
+        if (isFlushed(recordPointer)) runnable.run();
+        else flusherCallbacks.submit(recordPointer, runnable);
     }
 
     public void start()
