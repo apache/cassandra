@@ -340,7 +340,7 @@ The following consistency levels are available:
   A majority of the replicas in each datacenter must respond.
 `LOCAL_ONE`::
   Only a single replica must respond. In a multi-datacenter cluster,
-  this also gaurantees that read requests are not sent to replicas in a
+  this also guarantees that read requests are not sent to replicas in a
   remote datacenter.
 `ANY`::
   A single replica may respond, or the coordinator may store a hint. If
@@ -400,7 +400,7 @@ versions. In Cassandra's gossip system, nodes exchange state information
 not only about themselves but also about other nodes they know about.
 This information is versioned with a vector clock of
 `(generation, version)` tuples, where the generation is a monotonic
-timestamp and version is a logical clock the increments roughly every
+timestamp and version is a logical clock that increments roughly every
 second. These logical clocks allow Cassandra gossip to ignore old
 versions of cluster state just by inspecting the logical clocks
 presented with gossip messages.
@@ -488,7 +488,7 @@ and every additional node brings linear improvements in compute and
 storage. In contrast, scaling-up implies adding more capacity to the
 existing database nodes. Cassandra is also capable of scale-up, and in
 certain environments it may be preferable depending on the deployment.
-Cassandra gives operators the flexibility to chose either scale-out or
+Cassandra gives operators the flexibility to choose either scale-out or
 scale-up.
 
 One key aspect of Dynamo that Cassandra follows is to attempt to run on
