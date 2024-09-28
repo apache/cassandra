@@ -144,13 +144,6 @@ class Segments<K, V>
                 into.add(segment.asStatic());
     }
 
-    void selectStatic(Consumer<StaticSegment<K, V>> into)
-    {
-        for (Segment<K, V> segment : segments.values())
-            if (segment.isStatic())
-                into.accept(segment.asStatic());
-    }
-
     /**
      * Select segments that could potentially have an entry with the specified ids and
      * attempt to grab references to them all.

@@ -276,49 +276,49 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     @Override
     public void upsertRedundantBefore(RedundantBefore addRedundantBefore)
     {
-        if (fieldUpdates == null) fieldUpdates = new FieldUpdates();
-        fieldUpdates.redundantBefore = addRedundantBefore;
+        ensureFieldUpdates().redundantBefore = addRedundantBefore;
         super.upsertRedundantBefore(addRedundantBefore);
     }
 
     @Override
     public void upsertSetBootstrapBeganAt(TxnId globalSyncId, Ranges ranges)
     {
-        if (fieldUpdates == null) fieldUpdates = new FieldUpdates();
-        fieldUpdates.newBootstrapBeganAt = new Sync(globalSyncId, ranges);
+        ensureFieldUpdates().newBootstrapBeganAt = new Sync(globalSyncId, ranges);
         super.upsertSetBootstrapBeganAt(globalSyncId, ranges);
     }
 
     @Override
     public void upsertDurableBefore(DurableBefore addDurableBefore)
     {
-        if (fieldUpdates == null) fieldUpdates = new FieldUpdates();
-        fieldUpdates.durableBefore = addDurableBefore;
+        ensureFieldUpdates().durableBefore = addDurableBefore;
         super.upsertDurableBefore(addDurableBefore);
     }
 
     @Override
     public void setSafeToRead(NavigableMap<Timestamp, Ranges> newSafeToRead)
     {
-        if (fieldUpdates == null) fieldUpdates = new FieldUpdates();
-        fieldUpdates.safeToRead = newSafeToRead;
+        ensureFieldUpdates().safeToRead = newSafeToRead;
         super.setSafeToRead(newSafeToRead);
     }
 
     @Override
     public void setRangesForEpoch(CommandStores.RangesForEpoch rangesForEpoch)
     {
-        if (fieldUpdates == null) fieldUpdates = new FieldUpdates();
-        fieldUpdates.rangesForEpoch = rangesForEpoch.snapshot();
+        ensureFieldUpdates().rangesForEpoch = rangesForEpoch.snapshot();
         super.setRangesForEpoch(rangesForEpoch);
     }
 
     @Override
     protected void registerHistoricalTransactions(Deps deps)
     {
-        if (fieldUpdates == null) fieldUpdates = new FieldUpdates();
-        fieldUpdates.historicalTransactions = deps;
+        ensureFieldUpdates().historicalTransactions = deps;
         super.registerHistoricalTransactions(deps);
+    }
+
+    private FieldUpdates ensureFieldUpdates()
+    {
+        if (fieldUpdates == null) fieldUpdates = new FieldUpdates();
+        return fieldUpdates;
     }
 
     public FieldUpdates fieldUpdates()

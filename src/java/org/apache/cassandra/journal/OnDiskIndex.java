@@ -200,22 +200,6 @@ final class OnDiskIndex<K> extends Index<K>
         return lastId;
     }
 
-    public AbstractIterator<K> keyIterator()
-    {
-        return new AbstractIterator<K>()
-        {
-            final OnDiskIndex<K>.IndexReader indexIterator = new IndexReader();
-
-            protected K computeNext()
-            {
-                if (!indexIterator.advance())
-                    return endOfData();
-
-                return indexIterator.key();
-            }
-        };
-    }
-
     @Override
     public long[] lookUp(K id)
     {

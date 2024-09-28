@@ -273,11 +273,19 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
 
                 context.releaseResources(commandStore);
                 state(COMPLETING);
-                if (diffs != null)
-                    appendCommands(diffs);
-                if (safeStore.fieldUpdates() != null)
+                if (diffs != null || safeStore.fieldUpdates() != null)
                 {
-                    commandStore.persistFieldUpdates(safeStore.fieldUpdates(), () -> finish(result, null));
+                    Runnable onFlush = () -> finish(result, null);
+                    if (safeStore.fieldUpdates() != null)
+                    {
+                        if (diffs != null)
+                            appendCommands(diffs, null);
+                        commandStore.persistFieldUpdates(safeStore.fieldUpdates(), onFlush);
+                    }
+                    else
+                    {
+                        appendCommands(diffs, onFlush);
+                    }
                     return false;
                 }
             case COMPLETING:
@@ -290,7 +298,7 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
         return false;
     }
 
-    private void appendCommands(List<SavedCommand.DiffWriter> diffs)
+    private void appendCommands(List<SavedCommand.DiffWriter> diffs, Runnable onFlush)
     {
         if (sanityCheck != null)
         {
@@ -301,10 +309,12 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
 
             for (Command check : sanityCheck)
                 this.commandStore.sanityCheckCommand(check);
+
+            if (onFlush != null) onFlush.run();
         }
         else
         {
-            this.commandStore.appendCommands(diffs, null);
+            this.commandStore.appendCommands(diffs, onFlush);
         }
     }
 
