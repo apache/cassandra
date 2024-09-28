@@ -118,6 +118,10 @@ public class AcceptSerializers
                 case RejectedBallot:
                     out.writeByte(4);
                     CommandSerializers.ballot.serialize(reply.supersededBy, out, version);
+                    break;
+                case Truncated:
+                    out.writeByte(5);
+                    break;
             }
         }
 
@@ -136,6 +140,8 @@ public class AcceptSerializers
                     return AcceptReply.REDUNDANT;
                 case 4:
                     return new AcceptReply(CommandSerializers.ballot.deserialize(in, version));
+                case 5:
+                    return AcceptReply.TRUNCATED;
             }
         }
 
@@ -151,6 +157,7 @@ public class AcceptSerializers
                         size += DepsSerializer.partialDeps.serializedSize(reply.deps, version);
                     break;
                 case Redundant:
+                case Truncated:
                     break;
                 case RejectedBallot:
                     size += CommandSerializers.ballot.serializedSize(reply.supersededBy, version);
