@@ -33,7 +33,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.local.Command;
-import accord.local.CommandStore;
 import accord.local.CommandStores;
 import accord.local.CommandStores.RangesForEpoch;
 import accord.local.DurableBefore;
@@ -311,9 +310,6 @@ public class AccordJournal implements IJournal, Shutdownable
 
     public void replay()
     {
-        for (CommandStore commandStore : node.commandStores().all())
-            ((AccordCommandStore)commandStore).load();
-
         // TODO: optimize replay memory footprint
         class ToApply
         {
