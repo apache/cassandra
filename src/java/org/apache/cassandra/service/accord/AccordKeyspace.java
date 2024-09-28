@@ -63,7 +63,6 @@ import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.topology.Topology;
 import accord.utils.Invariants;
-import accord.utils.ReducingRangeMap;
 import accord.utils.async.Observable;
 import org.apache.cassandra.concurrent.DebuggableTask;
 import org.apache.cassandra.concurrent.Stage;
