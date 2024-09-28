@@ -26,12 +26,14 @@ import java.util.NavigableMap;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.local.Command;
+import accord.local.CommandStore;
 import accord.local.CommandStores;
 import accord.local.CommandStores.RangesForEpoch;
 import accord.local.DurableBefore;
@@ -66,6 +68,9 @@ import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.
 
 public class AccordJournal implements IJournal, Shutdownable
 {
+
+    private final AtomicBoolean isReplay = new AtomicBoolean(false);
+
     static
     {
         // make noise early if we forget to update our version mappings
@@ -207,7 +212,7 @@ public class AccordJournal implements IJournal, Shutdownable
     @Override
     public void appendCommand(int store, SavedCommand.DiffWriter value, Runnable onFlush)
     {
-        if (value == null)
+        if (value == null || isReplay.get())
         {
             if (onFlush != null)
                 onFlush.run();
@@ -306,6 +311,9 @@ public class AccordJournal implements IJournal, Shutdownable
 
     public void replay()
     {
+        for (CommandStore commandStore : node.commandStores().all())
+            ((AccordCommandStore)commandStore).load();
+
         // TODO: optimize replay memory footprint
         class ToApply
         {
@@ -322,6 +330,8 @@ public class AccordJournal implements IJournal, Shutdownable
         List<ToApply> toApply = new ArrayList<>();
         try (AccordJournalTable.KeyOrderIterator<JournalKey> iter = journalTable.readAll())
         {
+            isReplay.set(true);
+
             JournalKey key = null;
             SavedCommand.Builder builder = new SavedCommand.Builder();
             while ((key = iter.key()) != null)
@@ -357,16 +367,21 @@ public class AccordJournal implements IJournal, Shutdownable
                         toApply.add(new ToApply(key, command));
                 }
             }
+
+            toApply.sort(Comparator.comparing(v -> v.command.executeAt()));
+            for (ToApply apply : toApply)
+            {
+                AccordCommandStore commandStore = (AccordCommandStore) node.commandStores().forId(apply.key.commandStoreId);
+                commandStore.loader().apply(apply.command);
+            }
         }
         catch (Throwable t)
         {
             throw new RuntimeException("Can not replay journal.", t);
         }
-        toApply.sort(Comparator.comparing(v -> v.command.executeAt()));
-        for (ToApply apply : toApply)
+        finally
         {
-            AccordCommandStore commandStore = (AccordCommandStore) node.commandStores().forId(apply.key.commandStoreId);
-            commandStore.loader().apply(apply.command);
+            isReplay.set(false);
         }
     }
 }
