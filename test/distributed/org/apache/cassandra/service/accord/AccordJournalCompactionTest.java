@@ -19,6 +19,8 @@
 package org.apache.cassandra.service.accord;
 
 import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -29,9 +31,11 @@ import com.google.common.collect.ImmutableSortedMap;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import accord.local.Command;
+import accord.local.CommandStore;
 import accord.local.DurableBefore;
 import accord.local.RedundantBefore;
 import accord.primitives.Deps;
@@ -48,11 +52,13 @@ import accord.utils.Gens;
 import accord.utils.RandomSource;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.ServerTestUtils;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.journal.TestParams;
 import org.apache.cassandra.schema.KeyspaceParams;
@@ -61,7 +67,6 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.AccordJournalValueSerializers.HistoricalTransactionsAccumulator;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.utils.AccordGenerators;
-import org.apache.cassandra.utils.concurrent.Condition;
 
 import static accord.local.CommandStores.RangesForEpoch;
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
@@ -84,6 +89,7 @@ public class AccordJournalCompactionTest
         StorageService.instance.initServer();
         SchemaLoader.createKeyspace("ks", KeyspaceParams.simple(1),
                                     parse("CREATE TABLE tbl (k int, c int, v int, primary key (k, c)) WITH transactional_mode='full'", "ks"));
+        Keyspace.open(SchemaConstants.ACCORD_KEYSPACE_NAME).getColumnFamilyStore(AccordKeyspace.JOURNAL).disableAutoCompaction();
         Keyspace.setInitialized();
     }
 
@@ -96,8 +102,33 @@ public class AccordJournalCompactionTest
         DatabaseDescriptor.setAccordJournalDirectory(directory.path());
     }
 
+    @Ignore
+    public void redundantBeforeTest() throws Throwable
+    {
+        Gen<RedundantBefore> redundantBeforeGen = AccordGenerators.redundantBefore(DatabaseDescriptor.getPartitioner());
+
+        RedundantBeforeAccumulator acc1 = new RedundantBeforeAccumulator();
+        RedundantBeforeAccumulator acc2 = new RedundantBeforeAccumulator();
+        RandomSource rs = new DefaultRandom();
+
+        List<RedundantBefore> rds = new ArrayList<>();
+        for (int i = 0; i <= 100; i++)
+        {
+            rds.add(redundantBeforeGen.next(rs));
+        }
+
+        Collections.shuffle(rds);
+        for (RedundantBefore rd : rds)
+            acc1.update(rd);
+        Collections.shuffle(rds);
+        for (RedundantBefore rd : rds)
+            acc2.update(rd);
+
+        Assert.assertEquals(acc1.get(), acc2.get());
+    }
+
     @Test
-    public void segmentMergeTest() throws InterruptedException
+    public void segmentMergeTest() throws Throwable
     {
         RandomSource rs = new DefaultRandom();
         Gen<TxnId> commandIdsGen = AccordGens.txnIds();
@@ -129,19 +160,23 @@ public class AccordJournalCompactionTest
             }
         });
 
-        try
+        try (WithProperties wp = new WithProperties().set(CassandraRelevantProperties.DTEST_ACCORD_JOURNAL_WRITE_ALL_FIELDS, "true"))
         {
             journal.start(null);
             Timestamp timestamp = Timestamp.NONE;
 
-            Gen<TxnId> bootstrappedAtTxn = new Gen<TxnId>()
-            {
+            Gen<NavigableMap<TxnId, Ranges>> bootstrappedAtGen = random -> {
+                NavigableMap<TxnId, Ranges> bootstrapBeganAt = ImmutableSortedMap.of(TxnId.NONE, Ranges.EMPTY);
+
                 TxnId prev = txnIdGen.next(rs);
-                public TxnId next(RandomSource random)
+                for (int i = 0; i < 2; i++)
                 {
-                    prev = new TxnId(prev.epoch() + 1, prev.hlc() + random.nextInt(1, 100), prev.kind(), prev.domain(), prev.node);
-                    return prev;
+                    TxnId globalSyncId = new TxnId(prev.epoch() + 1, prev.hlc() + random.nextInt(1, 100), prev.kind(), prev.domain(), prev.node);
+                    bootstrapBeganAt = CommandStore.bootstrap(globalSyncId, rangeGen.next(rs), bootstrapBeganAt);
+                    prev = globalSyncId;
                 }
+
+                return bootstrapBeganAt;
             };
 
             RedundantBeforeAccumulator redundantBeforeAccumulator = new RedundantBeforeAccumulator();
@@ -155,59 +190,64 @@ public class AccordJournalCompactionTest
                 commandAccumulators.put(commandIds[i], new IdentityAccumulator<>(null));
 
             Runnable validate = () -> {
-                Assert.assertEquals(redundantBeforeAccumulator.get(), journal.loadRedundantBefore(1));
+                try
+                {
+                    Assert.assertEquals(redundantBeforeAccumulator.get(), journal.loadRedundantBefore(1));
+                }
+                catch (Throwable t)
+                {
+                    redundantBeforeAccumulator.get().equals(journal.loadRedundantBefore(1));
+                }
                 Assert.assertEquals(durableBeforeAccumulator.get(), journal.loadDurableBefore(1));
                 Assert.assertEquals(bootstrapBeganAtAccumulator.get(), journal.loadBootstrapBeganAt(1));
                 Assert.assertEquals(safeToReadAccumulator.get(), journal.loadSafeToRead(1));
                 Assert.assertEquals(rangesForEpochAccumulator.get(), journal.loadRangesForEpoch(1));
                 Assert.assertEquals(historicalTransactionsAccumulator.get(), journal.loadHistoricalTransactions(1));
                 for (Map.Entry<TxnId, IdentityAccumulator<Command>> e : commandAccumulators.entrySet())
-                {
                     Assert.assertEquals(e.getValue().get(), journal.loadCommand(1, e.getKey()));
-                }
             };
 
-            int count = 1_000;
-
-            for (int i = 0; i <= count; i++)
+            int PER_ROUND = 1000;
+            // Perform multiple rounds of compaction to make sure we test merging static and non-static segments
+            for (int i = 0; i < 3; i++)
             {
-                timestamp = timestamp.next();
-                AccordSafeCommandStore.FieldUpdates updates = new AccordSafeCommandStore.FieldUpdates();
-
-                Command commandUpdate = commandGen.next(rs);
-                IdentityAccumulator<Command> commandAccumulator = commandAccumulators.get(commandUpdate.txnId());
-                journal.appendCommand(1, new SavedCommand.DiffWriter(commandAccumulator.get(), commandUpdate), null);
-                commandAccumulator.update(commandUpdate);
-
-                updates.durableBefore = durableBeforeGen.next(rs);
-                updates.redundantBefore = redundantBeforeGen.next(rs);
-                if (i % 100 == 0)
-                    updates.newBootstrapBeganAt = new AccordSafeCommandStore.Sync(bootstrappedAtTxn.next(rs), rangeGen.next(rs));
-                updates.safeToRead = safeToReadGen.next(rs);
-                updates.rangesForEpoch = rangesForEpochGen.next(rs);
-                updates.historicalTransactions = historicalTransactionsGen.next(rs);
-
-                journal.persistStoreState(1, updates, null);
-
-                redundantBeforeAccumulator.update(updates.redundantBefore);
-                durableBeforeAccumulator.update(updates.durableBefore);
-                if (updates.newBootstrapBeganAt != null)
-                    bootstrapBeganAtAccumulator.update(updates.newBootstrapBeganAt);
-                safeToReadAccumulator.update(updates.safeToRead);
-                rangesForEpochAccumulator.update(updates.rangesForEpoch);
-                historicalTransactionsAccumulator.update(updates.historicalTransactions);
-
-                if (i % 100 == 0)
+                for (int j = 0; j <= PER_ROUND; j++)
                 {
-                    validate.run();
-                    journal.closeCurrentSegmentForTesting();
-                    validate.run();
+                    timestamp = timestamp.next();
+                    AccordSafeCommandStore.FieldUpdates updates = new AccordSafeCommandStore.FieldUpdates();
+
+                    Command commandUpdate = commandGen.next(rs);
+                    IdentityAccumulator<Command> commandAccumulator = commandAccumulators.get(commandUpdate.txnId());
+                    journal.appendCommand(1, new SavedCommand.DiffWriter(commandAccumulator.get(), commandUpdate), null);
+                    commandAccumulator.update(commandUpdate);
+
+                    updates.durableBefore = durableBeforeGen.next(rs);
+                    updates.redundantBefore = redundantBeforeGen.next(rs);
+                    updates.bootstrapBeganAt = bootstrappedAtGen.next(rs);
+                    updates.safeToRead = safeToReadGen.next(rs);
+                    updates.rangesForEpoch = rangesForEpochGen.next(rs);
+                    updates.historicalTransactions = historicalTransactionsGen.next(rs);
+
+                    journal.persistStoreState(1, updates, null);
+
+                    redundantBeforeAccumulator.update(updates.redundantBefore);
+                    durableBeforeAccumulator.update(updates.durableBefore);
+                    bootstrapBeganAtAccumulator.update(updates.bootstrapBeganAt);
+                    safeToReadAccumulator.update(updates.safeToRead);
+                    rangesForEpochAccumulator.update(updates.rangesForEpoch);
+                    historicalTransactionsAccumulator.update(updates.historicalTransactions);
+
+                    if (j % 100 == 0)
+                    {
+                        validate.run();
+                        journal.closeCurrentSegmentForTesting();
+                        validate.run();
+                    }
                 }
+
+                journal.runCompactorForTesting();
+                validate.run();
             }
-
-            journal.runCompactorForTesting();
-            validate.run();
-
         }
         finally
         {

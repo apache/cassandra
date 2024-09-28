@@ -54,6 +54,7 @@ import org.apache.cassandra.journal.EntrySerializer.EntryHolder;
 import org.apache.cassandra.journal.Journal;
 import org.apache.cassandra.journal.KeySupport;
 import org.apache.cassandra.journal.RecordConsumer;
+import org.apache.cassandra.journal.RecordPointer;
 import org.apache.cassandra.schema.ColumnMetadata;
 
 import static org.apache.cassandra.io.sstable.SSTableReadsListener.NOOP_LISTENER;
@@ -186,13 +187,25 @@ public class AccordJournalTable<K, V>
                 EntryHolder<K> into = new EntryHolder<>();
                 try (UnfilteredRowIterator iter = UnfilteredRowIterators.merge(iters))
                 {
-                    while (iter.hasNext()) readRow(key, iter.next(), into, onEntry);
+                    K readKey = keySupport.deserialize(iter.partitionKey().getKey(), 0, accordJournalVersion);
+                    Invariants.checkState(readKey.equals(key), "%s != %s", readKey, key);
+                    RecordPointer prev = null;
+                    while (iter.hasNext())
+                    {
+                        RecordPointer next = readRow(key, iter.next(), into, onEntry);
+                        if (prev != null)
+                        {
+                            Invariants.checkState(next.segment >= prev.segment, "Seen segments %d and %d out of order", prev.segment, next.position);
+                            Invariants.checkState(prev.segment != next.segment || next.position >= prev.position, "Within descriptor %d, position %d was read after %d", prev.segment, next.position, prev.position);
+                        }
+                        prev = next;
+                    }
                 }
             }
         }
     }
 
-    private void readRow(K key, Unfiltered unfiltered, EntryHolder<K> into, RecordConsumer<K> onEntry)
+    private RecordPointer readRow(K key, Unfiltered unfiltered, EntryHolder<K> into, RecordConsumer<K> onEntry)
     {
         Invariants.checkState(unfiltered.isRow());
         Row row = (Row) unfiltered;
@@ -206,6 +219,7 @@ public class AccordJournalTable<K, V>
         into.userVersion = Int32Type.instance.compose(row.getCell(versionColumn).buffer());
 
         onEntry.accept(descriptor, position, into.key, into.value, into.hosts, into.userVersion);
+        return new RecordPointer(descriptor, position);
     }
 
     public static <K> DecoratedKey makePartitionKey(ColumnFamilyStore cfs, K key, KeySupport<K> keySupport, int version)
@@ -213,7 +227,7 @@ public class AccordJournalTable<K, V>
         try (DataOutputBuffer out = new DataOutputBuffer(keySupport.serializedSize(version)))
         {
             keySupport.serialize(key, out, version);
-            return cfs.decorateKey(out.buffer(false));
+            return cfs.decorateKey(out.asNewBuffer());
         }
         catch (IOException e)
         {

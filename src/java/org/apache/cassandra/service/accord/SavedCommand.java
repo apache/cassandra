@@ -39,6 +39,7 @@ import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.primitives.Writes;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.journal.Journal;
@@ -234,6 +235,10 @@ public class SavedCommand
     @VisibleForTesting
     static boolean getFieldChanged(Fields field, int oldFlags)
     {
+        // TODO (now): improve command generators to generate _progressions_ of commands
+        if (CassandraRelevantProperties.DTEST_ACCORD_JOURNAL_WRITE_ALL_FIELDS.getBoolean())
+            return true;
+
         return (oldFlags & (1 << (field.ordinal() + Short.SIZE))) != 0;
     }
 

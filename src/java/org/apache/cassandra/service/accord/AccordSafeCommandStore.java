@@ -276,15 +276,17 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     @Override
     public void upsertRedundantBefore(RedundantBefore addRedundantBefore)
     {
-        ensureFieldUpdates().redundantBefore = addRedundantBefore;
+        // TODO (now): this is a temporary measure, see comment on AccordJournalValueSerializers; upsert instead
+        //  when modifying, only modify together with AccordJournalValueSerializers
+        ensureFieldUpdates().redundantBefore = RedundantBefore.merge(commandStore.redundantBefore(), addRedundantBefore);
         super.upsertRedundantBefore(addRedundantBefore);
     }
 
     @Override
-    public void upsertSetBootstrapBeganAt(TxnId globalSyncId, Ranges ranges)
+    public void setBootstrapBeganAt(NavigableMap<TxnId, Ranges> newBootstrapBeganAt)
     {
-        ensureFieldUpdates().newBootstrapBeganAt = new Sync(globalSyncId, ranges);
-        super.upsertSetBootstrapBeganAt(globalSyncId, ranges);
+        ensureFieldUpdates().bootstrapBeganAt = newBootstrapBeganAt;
+        super.setBootstrapBeganAt(newBootstrapBeganAt);
     }
 
     @Override
@@ -330,21 +332,9 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     {
         public RedundantBefore redundantBefore;
         public DurableBefore durableBefore;
-        public Sync newBootstrapBeganAt;
+        public NavigableMap<TxnId, Ranges> bootstrapBeganAt;
         public NavigableMap<Timestamp, Ranges> safeToRead;
         public RangesForEpoch.Snapshot rangesForEpoch;
         public Deps historicalTransactions;
-    }
-
-    public static class Sync
-    {
-        public final TxnId txnId;
-        public final Ranges ranges;
-
-        public Sync(TxnId txnId, Ranges ranges)
-        {
-            this.txnId = txnId;
-            this.ranges = ranges;
-        }
     }
 }

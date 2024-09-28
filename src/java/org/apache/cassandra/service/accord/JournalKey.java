@@ -106,7 +106,7 @@ public final class JournalKey
         {
             Timestamp timestamp = deserializeTimestamp(in);
             int type = in.readByte();
-             int commandStoreId = in.readShort();
+            int commandStoreId = in.readShort();
             return new JournalKey(timestamp, Type.fromId(type), commandStoreId);
         }
 

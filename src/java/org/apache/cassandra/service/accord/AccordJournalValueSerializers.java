@@ -25,7 +25,6 @@ import java.util.NavigableMap;
 
 import com.google.common.collect.ImmutableSortedMap;
 
-import accord.local.CommandStore;
 import accord.local.DurableBefore;
 import accord.local.RedundantBefore;
 import accord.primitives.Deps;
@@ -34,7 +33,6 @@ import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
 
 import static accord.local.CommandStores.RangesForEpoch;
@@ -131,18 +129,21 @@ public class AccordJournalValueSerializers
         }
     }
 
-    public static class RedundantBeforeAccumulator extends Accumulator<RedundantBefore, RedundantBefore>
+    public static class RedundantBeforeAccumulator extends IdentityAccumulator<RedundantBefore>
     {
         public RedundantBeforeAccumulator()
         {
             super(RedundantBefore.EMPTY);
         }
 
-        @Override
-        protected RedundantBefore accumulate(RedundantBefore oldValue, RedundantBefore newValue)
-        {
-            return RedundantBefore.merge(oldValue, newValue);
-        }
+        // TODO: figure out what out of order `merge` does not produce the same result
+        //  See AccordJournalCompactionTest#redundantBeforeTest
+        //  when modifying, only modify together with AccordSafeCommandStore
+//        @Override
+//        protected RedundantBefore accumulate(RedundantBefore oldValue, RedundantBefore newValue)
+//        {
+//            return RedundantBefore.merge(oldValue, newValue);
+//        }
     }
 
     public static class RedundantBeforeSerializer
@@ -183,12 +184,8 @@ public class AccordJournalValueSerializers
         public void deserialize(JournalKey journalKey, RedundantBeforeAccumulator into, DataInputPlus in, int userVersion) throws IOException
         {
             if (in.readInt() == 0)
-            {
-                into.update(RedundantBefore.EMPTY);
                 return;
-            }
-            // TODO: maybe using local serializer is not the best call here, but how do we distinguish
-            // between messaging and disk versioning?
+
             into.update(redundantBefore.deserialize(in));
         }
     }
@@ -242,27 +239,16 @@ public class AccordJournalValueSerializers
         }
     }
 
-    public static class BootstrapBeganAtAccumulator extends Accumulator<NavigableMap<TxnId, Ranges>, AccordSafeCommandStore.Sync>
+    public static class BootstrapBeganAtAccumulator extends IdentityAccumulator<NavigableMap<TxnId, Ranges>>
     {
         public BootstrapBeganAtAccumulator()
         {
             super(ImmutableSortedMap.of(TxnId.NONE, Ranges.EMPTY));
         }
-
-        @Override
-        protected NavigableMap<TxnId, Ranges> accumulate(NavigableMap<TxnId, Ranges> oldValue, AccordSafeCommandStore.Sync newValue)
-        {
-            return CommandStore.bootstrap(newValue.txnId, newValue.ranges, oldValue);
-        }
-
-        void force(NavigableMap<TxnId, Ranges> forced)
-        {
-            this.accumulated = forced;
-        }
     }
 
     public static class BootstrapBeganAtSerializer
-    implements FlyweightSerializer<AccordSafeCommandStore.Sync, BootstrapBeganAtAccumulator>
+    implements FlyweightSerializer<NavigableMap<TxnId, Ranges>, BootstrapBeganAtAccumulator>
     {
         @Override
         public BootstrapBeganAtAccumulator mergerFor(JournalKey key)
@@ -271,35 +257,21 @@ public class AccordJournalValueSerializers
         }
 
         @Override
-        public void serialize(JournalKey key, AccordSafeCommandStore.Sync entry, DataOutputPlus out, int userVersion) throws IOException
+        public void serialize(JournalKey key, NavigableMap<TxnId, Ranges> from, DataOutputPlus out, int userVersion) throws IOException
         {
-            // 0 for entry
-            out.writeByte(0);
-            CommandSerializers.txnId.serialize(entry.txnId, out);
-            KeySerializers.ranges.serialize(entry.ranges, out, userVersion);
+            bootstrapBeganAt.serialize(from, out);
         }
 
         @Override
-        public void reserialize(JournalKey key, BootstrapBeganAtAccumulator image, DataOutputPlus out, int userVersion) throws IOException
+        public void reserialize(JournalKey key, BootstrapBeganAtAccumulator from, DataOutputPlus out, int userVersion) throws IOException
         {
-            // 1 for image
-            out.writeByte(1);
-            bootstrapBeganAt.serialize(image.get(), out);
+            serialize(key, from.accumulated, out, userVersion);
         }
 
         @Override
         public void deserialize(JournalKey key, BootstrapBeganAtAccumulator into, DataInputPlus in, int userVersion) throws IOException
         {
-            if (in.readByte() == 0)
-            {
-                TxnId txnId = CommandSerializers.txnId.deserialize(in);
-                Ranges ranges = KeySerializers.ranges.deserialize(in, userVersion);
-                into.update(new AccordSafeCommandStore.Sync(txnId, ranges));
-            }
-            else
-            {
-                into.force(bootstrapBeganAt.deserialize(in));
-            }
+            into.update(bootstrapBeganAt.deserialize(in));
         }
     }
 

@@ -142,8 +142,8 @@ public class MockJournal implements IJournal
             updates.redundantBeforeAccumulator.update(fieldUpdates.redundantBefore);
         if (fieldUpdates.durableBefore != null)
             updates.durableBeforeAccumulator.update(fieldUpdates.durableBefore);
-        if (fieldUpdates.newBootstrapBeganAt != null)
-            updates.bootstrapBeganAtAccumulator.update(fieldUpdates.newBootstrapBeganAt);
+        if (fieldUpdates.bootstrapBeganAt != null)
+            updates.bootstrapBeganAtAccumulator.update(fieldUpdates.bootstrapBeganAt);
         if (fieldUpdates.safeToRead != null)
             updates.safeToReadAccumulator.update(fieldUpdates.safeToRead);
         if (fieldUpdates.rangesForEpoch != null)
