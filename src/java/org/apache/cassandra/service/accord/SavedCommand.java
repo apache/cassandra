@@ -89,13 +89,13 @@ public class SavedCommand
             this.after = after;
         }
 
-        @VisibleForTesting
+        @VisibleForTesting // for MockJournal
         public Command before()
         {
             return before;
         }
 
-        @VisibleForTesting
+        @VisibleForTesting // for MockJournal
         public Command after()
         {
             return after;

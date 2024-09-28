@@ -94,7 +94,11 @@ public class AccordGenerators
 
     public static Gen<Command> commands()
     {
-        Gen<TxnId> ids = AccordGens.txnIds();
+        return commands(AccordGens.txnIds());
+    }
+
+    public static Gen<Command> commands(Gen<TxnId> ids)
+    {
         //TODO switch to Status once all types are supported
         Gen<SupportedCommandTypes> supportedTypes = Gens.enums().all(SupportedCommandTypes.class);
         //TODO goes against fuzz testing, and also limits to a very specific table existing...
