@@ -129,7 +129,7 @@ def pipelineProfiles() {
     'skinny': ['lint', 'cqlsh-test', 'test', 'jvm-dtest', 'simulator-dtest', 'dtest'],
     'pre-commit': ['artifacts', 'lint', 'debian', 'redhat', 'fqltool-test', 'cqlsh-test', 'test', 'test-latest', 'stress-test', 'test-burn', 'jvm-dtest', 'simulator-dtest', 'dtest', 'dtest-latest'],
     'pre-commit w/ upgrades': ['artifacts', 'lint', 'debian', 'redhat', 'fqltool-test', 'cqlsh-test', 'test', 'test-latest', 'stress-test', 'test-burn', 'jvm-dtest', 'jvm-dtest-upgrade', 'simulator-dtest', 'dtest', 'dtest-novnode', 'dtest-latest', 'dtest-upgrade'],
-    'post-commit': ['artifacts', 'lint', 'debian', 'redhat', 'fqltool-test', 'cqlsh-test', 'test-cdc', 'test', 'test-latest', 'test-compression', 'stress-test', 'test-burn', 'long-test', 'test-oa', 'test-system-keyspace-directory', 'jvm-dtest', 'jvm-dtest-upgrade', 'simulator-dtest', 'dtest', 'dtest-novnode', 'dtest-latest', 'dtest-large', 'dtest-large-novnode', 'dtest-upgrade', 'dtest-upgrade-novnode', 'dtest-upgrade-large', 'dtest-upgrade-novnode-large'],
+    'post-commit': ['artifacts', 'lint', 'debian', 'redhat', 'fqltool-test', 'cqlsh-test', 'test-cdc', 'test', 'test-latest', 'test-compression', 'stress-test', 'test-burn', 'long-test', 'test-oa', 'test-system-keyspace-directory', 'jvm-dtest', 'jvm-dtest-upgrade', 'simulator-dtest', 'dtest', 'dtest-novnode', 'dtest-latest', 'dtest-large', 'dtest-large-novnode', 'dtest-large-latest', 'dtest-upgrade', 'dtest-upgrade-novnode', 'dtest-upgrade-large', 'dtest-upgrade-novnode-large'],
     'custom': []
   ]
 }
@@ -176,6 +176,7 @@ def tasks() {
     'dtest-latest': [splits: 64, size: 'large'],
     'dtest-large': [splits: 8, size: 'large'],
     'dtest-large-novnode': [splits: 8, size: 'large'],
+    'dtest-large-latest': [splits: 8, size: 'large'],
     'dtest-upgrade': [splits: 64, size: 'large'],
     'dtest-upgrade-novnode': [splits: 64, size: 'large'],
     'dtest-upgrade-large': [splits: 32, size: 'large'],

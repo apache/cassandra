@@ -149,7 +149,7 @@ case ${target} in
         [[ ${mem} -gt $((15 * 1024 * 1024 * 1024 * ${jenkins_executors})) ]] || { error 1 "${target} require minimum docker memory 16g (per jenkins executor (${jenkins_executors})), found ${mem}"; }
         docker_flags="-m 15g --memory-swap 15g"
     ;;
-    "dtest" | "dtest-novnode" | "dtest-latest" | "dtest-large" | "dtest-large-novnode" | "dtest-upgrade" | "dtest-upgrade-novnode"| "dtest-upgrade-large" | "dtest-upgrade-novnode-large")
+    "dtest" | "dtest-novnode" | "dtest-latest" | "dtest-large" | "dtest-large-novnode" | "dtest-large-latest" | "dtest-upgrade" | "dtest-upgrade-novnode"| "dtest-upgrade-large" | "dtest-upgrade-novnode-large")
         [ -f "${cassandra_dtest_dir}/dtest.py" ] || { error 1 "${cassandra_dtest_dir}/dtest.py not found. please specify 'cassandra_dtest_dir' to point to the local cassandra-dtest source"; }
         test_script="run-python-dtests.sh"
         docker_mounts="${docker_mounts} -v ${cassandra_dtest_dir}:/home/cassandra/cassandra-dtest"
