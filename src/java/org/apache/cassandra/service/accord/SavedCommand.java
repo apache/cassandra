@@ -125,11 +125,24 @@ public class SavedCommand
         if (before == after
             || after == null
             || after.saveStatus() == SaveStatus.Uninitialised
-            || getFlags(before, after) == 0)
+            || anyFieldChanged(before, after))
             return null;
         return new SavedCommand.DiffWriter(before, after);
     }
 
+    // TODO: this is very inefficient
+    private static boolean anyFieldChanged(Command before, Command after)
+    {
+        int flags = getFlags(before, after);
+        for (Fields field : Fields.values())
+        {
+            if (getFieldChanged(field, flags))
+                return true;
+        }
+
+        return false;
+    }    
+    
     public static void serialize(Command before, Command after, DataOutputPlus out, int userVersion) throws IOException
     {
         int flags = getFlags(before, after);
@@ -388,6 +401,7 @@ public class SavedCommand
             return count;
         }
 
+        // TODO: we seem to be writing some form of empty transaction
         @SuppressWarnings({ "rawtypes", "unchecked" })
         public void deserializeNext(DataInputPlus in, int userVersion) throws IOException
         {
@@ -514,6 +528,7 @@ public class SavedCommand
                 else
                     writes = CommandSerializers.writes.deserialize(in, userVersion);
             }
+            
         }
 
         public void forceResult(Result newValue)
