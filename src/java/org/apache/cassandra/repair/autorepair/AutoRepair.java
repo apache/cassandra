@@ -37,6 +37,7 @@ import com.google.common.util.concurrent.Uninterruptibles;
 
 import org.apache.cassandra.repair.RepairCoordinator;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.utils.Pair;
 
@@ -70,6 +71,9 @@ public class AutoRepair
     protected static Supplier<Long> timeFunc = System::currentTimeMillis;
 
     public static AutoRepair instance = new AutoRepair();
+
+    // Sleep for 5 seconds if repair finishes quickly to flush JMX metrics; it happens only for Cassandra nodes with tiny amount of data.
+    public static DurationSpec.IntSecondsBound SLEEP_IF_REPAIR_FINISHES_QUICKLY = new DurationSpec.IntSecondsBound("5s");
 
     @VisibleForTesting
     protected final Map<AutoRepairConfig.RepairType, ScheduledExecutorPlus> repairExecutors;
@@ -116,7 +120,7 @@ public class AutoRepair
                 AutoRepairService.instance.checkCanRun(repairType);
 
             repairExecutors.get(repairType).scheduleWithFixedDelay(
-            () -> repair(repairType, 5000),
+            () -> repair(repairType),
             config.getInitialSchedulerDelay(repairType).toSeconds(),
             config.getRepairCheckInterval().toSeconds(),
             TimeUnit.SECONDS);
@@ -124,17 +128,17 @@ public class AutoRepair
     }
 
     // repairAsync runs a repair session of the given type asynchronously.
-    public void repairAsync(AutoRepairConfig.RepairType repairType, long millisToWait)
+    public void repairAsync(AutoRepairConfig.RepairType repairType)
     {
         if (!AutoRepairService.instance.getAutoRepairConfig().isAutoRepairEnabled(repairType))
         {
             throw new ConfigurationException("Auto-repair is disabled for repair type " + repairType);
         }
-        repairExecutors.get(repairType).submit(() -> repair(repairType, millisToWait));
+        repairExecutors.get(repairType).submit(() -> repair(repairType));
     }
 
     // repair runs a repair session of the given type synchronously.
-    public void repair(AutoRepairConfig.RepairType repairType, long millisToWait)
+    public void repair(AutoRepairConfig.RepairType repairType)
     {
         AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
         if (!config.isAutoRepairEnabled(repairType))
@@ -351,7 +355,7 @@ public class AutoRepair
                         }
                     }
                 }
-                cleanupAndUpdateStats(turn, repairType, repairState, myId, startTime, millisToWait, failedTokenRanges, succeededTokenRanges, skippedTokenRanges);
+                cleanupAndUpdateStats(turn, repairType, repairState, myId, startTime, failedTokenRanges, succeededTokenRanges, skippedTokenRanges);
             }
             else
             {
@@ -410,7 +414,7 @@ public class AutoRepair
     }
 
     private void cleanupAndUpdateStats(RepairTurn turn, AutoRepairConfig.RepairType repairType, AutoRepairState repairState, UUID myId,
-                                       long startTime, long millisToWait, int failedTokenRanges, int succeededTokenRanges, int skippedTokenRanges) throws InterruptedException
+                                       long startTime, int failedTokenRanges, int succeededTokenRanges, int skippedTokenRanges) throws InterruptedException
     {
         //if it was due to priority then remove it now
         if (turn == MY_TURN_DUE_TO_PRIORITY)
@@ -437,12 +441,12 @@ public class AutoRepair
                         TimeUnit.SECONDS.toDays(repairState.getClusterRepairTimeInSec()));
         }
         repairState.setLastRepairTime(timeFunc.get());
-        if (timeInHours == 0 && millisToWait > 0)
+        if (timeInHours == 0 && SLEEP_IF_REPAIR_FINISHES_QUICKLY.toSeconds() > 0)
         {
             //If repair finished quickly, happens for an empty instance, in such case
             //wait for some duration so that the JMX metrics can detect the repairInProgress
-            logger.info("Wait for {} milliseconds for repair type {}.", millisToWait, repairType);
-            Thread.sleep(millisToWait);
+            logger.info("Wait for {} for repair type {}.", SLEEP_IF_REPAIR_FINISHES_QUICKLY, repairType);
+            Thread.sleep(SLEEP_IF_REPAIR_FINISHES_QUICKLY.toMilliseconds());
         }
         repairState.setRepairInProgress(false);
         AutoRepairUtils.updateFinishAutoRepairHistory(repairType, myId, timeFunc.get());

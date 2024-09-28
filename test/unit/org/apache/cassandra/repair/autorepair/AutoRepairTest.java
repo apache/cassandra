@@ -27,6 +27,7 @@ import org.junit.Test;
 
 import org.junit.Assert;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -51,6 +52,7 @@ public class AutoRepairTest extends CQLTester
     @Before
     public void setup()
     {
+        AutoRepair.SLEEP_IF_REPAIR_FINISHES_QUICKLY = new DurationSpec.IntSecondsBound("0s");
         System.clearProperty("cassandra.streaming.requires_view_build_during_repair");
         System.clearProperty("cassandra.streaming.requires_cdc_replay");
     }
