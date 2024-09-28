@@ -19,6 +19,7 @@
 package org.apache.cassandra.distributed.test.accord;
 
 import java.io.IOException;
+import java.util.function.Function;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -28,6 +29,8 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.shared.AssertUtils;
+
+import static org.junit.Assert.assertEquals;
 
 public class AccordInteroperabilityTest extends AccordTestBase
 {
@@ -59,5 +62,22 @@ public class AccordInteroperabilityTest extends AccordTestBase
                  assertRowSerial(cluster, "SELECT c, v FROM " + qualifiedAccordTableName + " WHERE k=0 ORDER BY c DESC LIMIT 4", AssertUtils.row(10, 100), AssertUtils.row(9, 90), AssertUtils.row(8, 80), AssertUtils.row(7, 70));
              }
          );
+    }
+
+    private static Object[][] assertTargetAccordRead(Function<Integer, Object[][]> query, int coordinatorIndex, int key, int expectedAccordReadCount)
+    {
+        int startingReadCount = getAccordReadCount(coordinatorIndex);
+        Object[][] result = query.apply(key);
+        assertEquals("Accord reads", expectedAccordReadCount, getAccordReadCount(coordinatorIndex) - startingReadCount);
+        return result;
+    }
+
+    @Test
+    public void testNonSerialReadIsThrouughAccord() throws Throwable
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int, c int, v int, PRIMARY KEY(k, c)) WITH transactional_mode='full'",
+             cluster -> {
+                 assertTargetAccordRead(key -> cluster.coordinator(1).execute("SELECT * FROM " + qualifiedAccordTableName + " WHERE k = ?", ConsistencyLevel.QUORUM, key), 1, 1, 1);
+             });
     }
 }
