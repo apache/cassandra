@@ -23,6 +23,8 @@ import java.util.Locale;
 
 import org.apache.lucene.analysis.miscellaneous.ASCIIFoldingFilter;
 
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
+
 public class BasicFilters
 {
     private static final Locale DEFAULT_LOCALE = Locale.getDefault();
@@ -39,7 +41,7 @@ public class BasicFilters
         @Override
         public String process(String input)
         {
-            return input.toLowerCase(locale);
+            return toLowerCaseLocalized(input, locale);
         }
     }
 

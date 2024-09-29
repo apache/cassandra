@@ -29,6 +29,8 @@ import java.util.Map;
 import org.apache.cassandra.stress.util.MultiResultLogger;
 import org.apache.cassandra.stress.util.ResultLogger;
 
+import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;
+
 public class SettingsLog implements Serializable
 {
     public static enum Level
@@ -66,7 +68,7 @@ public class SettingsLog implements Serializable
             intervalMillis = 1000 * Integer.parseInt(interval);
         if (intervalMillis <= 0)
             throw new IllegalArgumentException("Log interval must be greater than zero");
-        level = Level.valueOf(options.level.value().toUpperCase());
+        level = Level.valueOf(toUpperCaseLocalized(options.level.value()));
     }
 
     public MultiResultLogger getOutput() throws FileNotFoundException

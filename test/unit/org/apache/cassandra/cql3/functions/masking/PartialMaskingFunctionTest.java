@@ -31,6 +31,7 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.assertj.core.api.Assertions;
 
 import static java.lang.String.format;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 /**
  * Tests for {@link PartialMaskingFunction}.
@@ -46,7 +47,7 @@ public class PartialMaskingFunctionTest extends MaskingFunctionTester
 
     protected void testMaskingOnColumn(PartialMaskingFunction.Kind masker, String name, CQL3Type type, Object value) throws Throwable
     {
-        String functionName = SchemaConstants.SYSTEM_KEYSPACE_NAME + ".mask_" + masker.name().toLowerCase();
+        String functionName = SchemaConstants.SYSTEM_KEYSPACE_NAME + ".mask_" + toLowerCaseLocalized(masker.name());
 
         if (type.getType() instanceof StringType)
         {

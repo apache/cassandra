@@ -79,6 +79,8 @@ import org.apache.cassandra.utils.DirectorySizeCalculator;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Pair;
 
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
+
 /**
  * Encapsulate handling of paths to the data files.
  *
@@ -755,11 +757,11 @@ public class Directories
      */
     public static boolean isStoredInLocalSystemKeyspacesDataLocation(String keyspace, String table)
     {
-        String keyspaceName = keyspace.toLowerCase();
+        String keyspaceName = toLowerCaseLocalized(keyspace);
 
         return SchemaConstants.LOCAL_SYSTEM_KEYSPACE_NAMES.contains(keyspaceName)
                 && !(SchemaConstants.SYSTEM_KEYSPACE_NAME.equals(keyspaceName)
-                        && SystemKeyspace.TABLES_SPLIT_ACROSS_MULTIPLE_DISKS.contains(table.toLowerCase()));
+                        && SystemKeyspace.TABLES_SPLIT_ACROSS_MULTIPLE_DISKS.contains(toLowerCaseLocalized(table)));
     }
 
     public static class DataDirectory

@@ -80,6 +80,7 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.IGNORE_KER
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_VERSION;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_VM_NAME;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 /**
  * Verifies that the system and environment is in a fit state to be started.
@@ -217,7 +218,7 @@ public class StartupChecks
             {
                 try
                 {
-                    if (affectedFileSystemTypes.contains(Files.getFileStore(path).type().toLowerCase()))
+                    if (affectedFileSystemTypes.contains(toLowerCaseLocalized(Files.getFileStore(path).type())))
                         affectedPaths.add(path);
                 }
                 catch (IOException e)

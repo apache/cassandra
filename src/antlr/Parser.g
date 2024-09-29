@@ -722,7 +722,7 @@ createFunctionStatement returns [CreateFunctionStatement.Raw stmt]
       K_LANGUAGE language = IDENT
       K_AS body = STRING_LITERAL
       { $stmt = new CreateFunctionStatement.Raw(
-          fn, argNames, argTypes, returnType, calledOnNullInput, $language.text.toLowerCase(), $body.text, orReplace, ifNotExists);
+          fn, argNames, argTypes, returnType, calledOnNullInput, LocalizeString.toLowerCaseLocalized($language.text), $body.text, orReplace, ifNotExists);
       }
     ;
 
@@ -1127,7 +1127,7 @@ listPermissionsStatement returns [ListPermissionsStatement stmt]
 
 permission returns [Permission perm]
     : p=(K_CREATE | K_ALTER | K_DROP | K_SELECT | K_MODIFY | K_AUTHORIZE | K_DESCRIBE | K_EXECUTE | K_UNMASK | K_SELECT_MASKED)
-    { $perm = Permission.valueOf($p.text.toUpperCase()); }
+    { $perm = Permission.valueOf(LocalizeString.toUpperCaseLocalized($p.text)); }
     ;
 
 permissionOrAll returns [Set<Permission> perms]
@@ -1642,7 +1642,7 @@ functionName returns [FunctionName s]
     ;
 
 allowedFunctionName returns [String s]
-    : f=IDENT                       { $s = $f.text.toLowerCase(); }
+    : f=IDENT                       { $s = LocalizeString.toLowerCaseLocalized($f.text); }
     | f=QUOTED_NAME                 { $s = $f.text; }
     | u=unreserved_function_keyword { $s = u; }
     | K_TOKEN                       { $s = "token"; }

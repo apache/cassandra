@@ -62,6 +62,9 @@ import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.constructor.Constructor;
 import org.yaml.snakeyaml.error.YAMLException;
 
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
+import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;
+
 public class StressProfile implements Serializable
 {
     private String keyspaceCql;
@@ -357,7 +360,7 @@ public class StressProfile implements Serializable
                               StressSettings settings,
                               boolean isWarmup)
     {
-        name = name.toLowerCase();
+        name = toLowerCaseLocalized(name);
         if (!queries.containsKey(name))
             throw new IllegalArgumentException("No query defined with name " + name);
 
@@ -373,10 +376,10 @@ public class StressProfile implements Serializable
                     Map<String, SchemaStatement.ArgSelect> args = new HashMap<>();
                     for (Map.Entry<String, StressYaml.QueryDef> e : queries.entrySet())
                     {
-                        stmts.put(e.getKey().toLowerCase(), jclient.prepare(e.getValue().cql));
-                        args.put(e.getKey().toLowerCase(), e.getValue().fields == null
+                        stmts.put(toLowerCaseLocalized(e.getKey()), jclient.prepare(e.getValue().cql));
+                        args.put(toLowerCaseLocalized(e.getKey()), e.getValue().fields == null
                                 ? SchemaStatement.ArgSelect.MULTIROW
-                                : SchemaStatement.ArgSelect.valueOf(e.getValue().fields.toUpperCase()));
+                                : SchemaStatement.ArgSelect.valueOf(toUpperCaseLocalized(e.getValue().fields)));
                     }
                     queryStatements = stmts;
                     argSelects = args;
@@ -395,7 +398,7 @@ public class StressProfile implements Serializable
         if (statement == null)
             return false;
 
-        if (!statement.getQueryString().toUpperCase().startsWith("UPDATE"))
+        if (!toUpperCaseLocalized(statement.getQueryString()).startsWith("UPDATE"))
             return false;
 
         ModificationStatement.Parsed modificationStatement;
@@ -758,7 +761,7 @@ public class StressProfile implements Serializable
 
         static Generator getGenerator(final String name, final String type, final String collectionType, GeneratorConfig config)
         {
-            switch (type.toUpperCase())
+            switch (toUpperCaseLocalized(type))
             {
                 case "ASCII":
                 case "TEXT":
@@ -848,7 +851,7 @@ public class StressProfile implements Serializable
             }
         }
         for (Map.Entry<String, V> e : reinsert)
-            map.put(e.getKey().toLowerCase(), e.getValue());
+            map.put(toLowerCaseLocalized(e.getKey()), e.getValue());
     }
 
     /* Quote a identifier if it contains uppercase letters */

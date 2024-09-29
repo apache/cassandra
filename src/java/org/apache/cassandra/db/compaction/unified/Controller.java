@@ -25,18 +25,19 @@ import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.compaction.UnifiedCompactionStrategy;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.utils.Overlaps;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MonotonicClock;
+import org.apache.cassandra.utils.Overlaps;
 
+import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;
 /**
 * The controller provides compaction parameters to the unified compaction strategy
 */
@@ -442,7 +443,7 @@ public class Controller
             sstableGrowthModifier = FBUtilities.parsePercent(options.get(SSTABLE_GROWTH_OPTION));
 
         Overlaps.InclusionMethod inclusionMethod = options.containsKey(OVERLAP_INCLUSION_METHOD_OPTION)
-                ? Overlaps.InclusionMethod.valueOf(options.get(OVERLAP_INCLUSION_METHOD_OPTION).toUpperCase())
+                ? Overlaps.InclusionMethod.valueOf(toUpperCaseLocalized(options.get(OVERLAP_INCLUSION_METHOD_OPTION)))
                 : DEFAULT_OVERLAP_INCLUSION_METHOD;
 
         return new Controller(cfs,
@@ -583,7 +584,7 @@ public class Controller
         {
             try
             {
-                Overlaps.InclusionMethod.valueOf(s.toUpperCase());
+                Overlaps.InclusionMethod.valueOf(toUpperCaseLocalized(s));
             }
             catch (IllegalArgumentException e)
             {

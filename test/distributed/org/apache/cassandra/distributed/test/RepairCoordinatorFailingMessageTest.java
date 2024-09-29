@@ -42,6 +42,7 @@ import org.apache.cassandra.net.Verb;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.distributed.api.IMessageFilters.Matcher.of;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 @RunWith(Parameterized.class)
 @Ignore("Until CASSANDRA-15566 is in these tests all time out")
@@ -100,7 +101,7 @@ public class RepairCoordinatorFailingMessageTest extends TestBaseImpl implements
 
     private String postfix()
     {
-        return repairType.name().toLowerCase();
+        return toLowerCaseLocalized(repairType.name());
     }
 
     private NodeToolResult repair(int node, String... args) {

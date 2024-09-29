@@ -35,6 +35,7 @@ import org.apache.cassandra.schema.UserFunctions;
 
 import static java.util.stream.Collectors.joining;
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 public final class FunctionResolver
 {
@@ -46,7 +47,7 @@ public final class FunctionResolver
     {
         return new ColumnSpecification(receiverKeyspace,
                                        receiverTable,
-                                       new ColumnIdentifier("arg" + i + '(' + fun.name().toString().toLowerCase() + ')', true),
+                                       new ColumnIdentifier("arg" + i + '(' + toLowerCaseLocalized(fun.name().toString()) + ')', true),
                                        fun.argTypes().get(i));
     }
 

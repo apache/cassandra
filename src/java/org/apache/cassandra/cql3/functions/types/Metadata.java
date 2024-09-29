@@ -19,6 +19,8 @@ package org.apache.cassandra.cql3.functions.types;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
 
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
+
 /**
  * Keeps metadata on the connected cluster, including known nodes and schema definitions.
  */
@@ -65,7 +67,7 @@ public class Metadata
         }
         if (isAlphanumeric)
         {
-            return id.toLowerCase();
+            return toLowerCaseLocalized(id);
         }
 
         // Check if it's enclosed in quotes. If it is, remove them and unescape internal double quotes

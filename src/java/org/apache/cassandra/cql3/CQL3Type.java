@@ -42,6 +42,7 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static java.util.stream.Collectors.toList;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 public interface CQL3Type
 {
@@ -139,7 +140,7 @@ public interface CQL3Type
         @Override
         public String toString()
         {
-            return super.toString().toLowerCase();
+            return toLowerCaseLocalized(super.toString());
         }
     }
 

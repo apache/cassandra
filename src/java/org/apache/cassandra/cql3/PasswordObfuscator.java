@@ -23,13 +23,15 @@ import java.util.Optional;
 import org.apache.cassandra.auth.PasswordAuthenticator;
 import org.apache.cassandra.auth.RoleOptions;
 
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
+
 /**
  * Obfuscates passwords in a given string
  */
 public class PasswordObfuscator
 {
     public static final String OBFUSCATION_TOKEN = "*******";
-    public static final String PASSWORD_TOKEN = PasswordAuthenticator.PASSWORD_KEY.toLowerCase();
+    public static final String PASSWORD_TOKEN = toLowerCaseLocalized(PasswordAuthenticator.PASSWORD_KEY);
 
     /**
      * Obfuscates everything after the first appearance password token
@@ -42,7 +44,7 @@ public class PasswordObfuscator
         if (null == sourceString)
             return null;
 
-        int passwordTokenStartIndex = sourceString.toLowerCase().indexOf(PASSWORD_TOKEN);
+        int passwordTokenStartIndex = toLowerCaseLocalized(sourceString).indexOf(PASSWORD_TOKEN);
         if (passwordTokenStartIndex < 0)
             return sourceString;
 

@@ -49,6 +49,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDSerializer;
 
 import static org.apache.cassandra.db.TypeSizes.sizeof;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 /**
  * An immutable representation of secondary index metadata.
@@ -72,7 +73,7 @@ public final class IndexMetadata
     static
     {
         indexNameAliases.put(StorageAttachedIndex.NAME, StorageAttachedIndex.class.getCanonicalName());
-        indexNameAliases.put(StorageAttachedIndex.class.getSimpleName().toLowerCase(), StorageAttachedIndex.class.getCanonicalName());
+        indexNameAliases.put(toLowerCaseLocalized(StorageAttachedIndex.class.getSimpleName()), StorageAttachedIndex.class.getCanonicalName());
         indexNameAliases.put(SASIIndex.class.getSimpleName(), SASIIndex.class.getCanonicalName());
     }
 
@@ -159,7 +160,7 @@ public final class IndexMetadata
         if (isCustom())
         {
             String className = options.get(IndexTarget.CUSTOM_INDEX_OPTION_NAME);
-            return indexNameAliases.getOrDefault(className.toLowerCase(), className);
+            return indexNameAliases.getOrDefault(toLowerCaseLocalized(className), className);
         }
         return CassandraIndex.class.getName();
     }

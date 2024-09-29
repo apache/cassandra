@@ -25,7 +25,6 @@ import java.util.List;
 import java.util.Iterator;
 import java.util.Objects;
 import java.util.function.Consumer;
-import java.util.Locale;
 
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.ColumnSpecification;
@@ -45,6 +44,8 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
+
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 /**
  * The abstract validator that is the base for maps, sets and lists (both frozen and non-frozen).
@@ -85,7 +86,7 @@ public abstract class CollectionType<T> extends MultiElementType<T>
         @Override
         public String toString()
         {
-            return super.toString().toLowerCase(Locale.US);
+            return toLowerCaseLocalized(super.toString());
         }
     }
 
@@ -142,7 +143,7 @@ public abstract class CollectionType<T> extends MultiElementType<T>
     public <V> void validate(V value, ValueAccessor<V> accessor) throws MarshalException
     {
         if (accessor.isEmpty(value))
-            throw new MarshalException("Not enough bytes to read a " + kind.name().toLowerCase());
+            throw new MarshalException("Not enough bytes to read a " + toLowerCaseLocalized(kind.name()));
         super.validate(value, accessor);
     }
 

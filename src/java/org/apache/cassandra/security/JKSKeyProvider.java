@@ -29,6 +29,8 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.TransparentDataEncryptionOptions;
 import org.apache.cassandra.io.util.File;
 
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
+
 /**
  * A {@code KeyProvider} that retrieves keys from a java keystore.
  */
@@ -64,7 +66,7 @@ public class JKSKeyProvider implements KeyProvider
     {
         // there's a lovely behavior with jceks files that all aliases are lower-cased
         if (isJceks)
-            keyAlias = keyAlias.toLowerCase();
+            keyAlias = toLowerCaseLocalized(keyAlias);
 
         Key key;
         try
