@@ -125,7 +125,7 @@ public class SavedCommand
         if (before == after
             || after == null
             || after.saveStatus() == SaveStatus.Uninitialised
-            || anyFieldChanged(before, after))
+            || !anyFieldChanged(before, after))
             return null;
         return new SavedCommand.DiffWriter(before, after);
     }
