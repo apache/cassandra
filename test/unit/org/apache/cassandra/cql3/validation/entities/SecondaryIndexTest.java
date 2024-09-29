@@ -26,6 +26,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 
 import com.google.common.collect.ImmutableSet;
+import org.apache.cassandra.utils.LocalizeString;
 import org.apache.commons.lang3.StringUtils;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -113,7 +114,7 @@ public class SecondaryIndexTest extends CQLTester
     {
         assertInvalidMessage(format("Index '%s.%s' doesn't exist",
                                     KEYSPACE,
-                                    removeQuotes(indexName.toLowerCase(Locale.US))),
+                                    removeQuotes(LocalizeString.toLowerCaseLocalized(indexName))),
                              format("DROP INDEX %s.%s", KEYSPACE, indexName));
 
         createTable("CREATE TABLE %s (a int primary key, b int);");
@@ -121,7 +122,7 @@ public class SecondaryIndexTest extends CQLTester
         createIndexAsync("CREATE INDEX IF NOT EXISTS " + indexName + " ON %s(b);");
 
         assertInvalidMessage(format("Index '%s' already exists",
-                                    removeQuotes(indexName.toLowerCase(Locale.US))),
+                                    removeQuotes(LocalizeString.toLowerCaseLocalized(indexName))),
                              "CREATE INDEX " + indexName + " ON %s(b)");
 
         // IF NOT EXISTS should apply in cases where the new index differs from an existing one in name only
@@ -130,8 +131,8 @@ public class SecondaryIndexTest extends CQLTester
         createIndexAsync("CREATE INDEX IF NOT EXISTS " + otherIndexName + " ON %s(b)");
         assertEquals(1, getCurrentColumnFamilyStore().metadata().indexes.size());
         assertInvalidMessage(format("Index %s is a duplicate of existing index %s",
-                                    removeQuotes(otherIndexName.toLowerCase(Locale.US)),
-                                    removeQuotes(indexName.toLowerCase(Locale.US))),
+                                    removeQuotes(LocalizeString.toLowerCaseLocalized(otherIndexName)),
+                                    removeQuotes(LocalizeString.toLowerCaseLocalized(indexName))),
                              "CREATE INDEX " + otherIndexName + " ON %s(b)");
 
         execute("INSERT INTO %s (a, b) values (?, ?);", 0, 0);
@@ -156,7 +157,7 @@ public class SecondaryIndexTest extends CQLTester
         dropIndex(format("DROP INDEX IF EXISTS %s.%s", KEYSPACE, indexName));
         assertInvalidMessage(format("Index '%s.%s' doesn't exist",
                                     KEYSPACE,
-                                    removeQuotes(indexName.toLowerCase(Locale.US))),
+                                    removeQuotes(LocalizeString.toLowerCaseLocalized(indexName))),
                              format("DROP INDEX %s.%s", KEYSPACE, indexName));
     }
 

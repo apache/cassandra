@@ -67,6 +67,7 @@ import org.apache.cassandra.db.virtual.walker.MetricRowWalker;
 import org.apache.cassandra.db.virtual.walker.TimerMetricRowWalker;
 import org.apache.cassandra.index.sai.metrics.AbstractMetrics;
 import org.apache.cassandra.io.sstable.format.big.RowIndexEntry;
+import org.apache.cassandra.utils.LocalizeString;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.memory.MemtablePool;
 
@@ -810,7 +811,7 @@ public class CassandraMetricsRegistry extends MetricRegistry
 
         private String calculateRateUnit(TimeUnit unit)
         {
-            final String s = unit.toString().toLowerCase(Locale.US);
+            final String s = LocalizeString.toLowerCaseLocalized(unit.toString());
             return s.substring(0, s.length() - 1);
         }
     }
@@ -861,7 +862,7 @@ public class CassandraMetricsRegistry extends MetricRegistry
         {
             super(metric, objectName, rateUnit);
             this.metric = metric;
-            this.durationUnit = durationUnit.toString().toLowerCase(Locale.US);
+            this.durationUnit = LocalizeString.toLowerCaseLocalized(durationUnit.toString(), Locale.ENGLISH);
         }
 
         @Override

@@ -31,6 +31,7 @@ import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.LocalizeString;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.memory.ByteBufferCloner;
 
@@ -109,7 +110,7 @@ public class ColumnIdentifier implements IMeasurableMemory, Comparable<ColumnIde
 
     public ColumnIdentifier(String rawText, boolean keepCase)
     {
-        this.text = keepCase ? rawText : rawText.toLowerCase(Locale.US);
+        this.text = keepCase ? rawText : LocalizeString.toLowerCaseLocalized(rawText);
         this.bytes = ByteBufferUtil.bytes(this.text);
         this.prefixComparison = prefixComparison(bytes);
         this.interned = false;
@@ -140,7 +141,7 @@ public class ColumnIdentifier implements IMeasurableMemory, Comparable<ColumnIde
 
     public static ColumnIdentifier getInterned(String rawText, boolean keepCase)
     {
-        String text = keepCase ? rawText : rawText.toLowerCase(Locale.US);
+        String text = keepCase ? rawText : LocalizeString.toLowerCaseLocalized(rawText);
         ByteBuffer bytes = ByteBufferUtil.bytes(text);
         return getInterned(UTF8Type.instance, bytes, text);
     }

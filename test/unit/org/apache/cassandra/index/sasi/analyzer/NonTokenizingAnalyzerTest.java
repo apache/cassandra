@@ -25,6 +25,7 @@ import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import org.apache.cassandra.utils.LocalizeString;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -47,7 +48,7 @@ public class NonTokenizingAnalyzerTest
         ByteBuffer analyzed = null;
         while (analyzer.hasNext())
             analyzed = analyzer.next();
-        Assert.assertTrue(testString.toLowerCase(Locale.US).equals(ByteBufferUtil.string(analyzed)));
+        Assert.assertEquals(LocalizeString.toLowerCaseLocalized(testString), ByteBufferUtil.string(analyzed));
     }
 
     @Test
@@ -63,7 +64,7 @@ public class NonTokenizingAnalyzerTest
         ByteBuffer analyzed = null;
         while (analyzer.hasNext())
             analyzed = analyzer.next();
-        Assert.assertFalse(testString.toLowerCase(Locale.US).equals(ByteBufferUtil.string(analyzed)));
+        Assert.assertNotEquals(LocalizeString.toLowerCaseLocalized(testString), ByteBufferUtil.string(analyzed));
     }
 
     @Test

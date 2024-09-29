@@ -30,6 +30,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.utils.LocalizeString;
 
 public final class ReservedKeywords
 {
@@ -59,6 +60,6 @@ public final class ReservedKeywords
 
     public static boolean isReserved(String text)
     {
-        return reservedKeywords.contains(text.toUpperCase(Locale.US));
+        return reservedKeywords.contains(LocalizeString.toLowerCaseLocalized(text));
     }
 }

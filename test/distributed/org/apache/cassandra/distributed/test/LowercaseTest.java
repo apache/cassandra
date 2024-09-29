@@ -20,6 +20,7 @@ package org.apache.cassandra.db;
 
 import java.util.Locale;
 
+import org.apache.cassandra.utils.LocalizeString;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -37,6 +38,6 @@ public class LowercaseTest {
     }
 
     private String lowerCase(String input) {
-        return input.toLowerCase(Locale.US);
+        return LocalizeString.toLowerCaseLocalized(input);
     }
 }

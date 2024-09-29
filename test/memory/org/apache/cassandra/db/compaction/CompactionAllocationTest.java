@@ -76,6 +76,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.LocalizeString;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.concurrent.Refs;
 
@@ -495,7 +496,7 @@ public class CompactionAllocationTest
 
     private static void testTinyPartitions(String name, int numSSTable, int sstablePartitions, boolean overlap) throws Throwable
     {
-        String ksname = "ks_" + name.toLowerCase(Locale.US);
+        String ksname = "ks_" + LocalizeString.toLowerCaseLocalized(name);
 
         SchemaLoader.createKeyspace(ksname, KeyspaceParams.simple(1),
                                     CreateTableStatement.parse("CREATE TABLE tbl (k INT PRIMARY KEY, v INT)", ksname).build());
@@ -604,7 +605,7 @@ public class CompactionAllocationTest
 
     private static void testMediumPartitions(String name, int numSSTable, int sstablePartitions, boolean overlap, boolean overlapCK) throws Throwable
     {
-        String ksname = "ks_" + name.toLowerCase(Locale.US);
+        String ksname = "ks_" + LocalizeString.toLowerCaseLocalized(name);
 
         SchemaLoader.createKeyspace(ksname, KeyspaceParams.simple(1),
                                     CreateTableStatement.parse("CREATE TABLE tbl (k text, c text, v1 text, v2 text, v3 text, v4 text, PRIMARY KEY (k, c))", ksname).build());
@@ -703,7 +704,7 @@ public class CompactionAllocationTest
 
     private static void testWidePartitions(String name, int numSSTable, int sstablePartitions, boolean overlap, boolean overlapCK) throws Throwable
     {
-        String ksname = "ks_" + name.toLowerCase(Locale.US);
+        String ksname = "ks_" + LocalizeString.toLowerCaseLocalized(name);
 
         SchemaLoader.createKeyspace(ksname, KeyspaceParams.simple(1),
                                     CreateTableStatement.parse("CREATE TABLE tbl (k text, c text, v1 text, v2 text, v3 text, v4 text, PRIMARY KEY (k, c))", ksname).build());
@@ -807,7 +808,7 @@ public class CompactionAllocationTest
                                                    int sstablePartitions,
                                                    IndexDef...indexes) throws Throwable
     {
-        String ksname = "ks_" + name.toLowerCase(Locale.US);
+        String ksname = "ks_" + LocalizeString.toLowerCaseLocalized(name);
         SchemaLoader.createKeyspace(ksname, KeyspaceParams.simple(1),
                 CreateTableStatement.parse("CREATE TABLE tbl (k text, c text, v1 text, v2 text, v3 text, v4 text, PRIMARY KEY (k, c))", ksname).build());
 

@@ -27,6 +27,7 @@ import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
+import org.apache.cassandra.utils.LocalizeString;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -246,7 +247,7 @@ public class LocalRepairTablesTest extends CQLTester
     private <T extends Enum<T>> void assertState(String table, State<?, ?> state, T expectedState) throws Throwable
     {
         assertRowsIgnoringOrder(execute(t("SELECT id, completed, status, failure_cause, success_message FROM %s." + table + " WHERE id = ?"), state.getId()),
-                                row(state.getId(), false, expectedState.name().toLowerCase(Locale.US), null, null));
+                                row(state.getId(), false, LocalizeString.toLowerCaseLocalized(expectedState.name()), null, null));
     }
 
     private void assertSuccess(String table, State<?, ?> state) throws Throwable

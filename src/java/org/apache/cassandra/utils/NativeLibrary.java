@@ -103,7 +103,7 @@ public final class NativeLibrary
             default: wrappedLibrary = new NativeLibraryLinux();
         }
 
-        if (OS_ARCH.getString().toLowerCase(Locale.US).contains("ppc"))
+        if (LocalizeString.toLowerCaseLocalized(OS_ARCH.getString()).contains("ppc"))
         {
             if (osType == LINUX)
             {
@@ -135,7 +135,7 @@ public final class NativeLibrary
      */
     private static OSType getOsType()
     {
-        String osName = OS_NAME.getString().toLowerCase(Locale.US);
+        String osName = LocalizeString.toLowerCaseLocalized(OS_NAME.getString());
         if  (osName.contains("linux"))
             return LINUX;
         else if (osName.contains("mac"))

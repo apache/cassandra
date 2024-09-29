@@ -102,7 +102,7 @@ public class GuidGenerator
 
     private static String convertToStandardFormat(String valueAfterMD5)
     {
-        String raw = valueAfterMD5.toUpperCase(Locale.US);
+        String raw = LocalizeString.toUpperCaseLocalized(valueAfterMD5);
         StringBuilder sb = new StringBuilder();
         sb.append(raw.substring(0, 8))
           .append("-")

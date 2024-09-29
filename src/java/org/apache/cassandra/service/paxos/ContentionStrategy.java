@@ -29,6 +29,7 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.LocalizeString;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -370,7 +371,7 @@ public class ContentionStrategy
         Type(String traceTitle)
         {
             this.traceTitle = traceTitle;
-            this.lowercase = name().toLowerCase(Locale.US);
+            this.lowercase = LocalizeString.toLowerCaseLocalized(name());
         }
     }
 

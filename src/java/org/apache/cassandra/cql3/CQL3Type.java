@@ -41,6 +41,7 @@ import org.apache.cassandra.serializers.CollectionSerializer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.LocalizeString;
 
 import static java.util.stream.Collectors.toList;
 
@@ -140,7 +141,7 @@ public interface CQL3Type
         @Override
         public String toString()
         {
-            return super.toString().toLowerCase(Locale.US);
+            return LocalizeString.toLowerCaseLocalized(super.toString());
         }
     }
 

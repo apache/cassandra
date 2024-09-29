@@ -24,6 +24,7 @@ import com.google.common.collect.ImmutableSet;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UserType;
+import org.apache.cassandra.utils.LocalizeString;
 
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
@@ -35,17 +36,17 @@ public final class CQLTypeParser
     {
         ImmutableSet.Builder<String> builder = ImmutableSet.builder();
         for (CQL3Type.Native primitive : CQL3Type.Native.values())
-            builder.add(primitive.name().toLowerCase(Locale.US));
+            builder.add(LocalizeString.toLowerCaseLocalized(primitive.name()));
         PRIMITIVE_TYPES = builder.build();
     }
 
     public static AbstractType<?> parse(String keyspace, String unparsed, Types userTypes)
     {
-        String lowercased = unparsed.toLowerCase(Locale.US);
+        String lowercased = LocalizeString.toLowerCaseLocalized(unparsed);
 
         // fast path for the common case of a primitive type
         if (PRIMITIVE_TYPES.contains(lowercased))
-            return CQL3Type.Native.valueOf(unparsed.toUpperCase(Locale.US)).getType();
+            return CQL3Type.Native.valueOf(LocalizeString.toUpperCaseLocalized(unparsed)).getType();
 
         // special-case top-level UDTs
         UserType udt = userTypes.getNullable(bytes(lowercased));

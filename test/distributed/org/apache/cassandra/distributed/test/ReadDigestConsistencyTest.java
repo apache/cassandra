@@ -31,6 +31,7 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.exceptions.SyntaxException;
+import org.apache.cassandra.utils.LocalizeString;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.TimeUUID;
 
@@ -102,7 +103,7 @@ public class ReadDigestConsistencyTest extends TestBaseImpl
                                              Arrays.toString(boundValues),
                                              coordinator.instance().broadcastAddress(),
                                              coordinator.instance().getReleaseVersionString()),
-                               activity.toLowerCase(Locale.US).contains("mismatch for key"));
+                               LocalizeString.toLowerCaseLocalized(activity).contains("mismatch for key"));
         }
     }
 

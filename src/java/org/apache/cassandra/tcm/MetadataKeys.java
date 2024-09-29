@@ -28,10 +28,11 @@ import com.google.common.collect.ImmutableSet;
 
 import org.apache.cassandra.tcm.extensions.ExtensionKey;
 import org.apache.cassandra.tcm.extensions.ExtensionValue;
+import org.apache.cassandra.utils.LocalizeString;
 
 public class MetadataKeys
 {
-    public static final String CORE_NS = MetadataKeys.class.getPackage().getName().toLowerCase(Locale.ROOT);
+    public static final String CORE_NS = LocalizeString.toLowerCaseLocalized(MetadataKeys.class.getPackage().getName(), Locale.ROOT);
 
     public static final MetadataKey SCHEMA                  = make(CORE_NS, "schema", "dist_schema");
     public static final MetadataKey NODE_DIRECTORY          = make(CORE_NS, "membership", "node_directory");

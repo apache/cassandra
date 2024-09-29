@@ -29,6 +29,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import com.google.common.primitives.Ints;
+import org.apache.cassandra.utils.LocalizeString;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Ignore;
@@ -289,7 +290,7 @@ public abstract  class AbstractReadRepairTest
         String ksName = "ks";
 
         String ddl = String.format("CREATE TABLE tbl (k int primary key, v text) WITH read_repair='%s'",
-                                   repairStrategy.toString().toLowerCase(Locale.US));
+                LocalizeString.toLowerCaseLocalized(repairStrategy.toString()));
 
         cfm = CreateTableStatement.parse(ddl, ksName).build();
         assert cfm.params.readRepair == repairStrategy;

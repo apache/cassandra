@@ -40,6 +40,7 @@ import org.apache.cassandra.db.compaction.TimeWindowCompactionStrategy;
 import org.apache.cassandra.db.compaction.UnifiedCompactionStrategy;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.LocalizeString;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.config.CassandraRelevantProperties.DEFAULT_PROVIDE_OVERLAPPING_TOMBSTONES;
@@ -59,7 +60,7 @@ public final class CompactionParams
         @Override
         public String toString()
         {
-            return name().toLowerCase(Locale.US);
+            return LocalizeString.toLowerCaseLocalized(name());
         }
     }
 
@@ -125,7 +126,7 @@ public final class CompactionParams
                           ? Boolean.parseBoolean(options.get(Option.ENABLED.toString()))
                           : DEFAULT_ENABLED;
         String overlappingTombstoneParm = options.getOrDefault(Option.PROVIDE_OVERLAPPING_TOMBSTONES.toString(),
-                                                               DEFAULT_PROVIDE_OVERLAPPING_TOMBSTONES_PROPERTY_VALUE.toString()).toUpperCase(Locale.US);
+                LocalizeString.toUpperCaseLocalized(DEFAULT_PROVIDE_OVERLAPPING_TOMBSTONES_PROPERTY_VALUE.toString()));
         Optional<TombstoneOption> tombstoneOptional = TombstoneOption.forName(overlappingTombstoneParm);
         if (!tombstoneOptional.isPresent())
         {

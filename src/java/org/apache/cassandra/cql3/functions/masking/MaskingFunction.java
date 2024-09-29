@@ -27,6 +27,7 @@ import org.apache.cassandra.cql3.functions.FunctionName;
 import org.apache.cassandra.cql3.functions.FunctionParameter;
 import org.apache.cassandra.cql3.functions.NativeScalarFunction;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.utils.LocalizeString;
 
 /**
  * A {@link NativeScalarFunction} that totally or partially replaces the original value of a column value,
@@ -58,7 +59,7 @@ public abstract class MaskingFunction extends NativeScalarFunction
     {
         public Factory(String name, FunctionParameter... parameters)
         {
-            super(NAME_PREFIX + name.toLowerCase(Locale.US), parameters);
+            super(NAME_PREFIX + LocalizeString.toLowerCaseLocalized(name), parameters);
         }
     }
 }

@@ -34,6 +34,7 @@ import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.utils.LocalizeString;
 
 import static org.apache.cassandra.gms.ApplicationState.TOKENS;
 
@@ -102,10 +103,10 @@ final class GossipInfoTable extends AbstractVirtualTable
                                           .column(HEARTBEAT, getHeartBeat(localState));
 
             for (ApplicationState state : STATES_FOR_VALUES)
-                dataSet.column(state.name().toLowerCase(Locale.US), getValue(localState, state));
+                dataSet.column(LocalizeString.toLowerCaseLocalized(state.name()), getValue(localState, state));
 
             for (ApplicationState state : STATES_FOR_VERSIONS)
-                dataSet.column(state.name().toLowerCase(Locale.US) + "_version", getVersion(localState, state));
+                dataSet.column(LocalizeString.toLowerCaseLocalized(state.name()) + "_version", getVersion(localState, state));
         }
         return result;
     }
@@ -179,10 +180,10 @@ final class GossipInfoTable extends AbstractVirtualTable
                                                      .addRegularColumn(HEARTBEAT, Int32Type.instance);
 
         for (ApplicationState state : STATES_FOR_VALUES)
-            builder.addRegularColumn(state.name().toLowerCase(Locale.US), UTF8Type.instance);
+            builder.addRegularColumn(LocalizeString.toLowerCaseLocalized(state.name()), UTF8Type.instance);
 
         for (ApplicationState state : STATES_FOR_VERSIONS)
-            builder.addRegularColumn(state.name().toLowerCase(Locale.US) + "_version", Int32Type.instance);
+            builder.addRegularColumn(LocalizeString.toLowerCaseLocalized(state.name()) + "_version", Int32Type.instance);
 
         return builder.build();
     }

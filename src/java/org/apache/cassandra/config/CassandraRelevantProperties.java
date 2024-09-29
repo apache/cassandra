@@ -31,6 +31,7 @@ import org.apache.cassandra.db.virtual.LogMessagesTable;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.FileSystemOwnershipCheck;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.LocalizeString;
 import org.apache.cassandra.utils.StorageCompatibilityMode;
 
 // checkstyle: suppress below 'blockSystemPropertyUsage'
@@ -915,7 +916,7 @@ public enum CassandraRelevantProperties
     }
 
     /**
-     * Gets the value of a system property as a enum, calling {@link String#toUpperCase(Locale.US)} first.
+     * Gets the value of a system property as an enum, calling {@link org.apache.cassandra.utils.LocalizeString#toUpperCaseLocalized(String)} first.
      *
      * @param defaultValue to return when not defined
      * @param <T> type
@@ -927,7 +928,7 @@ public enum CassandraRelevantProperties
     }
 
     /**
-     * Gets the value of a system property as a enum, optionally calling {@link String#toUpperCase(Locale.US)} first.
+     * Gets the value of a system property as a enum, optionally calling {@link org.apache.cassandra.utils.LocalizeString#toUpperCaseLocalized(String)} first.
      *
      * @param toUppercase before converting to enum
      * @param defaultValue to return when not defined
@@ -939,11 +940,11 @@ public enum CassandraRelevantProperties
         String value = System.getProperty(key);
         if (value == null)
             return defaultValue;
-        return Enum.valueOf(defaultValue.getDeclaringClass(), toUppercase ? value.toUpperCase(Locale.US) : value);
+        return Enum.valueOf(defaultValue.getDeclaringClass(), toUppercase ? LocalizeString.toUpperCaseLocalized(value) : value);
     }
 
     /**
-     * Gets the value of a system property as an enum, optionally calling {@link String#toUpperCase(Locale.US)} first.
+     * Gets the value of a system property as an enum, optionally calling {@link org.apache.cassandra.utils.LocalizeString#toLowerCaseLocalized(String)} first.
      * If the value is missing, the default value for this property is used
      *
      * @param toUppercase before converting to enum
@@ -954,7 +955,7 @@ public enum CassandraRelevantProperties
     public <T extends Enum<T>> T getEnum(boolean toUppercase, Class<T> enumClass)
     {
         String value = System.getProperty(key, defaultVal);
-        return Enum.valueOf(enumClass, toUppercase ? value.toUpperCase(Locale.US) : value);
+        return Enum.valueOf(enumClass, toUppercase ? LocalizeString.toUpperCaseLocalized(value) : value);
     }
 
     /**

@@ -32,6 +32,7 @@ import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.transport.ConnectedClient;
+import org.apache.cassandra.utils.LocalizeString;
 
 final class ClientsTable extends AbstractVirtualTable
 {
@@ -89,7 +90,7 @@ final class ClientsTable extends AbstractVirtualTable
             result.row(remoteAddress.getAddress(), remoteAddress.getPort())
                   .column(HOSTNAME, remoteAddress.getHostName())
                   .column(USERNAME, client.username().orElse(null))
-                  .column(CONNECTION_STAGE, client.stage().toString().toLowerCase(Locale.US))
+                  .column(CONNECTION_STAGE, LocalizeString.toLowerCaseLocalized(client.stage().toString()))
                   .column(PROTOCOL_VERSION, client.protocolVersion())
                   .column(CLIENT_OPTIONS, client.clientOptions().orElse(null))
                   .column(DRIVER_NAME, client.driverName().orElse(null))

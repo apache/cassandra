@@ -38,6 +38,7 @@ import org.apache.cassandra.metrics.Sampler.SamplerType;
 import org.apache.cassandra.metrics.SamplingManager;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import org.apache.cassandra.utils.LocalizeString;
 import org.apache.cassandra.utils.Pair;
 
 import static com.google.common.base.Preconditions.checkArgument;
@@ -114,7 +115,7 @@ public class ProfileLoad extends NodeToolCmd
         Set<String> available = Arrays.stream(SamplerType.values()).map(Enum::toString).collect(Collectors.toSet());
         for (String s : samplers.split(","))
         {
-            String sampler = s.trim().toUpperCase(Locale.US);
+            String sampler = LocalizeString.toUpperCaseLocalized(s.trim());
             checkArgument(available.contains(sampler), String.format("'%s' sampler is not available from: %s", s, Arrays.toString(SamplerType.values())));
             targets.add(sampler);
         }

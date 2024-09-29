@@ -46,6 +46,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.LocalizeString;
 import org.apache.cassandra.utils.UUIDSerializer;
 
 import static org.apache.cassandra.db.TypeSizes.sizeof;
@@ -72,7 +73,7 @@ public final class IndexMetadata
     static
     {
         indexNameAliases.put(StorageAttachedIndex.NAME, StorageAttachedIndex.class.getCanonicalName());
-        indexNameAliases.put(StorageAttachedIndex.class.getSimpleName().toLowerCase(Locale.US), StorageAttachedIndex.class.getCanonicalName());
+        indexNameAliases.put(LocalizeString.toLowerCaseLocalized(StorageAttachedIndex.class.getSimpleName()), StorageAttachedIndex.class.getCanonicalName());
         indexNameAliases.put(SASIIndex.class.getSimpleName(), SASIIndex.class.getCanonicalName());
     }
 
@@ -159,7 +160,7 @@ public final class IndexMetadata
         if (isCustom())
         {
             String className = options.get(IndexTarget.CUSTOM_INDEX_OPTION_NAME);
-            return indexNameAliases.getOrDefault(className.toLowerCase(Locale.US), className);
+            return indexNameAliases.getOrDefault(LocalizeString.toLowerCaseLocalized(className), className);
         }
         return CassandraIndex.class.getName();
     }

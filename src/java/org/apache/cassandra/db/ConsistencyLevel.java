@@ -29,6 +29,7 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.transport.ProtocolException;
+import org.apache.cassandra.utils.LocalizeString;
 
 import static org.apache.cassandra.locator.Replicas.addToCountPerDc;
 
@@ -85,7 +86,7 @@ public enum ConsistencyLevel
 
     public static ConsistencyLevel fromString(String str)
     {
-        return valueOf(str.toUpperCase(Locale.US));
+        return valueOf(LocalizeString.toLowerCaseLocalized(str));
     }
 
     public static int quorumFor(AbstractReplicationStrategy replicationStrategy)

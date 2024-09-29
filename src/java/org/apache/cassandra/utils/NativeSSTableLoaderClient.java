@@ -203,7 +203,7 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
 
     private static ColumnMetadata createDefinitionFromRow(Row row, String keyspace, String table, Types types)
     {
-        ClusteringOrder order = ClusteringOrder.valueOf(row.getString("clustering_order").toUpperCase(Locale.US));
+        ClusteringOrder order = ClusteringOrder.valueOf(LocalizeString.toUpperCaseLocalized(row.getString("clustering_order")));
         AbstractType<?> type = CQLTypeParser.parse(keyspace, row.getString("type"), types);
         if (order == ClusteringOrder.DESC)
             type = ReversedType.getInstance(type);
@@ -211,7 +211,7 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
         ColumnIdentifier name = new ColumnIdentifier(row.getBytes("column_name_bytes"), row.getString("column_name"));
 
         int position = row.getInt("position");
-        org.apache.cassandra.schema.ColumnMetadata.Kind kind = ColumnMetadata.Kind.valueOf(row.getString("kind").toUpperCase(Locale.US));
+        org.apache.cassandra.schema.ColumnMetadata.Kind kind = ColumnMetadata.Kind.valueOf(LocalizeString.toUpperCaseLocalized(row.getString("kind")));
         return new ColumnMetadata(keyspace, table, name, type, position, kind, null);
     }
 
@@ -219,7 +219,7 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
     {
         String name = row.getString("column_name");
         AbstractType<?> type = CQLTypeParser.parse(keyspace, row.getString("type"), Types.none());
-        ColumnMetadata.Kind kind = ColumnMetadata.Kind.valueOf(row.getString("kind").toUpperCase(Locale.US));
+        ColumnMetadata.Kind kind = ColumnMetadata.Kind.valueOf(LocalizeString.toUpperCaseLocalized(row.getString("kind")));
         ColumnMetadata column = new ColumnMetadata(keyspace, table, ColumnIdentifier.getInterned(name, true), type, ColumnMetadata.NO_POSITION, kind, null);
         long droppedTime = row.getTimestamp("dropped_time").getTime();
         return new DroppedColumn(column, droppedTime);

@@ -27,6 +27,7 @@ import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.utils.LocalizeString;
 
 final class SSTableTasksTable extends AbstractVirtualTable
 {
@@ -75,11 +76,11 @@ final class SSTableTasksTable extends AbstractVirtualTable
                        task.getTable().orElse("*"),
                        task.getTaskId())
                   .column(COMPLETION_RATIO, completionRatio)
-                  .column(KIND, task.getTaskType().toString().toLowerCase(Locale.US))
+                  .column(KIND, LocalizeString.toLowerCaseLocalized(task.getTaskType().toString()))
                   .column(PROGRESS, completed)
                   .column(SSTABLES, task.getSSTables().size())
                   .column(TOTAL, total)
-                  .column(UNIT, task.getUnit().toString().toLowerCase(Locale.US))
+                  .column(UNIT, LocalizeString.toLowerCaseLocalized(task.getUnit().toString()))
                   .column(TARGET_DIRECTORY, task.targetDirectory());
         }
 

@@ -46,6 +46,7 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.PathUtils;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.LocalizeString;
 
 /**
  * A decoded line in a transaction log file replica.
@@ -64,7 +65,7 @@ final class LogRecord
 
         public static Type fromPrefix(String prefix)
         {
-            return valueOf(prefix.toUpperCase(Locale.US));
+            return valueOf(LocalizeString.toLowerCaseLocalized(prefix));
         }
 
         public boolean hasFile()

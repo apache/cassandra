@@ -203,7 +203,7 @@ public final class JsonUtils
             }
 
             // otherwise, lowercase it if needed
-            String lowered = mapKey.toLowerCase(Locale.US);
+            String lowered = LocalizeString.toLowerCaseLocalized(mapKey, Locale.ROOT);
             if (!mapKey.equals(lowered))
                 valueMap.put(lowered, valueMap.remove(mapKey));
         }

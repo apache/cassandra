@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Locale;
 
+import org.apache.cassandra.utils.LocalizeString;
 import org.apache.commons.lang3.StringUtils;
 import org.junit.Test;
 
@@ -155,7 +156,7 @@ public class NativeFunctionsTest
             Assertions.assertThat(function.argTypes()).isEqualTo(newFunction.argTypes());
             Assertions.assertThat(function.returnType()).isEqualTo(newFunction.returnType());
             Assertions.assertThat(function.getClass()).isEqualTo(newFunction.getClass());
-            Assertions.assertThat(function.name().name.toLowerCase(Locale.US))
+            Assertions.assertThat(LocalizeString.toLowerCaseLocalized(function.name().name))
                       .isEqualTo(StringUtils.remove(newFunction.name().name, '_'));
         }
     }
@@ -191,7 +192,7 @@ public class NativeFunctionsTest
             Assertions.assertThat(factory.name).isNotEqualTo(newFactory.name);
             Assertions.assertThat(factory.parameters).isEqualTo(newFactory.parameters);
             Assertions.assertThat(factory.getClass()).isEqualTo(newFactory.getClass());
-            Assertions.assertThat(factory.name().name.toLowerCase(Locale.US))
+            Assertions.assertThat(LocalizeString.toLowerCaseLocalized(factory.name().name))
                       .isEqualTo(StringUtils.remove(newFactory.name().name, '_'));
         }
     }
@@ -199,7 +200,7 @@ public class NativeFunctionsTest
     private static boolean satisfiesConventions(FunctionName functionName)
     {
         String name = functionName.name;
-        return name.equals(name.toLowerCase(Locale.US)) &&
+        return name.equals(LocalizeString.toLowerCaseLocalized(name)) &&
                !LEGACY_FUNCTION_NAMES.containsKey(name);
     }
 }

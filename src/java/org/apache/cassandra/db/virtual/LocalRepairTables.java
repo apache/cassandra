@@ -48,6 +48,7 @@ import org.apache.cassandra.repair.state.ValidationState;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.utils.LocalizeString;
 import org.apache.cassandra.utils.TimeUUID;
 
 public class LocalRepairTables
@@ -386,7 +387,7 @@ public class LocalRepairTables
 
     private static String timestampColumnName(Enum<?> e)
     {
-        return timestampColumnName(e.name().toLowerCase(Locale.US));
+        return timestampColumnName(LocalizeString.toLowerCaseLocalized(e.name()));
     }
 
     private static String timestampColumnName(String e)
@@ -432,7 +433,7 @@ public class LocalRepairTables
 
         T currentState = state.getStatus();
         State.Result result = state.getResult();
-        ds.column("status", result != null ? result.kind.name().toLowerCase(Locale.US) : currentState == null ? "init" : currentState.name().toLowerCase(Locale.US));
+        ds.column("status", result != null ? LocalizeString.toLowerCaseLocalized(result.kind.name()) : currentState == null ? "init" : LocalizeString.toLowerCaseLocalized(currentState.name()));
         for (Map.Entry<T, Long> e : state.getStateTimesMillis().entrySet())
         {
             if (e.getValue().longValue() != 0)

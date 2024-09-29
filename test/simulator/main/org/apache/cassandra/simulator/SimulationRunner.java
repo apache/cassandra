@@ -31,6 +31,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import org.apache.cassandra.utils.LocalizeString;
 import org.junit.BeforeClass;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -282,7 +283,7 @@ public class SimulationRunner
             Optional.ofNullable(topologyChanges).ifPresent(topologyChanges -> {
                 builder.topologyChanges(stream(topologyChanges.split(","))
                                         .filter(v -> !v.isEmpty())
-                                        .map(v -> TopologyChange.valueOf(v.toUpperCase(Locale.US)))
+                                        .map(v -> TopologyChange.valueOf(LocalizeString.toUpperCaseLocalized(v)))
                                         .toArray(TopologyChange[]::new));
             });
             parseNanosRange(Optional.ofNullable(topologyChangeInterval)).ifPresent(builder::topologyChangeIntervalNanos);

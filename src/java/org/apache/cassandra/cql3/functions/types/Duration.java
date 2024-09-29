@@ -21,6 +21,8 @@ import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.apache.cassandra.utils.LocalizeString;
+
 import com.google.common.base.Objects;
 
 import static com.google.common.base.Preconditions.checkArgument;
@@ -238,7 +240,7 @@ public final class Duration
 
     private static Builder add(Builder builder, long number, String symbol)
     {
-        String s = symbol.toLowerCase(Locale.US);
+        String s = LocalizeString.toLowerCaseLocalized(symbol, Locale.ENGLISH);
         if (s.equals("y"))
         {
             return builder.addYears(number);

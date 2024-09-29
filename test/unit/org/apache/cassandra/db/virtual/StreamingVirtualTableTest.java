@@ -31,6 +31,7 @@ import java.util.Locale;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
+import org.apache.cassandra.utils.LocalizeString;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -186,7 +187,7 @@ public class StreamingVirtualTableTest extends CQLTester
             long fileSize = summary.totalSize / summary.files;
             for (int i = 0; i < summary.files - 1; i++)
             {
-                String fileName = summary.tableId + "-" + direction.name().toLowerCase(Locale.US) + "-" + i;
+                String fileName = summary.tableId + "-" + LocalizeString.toLowerCaseLocalized(direction.name()) + "-" + i;
                 state.handleStreamEvent(new ProgressEvent(state.id(), new ProgressInfo((InetAddressAndPort) s.peer, 0, fileName, direction, fileSize, fileSize, fileSize)));
                 counter += fileSize;
             }
@@ -200,7 +201,7 @@ public class StreamingVirtualTableTest extends CQLTester
         for (StreamSummary summary : summaries)
         {
             long fileSize = summary.totalSize / summary.files;
-            String fileName = summary.tableId + "-" + direction.name().toLowerCase(Locale.US) + "-" + summary.files;
+            String fileName = summary.tableId + "-" + LocalizeString.toLowerCaseLocalized(direction.name()) + "-" + summary.files;
             state.handleStreamEvent(new ProgressEvent(state.id(), new ProgressInfo((InetAddressAndPort) s.peer, 0, fileName, direction, fileSize, fileSize, fileSize)));
             counter += fileSize;
         }

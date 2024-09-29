@@ -32,6 +32,7 @@ import org.apache.cassandra.auth.AuthKeyspace;
 import org.apache.cassandra.db.Digest;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.tracing.TraceKeyspace;
+import org.apache.cassandra.utils.LocalizeString;
 
 /**
  * When adding new String keyspace names here, double check if it needs to be added to PartitionDenylist.canDenylistKeyspace
@@ -94,7 +95,7 @@ public final class SchemaConstants
      */
     public static boolean isLocalSystemKeyspace(String keyspaceName)
     {
-        return LOCAL_SYSTEM_KEYSPACE_NAMES.contains(keyspaceName.toLowerCase(Locale.US)) || isVirtualSystemKeyspace(keyspaceName);
+        return LOCAL_SYSTEM_KEYSPACE_NAMES.contains(LocalizeString.toLowerCaseLocalized(keyspaceName)) || isVirtualSystemKeyspace(keyspaceName);
     }
 
     /**
@@ -102,7 +103,7 @@ public final class SchemaConstants
      */
     public static boolean isReplicatedSystemKeyspace(String keyspaceName)
     {
-        return REPLICATED_SYSTEM_KEYSPACE_NAMES.contains(keyspaceName.toLowerCase(Locale.US));
+        return REPLICATED_SYSTEM_KEYSPACE_NAMES.contains(LocalizeString.toLowerCaseLocalized(keyspaceName));
     }
 
     /**
@@ -111,7 +112,7 @@ public final class SchemaConstants
      */
     public static boolean isVirtualSystemKeyspace(String keyspaceName)
     {
-        return VIRTUAL_SYSTEM_KEYSPACE_NAMES.contains(keyspaceName.toLowerCase(Locale.US));
+        return VIRTUAL_SYSTEM_KEYSPACE_NAMES.contains(LocalizeString.toLowerCaseLocalized(keyspaceName));
     }
 
     /**

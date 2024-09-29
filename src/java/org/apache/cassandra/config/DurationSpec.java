@@ -25,6 +25,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import org.apache.cassandra.utils.LocalizeString;
+
 import com.google.common.primitives.Ints;
 
 import static java.util.concurrent.TimeUnit.DAYS;
@@ -109,7 +111,7 @@ public abstract class DurationSpec
 
         if (minUnit.convert(quantity, sourceUnit) >= max)
             throw new IllegalArgumentException("Invalid duration: " + value + ". It shouldn't be more than " +
-                                             (max - 1) + " in " + minUnit.name().toLowerCase(Locale.ENGLISH));
+                                             (max - 1) + " in " + LocalizeString.toLowerCaseLocalized(minUnit.name()));
     }
 
     private static void validateQuantity(long quantity, TimeUnit sourceUnit, TimeUnit minUnit, long max)
@@ -119,8 +121,8 @@ public abstract class DurationSpec
 
         if (minUnit.convert(quantity, sourceUnit) >= max)
             throw new IllegalArgumentException(String.format("Invalid duration: %d %s. It shouldn't be more than %d in %s",
-                                                           quantity, sourceUnit.name().toLowerCase(Locale.ENGLISH),
-                                                           max - 1, minUnit.name().toLowerCase(Locale.ENGLISH)));
+                                                           quantity, LocalizeString.toLowerCaseLocalized(sourceUnit.name()),
+                                                           max - 1, LocalizeString.toLowerCaseLocalized(minUnit.name())));
     }
 
     // get vs no-get prefix is not consistent in the code base, but for classes involved with config parsing, it is
@@ -142,7 +144,7 @@ public abstract class DurationSpec
      */
     static TimeUnit fromSymbol(String symbol)
     {
-        switch (symbol.toLowerCase(Locale.ENGLISH))
+        switch (LocalizeString.toLowerCaseLocalized(symbol, Locale.ENGLISH))
         {
             case "d": return DAYS;
             case "h": return HOURS;

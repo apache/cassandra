@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.index.sai.disk.v1.vector;
 
+import org.apache.cassandra.utils.LocalizeString;
+
 import java.util.Locale;
 import java.util.function.Function;
 
@@ -48,6 +50,6 @@ public enum OptimizeFor
 
     public static OptimizeFor fromString(String value)
     {
-        return valueOf(value.toUpperCase(Locale.US));
+        return valueOf(LocalizeString.toLowerCaseLocalized(value));
     }
 }

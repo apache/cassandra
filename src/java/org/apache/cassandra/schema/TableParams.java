@@ -40,6 +40,7 @@ import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 import org.apache.cassandra.utils.BloomCalculations;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.LocalizeString;
 
 import static java.lang.String.format;
 import static java.util.stream.Collectors.toMap;
@@ -74,7 +75,7 @@ public final class TableParams
         @Override
         public String toString()
         {
-            return name().toLowerCase(Locale.US);
+            return LocalizeString.toLowerCaseLocalized(name());
         }
     }
 

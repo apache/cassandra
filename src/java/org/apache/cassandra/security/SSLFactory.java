@@ -45,6 +45,7 @@ import io.netty.util.ReferenceCountUtil;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.security.ISslContextFactory.SocketType;
+import org.apache.cassandra.utils.LocalizeString;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.DISABLE_TCACTIVE_OPENSSL;
 
@@ -338,7 +339,7 @@ public final class SSLFactory
                     if (settingDescription != null)
                     {
                         logger.warn("Dropping unsupported cipher_suite {} from {} configuration",
-                                    c, settingDescription.toLowerCase(Locale.US));
+                                    c, LocalizeString.toLowerCaseLocalized(settingDescription));
                     }
                 }
             }
