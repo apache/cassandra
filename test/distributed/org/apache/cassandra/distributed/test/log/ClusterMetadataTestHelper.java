@@ -827,7 +827,7 @@ public class ClusterMetadataTestHelper
 
     public static void reconfigureCms(ReplicationParams replication)
     {
-        ClusterMetadata metadata = ClusterMetadataService.instance().commit(new PrepareCMSReconfiguration.Complex(replication));
+        ClusterMetadata metadata = ClusterMetadataService.instance().commit(new PrepareCMSReconfiguration.Complex(replication, Collections.emptySet()));
         while (metadata.inProgressSequences.contains(ReconfigureCMS.SequenceKey.instance))
         {
             AdvanceCMSReconfiguration next = ((ReconfigureCMS) metadata.inProgressSequences.get(ReconfigureCMS.SequenceKey.instance)).next;

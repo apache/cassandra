@@ -34,7 +34,7 @@ class SingletonTrie<T> extends Trie<T>
         this.value = value;
     }
 
-    public Cursor cursor()
+    public Cursor cursor(Direction direction)
     {
         return new Cursor();
     }
