@@ -220,7 +220,6 @@ public class AccordJournal implements IJournal, Shutdownable
 
         // TODO: use same API for commands as for the other states?
         JournalKey key = new JournalKey(value.key(), JournalKey.Type.COMMAND_DIFF, store);
-        logger.info("Appending {} to {}", key, store);
         RecordPointer pointer = journal.asyncWrite(key, value, SENTINEL_HOSTS);
         if (onFlush != null)
             journal.onFlush(pointer, onFlush);
