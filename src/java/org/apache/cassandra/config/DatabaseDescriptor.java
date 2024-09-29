@@ -62,7 +62,7 @@ import com.google.common.collect.Sets;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.RateLimiter;
-import org.apache.cassandra.utils.Pair;
+
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -116,6 +116,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.paxos.Paxos;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.StorageCompatibilityMode;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOCATE_TOKENS_FOR_KEYSPACE;
@@ -156,6 +157,7 @@ import static org.apache.cassandra.db.ConsistencyLevel.QUORUM;
 import static org.apache.cassandra.io.util.FileUtils.ONE_GIB;
 import static org.apache.cassandra.io.util.FileUtils.ONE_MIB;
 import static org.apache.cassandra.utils.Clock.Global.logInitializationOutcome;
+import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;
 
 public class DatabaseDescriptor
 {
@@ -1785,7 +1787,7 @@ public class DatabaseDescriptor
         if (cidrAuthorizerMode == null || cidrAuthorizerMode.isEmpty())
             return defaultCidrAuthorizerMode;
 
-        return ICIDRAuthorizer.CIDRAuthorizerMode.valueOf(cidrAuthorizerMode.toUpperCase());
+        return ICIDRAuthorizer.CIDRAuthorizerMode.valueOf(toUpperCaseLocalized(cidrAuthorizerMode));
     }
 
     public static int getCidrGroupsCacheRefreshInterval()

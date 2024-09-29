@@ -36,6 +36,8 @@ import com.google.common.io.Resources;
 
 import org.apache.cassandra.stress.generate.Distribution;
 
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
+
 class SettingsMisc implements Serializable
 {
 
@@ -164,13 +166,13 @@ class SettingsMisc implements Serializable
         System.out.println("---Commands---");
         for (Command cmd : Command.values())
         {
-            System.out.println(String.format("%-20s : %s", cmd.toString().toLowerCase(), cmd.description));
+            System.out.println(String.format("%-20s : %s", toLowerCaseLocalized(cmd.toString()), cmd.description));
         }
         System.out.println();
         System.out.println("---Options---");
         for (CliOption cmd : CliOption.values())
         {
-            System.out.println(String.format("-%-20s : %s", cmd.toString().toLowerCase(), cmd.description));
+            System.out.println(String.format("-%-20s : %s", toLowerCaseLocalized(cmd.toString()), cmd.description));
         }
     }
 
@@ -201,7 +203,7 @@ class SettingsMisc implements Serializable
                 System.out.println("    " + cmd.names.toString().replaceAll("\\[|\\]", ""));
             System.out.println("Options:");
             for (CliOption op : CliOption.values())
-                System.out.println("    -" + op.toString().toLowerCase() + (op.extraName != null ? ", " + op.extraName : ""));
+                System.out.println("    -" + toLowerCaseLocalized(op.toString()) + (op.extraName != null ? ", " + op.extraName : ""));
         };
     }
 

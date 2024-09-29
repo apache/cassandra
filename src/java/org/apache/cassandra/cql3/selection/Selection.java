@@ -37,6 +37,8 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.JsonUtils;
 
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
+
 public abstract class Selection
 {
     /**
@@ -327,7 +329,7 @@ public abstract class Selection
                 sb.append(", ");
 
             String columnName = spec.name.toString();
-            if (!columnName.equals(columnName.toLowerCase(Locale.US)))
+            if (!columnName.equals(toLowerCaseLocalized(columnName)))
                 columnName = "\"" + columnName + "\"";
 
             sb.append('"');

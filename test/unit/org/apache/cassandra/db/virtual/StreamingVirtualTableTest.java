@@ -54,6 +54,7 @@ import org.apache.cassandra.streaming.StreamingState;
 import org.apache.cassandra.utils.FBUtilities;
 import org.assertj.core.util.Throwables;
 
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 public class StreamingVirtualTableTest extends CQLTester
@@ -185,7 +186,7 @@ public class StreamingVirtualTableTest extends CQLTester
             long fileSize = summary.totalSize / summary.files;
             for (int i = 0; i < summary.files - 1; i++)
             {
-                String fileName = summary.tableId + "-" + direction.name().toLowerCase() + "-" + i;
+                String fileName = summary.tableId + "-" + toLowerCaseLocalized(direction.name()) + "-" + i;
                 state.handleStreamEvent(new ProgressEvent(state.id(), new ProgressInfo((InetAddressAndPort) s.peer, 0, fileName, direction, fileSize, fileSize, fileSize)));
                 counter += fileSize;
             }
@@ -199,7 +200,7 @@ public class StreamingVirtualTableTest extends CQLTester
         for (StreamSummary summary : summaries)
         {
             long fileSize = summary.totalSize / summary.files;
-            String fileName = summary.tableId + "-" + direction.name().toLowerCase() + "-" + summary.files;
+            String fileName = summary.tableId + "-" + toLowerCaseLocalized(direction.name()) + "-" + summary.files;
             state.handleStreamEvent(new ProgressEvent(state.id(), new ProgressInfo((InetAddressAndPort) s.peer, 0, fileName, direction, fileSize, fileSize, fileSize)));
             counter += fileSize;
         }

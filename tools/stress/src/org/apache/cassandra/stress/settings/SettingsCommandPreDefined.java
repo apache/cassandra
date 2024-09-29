@@ -41,6 +41,8 @@ import org.apache.cassandra.stress.operations.predefined.PredefinedOperation;
 import org.apache.cassandra.stress.report.Timer;
 import org.apache.cassandra.stress.util.ResultLogger;
 
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
+
 // Settings unique to the mixed command type
 public class SettingsCommandPreDefined extends SettingsCommand
 {
@@ -146,12 +148,12 @@ public class SettingsCommandPreDefined extends SettingsCommand
 
     static void printHelp(Command type)
     {
-        printHelp(type.toString().toLowerCase());
+        printHelp(toLowerCaseLocalized(type.toString()));
     }
 
     static void printHelp(String type)
     {
-        GroupedOptions.printOptions(System.out, type.toLowerCase(), new Uncertainty(), new Count(), new Duration());
+        GroupedOptions.printOptions(System.out, toLowerCaseLocalized(type), new Uncertainty(), new Count(), new Duration());
     }
 
     static Runnable helpPrinter(final Command type)

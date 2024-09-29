@@ -32,6 +32,8 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
+
 /**
  * An immutable class representing keyspace parameters (durability and replication).
  */
@@ -57,7 +59,7 @@ public final class KeyspaceParams
         @Override
         public String toString()
         {
-            return name().toLowerCase();
+            return toLowerCaseLocalized(name());
         }
     }
 

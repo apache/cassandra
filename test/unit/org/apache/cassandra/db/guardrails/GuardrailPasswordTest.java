@@ -36,6 +36,7 @@ import static java.lang.String.format;
 import static java.util.Collections.singletonList;
 import static org.apache.cassandra.db.guardrails.CassandraPasswordConfiguration.LENGTH_FAIL_KEY;
 import static org.apache.cassandra.db.guardrails.CassandraPasswordConfiguration.LENGTH_WARN_KEY;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -121,7 +122,7 @@ public class GuardrailPasswordTest extends GuardrailTester
 
     private String getEntityName(String name)
     {
-        return (name + entity).toLowerCase();
+        return toLowerCaseLocalized(name + entity);
     }
 
     private void testPasswordGuardrailInternal() throws Throwable

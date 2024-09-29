@@ -76,6 +76,8 @@ import org.apache.cassandra.service.ActiveRepairService.ParentRepairStatus;
 import org.apache.cassandra.service.StorageService;
 import org.awaitility.Awaitility;
 
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
+
 @RunWith(Parameterized.class)
 public class FailingRepairTest extends TestBaseImpl implements Serializable
 {
@@ -132,7 +134,7 @@ public class FailingRepairTest extends TestBaseImpl implements Serializable
 
     private static String getCfName(Verb type, RepairParallelism parallelism, boolean withTracing)
     {
-        return type.name().toLowerCase() + "_" + parallelism.name().toLowerCase() + "_" + withTracing;
+        return toLowerCaseLocalized(type.name()) + "_" + toLowerCaseLocalized(parallelism.name()) + "_" + withTracing;
     }
 
     @BeforeClass

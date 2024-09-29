@@ -22,7 +22,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -74,6 +73,7 @@ import static java.util.Optional.ofNullable;
 import static org.apache.cassandra.db.virtual.CollectionVirtualTableAdapter.createSinglePartitionedKeyFiltered;
 import static org.apache.cassandra.db.virtual.CollectionVirtualTableAdapter.createSinglePartitionedValueFiltered;
 import static org.apache.cassandra.schema.SchemaConstants.VIRTUAL_METRICS;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 /**
  * Dropwizard metrics registry extension for Cassandra, as of for now uses the latest version of Dropwizard metrics
@@ -810,7 +810,7 @@ public class CassandraMetricsRegistry extends MetricRegistry
 
         private String calculateRateUnit(TimeUnit unit)
         {
-            final String s = unit.toString().toLowerCase(Locale.US);
+            final String s = toLowerCaseLocalized(unit.toString());
             return s.substring(0, s.length() - 1);
         }
     }
@@ -861,7 +861,7 @@ public class CassandraMetricsRegistry extends MetricRegistry
         {
             super(metric, objectName, rateUnit);
             this.metric = metric;
-            this.durationUnit = durationUnit.toString().toLowerCase(Locale.US);
+            this.durationUnit = toLowerCaseLocalized(durationUnit.toString());
         }
 
         @Override

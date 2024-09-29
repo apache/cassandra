@@ -1,4 +1,5 @@
 5.1
+ * Explicitly localize strings to Locale.US for internal implementation (CASSANDRA-19953)
  * Add -H option for human-friendly output in nodetool compactionhistory (CASSANDRA-20015)
  * Fix type check for referenced duration type for nested types (CASSANDRA-19890)
  * In simulation tests, correctly set the tokens of replacement nodes (CASSANDRA-19997)

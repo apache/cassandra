@@ -52,6 +52,7 @@ import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.casReadMe
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.casWriteMetrics;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.Clock.waitUntil;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 /**
  * <p>A strategy for making back-off decisions for Paxos operations that fail to make progress because of other paxos operations.
@@ -369,7 +370,7 @@ public class ContentionStrategy
         Type(String traceTitle)
         {
             this.traceTitle = traceTitle;
-            this.lowercase = name().toLowerCase();
+            this.lowercase = toLowerCaseLocalized(name());
         }
     }
 

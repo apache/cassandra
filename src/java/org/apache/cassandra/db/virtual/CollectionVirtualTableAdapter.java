@@ -85,6 +85,7 @@ import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.db.rows.Cell.NO_DELETION_TIME;
 import static org.apache.cassandra.utils.FBUtilities.camelToSnake;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 /**
  * This is a virtual table that iteratively builds rows using a data set provided by internal collection.
@@ -255,7 +256,7 @@ public class CollectionVirtualTableAdapter<R> implements VirtualTable
         Pattern pattern = Pattern.compile("^[A-Z1-9_]+$");
         // Contains only uppercase letters, numbers and underscores, so it's already snake case.
         if (pattern.matcher(camel).matches())
-            return camel.toLowerCase();
+            return toLowerCaseLocalized(camel);
 
         // Some special cases must be handled manually.
         String modifiedCamel = camel;

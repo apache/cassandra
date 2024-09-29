@@ -23,7 +23,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 import com.fasterxml.jackson.core.JsonFactory;
@@ -38,6 +37,7 @@ import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.serializers.MarshalException;
 
 import static org.apache.cassandra.io.util.File.WriteMode.OVERWRITE;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 public final class JsonUtils
 {
@@ -203,7 +203,7 @@ public final class JsonUtils
             }
 
             // otherwise, lowercase it if needed
-            String lowered = mapKey.toLowerCase(Locale.US);
+            String lowered = toLowerCaseLocalized(mapKey);
             if (!mapKey.equals(lowered))
                 valueMap.put(lowered, valueMap.remove(mapKey));
         }

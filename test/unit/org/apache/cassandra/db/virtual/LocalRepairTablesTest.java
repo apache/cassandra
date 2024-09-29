@@ -56,6 +56,8 @@ import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
 
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
+
 public class LocalRepairTablesTest extends CQLTester
 {
     private static final String KS_NAME = "vts";
@@ -245,7 +247,7 @@ public class LocalRepairTablesTest extends CQLTester
     private <T extends Enum<T>> void assertState(String table, State<?, ?> state, T expectedState) throws Throwable
     {
         assertRowsIgnoringOrder(execute(t("SELECT id, completed, status, failure_cause, success_message FROM %s." + table + " WHERE id = ?"), state.getId()),
-                                row(state.getId(), false, expectedState.name().toLowerCase(), null, null));
+                                row(state.getId(), false, toLowerCaseLocalized(expectedState.name()), null, null));
     }
 
     private void assertSuccess(String table, State<?, ?> state) throws Throwable

@@ -47,6 +47,7 @@ import org.apache.cassandra.utils.UUIDGen;
 import org.apache.cassandra.utils.memory.MemoryUtil;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_NETTY_USE_HEAP_ALLOCATOR;
+import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;
 
 /**
  * ByteBuf utility methods.
@@ -285,7 +286,7 @@ public abstract class CBUtil
         String value = CBUtil.readString(cb);
         try
         {
-            return Enum.valueOf(enumType, value.toUpperCase());
+            return Enum.valueOf(enumType, toUpperCaseLocalized(value));
         }
         catch (IllegalArgumentException e)
         {
@@ -399,7 +400,7 @@ public abstract class CBUtil
         Map<String, List<String>> m = new HashMap<String, List<String>>(length);
         for (int i = 0; i < length; i++)
         {
-            String k = readString(cb).toUpperCase();
+            String k = toUpperCaseLocalized(readString(cb));
             List<String> v = readStringList(cb);
             m.put(k, v);
         }

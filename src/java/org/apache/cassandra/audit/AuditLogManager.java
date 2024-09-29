@@ -51,6 +51,8 @@ import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
 
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
+
 /**
  * Central location for managing the logging of client/user-initated actions (like queries, log in commands, and so on).
  *
@@ -387,7 +389,7 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
         {
             for (String query : queries)
             {
-                if (query.toLowerCase().contains(PasswordObfuscator.PASSWORD_TOKEN))
+                if (toLowerCaseLocalized(query).contains(PasswordObfuscator.PASSWORD_TOKEN))
                     return "Syntax Exception. Obscured for security reasons.";
             }
         }

@@ -41,6 +41,7 @@ import org.apache.cassandra.utils.Pair;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
+import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;
 import static org.apache.commons.lang3.StringUtils.join;
 
 @Command(name = "profileload", description = "Low footprint profiling of activity for a period of time")
@@ -113,7 +114,7 @@ public class ProfileLoad extends NodeToolCmd
         Set<String> available = Arrays.stream(SamplerType.values()).map(Enum::toString).collect(Collectors.toSet());
         for (String s : samplers.split(","))
         {
-            String sampler = s.trim().toUpperCase();
+            String sampler = toUpperCaseLocalized(s.trim());
             checkArgument(available.contains(sampler), String.format("'%s' sampler is not available from: %s", s, Arrays.toString(SamplerType.values())));
             targets.add(sampler);
         }

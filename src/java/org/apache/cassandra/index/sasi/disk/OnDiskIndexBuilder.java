@@ -43,6 +43,8 @@ import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;
+
 public class OnDiskIndexBuilder
 {
     private static final Logger logger = LoggerFactory.getLogger(OnDiskIndexBuilder.class);
@@ -62,7 +64,7 @@ public class OnDiskIndexBuilder
 
         public static Mode mode(String mode)
         {
-            return Mode.valueOf(mode.toUpperCase());
+            return Mode.valueOf(toUpperCaseLocalized(mode));
         }
 
         public boolean supports(Op op)

@@ -19,7 +19,6 @@ package org.apache.cassandra.cql3;
 
 import java.nio.ByteBuffer;
 import java.util.List;
-import java.util.Locale;
 import java.util.concurrent.ConcurrentMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -33,6 +32,8 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.memory.ByteBufferCloner;
+
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 /**
  * Represents an identifer for a CQL column definition.
@@ -109,7 +110,7 @@ public class ColumnIdentifier implements IMeasurableMemory, Comparable<ColumnIde
 
     public ColumnIdentifier(String rawText, boolean keepCase)
     {
-        this.text = keepCase ? rawText : rawText.toLowerCase(Locale.US);
+        this.text = keepCase ? rawText : toLowerCaseLocalized(rawText);
         this.bytes = ByteBufferUtil.bytes(this.text);
         this.prefixComparison = prefixComparison(bytes);
         this.interned = false;
@@ -140,7 +141,7 @@ public class ColumnIdentifier implements IMeasurableMemory, Comparable<ColumnIde
 
     public static ColumnIdentifier getInterned(String rawText, boolean keepCase)
     {
-        String text = keepCase ? rawText : rawText.toLowerCase(Locale.US);
+        String text = keepCase ? rawText : toLowerCaseLocalized(rawText);
         ByteBuffer bytes = ByteBufferUtil.bytes(text);
         return getInterned(UTF8Type.instance, bytes, text);
     }

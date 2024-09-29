@@ -45,6 +45,7 @@ import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.transport.ProtocolVersion;
 
 import static org.apache.cassandra.cql3.functions.TimeFcts.*;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 import org.apache.commons.lang3.StringUtils;
 
@@ -196,7 +197,7 @@ public final class CastFcts
 
     private static String toLowerCaseString(CQL3Type type)
     {
-        return type.toString().toLowerCase();
+        return toLowerCaseLocalized(type.toString());
     }
 
     /**

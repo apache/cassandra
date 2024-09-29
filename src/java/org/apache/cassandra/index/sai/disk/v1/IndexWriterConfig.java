@@ -28,6 +28,7 @@ import org.apache.cassandra.index.sai.disk.v1.vector.OptimizeFor;
 import org.apache.cassandra.index.sai.utils.IndexTermType;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.SAI_VECTOR_SEARCH_MAX_TOP_K;
+import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;
 
 /**
  * Per-index config for storage-attached index writers.
@@ -151,7 +152,7 @@ public class IndexWriterConfig
             }
             if (options.containsKey(SIMILARITY_FUNCTION))
             {
-                String option = options.get(SIMILARITY_FUNCTION).toUpperCase();
+                String option = toUpperCaseLocalized(options.get(SIMILARITY_FUNCTION));
                 try
                 {
                     similarityFunction = VectorSimilarityFunction.valueOf(option);
@@ -164,7 +165,7 @@ public class IndexWriterConfig
             }
             if (options.containsKey(OPTIMIZE_FOR))
             {
-                String option = options.get(OPTIMIZE_FOR).toUpperCase();
+                String option = toUpperCaseLocalized(options.get(OPTIMIZE_FOR));
                 try
                 {
                     optimizeFor = OptimizeFor.valueOf(option);

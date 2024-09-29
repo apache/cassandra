@@ -28,6 +28,7 @@ import com.google.common.primitives.Ints;
 import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.BYTES;
 import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.KIBIBYTES;
 import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.MEBIBYTES;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 /**
  * Represents an amount of data storage. Wrapper class for Cassandra configuration parameters, providing to the
@@ -99,7 +100,7 @@ public abstract class DataStorageSpec
 
         if (minUnit.convert(quantity, sourceUnit) >= max)
             throw new IllegalArgumentException("Invalid data storage: " + value + ". It shouldn't be more than " +
-                                               (max - 1) + " in " + minUnit.name().toLowerCase());
+                                               (max - 1) + " in " + toLowerCaseLocalized(minUnit.name()));
     }
 
     private static void validateQuantity(long quantity, DataStorageUnit sourceUnit, DataStorageUnit minUnit, long max)
@@ -109,8 +110,8 @@ public abstract class DataStorageSpec
 
         if (minUnit.convert(quantity, sourceUnit) >= max)
             throw new IllegalArgumentException(String.format("Invalid data storage: %d %s. It shouldn't be more than %d in %s",
-                                                             quantity, sourceUnit.name().toLowerCase(),
-                                                             max - 1, minUnit.name().toLowerCase()));
+                                                             quantity, toLowerCaseLocalized(sourceUnit.name()),
+                                                             max - 1, toLowerCaseLocalized(minUnit.name())));
     }
 
     // get vs no-get prefix is not consistent in the code base, but for classes involved with config parsing, it is

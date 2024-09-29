@@ -22,6 +22,8 @@ import org.junit.Test;
 
 import org.apache.cassandra.io.compress.BufferType;
 
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
+
 public class TrieToDotTest
 {
     @Test
@@ -30,7 +32,7 @@ public class TrieToDotTest
         InMemoryTrie<String> trie = new InMemoryTrie<>(BufferType.OFF_HEAP);
         String s = "Trie node types and manipulation mechanisms. The main purpose of this is to allow for handling tries directly as" +
                    " they are on disk without any serialization, and to enable the creation of such files.";
-        s = s.toLowerCase();
+        s = toLowerCaseLocalized(s);
         for (String word : s.split("[^a-z]+"))
             trie.putRecursive(InMemoryTrieTestBase.comparable(word), word, (x, y) -> y);
 

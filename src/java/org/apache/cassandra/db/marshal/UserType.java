@@ -50,6 +50,7 @@ import static com.google.common.collect.Iterables.any;
 import static com.google.common.collect.Iterables.transform;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TYPE_UDT_CONFLICT_BEHAVIOR;
 import static org.apache.cassandra.cql3.ColumnIdentifier.maybeQuote;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 /**
  * A user defined type.
@@ -274,7 +275,7 @@ public class UserType extends TupleType implements SchemaElement
                 sb.append(", ");
 
             String name = stringFieldNames.get(i);
-            if (!name.equals(name.toLowerCase(Locale.US)))
+            if (!name.equals(toLowerCaseLocalized(name)))
                 name = "\"" + name + "\"";
 
             sb.append('"');

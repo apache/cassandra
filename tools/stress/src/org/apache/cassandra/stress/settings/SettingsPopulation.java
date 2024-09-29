@@ -32,6 +32,8 @@ import org.apache.cassandra.stress.generate.DistributionFactory;
 import org.apache.cassandra.stress.generate.PartitionGenerator;
 import org.apache.cassandra.stress.util.ResultLogger;
 
+import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;
+
 public class SettingsPopulation implements Serializable
 {
 
@@ -48,7 +50,7 @@ public class SettingsPopulation implements Serializable
 
     private SettingsPopulation(GenerateOptions options, DistributionOptions dist, SequentialOptions pop)
     {
-        this.order = !options.contents.setByUser() ? PartitionGenerator.Order.ARBITRARY : PartitionGenerator.Order.valueOf(options.contents.value().toUpperCase());
+        this.order = !options.contents.setByUser() ? PartitionGenerator.Order.ARBITRARY : PartitionGenerator.Order.valueOf(toUpperCaseLocalized(options.contents.value()));
         if (dist != null)
         {
             this.distribution = dist.seed.get();

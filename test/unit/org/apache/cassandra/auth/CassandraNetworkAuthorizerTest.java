@@ -41,6 +41,7 @@ import static org.apache.cassandra.auth.AuthKeyspace.NETWORK_PERMISSIONS;
 import static org.apache.cassandra.auth.AuthTestUtils.auth;
 import static org.apache.cassandra.auth.AuthTestUtils.getRolesReadCount;
 import static org.apache.cassandra.schema.SchemaConstants.AUTH_KEYSPACE_NAME;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
@@ -100,7 +101,7 @@ public class CassandraNetworkAuthorizerTest extends CQLTester
 
     private static String createName()
     {
-        return RandomStringUtils.randomAlphabetic(8).toLowerCase();
+        return toLowerCaseLocalized(RandomStringUtils.randomAlphabetic(8));
     }
 
     private static DCPermissions dcPerms(String username)

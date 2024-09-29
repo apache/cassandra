@@ -50,6 +50,7 @@ import Parser,Lexer;
     import org.apache.cassandra.exceptions.SyntaxException;
     import org.apache.cassandra.schema.ColumnMetadata;
     import org.apache.cassandra.utils.Pair;
+    import org.apache.cassandra.utils.LocalizeString;
 }
 
 @members {

@@ -28,6 +28,8 @@ import java.util.Map;
 
 import com.google.common.collect.ImmutableList;
 
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
+
 public enum Command
 {
 
@@ -78,7 +80,7 @@ public enum Command
 
     public static Command get(String command)
     {
-        return LOOKUP.get(command.toLowerCase());
+        return LOOKUP.get(toLowerCaseLocalized(command));
     }
 
     public final boolean updates;
@@ -98,12 +100,12 @@ public enum Command
         this.updates = updates;
         this.category = category;
         List<String> names = new ArrayList<>();
-        names.add(this.toString().toLowerCase());
-        names.add(this.toString().replaceAll("_", "").toLowerCase());
+        names.add(toLowerCaseLocalized(this.toString()));
+        names.add(toLowerCaseLocalized(this.toString().replaceAll("_", "")));
         if (extra != null)
         {
-            names.add(extra.toLowerCase());
-            names.add(extra.replaceAll("_", "").toLowerCase());
+            names.add(toLowerCaseLocalized(extra));
+            names.add(toLowerCaseLocalized(extra.replaceAll("_", "")));
         }
         this.names = ImmutableList.copyOf(names);
         this.description = description;
