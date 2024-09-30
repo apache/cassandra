@@ -20,6 +20,7 @@ package org.apache.cassandra.distributed.test.accord;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
@@ -82,11 +83,10 @@ public class AccordLoadTest extends AccordTestBase
                  final int batchSize = 1000;
                  final int concurrency = 100;
                  final int ratePerSecond = 1000;
-                 final int keyCount = 10;
+                 final int keyCount = 100000;
                  final float readChance = 0.33f;
                  long nextRepairAt = repairInterval;
-                 for (int i = 1; i <= keyCount; i++)
-                     coordinator.execute("INSERT INTO " + qualifiedAccordTableName + " (k, v) VALUES (0, 0) USING TIMESTAMP 0;", ConsistencyLevel.ALL, i);
+                 final BitSet initialised = new BitSet();
 
                  Random random = new Random();
 //                 CopyOnWriteArrayList<Throwable> exceptions = new CopyOnWriteArrayList<>();
@@ -103,21 +103,31 @@ public class AccordLoadTest extends AccordTestBase
                          inFlight.acquire();
                          rateLimiter.acquire();
                          long commandStart = System.nanoTime();
+                         int k = random.nextInt(keyCount);
                          if (random.nextFloat() < readChance)
                          {
                              coordinator.executeWithResult((success, fail) -> {
                                  inFlight.release();
                                  if (fail == null) histogram.add(NANOSECONDS.toMicros(System.nanoTime() - commandStart));
                                  //                             else exceptions.add(fail);
-                             }, "SELECT * FROM " + qualifiedAccordTableName + " WHERE k = ?;", ConsistencyLevel.SERIAL, random.nextInt(keyCount));
+                             }, "SELECT * FROM " + qualifiedAccordTableName + " WHERE k = ?;", ConsistencyLevel.SERIAL, k);
                          }
-                         else
+                         else if (initialised.get(i))
                          {
                              coordinator.executeWithResult((success, fail) -> {
                                  inFlight.release();
                                  if (fail == null) histogram.add(NANOSECONDS.toMicros(System.nanoTime() - commandStart));
     //                             else exceptions.add(fail);
-                             }, "UPDATE " + qualifiedAccordTableName + " SET v += 1 WHERE k = ? IF EXISTS;", ConsistencyLevel.SERIAL, ConsistencyLevel.QUORUM, random.nextInt(keyCount));
+                             }, "UPDATE " + qualifiedAccordTableName + " SET v += 1 WHERE k = ? IF EXISTS;", ConsistencyLevel.SERIAL, ConsistencyLevel.QUORUM, k);
+                         }
+                         else
+                         {
+                             initialised.set(i);
+                             coordinator.executeWithResult((success, fail) -> {
+                                 inFlight.release();
+                                 if (fail == null) histogram.add(NANOSECONDS.toMicros(System.nanoTime() - commandStart));
+                                 //                             else exceptions.add(fail);
+                             }, "UPDATE " + qualifiedAccordTableName + " SET v = 0 WHERE k = ? IF NOT EXISTS;", ConsistencyLevel.SERIAL, ConsistencyLevel.QUORUM, k);
                          }
                      }
 
