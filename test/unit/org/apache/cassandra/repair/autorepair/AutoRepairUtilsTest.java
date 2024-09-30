@@ -23,20 +23,16 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.UUID;
 
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UUIDType;
-import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.autorepair.AutoRepairConfig.RepairType;
@@ -45,9 +41,7 @@ import org.apache.cassandra.repair.autorepair.AutoRepairUtils.CurrentRepairStatu
 
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryProcessor;
-import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.SchemaConstants;
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.utils.FBUtilities;
@@ -90,18 +84,16 @@ public class AutoRepairUtilsTest extends CQLTester
         defaultSnitch = DatabaseDescriptor.getEndpointSnitch();
         localEndpoint = FBUtilities.getBroadcastAddressAndPort();
         hostId = StorageService.instance.getHostIdForEndpoint(localEndpoint);
-        AutoRepairUtils.setup();
-        SchemaLoader.prepareServer();
-        SchemaLoader.createKeyspace("ks", KeyspaceParams.create(false,
-                                                                ImmutableMap.of("class", "NetworkTopologyStrategy", "datacenter1", "1")),
-                                    TableMetadata.builder("ks", "tbl")
-                                                 .addPartitionKeyColumn("k", UTF8Type.instance)
-                                                 .build());
+        StorageService.instance.doAutoRepairSetup();
     }
 
     @Before
     public void setup()
     {
+        SYSTEM_DISTRIBUTED_DEFAULT_RF.setInt(1);
+        QueryProcessor.executeInternal(String.format("CREATE KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}", "ks"));
+        QueryProcessor.executeInternal(String.format("CREATE TABLE %s.%s (k text, s text static, i int, v text, primary key(k,i))", "ks", "tbl"));
+
         AutoRepair.SLEEP_IF_REPAIR_FINISHES_QUICKLY = new DurationSpec.IntSecondsBound("0s");
         MockitoAnnotations.initMocks(this);
         DatabaseDescriptor.setEndpointSnitch(defaultSnitch);

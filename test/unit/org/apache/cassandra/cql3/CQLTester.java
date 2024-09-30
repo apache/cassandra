@@ -193,6 +193,7 @@ import org.apache.cassandra.utils.TimeUUID;
 import org.assertj.core.api.Assertions;
 import org.awaitility.Awaitility;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.SYSTEM_DISTRIBUTED_DEFAULT_RF;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_DRIVER_CONNECTION_TIMEOUT_MS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_DRIVER_READ_TIMEOUT_MS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_RANDOM_SEED;
@@ -449,6 +450,7 @@ public abstract class CQLTester
         StorageService.instance.registerMBeans();
         StorageService.instance.setPartitionerUnsafe(Murmur3Partitioner.instance);
         SnapshotManager.instance.registerMBean();
+        SYSTEM_DISTRIBUTED_DEFAULT_RF.setInt(1);
     }
 
     @AfterClass
