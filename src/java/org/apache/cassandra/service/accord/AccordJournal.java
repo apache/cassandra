@@ -82,7 +82,7 @@ public class AccordJournal implements IJournal, Shutdownable
 
     private final Journal<JournalKey, Object> journal;
     private final AccordJournalTable<JournalKey, Object> journalTable;
-
+    private final Params params;
     Node node;
 
     enum Status { INITIALIZED, STARTING, STARTED, TERMINATING, TERMINATED }
@@ -110,6 +110,7 @@ public class AccordJournal implements IJournal, Shutdownable
                                      },
                                      new AccordSegmentCompactor<>(JournalKey.SUPPORT, params.userVersion()));
         this.journalTable = new AccordJournalTable<>(journal, JournalKey.SUPPORT, params.userVersion());
+        this.params = params;
     }
 
     public AccordJournal start(Node node)
@@ -120,6 +121,11 @@ public class AccordJournal implements IJournal, Shutdownable
         journal.start();
         status = Status.STARTED;
         return this;
+    }
+
+    public Params configuration()
+    {
+        return params;
     }
 
     @Override
