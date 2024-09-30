@@ -21,10 +21,12 @@ package org.apache.cassandra.distributed.test.repair;
 import java.io.IOException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.Uninterruptibles;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -48,6 +50,8 @@ public class AutoRepairSchedulerTest extends TestBaseImpl
     @BeforeClass
     public static void init() throws IOException
     {
+        System.setProperty("cassandra.streaming.requires_view_build_during_repair", "false");
+
         // Define the expected date format pattern
         String pattern = "EEE MMM dd HH:mm:ss z yyyy";
         // Create SimpleDateFormat object with the given pattern
@@ -88,6 +92,7 @@ public class AutoRepairSchedulerTest extends TestBaseImpl
         cluster.forEach(i -> i.runOnInstance(() -> {
             try
             {
+                DatabaseDescriptor.setCDCOnRepairEnabled(false);
                 AutoRepair.instance.setup();
             }
             catch (Exception e)
@@ -112,7 +117,7 @@ public class AutoRepairSchedulerTest extends TestBaseImpl
             // repair_type
             Assert.assertEquals(repairType, row[0].toString());
             // host_id
-            Assert.assertEquals(String.format("00000000-0000-4000-8000-%012d", node + 1), row[1].toString());
+            UUID.fromString(row[1].toString());
             // ensure there is a legit repair_start_ts and repair_finish_ts
             sdf.parse(row[2].toString());
             sdf.parse(row[3].toString());

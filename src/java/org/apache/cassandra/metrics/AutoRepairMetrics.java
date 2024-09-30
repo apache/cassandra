@@ -31,6 +31,7 @@ import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
  */
 public class AutoRepairMetrics
 {
+    public static final String TYPE_NAME = "autorepair";
     public Gauge<Integer> repairsInProgress;
     public Gauge<Integer> nodeRepairTimeInSec;
     public Gauge<Integer> clusterRepairTimeInSec;

@@ -28,7 +28,6 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
 import org.apache.cassandra.config.DurationSpec;
@@ -37,8 +36,6 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.repair.RepairCoordinator;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.schema.AutoRepairParams;
-import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.Pair;
 
@@ -50,21 +47,15 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.marshal.IntegerType;
-import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.metrics.AutoRepairMetricsManager;
 import org.apache.cassandra.metrics.AutoRepairMetrics;
-import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.AutoRepairService;
@@ -119,48 +110,26 @@ public class AutoRepairParameterizedTest extends CQLTester
     @BeforeClass
     public static void setupClass() throws Exception
     {
-        AutoRepair.SLEEP_IF_REPAIR_FINISHES_QUICKLY = new DurationSpec.IntSecondsBound("0s");
         SYSTEM_DISTRIBUTED_DEFAULT_RF.setInt(1);
+        AutoRepair.SLEEP_IF_REPAIR_FINISHES_QUICKLY = new DurationSpec.IntSecondsBound("0s");
         setAutoRepairEnabled(true);
         requireNetwork();
         AutoRepairUtils.setup();
-
-
-        cfm = TableMetadata.builder(KEYSPACE, TABLE)
-                           .addPartitionKeyColumn("k", UTF8Type.instance)
-                           .addStaticColumn("s", UTF8Type.instance)
-                           .addClusteringColumn("i", IntegerType.instance)
-                           .addRegularColumn("v", UTF8Type.instance)
-                           .params(TableParams.builder().automatedRepairFull(AutoRepairParams.create(AutoRepairConfig.RepairType.full, ImmutableMap.of(AutoRepairParams.Option.ENABLED.toString(), Boolean.toString(true)))).
-                                              automatedRepairIncremental(AutoRepairParams.create(AutoRepairConfig.RepairType.incremental, ImmutableMap.of(AutoRepairParams.Option.ENABLED.toString(), Boolean.toString(true)))).build())
-                           .build();
-
-        cfmDisabledAutoRepair = TableMetadata.builder(KEYSPACE, TABLE_DISABLED_AUTO_REPAIR)
-                                             .addPartitionKeyColumn("k", UTF8Type.instance)
-                                             .addStaticColumn("s", UTF8Type.instance)
-                                             .addClusteringColumn("i", IntegerType.instance)
-                                             .addRegularColumn("v", UTF8Type.instance)
-                                             .params(TableParams.builder().automatedRepairFull(AutoRepairParams.create(AutoRepairConfig.RepairType.full, ImmutableMap.of(AutoRepairParams.Option.ENABLED.toString(), Boolean.toString(false)))).
-                                                                automatedRepairIncremental(AutoRepairParams.create(AutoRepairConfig.RepairType.incremental, ImmutableMap.of(AutoRepairParams.Option.ENABLED.toString(), Boolean.toString(false)))).build())
-                                             .build();
-
-        SchemaLoader.prepareServer();
-        SchemaLoader.createKeyspace(KEYSPACE, KeyspaceParams.simple(1), cfm, cfmDisabledAutoRepair);
-        cfm = Schema.instance.getTableMetadata(KEYSPACE, TABLE);
-        cfmDisabledAutoRepair = Schema.instance.getTableMetadata(KEYSPACE, TABLE_DISABLED_AUTO_REPAIR);
-        keyspace = Keyspace.open(KEYSPACE);
-        DatabaseDescriptor.setMaterializedViewsEnabled(true);
-        QueryProcessor.executeInternal(String.format("CREATE MATERIALIZED VIEW %s.%s AS SELECT i, k from %s.%s " +
-                                                     "WHERE k IS NOT null AND i IS NOT null PRIMARY KEY (i, k)", KEYSPACE, MV, KEYSPACE, TABLE));
-
-        DatabaseDescriptor.setMaterializedViewsEnabled(false);
+        StorageService.instance.doAutoRepairSetup();
         DatabaseDescriptor.setCDCEnabled(false);
     }
 
     @Before
     public void setup()
     {
-        System.setProperty("cassandra.streaming.requires_cdc_replay", "false");
+        SYSTEM_DISTRIBUTED_DEFAULT_RF.setInt(1);
+        QueryProcessor.executeInternal(String.format("CREATE KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}", KEYSPACE));
+        QueryProcessor.executeInternal(String.format("CREATE TABLE %s.%s (k text, s text static, i int, v text, primary key(k,i))", KEYSPACE, TABLE));
+        QueryProcessor.executeInternal(String.format("CREATE TABLE %s.%s (k text, s text static, i int, v text, primary key(k,i)) WITH automated_repair_full = {'enabled': 'false'} AND automated_repair_incremental = {'enabled': 'false'}", KEYSPACE, TABLE_DISABLED_AUTO_REPAIR));
+
+        QueryProcessor.executeInternal(String.format("CREATE MATERIALIZED VIEW %s.%s AS SELECT i, k from %s.%s " +
+                "WHERE k IS NOT null AND i IS NOT null PRIMARY KEY (i, k)", KEYSPACE, MV, KEYSPACE, TABLE));
+
         System.setProperty("cassandra.streaming.requires_view_build_during_repair", "false");
         MockitoAnnotations.initMocks(this);
 
@@ -183,13 +152,17 @@ public class AutoRepairParameterizedTest extends CQLTester
         resetConfig();
 
         AutoRepair.shuffleFunc = java.util.Collections::shuffle;
+
+        keyspace = Keyspace.open(KEYSPACE);
+        cfm = Keyspace.open(KEYSPACE).getColumnFamilyStore(TABLE).metadata();
+        cfmDisabledAutoRepair = Keyspace.open(KEYSPACE).getColumnFamilyStore(TABLE_DISABLED_AUTO_REPAIR).metadata();
+        DatabaseDescriptor.setCDCOnRepairEnabled(false);
     }
 
     @After
     public void tearDown()
     {
         System.clearProperty("cassandra.streaming.requires_view_build_during_repair");
-        System.clearProperty("cassandra.streaming.requires_cdc_replay");
     }
 
     private void resetCounters()
@@ -604,15 +577,18 @@ public class AutoRepairParameterizedTest extends CQLTester
         AtomicInteger shuffleKeyspacesCall = new AtomicInteger();
         AtomicInteger shuffleTablesCall = new AtomicInteger();
         AutoRepair.shuffleFunc = (List<?> list) -> {
-            assertTrue(list.get(0) instanceof Keyspace || list.get(0) instanceof String);
-            if (list.get(0) instanceof Keyspace)
+            if (!list.isEmpty())
             {
-                shuffleKeyspacesCall.getAndIncrement();
-                assertFalse(list.isEmpty());
-            }
-            else if (list.get(0) instanceof String)
-            {
-                shuffleTablesCall.getAndIncrement();
+                assertTrue(list.get(0) instanceof Keyspace || list.get(0) instanceof String);
+                if (list.get(0) instanceof Keyspace)
+                {
+                    shuffleKeyspacesCall.getAndIncrement();
+                    assertFalse(list.isEmpty());
+                }
+                else if (list.get(0) instanceof String)
+                {
+                    shuffleTablesCall.getAndIncrement();
+                }
             }
         };
 
@@ -621,7 +597,7 @@ public class AutoRepairParameterizedTest extends CQLTester
         AutoRepair.instance.repair(repairType);
 
         assertEquals(1, shuffleKeyspacesCall.get());
-        assertEquals(4, shuffleTablesCall.get());
+        assertEquals(5, shuffleTablesCall.get());
     }
 
     @Test
@@ -663,7 +639,7 @@ public class AutoRepairParameterizedTest extends CQLTester
         // system_auth.resource_role_permissons_index,system_traces.sessions,system_traces.events,ks.tbl,
         // system_distributed.auto_repair_priority,system_distributed.repair_history,system_distributed.auto_repair_history,
         // system_distributed.view_build_status,system_distributed.parent_repair_history,system_distributed.partition_denylist
-        int exptedTablesGoingThroughRepair = 14;
+        int exptedTablesGoingThroughRepair = 18;
         assertEquals(config.getRepairMaxRetries()*exptedTablesGoingThroughRepair, sleepCalls.get());
         verify(autoRepairState, Mockito.times(1)).setSucceededTokenRangesCount(0);
         verify(autoRepairState, Mockito.times(1)).setSkippedTokenRangesCount(0);
@@ -693,7 +669,7 @@ public class AutoRepairParameterizedTest extends CQLTester
         AutoRepair.instance.repair(repairType);
 
         assertEquals(1, sleepCalls.get());
-        verify(autoRepairState, Mockito.times(1)).setSucceededTokenRangesCount(14);
+        verify(autoRepairState, Mockito.times(1)).setSucceededTokenRangesCount(18);
         verify(autoRepairState, Mockito.times(1)).setSkippedTokenRangesCount(0);
         verify(autoRepairState, Mockito.times(1)).setFailedTokenRangesCount(0);
     }
@@ -726,7 +702,7 @@ public class AutoRepairParameterizedTest extends CQLTester
     public void testRepairThrowsForIRWithCDCReplay()
     {
         AutoRepair.instance.setup();
-        System.setProperty("cassandra.streaming.requires_cdc_replay", "true");
+        DatabaseDescriptor.setCDCOnRepairEnabled(true);
 
         if (repairType == AutoRepairConfig.RepairType.incremental)
         {

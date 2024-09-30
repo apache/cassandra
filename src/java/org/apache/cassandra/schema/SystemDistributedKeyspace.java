@@ -58,6 +58,8 @@ import org.apache.cassandra.utils.TimeUUID;
 
 import static java.lang.String.format;
 
+import static org.apache.cassandra.repair.autorepair.AutoRepairKeyspace.AutoRepairHistory;
+import static org.apache.cassandra.repair.autorepair.AutoRepairKeyspace.AutoRepairPriority;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
 public final class SystemDistributedKeyspace
@@ -171,7 +173,7 @@ public final class SystemDistributedKeyspace
     {
         return KeyspaceMetadata.create(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
                                        KeyspaceParams.simple(Math.max(DEFAULT_RF, DatabaseDescriptor.getDefaultKeyspaceRF())),
-                                       Tables.of(RepairHistory, ParentRepairHistory, ViewBuildStatus, PartitionDenylistTable));
+                                       Tables.of(RepairHistory, ParentRepairHistory, ViewBuildStatus, PartitionDenylistTable, AutoRepairHistory, AutoRepairPriority));
     }
 
     public static void startParentRepair(TimeUUID parent_id, String keyspaceName, String[] cfnames, RepairOption options)
