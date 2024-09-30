@@ -1,4 +1,5 @@
 4.1.8
+ * Fix race condition in DecayingEstimatedHistogramReservoir during rescale (CASSANDRA-19365)
 Merged from 4.0:
  * Ensure thread-safety for CommitLogArchiver in CommitLog (CASSANDRA-19960)
  * Fix text containing "/*" being interpreted as multiline comment in cqlsh (CASSANDRA-17667)
