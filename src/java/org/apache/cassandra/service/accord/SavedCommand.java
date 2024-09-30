@@ -38,6 +38,7 @@ import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.primitives.Writes;
 import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.journal.Journal;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
@@ -111,6 +112,16 @@ public class SavedCommand
         public TxnId key()
         {
             return txnId;
+        }
+    }
+
+
+    public static ByteBuffer asSerializedDiff(Command after, int userVersion) throws IOException
+    {
+        try (DataOutputBuffer out = new DataOutputBuffer())
+        {
+            diff(null, after).write(out, userVersion);
+            return out.asNewBuffer();
         }
     }
 
@@ -395,6 +406,69 @@ public class SavedCommand
         public int count()
         {
             return count;
+        }
+
+        public Builder expungePartial()
+        {
+            Builder builder = new Builder();
+
+            builder.count++;
+            builder.nextCalled = true;
+
+            // TODO: these accesses can be abstracted away
+            if (txnId != null)
+            {
+                builder.flags = setFieldChanged(Fields.TXN_ID, builder.flags);
+                builder.txnId = txnId;
+            }
+            if (executeAt != null)
+            {
+                builder.flags = setFieldChanged(Fields.EXECUTE_AT, builder.flags);
+                builder.executeAt = executeAt;
+            }
+            if (durability != null)
+            {
+                builder.flags = setFieldChanged(Fields.DURABILITY, builder.flags);
+                builder.durability = durability;
+            }
+            if (participants != null)
+            {
+                builder.flags = setFieldChanged(Fields.PARTICIPANTS, builder.flags);
+                builder.participants = participants;
+            }
+
+            return builder;
+        }
+
+        public Builder saveStatusOnly()
+        {
+            Builder builder = new Builder();
+
+            builder.count++;
+            builder.nextCalled = true;
+
+            // TODO: these accesses can be abstracted away
+            if (txnId != null)
+            {
+                builder.flags = setFieldChanged(Fields.TXN_ID, builder.flags);
+                builder.txnId = txnId;
+            }
+            if (saveStatus != null)
+            {
+                builder.flags = setFieldChanged(Fields.SAVE_STATUS, builder.flags);
+                builder.saveStatus = saveStatus;
+            }
+
+            return builder;
+        }
+
+        public ByteBuffer asByteBuffer(int userVersion) throws IOException
+        {
+            try (DataOutputBuffer out = new DataOutputBuffer())
+            {
+                serialize(out, userVersion);
+                return out.asNewBuffer();
+            }
         }
 
         public void serialize(DataOutputPlus out, int userVersion) throws IOException
