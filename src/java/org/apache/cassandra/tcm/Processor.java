@@ -19,6 +19,7 @@
 package org.apache.cassandra.tcm;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -83,8 +84,10 @@ public interface Processor
     {
         LogState logState = reconstruct(lowEpoch, highEpoch, Retry.Deadline.retryIndefinitely(DatabaseDescriptor.getCmsAwaitTimeout().to(NANOSECONDS),
                                                                                               TCMMetrics.instance.commitRetries));
+        if (logState.isEmpty()) return Collections.emptyList();
         List<ClusterMetadata> cms = new ArrayList<>(logState.entries.size());
         ClusterMetadata accum = logState.baseState;
+        cms.add(accum);
         for (Entry entry : logState.entries)
         {
             Transformation.Result res = entry.transform.execute(accum);

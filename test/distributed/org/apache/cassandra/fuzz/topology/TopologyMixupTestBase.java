@@ -104,9 +104,9 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
         AddNode,
         RemoveNode,
         HostReplace,
+        StopNode,
+        StartNode,
         //TODO (coverage): add the following states once supported
-//        StopNode,
-//        StartNode,
 //        MoveToken
         //TODO (coverage): node migrate to another rack or dc (unsupported on trunk as of this writing, but planned work for TCM)
 //        MoveNodeToNewRack,
@@ -128,13 +128,36 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
     private Command<State<S>, Void, ?> repairCommand(int toCoordinate)
     {
         return new SimpleCommand<>(state -> "nodetool repair " + state.schemaSpec.keyspaceName() + ' ' + state.schemaSpec.name() + " from node" + toCoordinate + state.commandNamePostfix(),
-                                   state -> state.cluster.get(toCoordinate).nodetoolResult("repair", state.schemaSpec.keyspaceName(), state.schemaSpec.name()).asserts().success());
+                                   state -> state.cluster.get(toCoordinate).nodetoolResult("repair", state.schemaSpec.keyspaceName(), state.schemaSpec.name(), "--force").asserts().success());
     }
 
     private Command<State<S>, Void, ?> waitForCMSToQuiesce()
     {
         return new SimpleCommand<>(state -> "Waiting for CMS to Quiesce" + state.commandNamePostfix(),
                                    state -> ClusterUtils.waitForCMSToQuiesce(state.cluster, state.cmsGroup));
+    }
+
+    private Command<State<S>, Void, ?> stopInstance(RandomSource rs, State<S> state)
+    {
+        int toStop = rs.pickInt(state.topologyHistory.up());
+        return stopInstance(toStop, "Normal Stop");
+    }
+
+    private Command<State<S>, Void, ?> startInstance(RandomSource rs, State<S> state)
+    {
+        int toStop = rs.pickInt(state.topologyHistory.down());
+        return startInstance(toStop);
+    }
+
+    private Command<State<S>, Void, ?> startInstance(int toStart)
+    {
+        return new SimpleCommand<>(state -> "Start Node" + toStart + state.commandNamePostfix(),
+                state -> {
+                    IInvokableInstance inst = state.cluster.get(toStart);
+                    TopologyHistory.Node node = state.topologyHistory.node(toStart);
+                    inst.startup();
+                    node.up();
+                });
     }
 
     private Command<State<S>, Void, ?> stopInstance(int toRemove, String why)
@@ -256,10 +279,7 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
         TopologyHistory.Node adding = state.topologyHistory.replace(nodeToReplace);
         TopologyHistory.Node removing = state.topologyHistory.nodes.get(nodeToReplace);
 
-        return multistep(new SimpleCommand<>("Stop Node" + nodeToReplace + " for HostReplace; Node" + adding.id + state.commandNamePostfix(), s2 -> {
-                             ClusterUtils.stopUnchecked(toReplace);
-                             removing.down();
-                         }),
+        return multistep(stopInstance(nodeToReplace, "HostReplace; Node" + adding.id),
                          new SimpleCommand<>("Host Replace Node" + nodeToReplace + "; Node" + adding.id + state.commandNamePostfix(), s2 -> {
                              logger.info("node{} starting host replacement; epoch={}", adding.id, HackSerialization.tcmEpochAndSync(s2.cluster.getFirstRunningInstance()));
                              removing.status = TopologyHistory.Node.Status.BeingReplaced;
@@ -314,15 +334,20 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
         EnumSet<TopologyChange> possibleTopologyChanges = EnumSet.noneOf(TopologyChange.class);
         // up or down is logically more correct, but since this runs sequentially and after the topology changes are complete, we don't have downed nodes at this point
         // so up is enough to know the topology size
-        int size = state.topologyHistory.up().length;
-        if (size < state.topologyHistory.maxNodes)
+        int up = state.topologyHistory.up().length;
+        int down = state.topologyHistory.down().length;
+        int total = up + down;
+        if (total < state.topologyHistory.maxNodes)
             possibleTopologyChanges.add(TopologyChange.AddNode);
-        if (size > state.topologyHistory.quorum())
+        if (up > state.topologyHistory.quorum())
         {
-            if (size > TARGET_RF)
+            if (up > TARGET_RF)
                 possibleTopologyChanges.add(TopologyChange.RemoveNode);
             possibleTopologyChanges.add(TopologyChange.HostReplace);
+            possibleTopologyChanges.add(TopologyChange.StopNode);
         }
+        if (down > 0)
+            possibleTopologyChanges.add(TopologyChange.StartNode);
         return possibleTopologyChanges;
     }
 
@@ -341,6 +366,12 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
                     break;
                 case HostReplace:
                     possible.put(rs -> multistep(hostReplace(rs, state), waitForCMSToQuiesce()), 1);
+                    break;
+                case StartNode:
+                    possible.put(rs -> startInstance(rs, state), 1);
+                    break;
+                case StopNode:
+                    possible.put(rs -> stopInstance(rs, state), 1);
                     break;
                 default:
                     throw new UnsupportedOperationException(task.name());
@@ -569,10 +600,20 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
 
         public int[] up()
         {
+            return nodes(Node.Status.Up);
+        }
+
+        public int[] down()
+        {
+            return nodes(Node.Status.Down);
+        }
+
+        private int[] nodes(Node.Status target)
+        {
             IntArrayList up = new IntArrayList(nodes.size(), -1);
             for (Map.Entry<Integer, Node> n : nodes.entrySet())
             {
-                if (n.getValue().status == Node.Status.Up)
+                if (n.getValue().status == target)
                     up.add(n.getKey());
             }
             int[] ints = up.toIntArray();

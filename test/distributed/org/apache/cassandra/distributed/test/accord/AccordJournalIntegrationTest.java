@@ -18,11 +18,13 @@
 
 package org.apache.cassandra.distributed.test.accord;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -35,6 +37,9 @@ import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
 
+import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
+import static org.apache.cassandra.distributed.api.Feature.NETWORK;
+
 public class AccordJournalIntegrationTest extends TestBaseImpl
 {
     @Test
@@ -45,8 +50,7 @@ public class AccordJournalIntegrationTest extends TestBaseImpl
                                            .withoutVNodes()
                                            .start()))
         {
-            final String TABLE = KEYSPACE + ".test_table";
-            cluster.schemaChange("CREATE TABLE " + TABLE + " (k int, c int, v int, primary key (k, c)) WITH transactional_mode='full'");
+            final String TABLE = createTable(cluster);
             List<Thread> threads = new ArrayList<>();
             int numThreads = 10;
             CountDownLatch latch = CountDownLatch.newCountDownLatch(numThreads);
@@ -94,18 +98,9 @@ public class AccordJournalIntegrationTest extends TestBaseImpl
                                       .start())
         {
             cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};");
-            final String TABLE = KEYSPACE + ".test_table";
-            cluster.schemaChange("CREATE TABLE " + TABLE + " (k int, c int, v int, primary key (k, c)) WITH transactional_mode='full'");
+            final String TABLE = createTable(cluster);
 
-            for (int j = 0; j < 1_000; j++)
-            {
-                cluster.coordinator(1).execute("BEGIN TRANSACTION\n" +
-                                               "INSERT INTO " + TABLE + "(k, c, v) VALUES (?, ?, ?);\n" +
-                                               "COMMIT TRANSACTION",
-                                               ConsistencyLevel.ALL,
-                                               j, j, 1
-                );
-            }
+            insertData(cluster, TABLE);
 
             Object[][] before = cluster.coordinator(1).execute("SELECT * FROM " + TABLE + " WHERE k = ?;", ConsistencyLevel.SERIAL, 1);
 
@@ -121,5 +116,46 @@ public class AccordJournalIntegrationTest extends TestBaseImpl
                 Assert.assertTrue(Arrays.equals(before[i], after[i]));
             }
         }
+    }
+
+    @Test
+    public void restartWithEpochChanges() throws IOException
+    {
+        try (Cluster cluster = Cluster.build(3).withoutVNodes().withConfig(c -> c.with(GOSSIP).with(NETWORK)).start())
+        {
+            init(cluster);
+            final String TABLE = createTable(cluster);
+            cluster.get(1).nodetoolResult("cms", "reconfigure", "3").asserts().success();
+
+            insertData(cluster, TABLE);
+
+            IInvokableInstance restartNode = cluster.get(1);
+            ClusterUtils.stopUnchecked(restartNode);
+
+            // make epoch changes
+            for (int i = 0; i < 10; i++)
+                cluster.schemaChange("ALTER TABLE " + TABLE + " WITH comment = 'change " + i + "'", true, cluster.get(2));
+
+            restartNode.startup();
+            insertData(cluster, TABLE);
+        }
+    }
+
+    private void insertData(Cluster cluster, String TABLE) {
+        for (int j = 0; j < 1_000; j++)
+        {
+            cluster.coordinator(1).execute("BEGIN TRANSACTION\n" +
+                                           "INSERT INTO " + TABLE + "(k, c, v) VALUES (?, ?, ?);\n" +
+                                           "COMMIT TRANSACTION",
+                                           ConsistencyLevel.ALL,
+                                           j, j, 1
+            );
+        }
+    }
+
+    private String createTable(Cluster cluster) {
+        final String TABLE = KEYSPACE + ".test_table";
+        cluster.schemaChange("CREATE TABLE " + TABLE + " (k int, c int, v int, primary key (k, c)) WITH transactional_mode='full'");
+        return TABLE;
     }
 }

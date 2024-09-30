@@ -127,7 +127,9 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
 
         try (Cluster cluster = builder().withNodes(1)
                                         .withConfig(cfg -> cfg.set("seed_provider", new ParameterizedClass(SimpleSeedProvider.class.getName(),
-                                                                                                           Collections.singletonMap("seeds", fakeCmsNode.id() + ":7012"))))
+                                                                                                           Collections.singletonMap("seeds", fakeCmsNode.id() + ":7012")))
+                                                              // Accord depends on Processor.reconstruct, but those verbs are not simulated, causing the tests to fail
+                                                              .set("accord.enabled", false))
                                         .withTokenSupplier(factory)
                                         .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(10, "dc0", "rack0"))
                                         .createWithoutStarting();

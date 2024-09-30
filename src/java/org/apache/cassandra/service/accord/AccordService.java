@@ -443,10 +443,9 @@ public class AccordService implements IAccordService, Shutdownable
         class Ref { List<ClusterMetadata> historic = Collections.emptyList();}
         Ref ref = new Ref();
         configService.start((optMaxEpoch -> {
-            // when max epoch isn't know, this means the node started for the first time; check cluster's min epoch
-            // when max epoch is known, then there is no reason to discover min epoch (we already did it)
-            if (optMaxEpoch.isPresent()) return;
-            List<ClusterMetadata> historic = ref.historic = discoverHistoric(node, cms);
+            List<ClusterMetadata> historic = ref.historic = !optMaxEpoch.isEmpty()
+                    ? tcmLoadRange(optMaxEpoch.getAsLong(), Long.MAX_VALUE)
+                    : discoverHistoric(node, cms);
             for (ClusterMetadata m : historic)
                 configService.reportMetadataInternal(m);
         }));
@@ -531,14 +530,17 @@ public class AccordService implements IAccordService, Shutdownable
         return tcmLoadRange(minEpoch, current.epoch.getEpoch());
     }
 
-    private static List<ClusterMetadata> tcmLoadRange(long min, long max)
+    public static List<ClusterMetadata> tcmLoadRange(long min, long max)
     {
-        List<ClusterMetadata> afterLoad = ClusterMetadataService.instance().processor().reconstructFull(Epoch.create(min - 1), Epoch.create(max));
+        List<ClusterMetadata> afterLoad = ClusterMetadataService.instance().processor().reconstructFull(Epoch.create(min), Epoch.create(max));
+        if (Invariants.isParanoid())
+            assert afterLoad.get(0).epoch.getEpoch() == min : String.format("Unexpected epoch: expected %d but given %d", min, afterLoad.get(0).epoch.getEpoch());
         while (!afterLoad.isEmpty() && afterLoad.get(0).epoch.getEpoch() < min)
             afterLoad.remove(0);
         assert !afterLoad.isEmpty() : String.format("TCM was unable to return the needed epochs: %d -> %d", min, max);
         assert afterLoad.get(0).epoch.getEpoch() == min : String.format("Unexpected epoch: expected %d but given %d", min, afterLoad.get(0).epoch.getEpoch());
-        assert afterLoad.get(afterLoad.size() - 1).epoch.getEpoch() == max : String.format("Unexpected epoch: expected %d but given %d", max, afterLoad.get(afterLoad.size() - 1).epoch.getEpoch());
+        if (max != Long.MAX_VALUE)
+            assert afterLoad.get(afterLoad.size() - 1).epoch.getEpoch() == max : String.format("Unexpected epoch: expected %d but given %d", max, afterLoad.get(afterLoad.size() - 1).epoch.getEpoch());
         return afterLoad;
     }
 
