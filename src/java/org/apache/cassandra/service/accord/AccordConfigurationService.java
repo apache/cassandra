@@ -22,6 +22,7 @@ import java.util.Objects;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
@@ -230,9 +231,19 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
         state = State.LOADING;
         EndpointMapping snapshot = mapping;
         //TODO (restart): if there are topologies loaded then there is likely failures if reporting is needed, as mapping is not setup yet
-        diskState = diskStateManager.loadTopologies(((epoch, topology, syncStatus, pendingSyncNotify, remoteSyncComplete, closed, redundant) -> {
-            if (topology != null)
-                reportTopology(topology, syncStatus == SyncStatus.NOT_STARTED);
+        AtomicReference<Topology> previousRef = new AtomicReference<>(null);
+        diskState = diskStateManager.loadTopologies(((epoch, metadata, topology, syncStatus, pendingSyncNotify, remoteSyncComplete, closed, redundant) -> {
+            updateMapping(metadata);
+            reportTopology(topology, syncStatus == SyncStatus.NOT_STARTED);
+            Topology previous = previousRef.get();
+            if (previous != null)
+            {
+                // for all nodes removed, or pending removal, mark them as removed so we don't wait on their replies
+                Sets.SetView<Node.Id> removedNodes = Sets.difference(previous.nodes(), topology.nodes());
+                if (!removedNodes.isEmpty())
+                    onNodesRemoved(topology.epoch(), currentTopology(), removedNodes);
+            }
+            previousRef.set(topology);
 
             getOrCreateEpochState(epoch).setSyncStatus(syncStatus);
             if (syncStatus == SyncStatus.NOTIFYING)
@@ -331,14 +342,7 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
         // for all nodes removed, or pending removal, mark them as removed so we don't wait on their replies
         Sets.SetView<Node.Id> removedNodes = Sets.difference(current.nodes(), topology.nodes());
         if (!removedNodes.isEmpty())
-        {
-            onNodesRemoved(topology.epoch(), removedNodes);
-            for (Node.Id node : removedNodes)
-            {
-                if (shareShard(current, node, localId))
-                    AccordService.instance().tryMarkRemoved(current, node);
-            }
-        }
+            onNodesRemoved(topology.epoch(), current, removedNodes);
     }
 
     private static boolean shareShard(Topology current, Node.Id target, Node.Id self)
@@ -351,7 +355,7 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
         return false;
     }
 
-    public synchronized void onNodesRemoved(long epoch, Set<Node.Id> removed)
+    public synchronized void onNodesRemoved(long epoch, Topology current, Set<Node.Id> removed)
     {
         if (removed.isEmpty()) return;
         syncPropagator.onNodesRemoved(removed);
@@ -361,6 +365,12 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
                 receiveRemoteSyncCompletePreListenerNotify(node, oldEpoch);
         }
         listeners.forEach(l -> l.onRemoveNodes(epoch, removed));
+
+        for (Node.Id node : removed)
+        {
+            if (shareShard(current, node, localId))
+                AccordService.instance().tryMarkRemoved(current, node);
+        }
     }
 
     private long[] nonCompletedEpochsBefore(long max)

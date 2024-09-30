@@ -52,6 +52,8 @@ public class BootWithMetadataTest extends TestBaseImpl
     public void resetTest() throws IOException, ExecutionException, InterruptedException
     {
         try (Cluster cluster = init(builder().withNodes(3)
+                                             // Accord tracks epochs, and if the expose no longer exist it is not able to process anything, causing it to crash...
+                                             .withConfig(c -> c.set("accord.enabled", false))
                                              .start()))
         {
             long epoch = 0;
@@ -94,6 +96,8 @@ public class BootWithMetadataTest extends TestBaseImpl
     public void newCMSTest() throws IOException, ExecutionException, InterruptedException
     {
         try (Cluster cluster = init(builder().withNodes(4)
+                                             // Accord tracks epochs, and if the expose no longer exist it is not able to process anything, causing it to crash...
+                                             .withConfig(c -> c.set("accord.enabled", false))
                                              .start()))
         {
             for (int i = 0; i < 10; i++)

@@ -63,7 +63,7 @@ public class HarryTopologyMixupTest extends TopologyMixupTestBase<HarryTopologyM
         {
             // do one last read just to make sure we validate the data...
             var harry = state.schemaSpec.harry;
-            harry.validateAll(harry.quiescentLocalChecker());
+            harry.validateAll(harry.quiescentChecker());
         }
     }
 
@@ -72,7 +72,7 @@ public class HarryTopologyMixupTest extends TopologyMixupTestBase<HarryTopologyM
         ReplayingHistoryBuilder harry = HarryHelper.dataGen(rs.nextLong(),
                                                             new InJvmSut(cluster),
                                                             new TokenPlacementModel.SimpleReplicationFactor(3),
-                                                            SystemUnderTest.ConsistencyLevel.ALL);
+                                                            SystemUnderTest.ConsistencyLevel.QUORUM);
         cluster.schemaChange(String.format("CREATE KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor' : 3};", HarryHelper.KEYSPACE));
         var schema = harry.schema();
         cluster.schemaChange(schema.compile().cql());
@@ -101,7 +101,7 @@ public class HarryTopologyMixupTest extends TopologyMixupTestBase<HarryTopologyM
             ((HarryState) state).numInserts++;
         });
         Command<State<Spec>, Void, ?> validateAll = new HarryCommand(state -> "Harry Validate All" + state.commandNamePostfix(), state -> {
-            spec.harry.validateAll(spec.harry.quiescentLocalChecker());
+            spec.harry.validateAll(spec.harry.quiescentChecker());
             ((HarryState) state).numInserts = 0;
         });
         return (rs, state) -> {
