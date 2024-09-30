@@ -81,6 +81,7 @@ import org.apache.cassandra.simulator.RandomSource.Choices;
 import org.apache.cassandra.utils.AccordGenerators;
 import org.apache.cassandra.utils.CassandraGenerators;
 
+import static accord.local.cfk.CommandsForKey.NO_BOUNDS_INFO;
 import static accord.primitives.Status.Durability.NotDurable;
 import static accord.primitives.Known.KnownExecuteAt.ExecuteAtErased;
 import static accord.primitives.Known.KnownExecuteAt.ExecuteAtUnknown;
@@ -540,7 +541,7 @@ public class CommandsForKeySerializerTest
             }
             else unmanaged = CommandsForKey.NO_PENDING_UNMANAGED;
 
-            CommandsForKey expected = CommandsForKey.SerializerSupport.create(pk, info, unmanaged, TxnId.NONE, TxnId.NONE);
+            CommandsForKey expected = CommandsForKey.SerializerSupport.create(pk, info, unmanaged, TxnId.NONE, NO_BOUNDS_INFO);
 
             ByteBuffer buffer = CommandsForKeySerializer.toBytesWithoutKey(expected);
             CommandsForKey roundTrip = CommandsForKeySerializer.fromBytes(pk, buffer);
@@ -557,7 +558,7 @@ public class CommandsForKeySerializerTest
         TxnId txnId = TxnId.fromValues(11,34052499,2,1);
         CommandsForKey expected = CommandsForKey.SerializerSupport.create(pk,
                                                      new TxnInfo[] { TxnInfo.create(txnId, InternalStatus.PREACCEPTED_OR_ACCEPTED_INVALIDATE, true, txnId, TxnId.NO_TXNIDS, Ballot.ZERO) },
-                                                                          CommandsForKey.NO_PENDING_UNMANAGED, TxnId.NONE, TxnId.NONE);
+                                                                          CommandsForKey.NO_PENDING_UNMANAGED, TxnId.NONE, NO_BOUNDS_INFO);
 
         ByteBuffer buffer = CommandsForKeySerializer.toBytesWithoutKey(expected);
         CommandsForKey roundTrip = CommandsForKeySerializer.fromBytes(pk, buffer);
