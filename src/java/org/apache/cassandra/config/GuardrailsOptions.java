@@ -564,6 +564,49 @@ public class GuardrailsOptions implements GuardrailsConfig
     }
 
     @Override
+    public Set<ConsistencyLevel> getWriteConsistencyEnforcementNone()
+    {
+        return config.write_consistency_enforcement_none;
+    }
+
+    public void setWriteConsistencyEnforcementNone(Set<ConsistencyLevel> consistencyLevels)
+    {
+        updatePropertyWithLogging("write_consistency_enforcement_none",
+                                  validateConsistencyLevels(consistencyLevels, "write_consistency_enforcement_none"),
+                                  () -> config.write_consistency_enforcement_none,
+                                  x -> config.write_consistency_enforcement_none = x);
+    }
+
+
+    @Override
+    public Set<ConsistencyLevel> getWriteConsistencyEnforcementSoft()
+    {
+        return config.write_consistency_enforcement_soft;
+    }
+
+    public void setWriteConsistencyEnforcementSoft(Set<ConsistencyLevel> consistencyLevels)
+    {
+        updatePropertyWithLogging("write_consistency_enforcement_soft",
+                                  validateConsistencyLevels(consistencyLevels, "write_consistency_enforcement_soft"),
+                                  () -> config.write_consistency_enforcement_soft,
+                                  x -> config.write_consistency_enforcement_soft = x);
+    }
+
+    @Override
+    public Set<ConsistencyLevel> getWriteConsistencyEnforcementHard()
+    {
+        return config.write_consistency_enforcement_hard;
+    }
+
+    public void setWriteConsistencyEnforcementHard(Set<ConsistencyLevel> consistencyLevels)
+    {
+        updatePropertyWithLogging("write_consistency_enforcement_hard",
+                                  validateConsistencyLevels(consistencyLevels, "write_consistency_enforcement_hard"),
+                                  () -> config.write_consistency_enforcement_hard,
+                                  x -> config.write_consistency_enforcement_hard = x);
+    }
+
+    @Override
     @Nullable
     public DataStorageSpec.LongBytesBound getCollectionSizeWarnThreshold()
     {

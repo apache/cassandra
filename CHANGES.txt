@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * [SO-33027] Implement minimum CL enforcement for writes
  * [SO-34930] Merge and generate code coverage report for utest+jvm-dtest
  * [SO-29062] Implement v2 of autorepairstatus and runautorepaironce nodetool commands
  * [SO-34256] Report code coverage for in-jvm dtest

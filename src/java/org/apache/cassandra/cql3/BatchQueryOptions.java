@@ -64,6 +64,11 @@ public abstract class BatchQueryOptions
         return wrapped.getConsistency();
     }
 
+    public void setConsistency(ConsistencyLevel level)
+    {
+        wrapped.setConsistency(level);
+    }
+
     public String getKeyspace()
     {
         return wrapped.getKeyspace();
@@ -141,6 +146,13 @@ public abstract class BatchQueryOptions
             {
                 super.prepareStatement(i, boundNames);
             }
+        }
+
+
+        public void setConsistency(ConsistencyLevel level)
+        {
+            super.setConsistency(level);
+            perStatementOptions.forEach(o -> o.setConsistency(level));
         }
 
         private boolean isPreparedStatement(int i)

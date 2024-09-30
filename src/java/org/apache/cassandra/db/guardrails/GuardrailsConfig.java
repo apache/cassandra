@@ -249,6 +249,25 @@ public interface GuardrailsConfig
      */
     Set<ConsistencyLevel> getWriteConsistencyLevelsDisallowed();
 
+
+    /**
+     * (Uber specific
+     * @return The consistency levels where None write CL enforcement should be applied.
+     */
+    Set<ConsistencyLevel> getWriteConsistencyEnforcementNone();
+
+    /**
+     * (Uber specific
+     * @return The consistency levels where Soft write CL enforcement should be applied.
+     */
+    Set<ConsistencyLevel> getWriteConsistencyEnforcementSoft();
+
+    /**
+     * (Uber specific
+     * @return The consistency levels where Hard write CL enforcement should be applied.
+     */
+    Set<ConsistencyLevel> getWriteConsistencyEnforcementHard();
+
     /**
      * @return The threshold to warn when encountering a collection with larger data size than threshold.
      */

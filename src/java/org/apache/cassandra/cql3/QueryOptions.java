@@ -112,6 +112,7 @@ public abstract class QueryOptions
     }
 
     public abstract ConsistencyLevel getConsistency();
+    public abstract void setConsistency(ConsistencyLevel cl);
     public abstract List<ByteBuffer> getValues();
     public abstract boolean skipMetadata();
 
@@ -323,7 +324,7 @@ public abstract class QueryOptions
 
     static class DefaultQueryOptions extends QueryOptions
     {
-        private final ConsistencyLevel consistency;
+        private ConsistencyLevel consistency;
         private final List<ByteBuffer> values;
         private final boolean skipMetadata;
 
@@ -345,6 +346,8 @@ public abstract class QueryOptions
         {
             return consistency;
         }
+
+        public void setConsistency(ConsistencyLevel level) { consistency = level; }
 
         public List<ByteBuffer> getValues()
         {
@@ -391,6 +394,8 @@ public abstract class QueryOptions
         {
             return wrapped.getConsistency();
         }
+
+        public void setConsistency(ConsistencyLevel level) { this.wrapped.setConsistency(level); }
 
         public boolean skipMetadata()
         {

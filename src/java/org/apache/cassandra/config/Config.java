@@ -1026,6 +1026,26 @@ public class Config
     public volatile Set<ConsistencyLevel> read_consistency_levels_disallowed = Collections.emptySet();
     public volatile Set<ConsistencyLevel> write_consistency_levels_warned = Collections.emptySet();
     public volatile Set<ConsistencyLevel> write_consistency_levels_disallowed = Collections.emptySet();
+    /**
+     * (Uber specific) Different level of enforcement for consistency:
+     * 1. hard: queries with insufficiently restrictive CL will be rejected
+     * 2. soft: an insufficiently restrictive CL will be replaced by the default CL
+     * 3. none: no action will be taken regardless of CL used by the query
+     */
+    public enum CLEnforcementLevel
+    {
+        Hard,
+        Soft,
+        None
+    }
+    // (Uber specific) The default CL to be used for Soft write CL enforcement (see definition above)
+    public volatile ConsistencyLevel write_cl_default = ConsistencyLevel.LOCAL_QUORUM;
+    // (Uber specific) The set of consistency levels where None write CL enforcement (see definition above) will be applied
+    public volatile Set<ConsistencyLevel> write_consistency_enforcement_none = Collections.emptySet();
+    // (Uber specific) The set of consistency levels where Soft write CL enforcement (see definition above) will be applied
+    public volatile Set<ConsistencyLevel> write_consistency_enforcement_soft = Collections.emptySet();
+    // (Uber specific) The set of consistency levels where Hard write CL enforcement (see definition above) will be applied
+    public volatile Set<ConsistencyLevel> write_consistency_enforcement_hard = Collections.emptySet();
     public volatile boolean user_timestamps_enabled = true;
     public volatile boolean group_by_enabled = true;
     public volatile boolean alter_table_compaction_strategy_enabled = true;

@@ -489,6 +489,66 @@ public interface GuardrailsMBean
     void setWriteConsistencyLevelsDisallowedCSV(String consistencyLevels);
 
     /**
+     * @return consistency levels where None write CL enforcement is applied
+     */
+    Set<String> getWriteConsistencyEnforcementNone();
+
+    /**
+     * @return Comma-separated list of consistency Enforcement where None write CL enforcement is applied
+     */
+    String getWriteConsistencyEnforcementNoneCSV();
+
+    /**
+     * @param consistencyLevels consistency levels where None write CL enforcement should be applied.
+     */
+    void setWriteConsistencyEnforcementNone(Set<String> consistencyLevels);
+
+    /**
+     * @param consistencyLevels Comma-separated list of consistency levels where None write CL enforcement should be applied.
+     */
+    void setWriteConsistencyEnforcementNoneCSV(String consistencyLevels);
+
+    /**
+     * @return consistency levels where Soft write CL enforcement is applied
+     */
+    Set<String> getWriteConsistencyEnforcementSoft();
+
+    /**
+     * @return Comma-separated list of consistency levels where Soft write CL enforcement is applied
+     */
+    String getWriteConsistencyEnforcementSoftCSV();
+
+    /**
+     * @param consistencyLevels consistency levels where Soft write CL enforcement should be applied.
+     */
+    void setWriteConsistencyEnforcementSoft(Set<String> consistencyLevels);
+
+    /**
+     * @param consistencyLevels Comma-separated list of consistency levels where Soft write CL enforcement should be applied.
+     */
+    void setWriteConsistencyEnforcementSoftCSV(String consistencyLevels);
+
+    /**
+     * @return consistency levels where Hard write CL enforcement is applied
+     */
+    Set<String> getWriteConsistencyEnforcementHard();
+
+    /**
+     * @return Comma-separated list of consistency levels where Hard write CL enforcement is applied
+     */
+    String getWriteConsistencyEnforcementHardCSV();
+
+    /**
+     * @param consistencyLevels consistency levels where Hard write CL enforcement should be applied.
+     */
+    void setWriteConsistencyEnforcementHard(Set<String> consistencyLevels);
+
+    /**
+     * @param consistencyLevels Comma-separated list of consistency levels where Hard write CL enforcement should be applied.
+     */
+    void setWriteConsistencyEnforcementHardCSV(String consistencyLevels);
+
+    /**
      * @return The threshold to warn when encountering larger size of collection data than threshold, as a string
      * formatted as in, for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}.  A {@code null} value
      * means that the threshold is disabled.

@@ -309,6 +309,9 @@ public enum CassandraRelevantProperties
     /** property for the interval on which the repeated client warnings and diagnostic events about disk usage are ignored */
     DISK_USAGE_NOTIFY_INTERVAL_MS("cassandra.disk_usage.notify_interval_ms", Long.toString(TimeUnit.MINUTES.toMillis(30))),
 
+    /** property for the interval on which the repeated client warnings and diagnostic events about consistency levels are ignored */
+    CONSISTENCY_LEVELS_NOTIFY_INTERVAL_MS("cassandra.consistency_levels.notify_interval_ms", Long.toString(TimeUnit.MINUTES.toMillis(10))),
+
     // for specific tests
     ORG_APACHE_CASSANDRA_CONF_CASSANDRA_RELEVANT_PROPERTIES_TEST("org.apache.cassandra.conf.CassandraRelevantPropertiesTest"),
     ORG_APACHE_CASSANDRA_DB_VIRTUAL_SYSTEM_PROPERTIES_TABLE_TEST("org.apache.cassandra.db.virtual.SystemPropertiesTableTest"),

@@ -102,6 +102,9 @@ public class GetGuardrailsConfigTest extends CQLTester
                                                "TablesWarnThreshold: -1\n" +
                                                "UncompressedTablesEnabled: true\n" +
                                                "UserTimestampsEnabled: true\n" +
+                                               "WriteConsistencyEnforcementHardCSV: null\n" +
+                                               "WriteConsistencyEnforcementNoneCSV: null\n" +
+                                               "WriteConsistencyEnforcementSoftCSV: null\n" +
                                                "WriteConsistencyLevelsDisallowedCSV: null\n" +
                                                "WriteConsistencyLevelsWarnedCSV: null\n" +
                                                '\n');

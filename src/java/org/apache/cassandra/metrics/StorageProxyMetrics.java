@@ -17,6 +17,16 @@
  */
 package org.apache.cassandra.metrics;
 
+import java.util.EnumMap;
+import java.util.Map;
+
+import com.google.common.collect.ImmutableMap;
+
+import com.codahale.metrics.Meter;
+import org.apache.cassandra.config.Config.CLEnforcementLevel;
+
+import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
+
 public class StorageProxyMetrics
 {
     private KeyspaceConsistencyLevelMetricsFactory factory;
@@ -27,6 +37,14 @@ public class StorageProxyMetrics
     public CASClientWriteRequestMetrics casWriteMetrics;
     public CASClientRequestMetrics casReadMetrics;
     public ViewWriteMetrics viewWriteMetrics;
+    public Map<CLEnforcementLevel, Meter> writeCLEnforcementMeter = new EnumMap<>(CLEnforcementLevel.class);
+
+
+
+    public void markWriteCLEnforced(CLEnforcementLevel level)
+    {
+        writeCLEnforcementMeter.get(level).mark();
+    }
 
     public StorageProxyMetrics(String ksName, String consistency) {
         factory = new KeyspaceConsistencyLevelMetricsFactory(ksName, consistency);
@@ -37,5 +55,9 @@ public class StorageProxyMetrics
         casWriteMetrics = new CASClientWriteRequestMetrics(factory, "StorageProxyCASWrite");
         casReadMetrics = new CASClientRequestMetrics(factory, "StorageProxyCASRead");
         viewWriteMetrics = new ViewWriteMetrics(factory, "StorageProxyViewWrite");
+        for (CLEnforcementLevel level : CLEnforcementLevel.values())
+        {
+            writeCLEnforcementMeter.put(level, Metrics.meter(factory.createMetricName("StorageProxyWriteCLEnforced", ImmutableMap.of("enforcement", level.name()))));
+        }
     }
 }

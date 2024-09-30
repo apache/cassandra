@@ -100,14 +100,40 @@ public class Values<T> extends Guardrail
      */
     public void guard(Set<T> values, Consumer<T> ignoreAction, @Nullable ClientState state)
     {
+        guard(values, null, ignoreAction, null, state);
+    }
+
+    /**
+     * Triggers a warning for each of the provided values that is discouraged by this guardrail. Also triggers a warning
+     * for each of the provided values that is ignored by this guardrail and triggers the provided action to ignore it.
+     * If any of the values is disallowed it will abort the operation.
+     *
+     * @param values       The values to check.
+     * @param warnAction   An action called on the subset of {@code values} that should cause a warning message.
+     * @param ignoreAction An action called on the subset of {@code values} that should be ignored. This action
+     *                     should do whatever is necessary to make sure the value is ignored.
+     * @param failAction   An action called on the subset of {@code values} that should cause a failure.
+     *                     failAction should not throw an exception.
+     * @param state        The client state, used to skip the check if the query is internal or is done by a superuser.
+     *                     A {@code null} value means that the check should be done regardless of the query, although it
+     *                     won't throw any exception if the failure threshold is exceeded. This is so because checks
+     *                     without an associated client come from asynchronous processes such as compaction, and we
+     *                     don't want to interrupt such processes.
+     */
+    public void guard(Set<T> values, Consumer<T> warnAction, Consumer<T> ignoreAction, Consumer<T> failAction, @Nullable ClientState state)
+    {
         if (!enabled(state))
             return;
 
         Set<T> disallowed = disallowedValues.apply(state);
         Set<T> toDisallow = Sets.intersection(values, disallowed);
         if (!toDisallow.isEmpty())
+        {
+            if (failAction != null)
+                toDisallow.forEach(failAction);
             fail(format("Provided values %s are not allowed for %s (disallowed values are: %s)",
                         toDisallow.stream().sorted().collect(Collectors.toList()), what, disallowed), state);
+        }
 
         Set<T> ignored = ignoredValues.apply(state);
         Set<T> toIgnore = Sets.intersection(values, ignored);
@@ -121,7 +147,11 @@ public class Values<T> extends Guardrail
         Set<T> warned = warnedValues.apply(state);
         Set<T> toWarn = Sets.intersection(values, warned);
         if (!toWarn.isEmpty())
+        {
+            if (warnAction != null)
+                toWarn.forEach(warnAction);
             warn(format("Provided values %s are not recommended for %s (warned values are: %s)",
                         toWarn.stream().sorted().collect(Collectors.toList()), what, warned));
+        }
     }
 }

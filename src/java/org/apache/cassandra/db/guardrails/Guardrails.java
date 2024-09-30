@@ -20,7 +20,9 @@ package org.apache.cassandra.db.guardrails;
 
 import java.lang.reflect.Field;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
@@ -30,11 +32,17 @@ import com.google.common.collect.ImmutableSet;
 import org.apache.commons.lang3.StringUtils;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.GuardrailsOptions;
+import org.apache.cassandra.cql3.BatchQueryOptions;
+import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.metrics.StorageProxyMetrics;
+import org.apache.cassandra.metrics.StorageProxyMetricsManager;
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.disk.usage.DiskUsageBroadcaster;
 import org.apache.cassandra.utils.MBeanWrapper;
 
@@ -276,6 +284,16 @@ public final class Guardrails implements GuardrailsMBean
                  "write consistency levels");
 
     /**
+     * (Uber specific) Guardrail on enforcement for write consistency levels.
+     */
+    public static final Values<ConsistencyLevel> writeConsistencyEnforcement =
+    new Values<>("write_consistency_enforcement",
+                 state -> CONFIG_PROVIDER.getOrCreate(state).getWriteConsistencyEnforcementNone(),
+                 state -> CONFIG_PROVIDER.getOrCreate(state).getWriteConsistencyEnforcementSoft(),
+                 state -> CONFIG_PROVIDER.getOrCreate(state).getWriteConsistencyEnforcementHard(),
+                 "write consistency levels");
+
+    /**
      * Guardrail on the size of a collection.
      */
     public static final MaxThreshold collectionSize =
@@ -348,6 +366,10 @@ public final class Guardrails implements GuardrailsMBean
         long minNotifyInterval = CassandraRelevantProperties.DISK_USAGE_NOTIFY_INTERVAL_MS.getLong();
         localDataDiskUsage.minNotifyIntervalInMs(minNotifyInterval);
         replicaDiskUsage.minNotifyIntervalInMs(minNotifyInterval);
+
+        // Avoid spamming with notifications about incorrect CL
+        minNotifyInterval = CassandraRelevantProperties.CONSISTENCY_LEVELS_NOTIFY_INTERVAL_MS.getLong();
+        writeConsistencyEnforcement.minNotifyIntervalInMs(minNotifyInterval);
     }
 
     /**
@@ -890,6 +912,78 @@ public final class Guardrails implements GuardrailsMBean
     }
 
     @Override
+    public Set<String> getWriteConsistencyEnforcementNone()
+    {
+        return toJmx(DEFAULT_CONFIG.getWriteConsistencyEnforcementNone());
+    }
+
+    @Override
+    public String getWriteConsistencyEnforcementNoneCSV()
+    {
+        return toCSV(DEFAULT_CONFIG.getWriteConsistencyEnforcementNone(), ConsistencyLevel::toString);
+    }
+
+    @Override
+    public void setWriteConsistencyEnforcementNone(Set<String> consistencyLevels)
+    {
+        DEFAULT_CONFIG.setWriteConsistencyEnforcementNone(fromJmx(consistencyLevels));
+    }
+
+    @Override
+    public void setWriteConsistencyEnforcementNoneCSV(String consistencyLevels)
+    {
+        DEFAULT_CONFIG.setWriteConsistencyEnforcementNone(fromCSV(consistencyLevels, ConsistencyLevel::fromString));
+    }
+
+    @Override
+    public Set<String> getWriteConsistencyEnforcementSoft()
+    {
+        return toJmx(DEFAULT_CONFIG.getWriteConsistencyEnforcementSoft());
+    }
+
+    @Override
+    public String getWriteConsistencyEnforcementSoftCSV()
+    {
+        return toCSV(DEFAULT_CONFIG.getWriteConsistencyEnforcementSoft(), ConsistencyLevel::toString);
+    }
+
+    @Override
+    public void setWriteConsistencyEnforcementSoft(Set<String> consistencyLevels)
+    {
+        DEFAULT_CONFIG.setWriteConsistencyEnforcementSoft(fromJmx(consistencyLevels));
+    }
+
+    @Override
+    public void setWriteConsistencyEnforcementSoftCSV(String consistencyLevels)
+    {
+        DEFAULT_CONFIG.setWriteConsistencyEnforcementSoft(fromCSV(consistencyLevels, ConsistencyLevel::fromString));
+    }
+
+    @Override
+    public Set<String> getWriteConsistencyEnforcementHard()
+    {
+        return toJmx(DEFAULT_CONFIG.getWriteConsistencyEnforcementHard());
+    }
+
+    @Override
+    public String getWriteConsistencyEnforcementHardCSV()
+    {
+        return toCSV(DEFAULT_CONFIG.getWriteConsistencyEnforcementHard(), ConsistencyLevel::toString);
+    }
+
+    @Override
+    public void setWriteConsistencyEnforcementHard(Set<String> consistencyLevels)
+    {
+        DEFAULT_CONFIG.setWriteConsistencyEnforcementHard(fromJmx(consistencyLevels));
+    }
+
+    @Override
+    public void setWriteConsistencyEnforcementHardCSV(String consistencyLevels)
+    {
+        DEFAULT_CONFIG.setWriteConsistencyEnforcementHard(fromCSV(consistencyLevels, ConsistencyLevel::fromString));
+    }
+
+    @Override
     public int getFieldsPerUDTWarnThreshold()
     {
         return DEFAULT_CONFIG.getFieldsPerUDTWarnThreshold();
@@ -1003,5 +1097,34 @@ public final class Guardrails implements GuardrailsMBean
     private static DataStorageSpec.LongBytesBound sizeFromString(@Nullable String size)
     {
         return StringUtils.isEmpty(size) ? null : new DataStorageSpec.LongBytesBound(size);
+    }
+
+    /**
+     * enforceWriteCL will enforce consistency level for writes as described in {@link Config.CLEnforcementLevel}.
+     * @param clientState client state for the query
+     * @param keyspace keyspace for the query
+     * @param cl consistency level used for the query
+     * @param serialCL serial consistency level used for the query
+     * @param clSetter will be called to modify the query's consistency level if required by enforcement policy
+     */
+    public static void enforceWriteCL(ClientState clientState, String keyspace, ConsistencyLevel cl, ConsistencyLevel serialCL, Consumer<ConsistencyLevel> clSetter)
+    {
+        StorageProxyMetrics clMetrics = StorageProxyMetricsManager.getMetrics(keyspace, cl);
+        writeConsistencyEnforcement.guard(EnumSet.of(cl, serialCL),
+                                          (ConsistencyLevel c) -> {
+                                              // None enforcement, a warning message will be printed out
+                                              clMetrics.markWriteCLEnforced(Config.CLEnforcementLevel.None);
+                                          },
+                                          (ConsistencyLevel c) ->
+                                          {
+                                              // Soft enforcement, CL will be set to default
+                                              clSetter.accept(DatabaseDescriptor.getWriteCLDefault());
+                                              clMetrics.markWriteCLEnforced(Config.CLEnforcementLevel.Soft);
+                                          },
+                                          (ConsistencyLevel c) ->
+                                          {
+                                              // Hard enforcement, query will be rejected
+                                              clMetrics.markWriteCLEnforced(Config.CLEnforcementLevel.Hard);
+                                          }, clientState);
     }
 }

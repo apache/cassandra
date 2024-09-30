@@ -22,6 +22,8 @@ import java.util.*;
 
 import com.google.common.collect.HashMultiset;
 import com.google.common.collect.Iterables;
+
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.monitoring.BadQuery;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,6 +35,9 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.metrics.ClientRequestsMetricsHolder;
+import org.apache.cassandra.metrics.StorageProxyMetrics;
+import org.apache.cassandra.config.Config.CLEnforcementLevel;
+import org.apache.cassandra.metrics.StorageProxyMetricsManager;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
@@ -500,6 +505,8 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
 
         Guardrails.writeConsistencyLevels.guard(EnumSet.of(options.getConsistency(), options.getSerialConsistency()),
                                                 queryState.getClientState());
+        Guardrails.enforceWriteCL(queryState.getClientState(), keyspace(), options.getConsistency(),
+                                  options.getSerialConsistency(), options::setConsistency);
 
         return hasConditions()
              ? executeWithCondition(queryState, options, requestTime)

@@ -111,21 +111,21 @@ public abstract class GuardrailConsistencyLevelsTester extends GuardrailTester
         assertInvalidPropertyCSV("invalid1,ONE,invalid2", "INVALID1");
     }
 
-    private void assertValidProperty(Set<ConsistencyLevel> input)
+    protected void assertValidProperty(Set<ConsistencyLevel> input)
     {
         Set<String> properties = input.stream().map(ConsistencyLevel::name).collect(Collectors.toSet());
         assertValidProperty(warnedSetter, warnedGetter, properties);
         assertValidProperty(disallowedSetter, disallowedGetter, properties);
     }
 
-    private void assertValidPropertyCSV(String csv)
+    protected void assertValidPropertyCSV(String csv)
     {
         csv = sortCSV(csv);
         assertValidProperty(warnedCSVSetter, warnedCSVGetter, csv);
         assertValidProperty(disallowedCSVSetter, disallowedCSVGetter, csv);
     }
 
-    private void assertInvalidPropertyCSV(String properties, String rejected)
+    protected void assertInvalidPropertyCSV(String properties, String rejected)
     {
         String message = "No enum constant org.apache.cassandra.db.ConsistencyLevel.%s";
         assertInvalidProperty(warnedCSVSetter, properties, message, rejected);

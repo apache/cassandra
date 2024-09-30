@@ -18,6 +18,10 @@
 
 package org.apache.cassandra.metrics;
 
+import java.util.Map;
+
+import com.google.common.collect.ImmutableMap;
+
 public class KeyspaceConsistencyLevelMetricsFactory implements MetricNameFactory
 {
     private final String keyspaceName;
@@ -33,6 +37,11 @@ public class KeyspaceConsistencyLevelMetricsFactory implements MetricNameFactory
 
     public CassandraMetricsRegistry.MetricName createMetricName(String metricName)
     {
+        return createMetricName(metricName, ImmutableMap.of());
+    }
+
+    public CassandraMetricsRegistry.MetricName createMetricName(String metricName, Map<String, String> customTags)
+    {
         String groupName = TableMetrics.class.getPackage().getName();
 
         StringBuilder mbeanName = new StringBuilder();
@@ -45,6 +54,11 @@ public class KeyspaceConsistencyLevelMetricsFactory implements MetricNameFactory
         StringBuilder scope = new StringBuilder();
         scope.append("keyspace=").append(keyspaceName);
         scope.append(",cl=").append(consistencyLevel);
+
+        for (Map.Entry<String, String> entry : customTags.entrySet()) {
+            mbeanName.append(',').append(entry.getKey()).append('=').append(entry.getValue());
+            scope.append(',').append(entry.getKey()).append('=').append(entry.getValue());
+        }
 
         return new CassandraMetricsRegistry.MetricName(groupName, type.toLowerCase(), metricName, scope.toString(), mbeanName.toString());
     }

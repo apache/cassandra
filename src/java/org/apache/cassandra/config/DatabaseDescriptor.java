@@ -2236,6 +2236,8 @@ public class DatabaseDescriptor
     public static Config.LCSEnforcementLevel getLCSEnforcementLevel() { return conf.lcs_enforcement_level; }
     public static void setLCSEnforcementLevel(Config.LCSEnforcementLevel level) { conf.lcs_enforcement_level = level; }
 
+    public static ConsistencyLevel getWriteCLDefault() { return conf.write_cl_default; }
+
     public static CompactionStrategyMigrationOptions getCompactionStrategyMigrationOptions()
     {
         return conf.compaction_strategy_migration_options;

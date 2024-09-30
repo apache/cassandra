@@ -82,6 +82,12 @@ public class SetGuardrailsConfigTest extends CQLTester
                                                "setTablesThreshold\t[int, int]\n" +
                                                "setUncompressedTablesEnabled\tboolean\n" +
                                                "setUserTimestampsEnabled\tboolean\n" +
+                                               "setWriteConsistencyEnforcementHard\tjava.util.Set\n" +
+                                               "setWriteConsistencyEnforcementHardCSV\tjava.lang.String\n" +
+                                               "setWriteConsistencyEnforcementNone\tjava.util.Set\n" +
+                                               "setWriteConsistencyEnforcementNoneCSV\tjava.lang.String\n" +
+                                               "setWriteConsistencyEnforcementSoft\tjava.util.Set\n" +
+                                               "setWriteConsistencyEnforcementSoftCSV\tjava.lang.String\n" +
                                                "setWriteConsistencyLevelsDisallowed\tjava.util.Set\n" +
                                                "setWriteConsistencyLevelsDisallowedCSV\tjava.lang.String\n" +
                                                "setWriteConsistencyLevelsWarned\tjava.util.Set\n" +
