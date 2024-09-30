@@ -90,6 +90,7 @@ public class AutoRepair
 
     protected final Map<AutoRepairConfig.RepairType, IAutoRepairTokenRangeSplitter> tokenRangeSplitters = new EnumMap<>(AutoRepairConfig.RepairType.class);
 
+    private boolean isSetupDone = false;
 
     @VisibleForTesting
     protected AutoRepair()
@@ -109,20 +110,30 @@ public class AutoRepair
 
     public void setup()
     {
-        AutoRepairConfig config = DatabaseDescriptor.getAutoRepairConfig();
-        AutoRepairService.setup();
-        AutoRepairUtils.setup();
-
-        for (AutoRepairConfig.RepairType repairType : AutoRepairConfig.RepairType.values())
+        // Ensure setup is done only once; this is only for unit tests
+        // For production, this method should be called only once.
+        synchronized (this)
         {
-            if (config.isAutoRepairEnabled(repairType))
-                AutoRepairService.instance.checkCanRun(repairType);
+            if (isSetupDone)
+            {
+                return;
+            }
+            AutoRepairConfig config = DatabaseDescriptor.getAutoRepairConfig();
+            AutoRepairService.setup();
+            AutoRepairUtils.setup();
 
-            repairExecutors.get(repairType).scheduleWithFixedDelay(
-            () -> repair(repairType),
-            config.getInitialSchedulerDelay(repairType).toSeconds(),
-            config.getRepairCheckInterval().toSeconds(),
-            TimeUnit.SECONDS);
+            for (AutoRepairConfig.RepairType repairType : AutoRepairConfig.RepairType.values())
+            {
+                if (config.isAutoRepairEnabled(repairType))
+                    AutoRepairService.instance.checkCanRun(repairType);
+
+                repairExecutors.get(repairType).scheduleWithFixedDelay(
+                        () -> repair(repairType),
+                        config.getInitialSchedulerDelay(repairType).toSeconds(),
+                        config.getRepairCheckInterval().toSeconds(),
+                        TimeUnit.SECONDS);
+            }
+            isSetupDone = true;
         }
     }
 
