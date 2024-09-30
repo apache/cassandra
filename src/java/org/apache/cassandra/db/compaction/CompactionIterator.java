@@ -1109,25 +1109,8 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
                     case VESTIGIAL:
                     case INVALIDATE:
-                        newVersion = PartitionUpdate.simpleBuilder(AccordKeyspace.Journal, partition.partitionKey());
-                        commandBuilder = commandBuilder.saveStatusOnly();
-
-                        newVersion.row(lastClustering)
-                                  .add(recordColumn.name.toString(), commandBuilder.asByteBuffer(userVersion));
-
-                        return newVersion.build().unfilteredIterator();
-
                     case TRUNCATE_WITH_OUTCOME:
                     case TRUNCATE:
-                    {
-                        boolean doDeletion = commandBuilder.durability() == Durability.Universal;
-                        boolean withOutcome = cleanup == TRUNCATE_WITH_OUTCOME;
-                        if (withOutcome)
-                            doDeletion = false;
-
-                        if (doDeletion)
-                            return PartitionUpdate.fullPartitionDelete(metadata(), partition.partitionKey(), maxSeenTimestamp + 1, nowInSec).unfilteredIterator();
-
                         newVersion = PartitionUpdate.simpleBuilder(AccordKeyspace.Journal, partition.partitionKey());
                         commandBuilder = commandBuilder.saveStatusOnly();
 
@@ -1135,7 +1118,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                                   .add(recordColumn.name.toString(), commandBuilder.asByteBuffer(userVersion));
 
                         return newVersion.build().unfilteredIterator();
-                    }
+
                     case NO:
                         return newVersion.build().unfilteredIterator();
                     default:
