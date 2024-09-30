@@ -18,6 +18,9 @@
 
 package org.apache.cassandra.index.sai.disk.v1.vector;
 
+import org.apache.cassandra.utils.LocalizeString;
+
+import java.util.Locale;
 import java.util.function.Function;
 
 import static java.lang.Math.pow;
@@ -47,6 +50,6 @@ public enum OptimizeFor
 
     public static OptimizeFor fromString(String value)
     {
-        return valueOf(value.toUpperCase());
+        return valueOf(LocalizeString.toLowerCaseLocalized(value));
     }
 }

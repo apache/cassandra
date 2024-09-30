@@ -33,6 +33,7 @@ import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.LocalizeString;
 
 public abstract class CollectionSerializer<T> extends TypeSerializer<T>
 {
@@ -110,7 +111,7 @@ public abstract class CollectionSerializer<T> extends TypeSerializer<T>
      */
     private String getCollectionName()
     {
-        return getType().getSimpleName().toLowerCase(Locale.US);
+        return LocalizeString.toLowerCaseLocalized(getType().getSimpleName());
     }
 
     /**

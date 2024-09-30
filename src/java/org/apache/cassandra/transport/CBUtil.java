@@ -32,6 +32,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.Locale;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.ByteBufUtil;
@@ -40,10 +41,7 @@ import io.netty.buffer.UnpooledByteBufAllocator;
 import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.Pair;
-import org.apache.cassandra.utils.TimeUUID;
-import org.apache.cassandra.utils.UUIDGen;
+import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.memory.MemoryUtil;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_NETTY_USE_HEAP_ALLOCATOR;
@@ -285,7 +283,7 @@ public abstract class CBUtil
         String value = CBUtil.readString(cb);
         try
         {
-            return Enum.valueOf(enumType, value.toUpperCase());
+            return Enum.valueOf(enumType, LocalizeString.toUpperCaseLocalized(value));
         }
         catch (IllegalArgumentException e)
         {
@@ -399,7 +397,7 @@ public abstract class CBUtil
         Map<String, List<String>> m = new HashMap<String, List<String>>(length);
         for (int i = 0; i < length; i++)
         {
-            String k = readString(cb).toUpperCase();
+            String k = LocalizeString.toUpperCaseLocalized(readString(cb));
             List<String> v = readStringList(cb);
             m.put(k, v);
         }

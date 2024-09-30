@@ -1,4 +1,5 @@
 5.1
+ * Fix localization problem of Java and set default language Locale.US for toLowerCase and toUpperCase (CASSANDRA-19953)
  * Allow CMS reconfiguration to work around DOWN nodes (CASSANDRA-19943)
  * Make TableParams.Serializer set allowAutoSnapshots and incrementalBackups (CASSANDRA-19954)
  * Make sstabledump possible to show tombstones only (CASSANDRA-19939)

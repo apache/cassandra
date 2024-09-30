@@ -30,6 +30,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.Locale;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Future;
 import java.util.concurrent.ThreadLocalRandom;
@@ -2835,7 +2836,7 @@ public class StorageProxy implements StorageProxyMBean
     public String setIdealConsistencyLevel(String cl)
     {
         ConsistencyLevel original = DatabaseDescriptor.getIdealConsistencyLevel();
-        ConsistencyLevel newCL = ConsistencyLevel.valueOf(cl.trim().toUpperCase());
+        ConsistencyLevel newCL = ConsistencyLevel.valueOf(cl.trim().toUpperCase(Locale.US));
         DatabaseDescriptor.setIdealConsistencyLevel(newCL);
         return String.format("Updating ideal consistency level new value: %s old value %s", newCL, original.toString());
     }

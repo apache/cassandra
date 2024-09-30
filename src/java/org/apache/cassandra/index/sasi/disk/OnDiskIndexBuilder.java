@@ -33,6 +33,7 @@ import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.LocalizeString;
 import org.apache.cassandra.utils.Pair;
 
 import com.carrotsearch.hppc.LongArrayList;
@@ -62,7 +63,7 @@ public class OnDiskIndexBuilder
 
         public static Mode mode(String mode)
         {
-            return Mode.valueOf(mode.toUpperCase());
+            return Mode.valueOf(LocalizeString.toUpperCaseLocalized(mode));
         }
 
         public boolean supports(Op op)

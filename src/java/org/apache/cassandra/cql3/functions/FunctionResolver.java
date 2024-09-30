@@ -22,6 +22,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
+import java.util.Locale;
 
 import javax.annotation.Nullable;
 
@@ -32,6 +33,7 @@ import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.UserFunctions;
+import org.apache.cassandra.utils.LocalizeString;
 
 import static java.util.stream.Collectors.joining;
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
@@ -46,7 +48,7 @@ public final class FunctionResolver
     {
         return new ColumnSpecification(receiverKeyspace,
                                        receiverTable,
-                                       new ColumnIdentifier("arg" + i + '(' + fun.name().toString().toLowerCase() + ')', true),
+                                       new ColumnIdentifier("arg" + i + '(' + LocalizeString.toLowerCaseLocalized(fun.name().toString()) + ')', true),
                                        fun.argTypes().get(i));
     }
 

@@ -19,6 +19,7 @@ package org.apache.cassandra.transport.messages;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Locale;
 
 import io.netty.buffer.ByteBuf;
 
@@ -28,6 +29,7 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.*;
 import org.apache.cassandra.utils.CassandraVersion;
+import org.apache.cassandra.utils.LocalizeString;
 
 /**
  * The initial message of the protocol.
@@ -89,7 +91,7 @@ public class StartupMessage extends Message.Request
 
         if (options.containsKey(COMPRESSION))
         {
-            String compression = options.get(COMPRESSION).toLowerCase();
+            String compression = LocalizeString.toLowerCaseLocalized(options.get(COMPRESSION));
             if (compression.equals("snappy"))
             {
                 if (Compressor.SnappyCompressor.instance == null)
@@ -158,7 +160,7 @@ public class StartupMessage extends Message.Request
     {
         Map<String, String> newMap = new HashMap<String, String>(options.size());
         for (Map.Entry<String, String> entry : options.entrySet())
-            newMap.put(entry.getKey().toUpperCase(), entry.getValue());
+            newMap.put(LocalizeString.toUpperCaseLocalized(entry.getKey()), entry.getValue());
         return newMap;
     }
 

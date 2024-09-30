@@ -26,6 +26,7 @@ import java.util.regex.Pattern;
 import com.google.common.base.Objects;
 
 import org.apache.cassandra.serializers.MarshalException;
+import org.apache.cassandra.utils.LocalizeString;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
@@ -251,7 +252,7 @@ public final class Duration
 
     private static Builder add(Builder builder, long number, String symbol)
     {
-        switch (symbol.toLowerCase())
+        switch (LocalizeString.toLowerCaseLocalized(symbol, Locale.ENGLISH))
         {
             case "y": return builder.addYears(number);
             case "mo": return builder.addMonths(number);

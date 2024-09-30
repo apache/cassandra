@@ -23,6 +23,7 @@ import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
+import java.util.Locale;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -52,6 +53,7 @@ import org.apache.cassandra.io.sstable.UUIDBasedSSTableId;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.metrics.RestorableMeter;
 import org.apache.cassandra.tools.SystemExitException;
+import org.apache.cassandra.utils.LocalizeString;
 import org.apache.cassandra.utils.TimeUUID;
 import org.assertj.core.api.Assertions;
 import org.assertj.core.data.Offset;
@@ -176,7 +178,7 @@ public class SSTableIdGenerationTest extends TestBaseImpl
             // create a table and two sstables with sequential id for each strategy, the sstables will contain overlapping partitions
             for (Class<? extends AbstractCompactionStrategy> compactionStrategyClass : compactionStrategyClasses)
             {
-                String tableName = "tbl_" + compactionStrategyClass.getSimpleName().toLowerCase();
+                String tableName = "tbl_" + LocalizeString.toLowerCaseLocalized(compactionStrategyClass.getSimpleName());
                 cluster.schemaChange(createTableStmt(KEYSPACE, tableName, compactionStrategyClass));
 
                 createSSTables(cluster.get(1), KEYSPACE, tableName, 1, 2);
@@ -189,7 +191,7 @@ public class SSTableIdGenerationTest extends TestBaseImpl
             // create another two sstables with uuid for each previously created table
             for (Class<? extends AbstractCompactionStrategy> compactionStrategyClass : compactionStrategyClasses)
             {
-                String tableName = "tbl_" + compactionStrategyClass.getSimpleName().toLowerCase();
+                String tableName = "tbl_" + LocalizeString.toLowerCaseLocalized(compactionStrategyClass.getSimpleName());
 
                 createSSTables(cluster.get(1), KEYSPACE, tableName, 3, 4);
 

@@ -42,6 +42,7 @@ import org.apache.cassandra.serializers.CollectionSerializer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.LocalizeString;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
@@ -85,7 +86,7 @@ public abstract class CollectionType<T> extends MultiElementType<T>
         @Override
         public String toString()
         {
-            return super.toString().toLowerCase(Locale.US);
+            return LocalizeString.toLowerCaseLocalized(super.toString());
         }
     }
 
@@ -142,7 +143,7 @@ public abstract class CollectionType<T> extends MultiElementType<T>
     public <V> void validate(V value, ValueAccessor<V> accessor) throws MarshalException
     {
         if (accessor.isEmpty(value))
-            throw new MarshalException("Not enough bytes to read a " + kind.name().toLowerCase());
+            throw new MarshalException("Not enough bytes to read a " + LocalizeString.toLowerCaseLocalized(kind.name()));
         super.validate(value, accessor);
     }
 

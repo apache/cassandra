@@ -25,6 +25,7 @@ import java.io.Serializable;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Locale;
 
 import com.google.common.collect.ImmutableList;
 
@@ -48,7 +49,7 @@ public class SettingsPopulation implements Serializable
 
     private SettingsPopulation(GenerateOptions options, DistributionOptions dist, SequentialOptions pop)
     {
-        this.order = !options.contents.setByUser() ? PartitionGenerator.Order.ARBITRARY : PartitionGenerator.Order.valueOf(options.contents.value().toUpperCase());
+        this.order = !options.contents.setByUser() ? PartitionGenerator.Order.ARBITRARY : PartitionGenerator.Order.valueOf(options.contents.value().toUpperCase(Locale.US));
         if (dist != null)
         {
             this.distribution = dist.seed.get();

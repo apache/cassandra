@@ -22,10 +22,12 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
+import java.util.Locale;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.utils.LocalizeString;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -442,7 +444,7 @@ public class Controller
             sstableGrowthModifier = FBUtilities.parsePercent(options.get(SSTABLE_GROWTH_OPTION));
 
         Overlaps.InclusionMethod inclusionMethod = options.containsKey(OVERLAP_INCLUSION_METHOD_OPTION)
-                ? Overlaps.InclusionMethod.valueOf(options.get(OVERLAP_INCLUSION_METHOD_OPTION).toUpperCase())
+                ? Overlaps.InclusionMethod.valueOf(LocalizeString.toUpperCaseLocalized(options.get(OVERLAP_INCLUSION_METHOD_OPTION)))
                 : DEFAULT_OVERLAP_INCLUSION_METHOD;
 
         return new Controller(cfs,
@@ -583,7 +585,7 @@ public class Controller
         {
             try
             {
-                Overlaps.InclusionMethod.valueOf(s.toUpperCase());
+                Overlaps.InclusionMethod.valueOf(LocalizeString.toUpperCaseLocalized(s));
             }
             catch (IllegalArgumentException e)
             {

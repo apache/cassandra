@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -72,6 +73,7 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JavaUtils;
+import org.apache.cassandra.utils.LocalizeString;
 import org.apache.cassandra.utils.NativeLibrary;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_JMX_LOCAL_PORT;
@@ -217,7 +219,7 @@ public class StartupChecks
             {
                 try
                 {
-                    if (affectedFileSystemTypes.contains(Files.getFileStore(path).type().toLowerCase()))
+                    if (affectedFileSystemTypes.contains(LocalizeString.toLowerCaseLocalized(Files.getFileStore(path).type())))
                         affectedPaths.add(path);
                 }
                 catch (IOException e)

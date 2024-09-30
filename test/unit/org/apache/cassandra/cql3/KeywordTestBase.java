@@ -21,11 +21,13 @@ package org.apache.cassandra.cql3;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
+import org.apache.cassandra.utils.LocalizeString;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -105,7 +107,7 @@ public abstract class KeywordTestBase extends CQLTester
             logger.info(selectStatement);
             rs = execute(selectStatement);
             row = rs.one();
-            String value = row.getString(keyword.toLowerCase());
+            String value = row.getString(LocalizeString.toLowerCaseLocalized(keyword));
             Assert.assertEquals(keyword, value);
 
             /* Make a materialized view using the fields (cannot re-use the name as MV must be in same keyspace).

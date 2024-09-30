@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.Locale;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -37,6 +38,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.security.DisableSslContextFactory;
 import org.apache.cassandra.security.ISslContextFactory;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.LocalizeString;
 
 /**
  * This holds various options used for enabling SSL/TLS encryption.
@@ -78,7 +80,7 @@ public class EncryptionOptions
             for (ClientAuth clientAuth : ClientAuth.values())
             {
                 VALUES.put(clientAuth.value, clientAuth);
-                VALUES.put(clientAuth.name().toLowerCase(), clientAuth);
+                VALUES.put(LocalizeString.toLowerCaseLocalized(clientAuth.name()), clientAuth);
             }
         }
 
@@ -89,9 +91,9 @@ public class EncryptionOptions
 
         public static ClientAuth from(String value)
         {
-            if (VALUES.containsKey(value.toLowerCase()))
+            if (VALUES.containsKey(LocalizeString.toLowerCaseLocalized(value)))
             {
-                return VALUES.get(value.toLowerCase());
+                return VALUES.get(LocalizeString.toLowerCaseLocalized(value));
             }
             throw new ConfigurationException(value + " is not a valid ClientAuth option");
         }
@@ -183,7 +185,7 @@ public class EncryptionOptions
             Set<String> valueSet = new HashSet<>();
             ConfigKey[] values = values();
             for(ConfigKey key: values) {
-                valueSet.add(key.getKeyName().toLowerCase());
+                valueSet.add(LocalizeString.toLowerCaseLocalized(key.getKeyName()));
             }
             return valueSet;
         }
@@ -302,7 +304,7 @@ public class EncryptionOptions
             Set<String> configKeys = ConfigKey.asSet();
             for (Map.Entry<String, String> entry : ssl_context_factory.parameters.entrySet())
             {
-                if(configKeys.contains(entry.getKey().toLowerCase()))
+                if(configKeys.contains(LocalizeString.toLowerCaseLocalized(entry.getKey())))
                 {
                     throw new IllegalArgumentException("SslContextFactory "+ssl_context_factory.class_name+" should " +
                                                        "configure '"+entry.getKey()+"' as encryption_options instead of" +

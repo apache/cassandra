@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.db.virtual;
 
+import java.util.Locale;
+
 import com.google.common.collect.ImmutableList;
 
 import org.apache.cassandra.db.marshal.BytesType;
@@ -26,6 +28,7 @@ import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.utils.LocalizeString;
 
 import static org.apache.cassandra.schema.SchemaConstants.VIRTUAL_SCHEMA;
 import static org.apache.cassandra.schema.TableMetadata.builder;
@@ -136,9 +139,9 @@ public final class VirtualSchemaKeyspace extends VirtualKeyspace
                     for (ColumnMetadata column : table.columns())
                     {
                         result.row(column.ksName, column.cfName, column.name.toString())
-                              .column(CLUSTERING_ORDER, column.clusteringOrder().toString().toLowerCase())
+                              .column(CLUSTERING_ORDER, LocalizeString.toLowerCaseLocalized(column.clusteringOrder().toString()))
                               .column(COLUMN_NAME_BYTES, column.name.bytes)
-                              .column(KIND, column.kind.toString().toLowerCase())
+                              .column(KIND, LocalizeString.toLowerCaseLocalized(column.kind.toString()))
                               .column(POSITION, column.position())
                               .column(TYPE, column.type.asCQL3Type().toString());
                     }

@@ -17,7 +17,9 @@
  */
 package org.apache.cassandra.cql3.functions.types;
 
+import java.util.Locale;
 import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.utils.LocalizeString;
 
 /**
  * Keeps metadata on the connected cluster, including known nodes and schema definitions.
@@ -65,7 +67,7 @@ public class Metadata
         }
         if (isAlphanumeric)
         {
-            return id.toLowerCase();
+            return LocalizeString.toLowerCaseLocalized(id, Locale.ROOT);
         }
 
         // Check if it's enclosed in quotes. If it is, remove them and unescape internal double quotes

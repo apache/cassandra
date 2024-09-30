@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.cql3.functions.masking;
 
+import java.util.Locale;
+
 import com.google.common.collect.ObjectArrays;
 
 import org.apache.cassandra.cql3.functions.FunctionFactory;
@@ -25,6 +27,7 @@ import org.apache.cassandra.cql3.functions.FunctionName;
 import org.apache.cassandra.cql3.functions.FunctionParameter;
 import org.apache.cassandra.cql3.functions.NativeScalarFunction;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.utils.LocalizeString;
 
 /**
  * A {@link NativeScalarFunction} that totally or partially replaces the original value of a column value,
@@ -56,7 +59,7 @@ public abstract class MaskingFunction extends NativeScalarFunction
     {
         public Factory(String name, FunctionParameter... parameters)
         {
-            super(NAME_PREFIX + name.toLowerCase(), parameters);
+            super(NAME_PREFIX + LocalizeString.toLowerCaseLocalized(name), parameters);
         }
     }
 }

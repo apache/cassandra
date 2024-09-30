@@ -44,6 +44,7 @@ import org.apache.cassandra.serializers.UserTypeSerializer;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.JsonUtils;
+import org.apache.cassandra.utils.LocalizeString;
 import org.apache.cassandra.utils.Pair;
 
 import static com.google.common.collect.Iterables.any;
@@ -274,7 +275,7 @@ public class UserType extends TupleType implements SchemaElement
                 sb.append(", ");
 
             String name = stringFieldNames.get(i);
-            if (!name.equals(name.toLowerCase(Locale.US)))
+            if (!name.equals(LocalizeString.toLowerCaseLocalized(name)))
                 name = "\"" + name + "\"";
 
             sb.append('"');

@@ -23,6 +23,7 @@ package org.apache.cassandra.stress.settings;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Locale;
 
 public enum CliOption
 {
@@ -50,7 +51,7 @@ public enum CliOption
         final Map<String, CliOption> lookup = new HashMap<>();
         for (CliOption cmd : values())
         {
-            lookup.put("-" + cmd.toString().toLowerCase(), cmd);
+            lookup.put("-" + cmd.toString().toLowerCase(Locale.US), cmd);
             if (cmd.extraName != null)
                 lookup.put(cmd.extraName, cmd);
         }
@@ -59,7 +60,7 @@ public enum CliOption
 
     public static CliOption get(String command)
     {
-        return LOOKUP.get(command.toLowerCase());
+        return LOOKUP.get(command.toLowerCase(Locale.US));
     }
 
     public final String extraName;

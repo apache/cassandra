@@ -18,6 +18,9 @@
 
 package org.apache.cassandra.cql3.functions.masking;
 
+import java.util.Locale;
+
+import org.apache.cassandra.utils.LocalizeString;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -46,7 +49,7 @@ public class PartialMaskingFunctionTest extends MaskingFunctionTester
 
     protected void testMaskingOnColumn(PartialMaskingFunction.Kind masker, String name, CQL3Type type, Object value) throws Throwable
     {
-        String functionName = SchemaConstants.SYSTEM_KEYSPACE_NAME + ".mask_" + masker.name().toLowerCase();
+        String functionName = SchemaConstants.SYSTEM_KEYSPACE_NAME + ".mask_" + LocalizeString.toLowerCaseLocalized(masker.name());
 
         if (type.getType() instanceof StringType)
         {

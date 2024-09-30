@@ -38,6 +38,7 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.UserFunctions;
+import org.apache.cassandra.utils.LocalizeString;
 import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.cql3.selection.SelectorFactories.createFactoriesAndCollectColumnDefinitions;
@@ -447,7 +448,7 @@ public interface Selectable extends AssignmentTestable
         @Override
         public String toString()
         {
-            return String.format("cast(%s as %s)", arg, type.toString().toLowerCase());
+            return String.format("cast(%s as %s)", arg, LocalizeString.toLowerCaseLocalized(type.toString()));
         }
 
         public Selector.Factory newSelectorFactory(TableMetadata table, AbstractType<?> expectedType, List<ColumnMetadata> defs, VariableSpecifications boundNames)

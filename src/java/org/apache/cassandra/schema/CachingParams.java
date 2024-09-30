@@ -26,6 +26,7 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.commons.lang3.StringUtils;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.utils.LocalizeString;
 
 import static java.lang.String.format;
 
@@ -40,7 +41,7 @@ public final class CachingParams
         @Override
         public String toString()
         {
-            return name().toLowerCase();
+            return LocalizeString.toLowerCaseLocalized(name());
         }
     }
 

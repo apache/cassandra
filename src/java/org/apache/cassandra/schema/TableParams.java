@@ -20,6 +20,7 @@ package org.apache.cassandra.schema;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Map;
+import java.util.Locale;
 import java.util.Map.Entry;
 
 import com.google.common.base.MoreObjects;
@@ -39,6 +40,7 @@ import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 import org.apache.cassandra.utils.BloomCalculations;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.LocalizeString;
 
 import static java.lang.String.format;
 import static java.util.stream.Collectors.toMap;
@@ -73,7 +75,7 @@ public final class TableParams
         @Override
         public String toString()
         {
-            return name().toLowerCase();
+            return LocalizeString.toLowerCaseLocalized(name());
         }
     }
 

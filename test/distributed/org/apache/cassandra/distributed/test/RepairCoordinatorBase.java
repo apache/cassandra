@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.RejectedExecutionException;
 
 import org.junit.AfterClass;
@@ -33,6 +34,7 @@ import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.test.DistributedRepairUtils.RepairParallelism;
 import org.apache.cassandra.distributed.test.DistributedRepairUtils.RepairType;
+import org.apache.cassandra.utils.LocalizeString;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.NODETOOL_JMX_NOTIFICATION_POLL_INTERVAL_SECONDS;
 
@@ -98,7 +100,7 @@ public class RepairCoordinatorBase extends TestBaseImpl
 
     protected String postfix()
     {
-        return repairType.name().toLowerCase() + "_" + parallelism.name().toLowerCase() + "_" + withNotifications;
+        return LocalizeString.toLowerCaseLocalized(repairType.name()) + "_" + LocalizeString.toLowerCaseLocalized(parallelism.name()) + "_" + withNotifications;
     }
 
     protected NodeToolResult repair(int node, String... args) {

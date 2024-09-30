@@ -32,6 +32,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.Locale;
 import java.util.function.BiPredicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -45,6 +46,7 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.PathUtils;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.LocalizeString;
 
 /**
  * A decoded line in a transaction log file replica.
@@ -63,7 +65,7 @@ final class LogRecord
 
         public static Type fromPrefix(String prefix)
         {
-            return valueOf(prefix.toUpperCase());
+            return valueOf(LocalizeString.toLowerCaseLocalized(prefix));
         }
 
         public boolean hasFile()

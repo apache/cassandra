@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Locale;
 
 
 public final class OptionEnumProbabilities<T> extends OptionMulti
@@ -48,7 +49,7 @@ public final class OptionEnumProbabilities<T> extends OptionMulti
         final T opt;
         OptMatcher(T opt, String defaultValue)
         {
-            super(opt.toString().toLowerCase() + "=", "[0-9]+(\\.[0-9]+)?", defaultValue, "Performs this many " + opt + " operations out of total", false);
+            super(opt.toString().toLowerCase(Locale.US) + "=", "[0-9]+(\\.[0-9]+)?", defaultValue, "Performs this many " + opt + " operations out of total", false);
             this.opt = opt;
         }
     }

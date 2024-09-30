@@ -19,6 +19,7 @@ package org.apache.cassandra.streaming;
 
 import java.time.Duration;
 import java.util.Collection;
+import java.util.Locale;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 
@@ -33,6 +34,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.LocalizeString;
 
 import static org.apache.cassandra.streaming.StreamingChannel.Factory.Global.streamingFactory;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
@@ -198,7 +200,7 @@ public final class StreamResultFuture extends AsyncFuture<StreamState>
 
     void handleSessionComplete(StreamSession session)
     {
-        logger.info("[Stream #{}] Session with {} is {}", session.planId(), session.peer, session.state().name().toLowerCase());
+        logger.info("[Stream #{}] Session with {} is {}", session.planId(), session.peer, LocalizeString.toLowerCaseLocalized(session.state().name()));
         fireStreamEvent(new StreamEvent.SessionCompleteEvent(session));
         SessionInfo sessionInfo = session.getSessionInfo();
         coordinator.addSessionInfo(sessionInfo);

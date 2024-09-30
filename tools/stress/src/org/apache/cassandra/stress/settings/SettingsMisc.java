@@ -28,6 +28,7 @@ import java.net.URL;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -164,13 +165,13 @@ class SettingsMisc implements Serializable
         System.out.println("---Commands---");
         for (Command cmd : Command.values())
         {
-            System.out.println(String.format("%-20s : %s", cmd.toString().toLowerCase(), cmd.description));
+            System.out.println(String.format("%-20s : %s", cmd.toString().toLowerCase(Locale.US), cmd.description));
         }
         System.out.println();
         System.out.println("---Options---");
         for (CliOption cmd : CliOption.values())
         {
-            System.out.println(String.format("-%-20s : %s", cmd.toString().toLowerCase(), cmd.description));
+            System.out.println(String.format("-%-20s : %s", cmd.toString().toLowerCase(Locale.US), cmd.description));
         }
     }
 
@@ -201,7 +202,7 @@ class SettingsMisc implements Serializable
                 System.out.println("    " + cmd.names.toString().replaceAll("\\[|\\]", ""));
             System.out.println("Options:");
             for (CliOption op : CliOption.values())
-                System.out.println("    -" + op.toString().toLowerCase() + (op.extraName != null ? ", " + op.extraName : ""));
+                System.out.println("    -" + op.toString().toLowerCase(Locale.US) + (op.extraName != null ? ", " + op.extraName : ""));
         };
     }
 

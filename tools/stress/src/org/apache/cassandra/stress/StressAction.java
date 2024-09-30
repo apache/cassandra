@@ -20,6 +20,7 @@ package org.apache.cassandra.stress;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Queue;
+import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -217,7 +218,7 @@ public class StressAction implements Runnable
         output.println(String.format("Running %s with %d threads %s",
                                      operations.desc(),
                                      threadCount,
-                                     durationUnits != null ? duration + " " + durationUnits.toString().toLowerCase()
+                                     durationUnits != null ? duration + " " + durationUnits.toString().toLowerCase(Locale.US)
                                         : opCount > 0      ? "for " + opCount + " iteration"
                                                            : "until stderr of mean < " + settings.command.targetUncertainty));
         final WorkManager workManager;

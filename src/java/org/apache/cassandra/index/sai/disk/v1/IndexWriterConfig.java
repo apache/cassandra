@@ -19,6 +19,7 @@ package org.apache.cassandra.index.sai.disk.v1;
 
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 import io.github.jbellis.jvector.vector.VectorSimilarityFunction;
@@ -26,6 +27,7 @@ import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.sai.disk.v1.vector.OptimizeFor;
 import org.apache.cassandra.index.sai.utils.IndexTermType;
+import org.apache.cassandra.utils.LocalizeString;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.SAI_VECTOR_SEARCH_MAX_TOP_K;
 
@@ -151,7 +153,7 @@ public class IndexWriterConfig
             }
             if (options.containsKey(SIMILARITY_FUNCTION))
             {
-                String option = options.get(SIMILARITY_FUNCTION).toUpperCase();
+                String option = LocalizeString.toUpperCaseLocalized(options.get(SIMILARITY_FUNCTION));
                 try
                 {
                     similarityFunction = VectorSimilarityFunction.valueOf(option);
@@ -164,7 +166,7 @@ public class IndexWriterConfig
             }
             if (options.containsKey(OPTIMIZE_FOR))
             {
-                String option = options.get(OPTIMIZE_FOR).toUpperCase();
+                String option = LocalizeString.toUpperCaseLocalized(options.get(OPTIMIZE_FOR));
                 try
                 {
                     optimizeFor = OptimizeFor.valueOf(option);

@@ -19,6 +19,7 @@
 package org.apache.cassandra.distributed;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.function.Consumer;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -28,6 +29,8 @@ import org.apache.cassandra.distributed.impl.AbstractCluster;
 import org.apache.cassandra.distributed.impl.Instance;
 import org.apache.cassandra.distributed.shared.Versions;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.tools.nodetool.DisableAutoCompaction;
+import org.apache.cassandra.utils.LocalizeString;
 
 /**
  * A simple cluster supporting only the 'current' Cassandra version, offering easy access to the convenience methods
@@ -81,7 +84,7 @@ public class Cluster extends AbstractCluster<IInvokableInstance>
             {
                 get(1).acceptsOnInstance((IIsolatedExecutor.SerializableConsumer<IMessage>) (msgPassed) -> {
                     Message decoded = Instance.deserializeMessage(msgPassed);
-                    if (!decoded.verb().toString().toLowerCase().contains("gossip"))
+                    if (!LocalizeString.toLowerCaseLocalized(decoded.verb().toString()).contains("gossip"))
                         System.out.println(String.format("MSG %d -> %d: %s | %s", from, to, decoded, decoded.payload));
                 }).accept(msg);
             }

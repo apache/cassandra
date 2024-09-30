@@ -1,4 +1,4 @@
-/*
+/**
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -15,32 +15,29 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.cql3;
+
+package org.apache.cassandra.db;
+
+import java.util.Locale;
 
 import org.apache.cassandra.utils.LocalizeString;
+import org.junit.Assert;
+import org.junit.Test;
 
-public class RoleName
-{
-    private String name;
+public class LowercaseTest {
 
-    public void setName(String name, boolean keepCase)
-    {
-        this.name = keepCase ? name : (name == null ? name : LocalizeString.toLowerCaseLocalized(name));
+    @Test
+    public void testLowercaseFunction() {
+        String input = "I said Hello World!";
+        String expectedOutput = "i said hello world!";
+        
+        // Call lowerCase function
+        String actualOutput = lowerCase(input);
+
+        Assert.assertEquals(expectedOutput, actualOutput);
     }
 
-    public boolean hasName()
-    {
-        return name != null;
-    }
-
-    public String getName()
-    {
-        return name;
-    }
-
-    @Override
-    public String toString()
-    {
-        return name;
+    private String lowerCase(String input) {
+        return LocalizeString.toLowerCaseLocalized(input);
     }
 }

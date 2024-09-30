@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.service.reads;
 
+import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -26,6 +27,7 @@ import com.codahale.metrics.Snapshot;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.metrics.SnapshottingTimer;
 import org.apache.cassandra.schema.TableParams;
+import org.apache.cassandra.utils.LocalizeString;
 
 public class HybridSpeculativeRetryPolicy implements SpeculativeRetryPolicy
 {
@@ -128,7 +130,7 @@ public class HybridSpeculativeRetryPolicy implements SpeculativeRetryPolicy
         SpeculativeRetryPolicy policy1 = value1 instanceof PercentileSpeculativeRetryPolicy ? value1 : value2;
         SpeculativeRetryPolicy policy2 = value1 instanceof FixedSpeculativeRetryPolicy ? value1 : value2;
 
-        Function function = Function.valueOf(matcher.group("fun").toUpperCase());
+        Function function = Function.valueOf(LocalizeString.toUpperCaseLocalized(matcher.group("fun")));
         return new HybridSpeculativeRetryPolicy((PercentileSpeculativeRetryPolicy) policy1, (FixedSpeculativeRetryPolicy) policy2, function);
     }
 

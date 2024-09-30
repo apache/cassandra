@@ -17,6 +17,10 @@
  */
 package org.apache.cassandra.db.compaction;
 
+import java.util.Locale;
+
+import org.apache.cassandra.utils.LocalizeString;
+
 public enum OperationType
 {
     /** Each modification here should be also applied to {@link org.apache.cassandra.tools.nodetool.Stop#compactionType} */
@@ -69,7 +73,7 @@ public enum OperationType
     OperationType(String type, boolean writesData, int priority)
     {
         this.type = type;
-        this.fileName = type.toLowerCase().replace(" ", "");
+        this.fileName = LocalizeString.toLowerCaseLocalized(type).replace(" ", "");
         this.writesData = writesData;
         this.priority = priority;
     }

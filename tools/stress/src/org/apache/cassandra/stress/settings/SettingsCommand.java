@@ -25,6 +25,7 @@ import java.io.Serializable;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.util.concurrent.Uninterruptibles;
@@ -68,9 +69,9 @@ public abstract class SettingsCommand implements Serializable
     public SettingsCommand(Command type, Options options, Count count, Duration duration, Uncertainty uncertainty)
     {
         this.type = type;
-        this.consistencyLevel = ConsistencyLevel.valueOf(options.consistencyLevel.value().toUpperCase());
+        this.consistencyLevel = ConsistencyLevel.valueOf(options.consistencyLevel.value().toUpperCase(Locale.US));
         this.noWarmup = options.noWarmup.setByUser();
-        this.truncate = TruncateWhen.valueOf(options.truncate.value().toUpperCase());
+        this.truncate = TruncateWhen.valueOf(options.truncate.value().toUpperCase(Locale.US));
 
         if (count != null)
         {
@@ -85,7 +86,7 @@ public abstract class SettingsCommand implements Serializable
         {
             this.count = -1;
             this.duration = Long.parseLong(duration.duration.value().substring(0, duration.duration.value().length() - 1));
-            switch (duration.duration.value().toLowerCase().charAt(duration.duration.value().length() - 1))
+            switch (duration.duration.value().toLowerCase(Locale.US).charAt(duration.duration.value().length() - 1))
             {
                 case 's':
                     this.durationUnits = TimeUnit.SECONDS;
@@ -178,7 +179,7 @@ public abstract class SettingsCommand implements Serializable
 
     public void printSettings(ResultLogger out)
     {
-        out.printf("  Type: %s%n", type.toString().toLowerCase());
+        out.printf("  Type: %s%n", type.toString().toLowerCase(Locale.US));
         out.printf("  Count: %,d%n", count);
         if (durationUnits != null)
         {
@@ -226,11 +227,11 @@ public abstract class SettingsCommand implements Serializable
 
     static void printHelp(Command type)
     {
-        printHelp(type.toString().toLowerCase());
+        printHelp(type.toString().toLowerCase(Locale.US));
     }
 
     static void printHelp(String type)
     {
-        GroupedOptions.printOptions(System.out, type.toLowerCase(), new Uncertainty(), new Count(), new Duration());
+        GroupedOptions.printOptions(System.out, type.toLowerCase(Locale.US), new Uncertainty(), new Count(), new Duration());
     }
 }

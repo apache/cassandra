@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Locale;
 
 import com.google.common.collect.ImmutableList;
 
@@ -78,7 +79,7 @@ public enum Command
 
     public static Command get(String command)
     {
-        return LOOKUP.get(command.toLowerCase());
+        return LOOKUP.get(command.toLowerCase(Locale.US));
     }
 
     public final boolean updates;
@@ -98,12 +99,12 @@ public enum Command
         this.updates = updates;
         this.category = category;
         List<String> names = new ArrayList<>();
-        names.add(this.toString().toLowerCase());
-        names.add(this.toString().replaceAll("_", "").toLowerCase());
+        names.add(this.toString().toLowerCase(Locale.US));
+        names.add(this.toString().replaceAll("_", "").toLowerCase(Locale.US));
         if (extra != null)
         {
-            names.add(extra.toLowerCase());
-            names.add(extra.replaceAll("_", "").toLowerCase());
+            names.add(extra.toLowerCase(Locale.US));
+            names.add(extra.replaceAll("_", "").toLowerCase(Locale.US));
         }
         this.names = ImmutableList.copyOf(names);
         this.description = description;

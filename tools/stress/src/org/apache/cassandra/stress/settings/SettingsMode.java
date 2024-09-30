@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Locale;
 
 import com.datastax.driver.core.AuthProvider;
 import com.datastax.driver.core.PlainTextAuthProvider;
@@ -79,7 +80,7 @@ public class SettingsMode implements Serializable
                     : ProtocolVersion.fromInt(Integer.parseInt(opts.protocolVersion.value()));
             api = ConnectionAPI.JAVA_DRIVER_NATIVE;
             style = opts.useUnPrepared.setByUser() ? ConnectionStyle.CQL : ConnectionStyle.CQL_PREPARED;
-            compression = ProtocolOptions.Compression.valueOf(opts.useCompression.value().toUpperCase()).name();
+            compression = ProtocolOptions.Compression.valueOf(opts.useCompression.value().toUpperCase(Locale.US)).name();
             username = opts.user.setByUser() ? opts.user.value() : credentials.cqlUsername;
             password = opts.password.setByUser() ? opts.password.value() : credentials.cqlPassword;
             maxPendingPerConnection = opts.maxPendingPerConnection.value().isEmpty() ? null : Integer.valueOf(opts.maxPendingPerConnection.value());

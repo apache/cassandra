@@ -22,6 +22,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Locale;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Executors;
@@ -32,6 +33,7 @@ import javax.management.openmbean.CompositeData;
 
 import com.google.common.collect.Lists;
 
+import org.apache.cassandra.utils.LocalizeString;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -55,7 +57,7 @@ import static org.junit.Assert.assertTrue;
  */
 public class TopPartitionsTest
 {
-    public static String KEYSPACE = TopPartitionsTest.class.getSimpleName().toLowerCase();
+    public static String KEYSPACE = LocalizeString.toLowerCaseLocalized(TopPartitionsTest.class.getSimpleName());
     public static String TABLE = "test";
 
     @BeforeClass

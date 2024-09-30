@@ -25,6 +25,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Set;
+import java.util.Locale;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
@@ -42,7 +43,7 @@ import static org.apache.cassandra.simulator.asm.MethodLogger.Level.valueOf;
 // TODO (config): support logging only for packages/classes matching a pattern
 interface MethodLogger
 {
-    static final Level LOG = valueOf(System.getProperty("cassandra.test.simulator.print_asm", "none").toUpperCase());
+    static final Level LOG = valueOf(System.getProperty("cassandra.test.simulator.print_asm", "none").toUpperCase(Locale.ROOT));
     static final Set<TransformationKind> KINDS = System.getProperty("cassandra.test.simulator.print_asm_opts", "").isEmpty()
                                                  ? EnumSet.allOf(TransformationKind.class)
                                                  : stream(System.getProperty("cassandra.test.simulator.print_asm_opts", "").split(","))

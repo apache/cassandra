@@ -19,9 +19,11 @@
 package org.apache.cassandra.auth;
 
 import java.util.Set;
+import java.util.Locale;
 
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
+import org.apache.cassandra.utils.LocalizeString;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.Assert;
 import org.junit.Before;
@@ -100,7 +102,7 @@ public class CassandraNetworkAuthorizerTest extends CQLTester
 
     private static String createName()
     {
-        return RandomStringUtils.randomAlphabetic(8).toLowerCase();
+        return LocalizeString.toLowerCaseLocalized(RandomStringUtils.randomAlphabetic(8));
     }
 
     private static DCPermissions dcPerms(String username)

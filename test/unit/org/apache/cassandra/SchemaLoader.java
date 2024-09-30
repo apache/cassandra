@@ -23,7 +23,9 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Locale;
 
+import org.apache.cassandra.utils.LocalizeString;
 import org.junit.After;
 
 import org.apache.cassandra.auth.AuthSchemaChangeListener;
@@ -745,7 +747,7 @@ public static TableMetadata.Builder clusteringSASICFMD(String ksName, String cfN
 
     private static CompressionParams compressionParams(int chunkLength)
     {
-        String algo = TEST_COMPRESSION_ALGO.getString().toLowerCase();
+        String algo = LocalizeString.toLowerCaseLocalized(TEST_COMPRESSION_ALGO.getString());
         switch (algo)
         {
             case "deflate":

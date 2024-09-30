@@ -22,7 +22,9 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Locale;
 
+import org.apache.cassandra.utils.LocalizeString;
 import org.junit.After;
 import org.junit.Test;
 
@@ -121,7 +123,7 @@ public class GuardrailPasswordTest extends GuardrailTester
 
     private String getEntityName(String name)
     {
-        return (name + entity).toLowerCase();
+        return LocalizeString.toLowerCaseLocalized(name + entity);
     }
 
     private void testPasswordGuardrailInternal() throws Throwable

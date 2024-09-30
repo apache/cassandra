@@ -23,6 +23,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.cli.CommandLine;
@@ -53,6 +54,7 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tools.BulkLoader.CmdLineOptions;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.LocalizeString;
 import org.apache.cassandra.utils.OutputHandler;
 import org.apache.cassandra.utils.Pair;
 
@@ -241,12 +243,12 @@ public class StandaloneScrubber
 
             static HeaderFixMode fromCommandLine(String value)
             {
-                return valueOf(value.replace('-', '_').toUpperCase().trim());
+                return valueOf(LocalizeString.toUpperCaseLocalized(value.replace('-', '_')).trim());
             }
 
             String asCommandLineOption()
             {
-                return name().toLowerCase().replace('_', '-');
+                return LocalizeString.toLowerCaseLocalized(name()).replace('_', '-');
             }
         }
 

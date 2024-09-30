@@ -30,6 +30,7 @@ import java.util.NavigableMap;
 import java.util.Objects;
 import java.util.TreeMap;
 import java.util.UUID;
+import java.util.Locale;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicReference;
@@ -81,6 +82,7 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.LocalizeString;
 import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.db.rows.Cell.NO_DELETION_TIME;
@@ -255,7 +257,7 @@ public class CollectionVirtualTableAdapter<R> implements VirtualTable
         Pattern pattern = Pattern.compile("^[A-Z1-9_]+$");
         // Contains only uppercase letters, numbers and underscores, so it's already snake case.
         if (pattern.matcher(camel).matches())
-            return camel.toLowerCase();
+            return LocalizeString.toLowerCaseLocalized(camel);
 
         // Some special cases must be handled manually.
         String modifiedCamel = camel;

@@ -21,6 +21,7 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.Locale;
 
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -43,6 +44,7 @@ import org.apache.cassandra.db.marshal.TimestampType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.utils.LocalizeString;
 
 import static org.apache.cassandra.cql3.functions.TimeFcts.*;
 
@@ -196,7 +198,7 @@ public final class CastFcts
 
     private static String toLowerCaseString(CQL3Type type)
     {
-        return type.toString().toLowerCase();
+        return LocalizeString.toLowerCaseLocalized(type.toString());
     }
 
     /**

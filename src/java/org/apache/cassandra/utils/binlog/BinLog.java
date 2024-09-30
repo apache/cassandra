@@ -24,6 +24,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
@@ -32,6 +33,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.utils.LocalizeString;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -389,7 +391,7 @@ public class BinLog implements Runnable
         public Builder rollCycle(String rollCycle)
         {
             Preconditions.checkNotNull(rollCycle, "rollCycle was null");
-            rollCycle = rollCycle.toUpperCase();
+            rollCycle = LocalizeString.toUpperCaseLocalized(rollCycle);
             Preconditions.checkNotNull(RollCycles.valueOf(rollCycle), "unrecognized roll cycle");
             this.rollCycle = rollCycle;
             return this;

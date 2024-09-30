@@ -22,8 +22,11 @@ import java.io.PrintStream;
 import java.text.SimpleDateFormat;
 import java.util.List;
 import java.util.Map;
+import java.util.Locale;
 
+import org.apache.cassandra.service.ActiveRepairService.ParentRepairStatus;
 import org.apache.cassandra.service.StorageServiceMBean;
+import org.apache.cassandra.utils.LocalizeString;
 import org.apache.cassandra.utils.concurrent.Condition;
 
 import org.apache.cassandra.utils.progress.ProgressEvent;
@@ -165,7 +168,7 @@ public class RepairRunner extends JMXNotificationProgressListener
                 case FAILED:
                     printMessage(String.format("%s %s discovered repair %s.",
                                               triggeringCondition,
-                                              queriedString, parentRepairStatus.name().toLowerCase()));
+                                              queriedString, LocalizeString.toLowerCaseLocalized(parentRepairStatus.name())));
                     if (parentRepairStatus == FAILED)
                     {
                         error = new IOException(messages.get(0));

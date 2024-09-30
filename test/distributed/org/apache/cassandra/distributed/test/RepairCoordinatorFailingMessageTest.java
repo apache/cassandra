@@ -23,6 +23,7 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 
 import org.junit.AfterClass;
 import org.junit.Assume;
@@ -39,6 +40,7 @@ import org.apache.cassandra.distributed.api.IMessageFilters;
 import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.test.DistributedRepairUtils.RepairType;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.utils.LocalizeString;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.distributed.api.IMessageFilters.Matcher.of;
@@ -100,7 +102,7 @@ public class RepairCoordinatorFailingMessageTest extends TestBaseImpl implements
 
     private String postfix()
     {
-        return repairType.name().toLowerCase();
+        return LocalizeString.toLowerCaseLocalized(repairType.name());
     }
 
     private NodeToolResult repair(int node, String... args) {

@@ -23,6 +23,10 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import org.apache.cassandra.utils.LocalizeString;
+
+import java.util.Locale;
+
 import com.google.common.primitives.Ints;
 
 import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.BYTES;
@@ -99,7 +103,7 @@ public abstract class DataStorageSpec
 
         if (minUnit.convert(quantity, sourceUnit) >= max)
             throw new IllegalArgumentException("Invalid data storage: " + value + ". It shouldn't be more than " +
-                                               (max - 1) + " in " + minUnit.name().toLowerCase());
+                                               (max - 1) + " in " + LocalizeString.toLowerCaseLocalized(minUnit.name()));
     }
 
     private static void validateQuantity(long quantity, DataStorageUnit sourceUnit, DataStorageUnit minUnit, long max)
@@ -109,8 +113,8 @@ public abstract class DataStorageSpec
 
         if (minUnit.convert(quantity, sourceUnit) >= max)
             throw new IllegalArgumentException(String.format("Invalid data storage: %d %s. It shouldn't be more than %d in %s",
-                                                             quantity, sourceUnit.name().toLowerCase(),
-                                                             max - 1, minUnit.name().toLowerCase()));
+                                                             quantity, LocalizeString.toLowerCaseLocalized(sourceUnit.name()),
+                                                             max - 1, LocalizeString.toLowerCaseLocalized(minUnit.name())));
     }
 
     // get vs no-get prefix is not consistent in the code base, but for classes involved with config parsing, it is
