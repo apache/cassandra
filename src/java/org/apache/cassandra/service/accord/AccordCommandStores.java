@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.service.accord;
 
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 import accord.api.Agent;
@@ -24,6 +26,7 @@ import accord.api.ConfigurationService.EpochReady;
 import accord.api.DataStore;
 import accord.api.LocalListeners;
 import accord.api.ProgressLog;
+import accord.local.CommandStore;
 import accord.local.CommandStores;
 import accord.local.Node;
 import accord.local.NodeTimeService;
@@ -38,27 +41,36 @@ import org.apache.cassandra.metrics.CacheSizeMetrics;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 
+import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
+
 public class AccordCommandStores extends CommandStores implements CacheSize
 {
     public static final String ACCORD_STATE_CACHE = "AccordStateCache";
 
     private final CacheSizeMetrics cacheSizeMetrics;
+    private final ExecutorService[] executors;
     private long cacheSize;
 
     AccordCommandStores(NodeTimeService time, Agent agent, DataStore store, RandomSource random,
                         ShardDistributor shardDistributor, ProgressLog.Factory progressLogFactory, LocalListeners.Factory listenerFactory,
-                        AccordJournal journal)
+                        AccordJournal journal, final ExecutorService[] executors)
     {
         super(time, agent, store, random, shardDistributor, progressLogFactory, listenerFactory,
-              AccordCommandStore.factory(journal, new AccordStateCacheMetrics(ACCORD_STATE_CACHE)));
+              AccordCommandStore.factory(journal, new AccordStateCacheMetrics(ACCORD_STATE_CACHE), (id) -> executors[id % executors.length]));
         setCapacity(DatabaseDescriptor.getAccordCacheSizeInMiB() << 20);
+        this.executors = executors;
         this.cacheSizeMetrics = new CacheSizeMetrics(ACCORD_STATE_CACHE, this);
     }
 
     static Factory factory(AccordJournal journal)
     {
-        return (time, agent, store, random, shardDistributor, progressLogFactory, listenerFactory) ->
-               new AccordCommandStores(time, agent, store, random, shardDistributor, progressLogFactory, listenerFactory, journal);
+        return (time, agent, store, random, shardDistributor, progressLogFactory, listenerFactory) -> {
+            ExecutorService[] executors = new ExecutorService[DatabaseDescriptor.getAccordShardCount()];
+            for (int id = 0; id < executors.length; id++)
+                executors[id] = executorFactory().sequential(CommandStore.class.getSimpleName() + '[' + id + ']');
+
+            return new AccordCommandStores(time, agent, store, random, shardDistributor, progressLogFactory, listenerFactory, journal, executors);
+        };
     }
 
     @Override
@@ -134,6 +146,18 @@ public class AccordCommandStores extends CommandStores implements CacheSize
     public synchronized void shutdown()
     {
         super.shutdown();
+        for (ExecutorService executor : executors)
+        {
+            executor.shutdown();
+            try
+            {
+                executor.awaitTermination(1, TimeUnit.MINUTES);
+            }
+            catch (InterruptedException e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
         //TODO shutdown isn't useful by itself, we need a way to "wait" as well.  Should be AutoCloseable or offer awaitTermination as well (think Shutdownable interface)
     }
 }

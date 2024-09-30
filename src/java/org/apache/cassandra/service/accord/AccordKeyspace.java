@@ -235,7 +235,7 @@ public class AccordKeyspace
               + "user_version int,"
               + "record blob,"
               + "PRIMARY KEY(key, descriptor, offset)"
-              + ')')
+              + ") WITH compression = {'class':'NoopCompressor'};")
         .partitioner(new LocalPartitioner(BytesType.instance))
         .build();
 
@@ -1395,7 +1395,6 @@ public class AccordKeyspace
                          "SET topology=? WHERE epoch=?";
             executeInternal(cql,
                             serialize(topology, LocalVersionedSerializers.topology), topology.epoch());
-            flush(Topologies);
         }
         catch (IOException e)
         {
@@ -1412,7 +1411,6 @@ public class AccordKeyspace
                      "SET remote_sync_complete = remote_sync_complete + ? WHERE epoch = ?";
         executeInternal(cql,
                         Collections.singleton(node.id), epoch);
-        flush(Topologies);
         return diskState;
     }
 
@@ -1423,18 +1421,6 @@ public class AccordKeyspace
                      "SET closed = closed + ? WHERE epoch = ?";
         executeInternal(cql,
                         KeySerializers.rangesToBlobMap(ranges), epoch);
-        flush(Topologies);
-        return diskState;
-    }
-
-    public static EpochDiskState markRedundant(Ranges ranges, long epoch, EpochDiskState diskState)
-    {
-        diskState = maybeUpdateMaxEpoch(diskState, epoch);
-        String cql = "UPDATE " + ACCORD_KEYSPACE_NAME + '.' + TOPOLOGIES + ' ' +
-                     "SET redundant = redundant + ? WHERE epoch = ?";
-        executeInternal(cql,
-                        KeySerializers.rangesToBlobMap(ranges), epoch);
-        flush(Topologies);
         return diskState;
     }
 

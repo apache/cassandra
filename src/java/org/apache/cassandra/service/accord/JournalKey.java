@@ -46,7 +46,7 @@ import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.
 
 public final class JournalKey
 {
-    final Type type;
+    public final Type type;
     public final Timestamp timestamp;
     public final int commandStoreId;
 
@@ -261,8 +261,8 @@ public final class JournalKey
         HISTORICAL_TRANSACTIONS      (6, new HistoricalTransactionsSerializer())
         ;
 
-        final int id;
-        final FlyweightSerializer<?, ?> serializer;
+        public final int id;
+        public final FlyweightSerializer<?, ?> serializer;
 
         Type(int id, FlyweightSerializer<?, ?> serializer)
         {

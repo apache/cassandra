@@ -21,8 +21,8 @@ package org.apache.cassandra.service.accord;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -45,54 +45,35 @@ import com.google.common.base.Stopwatch;
 import com.google.common.base.Throwables;
 import com.google.common.collect.Sets;
 import com.google.common.primitives.Ints;
-
-import accord.coordinate.Barrier;
-import accord.coordinate.CoordinateSyncPoint;
-import accord.coordinate.Exhausted;
-import accord.coordinate.FailureAccumulator;
-import accord.coordinate.Invalidated;
-import accord.coordinate.TopologyMismatch;
-import accord.impl.CoordinateDurabilityScheduling;
-import accord.local.Command;
-import accord.local.PreLoadContext;
-import accord.primitives.Ranges;
-import accord.primitives.SyncPoint;
-import accord.topology.Topology;
-import org.apache.cassandra.config.CassandraRelevantProperties;
-import org.apache.cassandra.cql3.statements.RequestValidations;
-import org.apache.cassandra.exceptions.RequestExecutionException;
-import org.apache.cassandra.repair.SharedContext;
-import org.apache.cassandra.schema.KeyspaceMetadata;
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.service.accord.exceptions.ReadExhaustedException;
-import org.apache.cassandra.service.accord.interop.AccordInteropAdapter.AccordInteropFactory;
-import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.service.accord.repair.RepairSyncPointAdapter;
-import org.apache.cassandra.tcm.ClusterMetadataService;
-import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.api.BarrierType;
 import accord.api.LocalConfig;
 import accord.api.Result;
+import accord.api.RoutingKey;
+import accord.coordinate.Barrier;
 import accord.coordinate.Barrier.AsyncSyncPoint;
+import accord.coordinate.CoordinateSyncPoint;
 import accord.coordinate.CoordinationAdapter.Adapters.SyncPointAdapter;
 import accord.coordinate.CoordinationFailed;
+import accord.coordinate.ExecuteSyncPoint;
+import accord.coordinate.Exhausted;
+import accord.coordinate.FailureAccumulator;
+import accord.coordinate.Invalidated;
 import accord.coordinate.Preempted;
 import accord.coordinate.Timeout;
-import accord.api.RoutingKey;
-import accord.coordinate.ExecuteSyncPoint;
+import accord.coordinate.TopologyMismatch;
 import accord.coordinate.tracking.AllTracker;
 import accord.coordinate.tracking.RequestStatus;
 import accord.impl.AbstractConfigurationService;
+import accord.impl.CoordinateDurabilityScheduling;
 import accord.impl.DefaultLocalListeners;
 import accord.impl.DefaultRemoteListeners;
 import accord.impl.DefaultRequestTimeouts;
 import accord.impl.SizeOfIntersectionSorter;
 import accord.impl.progresslog.DefaultProgressLogs;
+import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.CommandStores;
 import accord.local.CommandStores.RangesForEpoch;
@@ -101,6 +82,7 @@ import accord.local.KeyHistory;
 import accord.local.Node;
 import accord.local.Node.Id;
 import accord.local.NodeTimeService;
+import accord.local.PreLoadContext;
 import accord.local.RedundantBefore;
 import accord.local.ShardDistributor.EvenSplit;
 import accord.local.cfk.CommandsForKey;
@@ -108,18 +90,21 @@ import accord.messages.Callback;
 import accord.messages.ReadData;
 import accord.messages.Request;
 import accord.messages.WaitUntilApplied;
-import accord.primitives.Keys;
-import accord.primitives.Seekable;
-import accord.primitives.Seekables;
 import accord.primitives.FullRoute;
+import accord.primitives.Keys;
+import accord.primitives.Ranges;
 import accord.primitives.RoutingKeys;
 import accord.primitives.SaveStatus;
+import accord.primitives.Seekable;
+import accord.primitives.Seekables;
 import accord.primitives.Status;
+import accord.primitives.SyncPoint;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.Txn.Kind;
 import accord.primitives.TxnId;
 import accord.topology.Topologies;
+import accord.topology.Topology;
 import accord.topology.TopologyManager;
 import accord.utils.DefaultRandom;
 import accord.utils.Invariants;
@@ -129,21 +114,30 @@ import accord.utils.async.AsyncResult;
 import accord.utils.async.AsyncResults;
 import org.agrona.collections.Int2ObjectHashMap;
 import org.apache.cassandra.concurrent.Shutdownable;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.statements.RequestValidations;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.dht.AccordSplitter;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
+import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestTimeoutException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
+import org.apache.cassandra.journal.Params;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.AccordClientRequestMetrics;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.repair.SharedContext;
+import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.AccordSyncPropagator.Notification;
 import org.apache.cassandra.service.accord.api.AccordAgent;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.KeyspaceSplitter;
@@ -152,13 +146,19 @@ import org.apache.cassandra.service.accord.api.AccordScheduler;
 import org.apache.cassandra.service.accord.api.AccordTopologySorter;
 import org.apache.cassandra.service.accord.api.CompositeTopologySorter;
 import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.service.accord.exceptions.ReadExhaustedException;
 import org.apache.cassandra.service.accord.exceptions.ReadPreemptedException;
 import org.apache.cassandra.service.accord.exceptions.WritePreemptedException;
+import org.apache.cassandra.service.accord.interop.AccordInteropAdapter.AccordInteropFactory;
+import org.apache.cassandra.service.accord.repair.RepairSyncPointAdapter;
 import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.service.consensus.migration.TableMigrationState;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.Blocking;
@@ -318,6 +318,12 @@ public class AccordService implements IAccordService, Shutdownable
         public void tryMarkRemoved(Topology topology, Id node)
         {
 
+        }
+
+        @Override
+        public Params journalConfiguration()
+        {
+            throw new UnsupportedOperationException("Cannot return configuration when accord.enabled = false in cassandra.yaml");
         }
     };
 
@@ -1301,6 +1307,11 @@ public class AccordService implements IAccordService, Shutdownable
         {
             throw new RuntimeException(e);
         }
+    }
+
+    public Params journalConfiguration()
+    {
+        return journal.configuration();
     }
 
     private AsyncChain<?> awaitTableDrop(ColumnFamilyStore cfs, TokenRange range, BigInteger targetSplitSize)

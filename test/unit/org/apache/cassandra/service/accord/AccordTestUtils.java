@@ -105,6 +105,7 @@ import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 import static accord.primitives.Routable.Domain.Key;
 import static accord.utils.async.AsyncChains.getUninterruptibly;
 import static java.lang.String.format;
+import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 
 public class AccordTestUtils
 {
@@ -414,6 +415,7 @@ public class AccordTestUtils
                                                            }),
                                                            holder,
                                                            journal,
+                                                           executorFactory().sequential(CommandStore.class.getSimpleName() + '[' + 0 + ']'),
                                                            loadExecutor,
                                                            saveExecutor,
                                                            new AccordStateCacheMetrics(AccordCommandStores.ACCORD_STATE_CACHE + System.currentTimeMillis()));
