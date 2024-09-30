@@ -306,7 +306,9 @@ public class SchemaCQLHelperTest extends CQLTester
                             "    AND memtable_flush_period_in_ms = 8\n" +
                             "    AND min_index_interval = 6\n" +
                             "    AND read_repair = 'BLOCKING'\n" +
-                            "    AND speculative_retry = 'ALWAYS';"
+                            "    AND speculative_retry = 'ALWAYS'\n" +
+                            "    AND automated_repair_full = {'enabled': 'true'}\n" +
+                            "    AND automated_repair_incremental = {'enabled': 'true'};"
                    ));
     }
 
