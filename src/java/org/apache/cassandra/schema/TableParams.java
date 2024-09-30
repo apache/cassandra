@@ -510,7 +510,7 @@ public final class TableParams
             serializeMapBB(t.extensions, out);
             out.writeBoolean(t.cdc);
             out.writeUTF(t.readRepair.name());
-            if (version.isAtLeast(Version.V3))
+            if (version.isAtLeast(Version.V4))
             {
                 out.writeBoolean(t.allowAutoSnapshot);
                 out.writeBoolean(t.incrementalBackups);
@@ -537,8 +537,8 @@ public final class TableParams
                    .extensions(deserializeMapBB(in))
                    .cdc(in.readBoolean())
                    .readRepair(ReadRepairStrategy.fromString(in.readUTF()))
-                   .allowAutoSnapshot(!version.isAtLeast(Version.V3) || in.readBoolean())
-                   .incrementalBackups(!version.isAtLeast(Version.V3) || in.readBoolean());
+                   .allowAutoSnapshot(!version.isAtLeast(Version.V4) || in.readBoolean())
+                   .incrementalBackups(!version.isAtLeast(Version.V4) || in.readBoolean());
             return builder.build();
         }
 
@@ -561,8 +561,8 @@ public final class TableParams
                    serializedSizeMapBB(t.extensions) +
                    sizeof(t.cdc) +
                    sizeof(t.readRepair.name()) +
-                   (version.isAtLeast(Version.V3) ? sizeof(t.allowAutoSnapshot) : 0) +
-                   (version.isAtLeast(Version.V3) ? sizeof(t.incrementalBackups) : 0);
+                   (version.isAtLeast(Version.V4) ? sizeof(t.allowAutoSnapshot) : 0) +
+                   (version.isAtLeast(Version.V4) ? sizeof(t.incrementalBackups) : 0);
         }
 
         private void serializeMap(Map<String, String> map, DataOutputPlus out) throws IOException
