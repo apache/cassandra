@@ -137,7 +137,7 @@ public class CommandsForKeySerializer
                 {
                     if (nodeIdCount + 3 >= nodeIds.length)
                     {
-                        nodeIdCount = compact(nodeIds);
+                        nodeIdCount = compact(nodeIds, nodeIdCount);
                         if (nodeIdCount > nodeIds.length/2 || nodeIdCount + 2 >= nodeIds.length)
                             nodeIds = cachedInts().resize(nodeIds, nodeIds.length, nodeIds.length * 2);
                     }
@@ -169,7 +169,7 @@ public class CommandsForKeySerializer
                         }
                     }
                 }
-                nodeIdCount = compact(nodeIds);
+                nodeIdCount = compact(nodeIds, nodeIdCount);
                 Invariants.checkState(nodeIdCount > 0);
             }
 
@@ -679,11 +679,10 @@ public class CommandsForKeySerializer
         RedundantBefore.Entry boundsInfo = NO_BOUNDS_INFO.withEpochs(minEpoch, maxEpoch);
         long prevEpoch = minEpoch + VIntCoding.readVInt(in);
         long prevHlc = VIntCoding.readUnsignedVInt(in);
-        TxnId redundantBefore;
         {
             int flags = VIntCoding.readUnsignedVInt32(in);
             Node.Id node = nodeIds[VIntCoding.readUnsignedVInt32(in)];
-            redundantBefore = TxnId.fromValues(prevEpoch, prevHlc, flags, node);
+            boundsInfo = boundsInfo.withGcBeforeBeforeAtLeast(TxnId.fromValues(prevEpoch, prevHlc, flags, node));
         }
         int prunedBeforeIndex = VIntCoding.readUnsignedVInt32(in) - 1;
 
@@ -938,7 +937,7 @@ public class CommandsForKeySerializer
         }
         cachedTxnIds().forceDiscard(txnIds, commandCount);
 
-        return CommandsForKey.SerializerSupport.create(key, txns, unmanageds, redundantBefore, prunedBeforeIndex == -1 ? TxnId.NONE : txns[prunedBeforeIndex]);
+        return CommandsForKey.SerializerSupport.create(key, txns, unmanageds, prunedBeforeIndex == -1 ? TxnId.NONE : txns[prunedBeforeIndex], boundsInfo);
     }
 
     private static TxnInfo create(RedundantBefore.Entry boundsInfo, @Nonnull TxnId txnId, InternalStatus status, int statusOverrides, @Nonnull Timestamp executeAt, @Nonnull TxnId[] missing, @Nonnull Ballot ballot)
@@ -984,16 +983,16 @@ public class CommandsForKeySerializer
         return flagsLookup;
     }
 
-    private static int compact(int[] buffer)
+    private static int compact(int[] buffer, int usedSize)
     {
-        Arrays.sort(buffer);
+        Arrays.sort(buffer, 0, usedSize);
         int count = 0;
         int j = 0;
-        while (j < buffer.length)
+        while (j < usedSize)
         {
             int prev;
             buffer[count++] = prev = buffer[j];
-            while (++j < buffer.length && buffer[j] == prev) {}
+            while (++j < usedSize && buffer[j] == prev) {}
         }
         return count;
     }
@@ -1015,6 +1014,9 @@ public class CommandsForKeySerializer
 
         long read(int readCount, ByteBuffer in)
         {
+            if (readCount == 64 && bitCount == 0)
+                return in.getLong();
+
             long result = bitBuffer >>> (64 - readCount);
             int remaining = bitCount - readCount;
             if (remaining >= 0)
