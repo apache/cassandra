@@ -25,7 +25,7 @@ command: ".jenkins/test.sh"
 timeout_in_minutes: 300
 
 artifact_paths:
-  - build/jacoco-*
+  - build/jacoco/jacoco-*.exec
   - build/coverage/*
   - build/comment/phabricator-comment*
 
