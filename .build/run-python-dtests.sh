@@ -64,6 +64,8 @@ command -v ant >/dev/null 2>&1 || { echo >&2 "ant needs to be installed"; exit 1
 command -v virtualenv >/dev/null 2>&1 || { echo >&2 "virtualenv needs to be installed"; exit 1; }
 [ -f "${CASSANDRA_DIR}/build.xml" ] || { echo >&2 "${CASSANDRA_DIR}/build.xml must exist"; exit 1; }
 [ -d "${DIST_DIR}" ] || { mkdir -p "${DIST_DIR}" ; }
+ALLOWED_DTEST_VARIANTS="novnode|large|latest|upgrade"
+[[ "${DTEST_TARGET}" =~ ^dtest(-(${ALLOWED_DTEST_VARIANTS}))*$ ]] || { echo >&2 "Unknown dtest target: ${DTEST_TARGET}. Allowed variants are ${ALLOWED_DTEST_VARIANTS}"; exit 1; }
 
 java_version=$(java -version 2>&1 | awk -F '"' '/version/ {print $2}' | awk -F. '{print $1}')
 version=$(grep 'property\s*name=\"base.version\"' ${CASSANDRA_DIR}/build.xml |sed -ne 's/.*value=\"\([^"]*\)\".*/\1/p')
@@ -114,31 +116,26 @@ pip3 freeze
 cd ${CASSANDRA_DTEST_DIR}
 
 set +e # disable immediate exit from this point
-if [ "${DTEST_TARGET}" = "dtest" ]; then
-    DTEST_ARGS="--use-vnodes --num-tokens=${NUM_TOKENS} --skip-resource-intensive-tests"
-elif [ "${DTEST_TARGET}" = "dtest-novnode" ]; then
-    DTEST_ARGS="--skip-resource-intensive-tests --keep-failed-test-dir"
-elif [ "${DTEST_TARGET}" = "dtest-latest" ]; then
-    DTEST_ARGS="--use-vnodes --num-tokens=${NUM_TOKENS} --configuration-yaml=cassandra_latest.yaml --skip-resource-intensive-tests"
-elif [ "${DTEST_TARGET}" = "dtest-large" ]; then
-    DTEST_ARGS="--use-vnodes --num-tokens=${NUM_TOKENS} --only-resource-intensive-tests --force-resource-intensive-tests"
-elif [ "${DTEST_TARGET}" = "dtest-large-novnode" ]; then
-    DTEST_ARGS="--only-resource-intensive-tests --force-resource-intensive-tests"
-elif [ "${DTEST_TARGET}" = "dtest-upgrade" ]; then
-    DTEST_ARGS="--use-vnodes --num-tokens=${NUM_TOKENS} --execute-upgrade-tests --execute-upgrade-tests-only --upgrade-target-version-only --upgrade-version-selection all"
-elif [ "${DTEST_TARGET}" = "dtest-upgrade-novnode" ]; then
-    DTEST_ARGS="--execute-upgrade-tests --execute-upgrade-tests-only --upgrade-target-version-only --upgrade-version-selection all"
-elif [ "${DTEST_TARGET}" = "dtest-upgrade-large" ]; then
-    DTEST_ARGS="--use-vnodes --num-tokens=${NUM_TOKENS} --execute-upgrade-tests --execute-upgrade-tests-only --upgrade-target-version-only --upgrade-version-selection all --only-resource-intensive-tests --force-resource-intensive-tests"
-elif [ "${DTEST_TARGET}" = "dtest-upgrade-novnode-large" ]; then
-    DTEST_ARGS="--execute-upgrade-tests --execute-upgrade-tests-only --upgrade-target-version-only --upgrade-version-selection all --only-resource-intensive-tests --force-resource-intensive-tests"
+DTEST_ARGS="--keep-failed-test-dir"
+# Check for specific keywords in DTEST_TARGET and append corresponding options
+if [[ "${DTEST_TARGET}" == *"-large"* ]]; then
+    DTEST_ARGS+=" --only-resource-intensive-tests --force-resource-intensive-tests"
 else
-    echo "Unknown dtest target: ${DTEST_TARGET}"
-    exit 1
+    DTEST_ARGS+=" --skip-resource-intensive-tests"
+fi
+if [[ "${DTEST_TARGET}" != *"-novnode"* ]]; then
+    DTEST_ARGS+=" --use-vnodes --num-tokens=${NUM_TOKENS}"
+fi
+if [[ "${DTEST_TARGET}" == *"-latest"* ]]; then
+    DTEST_ARGS+=" --configuration-yaml=cassandra_latest.yaml"
+fi
+if [[ "${DTEST_TARGET}" == *"-upgrade"* ]]; then
+    DTEST_ARGS+=" --execute-upgrade-tests --execute-upgrade-tests-only --upgrade-target-version-only --upgrade-version-selection all"
 fi
 
 touch ${DIST_DIR}/test_list.txt
 ./run_dtests.py --cassandra-dir=${CASSANDRA_DIR} ${DTEST_ARGS} --dtest-print-tests-only --dtest-print-tests-output=${DIST_DIR}/test_list.txt 2>&1 > ${DIST_DIR}/test_stdout.txt
+
 [[ $? -eq 0 ]] || { cat ${DIST_DIR}/test_stdout.txt ; exit 1; }
 
 if [[ "${DTEST_SPLIT_CHUNK}" =~ ^[0-9]+/[0-9]+$ ]]; then
@@ -159,11 +156,16 @@ elif [[ "x" != "x${DTEST_SPLIT_CHUNK}" ]] ; then
 else
     SPLIT_TESTS=$(cat ${DIST_DIR}/test_list.txt)
 fi
+SPLIT_TESTS="${SPLIT_TESTS//$'\n'/ }"
 
 pytest_results_file="${DIST_DIR}/test/output/nosetests.xml"
 pytest_opts="-vv --log-cli-level=DEBUG --junit-xml=${pytest_results_file} --junit-prefix=${DTEST_TARGET} -s"
 
-pytest ${pytest_opts} --cassandra-dir=${CASSANDRA_DIR} --keep-failed-test-dir ${DTEST_ARGS} ${SPLIT_TESTS} 2>&1 | tee -a ${DIST_DIR}/test_stdout.txt
+echo ""
+echo "pytest ${pytest_opts} --cassandra-dir=${CASSANDRA_DIR} --keep-failed-test-dir ${DTEST_ARGS} ${SPLIT_TESTS}" 
+echo ""
+
+pytest ${pytest_opts}  --cassandra-dir=${CASSANDRA_DIR} --keep-failed-test-dir ${DTEST_ARGS} ${SPLIT_TESTS} 2>&1 | tee -a ${DIST_DIR}/test_stdout.txt
 
 # tar up any ccm logs for easy retrieval
 if ls ${TMPDIR}/*/test/*/logs/* &>/dev/null ; then
