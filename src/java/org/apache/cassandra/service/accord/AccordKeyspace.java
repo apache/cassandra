@@ -235,7 +235,7 @@ public class AccordKeyspace
               + "user_version int,"
               + "record blob,"
               + "PRIMARY KEY(key, descriptor, offset)"
-              + ')')
+              + ") WITH compression = {'class':'NoopCompressor'};")
         .partitioner(new LocalPartitioner(BytesType.instance))
         .build();
 

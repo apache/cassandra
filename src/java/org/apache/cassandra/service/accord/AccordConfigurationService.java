@@ -60,7 +60,6 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Simulate;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
-import org.apache.cassandra.utils.concurrent.Threads;
 
 import static org.apache.cassandra.utils.Simulate.With.MONITORS;
 
