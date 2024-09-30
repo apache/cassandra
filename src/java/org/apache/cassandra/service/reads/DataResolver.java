@@ -266,11 +266,26 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         ResolveContext secondPhaseContext = new ResolveContext(replicas, true);
         PartitionIterator completedPartitions = resolveWithReadRepair(secondPhaseContext,
                                                                       i -> rfp.queryProtectedPartitions(firstPhasePartitions, i),
-                                                                      command.filterForReplicaFilteringProtection(),
+                                                                      preCountFilterForReplicaFilteringProtection(),
                                                                       repairedDataTracker);
 
         // Ensure that the RFP instance has a chance to record metrics when the iterator closes.
         return PartitionIterators.doOnClose(completedPartitions, firstPhasePartitions::close);
+    }
+
+    private  UnaryOperator<PartitionIterator> preCountFilterForReplicaFilteringProtection()
+    {
+        // Key columns are immutable and should never need to participate in replica filtering
+        if (!command.rowFilter().hasNonKeyExpressions())
+            return results -> results;
+
+        return results -> {
+            Index.Searcher searcher = command.indexSearcher();
+            // in case of "ALLOW FILTERING" without index
+            if (searcher == null)
+                return command.rowFilter().filter(results, command.metadata(), command.nowInSec());
+            return searcher.filterReplicaFilteringProtection(results);
+        };
     }
 
     private PartitionIterator resolveInternal(ResolveContext context,

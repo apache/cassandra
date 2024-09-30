@@ -23,7 +23,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.function.LongPredicate;
 import java.util.function.Function;
-import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
@@ -396,21 +395,6 @@ public abstract class ReadCommand extends AbstractReadQuery
         ColumnFamilyStore cfs = Keyspace.openAndGetStore(table);
 
         return cfs.indexManager.getBestIndexQueryPlanFor(rowFilter);
-    }
-
-    public UnaryOperator<PartitionIterator> filterForReplicaFilteringProtection()
-    {
-        // Key columns are immutable and should never need to participate in replica filtering
-        if (!rowFilter().hasNonKeyExpressions())
-            return results -> results;
-
-        return results -> {
-            Index.Searcher searcher = indexSearcher();
-            // in case of "ALLOW FILTERING" without index
-            if (searcher == null)
-                return rowFilter().filter(results, metadata(), nowInSec());
-            return searcher.filterReplicaFilteringProtection(results);
-        };
     }
 
     /**

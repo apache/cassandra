@@ -439,8 +439,7 @@ public class QueryController
         {
             SinglePartitionReadCommand cmd = (SinglePartitionReadCommand) command;
             DecoratedKey key = cmd.partitionKey();
-            DataRange dataRange = new DataRange(new Range<>(key, key), cmd.clusteringIndexFilter());
-            return Lists.newArrayList(dataRange);
+            return Lists.newArrayList(new DataRange(new Range<>(key, key), cmd.clusteringIndexFilter()));
         }
         else if (command instanceof PartitionRangeReadCommand)
         {
