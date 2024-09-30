@@ -20,6 +20,7 @@ package org.apache.cassandra.db.streaming;
 
 import java.util.Collections;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -50,7 +51,7 @@ public class CassandraSreamReceiverTest extends CQLTester
     @BeforeClass
     public static void beforeClass()
     {
-        System.setProperty("cassandra.streaming.requires_cdc_replay", "false");
+        DatabaseDescriptor.setCDCOnRepairEnabled(false);
     }
 
     @Before
@@ -109,15 +110,11 @@ public class CassandraSreamReceiverTest extends CQLTester
     @Test
     public void testRequiresWritePathRepairCDCWithSystemProp()
     {
-        System.setProperty("cassandra.streaming.requires_cdc_replay", "true");
-
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CDC_TABLE);
         when(session.streamOperation()).thenReturn(StreamOperation.REPAIR);
         CassandraStreamReceiver receiver = new CassandraStreamReceiver(cfs, session, Collections.EMPTY_LIST, 1);
-
+        DatabaseDescriptor.setCDCOnRepairEnabled(true);
         assertTrue(receiver.requiresWritePath(cfs));
-
-        System.clearProperty("cassandra.streaming.requires_cdc_replay");
     }
 
     @Test
@@ -128,8 +125,8 @@ public class CassandraSreamReceiverTest extends CQLTester
         CassandraStreamReceiver receiver1 = new CassandraStreamReceiver(cfs, session, Collections.EMPTY_LIST, 1);
         assertFalse(receiver1.requiresWritePath(cfs));
 
-        System.setProperty("cassandra.streaming.requires_cdc_replay", "true");
         CassandraStreamReceiver receiver2 = new CassandraStreamReceiver(cfs, session, Collections.EMPTY_LIST, 1);
+        DatabaseDescriptor.setCDCOnRepairEnabled(true);
         assertTrue(receiver2.requiresWritePath(cfs));
 
     }

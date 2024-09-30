@@ -68,7 +68,7 @@ public class AutoRepairService implements AutoRepairServiceMBean
         if (CassandraRelevantProperties.STREAMING_REQUIRES_VIEW_BUILD_DURING_REPAIR.getBoolean())
             throw new ConfigurationException("Cannot run incremental repair while materialized view replay is enabled.");
 
-        if (CassandraRelevantProperties.STREAMING_REQUIRES_CDC_REPLAY.getBoolean())
+        if (DatabaseDescriptor.isCDCOnRepairEnabled())
             throw new ConfigurationException("Cannot run incremental repair while CDC replay is enabled.");
     }
 
