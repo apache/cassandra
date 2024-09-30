@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.db.compaction;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -32,6 +33,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Ordering;
 
 import accord.local.Cleanup;
+import accord.local.CommandStores;
 import accord.local.CommandStores.RangesForEpoch;
 import accord.local.DurableBefore;
 import accord.local.RedundantBefore;
@@ -43,6 +45,7 @@ import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import org.agrona.collections.Int2ObjectHashMap;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.AbstractCompactionController;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Columns;
@@ -53,6 +56,8 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.partitions.PurgeFunction;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
@@ -73,12 +78,18 @@ import org.apache.cassandra.index.transactions.CompactionTransaction;
 import org.apache.cassandra.index.transactions.IndexTransaction;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.DataInputBuffer;
+import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.journal.KeySupport;
 import org.apache.cassandra.metrics.TopPartitionTracker;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.CompactionParams.TombstoneOption;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.accord.AccordJournalValueSerializers;
+import org.apache.cassandra.service.accord.AccordJournalValueSerializers.FlyweightSerializer;
 import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.service.accord.AccordKeyspace.CommandRows;
 import org.apache.cassandra.service.accord.AccordKeyspace.CommandsColumns;
@@ -86,12 +97,15 @@ import org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeyAccessor
 import org.apache.cassandra.service.accord.AccordKeyspace.TimestampsForKeyRows;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.IAccordService;
+import org.apache.cassandra.service.accord.JournalKey;
+import org.apache.cassandra.service.accord.SavedCommand;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.service.paxos.PaxosRepairHistory;
 import org.apache.cassandra.service.paxos.uncommitted.PaxosRows;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static accord.local.Cleanup.TRUNCATE_WITH_OUTCOME;
+import static accord.local.Cleanup.shouldCleanup;
 import static accord.local.Cleanup.shouldCleanupPartial;
 import static com.google.common.base.Preconditions.checkState;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
@@ -222,7 +236,8 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
             return new AccordCommandsPurger(accordService);
         if (isAccordTimestampsForKey(cfs))
             return new AccordTimestampsForKeyPurger(accordService);
-
+        if (isAccordJournal(cfs))
+            return new AccordJournalPurger(accordService);
         if (isAccordCommandsForKey(cfs))
             return new AccordCommandsForKeyPurger(AccordKeyspace.CommandsForKeysAccessor, accordService);
 
@@ -990,6 +1005,159 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         }
     }
 
+    class AccordJournalPurger extends AbstractPurger
+    {
+        final Int2ObjectHashMap<RedundantBefore> redundantBefores;
+        final Int2ObjectHashMap<CommandStores.RangesForEpoch> ranges;
+        final DurableBefore durableBefore;
+        final ColumnMetadata recordColumn;
+        final ColumnMetadata versionColumn;
+        final KeySupport<JournalKey> keySupport = JournalKey.SUPPORT;
+        final AccordService service;
+
+        JournalKey key = null;
+        Object builder = null;
+        FlyweightSerializer<Object, Object> serializer = null;
+        Object[] lastClustering = null;
+        long maxSeenTimestamp = -1;
+        final int userVersion;
+
+        public AccordJournalPurger(Supplier<IAccordService> serviceSupplier)
+        {
+            service = (AccordService) serviceSupplier.get();
+            // TODO: test serialization version logic
+            userVersion = service.journalConfiguration().userVersion();
+            IAccordService.CompactionInfo compactionInfo = service.getCompactionInfo();
+
+            this.redundantBefores = compactionInfo.redundantBefores;
+            this.ranges = compactionInfo.ranges;
+            this.durableBefore = compactionInfo.durableBefore;
+            ColumnFamilyStore cfs = Keyspace.open(AccordKeyspace.metadata().name).getColumnFamilyStore(AccordKeyspace.JOURNAL);
+            this.recordColumn = cfs.metadata().getColumn(ColumnIdentifier.getInterned("record", false));
+            this.versionColumn = cfs.metadata().getColumn(ColumnIdentifier.getInterned("user_version", false));
+        }
+
+        @SuppressWarnings("unchecked")
+        @Override
+        protected void beginPartition(UnfilteredRowIterator partition)
+        {
+            key = keySupport.deserialize(partition.partitionKey().getKey(), 0, userVersion);
+            serializer = (AccordJournalValueSerializers.FlyweightSerializer<Object, Object>) key.type.serializer;
+            builder = serializer.mergerFor(key);
+            maxSeenTimestamp = -1;
+        }
+
+        @Override
+        protected UnfilteredRowIterator applyToPartition(UnfilteredRowIterator partition)
+        {
+            beginPartition(partition);
+
+            if (partition.isEmpty())
+                return null;
+
+            try
+            {
+                PartitionUpdate.SimpleBuilder newVersion = PartitionUpdate.simpleBuilder(AccordKeyspace.Journal, partition.partitionKey());
+
+                while (partition.hasNext())
+                    applyToRow((Row) partition.next());
+
+                if (key.type != JournalKey.Type.COMMAND_DIFF)
+                {
+                    try (DataOutputBuffer out = DataOutputBuffer.scratchBuffer.get())
+                    {
+                        serializer.reserialize(key, builder, out, userVersion);
+                        newVersion.row(lastClustering)
+                                  .add("record", out.asNewBuffer())
+                                  .add("user_version", userVersion);
+                    }
+                    catch (IOException e)
+                    {
+                        throw new RuntimeException(e);
+                    }
+
+                    return newVersion.build().unfilteredIterator();
+                }
+
+                SavedCommand.Builder commandBuilder = (SavedCommand.Builder) builder;
+
+                // Do not have txnId in selected SSTables; remove
+                if (commandBuilder.txnId() == null)
+                    return newVersion.build().unfilteredIterator();
+
+                RedundantBefore redundantBefore = redundantBefores.get(key.commandStoreId);
+
+                Cleanup cleanup = shouldCleanup(commandBuilder.txnId(), commandBuilder.saveStatus(),
+                                                commandBuilder.durability(), commandBuilder.participants(),
+                                                redundantBefore, durableBefore);
+                switch (cleanup)
+                {
+                    case EXPUNGE:
+                        return null;
+
+                    case EXPUNGE_PARTIAL:
+                        newVersion = PartitionUpdate.simpleBuilder(AccordKeyspace.Journal, partition.partitionKey());
+                        commandBuilder = commandBuilder.expungePartial();
+
+                        newVersion.row(lastClustering)
+                                  .add(recordColumn.name.toString(), commandBuilder.asByteBuffer(userVersion));
+
+                        return newVersion.build().unfilteredIterator();
+
+                    case ERASE:
+                        return PartitionUpdate.fullPartitionDelete(metadata(), partition.partitionKey(), maxSeenTimestamp, nowInSec).unfilteredIterator();
+
+                    case VESTIGIAL:
+                    case INVALIDATE:
+                    case TRUNCATE_WITH_OUTCOME:
+                    case TRUNCATE:
+                        newVersion = PartitionUpdate.simpleBuilder(AccordKeyspace.Journal, partition.partitionKey());
+                        commandBuilder = commandBuilder.saveStatusOnly();
+
+                        newVersion.row(lastClustering)
+                                  .add(recordColumn.name.toString(), commandBuilder.asByteBuffer(userVersion));
+
+                        return newVersion.build().unfilteredIterator();
+
+                    case NO:
+                        return newVersion.build().unfilteredIterator();
+                    default:
+                        throw new IllegalStateException("Unknown cleanup: " + cleanup);}
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
+
+        @Override
+        protected Row applyToRow(Row row)
+        {
+            updateProgress();
+            maxSeenTimestamp = row.primaryKeyLivenessInfo().timestamp();
+            ByteBuffer record = row.getCell(recordColumn).buffer();
+            try (DataInputBuffer in = new DataInputBuffer(record, false))
+            {
+                int userVersion = Int32Type.instance.compose(row.getCell(versionColumn).buffer());
+                serializer.deserialize(key, builder, in, userVersion);
+                lastClustering = row.clustering().getBufferArray();
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
+            return null;
+        }
+
+        @Override
+        protected Row applyToStatic(Row row)
+        {
+            checkState(row.isStatic() && row.isEmpty());
+            return row;
+        }
+    }
+
+
     private static class AbortableUnfilteredPartitionTransformation extends Transformation<UnfilteredRowIterator>
     {
         private final AbortableUnfilteredRowTransformation abortableIter;
@@ -1035,6 +1203,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         return cfs.getKeyspaceName().equals(SchemaConstants.ACCORD_KEYSPACE_NAME) &&
                ImmutableSet.of(AccordKeyspace.COMMANDS,
                                AccordKeyspace.TIMESTAMPS_FOR_KEY,
+                               AccordKeyspace.JOURNAL,
                                AccordKeyspace.COMMANDS_FOR_KEY)
                            .contains(cfs.getTableName());
     }
@@ -1042,6 +1211,11 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
     private static boolean isAccordTable(ColumnFamilyStore cfs, String name)
     {
         return cfs.name.equals(name) && cfs.getKeyspaceName().equals(SchemaConstants.ACCORD_KEYSPACE_NAME);
+    }
+
+    private static boolean isAccordJournal(ColumnFamilyStore cfs)
+    {
+        return isAccordTable(cfs, AccordKeyspace.JOURNAL);
     }
 
     private static boolean isAccordCommands(ColumnFamilyStore cfs)
