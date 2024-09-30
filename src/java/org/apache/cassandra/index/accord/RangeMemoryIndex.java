@@ -145,7 +145,7 @@ public class RangeMemoryIndex
         return TableId.EMPTY_SIZE + range.unsharedHeapSize();
     }
 
-    public NavigableSet<ByteBuffer> search(int storeId, TableId tableId, byte[] start, boolean startInclusive, byte[] end, boolean endInclusive)
+    public synchronized NavigableSet<ByteBuffer> search(int storeId, TableId tableId, byte[] start, boolean startInclusive, byte[] end, boolean endInclusive)
     {
         var rangesToPks = map.get(new Group(storeId, tableId));
         if (rangesToPks == null || rangesToPks.isEmpty())
@@ -171,7 +171,7 @@ public class RangeMemoryIndex
         return map.isEmpty();
     }
 
-    public Segment write(IndexDescriptor id) throws IOException
+    public synchronized Segment write(IndexDescriptor id) throws IOException
     {
         if (map.isEmpty())
             throw new AssertionError("Unable to write empty index");
