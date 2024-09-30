@@ -45,7 +45,7 @@ public class AutoRepairKeyspace
 
     public static final String AUTO_REPAIR_PRIORITY = "auto_repair_priority";
 
-    private static final TableMetadata AutoRepairHistory =
+    public static final TableMetadata AutoRepairHistory =
     parse(AUTO_REPAIR_HISTORY,
           "Auto repair history for each node",
           "CREATE TABLE %s ("
@@ -59,7 +59,7 @@ public class AutoRepairKeyspace
           + "force_repair boolean,"
           + "PRIMARY KEY (repair_type, host_id))");
 
-    private static final TableMetadata AutoRepairPriority =
+    public static final TableMetadata AutoRepairPriority =
     parse(AUTO_REPAIR_PRIORITY,
           "Auto repair priority for each group",
           "CREATE TABLE %s ("

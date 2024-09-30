@@ -54,7 +54,6 @@ public class AutoRepairTest extends CQLTester
     {
         AutoRepair.SLEEP_IF_REPAIR_FINISHES_QUICKLY = new DurationSpec.IntSecondsBound("0s");
         System.clearProperty("cassandra.streaming.requires_view_build_during_repair");
-        System.clearProperty("cassandra.streaming.requires_cdc_replay");
     }
 
     @Test
@@ -76,9 +75,11 @@ public class AutoRepairTest extends CQLTester
     @Test(expected = ConfigurationException.class)
     public void testSetupFailsWhenIREnabledWithCDCReplay()
     {
+        System.setProperty("cassandra.streaming.requires_view_build_during_repair", "false");
+
         DatabaseDescriptor.getAutoRepairConfig().setAutoRepairEnabled(RepairType.incremental, true);
-        System.setProperty("cassandra.streaming.requires_cdc_replay", "true");
         DatabaseDescriptor.setCDCEnabled(true);
+        DatabaseDescriptor.setCDCOnRepairEnabled(true);
 
         AutoRepair instance = new AutoRepair();
         instance.setup();
@@ -89,6 +90,7 @@ public class AutoRepairTest extends CQLTester
     {
         DatabaseDescriptor.getAutoRepairConfig().setAutoRepairEnabled(RepairType.incremental, true);
         System.setProperty("cassandra.streaming.requires_view_build_during_repair", "true");
+        DatabaseDescriptor.setCDCOnRepairEnabled(false);
         AutoRepair instance = new AutoRepair();
         instance.setup();
     }
