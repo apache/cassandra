@@ -185,7 +185,7 @@ public class AccordConfigurationServiceTest
 
         Topology topology1 = new Topology(1, new Shard(AccordTopology.fullRange(TBL1), ID_LIST, ID_SET));
         service.reportTopology(topology1);
-        loadEpoch(1, (epoch, topology, syncStatus, pendingSync, remoteSync, closed, redundant) -> {
+        loadEpoch(1, null, (epoch, cm, topology, syncStatus, pendingSync, remoteSync, closed, redundant) -> {
             Assert.assertEquals(topology1, topology);
             Assert.assertTrue(remoteSync.isEmpty());
         });
@@ -193,7 +193,7 @@ public class AccordConfigurationServiceTest
 
         service.receiveRemoteSyncComplete(ID1, 1);
         service.receiveRemoteSyncComplete(ID2, 1);
-        loadEpoch(1, (epoch, topology, syncStatus, pendingSync, remoteSync, closed, redundant) -> {
+        loadEpoch(1, null, (epoch, cm, topology, syncStatus, pendingSync, remoteSync, closed, redundant) -> {
             Assert.assertEquals(topology1, topology);
             Assert.assertEquals(Sets.newHashSet(ID1, ID2), remoteSync);
         });

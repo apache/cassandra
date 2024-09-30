@@ -37,6 +37,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -137,7 +138,6 @@ import org.apache.cassandra.service.accord.serializers.AccordRoutingKeyByteSourc
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import org.apache.cassandra.service.accord.serializers.CommandsForKeySerializer;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
-import org.apache.cassandra.service.accord.serializers.TopologySerializers;
 import org.apache.cassandra.utils.Clock.Global;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.btree.BTree;
@@ -264,7 +264,6 @@ public class AccordKeyspace
     public static class LocalVersionedSerializers
     {
         static final LocalVersionedSerializer<StoreParticipants> participants = localSerializer(CommandSerializers.participants);
-        static final LocalVersionedSerializer<Topology> topology = localSerializer(TopologySerializers.topology);
 
         private static <T> LocalVersionedSerializer<T> localSerializer(IVersionedSerializer<T> serializer)
         {
@@ -708,7 +707,6 @@ public class AccordKeyspace
               "accord topologies",
               "CREATE TABLE %s (" +
               "epoch bigint primary key, " +
-              "topology blob, " +
               "sync_state int, " +
               "pending_sync_notify set<int>, " + // nodes that need to be told we're synced
               "remote_sync_complete set<int>, " +  // nodes that have told us they're synced
@@ -1387,22 +1385,7 @@ public class AccordKeyspace
 
     public static EpochDiskState saveTopology(Topology topology, EpochDiskState diskState)
     {
-        diskState = maybeUpdateMaxEpoch(diskState, topology.epoch());
-
-        try
-        {
-            String cql = "UPDATE " + ACCORD_KEYSPACE_NAME + '.' + TOPOLOGIES + ' ' +
-                         "SET topology=? WHERE epoch=?";
-            executeInternal(cql,
-                            serialize(topology, LocalVersionedSerializers.topology), topology.epoch());
-            flush(Topologies);
-        }
-        catch (IOException e)
-        {
-            throw new UncheckedIOException(e);
-        }
-
-        return diskState;
+        return maybeUpdateMaxEpoch(diskState, topology.epoch());
     }
 
     public static EpochDiskState markRemoteTopologySync(Node.Id node, long epoch, EpochDiskState diskState)
@@ -1487,21 +1470,26 @@ public class AccordKeyspace
 
     public interface TopologyLoadConsumer
     {
-        void load(long epoch, Topology topology, SyncStatus syncStatus, Set<Node.Id> pendingSyncNotify, Set<Node.Id> remoteSyncComplete, Ranges closed, Ranges redundant);
+        void load(long epoch, ClusterMetadata metadata, Topology topology, SyncStatus syncStatus, Set<Node.Id> pendingSyncNotify, Set<Node.Id> remoteSyncComplete, Ranges closed, Ranges redundant);
     }
 
     @VisibleForTesting
-    public static void loadEpoch(long epoch, TopologyLoadConsumer consumer) throws IOException
+    public static void loadEpoch(long epoch, ClusterMetadata metadata, TopologyLoadConsumer consumer) throws IOException
     {
+        Topology topology = AccordTopology.createAccordTopology(metadata);
+
         String cql = "SELECT * FROM " + ACCORD_KEYSPACE_NAME + '.' + TOPOLOGIES + ' ' +
                      "WHERE epoch=?";
 
         UntypedResultSet result = executeInternal(cql, epoch);
+        if (result.isEmpty())
+        {
+            // topology updates disk state for epoch but doesn't save the topology to the table, so there maybe an epoch we know about, but no fields are present
+            consumer.load(epoch, metadata, topology, SyncStatus.NOT_STARTED, Collections.emptySet(), Collections.emptySet(), Ranges.EMPTY, Ranges.EMPTY);
+            return;
+        }
         checkState(!result.isEmpty(), "Nothing found for epoch %d", epoch);
         UntypedResultSet.Row row = result.one();
-        Topology topology = row.has("topology")
-                            ? deserialize(row.getBytes("topology"), LocalVersionedSerializers.topology)
-                            : null;
 
         SyncStatus syncStatus = row.has("sync_state")
                                 ? SyncStatus.values()[row.getInt("sync_state")]
@@ -1515,7 +1503,7 @@ public class AccordKeyspace
         Ranges closed = row.has("closed") ? blobMapToRanges(row.getMap("closed", BytesType.instance, BytesType.instance)) : Ranges.EMPTY;
         Ranges redundant = row.has("redundant") ? blobMapToRanges(row.getMap("redundant", BytesType.instance, BytesType.instance)) : Ranges.EMPTY;
 
-        consumer.load(epoch, topology, syncStatus, pendingSyncNotify, remoteSyncComplete, closed, redundant);
+        consumer.load(epoch, metadata, topology, syncStatus, pendingSyncNotify, remoteSyncComplete, closed, redundant);
     }
 
     public static EpochDiskState loadTopologies(TopologyLoadConsumer consumer)
@@ -1526,8 +1514,8 @@ public class AccordKeyspace
             if (diskState == null)
                 return EpochDiskState.EMPTY;
 
-            for (long epoch=diskState.minEpoch; epoch<=diskState.maxEpoch; epoch++)
-                loadEpoch(epoch, consumer);
+            for (ClusterMetadata metadata : AccordService.tcmLoadRange(diskState.minEpoch, diskState.maxEpoch))
+                loadEpoch(metadata.epoch.getEpoch(), metadata, consumer);
 
             return diskState;
         }
