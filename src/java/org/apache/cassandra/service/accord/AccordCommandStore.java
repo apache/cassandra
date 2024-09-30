@@ -29,6 +29,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.IntFunction;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -40,7 +41,6 @@ import accord.api.DataStore;
 import accord.api.LocalListeners;
 import accord.api.ProgressLog;
 import accord.api.RoutingKey;
-import accord.local.cfk.CommandsForKey;
 import accord.impl.TimestampsForKey;
 import accord.local.Cleanup;
 import accord.local.Command;
@@ -54,6 +54,7 @@ import accord.local.PreLoadContext;
 import accord.local.RedundantBefore;
 import accord.local.SafeCommand;
 import accord.local.SafeCommandStore;
+import accord.local.cfk.CommandsForKey;
 import accord.primitives.Deps;
 import accord.primitives.Participants;
 import accord.primitives.Ranges;
@@ -87,7 +88,6 @@ import static accord.primitives.Status.PreApplied;
 import static accord.primitives.Status.Stable;
 import static accord.primitives.Status.Truncated;
 import static accord.utils.Invariants.checkState;
-import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 
 public class AccordCommandStore extends CommandStore implements CacheSize
 {
@@ -133,7 +133,8 @@ public class AccordCommandStore extends CommandStore implements CacheSize
                               LocalListeners.Factory listenerFactory,
                               EpochUpdateHolder epochUpdateHolder,
                               IJournal journal,
-                              AccordStateCacheMetrics cacheMetrics)
+                              AccordStateCacheMetrics cacheMetrics,
+                              ExecutorService executor)
     {
         this(id,
              time,
@@ -143,6 +144,7 @@ public class AccordCommandStore extends CommandStore implements CacheSize
              listenerFactory,
              epochUpdateHolder,
              journal,
+             executor,
              Stage.READ.executor(),
              Stage.MUTATION.executor(),
              cacheMetrics);
@@ -215,7 +217,6 @@ public class AccordCommandStore extends CommandStore implements CacheSize
         event.update();
     }
 
-    @VisibleForTesting
     public AccordCommandStore(int id,
                               NodeTimeService time,
                               Agent agent,
@@ -224,6 +225,7 @@ public class AccordCommandStore extends CommandStore implements CacheSize
                               LocalListeners.Factory listenerFactory,
                               EpochUpdateHolder epochUpdateHolder,
                               IJournal journal,
+                              ExecutorService commandStoreExecutor,
                               ExecutorPlus loadExecutor,
                               ExecutorPlus saveExecutor,
                               AccordStateCacheMetrics cacheMetrics)
@@ -231,7 +233,7 @@ public class AccordCommandStore extends CommandStore implements CacheSize
         super(id, time, agent, dataStore, progressLogFactory, listenerFactory, epochUpdateHolder);
         this.journal = journal;
         loggingId = String.format("[%s]", id);
-        executor = executorFactory().sequential(CommandStore.class.getSimpleName() + '[' + id + ']');
+        executor = commandStoreExecutor;
         threadId = getThreadId(executor);
         stateCache = new AccordStateCache(loadExecutor, saveExecutor, 8 << 20, cacheMetrics);
         commandCache =
@@ -275,10 +277,10 @@ public class AccordCommandStore extends CommandStore implements CacheSize
         executor.execute(() -> CommandStore.register(this));
     }
 
-    static Factory factory(AccordJournal journal, AccordStateCacheMetrics cacheMetrics)
+    static Factory factory(AccordJournal journal, AccordStateCacheMetrics cacheMetrics, IntFunction<ExecutorService> executorFactory)
     {
         return (id, time, agent, dataStore, progressLogFactory, listenerFactory, rangesForEpoch) ->
-               new AccordCommandStore(id, time, agent, dataStore, progressLogFactory, listenerFactory, rangesForEpoch, journal, cacheMetrics);
+               new AccordCommandStore(id, time, agent, dataStore, progressLogFactory, listenerFactory, rangesForEpoch, journal, cacheMetrics, executorFactory.apply(id));
     }
 
     public CommandsForRangesLoader diskCommandsForRanges()
@@ -570,15 +572,6 @@ public class AccordCommandStore extends CommandStore implements CacheSize
     @Override
     public void shutdown()
     {
-        executor.shutdown();
-        try
-        {
-            executor.awaitTermination(20, TimeUnit.SECONDS);
-        }
-        catch (InterruptedException t)
-        {
-            throw new RuntimeException("Could not shut down command store " + this);
-        }
     }
 
     public void registerHistoricalTransactions(Deps deps, SafeCommandStore safeStore)

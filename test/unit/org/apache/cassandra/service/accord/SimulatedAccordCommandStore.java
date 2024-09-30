@@ -81,6 +81,7 @@ import org.apache.cassandra.utils.Generators;
 import org.apache.cassandra.utils.Pair;
 import org.assertj.core.api.Assertions;
 
+import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 import static org.apache.cassandra.schema.SchemaConstants.ACCORD_KEYSPACE_NAME;
 import static org.apache.cassandra.utils.AccordGenerators.fromQT;
@@ -179,7 +180,8 @@ public class SimulatedAccordCommandStore implements AutoCloseable
                                             }),
                                             updateHolder,
                                             journal,
-                                            new AccordStateCacheMetrics("test"));
+                                            new AccordStateCacheMetrics("test"),
+                                            executorFactory().sequential(CommandStore.class.getSimpleName() + '[' + 0 + ']'));
 
         store.cache().instances().forEach(i -> {
             i.register(new AccordStateCache.Listener()
