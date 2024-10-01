@@ -121,7 +121,7 @@ public class AcceptSerializers
                     CommandSerializers.ballot.serialize(reply.supersededBy, out, version);
                     break;
                 case Redundant:
-                    int flags = 5 | (reply.supersededBy == null ? 0x8 : 0) | (reply.committedExecuteAt == null ? 0x10 : 0);
+                    int flags = 5 | (reply.supersededBy != null ? 0x8 : 0) | (reply.committedExecuteAt != null ? 0x10 : 0);
                     out.writeByte(flags);
                     if (reply.supersededBy != null)
                         CommandSerializers.ballot.serialize(reply.supersededBy, out, version);
