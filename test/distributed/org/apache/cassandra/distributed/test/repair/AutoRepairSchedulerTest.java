@@ -21,12 +21,13 @@ package org.apache.cassandra.distributed.test.repair;
 import java.io.IOException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.UUID;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -80,6 +81,13 @@ public class AutoRepairSchedulerTest extends TestBaseImpl
 
         cluster.schemaChange("CREATE KEYSPACE IF NOT EXISTS " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 3};");
         cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (pk int, ck text, v1 int, v2 int, PRIMARY KEY (pk, ck)) WITH read_repair='NONE'"));
+        DatabaseDescriptor.setCDCOnRepairEnabled(false);
+    }
+
+    @AfterClass
+    public static void afterClass()
+    {
+        System.clearProperty("cassandra.streaming.requires_view_build_during_repair");
     }
 
     @Test
