@@ -39,7 +39,9 @@ public class ShardManagerNoDisks implements ShardManager
      */
     final double[] localRangePositions;
 
-    public ShardManagerNoDisks(ColumnFamilyStore.VersionedLocalRanges localRanges)
+    private final double minimumPerPartitionSpan;
+
+    public ShardManagerNoDisks(ColumnFamilyStore.VersionedLocalRanges localRanges, long estimatedPartitionCount)
     {
         this.localRanges = localRanges;
         double position = 0;
@@ -51,6 +53,7 @@ public class ShardManagerNoDisks implements ShardManager
             position += span;
             localRangePositions[i] = position;
         }
+        minimumPerPartitionSpan = localSpaceCoverage() / Math.max(1, estimatedPartitionCount);
     }
 
     public boolean isOutOfDate(long ringVersion)
@@ -89,6 +92,11 @@ public class ShardManagerNoDisks implements ShardManager
     public double shardSetCoverage()
     {
         return localSpaceCoverage();
+    }
+
+    public double minimumPerPartitionSpan()
+    {
+        return minimumPerPartitionSpan;
     }
 
     @Override
