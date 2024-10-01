@@ -284,45 +284,78 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     @Override
     public void upsertRedundantBefore(RedundantBefore addRedundantBefore)
     {
-        // TODO (now): this is a temporary measure, see comment on AccordJournalValueSerializers; upsert instead
+        // TODO (required): this is a temporary measure, see comment on AccordJournalValueSerializers; upsert instead
         //  when modifying, only modify together with AccordJournalValueSerializers
-        ensureFieldUpdates().redundantBefore = RedundantBefore.merge(commandStore.redundantBefore(), addRedundantBefore);
-        super.upsertRedundantBefore(addRedundantBefore);
+        ensureFieldUpdates().newRedundantBefore = ensureFieldUpdates().addRedundantBefore = RedundantBefore.merge(redundantBefore(), addRedundantBefore);
     }
 
     @Override
     public void setBootstrapBeganAt(NavigableMap<TxnId, Ranges> newBootstrapBeganAt)
     {
-        ensureFieldUpdates().bootstrapBeganAt = newBootstrapBeganAt;
-        super.setBootstrapBeganAt(newBootstrapBeganAt);
+        ensureFieldUpdates().newBootstrapBeganAt = newBootstrapBeganAt;
     }
 
     @Override
     public void upsertDurableBefore(DurableBefore addDurableBefore)
     {
-        ensureFieldUpdates().durableBefore = addDurableBefore;
-        super.upsertDurableBefore(addDurableBefore);
+        ensureFieldUpdates().addDurableBefore = addDurableBefore;
     }
 
     @Override
     public void setSafeToRead(NavigableMap<Timestamp, Ranges> newSafeToRead)
     {
-        ensureFieldUpdates().safeToRead = newSafeToRead;
-        super.setSafeToRead(newSafeToRead);
+        ensureFieldUpdates().newSafeToRead = newSafeToRead;
     }
 
     @Override
     public void setRangesForEpoch(CommandStores.RangesForEpoch rangesForEpoch)
     {
-        ensureFieldUpdates().rangesForEpoch = rangesForEpoch.snapshot();
-        super.setRangesForEpoch(rangesForEpoch);
+        ensureFieldUpdates().newRangesForEpoch = rangesForEpoch.snapshot();
         ranges = rangesForEpoch;
+    }
+
+    @Override
+    public NavigableMap<TxnId, Ranges> bootstrapBeganAt()
+    {
+        if (fieldUpdates != null && fieldUpdates.newBootstrapBeganAt != null)
+            return fieldUpdates.newBootstrapBeganAt;
+
+        return super.bootstrapBeganAt();
+    }
+
+    @Override
+    public NavigableMap<Timestamp, Ranges> safeToReadAt()
+    {
+        if (fieldUpdates != null && fieldUpdates.newSafeToRead != null)
+            return fieldUpdates.newSafeToRead;
+
+        return super.safeToReadAt();
+    }
+
+    @Override
+    public RedundantBefore redundantBefore()
+    {
+        if (fieldUpdates != null && fieldUpdates.newRedundantBefore != null)
+            return fieldUpdates.newRedundantBefore;
+
+        return super.redundantBefore();
+    }
+
+    @Override
+    public DurableBefore durableBefore()
+    {
+        if (fieldUpdates != null && fieldUpdates.newDurableBefore != null)
+            return fieldUpdates.newDurableBefore;
+
+        return super.durableBefore();
     }
 
     @Override
     protected void registerHistoricalTransactions(Deps deps)
     {
-        ensureFieldUpdates().historicalTransactions = deps;
+        ensureFieldUpdates().addHistoricalTransactions = deps;
+        // TODO (required): it is potentially unsafe to propagate this synchronously, as if we fail to write to the journal we may be in an inconsistent state
+        //     however, we can and should retire the concept of historical transactions in favour of ExclusiveSyncPoints ensuring their deps are known
         super.registerHistoricalTransactions(deps);
     }
 
@@ -337,13 +370,34 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
         return fieldUpdates;
     }
 
+    public void postExecute()
+    {
+        if (fieldUpdates == null)
+            return;
+
+        if (fieldUpdates.newRedundantBefore != null)
+            super.unsafeSetRedundantBefore(fieldUpdates.newRedundantBefore);
+
+        if (fieldUpdates.newDurableBefore != null)
+            super.unsafeSetDurableBefore(fieldUpdates.newDurableBefore);
+
+        if (fieldUpdates.newBootstrapBeganAt != null)
+            super.setBootstrapBeganAt(fieldUpdates.newBootstrapBeganAt);
+
+        if (fieldUpdates.newSafeToRead != null)
+            super.setSafeToRead(fieldUpdates.newSafeToRead);
+
+        if (fieldUpdates.newRangesForEpoch != null)
+            super.setRangesForEpoch(ranges);
+    }
+
     public static class FieldUpdates
     {
-        public RedundantBefore redundantBefore;
-        public DurableBefore durableBefore;
-        public NavigableMap<TxnId, Ranges> bootstrapBeganAt;
-        public NavigableMap<Timestamp, Ranges> safeToRead;
-        public RangesForEpoch.Snapshot rangesForEpoch;
-        public Deps historicalTransactions;
+        public RedundantBefore addRedundantBefore, newRedundantBefore;
+        public DurableBefore addDurableBefore, newDurableBefore;
+        public NavigableMap<TxnId, Ranges> newBootstrapBeganAt;
+        public NavigableMap<Timestamp, Ranges> newSafeToRead;
+        public RangesForEpoch.Snapshot newRangesForEpoch;
+        public Deps addHistoricalTransactions;
     }
 }

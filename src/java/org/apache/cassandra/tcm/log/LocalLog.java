@@ -300,6 +300,11 @@ public abstract class LocalLog implements Closeable
         assert metadata.epoch.is(Epoch.FIRST) : String.format("Epoch: %s. CMS: %s", metadata.epoch, metadata.fullCMSMembers());
     }
 
+    public LogStorage storage()
+    {
+        return storage;
+    }
+
     public ClusterMetadata metadata()
     {
         return committed.get();

@@ -23,7 +23,6 @@ import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.StandardOpenOption;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.concurrent.locks.LockSupport;
 
@@ -45,7 +44,8 @@ final class ActiveSegment<K, V> extends Segment<K, V>
     private final OpOrder appendOrder = new OpOrder();
 
     // position in the buffer we are allocating from
-    private final AtomicInteger allocatePosition = new AtomicInteger(0);
+    private volatile int allocateOffset = 0;
+    private static final AtomicIntegerFieldUpdater<ActiveSegment> allocateOffsetUpdater = AtomicIntegerFieldUpdater.newUpdater(ActiveSegment.class, "allocateOffset");
 
     /*
      * Everything before this offset has been written and flushed.
@@ -100,6 +100,11 @@ final class ActiveSegment<K, V> extends Segment<K, V>
     InMemoryIndex<K> index()
     {
         return index;
+    }
+
+    boolean isEmpty()
+    {
+        return allocateOffset == 0;
     }
 
     @Override
@@ -258,8 +263,8 @@ final class ActiveSegment<K, V> extends Segment<K, V>
 
     boolean shouldFlush()
     {
-        int allocatePosition = this.allocatePosition.get();
-        return lastFlushedOffset < allocatePosition;
+        int allocateOffset = this.allocateOffset;
+        return lastFlushedOffset < allocateOffset;
     }
 
     public boolean isFlushed(long position)
@@ -279,18 +284,18 @@ final class ActiveSegment<K, V> extends Segment<K, V>
      */
     synchronized int flush(boolean fsync)
     {
-        int allocatePosition = this.allocatePosition.get();
-        if (lastFlushedOffset >= allocatePosition)
+        int allocateOffset = this.allocateOffset;
+        if (lastFlushedOffset >= allocateOffset)
             return lastFlushedOffset;
 
         waitForModifications();
         if (fsync)
         {
             fsyncInternal();
-            lastFsyncOffsetUpdater.accumulateAndGet(this, allocatePosition, Math::max);
+            lastFsyncOffsetUpdater.accumulateAndGet(this, allocateOffset, Math::max);
         }
-        lastFlushedOffset = allocatePosition;
-        int syncedOffset = Math.min(allocatePosition, endOfBuffer);
+        lastFlushedOffset = allocateOffset;
+        int syncedOffset = Math.min(allocateOffset, endOfBuffer);
         syncedOffsets.mark(syncedOffset, fsync);
         flushComplete.signalAll();
         return syncedOffset;
@@ -343,7 +348,8 @@ final class ActiveSegment<K, V> extends Segment<K, V>
 
     boolean isFullyFlushed()
     {
-        return lastFsyncOffset >= allocatePosition.get();
+        int allocateOffset = this.allocateOffset;
+        return lastFsyncOffset >= allocateOffset;
     }
 
     /**
@@ -358,7 +364,7 @@ final class ActiveSegment<K, V> extends Segment<K, V>
         {
             while (true)
             {
-                int prev = allocatePosition.get();
+                int prev = allocateOffset;
                 int next = endOfBuffer + 1;
 
                 if (prev >= next)
@@ -368,7 +374,7 @@ final class ActiveSegment<K, V> extends Segment<K, V>
                     return false;
                 }
 
-                if (allocatePosition.compareAndSet(prev, next))
+                if (allocateOffsetUpdater.compareAndSet(this, prev, next))
                 {
                     // stopped allocating now; can only succeed once, no further allocation or discardUnusedTail can succeed
                     endOfBuffer = prev;
@@ -416,11 +422,11 @@ final class ActiveSegment<K, V> extends Segment<K, V>
     {
         while (true)
         {
-            int prev = allocatePosition.get();
+            int prev = allocateOffset;
             int next = prev + size;
             if (next >= endOfBuffer)
                 return -1;
-            if (allocatePosition.compareAndSet(prev, next))
+            if (allocateOffsetUpdater.compareAndSet(this, prev, next))
             {
                 assert buffer != null;
                 return prev;

@@ -29,13 +29,13 @@ import java.util.function.ToLongFunction;
 import java.util.stream.Stream;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.utils.IntrusiveLinkedList;
 import accord.utils.Invariants;
 import accord.utils.async.AsyncChains;
+import org.agrona.collections.Int2ObjectHashMap;
 import org.apache.cassandra.cache.CacheSize;
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.metrics.AccordStateCacheMetrics;
@@ -90,7 +90,9 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
         }
     }
 
-    private ImmutableList<Instance<?, ?, ?>> instances = ImmutableList.of();
+    // TODO (required): cleanup on drop table, or else share between command stores
+    private Int2ObjectHashMap<Instance<?, ?, ?>> instances = new Int2ObjectHashMap<>();
+    private int nextIndex;
 
     private final ExecutorPlus loadExecutor, saveExecutor;
 
@@ -243,13 +245,14 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
         ToLongFunction<V> heapEstimator,
         AccordCachingState.Factory<K, V> nodeFactory)
     {
-        int index = instances.size();
-
+        int index = ++nextIndex;
 
         Instance<K, V, S> instance =
             new Instance<>(index, keyClass, safeRefFactory, loadFunction, saveFunction, validateFunction, heapEstimator, nodeFactory);
 
-        instances = ImmutableList.<Instance<?, ?, ?>>builder().addAll(instances).add(instance).build();
+        Int2ObjectHashMap<Instance<?, ?, ?>> newInstances = new Int2ObjectHashMap<>(instances);
+        newInstances.put(index, instance);
+        instances = newInstances;
 
         return instance;
     }
@@ -268,7 +271,7 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
 
     public Collection<Instance<?, ? ,? >> instances()
     {
-        return instances;
+        return instances.values();
     }
 
     public interface Listener<K, V>
@@ -701,7 +704,7 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
     {
         bytesCached = 0;
         metrics.reset();;
-        instances.forEach(instance -> {
+        instances.values().forEach(instance -> {
             instance.cache.forEach((k, v) -> Invariants.checkState(v.references == 0));
             instance.cache.clear();
             instance.bytesCached = 0;
@@ -739,7 +742,7 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
     private int cacheSize()
     {
         int size = 0;
-        for (Instance<?, ?, ?> instance : instances)
+        for (Instance<?, ?, ?> instance : instances.values())
             size += instance.cache.size();
         return size;
     }

@@ -20,6 +20,7 @@ package org.apache.cassandra.tcm.log;
 
 import java.io.IOException;
 import java.util.Comparator;
+import java.util.Iterator;
 import java.util.List;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -193,6 +194,11 @@ public interface LogReader
                 prev = e.epoch;
             }
             return true;
+        }
+
+        public Iterator<Entry> iterator()
+        {
+            return entries.iterator();
         }
 
         private ImmutableList<Entry> immutable()

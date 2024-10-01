@@ -18,8 +18,10 @@
 
 package org.apache.cassandra.tcm;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
@@ -30,8 +32,10 @@ import com.google.common.collect.ImmutableList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LocalLog;
+import org.apache.cassandra.tcm.log.LogReader;
 import org.apache.cassandra.tcm.log.LogState;
 import org.apache.cassandra.tcm.log.LogStorage;
 
@@ -76,9 +80,31 @@ public class AtomicLongBackedProcessor extends AbstractLocalProcessor
         return log.waitForHighestConsecutive();
     }
 
+    @Override
     public LogState reconstruct(Epoch lowEpoch, Epoch highEpoch, Retry.Deadline retryPolicy)
     {
-        return log.getLocalEntries(lowEpoch);
+        try
+        {
+            LogReader.EntryHolder state = log.storage().getEntries(Epoch.EMPTY, highEpoch);
+            ClusterMetadata metadata = new ClusterMetadata(DatabaseDescriptor.getPartitioner());
+
+            Iterator<Entry> iter = state.iterator();
+            ImmutableList.Builder<Entry> rest = new ImmutableList.Builder<>();
+            while (iter.hasNext())
+            {
+                Entry current = iter.next();
+                if (current.epoch.isEqualOrBefore(lowEpoch))
+                    metadata = current.transform.execute(metadata).success().metadata;
+                else
+                    rest.add(current);
+            }
+
+            return new LogState(metadata, rest.build());
+        }
+        catch (IOException t)
+        {
+            throw new RuntimeException(t);
+        }
     }
 
     public static class InMemoryStorage implements LogStorage
@@ -133,12 +159,37 @@ public class AtomicLongBackedProcessor extends AbstractLocalProcessor
         @Override
         public synchronized EntryHolder getEntries(Epoch since)
         {
-            throw new IllegalStateException("We have overridden all callers of this method, it should never be called");
+            EntryHolder entryHolder = new EntryHolder(since);
+            entries.stream().filter(e -> e.epoch.isAfter(since)).forEach(entryHolder::add);
+            return entryHolder;
         }
 
-        public EntryHolder getEntries(Epoch since, Epoch until)
+        @Override
+        public synchronized EntryHolder getEntries(Epoch since, Epoch until)
         {
-            throw new IllegalStateException("We have overridden all callers of this method, it should never be called");
+            EntryHolder entryHolder = new EntryHolder(since);
+            entries.stream().filter(e -> e.epoch.isAfter(since) && e.epoch.isEqualOrBefore(until)).forEach(entryHolder::add);
+            return entryHolder;
+        }
+
+        public LogState getLogState(Epoch start, Epoch end)
+        {
+            EntryHolder state = getEntries(Epoch.EMPTY);
+            ClusterMetadata metadata = new ClusterMetadata(DatabaseDescriptor.getPartitioner());;
+            Iterator<Entry> iter = state.iterator();
+            ImmutableList.Builder<Entry> rest = new ImmutableList.Builder<>();
+            while (iter.hasNext())
+            {
+                Entry current = iter.next();
+                if (current.epoch.isAfter(end))
+                    break;
+                if (current.epoch.isEqualOrBefore(start))
+                    metadata = current.transform.execute(metadata).success().metadata;
+                else
+                    rest.add(current);
+            }
+
+            return new LogState(metadata, rest.build());
         }
     }
 

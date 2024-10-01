@@ -64,14 +64,14 @@ public class AccordCachingState<K, V> extends IntrusiveLinkedListNode
 
     int references = 0;
     int lastQueriedEstimatedSizeOnHeap = 0;
-    final byte index;
+    final int index;
     private boolean shouldUpdateSize;
 
     AccordCachingState(K key, int index)
     {
         this.key = key;
-        Invariants.checkArgument(index >= 0 && index <= Byte.MAX_VALUE);
-        this.index = (byte) index;
+        Invariants.checkArgument(index >= 0);
+        this.index = index;
         //noinspection unchecked
         this.state = (State<K, V>) Uninitialized.instance;
     }
@@ -79,8 +79,7 @@ public class AccordCachingState<K, V> extends IntrusiveLinkedListNode
     private AccordCachingState(K key, int index, State<K, V> state)
     {
         this.key = key;
-        Invariants.checkArgument(index >= 0 && index <= Byte.MAX_VALUE);
-        this.index = (byte) index;
+        this.index = index;
         this.state = state;
     }
 

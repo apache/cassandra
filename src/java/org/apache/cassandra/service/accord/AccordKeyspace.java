@@ -1395,7 +1395,6 @@ public class AccordKeyspace
                      "SET remote_sync_complete = remote_sync_complete + ? WHERE epoch = ?";
         executeInternal(cql,
                         Collections.singleton(node.id), epoch);
-        flush(Topologies);
         return diskState;
     }
 
@@ -1406,7 +1405,6 @@ public class AccordKeyspace
                      "SET closed = closed + ? WHERE epoch = ?";
         executeInternal(cql,
                         KeySerializers.rangesToBlobMap(ranges), epoch);
-        flush(Topologies);
         return diskState;
     }
 

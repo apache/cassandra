@@ -28,7 +28,6 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
-import java.util.function.Function;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -284,7 +283,6 @@ public final class ServerTestUtils
         // log entries is always done by the dedicated log follower thread.
         DatabaseDescriptor.setMetadataSnapshotFrequency(Integer.MAX_VALUE);
 
-        Function<LocalLog, Processor> processorFactory = AtomicLongBackedProcessor::new;
         IPartitioner partitioner = DatabaseDescriptor.getPartitioner();
         Location location = DatabaseDescriptor.getLocator().local();
         boolean addListeners = true;
@@ -292,15 +290,17 @@ public final class ServerTestUtils
         if (!Keyspace.isInitialized())
             Keyspace.setInitialized();
 
+        AtomicLongBackedProcessor.InMemoryStorage storage = new AtomicLongBackedProcessor.InMemoryStorage();
         LocalLog log = LocalLog.logSpec()
                                .withInitialState(initial)
                                .withDefaultListeners(addListeners)
+                               .withStorage(storage)
                                .createLog();
 
         ResettableClusterMetadataService service = new ResettableClusterMetadataService(new UniformRangePlacement(),
                                                                                         MetadataSnapshots.NO_OP,
                                                                                         log,
-                                                                                        processorFactory.apply(log),
+                                                                                        new AtomicLongBackedProcessor(log),
                                                                                         Commit.Replicator.NO_OP,
                                                                                         true);
 

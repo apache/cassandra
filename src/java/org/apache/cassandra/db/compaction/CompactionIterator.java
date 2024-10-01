@@ -32,6 +32,9 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Ordering;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import accord.local.Cleanup;
 import accord.local.CommandStores;
 import accord.local.CommandStores.RangesForEpoch;
@@ -43,6 +46,7 @@ import accord.primitives.Status;
 import accord.primitives.Status.Durability;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
+import accord.utils.Invariants;
 import org.agrona.collections.Int2ObjectHashMap;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
@@ -57,6 +61,7 @@ import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.partitions.PurgeFunction;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
@@ -104,8 +109,9 @@ import org.apache.cassandra.service.paxos.PaxosRepairHistory;
 import org.apache.cassandra.service.paxos.uncommitted.PaxosRows;
 import org.apache.cassandra.utils.TimeUUID;
 
+import static accord.local.Cleanup.ERASE;
+import static accord.local.Cleanup.TRUNCATE;
 import static accord.local.Cleanup.TRUNCATE_WITH_OUTCOME;
-import static accord.local.Cleanup.shouldCleanup;
 import static accord.local.Cleanup.shouldCleanupPartial;
 import static com.google.common.base.Preconditions.checkState;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
@@ -142,7 +148,9 @@ import static org.apache.cassandra.service.accord.AccordKeyspace.deserializeTime
  */
 public class CompactionIterator extends CompactionInfo.Holder implements UnfilteredPartitionIterator
 {
+    private static final Logger logger = LoggerFactory.getLogger(CompactionIterator.class);
     private static final long UNFILTERED_TO_UPDATE_PROGRESS = 100;
+    private static Object[] TRUNCATE_CLUSTERING_VALUE = new Object[] { Long.MAX_VALUE, Integer.MAX_VALUE };
 
     private final OperationType type;
     private final AbstractCompactionController controller;
@@ -801,8 +809,8 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
     class AccordCommandsPurger extends AbstractPurger
     {
         final Int2ObjectHashMap<RedundantBefore> redundantBefores;
+        final Int2ObjectHashMap<DurableBefore> durableBefores;
         final Int2ObjectHashMap<RangesForEpoch> ranges;
-        final DurableBefore durableBefore;
 
         int storeId;
         TxnId txnId;
@@ -812,7 +820,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
             IAccordService.CompactionInfo compactionInfo = accordService.get().getCompactionInfo();
             this.redundantBefores = compactionInfo.redundantBefores;
             this.ranges = compactionInfo.ranges;
-            this.durableBefore = compactionInfo.durableBefore;
+            this.durableBefores = compactionInfo.durableBefores;
         }
 
         protected void beginPartition(UnfilteredRowIterator partition)
@@ -828,6 +836,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
             updateProgress();
 
             RedundantBefore redundantBefore = redundantBefores.get(storeId);
+            DurableBefore durableBefore = durableBefores.get(storeId);
             // TODO (expected): if the store has been retired, this should return null
             if (redundantBefore == null)
                 return row;
@@ -1008,8 +1017,8 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
     class AccordJournalPurger extends AbstractPurger
     {
         final Int2ObjectHashMap<RedundantBefore> redundantBefores;
+        final Int2ObjectHashMap<DurableBefore> durableBefores;
         final Int2ObjectHashMap<CommandStores.RangesForEpoch> ranges;
-        final DurableBefore durableBefore;
         final ColumnMetadata recordColumn;
         final ColumnMetadata versionColumn;
         final KeySupport<JournalKey> keySupport = JournalKey.SUPPORT;
@@ -1021,6 +1030,8 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         Object[] lastClustering = null;
         long maxSeenTimestamp = -1;
         final int userVersion;
+        long lastDescriptor = -1;
+        int lastOffset = -1;
 
         public AccordJournalPurger(Supplier<IAccordService> serviceSupplier)
         {
@@ -1031,7 +1042,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
             this.redundantBefores = compactionInfo.redundantBefores;
             this.ranges = compactionInfo.ranges;
-            this.durableBefore = compactionInfo.durableBefore;
+            this.durableBefores = compactionInfo.durableBefores;
             ColumnFamilyStore cfs = Keyspace.open(AccordKeyspace.metadata().name).getColumnFamilyStore(AccordKeyspace.JOURNAL);
             this.recordColumn = cfs.metadata().getColumn(ColumnIdentifier.getInterned("record", false));
             this.versionColumn = cfs.metadata().getColumn(ColumnIdentifier.getInterned("user_version", false));
@@ -1045,6 +1056,8 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
             serializer = (AccordJournalValueSerializers.FlyweightSerializer<Object, Object>) key.type.serializer;
             builder = serializer.mergerFor(key);
             maxSeenTimestamp = -1;
+            lastDescriptor = -1;
+            lastOffset = -1;
         }
 
         @Override
@@ -1057,13 +1070,17 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
             try
             {
-                PartitionUpdate.SimpleBuilder newVersion = PartitionUpdate.simpleBuilder(AccordKeyspace.Journal, partition.partitionKey());
-
+                List<Row> rows = new ArrayList<>();
                 while (partition.hasNext())
-                    applyToRow((Row) partition.next());
+                {
+                    Row row = (Row) partition.next();
+                    rows.add(row);
+                    collect(row);
+                }
 
                 if (key.type != JournalKey.Type.COMMAND_DIFF)
                 {
+                    PartitionUpdate.SimpleBuilder newVersion = PartitionUpdate.simpleBuilder(AccordKeyspace.Journal, partition.partitionKey());
                     try (DataOutputBuffer out = DataOutputBuffer.scratchBuffer.get())
                     {
                         serializer.reserialize(key, builder, out, userVersion);
@@ -1080,49 +1097,40 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                 }
 
                 SavedCommand.Builder commandBuilder = (SavedCommand.Builder) builder;
-
-                // Do not have txnId in selected SSTables; remove
-                if (commandBuilder.txnId() == null)
-                    return newVersion.build().unfilteredIterator();
+                if (commandBuilder.isEmpty())
+                {
+                    Invariants.checkState(rows.isEmpty());
+                    return partition;
+                }
 
                 RedundantBefore redundantBefore = redundantBefores.get(key.commandStoreId);
+                DurableBefore durableBefore = durableBefores.get(key.commandStoreId);
+                Cleanup cleanup = commandBuilder.shouldCleanup(redundantBefore, durableBefore);
+                if (cleanup == ERASE)
+                    return PartitionUpdate.fullPartitionDelete(metadata(), partition.partitionKey(), maxSeenTimestamp, nowInSec).unfilteredIterator();
 
-                Cleanup cleanup = shouldCleanup(commandBuilder.txnId(), commandBuilder.saveStatus(),
-                                                commandBuilder.durability(), commandBuilder.participants(),
-                                                redundantBefore, durableBefore);
-                switch (cleanup)
+                commandBuilder = commandBuilder.maybeCleanup(cleanup);
+                if (commandBuilder != builder)
                 {
-                    case EXPUNGE:
+                    if (commandBuilder == null)
                         return null;
 
-                    case EXPUNGE_PARTIAL:
-                        newVersion = PartitionUpdate.simpleBuilder(AccordKeyspace.Journal, partition.partitionKey());
-                        commandBuilder = commandBuilder.expungePartial();
+                    PartitionUpdate.SimpleBuilder newVersion = PartitionUpdate.simpleBuilder(AccordKeyspace.Journal, partition.partitionKey());
 
-                        newVersion.row(lastClustering)
-                                  .add(recordColumn.name.toString(), commandBuilder.asByteBuffer(userVersion));
+                    Row.SimpleBuilder rowBuilder;
+                    if (cleanup == TRUNCATE || cleanup == TRUNCATE_WITH_OUTCOME)
+                        rowBuilder = newVersion.row(TRUNCATE_CLUSTERING_VALUE);
+                    else
+                        rowBuilder = newVersion.row(lastClustering);
 
-                        return newVersion.build().unfilteredIterator();
+                    rowBuilder.add("record", commandBuilder.asByteBuffer(userVersion))
+                              .add("user_version", userVersion);
 
-                    case ERASE:
-                        return PartitionUpdate.fullPartitionDelete(metadata(), partition.partitionKey(), maxSeenTimestamp, nowInSec).unfilteredIterator();
+                    return newVersion.build().unfilteredIterator();
+                }
 
-                    case VESTIGIAL:
-                    case INVALIDATE:
-                    case TRUNCATE_WITH_OUTCOME:
-                    case TRUNCATE:
-                        newVersion = PartitionUpdate.simpleBuilder(AccordKeyspace.Journal, partition.partitionKey());
-                        commandBuilder = commandBuilder.saveStatusOnly();
-
-                        newVersion.row(lastClustering)
-                                  .add(recordColumn.name.toString(), commandBuilder.asByteBuffer(userVersion));
-
-                        return newVersion.build().unfilteredIterator();
-
-                    case NO:
-                        return newVersion.build().unfilteredIterator();
-                    default:
-                        throw new IllegalStateException("Unknown cleanup: " + cleanup);}
+                return PartitionUpdate.multiRowUpdate(AccordKeyspace.Journal, partition.partitionKey(), rows)
+                                      .unfilteredIterator();
             }
             catch (IOException e)
             {
@@ -1133,9 +1141,28 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         @Override
         protected Row applyToRow(Row row)
         {
+            return row;
+        }
+
+        protected void collect(Row row)
+        {
             updateProgress();
             maxSeenTimestamp = row.primaryKeyLivenessInfo().timestamp();
             ByteBuffer record = row.getCell(recordColumn).buffer();
+            long descriptor = LongType.instance.compose(row.clustering().getBufferArray()[0]);
+            int offset = Int32Type.instance.compose(row.clustering().getBufferArray()[1]);
+
+            if (lastOffset != -1)
+            {
+                Invariants.checkState(descriptor >= lastDescriptor,
+                                      "Descriptors were accessed out of order: %d was accessed after %d", descriptor, lastDescriptor);
+                Invariants.checkState(descriptor != lastDescriptor ||
+                                      offset > lastOffset,
+                                      "Offsets within %s were accessed out of order: %d was accessed after %s", offset, lastOffset);
+            }
+            lastDescriptor = descriptor;
+            lastOffset = offset;
+
             try (DataInputBuffer in = new DataInputBuffer(record, false))
             {
                 int userVersion = Int32Type.instance.compose(row.getCell(versionColumn).buffer());
@@ -1146,7 +1173,6 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
             {
                 throw new RuntimeException(e);
             }
-            return null;
         }
 
         @Override
@@ -1156,7 +1182,6 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
             return row;
         }
     }
-
 
     private static class AbortableUnfilteredPartitionTransformation extends Transformation<UnfilteredRowIterator>
     {

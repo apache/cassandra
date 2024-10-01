@@ -105,7 +105,7 @@ public class AccordJournalIntegrationTest extends TestBaseImpl
             Object[][] before = cluster.coordinator(1).execute("SELECT * FROM " + TABLE + " WHERE k = ?;", ConsistencyLevel.SERIAL, 1);
 
             cluster.get(1).runOnInstance(() -> {
-                ((AccordService) AccordService.instance()).journal().closeCurrentSegmentForTesting();
+                ((AccordService) AccordService.instance()).journal().closeCurrentSegmentForTestingIfNonEmpty();
             });
             ClusterUtils.stopUnchecked(cluster.get(1));
             cluster.get(1).startup();

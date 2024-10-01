@@ -32,7 +32,7 @@ import accord.primitives.TxnId;
 
 public interface IJournal
 {
-    Command loadCommand(int commandStoreId, TxnId txnId);
+    Command loadCommand(int commandStoreId, TxnId txnId, RedundantBefore redundantBefore, DurableBefore durableBefore);
 
     RedundantBefore loadRedundantBefore(int commandStoreId);
     DurableBefore loadDurableBefore(int commandStoreId);

@@ -52,7 +52,6 @@ import accord.primitives.FullRoute;
 import accord.primitives.Ranges;
 import accord.primitives.Routable;
 import accord.primitives.RoutableKey;
-import accord.primitives.Routables;
 import accord.primitives.RoutingKeys;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
@@ -81,6 +80,7 @@ import org.apache.cassandra.utils.Generators;
 import org.apache.cassandra.utils.Pair;
 import org.assertj.core.api.Assertions;
 
+import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 import static org.apache.cassandra.schema.SchemaConstants.ACCORD_KEYSPACE_NAME;
 import static org.apache.cassandra.utils.AccordGenerators.fromQT;
@@ -109,7 +109,7 @@ public class SimulatedAccordCommandStore implements AutoCloseable
         ExecutorFactory.Global.unsafeSet(globalExecutor);
         Stage.READ.unsafeSetExecutor(unorderedScheduled);
         Stage.MUTATION.unsafeSetExecutor(unorderedScheduled);
-        for (Stage stage : Arrays.asList(Stage.MISC, Stage.ACCORD_MIGRATION))
+        for (Stage stage : Arrays.asList(Stage.MISC, Stage.ACCORD_MIGRATION, Stage.READ, Stage.MUTATION))
             stage.unsafeSetExecutor(globalExecutor.configureSequential("ignore").build());
 
         this.updateHolder = new CommandStore.EpochUpdateHolder();
@@ -152,6 +152,7 @@ public class SimulatedAccordCommandStore implements AutoCloseable
             }
         };
 
+        AccordStateCache stateCache = new AccordStateCache(Stage.READ.executor(), Stage.MUTATION.executor(), 8 << 20, new AccordStateCacheMetrics("test"));
         this.journal = new MockJournal();
         this.store = new AccordCommandStore(0,
                                             timeService,
@@ -179,7 +180,7 @@ public class SimulatedAccordCommandStore implements AutoCloseable
                                             }),
                                             updateHolder,
                                             journal,
-                                            new AccordStateCacheMetrics("test"));
+                                            new AccordCommandStore.CommandStoreExecutor(stateCache, executorFactory().sequential(CommandStore.class.getSimpleName() + '[' + 0 + ']'), Thread.currentThread().getId()));
 
         store.cache().instances().forEach(i -> {
             i.register(new AccordStateCache.Listener()
@@ -211,11 +212,6 @@ public class SimulatedAccordCommandStore implements AutoCloseable
         shouldEvict = boolSource(rs.fork());
         shouldFlush = boolSource(rs.fork());
         shouldCompact = boolSource(rs.fork());
-    }
-
-    public Ranges slice(Ranges ranges)
-    {
-        return ranges.slice(topology.ranges(), Routables.Slice.Minimal);
     }
 
     private static BooleanSupplier boolSource(RandomSource rs)

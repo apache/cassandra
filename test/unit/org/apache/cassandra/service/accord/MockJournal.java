@@ -69,7 +69,7 @@ public class MockJournal implements IJournal
 
     private final Map<Integer, FieldUpdates> fieldUpdates = new HashMap<>();
     @Override
-    public Command loadCommand(int store, TxnId txnId)
+    public Command loadCommand(int store, TxnId txnId, RedundantBefore redundantBefore, DurableBefore durableBefore)
     {
         JournalKey key = new JournalKey(txnId, JournalKey.Type.COMMAND_DIFF, store);
         List<LoadedDiff> saved = commands.get(key);
@@ -137,18 +137,18 @@ public class MockJournal implements IJournal
     public void persistStoreState(int store, AccordSafeCommandStore.FieldUpdates fieldUpdates, Runnable onFlush)
     {
         FieldUpdates updates = fieldUpdates(store);
-        if (fieldUpdates.redundantBefore != null)
-            updates.redundantBeforeAccumulator.update(fieldUpdates.redundantBefore);
-        if (fieldUpdates.durableBefore != null)
-            updates.durableBeforeAccumulator.update(fieldUpdates.durableBefore);
-        if (fieldUpdates.bootstrapBeganAt != null)
-            updates.bootstrapBeganAtAccumulator.update(fieldUpdates.bootstrapBeganAt);
-        if (fieldUpdates.safeToRead != null)
-            updates.safeToReadAccumulator.update(fieldUpdates.safeToRead);
-        if (fieldUpdates.rangesForEpoch != null)
-            updates.rangesForEpochAccumulator.update(fieldUpdates.rangesForEpoch);
-        if (fieldUpdates.historicalTransactions != null)
-            updates.historicalTransactionsAccumulator.update(fieldUpdates.historicalTransactions);
+        if (fieldUpdates.addRedundantBefore != null)
+            updates.redundantBeforeAccumulator.update(fieldUpdates.addRedundantBefore);
+        if (fieldUpdates.addDurableBefore != null)
+            updates.durableBeforeAccumulator.update(fieldUpdates.addDurableBefore);
+        if (fieldUpdates.newBootstrapBeganAt != null)
+            updates.bootstrapBeganAtAccumulator.update(fieldUpdates.newBootstrapBeganAt);
+        if (fieldUpdates.newSafeToRead != null)
+            updates.safeToReadAccumulator.update(fieldUpdates.newSafeToRead);
+        if (fieldUpdates.newRangesForEpoch != null)
+            updates.rangesForEpochAccumulator.update(fieldUpdates.newRangesForEpoch);
+        if (fieldUpdates.addHistoricalTransactions != null)
+            updates.historicalTransactionsAccumulator.update(fieldUpdates.addHistoricalTransactions);
 
         onFlush.run();
     }

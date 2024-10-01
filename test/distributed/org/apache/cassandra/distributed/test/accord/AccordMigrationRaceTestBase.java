@@ -542,15 +542,14 @@ public abstract class AccordMigrationRaceTestBase extends AccordTestBase
                          if (unpauseAfterBatchLogCreatesTransaction)
                          {
                              logger.info("Creating thread to unpause after batchlog creates Accord transaction");
-                             new Thread(() ->
-                                        {
+                             new Thread(() -> {
                                      try
                                      {
                                          // Unpause so it can route incorrectly instead of timing out waiting to fetch the epoch, need the transaction to be created first
                                          // otherwise it will just be routed straight to non-Accord.
                                          logger.info("Spinning waiting on a transaction");
                                          Util.spinUntilTrue(() -> !((AccordService)AccordService.instance()).node().coordinating().isEmpty(), 20);
-                                         logger.info("Foudn transaction, unpausing");
+                                         logger.info("Found transaction, unpausing");
                                          TestChangeListener.instance.unpause();
                                          unpaused.trySuccess(null);
                                      }

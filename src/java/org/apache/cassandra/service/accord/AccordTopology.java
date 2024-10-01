@@ -43,6 +43,7 @@ import org.apache.cassandra.service.accord.api.AccordRoutingKey.SentinelKey;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.service.accord.fastpath.FastPathStrategy;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.NodeId;
@@ -333,6 +334,7 @@ public class AccordTopology
 
         try
         {
+            ClusterMetadataService.instance().fetchLogFromCMS(epoch);
             AccordService.instance().epochReady(epoch).get(DatabaseDescriptor.getTransactionTimeout(MILLISECONDS), MILLISECONDS);
         }
         catch (InterruptedException e)

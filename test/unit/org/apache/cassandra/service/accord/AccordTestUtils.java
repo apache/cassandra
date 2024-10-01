@@ -53,7 +53,6 @@ import accord.local.PreLoadContext;
 import accord.local.SafeCommand;
 import accord.local.SafeCommandStore;
 import accord.local.StoreParticipants;
-import accord.primitives.SaveStatus;
 import accord.primitives.Ballot;
 import accord.primitives.FullKeyRoute;
 import accord.primitives.FullRoute;
@@ -62,8 +61,10 @@ import accord.primitives.PartialDeps;
 import accord.primitives.PartialTxn;
 import accord.primitives.Ranges;
 import accord.primitives.Routable;
+import accord.primitives.SaveStatus;
 import accord.primitives.Seekable;
 import accord.primitives.Seekables;
+import accord.primitives.Status;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
@@ -105,6 +106,7 @@ import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 import static accord.primitives.Routable.Domain.Key;
 import static accord.utils.async.AsyncChains.getUninterruptibly;
 import static java.lang.String.format;
+import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 
 public class AccordTestUtils
 {
@@ -125,6 +127,7 @@ public class AccordTestUtils
             CommonAttributes.Mutable attrs = new CommonAttributes.Mutable(txnId);
             attrs.partialTxn(txn);
             attrs.setParticipants(StoreParticipants.all(route(txn)));
+            attrs.durability(Status.Durability.NotDurable);
             return Command.SerializerSupport.preaccepted(attrs, executeAt, Ballot.ZERO);
         }
 
@@ -401,6 +404,7 @@ public class AccordTestUtils
         AccordJournal journal = new AccordJournal(new AccordSpec.JournalSpec());
         journal.start(null);
 
+        AccordStateCache stateCache = new AccordStateCache(loadExecutor, saveExecutor, 8 << 20, new AccordStateCacheMetrics("test"));
         SingleEpochRanges holder = new SingleEpochRanges(topology.rangesForNode(node));
         AccordCommandStore result = new AccordCommandStore(0,
                                                            time,
@@ -414,9 +418,7 @@ public class AccordTestUtils
                                                            }),
                                                            holder,
                                                            journal,
-                                                           loadExecutor,
-                                                           saveExecutor,
-                                                           new AccordStateCacheMetrics(AccordCommandStores.ACCORD_STATE_CACHE + System.currentTimeMillis()));
+                                                           new AccordCommandStore.CommandStoreExecutor(stateCache, executorFactory().sequential(CommandStore.class.getSimpleName() + '[' + 0 + ']')));
         holder.set(result);
 
         // TODO: CompactionAccordIteratorsTest relies on this
@@ -439,7 +441,7 @@ public class AccordTestUtils
         Node.Id node = new Id(1);
         Topology topology = new Topology(1, new Shard(range, new SortedArrayList<>(new Id[] { node }), Sets.newHashSet(node), Collections.emptySet()));
         AccordCommandStore store = createAccordCommandStore(node, now, topology, loadExecutor, saveExecutor);
-        store.execute(PreLoadContext.empty(), safeStore -> ((AccordCommandStore)safeStore.commandStore()).setCapacity(1 << 20));
+        store.execute(PreLoadContext.empty(), safeStore -> ((AccordCommandStore)safeStore.commandStore()).cache().setCapacity(1 << 20));
         return store;
     }
 

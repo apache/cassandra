@@ -236,6 +236,11 @@ public class Journal<K, V> implements Shutdownable
         compactor.run();
     }
 
+    public Compactor<K, V> compactor()
+    {
+        return compactor;
+    }
+
     /**
      * Cleans up unfinished component files from previous run (metadata and index)
      */
@@ -520,6 +525,8 @@ public class Journal<K, V> implements Shutdownable
         ActiveSegment<K, V>.Allocation alloc;
         while (null == (alloc = segment.allocate(entrySize, hosts)))
         {
+            if (entrySize >= (params.segmentSize() * 3) / 4)
+                throw new IllegalStateException("entrySize " + entrySize + " too large for a segmentSize of " + params.segmentSize());
             // failed to allocate; move to a new segment with enough room
             advanceSegment(segment);
             segment = currentSegment;
@@ -771,6 +778,11 @@ public class Journal<K, V> implements Shutdownable
         swapSegments(current -> current.withNewActiveSegment(activeSegment));
     }
 
+    private void removeEmptySegment(ActiveSegment<K, V> activeSegment)
+    {
+        swapSegments(current -> current.withoutEmptySegment(activeSegment));
+    }
+
     private void replaceCompletedSegment(ActiveSegment<K, V> activeSegment, StaticSegment<K, V> staticSegment)
     {
         swapSegments(current -> current.withCompletedSegment(activeSegment, staticSegment));
@@ -864,13 +876,22 @@ public class Journal<K, V> implements Shutdownable
 
     void closeActiveSegmentAndOpenAsStatic(ActiveSegment<K, V> activeSegment)
     {
+        if (activeSegment.isEmpty())
+        {
+            removeEmptySegment(activeSegment);
+            activeSegment.closeAndDiscard();
+            return;
+        }
+
         closer.execute(new CloseActiveSegmentRunnable(activeSegment));
     }
 
     @VisibleForTesting
-    public void closeCurrentSegmentForTesting()
+    public void closeCurrentSegmentForTestingIfNonEmpty()
     {
         ActiveSegment<K, V> segment = currentSegment;
+        if (segment.isEmpty())
+            return;
         advanceSegment(segment);
         while (!segments().isSwitched(segment))
         {
@@ -966,7 +987,7 @@ public class Journal<K, V> implements Shutdownable
         private StaticSegmentIterator()
         {
             this.segments = selectAndReference(Segment::isStatic);
-            this.readers = new PriorityQueue<>((o1, o2) -> keySupport.compare(o1.key(), o2.key()));
+            this.readers = new PriorityQueue<>();
             for (Segment<K, V> segment : this.segments.all())
             {
                 StaticSegment<K, V> staticSegment = (StaticSegment<K, V>)segment;

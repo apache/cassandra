@@ -420,9 +420,12 @@ public class CompactionAccordIteratorsTest
         Int2ObjectHashMap<RedundantBefore> redundantBefores = new Int2ObjectHashMap<>();
         if (redundantBefore != null)
             redundantBefores.put(commandStore.id(), redundantBefore);
+        Int2ObjectHashMap<DurableBefore> durableBefores = new Int2ObjectHashMap<>();
+        if (durableBefore != null)
+            durableBefores.put(commandStore.id(), durableBefore);
         Int2ObjectHashMap<CommandStores.RangesForEpoch> rangesForEpochs = new Int2ObjectHashMap<>();
         rangesForEpochs.put(commandStore.id(), commandStore.unsafeRangesForEpoch());
-        when(mockAccordService.getCompactionInfo()).thenReturn(new IAccordService.CompactionInfo(redundantBefores, rangesForEpochs, durableBefore));
+        when(mockAccordService.getCompactionInfo()).thenReturn(new IAccordService.CompactionInfo(redundantBefores, rangesForEpochs, durableBefores));
         return mockAccordService;
     }
 
@@ -436,9 +439,9 @@ public class CompactionAccordIteratorsTest
     {
         commandStore.executeBlocking(() -> {
             // clear cache and wait for post-eviction writes to complete
-            long cacheSize = commandStore.capacity();
-            commandStore.setCapacity(0);
-            commandStore.setCapacity(cacheSize);
+            long cacheSize = commandStore.cache().capacity();
+            commandStore.cache().setCapacity(0);
+            commandStore.cache().setCapacity(cacheSize);
             commandStore.cache().awaitSaveResults();
         });
         commands.forceBlockingFlush(FlushReason.UNIT_TESTS);

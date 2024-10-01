@@ -356,7 +356,7 @@ final class OnDiskIndex<K> extends Index<K>
         int low = 0, mid = entryCount, high = mid - 1, result = -1;
         while (low <= high)
         {
-            mid = (low + high) >> 1;
+            mid = (low + high) >>> 1;
             result = compareWithKeyAt(key, mid);
             if (result > 0)
             {
