@@ -853,6 +853,7 @@ public class UnifiedCompactionStrategyTest
         when(ret.getFirst()).thenReturn(first);
         when(ret.getLast()).thenReturn(last);
         when(ret.getInterval()).thenReturn(new Interval<>(first, last, ret));
+        when(ret.estimatedKeys()).thenReturn(ShardManager.PER_PARTITION_SPAN_THRESHOLD * 2);
         when(ret.instanceId()).thenReturn(TimeUUID.Generator.nextTimeUUID(UNIQUE_IDENTIFIER_FACTORY));
         when(ret.compareTo(any())).thenCallRealMethod();
         when(ret.isMarkedSuspect()).thenReturn(false);

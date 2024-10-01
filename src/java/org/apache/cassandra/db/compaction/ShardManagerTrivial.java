@@ -74,6 +74,11 @@ public class ShardManagerTrivial implements ShardManager
         return 1;
     }
 
+    public double minimumPerPartitionSpan()
+    {
+        throw new AssertionError(); // rangeSpanned is overridden and does not call this method
+    }
+
     ShardTracker iterator = new ShardTracker()
     {
         @Override
