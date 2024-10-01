@@ -842,7 +842,7 @@
       <dependency>
         <groupId>net.openhft</groupId>
         <artifactId>chronicle-queue</artifactId>
-        <version>5.23.37</version>
+        <version>5.25ea13</version>
         <exclusions>
           <exclusion>
             <artifactId>tools</artifactId>
@@ -858,7 +858,7 @@
       <dependency>
         <groupId>net.openhft</groupId>
         <artifactId>chronicle-core</artifactId>
-        <version>2.23.36</version>
+        <version>2.25ea13</version>
         <exclusions>
           <exclusion>
             <artifactId>chronicle-analytics</artifactId>
@@ -873,7 +873,7 @@
       <dependency>
         <groupId>net.openhft</groupId>
         <artifactId>chronicle-bytes</artifactId>
-        <version>2.23.33</version>
+        <version>2.25ea9</version>
         <exclusions>
           <exclusion>
             <artifactId>annotations</artifactId>
@@ -884,7 +884,7 @@
       <dependency>
         <groupId>net.openhft</groupId>
         <artifactId>chronicle-wire</artifactId>
-        <version>2.23.39</version>
+        <version>2.25ea12</version>
         <exclusions>
           <exclusion>
             <artifactId>compiler</artifactId>
@@ -900,7 +900,7 @@
       <dependency>
         <groupId>net.openhft</groupId>
         <artifactId>chronicle-threads</artifactId>
-        <version>2.23.25</version>
+        <version>2.25ea6</version>
         <exclusions>
           <exclusion>
               <!-- pulls in affinity-3.23ea1 which pulls in third-party-bom-3.22.4-SNAPSHOT -->
