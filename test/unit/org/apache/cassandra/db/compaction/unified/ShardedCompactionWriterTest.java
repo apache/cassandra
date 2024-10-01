@@ -110,7 +110,7 @@ public class ShardedCompactionWriterTest extends CQLTester
 
         LifecycleTransaction txn = cfs.getTracker().tryModify(cfs.getLiveSSTables(), OperationType.COMPACTION);
 
-        ShardManager boundaries = new ShardManagerNoDisks(ColumnFamilyStore.fullWeightedRange(-1, cfs.getPartitioner()));
+        ShardManager boundaries = new ShardManagerNoDisks(ColumnFamilyStore.fullWeightedRange(-1, cfs.getPartitioner()), 1 << 16);
         ShardedCompactionWriter writer = new ShardedCompactionWriter(cfs, cfs.getDirectories(), txn, txn.originals(), false, boundaries.boundaries(numShards));
 
         int rows = compact(cfs, txn, writer);
@@ -151,7 +151,7 @@ public class ShardedCompactionWriterTest extends CQLTester
 
         final ColumnFamilyStore.VersionedLocalRanges localRanges = cfs.localRangesWeighted();
         final List<Token> diskBoundaries = cfs.getPartitioner().splitter().get().splitOwnedRanges(numDisks, localRanges, false);
-        ShardManager shardManager = new ShardManagerDiskAware(localRanges, diskBoundaries);
+        ShardManager shardManager = new ShardManagerDiskAware(localRanges, diskBoundaries, 1 << 16);
         int rows = compact(1, cfs, shardManager, cfs.getLiveSSTables());
 
         // We must now have one sstable per disk
