@@ -27,6 +27,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Predicate;
 
@@ -500,6 +501,22 @@ public class YamlConfigurationLoaderTest
         Config config = load("cassandra-mtls-backward-compatibility.yaml");
         assertEquals(config.authenticator.class_name, "org.apache.cassandra.auth.AllowAllAuthenticator");
         assertTrue(config.authenticator.parameters.isEmpty());
+    }
+
+    @Test
+    public void testAccordConfig()
+    {
+        Map<String, String> accordSpec = ImmutableMap.of("fast_path_update_delay", "60s",
+                "schedule_durability_frequency", "60s",
+                "durability_txnid_lag", "60s",
+                "shard_durability_cycle", "60s",
+                "global_durability_cycle", "60s");
+        AccordSpec spec = from("accord", accordSpec).accord;
+        assertThat(spec.fast_path_update_delay.to(TimeUnit.NANOSECONDS)).isEqualTo(60000000000L);
+        assertThat(spec.schedule_durability_frequency.to(TimeUnit.NANOSECONDS)).isEqualTo(60000000000L);
+        assertThat(spec.durability_txnid_lag.to(TimeUnit.NANOSECONDS)).isEqualTo(60000000000L);
+        assertThat(spec.shard_durability_cycle.to(TimeUnit.NANOSECONDS)).isEqualTo(60000000000L);
+        assertThat(spec.global_durability_cycle.to(TimeUnit.NANOSECONDS)).isEqualTo(60000000000L);
     }
 
     private static Config fromYaml(Object... values)

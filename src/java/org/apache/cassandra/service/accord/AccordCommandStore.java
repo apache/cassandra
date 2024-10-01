@@ -26,9 +26,11 @@ import java.util.Objects;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.IntFunction;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -40,7 +42,6 @@ import accord.api.DataStore;
 import accord.api.LocalListeners;
 import accord.api.ProgressLog;
 import accord.api.RoutingKey;
-import accord.local.cfk.CommandsForKey;
 import accord.impl.TimestampsForKey;
 import accord.local.Cleanup;
 import accord.local.Command;
@@ -54,6 +55,7 @@ import accord.local.PreLoadContext;
 import accord.local.RedundantBefore;
 import accord.local.SafeCommand;
 import accord.local.SafeCommandStore;
+import accord.local.cfk.CommandsForKey;
 import accord.primitives.Deps;
 import accord.primitives.Participants;
 import accord.primitives.Ranges;
@@ -66,12 +68,10 @@ import accord.utils.Invariants;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
 import org.apache.cassandra.cache.CacheSize;
-import org.apache.cassandra.concurrent.ExecutorPlus;
-import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.concurrent.SequentialExecutorPlus;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Mutation;
-import org.apache.cassandra.metrics.AccordStateCacheMetrics;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.service.accord.async.AsyncOperation;
 import org.apache.cassandra.service.accord.events.CacheEvents;
@@ -87,36 +87,15 @@ import static accord.primitives.Status.PreApplied;
 import static accord.primitives.Status.Stable;
 import static accord.primitives.Status.Truncated;
 import static accord.utils.Invariants.checkState;
-import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 
-public class AccordCommandStore extends CommandStore implements CacheSize
+public class AccordCommandStore extends CommandStore
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordCommandStore.class);
     private static final boolean CHECK_THREADS = CassandraRelevantProperties.TEST_ACCORD_STORE_THREAD_CHECKS_ENABLED.getBoolean();
 
-    private static long getThreadId(ExecutorService executor)
-    {
-        if (!CHECK_THREADS)
-            return 0;
-        try
-        {
-            return executor.submit(() -> Thread.currentThread().getId()).get();
-        }
-        catch (InterruptedException e)
-        {
-            throw new AssertionError(e);
-        }
-        catch (ExecutionException e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private final long threadId;
     public final String loggingId;
     private final IJournal journal;
-    private final ExecutorService executor;
-    private final AccordStateCache stateCache;
+    private final CommandStoreExecutor executor;
     private final AccordStateCache.Instance<TxnId, Command, AccordSafeCommand> commandCache;
     private final AccordStateCache.Instance<RoutingKey, TimestampsForKey, AccordSafeTimestampsForKey> timestampsForKeyCache;
     private final AccordStateCache.Instance<RoutingKey, CommandsForKey, AccordSafeCommandsForKey> commandsForKeyCache;
@@ -124,29 +103,6 @@ public class AccordCommandStore extends CommandStore implements CacheSize
     private AccordSafeCommandStore current = null;
     private long lastSystemTimestampMicros = Long.MIN_VALUE;
     private final CommandsForRangesLoader commandsForRangesLoader;
-
-    public AccordCommandStore(int id,
-                              NodeTimeService time,
-                              Agent agent,
-                              DataStore dataStore,
-                              ProgressLog.Factory progressLogFactory,
-                              LocalListeners.Factory listenerFactory,
-                              EpochUpdateHolder epochUpdateHolder,
-                              IJournal journal,
-                              AccordStateCacheMetrics cacheMetrics)
-    {
-        this(id,
-             time,
-             agent,
-             dataStore,
-             progressLogFactory,
-             listenerFactory,
-             epochUpdateHolder,
-             journal,
-             Stage.READ.executor(),
-             Stage.MUTATION.executor(),
-             cacheMetrics);
-    }
 
     private static <K, V> void registerJfrListener(int id, AccordStateCache.Instance<K, V, ?> instance, String name)
     {
@@ -215,7 +171,6 @@ public class AccordCommandStore extends CommandStore implements CacheSize
         event.update();
     }
 
-    @VisibleForTesting
     public AccordCommandStore(int id,
                               NodeTimeService time,
                               Agent agent,
@@ -224,16 +179,13 @@ public class AccordCommandStore extends CommandStore implements CacheSize
                               LocalListeners.Factory listenerFactory,
                               EpochUpdateHolder epochUpdateHolder,
                               IJournal journal,
-                              ExecutorPlus loadExecutor,
-                              ExecutorPlus saveExecutor,
-                              AccordStateCacheMetrics cacheMetrics)
+                              CommandStoreExecutor commandStoreExecutor)
     {
         super(id, time, agent, dataStore, progressLogFactory, listenerFactory, epochUpdateHolder);
         this.journal = journal;
         loggingId = String.format("[%s]", id);
-        executor = executorFactory().sequential(CommandStore.class.getSimpleName() + '[' + id + ']');
-        threadId = getThreadId(executor);
-        stateCache = new AccordStateCache(loadExecutor, saveExecutor, 8 << 20, cacheMetrics);
+        executor = commandStoreExecutor;
+        AccordStateCache stateCache = executor.stateCache;
         commandCache =
             stateCache.instance(TxnId.class,
                                 AccordSafeCommand.class,
@@ -275,10 +227,10 @@ public class AccordCommandStore extends CommandStore implements CacheSize
         executor.execute(() -> CommandStore.register(this));
     }
 
-    static Factory factory(AccordJournal journal, AccordStateCacheMetrics cacheMetrics)
+    static Factory factory(AccordJournal journal, IntFunction<CommandStoreExecutor> executorFactory)
     {
         return (id, time, agent, dataStore, progressLogFactory, listenerFactory, rangesForEpoch) ->
-               new AccordCommandStore(id, time, agent, dataStore, progressLogFactory, listenerFactory, rangesForEpoch, journal, cacheMetrics);
+               new AccordCommandStore(id, time, agent, dataStore, progressLogFactory, listenerFactory, rangesForEpoch, journal, executorFactory.apply(id));
     }
 
     public CommandsForRangesLoader diskCommandsForRanges()
@@ -295,34 +247,7 @@ public class AccordCommandStore extends CommandStore implements CacheSize
     @Override
     public boolean inStore()
     {
-        if (!CHECK_THREADS)
-            return true;
-        return Thread.currentThread().getId() == threadId;
-    }
-
-    @Override
-    public void setCapacity(long bytes)
-    {
-        checkInStoreThread();
-        stateCache.setCapacity(bytes);
-    }
-
-    @Override
-    public long capacity()
-    {
-        return stateCache.capacity();
-    }
-
-    @Override
-    public int size()
-    {
-        return stateCache.size();
-    }
-
-    @Override
-    public long weightedSize()
-    {
-        return stateCache.weightedSize();
+        return executor.isInThread();
     }
 
     public void checkInStoreThread()
@@ -339,7 +264,15 @@ public class AccordCommandStore extends CommandStore implements CacheSize
 
     public ExecutorService executor()
     {
-        return executor;
+        return executor.delegate();
+    }
+
+    /**
+     * Note that this cache is shared with other commandStores!
+     */
+    public AccordStateCache cache()
+    {
+        return executor.cache();
     }
 
     public AccordStateCache.Instance<TxnId, Command, AccordSafeCommand> commandCache()
@@ -443,18 +376,6 @@ public class AccordCommandStore extends CommandStore implements CacheSize
         return null != mutation ? mutation::applyUnsafe : null;
     }
 
-    @VisibleForTesting
-    public AccordStateCache cache()
-    {
-        return stateCache;
-    }
-
-    @VisibleForTesting
-    public void unsafeClearCache()
-    {
-        stateCache.unsafeClear();
-    }
-
     public void setCurrentOperation(AsyncOperation<?> operation)
     {
         checkState(currentOperation == null);
@@ -487,7 +408,7 @@ public class AccordCommandStore extends CommandStore implements CacheSize
     @Override
     public <T> AsyncChain<T> submit(Callable<T> task)
     {
-        return AsyncChains.ofCallable(executor, task);
+        return AsyncChains.ofCallable(executor.delegate(), task);
     }
 
     public DataStore dataStore()
@@ -570,15 +491,6 @@ public class AccordCommandStore extends CommandStore implements CacheSize
     @Override
     public void shutdown()
     {
-        executor.shutdown();
-        try
-        {
-            executor.awaitTermination(20, TimeUnit.SECONDS);
-        }
-        catch (InterruptedException t)
-        {
-            throw new RuntimeException("Could not shut down command store " + this);
-        }
     }
 
     public void registerHistoricalTransactions(Deps deps, SafeCommandStore safeStore)
@@ -633,7 +545,7 @@ public class AccordCommandStore extends CommandStore implements CacheSize
     @VisibleForTesting
     public Command loadCommand(TxnId txnId)
     {
-        return journal.loadCommand(id, txnId);
+        return journal.loadCommand(id, txnId, redundantBefore(), durableBefore());
     }
 
     public interface Loader
@@ -775,6 +687,113 @@ public class AccordCommandStore extends CommandStore implements CacheSize
                         for (Deps dep : deps)
                             registerHistoricalTransactions(dep, safeStore);
                     });
+        }
+    }
+
+    public static class CommandStoreExecutor implements CacheSize
+    {
+        final AccordStateCache stateCache;
+        final SequentialExecutorPlus delegate;
+        final long threadId;
+
+        CommandStoreExecutor(AccordStateCache stateCache, SequentialExecutorPlus delegate, long threadId)
+        {
+            this.stateCache = stateCache;
+            this.delegate = delegate;
+            this.threadId = threadId;
+        }
+
+        CommandStoreExecutor(AccordStateCache stateCache, SequentialExecutorPlus delegate)
+        {
+            this.stateCache = stateCache;
+            this.delegate = delegate;
+            this.threadId = getThreadId();
+        }
+
+        public boolean isInThread()
+        {
+            if (!CHECK_THREADS)
+                return true;
+
+            return threadId == Thread.currentThread().getId();
+        }
+
+        public void shutdown()
+        {
+            delegate.shutdown();
+        }
+
+        public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException
+        {
+            return delegate.awaitTermination(timeout, unit);
+        }
+
+        public Future<?> submit(Runnable task)
+        {
+            return delegate.submit(task);
+        }
+
+        public ExecutorService delegate()
+        {
+            return delegate;
+        }
+
+        public void execute(Runnable command)
+        {
+            delegate.submit(command);
+        }
+
+        private long getThreadId()
+        {
+            try
+            {
+                return delegate.submit(() -> Thread.currentThread().getId()).get();
+            }
+            catch (InterruptedException e)
+            {
+                throw new AssertionError(e);
+            }
+            catch (ExecutionException e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
+
+        @VisibleForTesting
+        public AccordStateCache cache()
+        {
+            return stateCache;
+        }
+
+        @VisibleForTesting
+        public void unsafeClearCache()
+        {
+            stateCache.unsafeClear();
+        }
+
+        @Override
+        public void setCapacity(long bytes)
+        {
+            Invariants.checkState(isInThread());
+            stateCache.setCapacity(bytes);
+        }
+
+        @Override
+        public long capacity()
+        {
+            return stateCache.capacity();
+        }
+
+        @Override
+        public int size()
+        {
+            return stateCache.size();
+        }
+
+        @Override
+        public long weightedSize()
+        {
+            return stateCache.weightedSize();
         }
     }
 }

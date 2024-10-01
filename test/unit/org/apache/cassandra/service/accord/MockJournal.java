@@ -69,7 +69,7 @@ public class MockJournal implements IJournal
 
     private final Map<Integer, FieldUpdates> fieldUpdates = new HashMap<>();
     @Override
-    public Command loadCommand(int store, TxnId txnId)
+    public Command loadCommand(int store, TxnId txnId, RedundantBefore redundantBefore, DurableBefore durableBefore)
     {
         JournalKey key = new JournalKey(txnId, JournalKey.Type.COMMAND_DIFF, store);
         List<LoadedDiff> saved = commands.get(key);

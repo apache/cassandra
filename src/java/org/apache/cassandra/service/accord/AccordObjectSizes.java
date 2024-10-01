@@ -292,7 +292,7 @@ public class AccordObjectSizes
         private static final Result EMPTY_RESULT = new Result() {};
 
         final static long NOT_DEFINED = measure(Command.SerializerSupport.notDefined(attrs(false, false), Ballot.ZERO));
-        final static long PREACCEPTED = measure(Command.SerializerSupport.preaccepted(attrs(false, true), EMPTY_TXNID, null));;
+        final static long PREACCEPTED = measure(Command.SerializerSupport.preaccepted(attrs(false, true), EMPTY_TXNID, Ballot.ZERO));;
         final static long ACCEPTED = measure(Command.SerializerSupport.accepted(attrs(true, false), SaveStatus.Accepted, EMPTY_TXNID, Ballot.ZERO, Ballot.ZERO));
         final static long COMMITTED = measure(Command.SerializerSupport.committed(attrs(true, true), SaveStatus.Committed, EMPTY_TXNID, Ballot.ZERO, Ballot.ZERO, null));
         final static long EXECUTED = measure(Command.SerializerSupport.executed(attrs(true, true), SaveStatus.Applied, EMPTY_TXNID, Ballot.ZERO, Ballot.ZERO, WaitingOn.empty(Domain.Key), EMPTY_WRITES, EMPTY_RESULT));

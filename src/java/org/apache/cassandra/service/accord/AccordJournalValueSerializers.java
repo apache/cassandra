@@ -63,7 +63,7 @@ public class AccordJournalValueSerializers
         @Override
         public SavedCommand.Builder mergerFor(JournalKey journalKey)
         {
-            return new SavedCommand.Builder();
+            return new SavedCommand.Builder(journalKey.id);
         }
 
         @Override

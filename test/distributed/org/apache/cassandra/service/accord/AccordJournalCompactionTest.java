@@ -159,7 +159,7 @@ public class AccordJournalCompactionTest
                 historicalTransactionsAccumulator.update(updates.historicalTransactions);
 
                 if (i % 100 == 0)
-                    journal.closeCurrentSegmentForTesting();
+                    journal.closeCurrentSegmentForTestingIfNonEmpty();
                 if (i % 200 == 0)
                     journal.runCompactorForTesting();
             }

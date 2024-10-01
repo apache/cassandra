@@ -18,16 +18,6 @@
 
 package org.apache.cassandra.service.accord;
 
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
-import org.junit.Test;
-
 import accord.api.RoutingKey;
 import accord.primitives.FullKeyRoute;
 import accord.primitives.FullRangeRoute;
@@ -37,11 +27,23 @@ import accord.primitives.Range;
 import accord.primitives.Ranges;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
+import accord.utils.Gen;
 import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.utils.Generators;
+import org.junit.Test;
+
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import static accord.utils.Property.qt;
 import static org.apache.cassandra.service.accord.AccordTestUtils.createTxn;
@@ -74,6 +76,40 @@ public class SimulatedDepsTest extends SimulatedAccordCommandStoreTestBase
     }
 
     @Test
+    public void tokenConflicts()
+    {
+        TableMetadata tbl = reverseTokenTbl;
+        int numSamples = 100;
+        Gen<ByteBuffer> rawKey = Generators.toGen(Generators.bytes(16, 16));
+
+        qt().withExamples(10).check(rs -> {
+            AccordKeyspace.unsafeClear();
+
+            ByteBuffer key = rawKey.next(rs);
+            PartitionKey pk = new PartitionKey(tbl.id, tbl.partitioner.decorateKey(key));
+            Keys keys = Keys.of(pk);
+            FullKeyRoute route = keys.toRoute(pk.toUnseekable());
+            Txn txn = createTxn(wrapInTxn("INSERT INTO " + tbl + "(pk, value) VALUES (?, ?)"), Arrays.asList(key, 42));
+
+            ByteBuffer tokenConflictKey = Murmur3Partitioner.LongToken.keyForToken((LongToken) Murmur3Partitioner.instance.decorateKey(key).getToken());
+            PartitionKey pkTokenConflict = new PartitionKey(tbl.id, tbl.partitioner.decorateKey(tokenConflictKey));
+            Keys keysTokenConflict = Keys.of(pkTokenConflict);
+            FullKeyRoute routeTokenConflict = keysTokenConflict.toRoute(pkTokenConflict.toUnseekable());
+            Txn txnTokenConflict = createTxn(wrapInTxn("INSERT INTO " + tbl + "(pk, value) VALUES (?, ?)"), Arrays.asList(tokenConflictKey, 42));
+            try (var instance = new SimulatedAccordCommandStore(rs))
+            {
+                List<TxnId> conflicts = new ArrayList<>(numSamples);
+                for (int i = 0; i < numSamples; i++)
+                {
+                    instance.maybeCacheEvict(route, Ranges.EMPTY);
+                    conflicts.add(assertDepsMessage(instance, rs.pick(DepsMessage.values()), txn, route, keyConflicts(conflicts, route)));
+                    conflicts.add(assertDepsMessage(instance, rs.pick(DepsMessage.values()), txnTokenConflict, routeTokenConflict, keyConflicts(conflicts, routeTokenConflict)));
+                }
+            }
+        });
+    }
+
+    @Test
     public void rangePartialKeyMatch()
     {
         var tbl = reverseTokenTbl;
@@ -86,7 +122,7 @@ public class SimulatedDepsTest extends SimulatedAccordCommandStoreTestBase
             {
                 long token = rs.nextLong(Long.MIN_VALUE  + 1, Long.MAX_VALUE);
                 Ranges partialRange = Ranges.of(tokenRange(tbl.id, token - 1, token));
-                Ranges partialRangeSliced = instance.slice(partialRange);
+
                 long outOfRangeToken = token - 10;
                 if (outOfRangeToken == Long.MIN_VALUE) // if this wraps around that is fine, just can't be min
                     outOfRangeToken++;
@@ -120,7 +156,7 @@ public class SimulatedDepsTest extends SimulatedAccordCommandStoreTestBase
                     keyConflicts.add(id);
                     outOfRangeKeyConflicts.add(id);
 
-                    rangeConflicts.add(assertDepsMessage(instance, rs.pick(DepsMessage.values()), rangeTxn, rangeRoute, Map.of(key, keyConflicts), rangeConflicts(rangeConflicts, partialRangeSliced)));
+                    rangeConflicts.add(assertDepsMessage(instance, rs.pick(DepsMessage.values()), rangeTxn, rangeRoute, Map.of(key, keyConflicts), rangeConflicts(rangeConflicts, partialRange)));
                 }
             }
         });
@@ -156,7 +192,7 @@ public class SimulatedDepsTest extends SimulatedAccordCommandStoreTestBase
                 {
                     instance.maybeCacheEvict(keyRoute, ranges);
                     keyConflicts.add(assertDepsMessage(instance, rs.pick(DepsMessage.values()), keyTxn, keyRoute, keyConflicts(keyConflicts, keyRoute)));
-                    rangeConflicts.add(assertDepsMessage(instance, rs.pick(DepsMessage.values()), rangeTxn, rangeRoute, keyConflicts(keyConflicts, keyRoute), rangeConflicts(rangeConflicts, instance.slice(ranges))));
+                    rangeConflicts.add(assertDepsMessage(instance, rs.pick(DepsMessage.values()), rangeTxn, rangeRoute, keyConflicts(keyConflicts, keyRoute), rangeConflicts(rangeConflicts, ranges)));
                 }
             }
         });

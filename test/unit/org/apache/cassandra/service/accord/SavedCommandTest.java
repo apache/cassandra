@@ -74,7 +74,7 @@ public class SavedCommandTest
     public void simpleNullChangeCheck()
     {
         int flags = getFlags(null, Command.NotDefined.uninitialised(TxnId.NONE));
-        EnumSet<Fields> has = EnumSet.of(Fields.TXN_ID, Fields.SAVE_STATUS, Fields.PARTICIPANTS, Fields.DURABILITY, Fields.PROMISED,
+        EnumSet<Fields> has = EnumSet.of(Fields.SAVE_STATUS, Fields.PARTICIPANTS, Fields.DURABILITY, Fields.PROMISED,
                                          Fields.ACCEPTED /* this is Zero... which kinda means null... */);
         Set<Fields> missing = Sets.difference(ALL, has);
         assertHas(flags, has);
@@ -96,7 +96,7 @@ public class SavedCommandTest
                     out.clear();
                     Command orig = cmdBuilder.build(saveStatus);
                     SavedCommand.serialize(null, orig, out, userVersion);
-                    SavedCommand.Builder builder = new SavedCommand.Builder();
+                    SavedCommand.Builder builder = new SavedCommand.Builder(orig.txnId());
                     builder.deserializeNext(new DataInputBuffer(out.unsafeGetBufferAndFlip(), false), userVersion);
                     // We are not persisting the result, so force it for strict equality
                     builder.forceResult(orig.result());

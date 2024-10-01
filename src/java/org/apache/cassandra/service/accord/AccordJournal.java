@@ -32,6 +32,8 @@ import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.impl.ErasedSafeCommand;
+import accord.local.Cleanup;
 import accord.local.Command;
 import accord.local.CommandStores;
 import accord.local.CommandStores.RangesForEpoch;
@@ -50,6 +52,7 @@ import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.journal.Compactor;
 import org.apache.cassandra.journal.Journal;
 import org.apache.cassandra.journal.Params;
 import org.apache.cassandra.journal.RecordPointer;
@@ -57,8 +60,10 @@ import org.apache.cassandra.journal.ValueSerializer;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.accord.AccordJournalValueSerializers.HistoricalTransactionsAccumulator;
 import org.apache.cassandra.service.accord.AccordJournalValueSerializers.IdentityAccumulator;
+import org.apache.cassandra.service.accord.JournalKey.JournalKeySupport;
 import org.apache.cassandra.utils.ExecutorUtils;
 
+import static accord.primitives.SaveStatus.ErasedOrVestigial;
 import static accord.primitives.Status.Truncated;
 import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.DurableBeforeAccumulator;
 import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.RedundantBeforeAccumulator;
@@ -78,7 +83,7 @@ public class AccordJournal implements IJournal, Shutdownable
 
     private static final Set<Integer> SENTINEL_HOSTS = Collections.singleton(0);
 
-    static final ThreadLocal<byte[]> keyCRCBytes = ThreadLocal.withInitial(() -> new byte[23]);
+    static final ThreadLocal<byte[]> keyCRCBytes = ThreadLocal.withInitial(() -> new byte[JournalKeySupport.TOTAL_SIZE]);
 
     private final Journal<JournalKey, Object> journal;
     private final AccordJournalTable<JournalKey, Object> journalTable;
@@ -128,6 +133,11 @@ public class AccordJournal implements IJournal, Shutdownable
         return params;
     }
 
+    public Compactor<JournalKey, Object> compactor()
+    {
+        return journal.compactor();
+    }
+
     @Override
     public boolean isTerminated()
     {
@@ -165,50 +175,59 @@ public class AccordJournal implements IJournal, Shutdownable
     }
 
     @Override
-    public Command loadCommand(int commandStoreId, TxnId txnId)
+    public Command loadCommand(int commandStoreId, TxnId txnId, RedundantBefore redundantBefore, DurableBefore durableBefore)
     {
-        return loadDiffs(commandStoreId, txnId).construct();
+        SavedCommand.Builder builder = loadDiffs(commandStoreId, txnId);
+        Cleanup cleanup = builder.shouldCleanup(redundantBefore, durableBefore);
+        switch (cleanup)
+        {
+            case EXPUNGE_PARTIAL:
+            case EXPUNGE:
+            case ERASE:
+                return ErasedSafeCommand.erased(txnId, ErasedOrVestigial);
+        }
+        return builder.construct();
     }
 
     @VisibleForTesting
     public RedundantBefore loadRedundantBefore(int store)
     {
-        RedundantBeforeAccumulator accumulator = readAll(new JournalKey(Timestamp.NONE, JournalKey.Type.REDUNDANT_BEFORE, store));
+        RedundantBeforeAccumulator accumulator = readAll(new JournalKey(TxnId.NONE, JournalKey.Type.REDUNDANT_BEFORE, store));
         return accumulator.get();
     }
 
     @Override
     public DurableBefore loadDurableBefore(int store)
     {
-        DurableBeforeAccumulator accumulator = readAll(new JournalKey(Timestamp.NONE, JournalKey.Type.DURABLE_BEFORE, store));
+        DurableBeforeAccumulator accumulator = readAll(new JournalKey(TxnId.NONE, JournalKey.Type.DURABLE_BEFORE, store));
         return accumulator.get();
     }
 
     @Override
     public NavigableMap<TxnId, Ranges> loadBootstrapBeganAt(int store)
     {
-        IdentityAccumulator<NavigableMap<TxnId, Ranges>> accumulator = readAll(new JournalKey(Timestamp.NONE, JournalKey.Type.BOOTSTRAP_BEGAN_AT, store));
+        IdentityAccumulator<NavigableMap<TxnId, Ranges>> accumulator = readAll(new JournalKey(TxnId.NONE, JournalKey.Type.BOOTSTRAP_BEGAN_AT, store));
         return accumulator.get();
     }
 
     @Override
     public NavigableMap<Timestamp, Ranges> loadSafeToRead(int store)
     {
-        IdentityAccumulator<NavigableMap<Timestamp, Ranges>> accumulator = readAll(new JournalKey(Timestamp.NONE, JournalKey.Type.SAFE_TO_READ, store));
+        IdentityAccumulator<NavigableMap<Timestamp, Ranges>> accumulator = readAll(new JournalKey(TxnId.NONE, JournalKey.Type.SAFE_TO_READ, store));
         return accumulator.get();
     }
 
     @Override
     public CommandStores.RangesForEpoch.Snapshot loadRangesForEpoch(int store)
     {
-        IdentityAccumulator<RangesForEpoch.Snapshot> accumulator = readAll(new JournalKey(Timestamp.NONE, JournalKey.Type.RANGES_FOR_EPOCH, store));
+        IdentityAccumulator<RangesForEpoch.Snapshot> accumulator = readAll(new JournalKey(TxnId.NONE, JournalKey.Type.RANGES_FOR_EPOCH, store));
         return accumulator.get();
     }
 
     @Override
     public List<Deps> loadHistoricalTransactions(int store)
     {
-        HistoricalTransactionsAccumulator accumulator = readAll(new JournalKey(Timestamp.NONE, JournalKey.Type.HISTORICAL_TRANSACTIONS, store));
+        HistoricalTransactionsAccumulator accumulator = readAll(new JournalKey(TxnId.NONE, JournalKey.Type.HISTORICAL_TRANSACTIONS, store));
         return accumulator.get();
     }
 
@@ -235,17 +254,17 @@ public class AccordJournal implements IJournal, Shutdownable
         RecordPointer pointer = null;
         // TODO: avoid allocating keys
         if (fieldUpdates.redundantBefore != null)
-            pointer = appendInternal(new JournalKey(Timestamp.NONE, JournalKey.Type.REDUNDANT_BEFORE, store), fieldUpdates.redundantBefore);
+            pointer = appendInternal(new JournalKey(TxnId.NONE, JournalKey.Type.REDUNDANT_BEFORE, store), fieldUpdates.redundantBefore);
         if (fieldUpdates.durableBefore != null)
-            pointer = appendInternal(new JournalKey(Timestamp.NONE, JournalKey.Type.DURABLE_BEFORE, store), fieldUpdates.durableBefore);
+            pointer = appendInternal(new JournalKey(TxnId.NONE, JournalKey.Type.DURABLE_BEFORE, store), fieldUpdates.durableBefore);
         if (fieldUpdates.bootstrapBeganAt != null)
-            pointer = appendInternal(new JournalKey(Timestamp.NONE, JournalKey.Type.BOOTSTRAP_BEGAN_AT, store), fieldUpdates.bootstrapBeganAt);
+            pointer = appendInternal(new JournalKey(TxnId.NONE, JournalKey.Type.BOOTSTRAP_BEGAN_AT, store), fieldUpdates.bootstrapBeganAt);
         if (fieldUpdates.safeToRead != null)
-            pointer = appendInternal(new JournalKey(Timestamp.NONE, JournalKey.Type.SAFE_TO_READ, store), fieldUpdates.safeToRead);
+            pointer = appendInternal(new JournalKey(TxnId.NONE, JournalKey.Type.SAFE_TO_READ, store), fieldUpdates.safeToRead);
         if (fieldUpdates.rangesForEpoch != null)
-            pointer = appendInternal(new JournalKey(Timestamp.NONE, JournalKey.Type.RANGES_FOR_EPOCH, store), fieldUpdates.rangesForEpoch);
+            pointer = appendInternal(new JournalKey(TxnId.NONE, JournalKey.Type.RANGES_FOR_EPOCH, store), fieldUpdates.rangesForEpoch);
         if (fieldUpdates.historicalTransactions != null)
-            pointer = appendInternal(new JournalKey(Timestamp.NONE, JournalKey.Type.HISTORICAL_TRANSACTIONS, store), fieldUpdates.historicalTransactions);
+            pointer = appendInternal(new JournalKey(TxnId.NONE, JournalKey.Type.HISTORICAL_TRANSACTIONS, store), fieldUpdates.historicalTransactions);
 
         if (onFlush == null)
             return;
@@ -260,9 +279,21 @@ public class AccordJournal implements IJournal, Shutdownable
     public SavedCommand.Builder loadDiffs(int commandStoreId, TxnId txnId)
     {
         JournalKey key = new JournalKey(txnId, JournalKey.Type.COMMAND_DIFF, commandStoreId);
-        SavedCommand.Builder builder = new SavedCommand.Builder();
+        SavedCommand.Builder builder = new SavedCommand.Builder(txnId);
         journalTable.readAll(key, builder::deserializeNext);
         return builder;
+    }
+
+    public List<SavedCommand.Builder> loadSeparateDiffs(int commandStoreId, TxnId txnId)
+    {
+        JournalKey key = new JournalKey(txnId, JournalKey.Type.COMMAND_DIFF, commandStoreId);
+        List<SavedCommand.Builder> builders = new ArrayList<>();
+        journalTable.readAll(key, (in, version) -> {
+            SavedCommand.Builder builder = new SavedCommand.Builder(txnId);
+            builder.deserializeNext(in, version);
+            builders.add(builder);
+        });
+        return builders;
     }
 
     private <BUILDER> BUILDER readAll(JournalKey key)
@@ -281,9 +312,9 @@ public class AccordJournal implements IJournal, Shutdownable
     }
 
     @VisibleForTesting
-    public void closeCurrentSegmentForTesting()
+    public void closeCurrentSegmentForTestingIfNonEmpty()
     {
-        journal.closeCurrentSegmentForTesting();
+        journal.closeCurrentSegmentForTestingIfNonEmpty();
     }
 
     public void sanityCheck(int commandStoreId, Command orig)
@@ -313,7 +344,7 @@ public class AccordJournal implements IJournal, Shutdownable
 
     public void replay()
     {
-        // TODO: optimize replay memory footprint
+        // TODO (expected): optimize replay memory footprint
         class ToApply
         {
             final JournalKey key;
@@ -331,11 +362,11 @@ public class AccordJournal implements IJournal, Shutdownable
         {
             isReplay.set(true);
 
-            JournalKey key = null;
+            JournalKey key;
             SavedCommand.Builder builder = new SavedCommand.Builder();
             while ((key = iter.key()) != null)
             {
-                builder.clear();
+                builder.reset(key.id);
                 if (key.type != JournalKey.Type.COMMAND_DIFF)
                 {
                     // TODO (required): add "skip" for the key to avoid getting stuck

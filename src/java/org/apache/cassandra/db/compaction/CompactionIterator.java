@@ -32,6 +32,9 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Ordering;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import accord.local.Cleanup;
 import accord.local.CommandStores;
 import accord.local.CommandStores.RangesForEpoch;
@@ -43,6 +46,7 @@ import accord.primitives.Status;
 import accord.primitives.Status.Durability;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
+import accord.utils.Invariants;
 import org.agrona.collections.Int2ObjectHashMap;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
@@ -104,8 +108,8 @@ import org.apache.cassandra.service.paxos.PaxosRepairHistory;
 import org.apache.cassandra.service.paxos.uncommitted.PaxosRows;
 import org.apache.cassandra.utils.TimeUUID;
 
+import static accord.local.Cleanup.ERASE;
 import static accord.local.Cleanup.TRUNCATE_WITH_OUTCOME;
-import static accord.local.Cleanup.shouldCleanup;
 import static accord.local.Cleanup.shouldCleanupPartial;
 import static com.google.common.base.Preconditions.checkState;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
@@ -142,6 +146,7 @@ import static org.apache.cassandra.service.accord.AccordKeyspace.deserializeTime
  */
 public class CompactionIterator extends CompactionInfo.Holder implements UnfilteredPartitionIterator
 {
+    private static final Logger logger = LoggerFactory.getLogger(CompactionIterator.class);
     private static final long UNFILTERED_TO_UPDATE_PROGRESS = 100;
 
     private final OperationType type;
@@ -1057,13 +1062,17 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
             try
             {
-                PartitionUpdate.SimpleBuilder newVersion = PartitionUpdate.simpleBuilder(AccordKeyspace.Journal, partition.partitionKey());
-
+                List<Row> rows = new ArrayList<>();
                 while (partition.hasNext())
-                    applyToRow((Row) partition.next());
+                {
+                    Row row = (Row) partition.next();
+                    rows.add(row);
+                    collect(row);
+                }
 
                 if (key.type != JournalKey.Type.COMMAND_DIFF)
                 {
+                    PartitionUpdate.SimpleBuilder newVersion = PartitionUpdate.simpleBuilder(AccordKeyspace.Journal, partition.partitionKey());
                     try (DataOutputBuffer out = DataOutputBuffer.scratchBuffer.get())
                     {
                         serializer.reserialize(key, builder, out, userVersion);
@@ -1080,49 +1089,32 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                 }
 
                 SavedCommand.Builder commandBuilder = (SavedCommand.Builder) builder;
-
-                // Do not have txnId in selected SSTables; remove
-                if (commandBuilder.txnId() == null)
-                    return newVersion.build().unfilteredIterator();
+                if (commandBuilder.isEmpty())
+                {
+                    Invariants.checkState(rows.isEmpty());
+                    return partition;
+                }
 
                 RedundantBefore redundantBefore = redundantBefores.get(key.commandStoreId);
+                Cleanup cleanup = commandBuilder.shouldCleanup(redundantBefore, durableBefore);
+                if (cleanup == ERASE)
+                    return PartitionUpdate.fullPartitionDelete(metadata(), partition.partitionKey(), maxSeenTimestamp, nowInSec).unfilteredIterator();
 
-                Cleanup cleanup = shouldCleanup(commandBuilder.txnId(), commandBuilder.saveStatus(),
-                                                commandBuilder.durability(), commandBuilder.participants(),
-                                                redundantBefore, durableBefore);
-                switch (cleanup)
+                commandBuilder = commandBuilder.maybeCleanup(cleanup);
+                if (commandBuilder != builder)
                 {
-                    case EXPUNGE:
+                    if (commandBuilder == null)
                         return null;
 
-                    case EXPUNGE_PARTIAL:
-                        newVersion = PartitionUpdate.simpleBuilder(AccordKeyspace.Journal, partition.partitionKey());
-                        commandBuilder = commandBuilder.expungePartial();
+                    PartitionUpdate.SimpleBuilder newVersion = PartitionUpdate.simpleBuilder(AccordKeyspace.Journal, partition.partitionKey());
+                    newVersion.row(lastClustering)
+                              .add("record", commandBuilder.asByteBuffer(userVersion))
+                              .add("user_version", userVersion);
+                    return newVersion.build().unfilteredIterator();
+                }
 
-                        newVersion.row(lastClustering)
-                                  .add(recordColumn.name.toString(), commandBuilder.asByteBuffer(userVersion));
-
-                        return newVersion.build().unfilteredIterator();
-
-                    case ERASE:
-                        return PartitionUpdate.fullPartitionDelete(metadata(), partition.partitionKey(), maxSeenTimestamp, nowInSec).unfilteredIterator();
-
-                    case VESTIGIAL:
-                    case INVALIDATE:
-                    case TRUNCATE_WITH_OUTCOME:
-                    case TRUNCATE:
-                        newVersion = PartitionUpdate.simpleBuilder(AccordKeyspace.Journal, partition.partitionKey());
-                        commandBuilder = commandBuilder.saveStatusOnly();
-
-                        newVersion.row(lastClustering)
-                                  .add(recordColumn.name.toString(), commandBuilder.asByteBuffer(userVersion));
-
-                        return newVersion.build().unfilteredIterator();
-
-                    case NO:
-                        return newVersion.build().unfilteredIterator();
-                    default:
-                        throw new IllegalStateException("Unknown cleanup: " + cleanup);}
+                return PartitionUpdate.multiRowUpdate(AccordKeyspace.Journal, partition.partitionKey(), rows)
+                                      .unfilteredIterator();
             }
             catch (IOException e)
             {
@@ -1132,6 +1124,11 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
         @Override
         protected Row applyToRow(Row row)
+        {
+            return row;
+        }
+
+        protected void collect(Row row)
         {
             updateProgress();
             maxSeenTimestamp = row.primaryKeyLivenessInfo().timestamp();
@@ -1146,7 +1143,6 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
             {
                 throw new RuntimeException(e);
             }
-            return null;
         }
 
         @Override
@@ -1156,7 +1152,6 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
             return row;
         }
     }
-
 
     private static class AbortableUnfilteredPartitionTransformation extends Transformation<UnfilteredRowIterator>
     {

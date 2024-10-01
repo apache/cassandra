@@ -534,13 +534,12 @@ public class AccordService implements IAccordService, Shutdownable
     {
         List<ClusterMetadata> afterLoad = ClusterMetadataService.instance().processor().reconstructFull(Epoch.create(min), Epoch.create(max));
         if (Invariants.isParanoid())
-            assert afterLoad.get(0).epoch.getEpoch() == min : String.format("Unexpected epoch: expected %d but given %d", min, afterLoad.get(0).epoch.getEpoch());
+            Invariants.checkState(afterLoad.get(0).epoch.getEpoch() == min, "Unexpected epoch: expected %d but given %d", min, afterLoad.get(0).epoch.getEpoch());
         while (!afterLoad.isEmpty() && afterLoad.get(0).epoch.getEpoch() < min)
             afterLoad.remove(0);
-        assert !afterLoad.isEmpty() : String.format("TCM was unable to return the needed epochs: %d -> %d", min, max);
-        assert afterLoad.get(0).epoch.getEpoch() == min : String.format("Unexpected epoch: expected %d but given %d", min, afterLoad.get(0).epoch.getEpoch());
-        if (max != Long.MAX_VALUE)
-            assert afterLoad.get(afterLoad.size() - 1).epoch.getEpoch() == max : String.format("Unexpected epoch: expected %d but given %d", max, afterLoad.get(afterLoad.size() - 1).epoch.getEpoch());
+        Invariants.checkState(!afterLoad.isEmpty(), "TCM was unable to return the needed epochs: %d -> %d", min, max);
+        Invariants.checkState(afterLoad.get(0).epoch.getEpoch() == min, "Unexpected epoch: expected %d but given %d", min, afterLoad.get(0).epoch.getEpoch());
+        Invariants.checkState(max == Long.MAX_VALUE || afterLoad.get(afterLoad.size() - 1).epoch.getEpoch() == max, "Unexpected epoch: expected %d but given %d", max, afterLoad.get(afterLoad.size() - 1).epoch.getEpoch());
         return afterLoad;
     }
 

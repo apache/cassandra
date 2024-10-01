@@ -63,12 +63,12 @@ public class AccordSpec
 
     public DurationSpec.IntMillisecondsBound range_barrier_timeout = new DurationSpec.IntMillisecondsBound("2m");
 
-    public volatile DurationSpec fast_path_update_delay = new DurationSpec.IntSecondsBound(5);
+    public volatile DurationSpec.IntSecondsBound fast_path_update_delay = new DurationSpec.IntSecondsBound(5);
 
-    public volatile DurationSpec schedule_durability_frequency = new DurationSpec.IntSecondsBound(5);
-    public volatile DurationSpec durability_txnid_lag = new DurationSpec.IntSecondsBound(5);
-    public volatile DurationSpec shard_durability_cycle = new DurationSpec.IntMinutesBound(1);
-    public volatile DurationSpec global_durability_cycle = new DurationSpec.IntMinutesBound(10);
+    public volatile DurationSpec.IntSecondsBound schedule_durability_frequency = new DurationSpec.IntSecondsBound(5);
+    public volatile DurationSpec.IntSecondsBound durability_txnid_lag = new DurationSpec.IntSecondsBound(5);
+    public volatile DurationSpec.IntSecondsBound shard_durability_cycle = new DurationSpec.IntSecondsBound(1, TimeUnit.MINUTES);
+    public volatile DurationSpec.IntSecondsBound global_durability_cycle = new DurationSpec.IntSecondsBound(10, TimeUnit.MINUTES);
 
     public enum TransactionalRangeMigration
     {
@@ -87,7 +87,7 @@ public class AccordSpec
      * default transactional mode for tables created by this node when no transactional mode has been specified in the DDL
      */
     public TransactionalMode default_transactional_mode = TransactionalMode.off;
-    public boolean ephemeralReadEnabled = false;
+    public boolean ephemeralReadEnabled = true;
     public boolean state_cache_listener_jfr_enabled = true;
     public final JournalSpec journal = new JournalSpec();
     public final MinEpochRetrySpec minEpochSyncRetry = new MinEpochRetrySpec();
@@ -107,6 +107,7 @@ public class AccordSpec
         public FlushMode flushMode = FlushMode.PERIODIC;
         public DurationSpec.IntMillisecondsBound flushPeriod; // pulls default from 'commitlog_sync_period'
         public DurationSpec.IntMillisecondsBound periodicFlushLagBlock = new DurationSpec.IntMillisecondsBound("1500ms");
+        public DurationSpec.IntMillisecondsBound compactionPeriod = new DurationSpec.IntMillisecondsBound("60000ms");
 
         @Override
         public int segmentSize()
@@ -135,7 +136,7 @@ public class AccordSpec
         @Override
         public int compactionPeriodMillis()
         {
-            return 60_000;
+            return compactionPeriod.toMilliseconds();
         }
 
         @JsonIgnore

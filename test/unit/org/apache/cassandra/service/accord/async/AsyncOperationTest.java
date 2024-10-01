@@ -223,9 +223,9 @@ public class AsyncOperationTest
 
             // clear cache
             commandStore.executeBlocking(() -> {
-                long cacheSize = commandStore.capacity();
-                commandStore.setCapacity(0);
-                commandStore.setCapacity(cacheSize);
+                long cacheSize = commandStore.cache().capacity();
+                commandStore.cache().setCapacity(0);
+                commandStore.cache().setCapacity(cacheSize);
                 commandStore.cache().awaitSaveResults();
             });
 
@@ -272,9 +272,9 @@ public class AsyncOperationTest
 
             // clear cache
             commandStore.executeBlocking(() -> {
-                long cacheSize = commandStore.capacity();
-                commandStore.setCapacity(0);
-                commandStore.setCapacity(cacheSize);
+                long cacheSize = commandStore.cache().capacity();
+                commandStore.cache().setCapacity(0);
+                commandStore.cache().setCapacity(cacheSize);
                 commandStore.cache().awaitSaveResults();
             });
 
@@ -365,7 +365,7 @@ public class AsyncOperationTest
         // all txn use the same key; 0
         Keys keys = keys(Schema.instance.getTableMetadata("ks", "tbl"), 0);
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
-        commandStore.executeBlocking(() -> commandStore.setCapacity(0));
+        commandStore.executeBlocking(() -> commandStore.cache().setCapacity(0));
         Gen<TxnId> txnIdGen = rs -> txnId(1, clock.incrementAndGet(), 1);
 
         qt().withPure(false)

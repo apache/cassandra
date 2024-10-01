@@ -331,7 +331,7 @@ public enum Verb
     ACCORD_CHECK_STATUS_RSP         (141, P2, writeTimeout, IMMEDIATE,          () -> CheckStatusSerializers.reply,         RESPONSE_HANDLER                                                            ),
     ACCORD_CHECK_STATUS_REQ         (142, P2, writeTimeout, IMMEDIATE,          () -> CheckStatusSerializers.request,       AccordService::verbHandlerOrNoop, ACCORD_CHECK_STATUS_RSP                   ),
     ACCORD_CALCULATE_DEPS_RSP       (143, P2, writeTimeout, IMMEDIATE,          () -> CalculateDepsSerializers.reply,       RESPONSE_HANDLER                                                            ),
-    ACCORD_CALCULATE_DEPS_REQ       (144, P2, writeTimeout, IMMEDIATE,          () -> CalculateDepsSerializers.request,     AccordService::verbHandlerOrNoop, ACCORD_CALCULATE_DEPS_RSP),
+    ACCORD_CALCULATE_DEPS_REQ       (144, P2, longTimeout,  IMMEDIATE,          () -> CalculateDepsSerializers.request,     AccordService::verbHandlerOrNoop, ACCORD_CALCULATE_DEPS_RSP),
     ACCORD_GET_EPHMRL_READ_DEPS_RSP (161, P2, writeTimeout, IMMEDIATE,          () -> GetEphmrlReadDepsSerializers.reply,   RESPONSE_HANDLER                                                            ),
     ACCORD_GET_EPHMRL_READ_DEPS_REQ (162, P2, writeTimeout, IMMEDIATE,          () -> GetEphmrlReadDepsSerializers.request, AccordService::verbHandlerOrNoop, ACCORD_GET_EPHMRL_READ_DEPS_RSP),
     ACCORD_GET_MAX_CONFLICT_RSP     (163, P2, writeTimeout, IMMEDIATE,          () -> GetMaxConflictSerializers.reply,      RESPONSE_HANDLER                                                            ),

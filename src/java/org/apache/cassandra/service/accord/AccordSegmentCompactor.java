@@ -74,7 +74,7 @@ public class AccordSegmentCompactor<V> implements SegmentCompactor<JournalKey, V
         // nothing to compact (all segments empty, should never happen, but it is theoretically possible?) - exit early
         // TODO: investigate how this comes to be, check if there is a cleanup issue
         if (readers.isEmpty())
-            return null;
+            return Collections.emptyList();
 
         ColumnFamilyStore cfs = Keyspace.open(AccordKeyspace.metadata().name).getColumnFamilyStore(AccordKeyspace.JOURNAL);
         Descriptor descriptor = cfs.newSSTableDescriptor(cfs.getDirectories().getDirectoryForNewSSTables());

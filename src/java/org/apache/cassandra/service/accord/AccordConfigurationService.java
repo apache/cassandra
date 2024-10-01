@@ -412,15 +412,25 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
     protected void fetchTopologyInternal(long epoch)
     {
         ClusterMetadata metadata = ClusterMetadata.current();
-        if (metadata.directory.peerIds().size() < 2)
+        if (metadata.directory.peerIds().isEmpty())
             return; // just let CMS handle it when it's ready
 
         // TODO (desired): randomise
         NodeId first = metadata.directory.peerIds().first();
         InetAddressAndPort peer = metadata.directory.getNodeAddresses(first).broadcastAddress;
         if (FBUtilities.getBroadcastAddressAndPort().equals(peer))
-            peer = metadata.directory.getNodeAddresses(metadata.directory.peerIds().higher(first)).broadcastAddress;;
-        ClusterMetadataService.instance().fetchLogFromPeerOrCMSAsync(metadata, peer, Epoch.create(epoch));
+        {
+            NodeId second = metadata.directory.peerIds().higher(first);
+            if (second == null)
+                return;
+
+            peer = metadata.directory.getNodeAddresses(second).broadcastAddress;
+        }
+        ClusterMetadataService.instance().fetchLogFromPeerOrCMSAsync(metadata, peer, Epoch.create(epoch))
+                              .addCallback((success, fail) -> {
+                                  if (fail != null)
+                                      fetchTopologyInternal(epoch);
+                              });
     }
 
     @Override

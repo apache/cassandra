@@ -25,6 +25,7 @@ import java.util.zip.Checksum;
 
 import accord.local.Node.Id;
 import accord.primitives.Timestamp;
+import accord.primitives.TxnId;
 import accord.utils.Invariants;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -40,22 +41,21 @@ import org.apache.cassandra.utils.ByteArrayUtil;
 import static org.apache.cassandra.db.TypeSizes.BYTE_SIZE;
 import static org.apache.cassandra.db.TypeSizes.INT_SIZE;
 import static org.apache.cassandra.db.TypeSizes.LONG_SIZE;
-import static org.apache.cassandra.db.TypeSizes.SHORT_SIZE;
 import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.RangesForEpochSerializer;
 import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.SafeToReadSerializer;
 
 public final class JournalKey
 {
     public final Type type;
-    public final Timestamp timestamp;
+    public final TxnId id;
     public final int commandStoreId;
 
-    public JournalKey(Timestamp timestamp, Type type, int commandStoreId)
+    public JournalKey(TxnId id, Type type, int commandStoreId)
     {
         Invariants.nonNull(type);
-        Invariants.nonNull(timestamp);
+        Invariants.nonNull(id);
         this.type = type;
-        this.timestamp = timestamp;
+        this.id = id;
         this.commandStoreId = commandStoreId;
     }
 
@@ -67,86 +67,85 @@ public final class JournalKey
      * when ordering timestamps. This is done for more precise elimination of candidate
      * segments by min/max record key in segment.
      */
-    public static final KeySupport<JournalKey> SUPPORT = new KeySupport<>()
+    public static final JournalKeySupport SUPPORT = new JournalKeySupport();
+
+    public static final class JournalKeySupport implements KeySupport<JournalKey>
     {
-        private static final int HLC_OFFSET = 0;
-        private static final int EPOCH_AND_FLAGS_OFFSET = HLC_OFFSET + LONG_SIZE;
-        private static final int NODE_OFFSET = EPOCH_AND_FLAGS_OFFSET + LONG_SIZE;
+        private static final int MSB_OFFSET = 0;
+        private static final int LSB_OFFSET = MSB_OFFSET + LONG_SIZE;
+        private static final int NODE_OFFSET = LSB_OFFSET + LONG_SIZE;
         private static final int TYPE_OFFSET = NODE_OFFSET + INT_SIZE;
         private static final int CS_ID_OFFSET = TYPE_OFFSET + BYTE_SIZE;
+        // TODO (required): revisit commandStoreId - this can go arbitrarily high so may want to use vint
+        public static final int TOTAL_SIZE = CS_ID_OFFSET + INT_SIZE;
 
         @Override
         public int serializedSize(int userVersion)
         {
-            return LONG_SIZE   // timestamp.hlc()
-                   + 6           // timestamp.epoch()
-                   + 2           // timestamp.flags()
-                   + INT_SIZE    // timestamp.node
-                   + BYTE_SIZE   // type
-                   + SHORT_SIZE; // commandStoreId
+            return TOTAL_SIZE;
         }
 
         @Override
         public void serialize(JournalKey key, DataOutputPlus out, int userVersion) throws IOException
         {
-            serializeTimestamp(key.timestamp, out);
+            serializeTxnId(key.id, out);
             out.writeByte(key.type.id);
-            out.writeShort(key.commandStoreId);
+            out.writeInt(key.commandStoreId);
         }
 
         private void serialize(JournalKey key, byte[] out)
         {
-            serializeTimestamp(key.timestamp, out);
-            out[20] = (byte) (key.type.id & 0xFF);
-            ByteArrayUtil.putShort(out, 21, (short) key.commandStoreId);
+            serializeTxnId(key.id, out);
+            out[TYPE_OFFSET] = (byte) (key.type.id & 0xFF);
+            ByteArrayUtil.putInt(out, CS_ID_OFFSET, key.commandStoreId);
         }
 
         @Override
         public JournalKey deserialize(DataInputPlus in, int userVersion) throws IOException
         {
-            Timestamp timestamp = deserializeTimestamp(in);
+            TxnId txnId = deserializeTxnId(in);
             int type = in.readByte();
-             int commandStoreId = in.readShort();
-            return new JournalKey(timestamp, Type.fromId(type), commandStoreId);
+            int commandStoreId = in.readInt();
+            return new JournalKey(txnId, Type.fromId(type), commandStoreId);
         }
 
         @Override
         public JournalKey deserialize(ByteBuffer buffer, int position, int userVersion)
         {
-            Timestamp timestamp = deserializeTimestamp(buffer, position);
+            TxnId txnId = deserializeTxnId(buffer, position);
             int type = buffer.get(position + TYPE_OFFSET);
-            int commandStoreId = buffer.getShort(position + CS_ID_OFFSET);
-            return new JournalKey(timestamp, Type.fromId(type), commandStoreId);
+            int commandStoreId = buffer.getInt(position + CS_ID_OFFSET);
+            return new JournalKey(txnId, Type.fromId(type), commandStoreId);
         }
 
-        private void serializeTimestamp(Timestamp timestamp, DataOutputPlus out) throws IOException
+        private void serializeTxnId(TxnId txnId, DataOutputPlus out) throws IOException
         {
-            out.writeLong(timestamp.hlc());
-            out.writeLong(epochAndFlags(timestamp));
-            out.writeInt(timestamp.node.id);
+            out.writeLong(txnId.msb);
+            out.writeLong(txnId.lsb);
+            out.writeInt(txnId.node.id);
         }
 
-        private Timestamp deserializeTimestamp(DataInputPlus in) throws IOException
+        private TxnId deserializeTxnId(DataInputPlus in) throws IOException
         {
-            long hlc = in.readLong();
-            long epochAndFlags = in.readLong();
+            long msb = in.readLong();
+            long lsb = in.readLong();
             int nodeId = in.readInt();
-            return Timestamp.fromValues(epoch(epochAndFlags), hlc, flags(epochAndFlags), new Id(nodeId));
+            return TxnId.fromBits(msb, lsb, new Id(nodeId));
         }
 
-        private void serializeTimestamp(Timestamp timestamp, byte[] out)
+        private void serializeTxnId(TxnId txnId, byte[] out)
         {
-            ByteArrayUtil.putLong(out, 0, timestamp.hlc());
-            ByteArrayUtil.putLong(out, 8, epochAndFlags(timestamp));
-            ByteArrayUtil.putInt(out, 16, timestamp.node.id);
+            ByteArrayUtil.putLong(out, MSB_OFFSET, txnId.msb);
+            ByteArrayUtil.putLong(out, LSB_OFFSET, txnId.lsb);
+            ByteArrayUtil.putInt(out, NODE_OFFSET, txnId.node.id);
         }
 
-        private Timestamp deserializeTimestamp(ByteBuffer buffer, int position)
+        private TxnId deserializeTxnId(ByteBuffer buffer, int position)
         {
-            long hlc = buffer.getLong(position + HLC_OFFSET);
-            long epochAndFlags = buffer.getLong(position + EPOCH_AND_FLAGS_OFFSET);
+            long msb = buffer.getLong(position + MSB_OFFSET);
+            long lsb = buffer.getLong(position + LSB_OFFSET);
             int nodeId = buffer.getInt(position + NODE_OFFSET);
-            return Timestamp.fromValues(epoch(epochAndFlags), hlc, flags(epochAndFlags), new Id(nodeId));
+            return TxnId.fromBits(msb, lsb, new Id(nodeId));
         }
 
         @Override
@@ -160,63 +159,40 @@ public final class JournalKey
         @Override
         public int compareWithKeyAt(JournalKey k, ByteBuffer buffer, int position, int userVersion)
         {
-            int cmp = compareWithTimestampAt(k.timestamp, buffer, position);
+            int cmp = compareWithTxnIdAt(k.id, buffer, position);
             if (cmp != 0) return cmp;
 
             byte type = buffer.get(position + TYPE_OFFSET);
             cmp = Byte.compare((byte) k.type.id, type);
             if (cmp != 0) return cmp;
 
-            short commandStoreId = buffer.getShort(position + CS_ID_OFFSET);
-            cmp = Short.compare((byte) k.commandStoreId, commandStoreId);
+            int commandStoreId = buffer.getInt(position + CS_ID_OFFSET);
+            cmp = Integer.compare(k.commandStoreId, commandStoreId);
             return cmp;
         }
 
-        private int compareWithTimestampAt(Timestamp timestamp, ByteBuffer buffer, int position)
+        private int compareWithTxnIdAt(TxnId txnId, ByteBuffer buffer, int position)
         {
-            long hlc = buffer.getLong(position + HLC_OFFSET);
-            int cmp = Long.compareUnsigned(timestamp.hlc(), hlc);
+            long msb = buffer.getLong(position + MSB_OFFSET);
+            int cmp = Timestamp.compareMsb(txnId.msb, msb);
             if (cmp != 0) return cmp;
 
-            long epochAndFlags = buffer.getLong(position + EPOCH_AND_FLAGS_OFFSET);
-            cmp = Long.compareUnsigned(epochAndFlags(timestamp), epochAndFlags);
+            long lsb = buffer.getLong(position + LSB_OFFSET);
+            cmp = Timestamp.compareLsb(txnId.lsb, lsb);
             if (cmp != 0) return cmp;
 
             int nodeId = buffer.getInt(position + NODE_OFFSET);
-            cmp = Integer.compareUnsigned(timestamp.node.id, nodeId);
+            cmp = Integer.compare(txnId.node.id, nodeId);
             return cmp;
         }
 
         @Override
         public int compare(JournalKey k1, JournalKey k2)
         {
-            int cmp = compare(k1.timestamp, k2.timestamp);
+            int cmp = k1.id.compareTo(k2.id);
             if (cmp == 0) cmp = Byte.compare((byte) k1.type.id, (byte) k2.type.id);
-            if (cmp == 0) cmp = Short.compare((short) k1.commandStoreId, (short) k2.commandStoreId);
+            if (cmp == 0) cmp = Integer.compare(k1.commandStoreId, k2.commandStoreId);
             return cmp;
-        }
-
-        private int compare(Timestamp timestamp1, Timestamp timestamp2)
-        {
-            int cmp = Long.compareUnsigned(timestamp1.hlc(), timestamp2.hlc());
-            if (cmp == 0) cmp = Long.compareUnsigned(epochAndFlags(timestamp1), epochAndFlags(timestamp2));
-            if (cmp == 0) cmp = Integer.compareUnsigned(timestamp1.node.id, timestamp2.node.id);
-            return cmp;
-        }
-
-        private long epochAndFlags(Timestamp timestamp)
-        {
-            return (timestamp.epoch() << 16) | (long) timestamp.flags();
-        }
-
-        private long epoch(long epochAndFlags)
-        {
-            return epochAndFlags >>> 16;
-        }
-
-        private int flags(long epochAndFlags)
-        {
-            return (int) (epochAndFlags & ((1 << 16) - 1));
         }
     };
 
@@ -230,7 +206,7 @@ public final class JournalKey
 
     boolean equals(JournalKey other)
     {
-        return this.timestamp.equals(other.timestamp) &&
+        return this.id.equals(other.id) &&
                this.type == other.type &&
                this.commandStoreId == other.commandStoreId;
     }
@@ -238,13 +214,13 @@ public final class JournalKey
     @Override
     public int hashCode()
     {
-        return Objects.hash(timestamp, type, commandStoreId);
+        return Objects.hash(id, type, commandStoreId);
     }
 
     public String toString()
     {
         return "Key{" +
-               "timestamp=" + timestamp +
+               "id=" + id +
                "type=" + type +
                ", commandStoreId=" + commandStoreId +
                '}';

@@ -236,6 +236,11 @@ public class Journal<K, V> implements Shutdownable
         compactor.run();
     }
 
+    public Compactor<K, V> compactor()
+    {
+        return compactor;
+    }
+
     /**
      * Cleans up unfinished component files from previous run (metadata and index)
      */
@@ -868,9 +873,11 @@ public class Journal<K, V> implements Shutdownable
     }
 
     @VisibleForTesting
-    public void closeCurrentSegmentForTesting()
+    public void closeCurrentSegmentForTestingIfNonEmpty()
     {
         ActiveSegment<K, V> segment = currentSegment;
+        if (segment.isEmpty())
+            return;
         advanceSegment(segment);
         while (!segments().isSwitched(segment))
         {

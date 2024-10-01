@@ -203,6 +203,30 @@ public class PartitionUpdate extends AbstractBTreePartition
      *
      * @param metadata the metadata for the created update.
      * @param key the partition key for the partition to update.
+     * @param rows the rows for the update (may not be static).
+     *
+     * @return the newly created partition update containing only {@code row}.
+     */
+    public static PartitionUpdate multiRowUpdate(TableMetadata metadata, DecoratedKey key, List<Row> rows)
+    {
+        if (rows.isEmpty())
+            return emptyUpdate(metadata, key);
+        MutableDeletionInfo deletionInfo = MutableDeletionInfo.live();
+        Columns columns = Columns.NONE;
+        for (Row row : rows)
+            columns = columns.mergeTo(Columns.from(row));
+
+        BTreePartitionData holder = new BTreePartitionData(new RegularAndStaticColumns(Columns.NONE, columns),
+                                                           BTree.build(rows), deletionInfo, Rows.EMPTY_STATIC_ROW,
+                                                           EncodingStats.NO_STATS);
+        return new PartitionUpdate(metadata, metadata.epoch, key, holder, deletionInfo, false);
+    }
+
+    /**
+     * Creates an immutable partition update that contains a single row update.
+     *
+     * @param metadata the metadata for the created update.
+     * @param key the partition key for the partition to update.
      * @param row the row for the update.
      *
      * @return the newly created partition update containing only {@code row}.

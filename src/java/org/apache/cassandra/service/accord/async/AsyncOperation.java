@@ -270,7 +270,6 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
                 }
 
                 commandStore.completeOperation(safeStore);
-
                 context.releaseResources(commandStore);
                 state(COMPLETING);
                 if (diffs != null || safeStore.fieldUpdates() != null)

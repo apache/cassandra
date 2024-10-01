@@ -509,15 +509,17 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
             }
             if (seeds.isEmpty())
                 throw new IllegalArgumentException("Can not initialize CMS without any seeds");
-
             boolean hasAnyEpoch = SystemKeyspaceStorage.hasAnyEpoch();
+
             // For CCM and local dev clusters
             boolean isOnlySeed = DatabaseDescriptor.getSeeds().size() == 1
                                  && DatabaseDescriptor.getSeeds().contains(FBUtilities.getBroadcastAddressAndPort())
                                  && DatabaseDescriptor.getSeeds().iterator().next().getAddress().isLoopbackAddress();
             boolean hasBootedBefore = SystemKeyspace.getLocalHostId() != null;
             logger.info("hasAnyEpoch = {}, hasBootedBefore = {}", hasAnyEpoch, hasBootedBefore);
-            if (!hasAnyEpoch && hasBootedBefore)
+            if (!hasAnyEpoch && hasBootedBefore &&
+                // Atomic long processor currently does not support upgrades
+                !CassandraRelevantProperties.TCM_USE_ATOMIC_LONG_PROCESSOR.getBoolean())
                 return UPGRADE;
             else if (hasAnyEpoch)
                 return NORMAL;
