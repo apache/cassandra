@@ -182,8 +182,10 @@ public class ReconfigureCMS extends MultiStepOperation<AdvanceCMSReconfiguration
         }
         catch (Throwable t)
         {
-            logger.error("Could not finish adding the node to the Cluster Metadata Service", t);
-            return SequenceState.blocked();
+            String message = "Some data streaming failed. Use nodetool to check CMS reconfiguration state and resume. " +
+                             "For more, see `nodetool help cms reconfigure`.";
+            logger.warn(message);
+            return SequenceState.error(new RuntimeException(message));
         }
     }
 
