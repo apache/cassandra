@@ -158,7 +158,7 @@ public class ClusterMetadataService
         Processor localProcessor;
         if (CassandraRelevantProperties.TCM_USE_ATOMIC_LONG_PROCESSOR.getBoolean())
         {
-            log = logSpec.sync().createLog();
+            log = logSpec.sync().withStorage(new AtomicLongBackedProcessor.InMemoryStorage()).createLog();
             localProcessor = wrapProcessor.apply(new AtomicLongBackedProcessor(log, logSpec.isReset()));
             fetchLogHandler = new FetchCMSLog.Handler((e, ignored) -> logSpec.storage().getLogState(e));
         }
