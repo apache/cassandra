@@ -102,7 +102,7 @@ public class ConstraintScalarCondition implements ConstraintCondition
                 break;
             case LTE:
                 if (columnValue > sizeConstraint)
-                    throw new ConstraintViolationException(param + " value length should be smaller or equala than " + sizeConstraint);
+                    throw new ConstraintViolationException(param + " value length should be smaller or equal than " + sizeConstraint);
                 break;
             default:
                 throw new ConstraintViolationException("Invalid relation type: " + relationType);
