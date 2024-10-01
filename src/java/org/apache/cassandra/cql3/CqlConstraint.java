@@ -131,15 +131,21 @@ public class CqlConstraint
             ColumnIdentifier identifier = new ColumnIdentifier(nameText, true);
             ColumnIdentifier columnNameIdentifier = new ColumnIdentifier(columnName, true);
             String columnConstraintClassName = in.readUTF();
-            ConstraintCondition condition;
-            if (columnConstraintClassName.equals(CqlConstraintFunctionCondition.class.getName()))
-            {
-                condition = CqlConstraintFunctionCondition.serializer.deserialize(in, keyspace, columnType, types, functions, version);
-            } else
-            {
-                condition = ConstraintScalarCondition.serializer.deserialize(in, keyspace, columnType, types, functions, version);
-            }
+            ConstraintCondition condition = ConstraintSerializerFactory.getCqlConditionSerializer(columnConstraintClassName)
+                                                                       .deserialize(in, keyspace, columnType, types, functions, version);
             return new CqlConstraint(identifier, columnNameIdentifier, condition);
+        }
+    }
+
+    public static class ConstraintSerializerFactory
+    {
+        public static CqlConstraintSerializer getCqlConditionSerializer(String columnConstraintClassName)
+        {
+            if (columnConstraintClassName.equals(CqlConstraintFunctionCondition.class.getName()))
+                return CqlConstraintFunctionCondition.serializer;
+            else if (columnConstraintClassName.equals(ConstraintScalarCondition.class.getName()))
+                return ConstraintScalarCondition.serializer;
+            throw new IllegalArgumentException(String.format("Condition %s needs to have an implemented serializer", columnConstraintClassName));
         }
     }
 }

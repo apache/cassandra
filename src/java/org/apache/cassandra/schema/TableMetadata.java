@@ -197,7 +197,6 @@ public class TableMetadata implements SchemaElement
     public final DataResource resource;
     public TableMetadataRef ref;
 
-    // table constraints
     protected Set<CqlConstraint> constraints;
 
     protected TableMetadata(Builder builder)
@@ -264,7 +263,7 @@ public class TableMetadata implements SchemaElement
                .droppedColumns(droppedColumns)
                .indexes(indexes)
                .triggers(triggers)
-               .addConstraints(constraints)
+               .constraints(constraints)
                .epoch(epoch);
     }
 
@@ -1183,7 +1182,7 @@ public class TableMetadata implements SchemaElement
             return constraints;
         }
 
-        public Builder addConstraints(Set<CqlConstraint> constraints)
+        public Builder constraints(Set<CqlConstraint> constraints)
         {
             this.constraints.addAll(constraints);
             return this;
@@ -1438,9 +1437,7 @@ public class TableMetadata implements SchemaElement
             appendPrimaryKey(builder);
 
         if (!constraints().isEmpty())
-        {
             appendConstraints(builder);
-        }
 
         builder.decreaseIndent()
                .newLine().append(')');

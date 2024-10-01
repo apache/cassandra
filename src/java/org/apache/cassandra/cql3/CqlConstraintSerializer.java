@@ -19,30 +19,21 @@
 package org.apache.cassandra.cql3;
 
 import java.io.IOException;
-import java.util.Map;
 
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Types;
 import org.apache.cassandra.schema.UserFunctions;
 import org.apache.cassandra.tcm.serialization.Version;
 
 /**
- * Common class for the conditions that a CQL Constraint needs to implement to be integrated in the
- * CQL Constraints framework.
+ * Interface to be implemented by cql contraint serializer static classes.
  */
-public interface ConstraintCondition
+public interface CqlConstraintSerializer
 {
-
-
-
     /**
-     *
-     * Generic condition serializer.
-     *
+     * Serialize the condition on the cql constraint.
      * @param constraintFunctionCondition
      * @param out
      * @param version
@@ -50,9 +41,9 @@ public interface ConstraintCondition
      */
     void serialize(ConstraintCondition constraintFunctionCondition, DataOutputPlus out, Version version) throws IOException;
 
+
     /**
-     * Generig condition deserializer.
-     *
+     * Deserialize the condition on the cql constraint.
      * @param in
      * @param keyspace
      * @param columnType
@@ -63,22 +54,4 @@ public interface ConstraintCondition
      * @throws IOException
      */
     ConstraintCondition deserialize(DataInputPlus in, String keyspace, AbstractType<?> columnType, Types types, UserFunctions functions, Version version) throws IOException;
-
-    /**
-     * Method that provides the execution of the condition. It can either succeed or throw a {@link ConstraintViolationException}.
-     *
-     * @param columnValues
-     * @param columnMetadata
-     * @param tableMetadata
-     */
-    void checkCondition(Map<String, String> columnValues, ColumnMetadata columnMetadata, TableMetadata tableMetadata);
-
-    /**
-     * Method that validates that a condition is valid. This method is called when the CQL constraint is created to determine
-     * if the CQL statement is valid or needs to be rejected as invalid.
-     *
-     * @param columnMetadata
-     * @param tableMetadata
-     */
-    void validateCondition(ColumnMetadata columnMetadata, TableMetadata tableMetadata);
 }

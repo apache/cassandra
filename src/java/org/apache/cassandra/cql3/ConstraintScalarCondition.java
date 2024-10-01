@@ -37,9 +37,10 @@ public class ConstraintScalarCondition implements ConstraintCondition
     public final Operator relationType;
     public final String term;
 
-    public static Serializer serializer = new Serializer();
+    public final static Serializer serializer = new Serializer();
 
-    public final static class Raw {
+    public final static class Raw
+    {
         public final ColumnIdentifier param;
         public final Operator relationType;
         public final String term;
@@ -66,8 +67,16 @@ public class ConstraintScalarCondition implements ConstraintCondition
 
     public void checkCondition(Map<String, String> columnValues, ColumnMetadata columnMetadata, TableMetadata tableMetadata)
     {
-        int columnValue = Integer.parseInt(columnValues.get(param.toString()));
-        int sizeConstraint = Integer.parseInt(term);
+        double columnValue;
+        double sizeConstraint;
+        try
+        {
+            columnValue = Double.parseDouble(columnValues.get(param.toString()));
+            sizeConstraint = Double.parseDouble(term);
+        } catch (final NumberFormatException exception)
+        {
+            throw new ConstraintViolationException(param + " and " + term + " need to be numbers.");
+        }
 
         switch (relationType)
         {
@@ -123,21 +132,21 @@ public class ConstraintScalarCondition implements ConstraintCondition
         return serializer.deserialize(in, keyspace, columnType, types, functions, version);
     }
 
-    public static class Serializer
+    public static class Serializer implements CqlConstraintSerializer
     {
-        public void serialize(ConstraintScalarCondition constraintFunctionCondition, DataOutputPlus out, Version version) throws IOException
+        public void serialize(ConstraintCondition constraintFunctionCondition, DataOutputPlus out, Version version) throws IOException
         {
-            out.writeUTF(constraintFunctionCondition.param.toString());
-            out.writeUTF(constraintFunctionCondition.relationType.toString());
-            out.writeUTF(constraintFunctionCondition.term);
+            ConstraintScalarCondition condition = (ConstraintScalarCondition) constraintFunctionCondition;
+            out.writeUTF(condition.param.toString());
+            out.writeUTF(condition.relationType.toString());
+            out.writeUTF(condition.term);
         }
 
         public ConstraintScalarCondition deserialize(DataInputPlus in, String keyspace, AbstractType<?> columnType, Types types, UserFunctions functions, Version version) throws IOException
         {
             ColumnIdentifier param = new ColumnIdentifier(in.readUTF(), true);
             Operator relationType = Operator.valueOf(in.readUTF());
-            final String term = in.readUTF();
-            return new ConstraintScalarCondition(param, relationType, term);
+            return new ConstraintScalarCondition(param, relationType, in.readUTF());
         }
     }
 }

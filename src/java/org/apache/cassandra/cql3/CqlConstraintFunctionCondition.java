@@ -103,13 +103,14 @@ public class CqlConstraintFunctionCondition implements ConstraintCondition
         return serializer.deserialize(in, keyspace, columnType, types, functions, version);
     }
 
-    public static class Serializer
+    public static class Serializer implements CqlConstraintSerializer
     {
-        public void serialize(CqlConstraintFunctionCondition cqlConstraintFunctionCondition, DataOutputPlus out, Version version) throws IOException
+        public void serialize(ConstraintCondition cqlConstraintFunctionCondition, DataOutputPlus out, Version version) throws IOException
         {
-            ConstraintFunction.serializer.serialize(cqlConstraintFunctionCondition.function, out, version);
-            out.writeUTF(cqlConstraintFunctionCondition.relationType.toString());
-            out.writeUTF(cqlConstraintFunctionCondition.term);
+            CqlConstraintFunctionCondition condition = (CqlConstraintFunctionCondition) cqlConstraintFunctionCondition;
+            ConstraintFunction.serializer.serialize(condition.function, out, version);
+            out.writeUTF(condition.relationType.toString());
+            out.writeUTF(condition.term);
         }
 
         public CqlConstraintFunctionCondition deserialize(DataInputPlus in, String keyspace, AbstractType<?> columnType, Types types, UserFunctions functions, Version version) throws IOException

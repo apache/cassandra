@@ -18,12 +18,10 @@
 
 package org.apache.cassandra.cql3;
 
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -35,7 +33,7 @@ public class ConstraintFunction
     public final CqlConstraintFunctionExecutor executor;
     public final List<ColumnIdentifier> arg;
 
-    public static Serializer serializer = new Serializer();
+    public static final Serializer serializer = new Serializer();
 
     public ConstraintFunction(CqlConstraintFunctionExecutor executor, List<ColumnIdentifier> arg)
     {
@@ -57,21 +55,23 @@ public class ConstraintFunction
     @Override
     public String toString()
     {
-        List<String> argsString = arg.stream().map(a -> a.toCQLString()).collect(Collectors.toList());
+        List<String> argsString = new ArrayList<>();
+        for (ColumnIdentifier columnIdentifier : arg)
+        {
+            argsString.add(columnIdentifier.toCQLString());
+        }
         String args = String.join(", ", argsString);
         return String.format("%s(%s)", executor.getName(), args);
     }
 
-    public static class Serializer
+    public final static class Serializer
     {
         public void serialize(ConstraintFunction constraintFunction, DataOutputPlus out, Version version) throws IOException
         {
             out.writeUTF(constraintFunction.executor.getClass().getName());
             out.writeUnsignedVInt32(constraintFunction.arg.size());
             for (ColumnIdentifier arg : constraintFunction.arg)
-            {
                 out.writeUTF(arg.toString());
-            }
         }
 
         public ConstraintFunction deserialize(DataInputPlus in) throws IOException

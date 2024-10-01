@@ -374,7 +374,7 @@ public final class CreateTableStatement extends AlterSchemaStatement
             });
         }
 
-        builder.addConstraints(tableConstraints);
+        builder.constraints(tableConstraints);
         return builder;
     }
 
@@ -574,9 +574,8 @@ public final class CreateTableStatement extends AlterSchemaStatement
         public void addTableConstraint(CqlConstraint constraint)
         {
             if (tableConstraints.contains(constraint))
-            {
                 throw ire("Duplicate table constraint: '%s'", constraint);
-            }
+
             tableConstraints.add(constraint);
         }
 

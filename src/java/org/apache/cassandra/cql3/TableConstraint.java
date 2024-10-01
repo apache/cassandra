@@ -36,7 +36,7 @@ public class TableConstraint
     public final ColumnIdentifier name;
     public final ConstraintCondition constraintCondition;
 
-    public static Serializer serializer = new Serializer();
+    public final static Serializer serializer = new Serializer();
 
     public final static class Raw {
         public final ColumnIdentifier name;
@@ -75,13 +75,11 @@ public class TableConstraint
         constraintCondition.validateCondition(columnMetadata, tableMetadata);
     }
 
-
     @Override
     public String toString()
     {
         return constraintCondition.toString();
     }
-
 
     public static class Serializer
     {
@@ -95,7 +93,6 @@ public class TableConstraint
         {
             String nameText = in.readUTF();
             ColumnIdentifier identifier = new ColumnIdentifier(nameText, true);
-            // ConstraintCondition condition = columnConstraint.constraintCondition.deserialize(in, keyspace, columnType, types, functions, version);
             return new TableConstraint(identifier, null);
         }
     }

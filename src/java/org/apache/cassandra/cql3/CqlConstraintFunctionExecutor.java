@@ -24,9 +24,49 @@ import java.util.Map;
 
 import org.apache.cassandra.schema.TableMetadata;
 
+/**
+ * Interface to be implemented by functions that are executed as part of CQL constraints.
+ */
 public interface CqlConstraintFunctionExecutor
 {
+    /**
+     * This method returns the function name to be executed.
+     *
+     * @return
+     */
     String getName();
+
+    /**
+     * Method that provides the execution of the condition. It can either succeed or throw a {@link ConstraintViolationException}.
+     *
+     * @param args
+     * @param relationType
+     * @param term
+     * @param tableMetadata
+     * @param columnValues
+     */
     void checkConstraint(List<ColumnIdentifier> args, Operator relationType, String term, TableMetadata tableMetadata, Map<String, String> columnValues);
+
+    /**
+     * Method that validates that a condition is valid. This method is called when the CQL constraint is created to determine
+     * if the CQL statement is valid or needs to be rejected as invalid.
+     * @param args
+     * @param relationType
+     * @param term
+     * @param tableMetadata
+     */
     void validate(List<ColumnIdentifier> args, Operator relationType, String term, TableMetadata tableMetadata);
+
+    /**
+     * Removes initial and ending quotes from a column value
+     *
+     * @param columnValue
+     * @return
+     */
+    default String stripColumnValue(String columnValue)
+    {
+        if (columnValue.startsWith("'") && columnValue.endsWith("'"))
+            return columnValue.substring(1, columnValue.length() - 1);
+        return columnValue;
+    }
 }

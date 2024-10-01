@@ -322,9 +322,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                 Token token = metadata().partitioner.getToken(key);
 
                 for (Replica replica : ReplicaLayout.forTokenWriteLiveAndDown(keyspace, token).all())
-                {
                     Guardrails.replicaDiskUsage.guard(replica.endpoint(), state);
-                }
             }
         }
     }
@@ -341,36 +339,26 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
 
     public void validateConstraints()
     {
-
         for (ColumnMetadata column : pkRestrictedColumns())
         {
             if (column.hasConstraint())
-            {
                 column.getColumnConstraint().checkConstraint(columnValues, column, metadata);
-            }
         }
 
         for (ColumnMetadata column : clusteringRestrictedColumns())
         {
             if (column.hasConstraint())
-            {
                 column.getColumnConstraint().checkConstraint(columnValues, column, metadata);
-            }
         }
 
         for (ColumnMetadata column : updatedColumns())
         {
             if (column.hasConstraint())
-            {
                 column.getColumnConstraint().checkConstraint(columnValues, column, metadata);
-            }
         }
 
         for (CqlConstraint constraint: metadata.constraints())
-        {
             constraint.checkConstraint(columnValues, null, metadata);
-        }
-
     }
 
     public RegularAndStaticColumns updatedColumns()

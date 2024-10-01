@@ -720,12 +720,13 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         {
             boolean removed = false;
             TableMetadata.Builder tableBuilder = table.unbuild().epoch(epoch);
-            for(CqlConstraint constraint : tableBuilder.constraints())
+            for (CqlConstraint constraint : tableBuilder.constraints())
             {
                 if (constraint.constraintName == constraintName)
                 {
                     tableBuilder.removeConstraint(constraint);
                     removed = true;
+                    break;
                 }
             }
             if (!removed)
@@ -761,10 +762,8 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
 
             for (CqlConstraint con : tableBuilder.constraints())
             {
-                if (con.constraintName == constraintName)
-                {
+                if (con.constraintName.equals(constraintName))
                     throw new ConstraintViolationException(format("Can't add an already existing constraint %s.", constraintName));
-                }
             }
 
             tableBuilder.addConstraint(constraint);
