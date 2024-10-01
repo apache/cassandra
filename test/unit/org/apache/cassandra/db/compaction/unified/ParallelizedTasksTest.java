@@ -93,7 +93,7 @@ public class ParallelizedTasksTest extends ShardingTestBase
 
         LifecycleTransaction transaction = cfs.getTracker().tryModify(cfs.getLiveSSTables(), OperationType.COMPACTION);
 
-        ShardManager shardManager = new ShardManagerNoDisks(ColumnFamilyStore.fullWeightedRange(RING_VERSION_IRRELEVANT, cfs.getPartitioner()));
+        ShardManager shardManager = new ShardManagerNoDisks(ColumnFamilyStore.fullWeightedRange(RING_VERSION_IRRELEVANT, cfs.getPartitioner()), 1 << 16);
 
         Controller mockController = Mockito.mock(Controller.class);
         UnifiedCompactionStrategy mockStrategy = Mockito.mock(UnifiedCompactionStrategy.class, Mockito.CALLS_REAL_METHODS);
