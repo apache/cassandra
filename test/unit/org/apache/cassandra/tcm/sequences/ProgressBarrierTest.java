@@ -45,6 +45,7 @@ import org.apache.cassandra.harry.gen.rng.PcgRSUFast;
 import org.apache.cassandra.harry.gen.rng.RngUtils;
 import org.apache.cassandra.harry.sut.TokenPlacementModel;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.net.ConnectionType;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageDelivery;
@@ -320,7 +321,9 @@ public class ProgressBarrierTest extends CMSTestBase
                                               .advance(metadata.epoch)
                                               .barrier()
                                               .withMessagingService(delivery);
+            long before = TCMMetrics.instance.progressBarrierRetries.getCount();
             progressBarrier.await();
+            Assert.assertTrue(TCMMetrics.instance.progressBarrierRetries.getCount() - before > 0);
             Assert.assertTrue(responded.size() == 1);
         }
     }
