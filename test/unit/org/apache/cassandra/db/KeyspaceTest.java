@@ -18,10 +18,12 @@
 
 package org.apache.cassandra.db;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.metrics.ClearSnapshotFilesMetrics;
 import org.apache.cassandra.schema.Schema;
 import org.assertj.core.api.Assertions;
 import org.junit.Test;
@@ -520,28 +522,86 @@ public class KeyspaceTest extends CQLTester
 
         for (File tableDir : cfs.getDirectories().getCFDirectories())
         {
+            long noTableDirCountBefore;
+            long noTableDirCountAfter;
+            long ioExceptionBefore;
+            long ioExceptionAfter;
+            long successCountBefore;
+            long successCountAfter;
+
             File snapshotDir = Directories.getSnapshotDirectory(tableDir, snapshotName);
             File[] files = snapshotDir.list();
             int count = files.length;
             assertTrue(count > 0);
+
             // delete one file
+            noTableDirCountBefore = ClearSnapshotFilesMetrics.noTableDir.getCount();
+            ioExceptionBefore = ClearSnapshotFilesMetrics.ioException.getCount();
+            successCountBefore = ClearSnapshotFilesMetrics.success.latency.getCount();
             Keyspace.clearSnapshotFiles(snapshotName, KEYSPACE_PER_TEST, tableDir.name(), files[0].name());
+            noTableDirCountAfter = ClearSnapshotFilesMetrics.noTableDir.getCount();
+            ioExceptionAfter = ClearSnapshotFilesMetrics.ioException.getCount();
+            successCountAfter = ClearSnapshotFilesMetrics.success.latency.getCount();
             files = Directories.getSnapshotDirectory(tableDir, snapshotName).list();
             int oldCount = count;
             count = files.length;
             assertEquals(1, oldCount - count);
+            assertEquals(0, noTableDirCountAfter - noTableDirCountBefore);
+            assertEquals(0, ioExceptionAfter - ioExceptionBefore);
+            assertEquals(1, successCountAfter - successCountBefore);
 
             // delete two files
+            noTableDirCountBefore = ClearSnapshotFilesMetrics.noTableDir.getCount();
+            ioExceptionBefore = ClearSnapshotFilesMetrics.ioException.getCount();
+            successCountBefore = ClearSnapshotFilesMetrics.success.latency.getCount();
             Keyspace.clearSnapshotFiles(snapshotName, KEYSPACE_PER_TEST, tableDir.name(), files[0].name(), files[1].name());
+            noTableDirCountAfter = ClearSnapshotFilesMetrics.noTableDir.getCount();
+            ioExceptionAfter = ClearSnapshotFilesMetrics.ioException.getCount();
+            successCountAfter = ClearSnapshotFilesMetrics.success.latency.getCount();
             files = Directories.getSnapshotDirectory(tableDir, snapshotName).list();
             oldCount = count;
             count = files.length;
             assertEquals(2, oldCount - count);
+            assertEquals(0, noTableDirCountAfter - noTableDirCountBefore);
+            assertEquals(0, ioExceptionAfter - ioExceptionBefore);
+            assertEquals(1, successCountAfter - successCountBefore);
+
+            // delete non-existing files
+            noTableDirCountBefore = ClearSnapshotFilesMetrics.noTableDir.getCount();
+            ioExceptionBefore = ClearSnapshotFilesMetrics.ioException.getCount();
+            successCountBefore = ClearSnapshotFilesMetrics.success.latency.getCount();
+            String nonExistingTable = tableDir.name() + "nonexisting";
+            try {
+                Keyspace.clearSnapshotFiles(snapshotName, KEYSPACE_PER_TEST, nonExistingTable, files[0].name());
+                fail(); // should not reach here
+            } catch (Exception e) {
+                assertTrue(e instanceof RuntimeException);
+                assertTrue(e.getMessage().contains("No table dir found"));
+            }
+            noTableDirCountAfter = ClearSnapshotFilesMetrics.noTableDir.getCount();
+            ioExceptionAfter = ClearSnapshotFilesMetrics.ioException.getCount();
+            successCountAfter = ClearSnapshotFilesMetrics.success.latency.getCount();
+            files = Directories.getSnapshotDirectory(tableDir, snapshotName).list();
+            oldCount = count;
+            count = files.length;
+            assertEquals(0, oldCount - count);
+            assertEquals(1, noTableDirCountAfter - noTableDirCountBefore);
+            assertEquals(0, ioExceptionAfter - ioExceptionBefore);
+            assertEquals(0, successCountAfter - successCountBefore);
 
             // delete all snapshot files in snapshot dir
+            noTableDirCountBefore = ClearSnapshotFilesMetrics.noTableDir.getCount();
+            ioExceptionBefore = ClearSnapshotFilesMetrics.ioException.getCount();
+            successCountBefore = ClearSnapshotFilesMetrics.success.latency.getCount();
             Keyspace.clearSnapshotFiles(snapshotName, KEYSPACE_PER_TEST, tableDir.name());
+            noTableDirCountAfter = ClearSnapshotFilesMetrics.noTableDir.getCount();
+            ioExceptionAfter = ClearSnapshotFilesMetrics.ioException.getCount();
+            successCountAfter = ClearSnapshotFilesMetrics.success.latency.getCount();
             files = Directories.getSnapshotDirectory(tableDir, snapshotName).list();
             assertEquals(0, files.length);
+            assertEquals(0, noTableDirCountAfter - noTableDirCountBefore);
+            assertEquals(0, ioExceptionAfter - ioExceptionBefore);
+            assertEquals(1, successCountAfter - successCountBefore);
         }
     }
 

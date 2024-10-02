@@ -58,6 +58,7 @@ import org.apache.cassandra.index.transactions.UpdateTransaction;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
+import org.apache.cassandra.metrics.ClearSnapshotFilesMetrics;
 import org.apache.cassandra.metrics.KeyspaceMetrics;
 import org.apache.cassandra.repair.KeyspaceRepairManager;
 import org.apache.cassandra.schema.CDCParams;
@@ -85,6 +86,7 @@ import org.apache.cassandra.utils.concurrent.Promise;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.FBUtilities.now;
 import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 
@@ -343,19 +345,27 @@ public class Keyspace
     /**
      * Clear the all snapshot files in given paths for a given keyspace.
      *
-     * @param snapshotName the user supplied snapshot name. It empty or null,
+     * @param snapshotName the user supplied snapshot name. If empty or null,
      *                     all the snapshots will be cleaned
      */
     public static void clearSnapshotFiles(String snapshotName, String keyspace, String tableDir, String... files) throws IOException
     {
+        long start = nanoTime();
         File cfDir = Directories.getKSChildDirectoryWithName(keyspace, tableDir);
         if (cfDir == null)
         {
+            ClearSnapshotFilesMetrics.noTableDir.mark();
             throw new RuntimeException(String.format("No table dir found for ks %s with dir name %s", keyspace, tableDir));
         }
         RateLimiter clearSnapshotRateLimiter = DatabaseDescriptor.getSnapshotRateLimiter();
         Set<String> filesToDelete = new HashSet<>(Arrays.asList(files));
-        Directories.clearSnapshotFiles(snapshotName, cfDir, clearSnapshotRateLimiter, filesToDelete);
+        try {
+            Directories.clearSnapshotFiles(snapshotName, cfDir, clearSnapshotRateLimiter, filesToDelete);
+        } catch (IOException e) {
+            ClearSnapshotFilesMetrics.ioException.mark();
+            throw e;
+        }
+        ClearSnapshotFilesMetrics.success.addNano(nanoTime() - start);
     }
 
     /**
