@@ -117,6 +117,17 @@ public class InJVMTokenAwareVisitExecutor extends LoggingVisitor.LoggingVisitorE
         throw new IllegalStateException(String.format("Can not execute statement %s after %d retries", statement, retries));
     }
 
+    public static TokenPlacementModel.ReplicatedRanges getRing(ICoordinator coordinator, TokenPlacementModel.ReplicationFactor rf)
+    {
+        List<TokenPlacementModel.Node> other = peerStateToNodes(coordinator.execute("select peer, tokens, data_center, rack from system.peers", ConsistencyLevel.ONE));
+        List<TokenPlacementModel.Node> self = peerStateToNodes(coordinator.execute("select broadcast_address, tokens, data_center, rack from system.local", ConsistencyLevel.ONE));
+        List<TokenPlacementModel.Node> all = new ArrayList<>();
+        all.addAll(self);
+        all.addAll(other);
+        all.sort(TokenPlacementModel.Node::compareTo);
+        return rf.replicate(all);
+    }
+
     protected TokenPlacementModel.ReplicatedRanges getRing()
     {
         ICoordinator coordinator = sut.firstAlive().coordinator();

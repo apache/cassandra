@@ -150,12 +150,12 @@ public class TokenPlacementModel
         int compareTo(V v);
     }
 
-    public static void addIfUnique(List<Replica> replicas, Set<Integer> names, Replica replica)
+    public static void addIfUnique(List<Replica> replicas, Set<String> names, Replica replica)
     {
-        if (names.contains(replica.node().idx()))
+        if (names.contains(replica.node().id()))
             return;
         replicas.add(replica);
-        names.add(replica.node().idx());
+        names.add(replica.node().id());
     }
 
     /**
@@ -589,7 +589,7 @@ public class TokenPlacementModel
             Range skipped = null;
             for (Range range : ranges)
             {
-                Set<Integer> names = new HashSet<>();
+                Set<String> names = new HashSet<>();
                 List<Replica> replicas = new ArrayList<>();
                 int idx = primaryReplica(nodes, range);
                 if (idx >= 0)
@@ -597,7 +597,8 @@ public class TokenPlacementModel
                     for (int i = 0; i < nodes.size() && replicas.size() < dcReplicas.totalCount; i++)
                     {
                         boolean full = replicas.size() < dcReplicas.totalCount - dcReplicas.transientCount;
-                        addIfUnique(replicas, names, new Replica(nodes.get((idx + i) % nodes.size()), full));
+                        int target = (idx + i) % nodes.size();
+                        addIfUnique(replicas, names, new Replica(nodes.get(target), full));
                     }
                     if (!minTokenOwned && range.start == Long.MIN_VALUE)
                         replication.put(ranges[ranges.length - 1], replicas);
