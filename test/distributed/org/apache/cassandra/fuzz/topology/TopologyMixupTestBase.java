@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.fuzz.topology;
 
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.InetSocketAddress;
@@ -25,7 +26,6 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -39,12 +39,12 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import javax.annotation.Nullable;
 
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
-import org.apache.cassandra.harry.sut.TokenPlacementModel;
-import org.apache.cassandra.harry.sut.injvm.InJVMTokenAwareVisitExecutor;
+import org.agrona.collections.Int2ObjectHashMap;
+import org.agrona.collections.IntArrayList;
+import org.agrona.collections.IntHashSet;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -56,9 +56,6 @@ import accord.utils.Property;
 import accord.utils.Property.Command;
 import accord.utils.Property.SimpleCommand;
 import accord.utils.RandomSource;
-import org.agrona.collections.Int2ObjectHashMap;
-import org.agrona.collections.IntArrayList;
-import org.agrona.collections.IntHashSet;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.YamlConfigurationLoader;
 import org.apache.cassandra.distributed.Cluster;
@@ -71,6 +68,8 @@ import org.apache.cassandra.distributed.impl.INodeProvisionStrategy;
 import org.apache.cassandra.distributed.impl.InstanceConfig;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.harry.sut.TokenPlacementModel;
+import org.apache.cassandra.harry.sut.injvm.InJVMTokenAwareVisitExecutor;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.schema.ReplicationParams;
@@ -360,7 +359,10 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
             possibleTopologyChanges.add(TopologyChange.AddNode);
         if (upAndSafe.length > 0)
         {
-            possibleTopologyChanges.add(TopologyChange.RemoveNode);
+            // can't remove the node if all nodes are CMS nodes
+            var nonCMS = Sets.difference(asSet(upAndSafe), asSet(state.cmsGroup));
+            if (!nonCMS.isEmpty())
+                possibleTopologyChanges.add(TopologyChange.RemoveNode);
             possibleTopologyChanges.add(TopologyChange.HostReplace);
             possibleTopologyChanges.add(TopologyChange.StopNode);
         }
