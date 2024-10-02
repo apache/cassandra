@@ -130,14 +130,7 @@ public class InJVMTokenAwareVisitExecutor extends LoggingVisitor.LoggingVisitorE
 
     protected TokenPlacementModel.ReplicatedRanges getRing()
     {
-        ICoordinator coordinator = sut.firstAlive().coordinator();
-        List<TokenPlacementModel.Node> other = peerStateToNodes(coordinator.execute("select peer, tokens, data_center, rack from system.peers", ConsistencyLevel.ONE));
-        List<TokenPlacementModel.Node> self = peerStateToNodes(coordinator.execute("select broadcast_address, tokens, data_center, rack from system.local", ConsistencyLevel.ONE));
-        List<TokenPlacementModel.Node> all = new ArrayList<>();
-        all.addAll(self);
-        all.addAll(other);
-        all.sort(TokenPlacementModel.Node::compareTo);
-        return rf.replicate(all);
+        return getRing(sut.firstAlive().coordinator(), rf);
     }
 
     protected Object[][] executeNodeLocal(String statement, TokenPlacementModel.Node node, Object... bindings)
