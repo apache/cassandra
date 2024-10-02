@@ -36,7 +36,7 @@ public class Roles
 
     private static final Role NO_ROLE = new Role("", false, false, Collections.emptyMap(), Collections.emptySet());
 
-    public static RolesCache cache = new RolesCache(DatabaseDescriptor.getRoleManager(), () -> DatabaseDescriptor.getAuthenticator().requireAuthentication());
+    public static volatile RolesCache cache = new RolesCache(DatabaseDescriptor.getRoleManager(), () -> DatabaseDescriptor.getAuthenticator().requireAuthentication());
 
     /** Use {@link AuthCacheService#initializeAndRegisterCaches} rather than calling this directly */
     public static void init()
@@ -206,6 +206,7 @@ public class Roles
 
    public static void resetRoleCache()
    {
+       cache.unregisterMBean();
        cache = new RolesCache(DatabaseDescriptor.getRoleManager(), () -> DatabaseDescriptor.getAuthenticator().requireAuthentication());
    }
 }
