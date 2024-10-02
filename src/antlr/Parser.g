@@ -775,7 +775,6 @@ createTableStatement returns [CreateTableStatement.Raw stmt]
 
 tableDefinition[CreateTableStatement.Raw stmt]
     : '(' tableColumns[stmt] ( ',' tableColumns[stmt]? )* ')'
-      /*( ',' K_CONSTRAINT (cn=ident)? K_CHECK expr=cqlConstraintExp[stmt] { $stmt.addTableConstraint(expr.prepareWithName(cn)); } )* */
       ( K_WITH tableProperty[stmt] ( K_AND tableProperty[stmt] )*)?
     ;
 
@@ -789,7 +788,6 @@ tableColumns[CreateTableStatement.Raw stmt]
 
 cqlConstraintExp[CreateTableStatement.Raw stmt] returns [CqlConstraint.Raw cqlConstraint]
     : cond=cqlConstraintFunctionCondition[stmt] { cqlConstraint = new CqlConstraint.Raw(null, cond); }
-    | k=ident cond=cqlConstraintFunctionCondition[stmt] { cqlConstraint = new CqlConstraint.Raw(k, cond); }
     ;
 
 cqlConstraintFunctionCondition[CreateTableStatement.Raw stmt] returns [ConstraintCondition cond]
@@ -806,8 +804,7 @@ constraintAllowedFunctionName returns [CqlConstraintFunctionExecutor e]
     ;
 
 constraintFunction returns [ConstraintFunction t]
-    : f=constraintFunctionName '(' ')'                   { $t = new ConstraintFunction(f, Collections.<ColumnIdentifier>emptyList()); }
-    | f=constraintFunctionName '(' args=constraintFunctionArgs ')' { $t = new ConstraintFunction(f, args); }
+    : f=constraintFunctionName '(' args=constraintFunctionArgs ')' { $t = new ConstraintFunction(f, args); }
     ;
 
 constraintFunctionArgs returns [List<ColumnIdentifier> args]
@@ -1011,7 +1008,6 @@ alterTableStatement returns [AlterTableStatement.Raw stmt]
 
 alterCqlConstraintExp[AlterTableStatement.Raw stmt] returns [CqlConstraint.Raw cqlConstraint]
     : cond=alterConstraintFunctionCondition[stmt] { cqlConstraint = new CqlConstraint.Raw(null, cond); }
-    | k=ident cond=alterConstraintFunctionCondition[stmt] { cqlConstraint = new CqlConstraint.Raw(k, cond); }
     ;
 
 alterConstraintFunctionCondition[AlterTableStatement.Raw stmt] returns [ConstraintCondition cond]
@@ -2098,5 +2094,7 @@ basic_unreserved_keyword returns [String str]
         | K_VECTOR
         | K_ANN
         | K_BETWEEN
+        | K_CHECK
+        | K_LENGTH
         ) { $str = $k.text; }
     ;

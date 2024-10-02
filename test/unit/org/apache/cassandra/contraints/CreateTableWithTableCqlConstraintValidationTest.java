@@ -476,4 +476,11 @@ public class CreateTableWithTableCqlConstraintValidationTest extends CqlConstrai
         assertInvalidThrow(ConstraintViolationException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 'fooo', 2, 3)");
         assertInvalidThrow(ConstraintViolationException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 'foooo', 5, 3)");
     }
+
+    @Test
+    public void testCreateTableWithUnreservedNameColumns() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int PRIMARY KEY, length int, CONSTRAINT cons1 CHECK length < 100);");
+        createTable("CREATE TABLE %s (pk int PRIMARY KEY, length text, CONSTRAINT cons1 CHECK LENGTH(length) < 100);");
+    }
 }
