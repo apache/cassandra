@@ -141,7 +141,8 @@ public class Election
         Register.maybeRegister();
 
         updateInitiator(currentCoordinator, MIGRATED);
-        MessageDelivery.fanoutAndWait(messaging, sendTo, Verb.TCM_NOTIFY_REQ, DistributedMetadataLogKeyspace.getLogState(Epoch.EMPTY, false));
+        MessageDelivery.fanoutAndWait(messaging, sendTo, Verb.TCM_NOTIFY_REQ,
+                                      DistributedMetadataLogKeyspace.getLogState(Epoch.EMPTY, false));
     }
 
     private void abort(Set<InetAddressAndPort> sendTo)

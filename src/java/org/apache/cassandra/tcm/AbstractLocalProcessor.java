@@ -172,7 +172,6 @@ public abstract class AbstractLocalProcessor implements Processor
         }
     }
 
-
     private LogState toLogState(Transformation.Success success, Entry.Id entryId, Epoch lastKnown, Transformation transform)
     {
         if (lastKnown == null || lastKnown.isDirectlyBefore(success.metadata.epoch))
@@ -197,9 +196,6 @@ public abstract class AbstractLocalProcessor implements Processor
         return logState;
     }
 
-
-    @Override
     public abstract ClusterMetadata fetchLogAndWait(Epoch waitFor, Retry.Deadline retryPolicy);
     protected abstract boolean tryCommitOne(Entry.Id entryId, Transformation transform, Epoch previousEpoch, Epoch nextEpoch);
-
 }

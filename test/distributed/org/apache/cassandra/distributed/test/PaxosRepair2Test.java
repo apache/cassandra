@@ -189,7 +189,6 @@ public class PaxosRepair2Test extends TestBaseImpl
         Ballot staleBallot = Paxos.newBallot(Ballot.none(), org.apache.cassandra.db.ConsistencyLevel.SERIAL);
         try (Cluster cluster = init(Cluster.create(3, cfg -> cfg
                                                              .set("paxos_variant", "v2")
-                                                             .set("accord.enabled", false) // this test monkeys with TCM which can cause confussion for Accord while it fetches epochs...
                                                              .set("paxos_purge_grace_period", "0s")
                                                              .set("truncate_request_timeout_in_ms", 1000L)))
         )

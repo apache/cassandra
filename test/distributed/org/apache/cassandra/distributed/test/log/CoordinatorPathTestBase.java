@@ -734,6 +734,7 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
                                        log,
                                        new Processor()
                                        {
+                                           @Override
                                            public Commit.Result commit(Entry.Id entryId, Transformation event, Epoch lastKnown, Retry.Deadline retryPolicy)
                                            {
                                                if (lastKnown == null)
@@ -747,6 +748,7 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
                                                return result;
                                            }
 
+                                           @Override
                                            public ClusterMetadata fetchLogAndWait(Epoch waitFor, Retry.Deadline retryPolicy)
                                            {
                                                Epoch since = log.waitForHighestConsecutive().epoch;
@@ -755,9 +757,16 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
                                                return log.waitForHighestConsecutive();
                                            }
 
-                                           public LogState reconstruct(Epoch lowEpoch, Epoch highEpoch, Retry.Deadline retryPolicy)
+                                           @Override
+                                           public LogState getLocalState(Epoch start, Epoch end, boolean includeSnapshot, Retry.Deadline retryPolicy)
                                            {
-                                               return log.getLocalEntries(lowEpoch, highEpoch);
+                                               return getLogState(start, end, includeSnapshot, retryPolicy);
+                                           }
+
+                                           @Override
+                                           public LogState getLogState(Epoch start, Epoch end, boolean includeSnapshot, Retry.Deadline retryPolicy)
+                                           {
+                                               return log.getLocalEntries(start, end, includeSnapshot);
                                            }
                                        },
                                        (a,b) -> {},

@@ -132,7 +132,13 @@ public class ValidatingClusterMetadataService extends StubClusterMetadataService
             }
 
             @Override
-            public LogState reconstruct(Epoch lowEpoch, Epoch highEpoch, Retry.Deadline retryPolicy)
+            public LogState getLocalState(Epoch lowEpoch, Epoch highEpoch, boolean includeSnapshot, Retry.Deadline retryPolicy)
+            {
+                return getLogState(lowEpoch, highEpoch, includeSnapshot, retryPolicy);
+            }
+
+            @Override
+            public LogState getLogState(Epoch lowEpoch, Epoch highEpoch, boolean includeSnapshot, Retry.Deadline retryPolicy)
             {
                 if (!epochs.containsKey(lowEpoch))
                     throw new AssertionError("Unknown epoch: " + lowEpoch);

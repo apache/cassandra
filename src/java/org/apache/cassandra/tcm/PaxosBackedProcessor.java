@@ -167,9 +167,16 @@ public class PaxosBackedProcessor extends AbstractLocalProcessor
         throw new ReadTimeoutException(ConsistencyLevel.QUORUM, blockFor - collected.size(), blockFor, false);
     }
 
-    public LogState reconstruct(Epoch lowEpoch, Epoch highEpoch, Retry.Deadline retryPolicy)
+    @Override
+    public LogState getLocalState(Epoch start, Epoch end, boolean includeSnapshot, Retry.Deadline retryPolicy)
     {
-        return DistributedMetadataLogKeyspace.getLogState(lowEpoch, highEpoch);
+        return log.storage().getLogState(start, end, includeSnapshot);
+    }
+
+    @Override
+    public LogState getLogState(Epoch start, Epoch end, boolean includeSnapshot, Retry.Deadline retryPolicy)
+    {
+        return DistributedMetadataLogKeyspace.getLogState(start, end, includeSnapshot);
     }
 
     private static <T> T unwrap(Promise<T> promise)

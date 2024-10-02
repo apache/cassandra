@@ -57,6 +57,7 @@ public class Epoch implements Comparable<Epoch>, Serializable
     };
 
     public static final Epoch FIRST = new Epoch(1);
+    public static final Epoch MAX = new Epoch(Long.MAX_VALUE);
     public static final Epoch EMPTY = new Epoch(0);
     public static final Epoch UPGRADE_STARTUP = new Epoch(Long.MIN_VALUE);
     public static final Epoch UPGRADE_GOSSIP = new Epoch(Long.MIN_VALUE + 1);
