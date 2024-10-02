@@ -43,14 +43,20 @@ import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableMetadata;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class CompactionStrategyMigrationManagerTest extends CQLTester
 {
@@ -61,10 +67,11 @@ public class CompactionStrategyMigrationManagerTest extends CQLTester
     private static final String TWCS_TBL = "twcstbl";
     private static final String DEFAULT_COMPACTION_PARAMS_JSON = "{\"class\": \"LeveledCompactionStrategy\"}";
     private static final String SYSTEM_SCHEMA_TBL_COMPACTION_QUERY_TEMPLATE = "SELECT compaction FROM system_schema.tables WHERE keyspace_name='%s' AND table_name='%s';";
+    private static final String SYSTEM_SCHEMA_MV_COMPACTION_QUERY_TEMPLATE = "SELECT compaction FROM system_schema.views WHERE keyspace_name='%s' AND view_name='%s';";
     private static final Map<ColumnFamilyStore, CompactionParams> originalCompactionParams = new HashMap<>();
 
     @Before
-    public void before()
+    public void before() throws Throwable
     {
         CQLTester.setUpClass();
         CQLTester.requireNetwork();
@@ -84,6 +91,11 @@ public class CompactionStrategyMigrationManagerTest extends CQLTester
                                                 .compaction(CompactionParams.lcs(Collections.singletonMap("sstable_size_in_mb", "1"))),
                                     SchemaLoader.standardCFMD(KS_2, TWCS_TBL)
                                                 .compaction(CompactionParams.twcs(Collections.emptyMap())));
+
+        // MV
+        execute(String.format("CREATE MATERIALIZED VIEW %s.%s AS SELECT key, name, val FROM %s.%s WHERE val IS NOT NULL AND key IS NOT NULL AND name IS NOT NULL PRIMARY KEY (val, key, name)",
+                              KS_2, "test_view", KS_2, STCS_TBL));
+
         for (Keyspace ks : Keyspace.all())
         {
             ks.getColumnFamilyStores().forEach(cfs -> {
@@ -97,9 +109,21 @@ public class CompactionStrategyMigrationManagerTest extends CQLTester
     {
         DatabaseDescriptor.setCompactionStrategyMigrationOptions(new CompactionStrategyMigrationOptions(false));
         originalCompactionParams.clear();
-        Schema.instance.transform(schema -> schema.without(KS_1));
-        Schema.instance.transform(schema -> schema.without(KS_2));
+        tryRemoveKeyspace(KS_1);
+        tryRemoveKeyspace(KS_2);
         CompactionStrategyMigrationManager.instance.reset();
+    }
+
+    public void tryRemoveKeyspace(String keyspace)
+    {
+        try
+        {
+            Schema.instance.transform(schema -> schema.without(keyspace));
+        }
+        catch (IllegalStateException e)
+        {
+            // keyspace might be dropped by the tests
+        }
     }
 
     @Test
@@ -138,9 +162,9 @@ public class CompactionStrategyMigrationManagerTest extends CQLTester
         assertEquals(originalCompactionParams.get(Keyspace.open(KS_2).getColumnFamilyStore(LCS_TBL)),
                      Keyspace.open(KS_2).getColumnFamilyStore(LCS_TBL).getCompactionStrategyManager().getCompactionParams());
 
-        // only 4 non-LCS schema are counted
+        // only 5 non-LCS schema are counted
         assertTrue(CompactionStrategyMigrationManager.instance.getCompactionStrategyMigrationEnabled());
-        assertEquals(4, CompactionStrategyMigrationManager.instance.getNumCfsToMigrate());
+        assertEquals(5, CompactionStrategyMigrationManager.instance.getNumCfsToMigrate());
         assertEquals(0, CompactionStrategyMigrationManager.instance.getPendingTasksForMigration());
     }
 
@@ -276,23 +300,96 @@ public class CompactionStrategyMigrationManagerTest extends CQLTester
         Keyspace.open(KS_1).getColumnFamilyStores().forEach(cfs -> {
             if (cfs.name.equals(LCS_TBL))
             {
-                assertTableCompactionParamsInSystemSchemaKS(CompactionParams.lcs(Collections.singletonMap("sstable_size_in_mb", "1")), cfs);
+                assertCompactionParamsInSystemSchemaKS(CompactionParams.lcs(Collections.singletonMap("sstable_size_in_mb", "1")), cfs);
             }
             else
             {
-                assertTableCompactionParamsInSystemSchemaKS(expectedParams, cfs);
+                assertCompactionParamsInSystemSchemaKS(expectedParams, cfs);
             }
         });
         Keyspace.open(KS_2).getColumnFamilyStores().forEach(cfs -> {
             if (cfs.name.equals(LCS_TBL))
             {
-                assertTableCompactionParamsInSystemSchemaKS(CompactionParams.lcs(Collections.singletonMap("sstable_size_in_mb", "1")), cfs);
+                assertCompactionParamsInSystemSchemaKS(CompactionParams.lcs(Collections.singletonMap("sstable_size_in_mb", "1")), cfs);
             }
             else
             {
-                assertTableCompactionParamsInSystemSchemaKS(expectedParams, cfs);
+                assertCompactionParamsInSystemSchemaKS(expectedParams, cfs);
             }
         });
+    }
+
+    @Test
+    public void testApplySchemaChangesForCompactionParamsNotFoundError()
+    {
+        CompactionStrategyMigrationOptions options = new CompactionStrategyMigrationOptions(true);
+        DatabaseDescriptor.setCompactionStrategyMigrationOptions(options);
+        assertTrue(DatabaseDescriptor.getCompactionStrategyMigrationOptions().enabled);
+        CompactionParams expectedParams = CompactionParams.lcs(Collections.emptyMap());
+        CompactionStrategyMigrationManager.instance.mayOverrideLocalCompactionStrategy();
+
+        // Drop KS_1
+        Schema.instance.transform(schema -> schema.without(KS_1));
+
+        try
+        {
+            // apply schema change in system_schema
+            CompactionStrategyMigrationManager.instance.applySchemaChangesForCompactionParams();
+            fail("should be exiting with exception");
+        }
+        catch (RuntimeException e)
+        {
+            // expected
+            assertTrue(e.getMessage().contains("alter schema failed for some cfs"));
+        }
+
+        // verify the system_schema table has changed for targeted tables
+        Keyspace.open(KS_2).getColumnFamilyStores().forEach(cfs -> {
+            if (cfs.name.equals(LCS_TBL))
+            {
+                assertCompactionParamsInSystemSchemaKS(CompactionParams.lcs(Collections.singletonMap("sstable_size_in_mb", "1")), cfs);
+            }
+            else
+            {
+                assertCompactionParamsInSystemSchemaKS(expectedParams, cfs);
+            }
+        });
+
+        // system schemas should be unchanged
+        compactionStrategyUnchangedForSystemSchemas();
+    }
+
+    @Test
+    public void testApplySchemaChangesForCompactionParamsInvalidCfs() throws Throwable
+    {
+        CompactionStrategyMigrationOptions options = new CompactionStrategyMigrationOptions(true);
+        DatabaseDescriptor.setCompactionStrategyMigrationOptions(options);
+        assertTrue(DatabaseDescriptor.getCompactionStrategyMigrationOptions().enabled);
+        CompactionStrategyMigrationManager.instance.mayOverrideLocalCompactionStrategy();
+
+        // cfsToMigrate has invalid entry (shouldn't happen)
+        CompactionStrategyMigrationManager.instance.cfsToMigrate.clear();
+        // mock CFS
+        ColumnFamilyStore mockCFS = mock(ColumnFamilyStore.class);
+        when(mockCFS.metadata()).thenReturn(TableMetadata.builder(KS_1, "test_vt1")
+                                                         .kind(TableMetadata.Kind.VIRTUAL)
+                                                         .addPartitionKeyColumn("pk", UTF8Type.instance)
+                                                         .addClusteringColumn("c", UTF8Type.instance)
+                                                         .addRegularColumn("v1", Int32Type.instance)
+                                                         .build());
+        CompactionStrategyMigrationManager.instance.cfsToMigrate.put(mockCFS, CompactionParams.lcs(Collections.emptyMap()));
+
+        try
+        {
+            // apply schema change in system_schema
+            CompactionStrategyMigrationManager.instance.applySchemaChangesForCompactionParams();
+            fail("should be exiting with exception");
+        }
+        catch (RuntimeException e)
+        {
+            // expected
+            assertTrue(e.getMessage().contains("alter schema failed for some cfs"));
+        }
     }
 
     @Test
@@ -303,10 +400,10 @@ public class CompactionStrategyMigrationManagerTest extends CQLTester
         // this should have no effect
         CompactionStrategyMigrationManager.instance.applySchemaChangesForCompactionParams();
         Keyspace.open(KS_1).getColumnFamilyStores().forEach(cfs -> {
-            assertTableCompactionParamsInSystemSchemaKS(originalCompactionParams.get(cfs), cfs);
+            assertCompactionParamsInSystemSchemaKS(originalCompactionParams.get(cfs), cfs);
         });
         Keyspace.open(KS_2).getColumnFamilyStores().forEach(cfs -> {
-            assertTableCompactionParamsInSystemSchemaKS(originalCompactionParams.get(cfs), cfs);
+            assertCompactionParamsInSystemSchemaKS(originalCompactionParams.get(cfs), cfs);
         });
     }
 
@@ -414,11 +511,19 @@ public class CompactionStrategyMigrationManagerTest extends CQLTester
         });
     }
 
-    private void assertTableCompactionParamsInSystemSchemaKS(CompactionParams expectedParams, ColumnFamilyStore cfs)
+    private void assertCompactionParamsInSystemSchemaKS(CompactionParams expectedParams, ColumnFamilyStore cfs)
     {
         String keyspaceName = cfs.keyspace.getName();
         String tableName = cfs.name;
-        UntypedResultSet result = QueryProcessor.executeInternal(String.format(SYSTEM_SCHEMA_TBL_COMPACTION_QUERY_TEMPLATE, keyspaceName, tableName));
+        UntypedResultSet result;
+        if (cfs.metadata().isView())
+        {
+            result = QueryProcessor.executeInternal(String.format(SYSTEM_SCHEMA_MV_COMPACTION_QUERY_TEMPLATE, keyspaceName, tableName));
+        }
+        else
+        {
+            result = QueryProcessor.executeInternal(String.format(SYSTEM_SCHEMA_TBL_COMPACTION_QUERY_TEMPLATE, keyspaceName, tableName));
+        }
         assertNotNull(result);
         UntypedResultSet.Row row = result.one();
         // should be converted to default LCS

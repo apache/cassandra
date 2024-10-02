@@ -19,11 +19,13 @@
 package org.apache.cassandra.db.compaction;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
@@ -38,6 +40,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
@@ -247,7 +250,7 @@ public class CompactionStrategyMigrationManager implements CompactionStrategyMig
         return defaultParams.equals(params);
     }
 
-    public void applySchemaChangesForCompactionParams()
+    public void applySchemaChangesForCompactionParams() throws RuntimeException
     {
         // USE WITH CAUTIOUS: this won't check other nodes' migration status and this will apply the schema change to
         // all nodes and there is no way back (do snapshot before if necessary)
@@ -259,18 +262,38 @@ public class CompactionStrategyMigrationManager implements CompactionStrategyMig
             return;
         }
 
-
-        String alterQuery = "ALTER TABLE %s.%s WITH compaction = %s;";
+        ArrayList<ColumnFamilyStore> failedCfs = new ArrayList<>();
         cfsToMigrate.forEach((cfs, params) -> {
             try
             {
-                executeInternal(String.format(alterQuery, cfs.keyspace.getName(), cfs.name, FBUtilities.toJsonMapStringSingleQuotes(params.asMap())));
+                switch (cfs.metadata().kind)
+                {
+                    case REGULAR:
+                        executeInternal(String.format("ALTER TABLE %s.%s WITH compaction = %s;",
+                                                      cfs.keyspace.getName(), cfs.name, FBUtilities.toJsonMapStringSingleQuotes(params.asMap())));
+                        break;
+                    case VIEW:
+                        executeInternal(String.format("ALTER MATERIALIZED VIEW %s.%s WITH compaction = %s;",
+                                                      cfs.keyspace.getName(), cfs.name, FBUtilities.toJsonMapStringSingleQuotes(params.asMap())));
+                        break;
+                    default:
+                        InvalidRequestException e = new InvalidRequestException(String.format("trying to alter compaction options for cfs=%s, kind=%s", cfs, cfs.metadata().kind));
+                        failedCfs.add(cfs);
+                        throw e;
+                }
             }
             catch (Exception e)
             {
-                logger.error("failed to alter schema for {}", cfs.keyspace.getName() + '.' + cfs.name, e);
+                failedCfs.add(cfs);
+                logger.error("failed to alter schema for {}", cfs.metadata().keyspace + '.' + cfs.metadata().name, e);
             }
         });
+
+        // rethrow the exception
+        if (!failedCfs.isEmpty()) {
+            throw new RuntimeException("alter schema failed for some cfs, result might be partial. Failed cfs: " +
+                                       failedCfs.stream().map(cfs -> cfs.metadata().keyspace + '.' + cfs.metadata().name).collect(Collectors.joining(",")));
+        }
     }
 
     public void reloadAndOverrideLocalCompactionStrategy()
