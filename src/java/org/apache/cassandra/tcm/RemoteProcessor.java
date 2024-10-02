@@ -152,7 +152,13 @@ public final class RemoteProcessor implements Processor
     }
 
     @Override
-    public LogState reconstruct(Epoch lowEpoch, Epoch highEpoch, Retry.Deadline retryPolicy)
+    public LogState getLocalState(Epoch start, Epoch end, boolean includeSnapshot, Retry.Deadline retryPolicy)
+    {
+        return log.getLocalEntries(start, end, includeSnapshot);
+    }
+
+    @Override
+    public LogState getLogState(Epoch lowEpoch, Epoch highEpoch, boolean includeSnapshot, Retry.Deadline retryPolicy)
     {
         try
         {
@@ -160,7 +166,7 @@ public final class RemoteProcessor implements Processor
             List<InetAddressAndPort> candidates = new ArrayList<>(log.metadata().fullCMSMembers());
             sendWithCallbackAsync(request,
                                   Verb.TCM_RECONSTRUCT_EPOCH_REQ,
-                                  new ReconstructLogState(lowEpoch, highEpoch),
+                                  new ReconstructLogState(lowEpoch, highEpoch, includeSnapshot),
                                   new CandidateIterator(candidates),
                                   new Retry.Backoff(TCMMetrics.instance.fetchLogRetries));
             return request.get(retryPolicy.remainingNanos(), TimeUnit.NANOSECONDS);

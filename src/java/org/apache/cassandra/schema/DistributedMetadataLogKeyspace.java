@@ -171,9 +171,9 @@ public final class DistributedMetadataLogKeyspace
      *  here. One more alternative is to keep a lazily-initialized AccordTopology table on CMS nodes for a
      *  number of recent epochs, and keep a node-local cache of this table on other nodes.
      */
-    public static LogState getLogState(Epoch start, Epoch end)
+    public static LogState getLogState(Epoch start, Epoch end, boolean includeSnapshot)
     {
-        return serialLogReader.getLogState(start, end);
+        return serialLogReader.getLogState(start, end, includeSnapshot);
     }
 
     public static class DistributedTableLogReader implements LogReader

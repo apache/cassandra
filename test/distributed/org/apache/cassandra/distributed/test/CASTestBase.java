@@ -20,6 +20,7 @@ package org.apache.cassandra.distributed.test;
 
 import java.util.Collections;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.Assert;
@@ -185,6 +186,8 @@ public abstract class CASTestBase extends TestBaseImpl
     public static void assertVisibleInRing(IInstance peer)
     {
         InetAddressAndPort endpoint = InetAddressAndPort.getByAddress(peer.broadcastAddress());
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+        while (System.nanoTime() < deadline && !Gossiper.instance.isAlive(endpoint));
         Assert.assertTrue(Gossiper.instance.isAlive(endpoint));
     }
 

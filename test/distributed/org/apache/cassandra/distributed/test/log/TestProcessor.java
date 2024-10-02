@@ -70,9 +70,16 @@ public class TestProcessor implements Processor
         return delegate.fetchLogAndWait(waitFor, retryPolicy);
     }
 
-    public LogState reconstruct(Epoch lowEpoch, Epoch highEpoch, Retry.Deadline retryPolicy)
+    @Override
+    public LogState getLocalState(Epoch start, Epoch end, boolean includeSnapshot, Retry.Deadline retryPolicy)
     {
-        return delegate.reconstruct(lowEpoch, highEpoch, retryPolicy);
+        return delegate.getLocalState(start, end, includeSnapshot, retryPolicy);
+    }
+
+    @Override
+    public LogState getLogState(Epoch start, Epoch end, boolean includeSnapshot, Retry.Deadline retryPolicy)
+    {
+        return delegate.getLogState(start, end, includeSnapshot, retryPolicy);
     }
 
     protected void waitIfPaused()

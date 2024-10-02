@@ -108,7 +108,7 @@ public class PeerLogFetcher
                 }
                 else
                 {
-                    throw new IllegalStateException(String.format("Queried for epoch %s, but could not catch up", awaitAtleast));
+                    throw new IllegalStateException(String.format("Queried for epoch %s, but could not catch up. Current epoch: %s", awaitAtleast, fetched.epoch));
                 }
             });
 

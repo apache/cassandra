@@ -351,9 +351,9 @@ public abstract class LocalLog implements Closeable
         return storage.getLogState(since, false);
     }
 
-    public LogState getLocalEntries(Epoch since, Epoch until)
+    public LogState getLocalEntries(Epoch since, Epoch until, boolean includeSnapshot)
     {
-        return storage.getLogState(since, until);
+        return storage.getLogState(since, until, includeSnapshot);
     }
 
     public ClusterMetadata waitForHighestConsecutive()

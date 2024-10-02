@@ -160,14 +160,14 @@ public class ClusterMetadataService
         {
             log = logSpec.sync().withStorage(new AtomicLongBackedProcessor.InMemoryStorage()).createLog();
             localProcessor = wrapProcessor.apply(new AtomicLongBackedProcessor(log, logSpec.isReset()));
-            fetchLogHandler = new FetchCMSLog.Handler((e, ignored) -> logSpec.storage().getLogState(e));
         }
         else
         {
             log = logSpec.async().createLog();
             localProcessor = wrapProcessor.apply(new PaxosBackedProcessor(log));
-            fetchLogHandler = new FetchCMSLog.Handler();
         }
+
+        fetchLogHandler = new FetchCMSLog.Handler();
 
         Commit.Replicator replicator = CassandraRelevantProperties.TCM_USE_NO_OP_REPLICATOR.getBoolean()
                                        ? Commit.Replicator.NO_OP
@@ -792,6 +792,7 @@ public class ClusterMetadataService
     {
         return commitsPaused.get();
     }
+
     /**
      * Switchable implementation that allow us to go between local and remote implementation whenever we need it.
      * When the node becomes a member of CMS, it switches back to being a regular member of a cluster, and all
@@ -869,9 +870,16 @@ public class ClusterMetadataService
             return delegate().fetchLogAndWait(waitFor, retryPolicy);
         }
 
-        public LogState reconstruct(Epoch lowEpoch, Epoch highEpoch, Retry.Deadline retryPolicy)
+        @Override
+        public LogState getLocalState(Epoch start, Epoch end, boolean includeSnapshot, Retry.Deadline retryPolicy)
         {
-            return delegate().reconstruct(lowEpoch, highEpoch, retryPolicy);
+            return delegate().getLocalState(start, end, includeSnapshot, retryPolicy);
+        }
+
+        @Override
+        public LogState getLogState(Epoch start, Epoch end, boolean includeSnapshot, Retry.Deadline retryPolicy)
+        {
+            return delegate().getLogState(start, end, includeSnapshot, retryPolicy);
         }
 
         public String toString()

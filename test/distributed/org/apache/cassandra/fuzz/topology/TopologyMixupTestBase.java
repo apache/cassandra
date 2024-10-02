@@ -530,8 +530,11 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
         public void close() throws Exception
         {
             epochHistory = cluster.get(cmsGroup[0]).callOnInstance(() -> {
-                LogState all = ClusterMetadataService.instance().processor().reconstruct(Epoch.EMPTY, Epoch.create(Long.MAX_VALUE), Retry.Deadline.retryIndefinitely(DatabaseDescriptor.getCmsAwaitTimeout().to(NANOSECONDS),
-                                                                                                                                                                     TCMMetrics.instance.commitRetries));
+                LogState all = ClusterMetadataService.instance()
+                                                     .processor()
+                                                     .getLogState(Epoch.EMPTY, Epoch.create(Long.MAX_VALUE), false,
+                                                                  Retry.Deadline.retryIndefinitely(DatabaseDescriptor.getCmsAwaitTimeout().to(NANOSECONDS),
+                                                                                                   TCMMetrics.instance.commitRetries));
                 StringBuilder sb = new StringBuilder("Epochs:");
                 for (Entry e : all.entries)
                     sb.append("\n").append(e.epoch.getEpoch()).append(": ").append(e.transform);
