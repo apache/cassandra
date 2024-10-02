@@ -27,6 +27,8 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import accord.primitives.Routable.Domain;
+import accord.primitives.Seekable;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
@@ -84,12 +86,12 @@ public class AbstractKeySortedTest
     {
         public SortedItems(Item... items)
         {
-            super(items);
+            super(items, Domain.Key);
         }
 
         public SortedItems(List<Item> items)
         {
-            super(items);
+            super(items, Domain.Key);
         }
 
         @Override
@@ -99,9 +101,15 @@ public class AbstractKeySortedTest
         }
 
         @Override
-        PartitionKey getKey(Item item)
+        Seekable getKey(Item item)
         {
             return item.key;
+        }
+
+        @Override
+        Domain domain()
+        {
+            return Domain.Key;
         }
 
         @Override

@@ -378,7 +378,7 @@ public class AccordIncrementalRepairTest extends AccordTestBase
     @Test
     public void unsafeRepairTest()
     {
-        testSingleNodeWrite(TransactionalMode.unsafe);
+        testSingleNodeWrite(TransactionalMode.test_unsafe);
     }
 
     /**

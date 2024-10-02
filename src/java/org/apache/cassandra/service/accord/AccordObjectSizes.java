@@ -50,6 +50,7 @@ import accord.primitives.Ranges;
 import accord.primitives.Routable.Domain;
 import accord.primitives.RoutingKeys;
 import accord.primitives.SaveStatus;
+import accord.primitives.Seekable;
 import accord.primitives.Seekables;
 import accord.primitives.Status;
 import accord.primitives.Timestamp;
@@ -92,6 +93,16 @@ public class AccordObjectSizes
     public static long range(Range range)
     {
         return EMPTY_RANGE_SIZE + key(range.start()) + key(range.end());
+    }
+
+    public static long seekable(Seekable seekable)
+    {
+        switch (seekable.domain())
+        {
+            default: throw new AssertionError();
+            case Key: return key((Key) seekable);
+            case Range: return range((Range) seekable);
+        }
     }
 
     private static final long EMPTY_RANGES_SIZE = measure(Ranges.of());

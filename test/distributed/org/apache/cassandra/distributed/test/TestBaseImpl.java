@@ -324,6 +324,11 @@ public class TestBaseImpl extends DistributedTestBase
         return nodetool(coordinator.instance(), commandAndArgs);
     }
 
+    public static ListenableFuture<String> nodetoolAsync(IInstance instance, String... commandAndArgs)
+    {
+        return nodetoolAsync(instance.coordinator(), commandAndArgs);
+    }
+
     public static ListenableFuture<String> nodetoolAsync(ICoordinator coordinator, String... commandAndArgs)
     {
         ListenableFutureTask<String> task = ListenableFutureTask.create(() -> nodetool(coordinator, commandAndArgs));

@@ -52,13 +52,16 @@ import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.service.accord.AccordKeyspace.EpochDiskState;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.listeners.ChangeListener;
+import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Simulate;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
+import static org.apache.cassandra.service.accord.AccordTopology.tcmIdToAccord;
 import static org.apache.cassandra.utils.Simulate.With.MONITORS;
 
 // TODO: listen to FailureDetector and rearrange fast path accordingly
@@ -344,16 +347,22 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
             }
         }
         reportTopology(topology);
-        if (epochs.lastAcknowledged() >= topology.epoch()) checkIfNodesRemoved(topology);
-        else epochs.acknowledgeFuture(topology.epoch()).addCallback(() -> checkIfNodesRemoved(topology));
+        Set<Node.Id> stillLiveNodes = metadata.directory.states.entrySet()
+                                                               .stream()
+                                                               .filter(e -> e.getValue() != NodeState.LEFT && e.getValue() != NodeState.LEAVING)
+                                                               .map(e -> tcmIdToAccord(e.getKey()))
+                                                               .collect(Collectors.toSet());
+        if (epochs.lastAcknowledged() >= topology.epoch()) checkIfNodesRemoved(topology, stillLiveNodes);
+        else epochs.acknowledgeFuture(topology.epoch()).addCallback(() -> checkIfNodesRemoved(topology, stillLiveNodes));
     }
 
-    private void checkIfNodesRemoved(Topology topology)
+    private void checkIfNodesRemoved(Topology topology, Set<Node.Id> stillLiveNodes)
     {
         if (epochs.minEpoch() == topology.epoch()) return;
         Topology previous = getTopologyForEpoch(topology.epoch() - 1);
         // for all nodes removed, or pending removal, mark them as removed so we don't wait on their replies
-        Sets.SetView<Node.Id> removedNodes = Sets.difference(previous.nodes(), topology.nodes());
+        Set<Node.Id> removedNodes = Sets.difference(previous.nodes(), topology.nodes());
+        removedNodes = Sets.filter(removedNodes, id -> !stillLiveNodes.contains(id));
         // TODO (desired, efficiency): there should be no need to notify every epoch for every removed node
         for (Node.Id removedNode : removedNodes)
         {
@@ -420,29 +429,36 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
     @Override
     protected void fetchTopologyInternal(long epoch)
     {
-        try
-        {
-            Set<InetAddressAndPort> peers = new HashSet<>(ClusterMetadata.current().directory.allJoinedEndpoints());
-            peers.remove(FBUtilities.getBroadcastAddressAndPort());
-            if (peers.isEmpty())
-                return;
-            Topology topology;
-            while ((topology =FetchTopology.fetch(SharedContext.Global.instance, peers, epoch).get()) == null) {}
-            reportTopology(topology);
-        }
-        catch (InterruptedException e)
-        {
-            if (currentEpoch() >= epoch)
-                return;
-            Thread.currentThread().interrupt();
-            throw new UncheckedInterruptedException(e);
-        }
-        catch (Throwable e)
-        {
-            if (currentEpoch() >= epoch)
-                return;
-            throw new RuntimeException(e.getCause());
-        }
+        // It's not safe for this to block on CMS so for now pick a thread pool to handle it
+        Stage.ACCORD_MIGRATION.execute(() -> {
+            if (ClusterMetadata.current().epoch.getEpoch() < epoch)
+                ClusterMetadataService.instance().fetchLogFromCMS(Epoch.create(epoch));
+            try
+            {
+                Set<InetAddressAndPort> peers = new HashSet<>(ClusterMetadata.current().directory.allJoinedEndpoints());
+                peers.remove(FBUtilities.getBroadcastAddressAndPort());
+                if (peers.isEmpty())
+                    return;
+                Topology topology;
+                while ((topology = FetchTopology.fetch(SharedContext.Global.instance, peers, epoch).get()) == null)
+                {
+                }
+                reportTopology(topology);
+            }
+            catch (InterruptedException e)
+            {
+                if (currentEpoch() >= epoch)
+                    return;
+                Thread.currentThread().interrupt();
+                throw new UncheckedInterruptedException(e);
+            }
+            catch (Throwable e)
+            {
+                if (currentEpoch() >= epoch)
+                    return;
+                throw new RuntimeException(e.getCause());
+            }
+        });
     }
 
     @Override

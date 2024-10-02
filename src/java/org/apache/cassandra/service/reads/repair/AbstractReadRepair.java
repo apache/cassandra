@@ -94,7 +94,7 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
 
     void sendReadCommand(Replica to, ReadCallback<E, P> readCallback, boolean speculative, boolean trackRepairedStatus)
     {
-        ReadCommand command = coordinator.maybeAllowOutOfRangeReads(this.command);
+        ReadCommand command = coordinator.maybeAllowOutOfRangeReads(this.command, replicaPlan().consistencyLevel());
 
         if (to.isSelf() && coordinator.localReadSupported())
         {

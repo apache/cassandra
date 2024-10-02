@@ -240,7 +240,7 @@ public abstract class AccordRoutingKey extends AccordRoutableKey implements Rout
         public Range asRange()
         {
             checkState(!isMinMinSentinel, "It might be possible to support converting a minmin sentinel to a range, but it needs to be evaluated in the context where it is failing");
-            return new TokenRange(new SentinelKey(table, isMinSentinel, true), this);
+            return TokenRange.create(new SentinelKey(table, isMinSentinel, true), this);
         }
     }
 
@@ -373,7 +373,7 @@ public abstract class AccordRoutingKey extends AccordRoutableKey implements Rout
                                       ? new SentinelKey(table, true, false)
                                       : new TokenKey(table, token.decreaseSlightly());
 
-            return new TokenRange(before, this);
+            return TokenRange.create(before, this);
         }
 
         public MinTokenKey(TableId tableId, Token token)

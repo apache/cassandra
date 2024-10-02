@@ -29,6 +29,7 @@ import com.google.common.base.Objects;
 
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.ReadCommand.PotentialTxnConflicts;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.DeserializationHelper;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -314,7 +315,7 @@ public class Commit
 
     public Mutation makeMutation()
     {
-        return new Mutation(update, true);
+        return new Mutation(update, PotentialTxnConflicts.ALLOW);
     }
 
     @Override

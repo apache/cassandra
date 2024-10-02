@@ -35,6 +35,9 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
@@ -109,7 +112,7 @@ public class InteropTokenRangeTest extends TestBaseImpl
         }
     }
 
-    private static NavigableSet<Long> tokens(SimpleQueryResult result)
+    public static NavigableSet<Long> tokens(SimpleQueryResult result)
     {
         NavigableSet<Long> set = new TreeSet<>();
         while (result.hasNext())
@@ -117,7 +120,7 @@ public class InteropTokenRangeTest extends TestBaseImpl
         return set;
     }
 
-    private enum TokenOperator
+    public enum TokenOperator
     {
         eq("token(pk) = token(?)") {
             @Override
@@ -127,6 +130,12 @@ public class InteropTokenRangeTest extends TestBaseImpl
                     return new TreeSet<>(Collections.singleton(token));
                 return Collections.emptyNavigableSet();
             }
+
+            @Override
+            public boolean intersects(long token, Range<Token> range)
+            {
+                return range.contains(new LongToken(token));
+            }
         },
         lt("token(pk) < token(?)")
         {
@@ -134,6 +143,13 @@ public class InteropTokenRangeTest extends TestBaseImpl
             public NavigableSet<Long> expected(long token, NavigableSet<Long> tokens)
             {
                 return tokens.headSet(token, false);
+            }
+
+            @Override
+            public boolean intersects(long token, Range<Token> range)
+            {
+                // <= is implemented as a min key bound which still intersects the range even though it returns no results
+                return token >= range.left.getLongValue() + 1;
             }
         },
         lte("token(pk) <= token(?)")
@@ -143,6 +159,11 @@ public class InteropTokenRangeTest extends TestBaseImpl
             {
                 return tokens.headSet(token, true);
             }
+            @Override
+            public boolean intersects(long token, Range<Token> range)
+            {
+                return token >= range.left.getLongValue() + 1;
+            }
         },
         gt("token(pk) > token(?)")
         {
@@ -150,6 +171,12 @@ public class InteropTokenRangeTest extends TestBaseImpl
             public NavigableSet<Long> expected(long token, NavigableSet<Long> tokens)
             {
                 return tokens.tailSet(token, false);
+            }
+
+            @Override
+            public boolean intersects(long token, Range<Token> range)
+            {
+                return token < range.right.getLongValue();
             }
         },
         gte("token(pk) >= token(?)")
@@ -159,10 +186,16 @@ public class InteropTokenRangeTest extends TestBaseImpl
             {
                 return tokens.tailSet(token, true);
             }
+
+            @Override
+            public boolean intersects(long token, Range<Token> range)
+            {
+                return token <= range.right.getLongValue();
+            }
         };
         ;
 
-        private final String condition;
+        public final String condition;
 
         TokenOperator(String s)
         {
@@ -170,6 +203,9 @@ public class InteropTokenRangeTest extends TestBaseImpl
         }
 
         public abstract NavigableSet<Long> expected(long token, NavigableSet<Long> tokens);
+
+        // Intersects for the purpose of executing the query not necessarily the results that are returned
+        public abstract boolean intersects(long token, Range<Token> range);
     }
 
     private NavigableSet<Long> tokens()

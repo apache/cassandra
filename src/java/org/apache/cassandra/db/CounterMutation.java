@@ -36,6 +36,7 @@ import com.google.common.collect.PeekingIterator;
 import com.google.common.util.concurrent.Striped;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ReadCommand.PotentialTxnConflicts;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.filter.ClusteringIndexNamesFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
@@ -189,9 +190,9 @@ public class CounterMutation implements IMutation
      * anyways and it's safe to continue non-transactionally updating them
      */
     @Override
-    public boolean allowsPotentialTransactionConflicts()
+    public PotentialTxnConflicts potentialTxnConflicts()
     {
-        return true;
+        return PotentialTxnConflicts.ALLOW;
     }
 
     private void grabCounterLocks(Keyspace keyspace, List<Lock> locks) throws WriteTimeoutException

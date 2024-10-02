@@ -85,7 +85,7 @@ class PaxosClusterSimulation extends ClusterSimulation<PaxosSimulation> implemen
                   int[] primaryKeys = primaryKeys(seed, builder.primaryKeyCount());
                   KindOfSequence.Period jitter = RandomSource.Choices.uniform(KindOfSequence.values()).choose(random)
                                                                      .period(builder.schedulerJitterNanos(), random);
-                  return new PairOfSequencesPaxosSimulation(simulated, cluster, options.changePaxosVariantTo(builder.finalPaxosVariant),
+                  return new PairOfSequencesPaxosSimulation(simulated, cluster, options.changePaxosVariantTo(builder.finalPaxosVariant), builder.transactionalMode(),
                                                             builder.readChance().select(random), builder.concurrency(), builder.primaryKeySeconds(), builder.withinKeyConcurrency(),
                                                             builder.serialConsistency, schedulers, builder.debug(), seed,
                                                             primaryKeys, builder.secondsToSimulate() >= 0 ? SECONDS.toNanos(builder.secondsToSimulate()) : -1,

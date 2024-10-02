@@ -1142,8 +1142,7 @@ public interface StorageServiceMBean extends NotificationEmitter
     public String getBootstrapState();
     void abortBootstrap(String nodeId, String endpoint);
 
-    void migrateConsensusProtocol(@Nonnull String targetProtocol,
-                                  @Nullable List<String> keyspaceNames,
+    void migrateConsensusProtocol(@Nullable List<String> keyspaceNames,
                                   @Nullable List<String> maybeTableNames,
                                   @Nullable String maybeRangesStr);
 

@@ -71,9 +71,9 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.DISABLE_SS
 import static org.apache.cassandra.config.CassandraRelevantProperties.DTEST_API_LOG_TOPOLOGY;
 import static org.apache.cassandra.config.CassandraRelevantProperties.GOSSIPER_SKIP_WAITING_TO_SETTLE;
 import static org.apache.cassandra.config.CassandraRelevantProperties.IGNORE_MISSING_NATIVE_FILE_HINTS;
-import static org.apache.cassandra.config.CassandraRelevantProperties.ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION;
 import static org.apache.cassandra.config.CassandraRelevantProperties.LIBJEMALLOC;
 import static org.apache.cassandra.config.CassandraRelevantProperties.MEMTABLE_OVERHEAD_SIZE;
+import static org.apache.cassandra.config.CassandraRelevantProperties.ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION;
 import static org.apache.cassandra.config.CassandraRelevantProperties.PAXOS_REPAIR_RETRY_TIMEOUT_IN_MS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.RING_DELAY;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SHUTDOWN_ANNOUNCE_DELAY_IN_MS;
@@ -270,8 +270,8 @@ public class SimulationRunner
         @Option(name = { "--capture" }, title = "wait,wake,now", description = "Capture thread stack traces alongside events, choose from (wait,wake,now)")
         protected String capture;
 
-        @Option(name = { "--lwt-strategy" }, title = "migration|accord]", description = "What execution strategy to use for CAS and serial read")
-        protected String lwtStrategy;
+        @Option(name = { "--transactional-mode" }, title = "off|mixed_reads|full]", description = "What execution strategy to use for CAS and serial read")
+        protected String transactionalMode;
 
         protected void propagate(B builder)
         {
@@ -343,7 +343,7 @@ public class SimulationRunner
                 builder.debug(debugLevels, debugPrimaryKeys);
             }
 
-            Optional.ofNullable(lwtStrategy).ifPresent(builder::transactionalMode);
+            Optional.ofNullable(transactionalMode).ifPresent(builder::transactionalMode);
         }
 
         public void run(B builder) throws IOException

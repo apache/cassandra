@@ -236,7 +236,7 @@ public final class CopyTableStatement extends AlterSchemaStatement
                                                  .sum();
             Guardrails.tables.guard(totalUserTables + 1, targetTableName, false, state);
         }
-        validateDefaultTimeToLive(attrs.asNewTableParams());
+        validateDefaultTimeToLive(attrs.asNewTableParams(keyspaceName));
     }
 
     private void maybeCopyIndexes(TableMetadata.Builder builder, TableMetadata sourceTableMeta, KeyspaceMetadata targetKeyspaceMeta)

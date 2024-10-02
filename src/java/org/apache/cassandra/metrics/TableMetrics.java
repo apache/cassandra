@@ -820,7 +820,7 @@ public class TableMetrics
         accordRepairUnexpectedFailures = createTableMeter("AccordRepairUnexpectedFailures", cfs.keyspace.metric.rangeMigrationUnexpectedFailures);
         accordRepairDependencyLimitFailures = createTableMeter("AccordRepairDependencyLimitFaiures", cfs.keyspace.metric.rangeMigrationDependencyLimitFailures);
         mutationsRejectedOnWrongSystem = createTableMeter("MutationsRejectedOnWrongSystem", cfs.keyspace.metric.mutationsRejectedOnWrongSystem);
-        readsRejectedOnWrongSystem = createTableMeter("ReadsRejectedOnWrongSystem", cfs.keyspace.metric.mutationsRejectedOnWrongSystem);
+        readsRejectedOnWrongSystem = createTableMeter("ReadsRejectedOnWrongSystem", cfs.keyspace.metric.readsRejectedOnWrongSystem);
 
         repairsStarted = createTableCounter("RepairJobsStarted");
         repairsCompleted = createTableCounter("RepairJobsCompleted");

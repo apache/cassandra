@@ -63,8 +63,8 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.accord.txn.TxnCondition;
 import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.service.accord.txn.TxnDataKeyValue;
-import org.apache.cassandra.service.accord.txn.TxnKeyRead;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
+import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.service.accord.txn.TxnReference;
 import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.service.accord.txn.TxnUpdate;
@@ -82,7 +82,6 @@ import static org.apache.cassandra.service.accord.txn.TxnData.TxnDataNameKind.CA
 import static org.apache.cassandra.service.accord.txn.TxnData.txnDataName;
 import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.retry_new_protocol;
 import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.getTableMetadata;
-
 
 /**
  * Processed CAS conditions and update on potentially multiple rows of the same partition.
@@ -504,8 +503,8 @@ public class CQL3CasRequest implements CASRequest
         // If the write strategy is sending all writes through Accord there is no need to use the supplied consistency
         // level since Accord will manage reading safely
         TableParams tableParams = getTableMetadata(cm, metadata.id).params;
-        consistencyLevel = tableParams.transactionalMode.readCLForStrategy(tableParams.transactionalMigrationFrom, consistencyLevel, cm, metadata.id, readCommand.partitionKey().getToken());
-        TxnKeyRead read = TxnKeyRead.createCasRead(readCommand, consistencyLevel);
+        consistencyLevel = tableParams.transactionalMode.readCLForMode(tableParams.transactionalMigrationFrom, consistencyLevel, cm, metadata.id, readCommand.partitionKey().getToken());
+        TxnRead read = TxnRead.createCasRead(readCommand, consistencyLevel);
         // In a CAS requesting only one key is supported and writes
         // can't be dependent on any data that is read (only conditions)
         // so the only relevant keys are the read key
@@ -518,7 +517,7 @@ public class CQL3CasRequest implements CASRequest
         // since it is safe to match what non-SERIAL writes do
         TableMetadata tableMetadata = getTableMetadata(cm, metadata.id);
         TableParams tableParams = tableMetadata.params;
-        commitConsistencyLevel = tableParams.transactionalMode.commitCLForStrategy(tableParams.transactionalMigrationFrom, commitConsistencyLevel, cm, metadata.id, key.getToken());
+        commitConsistencyLevel = tableParams.transactionalMode.commitCLForMode(tableParams.transactionalMigrationFrom, commitConsistencyLevel, cm, metadata.id, key.getToken());
         // CAS requires using the new txn timestamp to correctly linearize some kinds of updates
         return new TxnUpdate(createWriteFragments(clientState), createCondition(), commitConsistencyLevel, false);
     }

@@ -34,10 +34,14 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.SentinelKey;
+import org.apache.cassandra.utils.ObjectSizes;
 
 public class TokenRange extends Range.EndInclusive
 {
-    public TokenRange(AccordRoutingKey start, AccordRoutingKey end)
+    public static final long EMPTY_SIZE = ObjectSizes.measure(new TokenRange(SentinelKey.min(TableId.fromLong(0)), SentinelKey.max(TableId.fromLong(0))));
+
+    // Don't make this public use create or createUnsafe
+    private TokenRange(AccordRoutingKey start, AccordRoutingKey end)
     {
         super(start, end);
     }
@@ -72,6 +76,11 @@ public class TokenRange extends Range.EndInclusive
         return  (AccordRoutingKey) super.end();
     }
 
+    public long estimatedSizeOnHeap()
+    {
+        return EMPTY_SIZE + start().estimatedSizeOnHeap() + end().estimatedSizeOnHeap();
+    }
+
     public boolean isFullRange()
     {
         return start().kindOfRoutingKey() == AccordRoutingKey.RoutingKeyKind.SENTINEL && end().kindOfRoutingKey() == AccordRoutingKey.RoutingKeyKind.SENTINEL;
@@ -94,7 +103,12 @@ public class TokenRange extends Range.EndInclusive
         return new TokenRange((AccordRoutingKey) start, (AccordRoutingKey) end);
     }
 
-    public org.apache.cassandra.dht.Range<Token> toKeyspaceRange ()
+    /*
+     * This behaves quite incorrectly with MinTokenKey because it loses the inclusivity of MinTokenKey in the conversion.
+     * It's not a problem for cluster metadata and topology, but it's quite wrong for queries that convert from Bounds to
+     * Range.
+     */
+    public org.apache.cassandra.dht.Range<Token> toKeyspaceRange()
     {
         IPartitioner partitioner = DatabaseDescriptor.getPartitioner();
         AccordRoutingKey start = start();
@@ -103,7 +117,6 @@ public class TokenRange extends Range.EndInclusive
         Token right = end instanceof SentinelKey ? partitioner.getMinimumToken() : end.token();
         return new org.apache.cassandra.dht.Range<>(left, right);
     }
-
 
     public static final Serializer serializer = new Serializer();
 

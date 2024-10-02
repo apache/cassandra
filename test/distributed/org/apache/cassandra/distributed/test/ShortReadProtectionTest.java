@@ -91,7 +91,7 @@ public class ShortReadProtectionTest extends TestBaseImpl
     public static Collection<Object[]> data()
     {
         List<Object[]> result = new ArrayList<>();
-        for (TransactionalMode mode : ImmutableList.of(TransactionalMode.mixed_reads, TransactionalMode.off))
+        for (TransactionalMode mode : ImmutableList.of(TransactionalMode.test_interop_read, TransactionalMode.off))
             for (ConsistencyLevel readConsistencyLevel : Arrays.asList(ALL, QUORUM, SERIAL))
                 for (boolean flush : BOOLEANS)
                         for (boolean paging : BOOLEANS)
@@ -446,13 +446,14 @@ public class ShortReadProtectionTest extends TestBaseImpl
 
         private Tester createTable(String query)
         {
-            cluster.schemaChange(format(query) + " WITH read_repair='NONE'");
+            String formattedQuery = format(query) + " WITH read_repair='NONE'";
             if (transactionalMode != TransactionalMode.off)
             {
-                // For test purposes we create the table and require migration otherwise Accord
-                // won't bother to do interop reads with short read protection
-                cluster.schemaChange(format("ALTER TABLE %s WITH transactional_mode='" + transactionalMode + "\' AND transactional_migration_from = \'off\'"));
+                // For test purposes we create the table and in an interop mode that forces interop reads so
+                // testing short reads is trivial
+                formattedQuery = formattedQuery + " AND " + transactionalMode.asCqlParam();
             }
+            cluster.schemaChange(formattedQuery);
             return this;
         }
 

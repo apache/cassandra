@@ -138,7 +138,7 @@ public abstract class AbstractReadExecutor
     {
         boolean hasLocalEndpoint = false;
         Message<ReadCommand> message = null;
-        readCommand = coordinator.maybeAllowOutOfRangeReads(readCommand);
+        readCommand = coordinator.maybeAllowOutOfRangeReads(readCommand, replicaPlan().consistencyLevel());
 
         for (Replica replica: replicas)
         {

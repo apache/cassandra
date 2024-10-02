@@ -112,6 +112,6 @@ public class ScanAllRangesCommandIterator extends RangeCommandIterator
         Tracing.trace("Submitted scanning all ranges requests to {} nodes", nodes);
 
         // skip read-repair for top-k query because data mismatch may be caused by top-k algorithm instead of actual inconsistency.
-        return new CassandraRangeResponse(resolver, handler, NoopReadRepair.instance);
+        return new SingleRangeResponse(resolver, handler, NoopReadRepair.instance);
     }
 }

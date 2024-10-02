@@ -23,12 +23,13 @@ import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.ReplicaPlan;
+import org.apache.cassandra.locator.ReplicaPlan.ForRangeRead;
 import org.apache.cassandra.service.reads.DataResolver;
 import org.apache.cassandra.service.reads.ReadCallback;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
 import org.apache.cassandra.utils.AbstractIterator;
 
-class CassandraRangeResponse extends AbstractIterator<RowIterator> implements IRangeResponse
+class SingleRangeResponse extends AbstractIterator<RowIterator> implements PartitionIterator
 {
     private final DataResolver<EndpointsForRange, ReplicaPlan.ForRangeRead> resolver;
     private final ReadCallback<EndpointsForRange, ReplicaPlan.ForRangeRead> handler;
@@ -36,17 +37,16 @@ class CassandraRangeResponse extends AbstractIterator<RowIterator> implements IR
 
     private PartitionIterator result;
 
-    CassandraRangeResponse(DataResolver<EndpointsForRange, ReplicaPlan.ForRangeRead> resolver,
-                           ReadCallback<EndpointsForRange, ReplicaPlan.ForRangeRead> handler,
-                           ReadRepair<EndpointsForRange, ReplicaPlan.ForRangeRead> readRepair)
+    SingleRangeResponse(DataResolver<EndpointsForRange, ReplicaPlan.ForRangeRead> resolver,
+                        ReadCallback<EndpointsForRange, ReplicaPlan.ForRangeRead> handler,
+                        ReadRepair<EndpointsForRange, ReplicaPlan.ForRangeRead> readRepair)
     {
         this.resolver = resolver;
         this.handler = handler;
         this.readRepair = readRepair;
     }
 
-    @Override
-    public ReadRepair<EndpointsForRange, ReplicaPlan.ForRangeRead> getReadRepair()
+    public ReadRepair<EndpointsForRange, ForRangeRead> getReadRepair()
     {
         return readRepair;
     }

@@ -28,6 +28,7 @@ import org.apache.cassandra.exceptions.CoordinatorBehindException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.InvalidRoutingException;
 import org.apache.cassandra.exceptions.QueryCancelledException;
+import org.apache.cassandra.exceptions.RetryOnDifferentSystemException;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.net.IVerbHandler;
@@ -42,6 +43,7 @@ import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static org.apache.cassandra.exceptions.RequestFailureReason.RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM;
 
 public class ReadCommandVerbHandler implements IVerbHandler<ReadCommand>
 {
@@ -97,6 +99,13 @@ public class ReadCommandVerbHandler implements IVerbHandler<ReadCommand>
             reply = MessageParams.addToMessage(reply);
 
             MessagingService.instance().send(reply, message.from());
+            return;
+        }
+        catch (RetryOnDifferentSystemException e)
+        {
+            logger.debug("Responding with retry on different system");
+            MessagingService.instance().respondWithFailure(RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM, message);
+            Tracing.trace("Payload application resulted in RetryOnDifferentSysten");
             return;
         }
         catch (AssertionError t)
@@ -164,7 +173,7 @@ public class ReadCommandVerbHandler implements IVerbHandler<ReadCommand>
 
         // Some read commands may be sent using an older Epoch intentionally so validating using the current Epoch
         // doesn't work
-        if (command.allowsOutOfRangeReads())
+        if (command.potentialTxnConflicts().allowed)
             return metadata;
 
         if (command.isTopK())

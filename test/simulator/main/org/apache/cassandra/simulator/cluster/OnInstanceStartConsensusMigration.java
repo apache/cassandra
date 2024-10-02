@@ -47,7 +47,7 @@ class OnInstanceStartConsensusMigration extends ClusterAction
             keyspaces.add(keyspaceName);
             List<String> tables = new ArrayList<>();
             tables.add(cfName);
-            StorageService.instance.migrateConsensusProtocol("accord", keyspaces, tables, range.getKey() + ":" + range.getValue());
+            StorageService.instance.migrateConsensusProtocol(keyspaces, tables, range.getKey() + ":" + range.getValue());
         };
     }
 }

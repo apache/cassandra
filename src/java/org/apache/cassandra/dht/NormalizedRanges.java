@@ -136,6 +136,9 @@ public class NormalizedRanges<T extends RingPosition<T>> extends AbstractList<Ra
 
     public NormalizedRanges<T> subtract(NormalizedRanges<T> b)
     {
+        if (b.isEmpty())
+            return this;
+
         if (b.size() == 1 && b.get(0).isFull())
             return NormalizedRanges.empty();
 
@@ -199,10 +202,9 @@ public class NormalizedRanges<T extends RingPosition<T>> extends AbstractList<Ra
     }
 
     @VisibleForTesting
-    public NormalizedRanges<T> invert()
+    NormalizedRanges<T> invert()
     {
-        if (isEmpty())
-            return this;
+        checkState(!isEmpty());
 
         List<Range<T>> result = new ArrayList<>(size() + 2);
         T minValue = get(0).left.minValue();

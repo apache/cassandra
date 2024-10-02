@@ -40,6 +40,7 @@ import com.google.common.collect.Iterables;
 
 import accord.api.Key;
 import accord.primitives.Keys;
+import accord.primitives.Routable.Domain;
 import accord.primitives.Txn;
 import org.agrona.collections.Int2ObjectHashMap;
 import org.apache.cassandra.audit.AuditLogContext;
@@ -56,34 +57,43 @@ import org.apache.cassandra.cql3.transactions.ConditionStatement;
 import org.apache.cassandra.cql3.transactions.ReferenceOperation;
 import org.apache.cassandra.cql3.transactions.RowDataReference;
 import org.apache.cassandra.cql3.transactions.SelectReferenceSource;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.SinglePartitionReadQuery;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.api.AccordRoutableKey;
+import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.txn.AccordUpdate;
 import org.apache.cassandra.service.accord.txn.TxnCondition;
 import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.service.accord.txn.TxnDataKeyValue;
-import org.apache.cassandra.service.accord.txn.TxnKeyRead;
 import org.apache.cassandra.service.accord.txn.TxnNamedRead;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
+import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.service.accord.txn.TxnReference;
 import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.service.accord.txn.TxnUpdate;
 import org.apache.cassandra.service.accord.txn.TxnWrite;
+import org.apache.cassandra.service.consensus.TransactionalMode;
+import org.apache.cassandra.service.consensus.migration.TransactionalMigrationFromMode;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static accord.primitives.Txn.Kind.Read;
+import static com.google.common.base.Preconditions.checkArgument;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNull;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
@@ -92,8 +102,9 @@ import static org.apache.cassandra.service.accord.txn.TxnData.TxnDataNameKind.AU
 import static org.apache.cassandra.service.accord.txn.TxnData.TxnDataNameKind.RETURNING;
 import static org.apache.cassandra.service.accord.txn.TxnData.TxnDataNameKind.USER;
 import static org.apache.cassandra.service.accord.txn.TxnData.txnDataName;
-import static org.apache.cassandra.service.accord.txn.TxnKeyRead.createTxnRead;
+import static org.apache.cassandra.service.accord.txn.TxnRead.createTxnRead;
 import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.retry_new_protocol;
+import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.getTableMetadata;
 import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.shouldReadEphemerally;
 
 public class TransactionStatement implements CQLStatement.CompositeCQLStatement, CQLStatement.ReturningCQLStatement
@@ -261,8 +272,8 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
         for (NamedSelect select : assignments)
         {
             TxnNamedRead read = createNamedRead(select, options, state);
+            keyConsumer.accept((Key)read.key());
             minEpoch = Math.max(minEpoch, read.command().metadata().epoch.getEpoch());
-            keyConsumer.accept(read.key());
             reads.add(read);
         }
 
@@ -270,7 +281,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
         {
             for (TxnNamedRead read : createNamedReads(returningSelect, options, state))
             {
-                keyConsumer.accept(read.key());
+                keyConsumer.accept((Key)read.key());
                 minEpoch = Math.max(minEpoch, read.command().metadata().epoch.getEpoch());
                 reads.add(read);
             }
@@ -279,8 +290,11 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
         if (autoReads != null)
         {
             for (NamedSelect select : autoReads.values())
-                // don't need keyConsumer as the keys are known to exist due to Modification
-                reads.add(createNamedRead(select, options, state));
+            {
+                TxnNamedRead read = createNamedRead(select, options, state);
+                keyConsumer.accept((Key)read.key());
+                reads.add(read);
+            }
         }
 
         return reads;
@@ -301,15 +315,15 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
         return new TxnCondition.BooleanGroup(TxnCondition.Kind.AND, result);
     }
 
-    List<TxnWrite.Fragment> createWriteFragments(ClientState state, QueryOptions options, Map<Integer, NamedSelect> autoReads, Consumer<Key> keyConsumer)
+    List<TxnWrite.Fragment> createWriteFragments(ClientState state, QueryOptions options, Map<Integer, NamedSelect> autoReads, Set<Key> keys)
     {
         List<TxnWrite.Fragment> fragments = new ArrayList<>(updates.size());
         int idx = 0;
         for (ModificationStatement modification : updates)
         {
             TxnWrite.Fragment fragment = modification.getTxnWriteFragment(idx, state, options);
+            keys.add(fragment.key);
             minEpoch = Math.max(minEpoch, fragment.baseUpdate.metadata().epoch.getEpoch());
-            keyConsumer.accept(fragment.key);
             fragments.add(fragment);
 
             if (modification.allReferenceOperations().stream().anyMatch(ReferenceOperation::requiresRead))
@@ -325,9 +339,12 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
         return fragments;
     }
 
-    AccordUpdate createUpdate(ClientState state, QueryOptions options, Map<Integer, NamedSelect> autoReads, Consumer<Key> keyConsumer)
+    AccordUpdate createUpdate(ClusterMetadata cm, ClientState state, QueryOptions options, Map<Integer, NamedSelect> autoReads, Set<Key> keys)
     {
-        return new TxnUpdate(createWriteFragments(state, options, autoReads, keyConsumer), createCondition(options), null, false);
+        checkArgument(keys.isEmpty(), "Construct update before reads so the key set can be used to determine commit consistency level");
+        List<TxnWrite.Fragment> writeFragments = createWriteFragments(state, options, autoReads, keys);
+        ConsistencyLevel commitCL = consistencyLevelForAccordCommit(cm, keys, options.getConsistency());
+        return new TxnUpdate(writeFragments, createCondition(options), commitCL, false);
     }
 
     Keys toKeys(SortedSet<Key> keySet)
@@ -335,10 +352,90 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
         return new Keys(keySet);
     }
 
+    private ConsistencyLevel consistencyLevelForAccordRead(ClusterMetadata cm, Set<Key> keys, @Nullable ConsistencyLevel consistencyLevel)
+    {
+        // Write transactions are read/write so it creates a read and ends up needing a consistency level
+        // which is fine to leave null
+        if (keys.isEmpty())
+            return null;
+
+        // Null means no specific consistency behavior is required from Accord, it's functionally similar to
+        // reading at ONE if you are reading data that wasn't written via Accord
+        if (consistencyLevel == null)
+            return null;
+
+        for (Key key : keys)
+        {
+            // readCLForMode should return either null or the supplied consistency level
+            // in which case we will read everything at that CL since Accord doesn't support per table
+            // read consistency
+            ConsistencyLevel readCL = consistencyLevelForAccordRead(cm, key, consistencyLevel);
+            if (readCL != null)
+                return readCL;
+        }
+        return null;
+    }
+
+    private ConsistencyLevel consistencyLevelForAccordRead(ClusterMetadata cm, Key key, ConsistencyLevel consistencyLevel)
+    {
+        // Null means no specific consistency behavior is required from Accord, it's functionally similar to
+        // reading at ONE if you are reading data that wasn't written via Accord
+        if (consistencyLevel == null)
+            return null;
+
+        PartitionKey pk = (PartitionKey)key;
+        TableId tableId = pk.table();
+        Token token = pk.token();
+        TableParams tableParams = getTableMetadata(cm, tableId).params;
+        TransactionalMode mode = tableParams.transactionalMode;
+        TransactionalMigrationFromMode migrationFromMode = tableParams.transactionalMigrationFrom;
+        return mode.readCLForMode(migrationFromMode, consistencyLevel, cm, tableId, token);
+    }
+
+    private static ConsistencyLevel consistencyLevelForAccordCommit(ClusterMetadata cm, Set<Key> keys, @Nullable ConsistencyLevel consistencyLevel)
+    {
+        checkArgument(!keys.isEmpty(), "keys should not be empty");
+        // Null means no specific consistency behavior is required from Accord, it's functionally similar to ANY
+        // if you aren't reading the result back via Accord
+        if (consistencyLevel == null)
+            return null;
+
+        for (Key key : keys)
+        {
+            // commitCLForMode should return either null or the supplied consistency level
+            // in which case we will commit everything at that CL since Accord doesn't support per table
+            // commit consistency
+            ConsistencyLevel commitCL = consistencyLevelForAccordCommit(cm, key, consistencyLevel);
+            if (commitCL != null)
+                return commitCL;
+        }
+        return null;
+    }
+
+    private static ConsistencyLevel consistencyLevelForAccordCommit(ClusterMetadata cm, Key key, @Nullable ConsistencyLevel consistencyLevel)
+    {
+        // Null means no specific consistency behavior is required from Accord, it's functionally similar to ANY
+        // if you aren't reading the result back via Accord
+        if (consistencyLevel == null)
+            return null;
+
+        PartitionKey pk = (PartitionKey)key;
+        TableId tableId = pk.table();
+        Token token = pk.token();
+        TableParams tableParams = getTableMetadata(cm, tableId).params;
+        TransactionalMode mode = tableParams.transactionalMode;
+        TransactionalMigrationFromMode migrationFromMode = tableParams.transactionalMigrationFrom;
+        // commitCLForMode should return either null or the supplied consistency level
+        // in which case we will commit everything at that CL since Accord doesn't support per table
+        // commit consistency
+        return mode.commitCLForMode(migrationFromMode, consistencyLevel, cm, tableId, token);
+    }
+
     @VisibleForTesting
     public Txn createTxn(ClientState state, QueryOptions options)
     {
         SortedSet<Key> keySet = new TreeSet<>();
+        ClusterMetadata cm = ClusterMetadata.current();
 
         if (updates.isEmpty())
         {
@@ -346,18 +443,17 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
             Preconditions.checkState(conditions.isEmpty(), "No condition should exist without updates present");
             List<TxnNamedRead> reads = createNamedReads(options, state, null, keySet::add);
             Keys txnKeys = toKeys(keySet);
-            TxnKeyRead read = createTxnRead(reads, null);
+            TxnRead read = createTxnRead(reads, consistencyLevelForAccordRead(cm, keySet, options.getSerialConsistency()), Domain.Key);
             Txn.Kind kind = shouldReadEphemerally(txnKeys, Schema.instance.getTableMetadata(((AccordRoutableKey) txnKeys.get(0)).table()).params, Read);
             return new Txn.InMemory(kind, txnKeys, read, TxnQuery.ALL, null);
         }
         else
         {
             Int2ObjectHashMap<NamedSelect> autoReads = new Int2ObjectHashMap<>();
-            AccordUpdate update = createUpdate(state, options, autoReads, keySet::add);
+            AccordUpdate update = createUpdate(cm, state, options, autoReads, keySet);
             List<TxnNamedRead> reads = createNamedReads(options, state, autoReads, keySet::add);
-            Keys txnKeys = toKeys(keySet);
-            TxnKeyRead read = createTxnRead(reads, null);
-            return new Txn.InMemory(txnKeys, read, TxnQuery.ALL, update);
+            TxnRead read = createTxnRead(reads, null, Domain.Key);
+            return new Txn.InMemory(toKeys(keySet), read, TxnQuery.ALL, update);
         }
     }
 

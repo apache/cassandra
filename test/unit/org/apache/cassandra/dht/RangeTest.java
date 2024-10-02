@@ -23,6 +23,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
 
@@ -41,18 +42,22 @@ import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.ByteOrderedPartitioner.BytesToken;
 import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
 import org.apache.cassandra.dht.RandomPartitioner.BigIntegerToken;
+import org.apache.cassandra.utils.Pair;
 
+import static java.lang.String.format;
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.Util.range;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_RANGE_EXPENSIVE_CHECKS;
-import static org.apache.cassandra.dht.Range.fromString;
-import static org.apache.cassandra.dht.Range.normalize;
 import static org.apache.cassandra.dht.NormalizedRanges.normalizedRanges;
+import static org.apache.cassandra.dht.Range.fromString;
+import static org.apache.cassandra.dht.Range.intersectionAndRemainder;
+import static org.apache.cassandra.dht.Range.normalize;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotSame;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -219,11 +224,11 @@ public class RangeTest extends CassandraTestBase
     {
         Set<Range<T>> correct = Range.rangeSet(ranges);
         Set<Range<T>> result1 = one.intersectionWith(two);
-        assert result1.equals(correct) : String.format("%s != %s",
+        assert result1.equals(correct) : format("%s != %s",
                                                        StringUtils.join(result1, ","),
                                                        StringUtils.join(correct, ","));
         Set<Range<T>> result2 = two.intersectionWith(one);
-        assert result2.equals(correct) : String.format("%s != %s",
+        assert result2.equals(correct) : format("%s != %s",
                                                        StringUtils.join(result2, ","),
                                                        StringUtils.join(correct, ","));
     }
@@ -699,7 +704,7 @@ public class RangeTest extends CassandraTestBase
             for (Token t : tokensToTest)
             {
                 if (checker.test(t) != Range.isInRanges(t, ranges)) // avoid running Joiner.on(..) every iteration
-                    fail(String.format("This should never flap! If it does, it is a bug (ranges = %s, token = %s)", Joiner.on(",").join(ranges), t));
+                    fail(format("This should never flap! If it does, it is a bug (ranges = %s, token = %s)", Joiner.on(",").join(ranges), t));
             }
         }
     }
@@ -720,6 +725,12 @@ public class RangeTest extends CassandraTestBase
     {
         return new Range<>(t(left), t(right));
     }
+
+    private static Range<Token> r(Token left, Token right)
+    {
+        return new Range<>(left, right);
+    }
+
     private static Token t(long t)
     {
         return new Murmur3Partitioner.LongToken(t);
@@ -773,6 +784,11 @@ public class RangeTest extends CassandraTestBase
     private static Bounds<Token> bounds(long left, long right)
     {
         return new Bounds<>(t(left), t(right));
+    }
+
+    private static AbstractBounds<PartitionPosition> bounds(PartitionPosition left, boolean leftInclusive, PartitionPosition right, boolean rightInclusive)
+    {
+        return AbstractBounds.bounds(left, leftInclusive, right, rightInclusive);
     }
 
     @Test
@@ -884,8 +900,283 @@ public class RangeTest extends CassandraTestBase
             b.subtract(a);
             b.subtract(b);
 
-            a.invert();
-            b.invert();
+            if (!a.isEmpty())
+                a.invert();
+            if (!b.isEmpty())
+                b.invert();
+        }
+    }
+
+    @Test
+    public void testIntersectionAndRemainder()
+    {
+        // Intersection will only make max key bounds so use minKeyBound
+        // so you know where the bound came from
+        Token oneT = t(1);
+        PartitionPosition onePP = oneT.minKeyBound();
+        Token twoT = t(2);
+        PartitionPosition twoPP = twoT.minKeyBound();
+        Token threeT = t(3);
+        PartitionPosition threePP = threeT.minKeyBound();
+        Token fourT = t(4);
+        PartitionPosition fourPP = fourT.minKeyBound();
+        Token fiveT = t(5);
+        PartitionPosition fivePP = fiveT.minKeyBound();
+        Token sixT = t(6);
+        PartitionPosition sixPP = sixT.minKeyBound();
+        Token sevenT = t(7);
+        PartitionPosition sevenPP = sevenT.minKeyBound();
+        Token eightT = t(8);
+        PartitionPosition eightPP = eightT.minKeyBound();
+        Token minT = Murmur3Partitioner.MINIMUM;
+        PartitionPosition minPP = minT.minKeyBound();
+
+        Range<Token> r = r(threeT, sixT);
+
+        // Completely before
+        testInclusivity(onePP, twoPP, r,
+                        Pair.create(null, null),
+                        Pair.create(null, null),
+                        Pair.create(null, null),
+                        Pair.create(null, null));
+
+        // Completely after
+        testInclusivity(sevenPP, eightPP, r,
+                        Pair.create(null, bounds(sevenPP, true, eightPP, true)),
+                        Pair.create(null, bounds(sevenPP, true, eightPP, false)),
+                        Pair.create(null, bounds(sevenPP, false, eightPP, true)),
+                        Pair.create(null, bounds(sevenPP, false, eightPP, false)));
+
+        // Overlapping
+        testInclusivity(threePP, sixPP, r,
+                        Pair.create(bounds(threeT.maxKeyBound(), false, sixPP, true), null),
+                        Pair.create(bounds(threeT.maxKeyBound(), false, sixPP, false), null),
+                        Pair.create(bounds(threeT.maxKeyBound(), false, sixPP, true), null),
+                        Pair.create(bounds(threeT.maxKeyBound(), false, sixPP, false), null));
+
+        // Completely contained by range, should echo back the same bound
+        testInclusivity(fourPP, fivePP, r,
+                        Pair.create(bounds(fourPP, true, fivePP, true), null),
+                        Pair.create(bounds(fourPP, true, fivePP, false), null),
+                        Pair.create(bounds(fourPP, false, fivePP, true), null),
+                        Pair.create(bounds(fourPP, false, fivePP, false), null));
+
+        // Overlap left only
+        testInclusivity(threePP, fivePP, r,
+                        Pair.create(bounds(threeT.maxKeyBound(), false, fivePP, true), null),
+                        Pair.create(bounds(threeT.maxKeyBound(), false, fivePP, false), null),
+                        Pair.create(bounds(threeT.maxKeyBound(), false, fivePP, true), null),
+                        Pair.create(bounds(threeT.maxKeyBound(), false, fivePP, false), null));
+
+        // Overlap right only
+        testInclusivity(fourPP, sixPP, r,
+                        Pair.create(bounds(fourPP, true, sixPP, true), null),
+                        Pair.create(bounds(fourPP, true, sixPP, false), null),
+                        Pair.create(bounds(fourPP, false, sixPP, true), null),
+                        Pair.create(bounds(fourPP, false, sixPP, false), null));
+
+        // Contains range
+        testInclusivity(twoPP, sevenPP, r,
+                        Pair.create(bounds(threeT.maxKeyBound(), false, sixT.maxKeyBound(), true), bounds(sixT.maxKeyBound(), false, sevenPP, true)),
+                        Pair.create(bounds(threeT.maxKeyBound(), false, sixT.maxKeyBound(), true), bounds(sixT.maxKeyBound(), false, sevenPP, false)),
+                        Pair.create(bounds(threeT.maxKeyBound(), false, sixT.maxKeyBound(), true), bounds(sixT.maxKeyBound(), false, sevenPP, true)),
+                        Pair.create(bounds(threeT.maxKeyBound(), false, sixT.maxKeyBound(), true), bounds(sixT.maxKeyBound(), false, sevenPP, false)));
+
+        // Split by range left bound
+        testInclusivity(twoPP, fivePP, r,
+                        Pair.create(bounds(threeT.maxKeyBound(), false, fivePP, true), null),
+                        Pair.create(bounds(threeT.maxKeyBound(), false, fivePP, false), null),
+                        Pair.create(bounds(threeT.maxKeyBound(), false, fivePP, true), null),
+                        Pair.create(bounds(threeT.maxKeyBound(), false, fivePP, false), null));
+
+        // Split by range right bound
+        testInclusivity(fivePP, sevenPP, r,
+                        Pair.create(bounds(fivePP, true, sixT.maxKeyBound(), true), bounds(sixT.maxKeyBound(), false, sevenPP, true)),
+                        Pair.create(bounds(fivePP, true, sixT.maxKeyBound(), true), bounds(sixT.maxKeyBound(), false, sevenPP, false)),
+                        Pair.create(bounds(fivePP, false, sixT.maxKeyBound(), true), bounds(sixT.maxKeyBound(), false, sevenPP, true)),
+                        Pair.create(bounds(fivePP, false, sixT.maxKeyBound(), true), bounds(sixT.maxKeyBound(), false, sevenPP, false)));
+
+        /*
+         * Test size 1 bound
+         */
+        // Completely before
+        testInclusivity(onePP, onePP, r,
+                        Pair.create(null, null));
+
+        // Completely after
+        testInclusivity(eightPP, eightPP, r,
+                        Pair.create(null, bounds(eightPP, true, eightPP, true)));
+
+        // Completely contained by range, should echo back the same bound
+        testInclusivity(fivePP, fivePP, r,
+                        Pair.create(bounds(fivePP, true, fivePP, true), null));
+
+        // Overlap left only
+        testInclusivity(threePP, threePP, r,
+                        Pair.create(null, null));
+
+        // Overlap right only
+        testInclusivity(sixPP, sixPP, r,
+                        Pair.create(bounds(sixPP, true, sixPP, true), null));
+
+        /*
+         * Test all cases where the right of Bounds is minimum
+         */
+        // Completely after
+        testInclusivity(sevenPP, minPP, r,
+                        Pair.create(null, bounds(sevenPP, true, minPP, true)),
+                        Pair.create(null, bounds(sevenPP, true, minPP, false)),
+                        Pair.create(null, bounds(sevenPP, false, minPP, true)),
+                        Pair.create(null, bounds(sevenPP, false, minPP, false)));
+
+        // Contains range
+        testInclusivity(twoPP, minPP, r,
+                        Pair.create(bounds(threeT.maxKeyBound(), false, sixT.maxKeyBound(), true), bounds(sixT.maxKeyBound(), false, minPP, true)),
+                        Pair.create(bounds(threeT.maxKeyBound(), false, sixT.maxKeyBound(), true), bounds(sixT.maxKeyBound(), false, minPP, false)),
+                        Pair.create(bounds(threeT.maxKeyBound(), false, sixT.maxKeyBound(), true), bounds(sixT.maxKeyBound(), false, minPP, true)),
+                        Pair.create(bounds(threeT.maxKeyBound(), false, sixT.maxKeyBound(), true), bounds(sixT.maxKeyBound(), false, minPP, false)));
+
+        // Split by range right bound
+        testInclusivity(fivePP, minPP, r,
+                        Pair.create(bounds(fivePP, true, sixT.maxKeyBound(), true), bounds(sixT.maxKeyBound(), false, minPP, true)),
+                        Pair.create(bounds(fivePP, true, sixT.maxKeyBound(), true), bounds(sixT.maxKeyBound(), false, minPP, false)),
+                        Pair.create(bounds(fivePP, false, sixT.maxKeyBound(), true), bounds(sixT.maxKeyBound(), false, minPP, true)),
+                        Pair.create(bounds(fivePP, false, sixT.maxKeyBound(), true), bounds(sixT.maxKeyBound(), false, minPP, false)));
+
+        /*
+         * Test all cases where the right of the range is minimum
+         */
+        r = r(threeT, minT);
+        // Completely before
+        testInclusivity(onePP, twoPP, r,
+                        Pair.create(null, null),
+                        Pair.create(null, null),
+                        Pair.create(null, null),
+                        Pair.create(null, null));
+
+        // Overlapping
+        testInclusivity(threePP, minPP, r,
+                        Pair.create(bounds(threeT.maxKeyBound(), false, minPP, true), null),
+                        Pair.create(bounds(threeT.maxKeyBound(), false, minPP, false), null),
+                        Pair.create(bounds(threeT.maxKeyBound(), false, minPP, true), null),
+                        Pair.create(bounds(threeT.maxKeyBound(), false, minPP, false), null));
+
+        // Completely contained by range, should echo back the same bound
+        testInclusivity(fourPP, fivePP, r,
+                        Pair.create(bounds(fourPP, true, fivePP, true), null),
+                        Pair.create(bounds(fourPP, true, fivePP, false), null),
+                        Pair.create(bounds(fourPP, false, fivePP, true), null),
+                        Pair.create(bounds(fourPP, false, fivePP, false), null));
+
+        // Overlap left only
+        testInclusivity(threePP, fivePP, r,
+                        Pair.create(bounds(threeT.maxKeyBound(), false, fivePP, true), null),
+                        Pair.create(bounds(threeT.maxKeyBound(), false, fivePP, false), null),
+                        Pair.create(bounds(threeT.maxKeyBound(), false, fivePP, true), null),
+                        Pair.create(bounds(threeT.maxKeyBound(), false, fivePP, false), null));
+
+        // Overlap right only
+        testInclusivity(fourPP, minPP, r,
+                        Pair.create(bounds(fourPP, true, minPP, true), null),
+                        Pair.create(bounds(fourPP, true, minPP, false), null),
+                        Pair.create(bounds(fourPP, false, minPP, true), null),
+                        Pair.create(bounds(fourPP, false, minPP, false), null));
+
+        // Contains range
+        testInclusivity(twoPP, minPP, r,
+                        Pair.create(bounds(threeT.maxKeyBound(), false, minPP, true), null),
+                        Pair.create(bounds(threeT.maxKeyBound(), false, minPP, false), null),
+                        Pair.create(bounds(threeT.maxKeyBound(), false, minPP, true), null),
+                        Pair.create(bounds(threeT.maxKeyBound(), false, minPP, false), null));
+
+        // Split by range left bound
+        testInclusivity(twoPP, fivePP, r,
+                        Pair.create(bounds(threeT.maxKeyBound(), false, fivePP, true), null),
+                        Pair.create(bounds(threeT.maxKeyBound(), false, fivePP, false), null),
+                        Pair.create(bounds(threeT.maxKeyBound(), false, fivePP, true), null),
+                        Pair.create(bounds(threeT.maxKeyBound(), false, fivePP, false), null));
+    }
+
+    private void testInclusivity(PartitionPosition left, PartitionPosition right, Range<Token> range,
+                                 Pair<AbstractBounds<PartitionPosition>, AbstractBounds<PartitionPosition>> expected)
+    {
+        testInclusivity(left, right, range, expected, null, null, null);
+    }
+
+    private void testInclusivity(PartitionPosition left, PartitionPosition right, Range<Token> range,
+                                 Pair<AbstractBounds<PartitionPosition>, AbstractBounds<PartitionPosition>> expected1,
+                                 Pair<AbstractBounds<PartitionPosition>, AbstractBounds<PartitionPosition>> expected2,
+                                 Pair<AbstractBounds<PartitionPosition>, AbstractBounds<PartitionPosition>> expected3,
+                                 Pair<AbstractBounds<PartitionPosition>, AbstractBounds<PartitionPosition>> expected4)
+    {
+        testInclusivity(left, right, range, new Pair[] { expected1, expected2, expected3, expected4 });
+    }
+
+    private void testInclusivity(PartitionPosition left, PartitionPosition right, Range<Token> range,
+                                 Pair<AbstractBounds<PartitionPosition>, AbstractBounds<PartitionPosition>>[] expecteds)
+    {
+        int i = 0;
+        for (Boolean leftInclusive : ImmutableList.of(true, false))
+        {
+            for (Boolean rightInclusive : ImmutableList.of(true, false))
+            {
+                Pair<AbstractBounds<PartitionPosition>, AbstractBounds<PartitionPosition>> expected = expecteds[i++];
+                if (expected == null)
+                    continue;
+                AbstractBounds<PartitionPosition> expectedIntersection = expected.left;
+                AbstractBounds<PartitionPosition> expectedRemainder = expected.right;
+                AbstractBounds<PartitionPosition> testBounds = bounds(left, leftInclusive, right, rightInclusive);
+                Pair<AbstractBounds<PartitionPosition>, AbstractBounds<PartitionPosition>> interSectionAndRemainder = intersectionAndRemainder(testBounds, range);
+                AbstractBounds<PartitionPosition> intersection = interSectionAndRemainder.left;
+                AbstractBounds<PartitionPosition> remainder = interSectionAndRemainder.right;
+                String message = format("Expected %s intersecting inclusive left %b, inclusive right %b, %s with %s", expected, leftInclusive, rightInclusive, bounds(left, leftInclusive, right, rightInclusive), range);
+                assertEquals(message, expected, intersectionAndRemainder(bounds(left, leftInclusive, right, rightInclusive), range));
+                System.out.println(message.replace("Expected", "Expecting"));
+
+                if (remainder == testBounds)
+                    assertNull(intersection);
+                if (intersection == testBounds)
+                    assertNull(remainder);
+                if (Objects.equals(remainder, testBounds) && remainder != testBounds)
+                    fail("Should return existing bounds");
+                if (Objects.equals(intersection, testBounds) && intersection != testBounds)
+                    fail("Should return existing bounds");
+
+                // Need to validate that we roundtrip the actual exact input PartitionPosition and don't lose part of the input bound that might be needed
+                // Remainder can either be the entire thing because there is no intersection
+                // Remainder should always preserve the right bound since range is right inclusive, the left bound will always be a `maxKeyBound` from the range
+                if (remainder != null && remainder != testBounds)
+                {
+                    assertTrue(remainder.right == expectedRemainder.right);
+                    assertTrue(remainder.right == right);
+                    assertEquals(remainder.inclusiveRight(), expectedRemainder.inclusiveRight());
+                    assertFalse(remainder.inclusiveLeft());
+                    assertFalse(remainder.left == left);
+                    // Not strictly necessary, but we do always use the left of the range and create a new key bound
+                    assertEquals(remainder.left, range.right.maxKeyBound());
+                }
+
+                // Range is left exclusive so the left should be preserved if it is greater than range left
+                // otherwise it should be replaced
+                if (intersection != null && intersection != testBounds)
+                {
+                    if (intersection.left.getToken().compareTo(range.left) > 0)
+                    {
+                        assertEquals(intersection.inclusiveLeft(), expectedIntersection.inclusiveLeft());
+                        assertTrue(intersection.inclusiveRight());
+                        assertTrue(intersection.left == expectedIntersection.left);
+                        assertTrue(intersection.left == left);
+                    }
+                    else
+                    {
+                        // Should be replaced by a KeyBound from the range
+                        assertTrue(intersection.left != expectedIntersection.left);
+                        assertTrue(intersection.left != left);
+                        // Max bound since range is not left inclusive and excluded
+                        assertEquals(intersection.left, range.left.maxKeyBound());
+                    }
+                }
+            }
         }
     }
 }

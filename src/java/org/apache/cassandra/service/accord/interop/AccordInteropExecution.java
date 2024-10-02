@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 
@@ -80,19 +79,16 @@ import org.apache.cassandra.service.accord.AccordEndpointMapper;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.accord.api.AccordAgent;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
+import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.interop.AccordInteropReadCallback.MaximalCommitSender;
 import org.apache.cassandra.service.accord.txn.AccordUpdate;
 import org.apache.cassandra.service.accord.txn.TxnData;
-import org.apache.cassandra.service.accord.txn.TxnData.TxnDataNameKind;
 import org.apache.cassandra.service.accord.txn.TxnDataKeyValue;
 import org.apache.cassandra.service.accord.txn.TxnDataRangeValue;
-import org.apache.cassandra.service.accord.txn.TxnKeyRead;
-import org.apache.cassandra.service.accord.txn.TxnRangeRead;
+import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.service.accord.txn.UnrecoverableRepairUpdate;
 import org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter;
-import org.apache.cassandra.service.consensus.migration.ConsensusTableMigration;
-import org.apache.cassandra.service.consensus.migration.TableMigrationState;
 import org.apache.cassandra.service.reads.ReadCoordinator;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.transport.Dispatcher;
@@ -151,7 +147,6 @@ public class AccordInteropExecution implements ReadCoordinator, MaximalCommitSen
     private final TxnId txnId;
     private final Txn txn;
     private final FullRoute<?> route;
-    private final Participants<?> readScope;
     private final Timestamp executeAt;
     private final Deps deps;
     private final BiConsumer<? super Result, Throwable> callback;
@@ -169,7 +164,7 @@ public class AccordInteropExecution implements ReadCoordinator, MaximalCommitSen
     private final Set<InetAddressAndPort> contacted;
     private final AccordUpdate.Kind updateKind;
 
-    public AccordInteropExecution(Node node, TxnId txnId, Txn txn, AccordUpdate.Kind updateKind, FullRoute<?> route, Participants<?> readScope, Timestamp executeAt, Deps deps, BiConsumer<? super Result, Throwable> callback,
+    public AccordInteropExecution(Node node, TxnId txnId, Txn txn, AccordUpdate.Kind updateKind, FullRoute<?> route, Timestamp executeAt, Deps deps, BiConsumer<? super Result, Throwable> callback,
                                   AgentExecutor executor, ConsistencyLevel consistencyLevel, AccordEndpointMapper endpointMapper)
     {
         requireArgument(!txn.read().keys().isEmpty() || updateKind == AccordUpdate.Kind.UNRECOVERABLE_REPAIR);
@@ -177,7 +172,6 @@ public class AccordInteropExecution implements ReadCoordinator, MaximalCommitSen
         this.txnId = txnId;
         this.txn = txn;
         this.route = route;
-        this.readScope = readScope;
         this.executeAt = executeAt;
         this.deps = deps;
         this.callback = callback;
@@ -233,123 +227,125 @@ public class AccordInteropExecution implements ReadCoordinator, MaximalCommitSen
     public void sendReadCommand(Message<ReadCommand> message, InetAddressAndPort to, RequestCallback<ReadResponse> callback)
     {
         Node.Id id = endpointMapper.mappedId(to);
-        SinglePartitionReadCommand command = (SinglePartitionReadCommand) message.payload;
+        // TODO (nicetohave): It would be better to use the re-use the command from the transaction but it's fragile
+        // to try and figure out exactly what changed for things like read repair and short read protection
+        // Also this read scope doesn't reflect the contents of this particular read and is larger than it needs to be
         // TODO (required): understand interop and whether StableFastPath is appropriate
-        AccordInteropStableThenRead commit = new AccordInteropStableThenRead(id, allTopologies, txnId, Kind.StableFastPath, executeAt, txn, deps, route, command);
+        AccordInteropStableThenRead commit = new AccordInteropStableThenRead(id, allTopologies, txnId, Kind.StableFastPath, executeAt, txn, deps, route, message.payload);
         node.send(id, commit, executor, new AccordInteropRead.ReadCallback(id, to, message, callback, this));
     }
 
     @Override
     public void sendReadRepairMutation(Message<Mutation> message, InetAddressAndPort to, RequestCallback<Object> callback)
     {
-        requireArgument(message.payload.allowsPotentialTransactionConflicts());
+        requireArgument(message.payload.potentialTxnConflicts().allowed);
+        requireArgument(message.payload.getTableIds().size() == 1);
         Node.Id id = endpointMapper.mappedId(to);
+        Participants<?> readScope = Participants.singleton(txn.read().keys().domain(), new TokenKey(message.payload.getTableIds().iterator().next(), message.payload.key().getToken()));
         AccordInteropReadRepair readRepair = new AccordInteropReadRepair(id, executes, txnId, readScope, executeAt.epoch(), message.payload);
         node.send(id, readRepair, executor, new AccordInteropReadRepair.ReadRepairCallback(id, to, message, callback, this));
     }
 
-    private List<AsyncChain<Data>> keyReadChains(int nowInSeconds, Dispatcher.RequestTime requestTime)
+    private List<AsyncChain<Data>> readChains(Dispatcher.RequestTime requestTime)
     {
-        TxnKeyRead read = (TxnKeyRead) txn.read();
-        List<AsyncChain<Data>> results = new ArrayList<>();
+        TxnRead read = (TxnRead) txn.read();
         Seekables<?, ?> keys = txn.read().keys();
+        switch (keys.domain())
+        {
+            case Key:
+                return keyReadChains(read, keys, requestTime);
+            case Range:
+                return rangeReadChains(read, keys, requestTime);
+            default:
+                throw new IllegalStateException("Unhandled domain " + keys.domain());
+        }
+    }
+
+    private List<AsyncChain<Data>> keyReadChains(TxnRead read, Seekables<?, ?> keys, Dispatcher.RequestTime requestTime)
+    {
+        ClusterMetadata cm = ClusterMetadata.current();
+        List<AsyncChain<Data>> results = new ArrayList<>();
         keys.forEach(key -> {
-            read.forEachWithKey((PartitionKey) key, fragment -> {
-                SinglePartitionReadCommand command = (SinglePartitionReadCommand) fragment.command();
+                         read.forEachWithKey((PartitionKey) key, fragment -> {
+                             SinglePartitionReadCommand command = (SinglePartitionReadCommand) fragment.command();
 
-                // This should only rarely occur when coordinators start a transaction in a migrating range
-                // because they haven't yet updated their cluster metadata.
-                // It would be harmless to do the read, because it will be rejected in `TxnQuery` anyways,
-                // but it's faster to skip the read
-                TableMigrationState tms = ConsensusTableMigration.getTableMigrationState(command.metadata().id);
-                AccordClientRequestMetrics metrics = txn.kind().isWrite() ? accordWriteMetrics : accordReadMetrics;
-                if (ConsensusRequestRouter.instance.isKeyInMigratingOrMigratedRangeFromAccord(command.metadata(), tms, command.partitionKey()))
-                {
-                    metrics.migrationSkippedReads.mark();
-                    results.add(AsyncChains.success(TxnData.emptyPartition(fragment.txnDataName(), command)));
-                    return;
-                }
+                             // This should only rarely occur when coordinators start a transaction in a migrating range
+                             // because they haven't yet updated their cluster metadata.
+                             // It would be harmless to do the read, because it will be rejected in `TxnQuery` anyways,
+                             // but it's faster to skip the read
+                             AccordClientRequestMetrics metrics = txn.kind().isWrite() ? accordWriteMetrics : accordReadMetrics;
+                             // TODO (required): This doesn't use the metadata from the correct epoch
+                             if (!ConsensusRequestRouter.instance.isKeyManagedByAccordForReadAndWrite(cm, command.metadata().id, command.partitionKey()))
+                             {
+                                 metrics.migrationSkippedReads.mark();
+                                 results.add(AsyncChains.success(TxnData.emptyPartition(fragment.txnDataName(), command)));
+                                 return;
+                             }
 
-                Group group = Group.one(command.withNowInSec(nowInSeconds));
+                             Group group = Group.one(command);
+                             results.add(AsyncChains.ofCallable(Stage.ACCORD_MIGRATION.executor(), () -> {
+                                 TxnData result = new TxnData();
+                                 // Enforcing limits is redundant since we only have a group of size 1, but checking anyways
+                                 // documents the requirement here
+                                 try (PartitionIterator iterator = StorageProxy.maybeEnforceLimits(StorageProxy.fetchRows(group.queries, consistencyLevel, this, requestTime), group))
+                                 {
+                                     if (iterator.hasNext())
+                                     {
+                                         try (RowIterator partition = iterator.next())
+                                         {
+                                             TxnDataKeyValue value = new TxnDataKeyValue(partition);
+                                             if (value.hasRows() || command.selectsFullPartition())
+                                                 result.put(fragment.txnDataName(), value);
+                                         }
+                                     }
+                                 }
+                                 return result;
+                             }));
+                         });
+
+                     });
+        return results;
+    }
+
+    private List<AsyncChain<Data>> rangeReadChains(TxnRead read, Seekables<?, ?> keys, Dispatcher.RequestTime requestTime)
+    {
+        List<AsyncChain<Data>> results = new ArrayList<>();
+        keys.forEach(key -> {
+            read.forEachWithKey(key, fragment -> {
+                PartitionRangeReadCommand command = ((PartitionRangeReadCommand) fragment.command()).withTxnReadName(fragment.txnDataName());
+
+                // TODO (required): To make migration work we need to validate that the range is all on Accord
+
                 results.add(AsyncChains.ofCallable(Stage.ACCORD_MIGRATION.executor(), () -> {
                     TxnData result = new TxnData();
-                    try (PartitionIterator iterator = StorageProxy.readRegular(group, consistencyLevel, this, requestTime))
+                    try (PartitionIterator iterator = StorageProxy.getRangeSlice(command, consistencyLevel, this, requestTime))
                     {
-                        if (iterator.hasNext())
+                        TxnDataRangeValue value = new TxnDataRangeValue();
+                        while (iterator.hasNext())
                         {
                             try (RowIterator partition = iterator.next())
                             {
-                                TxnDataKeyValue value = new TxnDataKeyValue(partition);
-                                if (value.hasRows() || command.selectsFullPartition())
-                                    result.put(fragment.txnDataName(), value);
+                                FilteredPartition filtered = FilteredPartition.create(partition);
+                                if (filtered.hasRows() || command.selectsFullPartition())
+                                    value.add(filtered);
                             }
                         }
+                        result.put(fragment.txnDataName(), value);
                     }
                     return result;
                 }));
             });
-        });
-        return results;
-    }
 
-    private List<AsyncChain<Data>> rangeReadChains(long nowInSeconds, Dispatcher.RequestTime requestTime)
-    {
-        TxnRangeRead read = (TxnRangeRead) txn.read();
-        Seekables<?, ?> keys = txn.read().keys();
-        List<AsyncChain<Data>> results = new ArrayList<>();
-        keys.forEach(key -> {
-            TokenRange range = (TokenRange)key;
-            PartitionRangeReadCommand command = read.commandForSubrange(range, nowInSeconds);
-
-            // This should only rarely occur when coordinators start a transaction in a migrating range
-            // because they haven't yet updated their cluster metadata.
-            // It would be harmless to do the read, because it will be rejected in `TxnQuery` anyways,
-            // but it's faster to skip the read
-            // TODO (required): To make migration work we need to validate that the range is all on Accord
-            // if any part isn't we should reject the read
-//                TableMigrationState tms = ConsensusTableMigration.getTableMigrationState(command.metadata().id);
-//                AccordClientRequestMetrics metrics = txn.kind().isWrite() ? accordWriteMetrics : accordReadMetrics;
-//                if (ConsensusRequestRouter.instance.isKeyInMigratingOrMigratedRangeFromAccord(command.metadata(), tms, command.partitionKey()))
-//                {
-//                    metrics.migrationSkippedReads.mark();
-//                    results.add(AsyncChains.success(TxnData.emptyPartition(fragment.txnDataName(), command)));
-//                    return;
-//                }
-
-            results.add(AsyncChains.ofCallable(Stage.ACCORD_MIGRATION.executor(), () -> {
-                TxnData result = new TxnData();
-                try (PartitionIterator iterator = StorageProxy.getRangeSlice(command, consistencyLevel, this, requestTime))
-                {
-                    TxnDataRangeValue value = new TxnDataRangeValue();
-                    while (iterator.hasNext())
-                    {
-                        try (RowIterator partition = iterator.next())
-                        {
-                            FilteredPartition filtered = FilteredPartition.create(partition);
-                            if (filtered.hasRows() || command.selectsFullPartition())
-                                value.add(filtered);
-                        }
-                    }
-                    result.put(TxnData.txnDataName(TxnDataNameKind.USER), value);
-                }
-                return result;
-            }));
         });
         return results;
     }
 
     private AsyncChain<Data> readChains()
     {
-        int nowInSeconds = (int) TimeUnit.MICROSECONDS.toSeconds(executeAt.hlc());
         // TODO (expected): use normal query nano time
         Dispatcher.RequestTime requestTime = Dispatcher.RequestTime.forImmediateExecution();
 
-        List<AsyncChain<Data>> results;
-        if (txn.keys().domain().isKey())
-            results = keyReadChains(nowInSeconds, requestTime);
-        else
-            results = rangeReadChains(nowInSeconds, requestTime);
-
+        List<AsyncChain<Data>> results = readChains(requestTime);
         if (results.isEmpty())
             return AsyncChains.success(new TxnData());
 
@@ -431,9 +427,20 @@ public class AccordInteropExecution implements ReadCoordinator, MaximalCommitSen
     }
 
     @Override
-    public ReadCommand maybeAllowOutOfRangeReads(ReadCommand readCommand)
+    public ReadCommand maybeAllowOutOfRangeReads(ReadCommand readCommand, ConsistencyLevel cl)
     {
-        return readCommand.allowOutOfRangeReads();
+        // Reading from a single coordinator so there is no reconciliation at the coordinator and filtering/limits
+        // need to be pushed down to query execution
+        boolean withoutReconciliation = cl == null || cl == ConsistencyLevel.ONE;
+        // Really just want to enable allowPotentialTxnConflicts without changing anything else
+        // but didn't want to add another method for constructing a modified read command
+        if (readCommand instanceof SinglePartitionReadCommand)
+            return ((SinglePartitionReadCommand)readCommand).withTransactionalSettings(withoutReconciliation, readCommand.nowInSec());
+        else
+        {
+            PartitionRangeReadCommand rangeCommand = ((PartitionRangeReadCommand)readCommand);
+            return rangeCommand.withTransactionalSettings(readCommand.nowInSec(), rangeCommand.dataRange().keyRange(), true, withoutReconciliation);
+        }
     }
 
     // Provide request callbacks with a way to send maximal commits on Insufficient responses

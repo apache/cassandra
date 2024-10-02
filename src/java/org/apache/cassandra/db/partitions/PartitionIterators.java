@@ -17,15 +17,15 @@
  */
 package org.apache.cassandra.db.partitions;
 
-import java.util.*;
+import java.util.List;
 
 import org.apache.cassandra.db.EmptyIterators;
+import org.apache.cassandra.db.SinglePartitionReadQuery;
+import org.apache.cassandra.db.rows.RowIterator;
+import org.apache.cassandra.db.rows.RowIterators;
 import org.apache.cassandra.db.transform.MorePartitions;
 import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.utils.AbstractIterator;
-
-import org.apache.cassandra.db.SinglePartitionReadQuery;
-import org.apache.cassandra.db.rows.*;
 
 public abstract class PartitionIterators
 {
@@ -57,7 +57,7 @@ public abstract class PartitionIterators
         return Transformation.apply(toReturn, new Close());
     }
 
-    public static PartitionIterator concat(final List<PartitionIterator> iterators)
+    public static PartitionIterator concat(final List<? extends PartitionIterator> iterators)
     {
         if (iterators.size() == 1)
             return iterators.get(0);

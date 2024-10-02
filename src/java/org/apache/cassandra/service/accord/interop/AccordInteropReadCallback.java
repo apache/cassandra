@@ -58,6 +58,7 @@ public abstract class AccordInteropReadCallback<T> implements Callback<ReadReply
 
     abstract T convertResponse(ReadOk ok);
 
+    @Override
     public void onSuccess(Node.Id from, ReadReply reply)
     {
         Invariants.requireArgument(from.equals(id));
@@ -78,6 +79,7 @@ public abstract class AccordInteropReadCallback<T> implements Callback<ReadReply
         }
     }
 
+    @Override
     public void onFailure(Node.Id from, Throwable failure)
     {
         RequestFailure requestFailure;
@@ -90,6 +92,7 @@ public abstract class AccordInteropReadCallback<T> implements Callback<ReadReply
         wrapped.onFailure(endpoint, requestFailure);
     }
 
+    @Override
     public boolean onCallbackFailure(Node.Id from, Throwable failure)
     {
         wrapped.onFailure(endpoint, RequestFailure.UNKNOWN);

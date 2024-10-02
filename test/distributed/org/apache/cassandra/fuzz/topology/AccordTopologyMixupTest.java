@@ -141,7 +141,7 @@ public class AccordTopologyMixupTest extends TopologyMixupTestBase<AccordTopolog
         if (enableMigration)
         {
             cluster.schemaChange("ALTER TABLE " + metadata + " WITH " + mode.asCqlParam());
-            cluster.get(1).nodetoolResult("consensus_admin", "begin-migration", "--target-protocol", "accord", metadata.keyspace, metadata.name).asserts().success();
+            cluster.get(1).nodetoolResult("consensus_admin", "begin-migration", metadata.keyspace, metadata.name).asserts().success();
         }
         return new Spec(mode, enableMigration, metadata);
     }
@@ -177,7 +177,6 @@ public class AccordTopologyMixupTest extends TopologyMixupTestBase<AccordTopolog
     {
         switch (mode)
         {
-            case unsafe_writes:
             case mixed_reads:
             case full:
                 return true;

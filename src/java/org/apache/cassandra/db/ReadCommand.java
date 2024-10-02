@@ -90,6 +90,7 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.ClientWarn;
+import org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tracing.Tracing;
@@ -100,6 +101,7 @@ import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.TimeUUID;
 
+import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.collect.Iterables.any;
 import static com.google.common.collect.Iterables.filter;
 import static org.apache.cassandra.db.partitions.UnfilteredPartitionIterators.MergeListener.NOOP;
@@ -119,6 +121,30 @@ public abstract class ReadCommand extends AbstractReadQuery
     protected static final Logger logger = LoggerFactory.getLogger(ReadCommand.class);
     public static final IVersionedSerializer<ReadCommand> serializer = new Serializer();
 
+    public enum PotentialTxnConflicts
+    {
+        /**
+         * Check for and raise an error if this operation should have been transactionally managed. For use
+         * by queries that aren't issued by a transaction system managing potential conflicts in contexts where
+         * conflicts would be a problem.
+         */
+        DISALLOW(false),
+
+        /**
+         * Don't check or raise an error if this operation could conflict with transactions. For use when the thing
+         * being managed doesn't support transactions or the operation is being done by a transaction that is already
+         * managing any potential conflicts.
+         */
+        ALLOW(true);
+
+        public final boolean allowed;
+
+        PotentialTxnConflicts(boolean allowed)
+        {
+            this.allowed = allowed;
+        }
+    }
+    
     // Expose the active command running so transitive calls can lookup this command.
     // This is useful for a few reasons, but mainly because the CQL query is here.
     private static final FastThreadLocal<ReadCommand> COMMAND = new FastThreadLocal<>();
@@ -128,7 +154,8 @@ public abstract class ReadCommand extends AbstractReadQuery
     private final boolean isDigestQuery;
     private final boolean acceptsTransient;
     private final Epoch serializedAtEpoch;
-    private boolean allowsOutOfRangeReads;
+    private final PotentialTxnConflicts potentialTxnConflicts;
+
     // if a digest query, the version for which the digest is expected. Ignored if not a digest.
     private int digestVersion;
 
@@ -147,7 +174,7 @@ public abstract class ReadCommand extends AbstractReadQuery
                                                 boolean isDigest,
                                                 int digestVersion,
                                                 boolean acceptsTransient,
-                                                boolean allowsOutOfRangeReads,
+                                                PotentialTxnConflicts potentialTxnConflicts,
                                                 TableMetadata metadata,
                                                 long nowInSec,
                                                 ColumnFilter columnFilter,
@@ -174,7 +201,7 @@ public abstract class ReadCommand extends AbstractReadQuery
                           boolean isDigestQuery,
                           int digestVersion,
                           boolean acceptsTransient,
-                          boolean allowsOutOfRangeReads,
+                          PotentialTxnConflicts potentialTxnConflicts,
                           TableMetadata metadata,
                           long nowInSec,
                           ColumnFilter columnFilter,
@@ -193,7 +220,7 @@ public abstract class ReadCommand extends AbstractReadQuery
         this.digestVersion = digestVersion;
         this.acceptsTransient = acceptsTransient;
         this.indexQueryPlan = indexQueryPlan;
-        this.allowsOutOfRangeReads = allowsOutOfRangeReads;
+        this.potentialTxnConflicts = potentialTxnConflicts;
         this.trackWarnings = trackWarnings;
         this.serializedAtEpoch = serializedAtEpoch;
         this.dataRange = dataRange;
@@ -345,7 +372,7 @@ public abstract class ReadCommand extends AbstractReadQuery
      */
     public ReadCommand copyAsTransientQuery(Replica replica)
     {
-        Preconditions.checkArgument(replica.isTransient(),
+        checkArgument(replica.isTransient(),
                                     "Can't make a transient request on a full replica: " + replica);
         return copyAsTransientQuery();
     }
@@ -367,7 +394,7 @@ public abstract class ReadCommand extends AbstractReadQuery
      */
     public ReadCommand copyAsDigestQuery(Replica replica)
     {
-        Preconditions.checkArgument(replica.isFull(),
+        checkArgument(replica.isFull(),
                                     "Can't make a digest request on a transient replica " + replica);
         return copyAsDigestQuery();
     }
@@ -462,6 +489,8 @@ public abstract class ReadCommand extends AbstractReadQuery
         try
         {
             ColumnFamilyStore cfs = Keyspace.openAndGetStore(metadata());
+            if (!potentialTxnConflicts.allowed)
+                ConsensusRequestRouter.validateSafeToReadNonTransactionally(this);
             Index.QueryPlan indexQueryPlan = indexQueryPlan();
 
             Index.Searcher searcher = null;
@@ -550,15 +579,9 @@ public abstract class ReadCommand extends AbstractReadQuery
         return ReadExecutionController.forCommand(this, false);
     }
 
-    public ReadCommand allowOutOfRangeReads()
+    public PotentialTxnConflicts potentialTxnConflicts()
     {
-        allowsOutOfRangeReads = true;
-        return this;
-    }
-
-    public boolean allowsOutOfRangeReads()
-    {
-        return allowsOutOfRangeReads;
+        return potentialTxnConflicts;
     }
 
     /**
@@ -1250,7 +1273,7 @@ public abstract class ReadCommand extends AbstractReadQuery
         private static final int HAS_INDEX = 0x04;
         private static final int ACCEPTS_TRANSIENT = 0x08;
         private static final int NEEDS_RECONCILIATION = 0x10;
-        private static final int ALLOWS_OUT_OF_RANGE_READS = 0x20;
+        private static final int ALLOWS_POTENTIAL_TXN_CONFLICTS = 0x20;
 
         private final SchemaProvider schema;
 
@@ -1315,14 +1338,14 @@ public abstract class ReadCommand extends AbstractReadQuery
             return (flags & NEEDS_RECONCILIATION) != 0;
         }
 
-        private static int allowsOutOfRangeReadsFlag(boolean allowsOutOfRangeReads)
+        private static int potentialTxnConflicts(PotentialTxnConflicts potentialTxnConflicts)
         {
-            return allowsOutOfRangeReads ? ALLOWS_OUT_OF_RANGE_READS: 0;
+            return potentialTxnConflicts.allowed ? ALLOWS_POTENTIAL_TXN_CONFLICTS : 0;
         }
 
-        private static boolean allowsOutOfRangeReads(int flags)
+        private static PotentialTxnConflicts potentialTxnConflicts(int flags)
         {
-            return (flags & ALLOWS_OUT_OF_RANGE_READS) != 0;
+            return (flags & ALLOWS_POTENTIAL_TXN_CONFLICTS) != 0 ? PotentialTxnConflicts.ALLOW : PotentialTxnConflicts.DISALLOW;
         }
 
         public void serialize(ReadCommand command, DataOutputPlus out, int version) throws IOException
@@ -1333,7 +1356,7 @@ public abstract class ReadCommand extends AbstractReadQuery
                     | indexFlag(null != command.indexQueryPlan())
                     | acceptsTransientFlag(command.acceptsTransient())
                     | needsReconciliationFlag(command.rowFilter().needsReconciliation())
-                    | allowsOutOfRangeReadsFlag(command.allowsOutOfRangeReads)
+                    | potentialTxnConflicts(command.potentialTxnConflicts)
             );
             if (command.isDigestQuery())
                 out.writeUnsignedVInt32(command.digestVersion());
@@ -1359,7 +1382,7 @@ public abstract class ReadCommand extends AbstractReadQuery
             int flags = in.readByte();
             boolean isDigest = isDigest(flags);
             boolean acceptsTransient = acceptsTransient(flags);
-            boolean allowsOutOfRangeReads = allowsOutOfRangeReads(flags);
+            PotentialTxnConflicts potentialTxnConflicts = potentialTxnConflicts(flags);
             // Shouldn't happen or it's a user error (see comment above) but
             // better complain loudly than doing the wrong thing.
             if (isForThrift(flags))
@@ -1405,7 +1428,7 @@ public abstract class ReadCommand extends AbstractReadQuery
                     indexQueryPlan = indexGroup.queryPlanFor(rowFilter);
             }
 
-            return kind.selectionDeserializer.deserialize(in, version, schemaVersion, isDigest, digestVersion, acceptsTransient, allowsOutOfRangeReads, tableMetadata, nowInSec, columnFilter, rowFilter, limits, indexQueryPlan);
+            return kind.selectionDeserializer.deserialize(in, version, schemaVersion, isDigest, digestVersion, acceptsTransient, potentialTxnConflicts, tableMetadata, nowInSec, columnFilter, rowFilter, limits, indexQueryPlan);
         }
 
         private IndexMetadata deserializeIndexMetadata(DataInputPlus in, int version, TableMetadata metadata) throws IOException

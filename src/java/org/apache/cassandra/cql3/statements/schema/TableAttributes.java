@@ -31,6 +31,8 @@ import org.apache.cassandra.schema.CachingParams;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.schema.MemtableParams;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.schema.TableParams.Option;
@@ -41,7 +43,24 @@ import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 
 import static java.lang.String.format;
-import static org.apache.cassandra.schema.TableParams.Option.*;
+import static org.apache.cassandra.schema.TableParams.Option.ADDITIONAL_WRITE_POLICY;
+import static org.apache.cassandra.schema.TableParams.Option.ALLOW_AUTO_SNAPSHOT;
+import static org.apache.cassandra.schema.TableParams.Option.BLOOM_FILTER_FP_CHANCE;
+import static org.apache.cassandra.schema.TableParams.Option.CACHING;
+import static org.apache.cassandra.schema.TableParams.Option.CDC;
+import static org.apache.cassandra.schema.TableParams.Option.COMMENT;
+import static org.apache.cassandra.schema.TableParams.Option.COMPACTION;
+import static org.apache.cassandra.schema.TableParams.Option.COMPRESSION;
+import static org.apache.cassandra.schema.TableParams.Option.CRC_CHECK_CHANCE;
+import static org.apache.cassandra.schema.TableParams.Option.DEFAULT_TIME_TO_LIVE;
+import static org.apache.cassandra.schema.TableParams.Option.GC_GRACE_SECONDS;
+import static org.apache.cassandra.schema.TableParams.Option.INCREMENTAL_BACKUPS;
+import static org.apache.cassandra.schema.TableParams.Option.MAX_INDEX_INTERVAL;
+import static org.apache.cassandra.schema.TableParams.Option.MEMTABLE_FLUSH_PERIOD_IN_MS;
+import static org.apache.cassandra.schema.TableParams.Option.MIN_INDEX_INTERVAL;
+import static org.apache.cassandra.schema.TableParams.Option.READ_REPAIR;
+import static org.apache.cassandra.schema.TableParams.Option.SPECULATIVE_RETRY;
+import static org.apache.cassandra.schema.TableParams.Option.TRANSACTIONAL_MODE;
 
 public final class TableAttributes extends PropertyDefinitions
 {
@@ -65,10 +84,10 @@ public final class TableAttributes extends PropertyDefinitions
         build(TableParams.builder()).validate();
     }
 
-    TableParams asNewTableParams()
+    TableParams asNewTableParams(String keyspaceName)
     {
         TableParams.Builder builder = TableParams.builder();
-        if (!hasOption(TRANSACTIONAL_MODE))
+        if (!hasOption(TRANSACTIONAL_MODE) && !SchemaConstants.isSystemKeyspace(keyspaceName) && Schema.instance.distributedKeyspaces().names().contains(keyspaceName))
             builder.transactionalMode(DatabaseDescriptor.defaultTransactionalMode());
         return build(builder);
     }

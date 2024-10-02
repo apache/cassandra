@@ -39,6 +39,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ReadCommand.PotentialTxnConflicts;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.DeserializationHelper;
@@ -98,31 +99,31 @@ public class Mutation implements IMutation, Supplier<Mutation>
     // that are only safe to write to from a transaction system.
     // Don't refuse to apply this mutation because it should go through a transaction system
     // because it is being applied by one or in a context where transaction conflicts don't occur
-    private boolean allowPotentialTransactionConflicts;
+    private PotentialTxnConflicts potentialTxnConflicts;
 
     public Mutation(PartitionUpdate update)
     {
-        this(update, false);
+        this(update, PotentialTxnConflicts.DISALLOW);
     }
 
-    public Mutation(PartitionUpdate update, boolean allowPotentialTransactionConflicts)
+    public Mutation(PartitionUpdate update, PotentialTxnConflicts potentialTxnConflicts)
     {
-        this(update.metadata().keyspace, update.partitionKey(), ImmutableMap.of(update.metadata().id, update), approxTime.now(), update.metadata().params.cdc, allowPotentialTransactionConflicts);
+        this(update.metadata().keyspace, update.partitionKey(), ImmutableMap.of(update.metadata().id, update), approxTime.now(), update.metadata().params.cdc, potentialTxnConflicts);
     }
 
-    public Mutation(String keyspaceName, DecoratedKey key, ImmutableMap<TableId, PartitionUpdate> modifications, long approxCreatedAtNanos, boolean allowPotentialTransactionConflicts)
+    public Mutation(String keyspaceName, DecoratedKey key, ImmutableMap<TableId, PartitionUpdate> modifications, long approxCreatedAtNanos, PotentialTxnConflicts potentialTxnConflicts)
     {
-        this(keyspaceName, key, modifications, approxCreatedAtNanos, cdcEnabled(modifications.values()), allowPotentialTransactionConflicts);
+        this(keyspaceName, key, modifications, approxCreatedAtNanos, cdcEnabled(modifications.values()), potentialTxnConflicts);
     }
 
-    public Mutation(String keyspaceName, DecoratedKey key, ImmutableMap<TableId, PartitionUpdate> modifications, long approxCreatedAtNanos, boolean cdcEnabled, boolean allowPotentialTransactionConflicts)
+    public Mutation(String keyspaceName, DecoratedKey key, ImmutableMap<TableId, PartitionUpdate> modifications, long approxCreatedAtNanos, boolean cdcEnabled, PotentialTxnConflicts potentialTxnConflicts)
     {
         this.keyspaceName = keyspaceName;
         this.key = key;
         this.modifications = modifications;
         this.cdcEnabled = cdcEnabled;
         this.approxCreatedAtNanos = approxCreatedAtNanos;
-        this.allowPotentialTransactionConflicts = allowPotentialTransactionConflicts;
+        this.potentialTxnConflicts = potentialTxnConflicts;
     }
 
     private static boolean cdcEnabled(Iterable<PartitionUpdate> modifications)
@@ -156,7 +157,7 @@ public class Mutation implements IMutation, Supplier<Mutation>
 
         Map<TableId, PartitionUpdate> updates = builder.build();
         checkState(!updates.isEmpty(), "Updates should not be empty");
-        return new Mutation(keyspaceName, key, builder.build(), approxCreatedAtNanos, allowPotentialTransactionConflicts);
+        return new Mutation(keyspaceName, key, builder.build(), approxCreatedAtNanos, potentialTxnConflicts);
     }
 
     public @Nullable Mutation without(TableId tableId)
@@ -248,12 +249,12 @@ public class Mutation implements IMutation, Supplier<Mutation>
         Set<TableId> updatedTables = new HashSet<>();
         String ks = null;
         DecoratedKey key = null;
-        Boolean allowPotentialTransactionConflicts = null;
+        PotentialTxnConflicts potentialTxnConflicts = null;
         for (Mutation mutation : mutations)
         {
-            if (allowPotentialTransactionConflicts != null && allowPotentialTransactionConflicts != mutation.allowPotentialTransactionConflicts)
+            if (potentialTxnConflicts != null && potentialTxnConflicts != mutation.potentialTxnConflicts)
                 throw new IllegalArgumentException("Can't merge mutations with differing policies on allowing potential transaction conflicts");
-            allowPotentialTransactionConflicts = mutation.allowPotentialTransactionConflicts;
+            potentialTxnConflicts = mutation.potentialTxnConflicts;
             updatedTables.addAll(mutation.modifications.keySet());
             if (ks != null && !ks.equals(mutation.keyspaceName))
                 throw new IllegalArgumentException();
@@ -280,7 +281,7 @@ public class Mutation implements IMutation, Supplier<Mutation>
             modifications.put(table, updates.size() == 1 ? updates.get(0) : PartitionUpdate.merge(updates));
             updates.clear();
         }
-        return new Mutation(ks, key, modifications.build(), approxTime.now(), allowPotentialTransactionConflicts);
+        return new Mutation(ks, key, modifications.build(), approxTime.now(), potentialTxnConflicts);
     }
 
     public Future<?> applyFuture()
@@ -339,24 +340,24 @@ public class Mutation implements IMutation, Supplier<Mutation>
 
     public void allowPotentialTransactionConflicts()
     {
-        allowPotentialTransactionConflicts = true;
+        potentialTxnConflicts = PotentialTxnConflicts.ALLOW;
         Arrays.fill(cachedSerializations, null);
     }
 
     @Override
-    public boolean allowsPotentialTransactionConflicts()
+    public PotentialTxnConflicts potentialTxnConflicts()
     {
-        return allowPotentialTransactionConflicts;
+        return potentialTxnConflicts;
     }
 
-    private static int allowPotentialTransactionConflictsFlag(boolean allowPotentialTransactionConflicts)
+    private static int potentialTxnConflictsFlag(PotentialTxnConflicts potentialTxnConflicts)
     {
-        return allowPotentialTransactionConflicts ? ALLOW_POTENTIAL_TRANSACTION_CONFLICTS : 0;
+        return potentialTxnConflicts.allowed ? ALLOW_POTENTIAL_TRANSACTION_CONFLICTS : 0;
     }
 
-    public static boolean allowPotentialTransactionConflicts(int flags)
+    public static PotentialTxnConflicts potentialTxnConflicts(int flags)
     {
-        return (flags & ALLOW_POTENTIAL_TRANSACTION_CONFLICTS) != 0;
+        return (flags & ALLOW_POTENTIAL_TRANSACTION_CONFLICTS) != 0 ? PotentialTxnConflicts.ALLOW : PotentialTxnConflicts.DISALLOW;
     }
 
     public String toString()
@@ -443,7 +444,7 @@ public class Mutation implements IMutation, Supplier<Mutation>
          * being handled by the caller
          * @return this builder
          */
-        public SimpleBuilder allowPotentialTransactionConflicts();
+        public SimpleBuilder allowPotentialTxnConflicts();
 
         /**
          * Sets the timestamp to use for the following additions to this builder or any derived (update or row) builder.
@@ -560,7 +561,7 @@ public class Mutation implements IMutation, Supplier<Mutation>
             if (version >= VERSION_51)
             {
                 int flags = 0;
-                flags |= allowPotentialTransactionConflictsFlag(mutation.allowPotentialTransactionConflicts);
+                flags |= potentialTxnConflictsFlag(mutation.potentialTxnConflicts);
                 out.write(flags);
             }
 
@@ -583,11 +584,11 @@ public class Mutation implements IMutation, Supplier<Mutation>
             {
                 teeIn = new TeeDataInputPlus(in, dob, CACHEABLE_MUTATION_SIZE_LIMIT);
 
-                boolean allowPotentialTransactionConflicts = false;
+                PotentialTxnConflicts potentialTxnConflicts = PotentialTxnConflicts.DISALLOW;
                 if (version >= VERSION_51)
                 {
                     int flags = teeIn.readByte();
-                    allowPotentialTransactionConflicts = allowPotentialTransactionConflicts(flags);
+                    potentialTxnConflicts = potentialTxnConflicts(flags);
                 }
                 int size = teeIn.readUnsignedVInt32();
                 assert size > 0;
@@ -595,7 +596,7 @@ public class Mutation implements IMutation, Supplier<Mutation>
                 PartitionUpdate update = PartitionUpdate.serializer.deserialize(teeIn, version, flag);
                 if (size == 1)
                 {
-                    m = new Mutation(update, allowPotentialTransactionConflicts);
+                    m = new Mutation(update, potentialTxnConflicts);
                 }
                 else
                 {
@@ -608,7 +609,7 @@ public class Mutation implements IMutation, Supplier<Mutation>
                         update = PartitionUpdate.serializer.deserialize(teeIn, version, flag);
                         modifications.put(update.metadata().id, update);
                     }
-                    m = new Mutation(update.metadata().keyspace, dk, modifications.build(), approxTime.now(), allowPotentialTransactionConflicts);
+                    m = new Mutation(update.metadata().keyspace, dk, modifications.build(), approxTime.now(), potentialTxnConflicts);
                 }
 
                 //Only cache serializations that don't hit the limit
@@ -708,18 +709,18 @@ public class Mutation implements IMutation, Supplier<Mutation>
         private final long approxCreatedAtNanos = approxTime.now();
         private boolean empty = true;
 
-        private boolean allowPotentialTransactionConflicts;
+        private PotentialTxnConflicts potentialTxnConflicts;
 
         public PartitionUpdateCollector(String keyspaceName, DecoratedKey key)
         {
-            this(keyspaceName, key, false);
+            this(keyspaceName, key, PotentialTxnConflicts.DISALLOW);
         }
 
-        public PartitionUpdateCollector(String keyspaceName, DecoratedKey key, boolean allowPotentialTransactionConflicts)
+        public PartitionUpdateCollector(String keyspaceName, DecoratedKey key, PotentialTxnConflicts potentialTxnConflicts)
         {
             this.keyspaceName = keyspaceName;
             this.key = key;
-            this.allowPotentialTransactionConflicts = allowPotentialTransactionConflicts;
+            this.potentialTxnConflicts = potentialTxnConflicts;
         }
 
         public PartitionUpdateCollector add(PartitionUpdate partitionUpdate)
@@ -753,7 +754,7 @@ public class Mutation implements IMutation, Supplier<Mutation>
 
         public Mutation build()
         {
-            return new Mutation(keyspaceName, key, modifications.build(), approxCreatedAtNanos, allowPotentialTransactionConflicts);
+            return new Mutation(keyspaceName, key, modifications.build(), approxCreatedAtNanos, potentialTxnConflicts);
         }
     }
 }

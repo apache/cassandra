@@ -26,6 +26,7 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.MutationExceededMaxSizeException;
+import org.apache.cassandra.db.ReadCommand.PotentialTxnConflicts;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -46,13 +47,13 @@ public class BlockingReadRepairs
      * Create a read repair mutation from the given update, if the mutation is not larger than the maximum
      * mutation size, otherwise return null. Or, if we're configured to be strict, throw an exception.
      */
-    public static Mutation createRepairMutation(PartitionUpdate update, ConsistencyLevel consistency, InetAddressAndPort destination, boolean suppressException, boolean allowPotentialTransactionConflicts)
+    public static Mutation createRepairMutation(PartitionUpdate update, ConsistencyLevel consistency, InetAddressAndPort destination, boolean suppressException, PotentialTxnConflicts potentialTxnConflicts)
     {
         if (update == null)
             return null;
 
         DecoratedKey key = update.partitionKey();
-        Mutation mutation = new Mutation(update, allowPotentialTransactionConflicts);
+        Mutation mutation = new Mutation(update, potentialTxnConflicts);
         int messagingVersion = MessagingService.instance().versions.get(destination);
 
         try

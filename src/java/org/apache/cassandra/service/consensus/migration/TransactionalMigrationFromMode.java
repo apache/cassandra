@@ -30,10 +30,10 @@ public enum TransactionalMigrationFromMode
 {
     none(null),  // No migration is in progress. The currently active transaction system could be either Accord or Paxos.
     off(TransactionalMode.off),
-    unsafe(TransactionalMode.unsafe),
-    unsafe_writes(TransactionalMode.unsafe_writes),
     mixed_reads(TransactionalMode.mixed_reads),
     full(TransactionalMode.full),
+    test_unsafe(TransactionalMode.test_unsafe),
+    test_unsafe_writes(TransactionalMode.test_unsafe_writes),
     test_interop_read(TransactionalMode.test_interop_read);
 
     public final TransactionalMode from;
@@ -52,11 +52,11 @@ public enum TransactionalMigrationFromMode
         {
             default: throw new IllegalArgumentException();
             case off: return off;
-            case unsafe: return unsafe;
-            case unsafe_writes: return unsafe_writes;
             case mixed_reads: return mixed_reads;
             case full: return full;
             case test_interop_read: return test_interop_read;
+            case test_unsafe: return test_unsafe;
+            case test_unsafe_writes: return test_unsafe_writes;
         }
     }
 

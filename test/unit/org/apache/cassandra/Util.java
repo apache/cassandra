@@ -768,6 +768,11 @@ public class Util
                   .untilAsserted(() -> assertThat(message, call.call(), equalTo(expected)));
     }
 
+    public static void spinUntilTrue(Callable<Boolean> test)
+    {
+        spinUntilTrue(test, 10, TimeUnit.SECONDS);
+    }
+
     public static void spinUntilTrue(Callable<Boolean> test, long timeoutInSeconds)
     {
         spinUntilTrue(test, timeoutInSeconds, TimeUnit.SECONDS);

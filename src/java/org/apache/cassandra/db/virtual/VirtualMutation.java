@@ -30,6 +30,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.ReadCommand.PotentialTxnConflicts;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.ClientState;
@@ -142,8 +143,8 @@ public final class VirtualMutation implements IMutation
      * Accord doesn't support reading/writing virtual tables yet so updating them non-transactionally is always safe
      */
     @Override
-    public boolean allowsPotentialTransactionConflicts()
+    public PotentialTxnConflicts potentialTxnConflicts()
     {
-        return true;
+        return PotentialTxnConflicts.ALLOW;
     }
 }

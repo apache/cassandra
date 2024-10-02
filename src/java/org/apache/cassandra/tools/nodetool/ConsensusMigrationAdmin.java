@@ -69,9 +69,6 @@ public abstract class ConsensusMigrationAdmin extends NodeTool.NodeToolCmd
         @Option(title = "end_token", name = {"-et", "--end-token"}, description = "Use -et to specify a token at which repair range ends")
         private String endToken = null;
 
-        @Option(title = "target_protocol", name = {"-tp", "--target-protocol"}, description = "Use -tp to specify what consensus protocol should be migrated to", required=true)
-        private String targetProtocol = null;
-
         @Arguments(usage = "[<keyspace> <tables>...]", description = "The keyspace followed by one or many tables")
         private List<String> schemaArgs = new ArrayList<>();
 
@@ -81,7 +78,7 @@ public abstract class ConsensusMigrationAdmin extends NodeTool.NodeToolCmd
             String maybeRangesStr = startToken != null ? startToken + ":" + endToken : null;
             List<String> keyspaceNames = parseOptionalKeyspace(schemaArgs, probe, KeyspaceSet.ACCORD_MANAGED);
             List<String> maybeTableNames = schemaArgs.size() > 1 ? schemaArgs.subList(1, schemaArgs.size()) : null;
-            probe.getStorageService().migrateConsensusProtocol(targetProtocol, keyspaceNames, maybeTableNames, maybeRangesStr);
+            probe.getStorageService().migrateConsensusProtocol(keyspaceNames, maybeTableNames, maybeRangesStr);
             probe.output().out.println("Marked requested ranges as migrating. Repair needs to be run in order to complete the migration");
         }
     }

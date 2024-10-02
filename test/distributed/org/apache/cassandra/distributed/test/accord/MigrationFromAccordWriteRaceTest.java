@@ -18,10 +18,10 @@
 
 package org.apache.cassandra.distributed.test.accord;
 
-public class MigrationToAccordRaceTest extends AccordMigrationRaceTestBase
+public class MigrationFromAccordWriteRaceTest extends AccordMigrationWriteRaceTestBase
 {
     protected boolean migratingAwayFromAccord()
     {
-        return false;
+        return true;
     }
 }

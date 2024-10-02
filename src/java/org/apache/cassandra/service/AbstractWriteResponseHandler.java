@@ -167,7 +167,8 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
                 // Retrying on the correct system might make this write succeed
                 if (transactionRetryErrors > 0)
                     throw new RetryOnDifferentSystemException();
-                throw new CoordinatorBehindException("Write request failed due to coordinator behind");
+                if (coordinatorBehindErrors > 0)
+                    throw new CoordinatorBehindException("Write request failed due to coordinator behind");
             }
 
             throw new WriteFailureException(replicaPlan.consistencyLevel(), ackCount(), blockFor(), writeType, getFailureReasonByEndpointMap());

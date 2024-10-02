@@ -26,6 +26,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -118,11 +119,11 @@ import org.agrona.collections.Int2ObjectHashMap;
 import org.apache.cassandra.concurrent.Shutdownable;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.cql3.statements.RequestValidations;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.dht.AccordSplitter;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestTimeoutException;
@@ -156,6 +157,7 @@ import org.apache.cassandra.service.accord.exceptions.ReadPreemptedException;
 import org.apache.cassandra.service.accord.exceptions.WritePreemptedException;
 import org.apache.cassandra.service.accord.interop.AccordInteropAdapter.AccordInteropFactory;
 import org.apache.cassandra.service.accord.repair.RepairSyncPointAdapter;
+import org.apache.cassandra.service.accord.txn.RetryWithNewProtocolResult;
 import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.service.consensus.migration.TableMigrationState;
@@ -609,12 +611,14 @@ public class AccordService implements IAccordService, Shutdownable
         // Barriers can be needed just because it's an Accord managed range, but it could also be a migration back to Paxos
         // in which case we do want to barrier the migrating/migrated ranges even though the target for the migration is not Accord
         // In either case Accord should be aware of those ranges and not generate a topology mismatch
-        if (tm.params.transactionalMode != TransactionalMode.off || tm.params.transactionalMigrationFrom.from != TransactionalMode.off)
+        if (tm.params.transactionalMode != TransactionalMode.off || tm.params.transactionalMigrationFrom.migratingFromAccord())
         {
             TableMigrationState tms = cm.consensusMigrationState.tableStates.get(tm.id);
             // null is fine could be completely migrated or was always an Accord table on creation
             if (tms == null)
                 return keysOrRanges;
+            // Use migratingAndMigratedRanges (not accordSafeToReadRanges) because barriers are allowed even if Accord can't perform
+            // a read because they are only finishing/recovering existing Accord transactions
             Ranges migratingAndMigratedRanges = AccordTopology.toAccordRanges(tms.tableId, tms.migratingAndMigratedRanges);
             return keysOrRanges.slice(migratingAndMigratedRanges);
         }
@@ -739,6 +743,34 @@ public class AccordService implements IAccordService, Shutdownable
         return node.topology();
     }
 
+    private static Set<TableId> txnDroppedTables(Seekables<?,?> keys)
+    {
+        Set<TableId> tables = new HashSet<>();
+        for (Seekable seekable : keys)
+        {
+            switch (seekable.domain())
+            {
+                default:
+                    throw new IllegalStateException("Unhandled domain " + seekable.domain());
+                case Key:
+                    tables.add(((PartitionKey) seekable).table());
+                    break;
+                case Range:
+                    tables.add(((TokenRange) seekable).table());
+                    break;
+            }
+        }
+
+        Iterator<TableId> tablesIterator = tables.iterator();
+        while (tablesIterator.hasNext())
+        {
+            TableId table = tablesIterator.next();
+            if (Schema.instance.getTableMetadata(table) != null)
+                tablesIterator.remove();
+        }
+        return tables;
+    }
+
     /**
      * Consistency level is just echoed back in timeouts, in the future it may be used for interoperability
      * with non-Accord operations.
@@ -747,7 +779,7 @@ public class AccordService implements IAccordService, Shutdownable
     public @Nonnull TxnResult coordinate(long minEpoch, @Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, @Nonnull Dispatcher.RequestTime requestTime)
     {
         AsyncTxnResult asyncTxnResult = coordinateAsync(minEpoch, txn, consistencyLevel, requestTime);
-        return getTxnResult(asyncTxnResult, txn.isWrite(), consistencyLevel, requestTime);
+        return getTxnResult(asyncTxnResult);
     }
 
     @Override
@@ -769,7 +801,8 @@ public class AccordService implements IAccordService, Shutdownable
         metrics.keySize.update(txn.keys().size());
         long deadlineNanos = requestTime.computeDeadline(DatabaseDescriptor.getTransactionTimeout(NANOSECONDS));
         AsyncResult<Result> asyncResult = node.coordinate(txnId, txn, minEpoch, deadlineNanos);
-        AsyncTxnResult asyncTxnResult = new AsyncTxnResult(txnId);
+        Seekables<?, ?> keys = txn.keys();
+        AsyncTxnResult asyncTxnResult = new AsyncTxnResult(txnId, minEpoch, consistencyLevel, txn.isWrite(), requestTime);
         asyncResult.addCallback((success, failure) -> {
             long durationNanos = nanoTime() - requestTime.startedAtNanos();
             sharedMetrics.addNano(durationNanos);
@@ -786,6 +819,9 @@ public class AccordService implements IAccordService, Shutdownable
                 return;
             }
 
+            sharedMetrics.failures.mark();
+            metrics.failures.mark();
+
             if (cause instanceof Timeout)
             {
                 // Don't mark the metric here, should be done in getTxnResult to ensure it only happens once
@@ -795,7 +831,6 @@ public class AccordService implements IAccordService, Shutdownable
             }
             if (cause instanceof Preempted || cause instanceof Invalidated)
             {
-                sharedMetrics.timeouts.mark();
                 metrics.preempted.mark();
                 //TODO need to improve
                 // Coordinator "could" query the accord state to see whats going on but that doesn't exist yet.
@@ -803,25 +838,39 @@ public class AccordService implements IAccordService, Shutdownable
                 asyncTxnResult.tryFailure(newPreempted(txnId, txn.isWrite(), consistencyLevel));
                 return;
             }
-            sharedMetrics.failures.mark();
+            // TODO (desired): It would be better to check if the topology mismatch is due to Accord ownership changes
+            // or the txn accessing tables that don't exist or something.
             if (cause instanceof TopologyMismatch)
             {
+                // Excluding bugs topology mismatch can occur because a table was dropped in between creating the txn
+                // and executing it.
+                // It could also race with the table stopping/starting being managed by Accord.
+                // The caller can retry if the table indeed exists and is managed by Accord.
+                Set<TableId> txnDroppedTables = txnDroppedTables(keys);
+                Tracing.trace("Accord returned topology mismatch: " + cause.getMessage());
+                logger.debug("Accord returned topology mismatch", cause);
                 metrics.topologyMismatches.mark();
-                asyncTxnResult.tryFailure(RequestValidations.invalidRequest(cause.getMessage()));
+                // Throw IRE in case the caller fails to check if the table still exists
+                if (!txnDroppedTables.isEmpty())
+                {
+                    Tracing.trace("Accord txn uses dropped tables {}", txnDroppedTables);
+                    logger.debug("Accord txn uses dropped tables {}", txnDroppedTables);
+                    asyncTxnResult.setFailure(new InvalidRequestException("Accord transaction uses dropped tables"));
+                }
+                asyncTxnResult.setSuccess(RetryWithNewProtocolResult.instance);
                 return;
             }
-            metrics.failures.mark();
             asyncTxnResult.tryFailure(new RuntimeException(cause));
         });
         return asyncTxnResult;
     }
 
     @Override
-    public TxnResult getTxnResult(AsyncTxnResult asyncTxnResult, boolean isWrite, @Nullable ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
+    public TxnResult getTxnResult(AsyncTxnResult asyncTxnResult)
     {
         ClientRequestMetrics sharedMetrics;
         AccordClientRequestMetrics metrics;
-        if (isWrite)
+        if (asyncTxnResult.isWrite)
         {
             sharedMetrics = ClientRequestsMetricsHolder.writeMetrics;
             metrics = accordWriteMetrics;
@@ -833,7 +882,7 @@ public class AccordService implements IAccordService, Shutdownable
         }
         try
         {
-            long deadlineNanos = requestTime.computeDeadline(DatabaseDescriptor.getTransactionTimeout(NANOSECONDS));
+            long deadlineNanos = asyncTxnResult.requestTime.computeDeadline(DatabaseDescriptor.getTransactionTimeout(NANOSECONDS));
             TxnResult result = asyncTxnResult.get(deadlineNanos - nanoTime(), NANOSECONDS);
             return result;
         }
@@ -851,6 +900,8 @@ public class AccordService implements IAccordService, Shutdownable
             }
             else if (cause instanceof RuntimeException)
                 throw (RuntimeException) cause;
+            else if (cause instanceof InvalidRequestException)
+                throw ((InvalidRequestException)cause);
             else
                 throw new RuntimeException(cause);
         }
@@ -864,7 +915,7 @@ public class AccordService implements IAccordService, Shutdownable
         {
             metrics.timeouts.mark();
             sharedMetrics.timeouts.mark();
-            throw newTimeout(asyncTxnResult.txnId, isWrite, consistencyLevel);
+            throw newTimeout(asyncTxnResult.txnId, asyncTxnResult.isWrite, asyncTxnResult.consistencyLevel);
         }
     }
 

@@ -45,6 +45,7 @@ import accord.primitives.Ranges;
 import accord.primitives.RoutableKey;
 import accord.primitives.Route;
 import accord.primitives.RoutingKeys;
+import accord.primitives.Seekable;
 import accord.primitives.Seekables;
 import accord.primitives.Unseekables;
 import accord.primitives.Unseekables.UnseekablesKind;
@@ -417,6 +418,51 @@ public class KeySerializers
             }
         }
     }
+
+    public static final IVersionedSerializer<Seekable> seekable = new IVersionedSerializer<>()
+    {
+        @Override
+        public void serialize(Seekable seekable, DataOutputPlus out, int version) throws IOException
+        {
+            switch (seekable.domain())
+            {
+                default: throw new AssertionError();
+                case Key:
+                    out.writeByte(0);
+                    PartitionKey.serializer.serialize((PartitionKey) seekable, out, version);
+                    break;
+                case Range:
+                    out.writeByte(1);
+                    TokenRange.serializer.serialize((TokenRange) seekable, out, version);
+                    break;
+            }
+        }
+
+        @Override
+        public Seekable deserialize(DataInputPlus in, int version) throws IOException
+        {
+            byte b = in.readByte();
+            switch (b)
+            {
+                default: throw new IOException("Corrupted input: expected byte 1 or 2, received " + b);
+                case 0: return PartitionKey.serializer.deserialize(in, version);
+                case 1: return TokenRange.serializer.deserialize(in, version);
+            }
+        }
+
+        @Override
+        public long serializedSize(Seekable seekable, int version)
+        {
+            switch (seekable.domain())
+            {
+                default: throw new AssertionError();
+                case Key:
+                    return 1 + PartitionKey.serializer.serializedSize((PartitionKey) seekable, version);
+                case Range:
+                    return 1 + TokenRange.serializer.serializedSize((TokenRange) seekable, version);
+            }
+        }
+    };
 
     public static class AbstractSeekablesSerializer implements IVersionedSerializer<Seekables<?, ?>>
     {

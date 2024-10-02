@@ -35,6 +35,7 @@ import org.apache.commons.lang3.ObjectUtils;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.dht.Token.KeyBound;
 import org.apache.cassandra.dht.Token.TokenFactory;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -44,6 +45,8 @@ import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.Pair;
 
+import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkState;
 import static java.util.Collections.emptyList;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_RANGE_EXPENSIVE_CHECKS;
 
@@ -775,5 +778,89 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
         {
             return tokenSerializer.serializedSize(t, SERDE_VERSION);
         }
+    }
+
+    /**
+     * Returns a Pair containing the intersection (or null) and the remainder of the bounds that is to the right of the
+     * range, the remainder to the left is discarded since it is assumed if you are checking for intersection of multiple ranges
+     * the ranges are being checked in order.
+     */
+    public static Pair<AbstractBounds<PartitionPosition>, AbstractBounds<PartitionPosition>> intersectionAndRemainder(AbstractBounds<PartitionPosition> bounds, org.apache.cassandra.dht.Range<Token> range)
+    {
+        checkArgument((bounds.inclusiveRight() && bounds.inclusiveLeft()) || (bounds.left.compareTo(bounds.right) < 0 || bounds.right.isMinimum()), "Wrap around not handled");
+        boolean boundsInclusiveLeft = bounds.inclusiveLeft() || (bounds.left.getClass() == KeyBound.class && ((KeyBound)bounds.left).isMinimumBound);
+        boolean boundsInclusiveRight = bounds.inclusiveRight() || (bounds.right.getClass() == KeyBound.class && !((KeyBound)bounds.right).isMinimumBound);
+        Token boundsLeft = bounds.left.getToken();
+        Token boundsRight = bounds.right.getToken();
+        Token rangeLeft = range.left;
+        Token rangeRight = range.right;
+        checkState(rangeLeft.compareTo(rangeRight) < 0 || rangeRight.isMinimum(), "Wrap around is not handled");
+
+        // Completely before
+        int rightLeftCmp = boundsRight.compareTo(rangeLeft);
+        // Nothing is > min on the right
+        if (boundsRight.isMinimum())
+            rightLeftCmp = 1;
+        // Range left is not inclusive, doesn't matter whether the bound is inclusive/exclusive left
+        rightLeftCmp = rightLeftCmp == 0 ? -1 : rightLeftCmp;
+        if (rightLeftCmp < 0)
+            return Pair.create(null, null);
+
+        // Completely after
+        int leftRightCmp = boundsLeft.compareTo(rangeRight);
+        // Nothing is > min on the right
+        if (rangeRight.isMinimum())
+            leftRightCmp = -1;
+        // Fixed mismatched inclusivity
+        leftRightCmp = leftRightCmp == 0 && !boundsInclusiveLeft ? 1 : leftRightCmp;
+        if (leftRightCmp > 0)
+            return Pair.create(null, bounds);
+
+        int rightRightCmp = boundsRight.compareTo(rangeRight);
+        // min on the right is > than everything
+        if (rangeRight.isMinimum() && boundsRight.isMinimum())
+            rightRightCmp = 0;
+        else if (boundsRight.isMinimum())
+            rightRightCmp = 1;
+        else if (rangeRight.isMinimum())
+            rightRightCmp = -1;
+        // Fixed mismatched inclusivity
+        rightRightCmp = rightRightCmp == 0 && !boundsInclusiveRight ? -1 : rightRightCmp;
+
+        int leftLeftCmp = boundsLeft.compareTo(rangeLeft);
+        // Range left is not inclusive, doesn't matter whether the bound is inclusive/exclusive left
+        leftLeftCmp = leftLeftCmp == 0 ? -1 : leftLeftCmp;
+
+        // Fully contained
+        if (leftLeftCmp > 0 && rightRightCmp <= 0)
+            return Pair.create(bounds, null);
+        // Split by the right bound of the range (rightRightCmp is implicitly > 0 given the preceding condition)
+        else if (leftLeftCmp >= 0)
+            return bounds.split(rangeRight.maxKeyBound());
+        // Intersects but has some portion that needs to be discarded first
+        else
+        {
+            // Remove everything before the intersection
+            Pair<AbstractBounds<PartitionPosition>, AbstractBounds<PartitionPosition>> split = bounds.split(rangeLeft.maxKeyBound());
+            AbstractBounds<PartitionPosition> intersectionAndRemainder = bounds;
+            if (split != null)
+                intersectionAndRemainder = split.right;
+            // There is a remainder
+            if (rightRightCmp > 0)
+                return intersectionAndRemainder.split(rangeRight.maxKeyBound());
+            // There is no remainder everything that
+            return Pair.create(intersectionAndRemainder, null);
+        }
+    }
+
+    public static int compareRightToken(Token a, Token b)
+    {
+        if (a.isMinimum() && b.isMinimum())
+            return 0;
+        if (a.isMinimum())
+            return 1;
+        if (b.isMinimum())
+            return 0;
+        return a.compareTo(b);
     }
 }

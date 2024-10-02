@@ -45,8 +45,10 @@ import org.slf4j.LoggerFactory;
 
 import accord.primitives.Unseekables;
 import accord.topology.Topologies;
+import org.apache.cassandra.config.Config.PaxosVariant;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.functions.types.utils.Bytes;
+import org.apache.cassandra.cql3.statements.TransactionStatement;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.MapType;
@@ -59,6 +61,7 @@ import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.QueryResults;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.shared.AssertUtils;
+import org.apache.cassandra.distributed.test.sai.SAIUtil;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.AccordTestUtils;
@@ -75,6 +78,9 @@ import static org.apache.cassandra.cql3.CQLTester.row;
 import static org.apache.cassandra.cql3.statements.schema.AlterTableStatement.ACCORD_COUNTER_COLUMN_UNSUPPORTED;
 import static org.apache.cassandra.cql3.statements.schema.AlterTableStatement.ACCORD_COUNTER_TABLES_UNSUPPORTED;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.QUORUM;
+import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
+import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
+import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.distributed.util.QueryResultUtil.assertThat;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
@@ -99,8 +105,87 @@ public abstract class AccordCQLTestBase extends AccordTestBase
     @BeforeClass
     public static void setupClass() throws IOException
     {
-        AccordTestBase.setupCluster(builder -> builder, 2);
+        AccordTestBase.setupCluster(builder -> builder.appendConfig(config -> config.with(GOSSIP, NETWORK, NATIVE_PROTOCOL)
+                                                                                    .set("paxos_variant", PaxosVariant.v2.name())), 2);
         SHARED_CLUSTER.schemaChange("CREATE TYPE " + KEYSPACE + ".person (height int, age int)");
+    }
+
+    @Test
+    public void testRejectTransactionStatement() throws Throwable
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int, c int, v int, primary key (k, c))", cluster -> {
+            ICoordinator coordinator = cluster.coordinator(1);
+            String readQuery = "BEGIN TRANSACTION\n" +
+                               "  SELECT * FROM " + qualifiedAccordTableName + " WHERE k = 0;\n" +
+                               "COMMIT TRANSACTION;";
+            String writeQuery = "BEGIN TRANSACTION\n" +
+                                "  INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (42, 43, 44);\n" +
+                                "COMMIT TRANSACTION;";
+
+            // Not enabled on table or migrating/migrated
+            try
+            {
+                coordinator.execute(readQuery, ConsistencyLevel.ALL);
+                fail("Expected exception");
+            }
+            catch (Throwable t)
+            {
+                assertEquals(InvalidRequestException.class.getName(), t.getClass().getName());
+                assertEquals(t.getMessage(), format(TransactionStatement.TRANSACTIONS_DISABLED_ON_TABLE_MESSAGE, "SELECT", "at [2:3]"));
+            }
+
+            try
+            {
+                coordinator.execute(writeQuery, ConsistencyLevel.ALL);
+                fail("Expected exception");
+            }
+            catch (Throwable t)
+            {
+                assertEquals(InvalidRequestException.class.getName(), t.getClass().getName());
+                assertEquals(t.getMessage(), format(TransactionStatement.TRANSACTIONS_DISABLED_ON_TABLE_MESSAGE, "INSERT", "at [2:3]"));
+            }
+
+            // Enabled on table but not migrating/migrated
+            coordinator.execute("ALTER TABLE " + qualifiedAccordTableName + " WITH transactional_mode = '" + transactionalMode.name() + "';", ConsistencyLevel.ALL);
+            try
+            {
+                cluster.coordinator(1).execute(readQuery, ConsistencyLevel.ALL);
+                fail("Expected exception");
+            }
+            catch (Throwable t)
+            {
+                assertEquals(InvalidRequestException.class.getName(), t.getClass().getName());
+                assertEquals(t.getMessage(), TransactionStatement.UNSUPPORTED_MIGRATION);
+            }
+
+            // Blind writes are allowed because Accord does know how to execute them correctly via interop
+            coordinator.execute(writeQuery, ConsistencyLevel.ALL);
+
+            // Enabled on table but migrating
+            nodetool(coordinator, "consensus_admin", "begin-migration", KEYSPACE, accordTableName);
+            try
+            {
+                coordinator.execute(readQuery, ConsistencyLevel.ALL);
+                fail("Expected exception");
+            }
+            catch (Throwable t)
+            {
+                assertEquals(InvalidRequestException.class.getName(), t.getClass().getName());
+                assertEquals(t.getMessage(), TransactionStatement.UNSUPPORTED_MIGRATION);
+            }
+
+            // Write query should succeed even if Accord can't read
+            coordinator.execute(writeQuery, ConsistencyLevel.ALL);
+            // Should also work as a non-SERIAL insert
+            coordinator.execute("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (42, 43, 44);", ConsistencyLevel.ALL);
+            // And CAS
+            coordinator.execute("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (42, 43, 44) IF NOT EXISTS;", ConsistencyLevel.SERIAL, ConsistencyLevel.ALL);
+
+            // Enabled on table and migration has done data repair
+            nodetool(coordinator, "repair", "-skip-accord", "-skip-paxos", KEYSPACE, accordTableName);
+            coordinator.execute(readQuery, ConsistencyLevel.ALL);
+            coordinator.execute(writeQuery, ConsistencyLevel.ALL);
+        });
     }
 
     @Test
@@ -233,6 +318,7 @@ public abstract class AccordCQLTestBase extends AccordTestBase
     {
         test(cluster -> {
             cluster.schemaChange("CREATE INDEX ON " + qualifiedAccordTableName + "(v) USING 'sai';");
+            SAIUtil.waitForIndexQueryable(cluster, KEYSPACE);
             for (int i = 0; i < 3; i++)
                 cluster.coordinator(1).execute(wrapInTxn("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (?, ?, ?)"), ConsistencyLevel.ALL, 42, 43 + i, 44 + i);
 
@@ -253,6 +339,7 @@ public abstract class AccordCQLTestBase extends AccordTestBase
     {
         test(cluster -> {
             cluster.schemaChange("CREATE INDEX ON " + qualifiedAccordTableName + "(v) USING 'org.apache.cassandra.index.sasi.SASIIndex';");
+            SAIUtil.waitForIndexQueryable(cluster, KEYSPACE);
             for (int i = 0; i < 3; i++)
                 cluster.coordinator(1).execute(wrapInTxn("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (?, ?, ?)"), ConsistencyLevel.ALL, 42, 43 + i, 44 + i);
 
@@ -272,6 +359,7 @@ public abstract class AccordCQLTestBase extends AccordTestBase
     {
         test(cluster -> {
             cluster.schemaChange("CREATE INDEX ON " + qualifiedAccordTableName + "(v);");
+            SAIUtil.waitForIndexQueryable(cluster, KEYSPACE);
             for (int i = 0; i < 3; i++)
                 cluster.coordinator(1).execute(wrapInTxn("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (?, ?, ?)"), ConsistencyLevel.ALL, 42, 43 + i, 44 + i);
 
@@ -391,12 +479,13 @@ public abstract class AccordCQLTestBase extends AccordTestBase
                  ICoordinator node = cluster.coordinator(1);
                  cluster.schemaChange(withKeyspace("CREATE TABLE %s.testRangeReadSingleToken (pk0 int, ck0 int, static0 int, regular0 int, PRIMARY KEY (pk0, ck0)) WITH " + transactionalMode.asCqlParam() + " AND CLUSTERING ORDER BY (ck0 ASC);"));
                  cluster.schemaChange(withKeyspace("CREATE INDEX ck0_sai_idx ON %s.testRangeReadSingleToken (ck0) USING 'sai';"));
+                 SAIUtil.waitForIndexQueryable(cluster, KEYSPACE);
                  node.executeWithResult(withKeyspace("INSERT INTO %s.testRangeReadSingleToken (pk0, ck0, static0, regular0) VALUES (?, ?, ?, ?)"), QUORUM, 42, 43, 44, 45);
                  assertThat(node.executeWithResult(withKeyspace("SELECT pk0, ck0, static0, regular0 FROM %s.testRangeReadSingleToken WHERE pk0 = ? AND ck0 = ? AND static0 <= ? AND regular0 >= ? ALLOW FILTERING;"), ConsistencyLevel.ALL, 42, 43, 44, 45))
                             .isEqualTo(42, 43, 44, 45);
 
                  // This one is a little more explicit about trying to force a range read of a single token
-                 cluster.schemaChange(withKeyspace("CREATE TABLE %s.testRangeReadSingleToken2 (pk blob primary key) WITH " + TransactionalMode.full.asCqlParam()));
+                 cluster.schemaChange(withKeyspace("CREATE TABLE %s.testRangeReadSingleToken2 (pk blob primary key) WITH " + transactionalMode.asCqlParam()));
                  long token = 42;
                  ByteBuffer keyForToken = Murmur3Partitioner.LongToken.keyForToken(token);
                  node.executeWithResult(withKeyspace("INSERT INTO %s.testRangeReadSingleToken2 (pk) VALUES (?)"), QUORUM, keyForToken);
@@ -419,7 +508,7 @@ public abstract class AccordCQLTestBase extends AccordTestBase
         test(cluster ->
         {
             ICoordinator node = cluster.coordinator(1);
-            cluster.schemaChange(withKeyspace("CREATE TABLE %s.testRangeReadRightMin (pk blob primary key) WITH " + TransactionalMode.full.asCqlParam()));
+            cluster.schemaChange(withKeyspace("CREATE TABLE %s.testRangeReadRightMin (pk blob primary key) WITH " + transactionalMode.asCqlParam()));
             long token = Long.MIN_VALUE;
             ByteBuffer keyForToken = Murmur3Partitioner.LongToken.keyForToken(token);
             node.executeWithResult(withKeyspace("INSERT INTO %s.testRangeReadRightMin (pk) VALUES (?)"), QUORUM, keyForToken);
@@ -438,6 +527,21 @@ public abstract class AccordCQLTestBase extends AccordTestBase
             assertThat(node.executeWithResult(withKeyspace("SELECT * FROM %s.testRangeReadRightMin WHERE token(pk) between token(?) AND token(?)"), QUORUM, keyForToken, keyForToken))
                        .isEqualTo(keyForToken);
         });
+    }
+
+    @Test
+    public void testRangeReadAllowFiltering() throws Throwable
+    {
+        test(cluster ->
+             {
+                 ICoordinator node = cluster.coordinator(1);
+                 cluster.schemaChange(withKeyspace("CREATE TABLE %s.testRangeReadAllowFiltering (pk int primary key, foo text) WITH " + transactionalMode.asCqlParam()));
+                 long token = Long.MIN_VALUE;
+                 ByteBuffer keyForToken = Murmur3Partitioner.LongToken.keyForToken(token);
+                 node.executeWithResult(withKeyspace("INSERT INTO %s.testRangeReadAllowFiltering (pk, foo) VALUES (?, ?)"), QUORUM, 42, "ba");
+                 assertThat(node.executeWithResult(withKeyspace("SELECT * FROM %s.testRangeReadAllowFiltering WHERE foo < 'bar' ALLOW FILTERING"), QUORUM))
+                 .isEqualTo(42, "ba");
+             });
     }
 
     @Test
@@ -772,7 +876,7 @@ public abstract class AccordCQLTestBase extends AccordTestBase
     {
         accordRead = wrapInTxn(accordRead);
         Object[][] simpleReadResult;
-        if (transactionalMode.ignoresSuppliedCommitCL)
+        if (transactionalMode.ignoresSuppliedCommitCL())
             // With accord non-SERIAL write strategy the commit CL is effectively ANY so we need to read at SERIAL
             simpleReadResult = cluster.coordinator(1).execute(simpleRead, ConsistencyLevel.SERIAL, key);
         else

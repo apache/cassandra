@@ -26,14 +26,13 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 
 import com.google.monitoring.runtime.instrumentation.common.collect.Iterators;
-import org.assertj.core.api.Assertions;
-import org.assertj.core.data.Index;
-
 import org.apache.cassandra.distributed.api.QueryResults;
 import org.apache.cassandra.distributed.api.Row;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.shared.AssertUtils;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
+import org.assertj.core.api.Assertions;
+import org.assertj.core.data.Index;
 
 public class QueryResultUtil
 {
@@ -272,6 +271,15 @@ public class QueryResultUtil
             Assertions.assertThat(qr.toObjectArrays())
                       .hasNumberOfRows(1)
                       .contains(values, Index.atIndex(0));
+            return this;
+        }
+
+        public SimpleQueryResultAssertHelper isDeepEqualTo(Object[][] values)
+        {
+            Object[][] results = qr.toObjectArrays();
+            Assertions.assertThat(results)
+                      .hasNumberOfRows(values.length)
+                      .isDeepEqualTo(values);
             return this;
         }
 

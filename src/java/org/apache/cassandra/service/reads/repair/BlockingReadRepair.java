@@ -38,6 +38,7 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.ReadCommand;
+import org.apache.cassandra.db.ReadCommand.PotentialTxnConflicts;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.locator.Endpoints;
@@ -47,8 +48,8 @@ import org.apache.cassandra.locator.ReplicaPlan.ForWrite;
 import org.apache.cassandra.metrics.ReadRepairMetrics;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.api.PartitionKey;
-import org.apache.cassandra.service.accord.txn.TxnKeyRead;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
+import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.service.accord.txn.UnrecoverableRepairUpdate;
 import org.apache.cassandra.service.consensus.TransactionalMode;
@@ -241,7 +242,7 @@ public class BlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
          * since overlapping non-transactional writes with transactional reads will never be deterministic, but it combines
          * the two things into the same mechanism and we can't tell the origin of the writes needing read repair anyways.
          */
-        Txn txn = new Txn.InMemory(Txn.Kind.Read, key, TxnKeyRead.createNoOpRead(key), TxnQuery.NONE, repairUpdate);
+        Txn txn = new Txn.InMemory(Txn.Kind.Read, key, TxnRead.createNoOpRead(key), TxnQuery.NONE, repairUpdate);
         Future<TxnResult> repairFuture = Stage.ACCORD_MIGRATION.submit(() -> AccordService.instance().coordinate(command.metadata().epoch.getEpoch(), txn, ConsistencyLevel.ANY, requestTime));
 
         repairs.add(new PendingPartitionRepair()
@@ -294,8 +295,8 @@ public class BlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
     }
 
     @Override
-    public boolean coordinatorAllowsPotentialTransactionConflicts()
+    public PotentialTxnConflicts coordinatorPotentialTxnConflicts()
     {
-        return coordinator.allowsPotentialTransactionConflicts();
+        return coordinator.potentialTxnConflicts();
     }
 }

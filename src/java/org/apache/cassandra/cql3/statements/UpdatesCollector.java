@@ -23,6 +23,7 @@ import java.util.List;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IMutation;
+import org.apache.cassandra.db.ReadCommand.PotentialTxnConflicts;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
@@ -30,5 +31,5 @@ import org.apache.cassandra.service.ClientState;
 public interface UpdatesCollector
 {
     PartitionUpdate.Builder getPartitionUpdateBuilder(TableMetadata metadata, DecoratedKey dk, ConsistencyLevel consistency);
-    List<IMutation> toMutations(ClientState state, boolean allowPotentialTxnConflicts);
+    List<IMutation> toMutations(ClientState state, PotentialTxnConflicts allowPotentialTxnConflicts);
 }

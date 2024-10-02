@@ -32,8 +32,8 @@ import io.airlift.airline.Option;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.simulator.SimulationRunner;
-import org.apache.cassandra.simulator.utils.IntRange;
 import org.apache.cassandra.simulator.SimulatorUtils;
+import org.apache.cassandra.simulator.utils.IntRange;
 
 public class PaxosSimulationRunner extends SimulationRunner
 {
@@ -69,7 +69,7 @@ public class PaxosSimulationRunner extends SimulationRunner
         @Override
         protected void run( long seed, PaxosClusterSimulation.Builder builder) throws IOException
         {
-            if (Objects.equals(builder.transactionalMode(), "accord"))
+            if (!Objects.equals(builder.transactionalMode(), "off"))
             {
                 // Apply handicaps
                 builder.dcs(new IntRange(1, 1));

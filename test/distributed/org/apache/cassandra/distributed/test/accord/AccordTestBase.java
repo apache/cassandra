@@ -19,6 +19,7 @@
 package org.apache.cassandra.distributed.test.accord;
 
 import java.io.IOException;
+import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collections;
@@ -31,16 +32,11 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
+import javax.annotation.Nullable;
 
 import com.google.common.base.Splitter;
 import com.google.common.collect.ImmutableList;
 import com.google.common.primitives.Ints;
-
-import org.apache.cassandra.cql3.CQLStatement;
-import org.apache.cassandra.cql3.QueryProcessor;
-import org.apache.cassandra.distributed.shared.ClusterUtils;
-import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.schema.TableMetadata;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -62,6 +58,8 @@ import net.bytebuddy.implementation.MethodDelegation;
 import net.bytebuddy.implementation.bind.annotation.SuperCall;
 import net.bytebuddy.implementation.bind.annotation.This;
 import org.apache.cassandra.batchlog.BatchlogManager;
+import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.statements.ModificationStatement;
 import org.apache.cassandra.cql3.statements.TransactionStatement;
 import org.apache.cassandra.cql3.transactions.ReferenceValue;
@@ -73,12 +71,14 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.Cluster.Builder;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
+import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableRunnable;
 import org.apache.cassandra.distributed.api.QueryResults;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.impl.Instance;
 import org.apache.cassandra.distributed.shared.AssertUtils;
+import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.shared.Metrics;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.distributed.util.QueryResultUtil;
@@ -90,17 +90,21 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.Verb;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 import org.apache.cassandra.service.accord.exceptions.ReadPreemptedException;
 import org.apache.cassandra.service.accord.exceptions.WritePreemptedException;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
+import org.apache.cassandra.service.consensus.migration.TransactionalMigrationFromMode;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.AssertionUtils;
 import org.apache.cassandra.utils.FailingConsumer;
 
+import static com.google.common.base.Preconditions.checkState;
 import static java.lang.String.format;
 import static net.bytebuddy.matcher.ElementMatchers.named;
 import static org.apache.cassandra.db.SystemKeyspace.CONSENSUS_MIGRATION_STATE;
@@ -250,7 +254,12 @@ public abstract class AccordTestBase extends TestBaseImpl
         return Ints.checkedCast(getMetrics(coordinatorIndex).getCounter("org.apache.cassandra.metrics.ClientRequest.Latency.CASWrite"));
     }
 
-    protected static int getRetryOnDifferentSystemCount(int coordinatorIndex)
+    protected static int getReadRetryOnDifferentSystemCount(IInstance instance)
+    {
+        return Ints.checkedCast(instance.metrics().getCounter("org.apache.cassandra.metrics.ClientRequest.RetryDifferentSystem.Read"));
+    }
+
+    protected static int getWriteRetryOnDifferentSystemCount(int coordinatorIndex)
     {
         return Ints.checkedCast(getMetrics(coordinatorIndex).getCounter("org.apache.cassandra.metrics.ClientRequest.RetryDifferentSystem.Write"));
     }
@@ -260,6 +269,14 @@ public abstract class AccordTestBase extends TestBaseImpl
         long sum = 0;
         for (IInvokableInstance instance : SHARED_CLUSTER)
             sum += instance.metrics().getCounter("org.apache.cassandra.metrics.Table.MutationsRejectedOnWrongSystem." + qualifiedAccordTableName);
+        return Ints.checkedCast(sum);
+    }
+
+    protected int getReadsRejectedOnWrongSystemCount()
+    {
+        long sum = 0;
+        for (IInvokableInstance instance : SHARED_CLUSTER)
+            sum += instance.metrics().getCounter("org.apache.cassandra.metrics.Table.ReadsRejectedOnWrongSystem." + qualifiedAccordTableName);
         return Ints.checkedCast(sum);
     }
 
@@ -288,7 +305,12 @@ public abstract class AccordTestBase extends TestBaseImpl
         return Ints.checkedCast(getMetrics(coordinatorIndex).getCounter("org.apache.cassandra.metrics.ClientRequest.Latency.AccordRead"));
     }
 
-    protected static int getAccordMigrationRejects(int coordinatorIndex)
+    protected static int getAccordReadMigrationRejects(int coordinatorIndex)
+    {
+        return Ints.checkedCast(getMetrics(coordinatorIndex).getCounter("org.apache.cassandra.metrics.ClientRequest.AccordMigrationRejects.AccordRead"));
+    }
+
+    protected static int getAccordWriteMigrationRejects(int coordinatorIndex)
     {
         return Ints.checkedCast(getMetrics(coordinatorIndex).getCounter("org.apache.cassandra.metrics.ClientRequest.AccordMigrationRejects.AccordWrite"));
     }
@@ -559,6 +581,7 @@ public abstract class AccordTestBase extends TestBaseImpl
     {
         public static void install(ClassLoader classLoader, Integer num)
         {
+            checkState(Arrays.asList(ModificationStatement.class.getDeclaredMethods()).stream().map(Method::getName).anyMatch(m -> m.equals("readRequiredLists")));
             new ByteBuddy().rebase(ModificationStatement.class)
                            .method(named("readRequiredLists"))
                            .intercept(MethodDelegation.to(EnforceUpdateDoesNotPerformRead.class))
@@ -585,7 +608,12 @@ public abstract class AccordTestBase extends TestBaseImpl
 
     protected void alterTableTransactionalMode(TransactionalMode mode)
     {
-        SHARED_CLUSTER.schemaChange(format("ALTER TABLE %s WITH %s", qualifiedAccordTableName, mode.asCqlParam()));
+        alterTableTransactionalMode(mode, null);
+    }
+
+    protected void alterTableTransactionalMode(TransactionalMode mode, @Nullable TransactionalMigrationFromMode from)
+    {
+        SHARED_CLUSTER.schemaChange(format("ALTER TABLE %s WITH %s" + (from == null ? "" : " AND %s"), qualifiedAccordTableName, mode.asCqlParam(), from == null ? null : from.asCqlParam()));
     }
 
     protected static void pauseHints()

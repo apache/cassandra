@@ -1677,14 +1677,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     }
 
     @Override
-    public void migrateConsensusProtocol(@Nonnull String targetProtocol,
-                                         @Nonnull List<String> keyspaceNames,
+    public void migrateConsensusProtocol(@Nonnull List<String> keyspaceNames,
                                          @Nullable List<String> maybeTableNames,
                                          @Nullable String maybeRangesStr)
     {
-        checkNotNull(targetProtocol, "targetProtocol is null");
         checkArgument(!keyspaceNames.contains(SchemaConstants.METADATA_KEYSPACE_NAME));
-        startMigrationToConsensusProtocol(targetProtocol, keyspaceNames, Optional.ofNullable(maybeTableNames), Optional.ofNullable(maybeRangesStr));
+        startMigrationToConsensusProtocol(keyspaceNames, Optional.ofNullable(maybeTableNames), Optional.ofNullable(maybeRangesStr));
     }
 
     @Override

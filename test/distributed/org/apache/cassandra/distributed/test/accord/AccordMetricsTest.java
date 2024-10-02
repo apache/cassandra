@@ -89,8 +89,9 @@ public class AccordMetricsTest extends AccordTestBase
     String readCql()
     {
         return "BEGIN TRANSACTION\n" +
-               "  LET val = (SELECT v FROM " + qualifiedAccordTableName + " WHERE k=? AND c=?);\n" +
-               "  SELECT val.v;\n" +
+               "  LET val1 = (SELECT v FROM " + qualifiedAccordTableName + " WHERE k=? AND c=?);\n" +
+               "  LET val2 = (SELECT v FROM " + qualifiedAccordTableName + " WHERE k=? AND c=?);\n" +
+               "  SELECT val1.v, val2.v;\n" +
                "COMMIT TRANSACTION";
     }
 
@@ -104,7 +105,7 @@ public class AccordMetricsTest extends AccordTestBase
     }
 
     @Test
-    public void testRegularMetrics() throws Exception
+    public void testRegularMetrics()
     {
         countingMetrics0 = getMetrics();
         assertCoordinatorMetrics(0, "rw", 0, 0, 0, 0, 0);
@@ -116,7 +117,7 @@ public class AccordMetricsTest extends AccordTestBase
         assertZeroMetrics("ro");
 
         countingMetrics0 = getMetrics();
-        SHARED_CLUSTER.coordinator(1).executeWithResult(readCql(), ConsistencyLevel.ALL, 0, 0);
+        SHARED_CLUSTER.coordinator(1).executeWithResult(readCql(), ConsistencyLevel.ALL, 0, 0, 1, 1);
         assertCoordinatorMetrics(0, "ro", 1, 0, 0, 0, 0);
         assertCoordinatorMetrics(1, "ro", 0, 0, 0, 0, 0);
         assertReplicaMetrics(0, "ro", 1, 1, 0);
@@ -136,46 +137,59 @@ public class AccordMetricsTest extends AccordTestBase
                                                             .messagesMatching(delay)
                                                             .drop();
 
+        long originalAccordRecoverDelay = SHARED_CLUSTER.get(1).callOnInstance(() -> DatabaseDescriptor.getAccordRecoverDelay(TimeUnit.MILLISECONDS));
         SHARED_CLUSTER.forEach(() -> DatabaseDescriptor.setAccordRecoverDelay(100L, TimeUnit.MILLISECONDS));
+        long  originalTransactionTimeoutMillis = SHARED_CLUSTER.get(1).callOnInstance(() -> DatabaseDescriptor.getTransactionTimeout(TimeUnit.MILLISECONDS));
+        SHARED_CLUSTER.forEach(() -> DatabaseDescriptor.setTransactionTimeout(12_000));
+        long originalWriteRpcTimeoutMillis = SHARED_CLUSTER.get(1).callOnInstance(() -> DatabaseDescriptor.getWriteRpcTimeout(TimeUnit.MILLISECONDS));
+        SHARED_CLUSTER.forEach(() -> DatabaseDescriptor.setWriteRpcTimeout(12_000));
 
-        countingMetrics0 = getMetrics();
         try
         {
-            SHARED_CLUSTER.coordinator(1).executeWithResult(writeCql(), ConsistencyLevel.ALL, 0, 0, 0, 0);
-            fail("expected to fail");
+            countingMetrics0 = getMetrics();
+            try
+            {
+                SHARED_CLUSTER.coordinator(1).executeWithResult(writeCql(), ConsistencyLevel.ALL, 0, 0, 0, 0);
+                fail("expected to fail");
+            }
+            catch (RuntimeException ex)
+            {
+                Assertions.assertThat(ex).is(AssertionUtils.rootCauseIs(WritePreemptedException.class));
+            }
+
+            assertCoordinatorMetrics(0, "rw", 0, 0, 1, 0, 0);
+            assertCoordinatorMetrics(1, "rw", 0, 0, 0, 0, 0);
+            assertReplicaMetrics(0, "rw", 0, 0, 0);
+            assertReplicaMetrics(1, "rw", 0, 0, 0);
+
+            assertZeroMetrics("ro");
+
+            countingMetrics0 = getMetrics();
+            try
+            {
+                SHARED_CLUSTER.coordinator(1).executeWithResult(readCql(), ConsistencyLevel.ALL, 0, 0, 1, 1);
+                fail("expected to fail");
+            }
+            catch (RuntimeException ex)
+            {
+                Assertions.assertThat(ex).is(AssertionUtils.rootCauseIs(ReadPreemptedException.class));
+            }
+
+            assertCoordinatorMetrics(0, "ro", 0, 0, 1, 0, 0);
+            assertCoordinatorMetrics(1, "ro", 0, 0, 0, 0, 0);
+            assertReplicaMetrics(0, "ro", 0, 0, 0);
+            assertReplicaMetrics(1, "ro", 0, 0, 0);
+
+            assertZeroMetrics("rw");
         }
-        catch (RuntimeException ex)
+        finally
         {
-            Assertions.assertThat(ex).is(AssertionUtils.rootCauseIs(WritePreemptedException.class));
+            SHARED_CLUSTER.forEach(() -> DatabaseDescriptor.setAccordRecoverDelay(originalAccordRecoverDelay, TimeUnit.SECONDS));
+            SHARED_CLUSTER.forEach(() -> DatabaseDescriptor.setWriteRpcTimeout(originalWriteRpcTimeoutMillis));
+            SHARED_CLUSTER.forEach(() -> DatabaseDescriptor.setTransactionTimeout(originalTransactionTimeoutMillis));
+            preacceptDelay.off();
+            exec.shutdown();
         }
-
-        assertCoordinatorMetrics(0, "rw", 0, 0, 1, 0, 0);
-        assertCoordinatorMetrics(1, "rw", 0, 0, 0, 0, 0);
-        assertReplicaMetrics(0, "rw", 0, 0, 0);
-        assertReplicaMetrics(1, "rw", 0, 0, 0);
-
-        assertZeroMetrics("ro");
-
-        countingMetrics0 = getMetrics();
-        try
-        {
-            SHARED_CLUSTER.coordinator(1).executeWithResult(readCql(), ConsistencyLevel.ALL, 0, 0);
-            fail("expected to fail");
-        }
-        catch (RuntimeException ex)
-        {
-            Assertions.assertThat(ex).is(AssertionUtils.rootCauseIs(ReadPreemptedException.class));
-        }
-
-        assertCoordinatorMetrics(0, "ro", 0, 0, 1, 0, 0);
-        assertCoordinatorMetrics(1, "ro", 0, 0, 0, 0, 0);
-        assertReplicaMetrics(0, "ro", 0, 0, 0);
-        assertReplicaMetrics(1, "ro", 0, 0, 0);
-
-        assertZeroMetrics("rw");
-        SHARED_CLUSTER.forEach(() -> DatabaseDescriptor.setAccordRecoverDelay(10L, TimeUnit.SECONDS));
-        preacceptDelay.off();
-        exec.shutdown();
     }
 
     @Test
@@ -187,7 +201,7 @@ public class AccordMetricsTest extends AccordTestBase
         countingMetrics0 = getMetrics();
         try
         {
-            SHARED_CLUSTER.coordinator(1).executeWithResult(readCql(), ConsistencyLevel.ALL, 0, 0);
+            SHARED_CLUSTER.coordinator(1).executeWithResult(readCql(), ConsistencyLevel.ALL, 0, 0, 1, 1);
             fail("expected to fail");
         }
         catch (RuntimeException ex)

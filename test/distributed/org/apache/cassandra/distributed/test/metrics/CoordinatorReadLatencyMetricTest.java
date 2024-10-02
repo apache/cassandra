@@ -37,6 +37,7 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.metrics.ClientRequestsMetricsHolder;
 import org.apache.cassandra.service.consensus.TransactionalMode;
+import org.apache.cassandra.service.consensus.migration.TransactionalMigrationFromMode;
 import org.apache.cassandra.service.paxos.Paxos;
 
 import static org.apache.cassandra.cql3.ast.Conditional.Where.Inequality.LESS_THAN;
@@ -68,7 +69,7 @@ public class CoordinatorReadLatencyMetricTest extends TestBaseImpl
             cluster.get(1).runOnInstance(() -> Paxos.setPaxosVariant(Config.PaxosVariant.v2));
             verifyTableLatency(cluster, 1, () -> verifyLatencyMetrics(cluster, select.toCQL(), ConsistencyLevel.SERIAL, select.binds()));
 
-            cluster.schemaChange(withKeyspace("ALTER TABLE %s.tbl WITH " + TransactionalMode.full.asCqlParam()));
+            cluster.schemaChange(withKeyspace("ALTER TABLE %s.tbl WITH " + TransactionalMode.full.asCqlParam() + " AND " + TransactionalMigrationFromMode.none.asCqlParam()));
             var txn = Txn.wrap(select);
             verifyTableLatency(cluster, 1, () -> verifyLatencyMetrics(cluster, txn.toCQL(), ConsistencyLevel.QUORUM, txn.binds()));
 

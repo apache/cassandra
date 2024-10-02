@@ -69,7 +69,7 @@ public class AccordReadRepairTest extends AccordTestBase
     {
         testReadRepair(cluster -> cluster.coordinator(1).execute("SELECT * FROM " + qualifiedAccordTableName + " WHERE k = 1 AND c = 1;", ConsistencyLevel.SERIAL),
                        new Object[][] {{1, 1, 1, 1}},
-                       TransactionalMode.unsafe_writes,
+                       TransactionalMode.test_unsafe_writes,
                        0, 2, 1, 0);
     }
 
@@ -79,7 +79,7 @@ public class AccordReadRepairTest extends AccordTestBase
         // Even if the condition fails to apply the data checked when applying the condition should be repaired
         testReadRepair(cluster -> cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (k, c, v1) VALUES (1, 1, 99) IF NOT EXISTS;", ConsistencyLevel.SERIAL),
                        new Object[][] {{false, 1, 1, 1, 1}},
-                       TransactionalMode.unsafe_writes,
+                       TransactionalMode.test_unsafe_writes,
                        2, 0, 1, 0);
     }
 
@@ -89,7 +89,7 @@ public class AccordReadRepairTest extends AccordTestBase
         // If the condition applies the read repair should preserve the existing timestamp
         testReadRepair(cluster -> cluster.coordinator(1).execute("UPDATE  " + qualifiedAccordTableName + " SET v2 = 99 WHERE k = 1 and c = 1 IF EXISTS;", ConsistencyLevel.SERIAL),
                        new Object[][] {{Boolean.TRUE}},
-                       TransactionalMode.unsafe_writes,
+                       TransactionalMode.test_unsafe_writes,
                        2, 0, 1, 0);
     }
 
@@ -103,7 +103,7 @@ public class AccordReadRepairTest extends AccordTestBase
         for (ConsistencyLevel cl : ImmutableList.of(ConsistencyLevel.QUORUM))
             testReadRepair(cluster -> cluster.coordinator(1).execute("SELECT * FROM " + qualifiedAccordTableName + " WHERE k = 1 AND c = 1;", cl),
                            new Object[][] {{1, 1, 1, 1}},
-                           TransactionalMode.unsafe_writes,
+                           TransactionalMode.test_unsafe_writes,
                            0, 2, 0, 1);
     }
 
@@ -113,7 +113,7 @@ public class AccordReadRepairTest extends AccordTestBase
         for (ConsistencyLevel cl : ImmutableList.of(ConsistencyLevel.QUORUM))
             testReadRepair(cluster -> cluster.coordinator(1).execute("SELECT * FROM " + qualifiedAccordTableName + " WHERE TOKEN(k) > " + Long.MIN_VALUE + " AND TOKEN(k) < " + Long.MAX_VALUE, cl),
                            new Object[][] {{1, 1, 1, 1}},
-                           TransactionalMode.unsafe_writes,
+                           TransactionalMode.test_unsafe_writes,
                            0, 2, 0, 1);
     }
 

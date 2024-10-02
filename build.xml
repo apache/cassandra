@@ -1239,6 +1239,7 @@
         <jvmarg value="-XX:SoftRefLRUPolicyMSPerMB=0" />
         <jvmarg value="-XX:ActiveProcessorCount=${cassandra.test.processorCount}" />
         <jvmarg value="-XX:HeapDumpPath=${build.test.dir}" />
+        <jvmarg value="-Dcassandra.test.accord.allow_test_modes=true"/>
         <jvmarg value="-Dcassandra.test.driver.connection_timeout_ms=${test.driver.connection_timeout_ms}"/>
         <jvmarg value="-Dcassandra.test.driver.read_timeout_ms=${test.driver.read_timeout_ms}"/>
         <jvmarg value="-Dcassandra.memtable_row_overhead_computation_step=100"/>

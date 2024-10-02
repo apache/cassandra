@@ -53,6 +53,7 @@ import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IMutation;
+import org.apache.cassandra.db.ReadCommand.PotentialTxnConflicts;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.Slice;
 import org.apache.cassandra.db.Slices;
@@ -356,7 +357,7 @@ public class BatchStatement implements CQLStatement.CompositeCQLStatement
         }
         // local is either executeWithoutConditions modifying a virtual table (doesn't support txns) or executeLocal
         // which is called by test or internal things that are bypassing distributed system modification/checks
-        return collector.toMutations(state, local);
+        return collector.toMutations(state, local ? PotentialTxnConflicts.ALLOW : PotentialTxnConflicts.DISALLOW);
     }
 
     /**

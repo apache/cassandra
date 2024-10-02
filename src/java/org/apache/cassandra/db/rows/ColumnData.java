@@ -291,7 +291,7 @@ public abstract class ColumnData implements IMeasurableMemory
     /**
      * @param cellToMaybeNewListPath If the cell is a list append cell a new cell path is returned generated based on the Accord executeAt timestamp
      */
-    public abstract ColumnData updateTimesAndPathsForAccord(@Nonnull Function<Cell, CellPath> cellToMaybeNewListPath, long newTimestamp, int newLocalDeletionTime);
+    public abstract ColumnData updateTimesAndPathsForAccord(@Nonnull Function<Cell, CellPath> cellToMaybeNewListPath, long newTimestamp, long newLocalDeletionTime);
 
     /**
      * List paths are time UUIDs that increment for each item in the list and for Accord and Paxos
@@ -299,7 +299,7 @@ public abstract class ColumnData implements IMeasurableMemory
      *
      * @param maybeNewPath If this cell is a list append for a non-frozen list (multi-cell) then it will be new path generated using the executeAt timestamp, otherwise it will be the existing path
      */
-    public abstract ColumnData updateAllTimesWithNewCellPathForComplexColumnData(@Nonnull CellPath maybeNewPath, long newTimestamp, int newLocalDeletionTime);
+    public abstract ColumnData updateAllTimesWithNewCellPathForComplexColumnData(@Nonnull CellPath maybeNewPath, long newTimestamp, long newLocalDeletionTime);
 
     public abstract ColumnData markCounterLocalToBeCleared();
 

@@ -312,7 +312,7 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
      */
     public Row updateAllTimestamp(long newTimestamp);
 
-    public Row updateTimesAndPathsForAccord(@Nonnull Function<Cell, CellPath> cellToMaybeNewListPath, long newTimestamp, int newLocalDeletionTime);
+    public Row updateTimesAndPathsForAccord(@Nonnull Function<Cell, CellPath> cellToMaybeNewListPath, long newTimestamp, long newLocalDeletionTime);
 
     /**
      * Returns a copy of this row with the new deletion as row deletion if it is more recent

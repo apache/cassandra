@@ -22,14 +22,14 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.utils.AbstractIterator;
-import org.apache.cassandra.utils.CassandraUInt;
-
 import com.google.common.collect.Iterators;
 
 import org.apache.cassandra.cache.IMeasurableMemory;
-import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.EncodingStats;
+import org.apache.cassandra.utils.AbstractIterator;
+import org.apache.cassandra.utils.CassandraUInt;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.memory.ByteBufferCloner;
 
@@ -328,12 +328,13 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
             markedAts[i] = timestamp;
     }
 
-    public void updateAllTimestampAndLocalDeletionTime(long timestamp, int localDeletionTime)
+    public void updateAllTimestampAndLocalDeletionTime(long timestamp, long localDeletionTime)
     {
+        int unsignedLocalDeletionTime = Cell.deletionTimeLongToUnsignedInteger(localDeletionTime);
         for (int i = 0; i < size; i++)
         {
             markedAts[i] = timestamp;
-            delTimesUnsignedIntegers[i] = localDeletionTime;
+            delTimesUnsignedIntegers[i] = unsignedLocalDeletionTime;
         }
     }
 

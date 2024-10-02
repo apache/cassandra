@@ -104,8 +104,8 @@ import static org.apache.cassandra.Util.dk;
 import static org.apache.cassandra.Util.spinUntilSuccess;
 import static org.apache.cassandra.db.SystemKeyspace.CONSENSUS_MIGRATION_STATE;
 import static org.apache.cassandra.db.SystemKeyspace.PAXOS;
-import static org.apache.cassandra.dht.Range.normalize;
 import static org.apache.cassandra.dht.NormalizedRanges.normalizedRanges;
+import static org.apache.cassandra.dht.Range.normalize;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ALL;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ANY;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.SERIAL;
@@ -330,14 +330,14 @@ public class AccordMigrationTest extends AccordTestBase
         int startingWriteCount = getAccordWriteCount(coordinatorIndex);
         int startingCasWriteCount = getCasWriteCount(coordinatorIndex);
         int startingKeyMigrationCount = getKeyMigrationCount(coordinatorIndex);
-        int startingMigrationRejectsCount = getAccordMigrationRejects(coordinatorIndex);
+        int startingMigrationRejectsCount = getAccordWriteMigrationRejects(coordinatorIndex);
         int startingSkippedReadsCount = getAccordMigrationSkippedReads();
         query.accept(key);
         validateKeyMigrations(expectedKeyMigrations);
         assertEquals("Accord writes", expectedAccordWriteCount, getAccordWriteCount(coordinatorIndex) - startingWriteCount);
         assertEquals("CAS writes", expectedCasWriteCount, getCasWriteCount(coordinatorIndex) - startingCasWriteCount);
         assertEquals("Key Migrations", expectedKeyMigrationCount, getKeyMigrationCount(coordinatorIndex) - startingKeyMigrationCount);
-        assertEquals("Accord migration rejects", expectedMigrationRejects, getAccordMigrationRejects(coordinatorIndex) - startingMigrationRejectsCount);
+        assertEquals("Accord migration rejects", expectedMigrationRejects, getAccordWriteMigrationRejects(coordinatorIndex) - startingMigrationRejectsCount);
         assertEquals("Accord skipped reads", expectedSkippedReads, getAccordMigrationSkippedReads() - startingSkippedReadsCount);
     }
 
@@ -421,7 +421,7 @@ public class AccordMigrationTest extends AccordTestBase
               assertTargetAccordWrite(runCasNoApply, 1, migratingKey, expectedKeyMigrations, 0, 1, 0, 0, 0);
 
               // Mark ranges migrating and check migration state is correct
-              nodetool(coordinator, "consensus_admin", "begin-migration", "-st", midToken.toString(), "-et", maxToken.toString(), "-tp", "accord", KEYSPACE, tableName);
+              nodetool(coordinator, "consensus_admin", "begin-migration", "-st", midToken.toString(), "-et", maxToken.toString(), KEYSPACE, tableName);
               assertMigrationState(tableName, ConsensusMigrationTarget.accord, emptyList(), migratingRanges, migratingRanges, 1);
 
               // Should be routed directly to Accord, and perform key migration, as well as key migration read in Accord
@@ -476,7 +476,7 @@ public class AccordMigrationTest extends AccordTestBase
 
               // Pivot to testing repair with a subrange of the migrating range as well as key migration
               // Will use the unmigrated range between lowerMidToken and midToken
-              nodetool(coordinator, "consensus_admin", "begin-migration", "-st", lowerMidToken.toString(), "-et", midToken.toString(), "-tp", "accord", KEYSPACE, tableName);
+              nodetool(coordinator, "consensus_admin", "begin-migration", "-st", lowerMidToken.toString(), "-et", midToken.toString(), KEYSPACE, tableName);
 
               // Generate several keys to test with instead of resetting key state
               Iterator<Integer> testingKeys = getKeysBetweenTokens(lowerMidToken, midToken);
@@ -502,7 +502,7 @@ public class AccordMigrationTest extends AccordTestBase
               Integer clusteringValue = CLUSTERING_VALUE;
               String mutationTableName = accordTableName;
               Consumer<Integer> makeCASApply = key -> cluster.forEach(instance -> instance.runOnInstance(() -> {
-                  SimpleBuilder mutationBuilder = Mutation.simpleBuilder(keyspace, dk(key)).allowPotentialTransactionConflicts();
+                  SimpleBuilder mutationBuilder = Mutation.simpleBuilder(keyspace, dk(key)).allowPotentialTxnConflicts();
                   mutationBuilder.update(mutationTableName).row(clusteringValue).add("v", 42);
                   Mutation m = mutationBuilder.build();
                   m.applyUnsafe();
@@ -578,7 +578,7 @@ public class AccordMigrationTest extends AccordTestBase
 
               assertTargetAccordRead(runRead, 1, key, expectedKeyMigrations, 0, 1, 0, 0, 0);
               // Mark wrap around range as migrating
-              nodetool(coordinator, "consensus_admin", "begin-migration", "-st", String.valueOf(Long.MIN_VALUE + 1), "-et", String.valueOf(Long.MIN_VALUE), "-tp", "accord", KEYSPACE, accordTableName);
+              nodetool(coordinator, "consensus_admin", "begin-migration", "-st", String.valueOf(Long.MIN_VALUE + 1), "-et", String.valueOf(Long.MIN_VALUE), KEYSPACE, accordTableName);
               assertMigrationState(accordTableName, ConsensusMigrationTarget.accord, emptyList(), migratingRanges, migratingRanges, 1);
               // Need to repair so key migration can occur
               for (int i = 1; i <= 3; i++)
@@ -625,7 +625,7 @@ public class AccordMigrationTest extends AccordTestBase
                  assertTransactionalModes(TransactionalMode.mixed_reads, TransactionalMigrationFromMode.off);
 
                  // Mark a subrange as migrating and finish migrating half of it
-                 nodetool(coordinator, "consensus_admin", "begin-migration", "-st", midToken.toString(), "-et", maxToken.toString(), "-tp", "accord", KEYSPACE, tableName);
+                 nodetool(coordinator, "consensus_admin", "begin-migration", "-st", midToken.toString(), "-et", maxToken.toString(), KEYSPACE, tableName);
                  nodetool(coordinator, "consensus_admin", "finish-migration", "-st", midToken.toString(), "-et", "3074457345618258601");
                  nodetool(coordinator, "consensus_admin", "finish-migration", "-st", "3074457345618258601", "-et", upperMidToken.toString());
                  Range<Token> accordMigratedRange = new Range(midToken, upperMidToken);

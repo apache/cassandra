@@ -595,7 +595,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
                 MemtableParams.get(attrs.getString(TableParams.Option.MEMTABLE.toString()));
             Guardrails.tableProperties.guard(attrs.updatedProperties(), attrs::removeProperty, state);
 
-            validateDefaultTimeToLive(attrs.asNewTableParams());
+            validateDefaultTimeToLive(attrs.asNewTableParams(keyspaceName));
         }
 
         private TableParams validateAndUpdateTransactionalMigration(boolean isCounter, TableParams prev, TableParams next)

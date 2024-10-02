@@ -26,9 +26,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 
-import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,6 +35,7 @@ import accord.api.DataStore;
 import accord.api.Write;
 import accord.local.SafeCommandStore;
 import accord.primitives.PartialTxn;
+import accord.primitives.Routable.Domain;
 import accord.primitives.RoutableKey;
 import accord.primitives.Seekable;
 import accord.primitives.Timestamp;
@@ -50,6 +49,7 @@ import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.Columns;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.ReadCommand.PotentialTxnConflicts;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
@@ -58,11 +58,14 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.service.accord.AccordObjectSizes;
 import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.BooleanSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 
+import static com.google.common.base.Preconditions.checkState;
 import static org.apache.cassandra.service.accord.AccordSerializers.partitionUpdateSerializer;
 import static org.apache.cassandra.utils.ArraySerializers.deserializeArray;
 import static org.apache.cassandra.utils.ArraySerializers.serializeArray;
@@ -100,7 +103,7 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
         long estimatedSizeOnHeap()
         {
             return EMPTY_SIZE
-                   + key.estimatedSizeOnHeap()
+                   + AccordObjectSizes.key(key)
                    + ByteBufferUtil.estimatedSizeOnHeap(bytes());
         }
 
@@ -135,7 +138,7 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
             PartitionUpdate update = get();
             if (!preserveTimestamps)
                 update = new PartitionUpdate.Builder(get(), 0).updateAllTimestamp(timestamp).build();
-            Mutation mutation = new Mutation(update, true);
+            Mutation mutation = new Mutation(update, PotentialTxnConflicts.ALLOW);
             return AsyncChains.ofRunnable(Stage.MUTATION.executor(), mutation::applyUnsafe);
         }
 
@@ -274,7 +277,7 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
 
         private static RegularAndStaticColumns columns(PartitionUpdate update, TxnReferenceOperations referenceOps)
         {
-            Preconditions.checkState(!referenceOps.isEmpty());
+            checkState(!referenceOps.isEmpty());
             RegularAndStaticColumns current = update.columns();
             return new RegularAndStaticColumns(columns(current.statics, referenceOps.statics),
                                                columns(current.regulars, referenceOps.regulars));
@@ -287,7 +290,7 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
 
             if (existing != null && !existing.isEmpty())
             {
-                Preconditions.checkState(existing.clustering().equals(clustering));
+                checkState(existing.clustering().equals(clustering));
                 up.addRow(existing);
             }
             else
@@ -335,13 +338,13 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
 
     private TxnWrite(Update[] items, boolean isConditionMet)
     {
-        super(items);
+        super(items, Domain.Key);
         this.isConditionMet = isConditionMet;
     }
 
     public TxnWrite(List<Update> items, boolean isConditionMet)
     {
-        super(items);
+        super(items, Domain.Key);
         this.isConditionMet = isConditionMet;
     }
 
@@ -352,9 +355,15 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
     }
 
     @Override
-    PartitionKey getKey(Update item)
+    Seekable getKey(Update item)
     {
         return item.key;
+    }
+
+    @Override
+    Domain domain()
+    {
+        return Domain.Key;
     }
 
     @Override
@@ -372,6 +381,8 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
     @Override
     public AsyncChain<Void> apply(Seekable key, SafeCommandStore safeStore, TxnId txnId, Timestamp executeAt, DataStore store, PartialTxn txn)
     {
+        ClusterMetadata cm = ClusterMetadata.current();
+        checkState(cm.epoch.getEpoch() >= executeAt.epoch(), "TCM epoch %d is < executeAt epoch %d", cm.epoch.getEpoch(), executeAt.epoch());
         // UnrecoverableRepairUpdate will deserialize as null at other nodes
         // Accord should skip the Update for a read transaction, but handle it here anyways
         TxnUpdate txnUpdate = ((TxnUpdate)txn.update());
@@ -379,7 +390,6 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
             return Writes.SUCCESS;
 
         long timestamp = executeAt.uniqueHlc();
-        int nowInSeconds = (int) TimeUnit.MICROSECONDS.toSeconds(timestamp);
 
         // TODO (expected): optimise for the common single update case; lots of lists allocated
         List<AsyncChain<Void>> results = new ArrayList<>();

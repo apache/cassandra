@@ -23,15 +23,14 @@ import java.util.function.IntPredicate;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.rows.RowIterator;
+import org.apache.cassandra.exceptions.RetryOnDifferentSystemException;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageProxy.ConsensusAttemptResult;
 import org.apache.cassandra.service.accord.IAccordService.AsyncTxnResult;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.AbstractIterator;
 
-import static com.google.common.base.Preconditions.checkState;
-
-public class AccordRangeResponse extends AbstractIterator<RowIterator> implements IRangeResponse
+public class AccordRangeResponse extends AbstractIterator<RowIterator> implements PartitionIterator
 {
     private final AsyncTxnResult asyncTxnResult;
     // Range queries don't support reverse, but dutifully threading it through anyways
@@ -55,8 +54,9 @@ public class AccordRangeResponse extends AbstractIterator<RowIterator> implement
         IntPredicate alwaysTrue = ignored -> true;
         IntPredicate alwaysFalse = ignored -> false;
         // TODO (required): Handle retry on different system
-        ConsensusAttemptResult consensusAttemptResult = StorageProxy.getConsensusAttemptResultFromAsyncTxnResult(asyncTxnResult, 1, reversed ? alwaysTrue : alwaysFalse, cl, requestTime);
-        checkState(!consensusAttemptResult.shouldRetryOnNewConsensusProtocol, "Live migration is not supported yet");
+        ConsensusAttemptResult consensusAttemptResult = StorageProxy.getConsensusAttemptResultFromAsyncTxnResult(asyncTxnResult, 1, reversed ? alwaysTrue : alwaysFalse);
+        if (consensusAttemptResult.shouldRetryOnNewConsensusProtocol)
+            throw new RetryOnDifferentSystemException();
         result = consensusAttemptResult.serialReadResult;
     }
 

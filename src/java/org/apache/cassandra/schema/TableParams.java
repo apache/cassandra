@@ -27,6 +27,7 @@ import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.cql3.Attributes;
 import org.apache.cassandra.cql3.CqlBuilder;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -244,6 +245,9 @@ public final class TableParams
 
         if (cdc && memtable.factory().writesShouldSkipCommitLog())
             fail("CDC cannot work if writes skip the commit log. Check your memtable configuration.");
+
+        if (transactionalMode.isTestMode() && !CassandraRelevantProperties.ACCORD_ALLOW_TEST_MODES.getBoolean())
+            fail("Transactional mode " + transactionalMode + " can't be used if " + CassandraRelevantProperties.ACCORD_ALLOW_TEST_MODES.getKey() + " is not set");
     }
 
     private static void fail(String format, Object... args)

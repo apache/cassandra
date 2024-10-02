@@ -182,7 +182,7 @@ public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowI
     private <E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
     UnfilteredPartitionIterator executeReadCommand(ReadCommand cmd, ReplicaPlan.Shared<E, P> replicaPlan)
     {
-        cmd = coordinator.maybeAllowOutOfRangeReads(cmd);
+        cmd = coordinator.maybeAllowOutOfRangeReads(cmd, replicaPlan.get().consistencyLevel());
         DataResolver<E, P> resolver = new DataResolver<>(coordinator, cmd, replicaPlan, (NoopReadRepair<E, P>)NoopReadRepair.instance, requestTime);
         ReadCallback<E, P> handler = new ReadCallback<>(resolver, cmd, replicaPlan, requestTime);
 

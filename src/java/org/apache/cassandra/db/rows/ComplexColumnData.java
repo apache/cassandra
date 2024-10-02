@@ -267,7 +267,7 @@ public class ComplexColumnData extends ColumnData implements Iterable<Cell<?>>
     }
 
     @Override
-    public ColumnData updateTimesAndPathsForAccord(@Nonnull Function<Cell, CellPath> cellToMaybeNewListPath, long newTimestamp, int newLocalDeletionTime)
+    public ColumnData updateTimesAndPathsForAccord(@Nonnull Function<Cell, CellPath> cellToMaybeNewListPath, long newTimestamp, long newLocalDeletionTime)
     {
         DeletionTime newDeletion = complexDeletion.isLive() ? complexDeletion : DeletionTime.build(newTimestamp - 1, newLocalDeletionTime);
         Function<Cell, CellPath> maybeNewListPath;
@@ -279,7 +279,7 @@ public class ComplexColumnData extends ColumnData implements Iterable<Cell<?>>
     }
 
     @Override
-    public ColumnData updateAllTimesWithNewCellPathForComplexColumnData(@Nonnull CellPath maybeNewPath, long newTimestamp, int newLocalDeletionTime)
+    public ColumnData updateAllTimesWithNewCellPathForComplexColumnData(@Nonnull CellPath maybeNewPath, long newTimestamp, long newLocalDeletionTime)
     {
         throw new UnsupportedOperationException();
     }

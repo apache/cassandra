@@ -32,6 +32,7 @@ import org.apache.cassandra.db.CounterMutation;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.ReadCommand.PotentialTxnConflicts;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.commitlog.CommitLogSegment;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
@@ -137,14 +138,14 @@ final class BatchUpdatesCollector implements UpdatesCollector
      * @return a collection containing all the mutations.
      */
     @Override
-    public List<IMutation> toMutations(ClientState state, boolean allowPotentialTxnConflicts)
+    public List<IMutation> toMutations(ClientState state, PotentialTxnConflicts potentialTxnConflicts)
     {
         List<IMutation> ms = new ArrayList<>();
         for (Map<ByteBuffer, IMutationBuilder> ksMap : mutationBuilders.values())
         {
             for (IMutationBuilder builder : ksMap.values())
             {
-                IMutation mutation = builder.build(allowPotentialTxnConflicts);
+                IMutation mutation = builder.build(potentialTxnConflicts);
                 mutation.validateIndexedColumns(state);
                 mutation.validateSize(MessagingService.current_version, CommitLogSegment.ENTRY_OVERHEAD_SIZE);
                 ms.add(mutation);
@@ -182,7 +183,7 @@ final class BatchUpdatesCollector implements UpdatesCollector
         /**
          * Build the immutable mutation
          */
-        IMutation build(boolean allowPotentialTxnConflicts);
+        IMutation build(PotentialTxnConflicts potentialTxnConflicts);
 
         /**
          * Get the builder for the given tableId
@@ -215,7 +216,7 @@ final class BatchUpdatesCollector implements UpdatesCollector
             return this;
         }
 
-        public Mutation build(boolean allowPotentialTxnConflicts)
+        public Mutation build(PotentialTxnConflicts potentialTxnConflicts)
         {
             ImmutableMap.Builder<TableId, PartitionUpdate> updates = new ImmutableMap.Builder<>();
             for (Map.Entry<TableId, PartitionUpdate.Builder> updateEntry : modifications.entrySet())
@@ -223,7 +224,7 @@ final class BatchUpdatesCollector implements UpdatesCollector
                 PartitionUpdate update = updateEntry.getValue().build();
                 updates.put(updateEntry.getKey(), update);
             }
-            return new Mutation(keyspaceName, key, updates.build(), createdAt, allowPotentialTxnConflicts);
+            return new Mutation(keyspaceName, key, updates.build(), createdAt, potentialTxnConflicts);
         }
 
         public PartitionUpdate.Builder get(TableId tableId)
@@ -263,9 +264,9 @@ final class BatchUpdatesCollector implements UpdatesCollector
             return mutationBuilder.add(builder);
         }
 
-        public IMutation build(boolean allowPotentialTxnConflicts)
+        public IMutation build(PotentialTxnConflicts potentialTxnConflicts)
         {
-            return new CounterMutation(mutationBuilder.build(allowPotentialTxnConflicts), cl);
+            return new CounterMutation(mutationBuilder.build(potentialTxnConflicts), cl);
         }
 
         public PartitionUpdate.Builder get(TableId id)
@@ -297,7 +298,7 @@ final class BatchUpdatesCollector implements UpdatesCollector
         }
 
         @Override
-        public VirtualMutation build(boolean allowPotentialTxnConflicts)
+        public VirtualMutation build(PotentialTxnConflicts potentialTxnConflicts)
         {
             ImmutableMap.Builder<TableId, PartitionUpdate> updates = new ImmutableMap.Builder<>();
             modifications.forEach((tableId, updateBuilder) -> updates.put(tableId, updateBuilder.build()));

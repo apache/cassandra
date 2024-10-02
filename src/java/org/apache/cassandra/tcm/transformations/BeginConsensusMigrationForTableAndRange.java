@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
-import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.NormalizedRanges;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -32,7 +31,6 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
-import org.apache.cassandra.service.consensus.migration.ConsensusMigrationTarget;
 import org.apache.cassandra.service.consensus.migration.ConsensusTableMigration;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Transformation;
@@ -52,24 +50,18 @@ public class BeginConsensusMigrationForTableAndRange implements Transformation
     public static Serializer serializer = new Serializer();
 
     @Nonnull
-    public final ConsensusMigrationTarget targetProtocol;
-
-    @Nonnull
     public final NormalizedRanges<Token> ranges;
 
     @Nonnull
     public final List<TableId> tables;
 
-    public BeginConsensusMigrationForTableAndRange(@Nonnull ConsensusMigrationTarget targetProtocol,
-                                                   @Nonnull NormalizedRanges<Token> ranges,
+    public BeginConsensusMigrationForTableAndRange(@Nonnull NormalizedRanges<Token> ranges,
                                                    @Nonnull List<TableId> tables)
     {
-        checkNotNull(targetProtocol, "targetProtocol should not be null");
         checkNotNull(ranges, "ranges should not be null");
         checkArgument(!ranges.isEmpty(), "ranges should not be empty");
         checkNotNull(tables, "tables should not be null");
         checkArgument(!tables.isEmpty(), "tables should not be empty");
-        this.targetProtocol = targetProtocol;
         this.ranges = ranges;
         this.tables = tables;
     }
@@ -93,24 +85,21 @@ public class BeginConsensusMigrationForTableAndRange implements Transformation
         public void serialize(Transformation t, DataOutputPlus out, Version version) throws IOException
         {
             BeginConsensusMigrationForTableAndRange v = (BeginConsensusMigrationForTableAndRange)t;
-            out.writeUTF(v.targetProtocol.toString());
             ConsensusTableMigration.rangesSerializer.serialize(v.ranges, out, version);
             serializeCollection(v.tables, out, version, TableId.metadataSerializer);
         }
 
         public BeginConsensusMigrationForTableAndRange deserialize(DataInputPlus in, Version version) throws IOException
         {
-            ConsensusMigrationTarget targetProtocol = ConsensusMigrationTarget.fromString(in.readUTF());
             NormalizedRanges<Token> ranges = ConsensusTableMigration.rangesSerializer.deserialize(in, version);
             List<TableId> tables = deserializeList(in, version, TableId.metadataSerializer);
-           return new BeginConsensusMigrationForTableAndRange(targetProtocol, ranges, tables);
+           return new BeginConsensusMigrationForTableAndRange(ranges, tables);
         }
 
         public long serializedSize(Transformation t, Version version)
         {
             BeginConsensusMigrationForTableAndRange v = (BeginConsensusMigrationForTableAndRange) t;
-            return TypeSizes.sizeof(v.targetProtocol.toString())
-                   + ConsensusTableMigration.rangesSerializer.serializedSize(v.ranges, version)
+            return ConsensusTableMigration.rangesSerializer.serializedSize(v.ranges, version)
                    + serializedCollectionSize(v.tables, version, TableId.metadataSerializer);
         }
     }

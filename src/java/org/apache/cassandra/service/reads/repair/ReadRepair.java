@@ -24,6 +24,7 @@ import javax.annotation.Nullable;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.ReadCommand;
+import org.apache.cassandra.db.ReadCommand.PotentialTxnConflicts;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
@@ -31,8 +32,8 @@ import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.service.reads.DigestResolver;
-import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.service.reads.ReadCoordinator;
+import org.apache.cassandra.transport.Dispatcher;
 
 public interface ReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
 {
@@ -110,8 +111,8 @@ public interface ReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRea
      */
     void repairPartitionDirectly(ReadCoordinator coordinator, DecoratedKey partitionKey, Map<Replica, Mutation> mutations, ReplicaPlan.ForWrite writePlan);
 
-    default boolean coordinatorAllowsPotentialTransactionConflicts()
+    default PotentialTxnConflicts coordinatorPotentialTxnConflicts()
     {
-        return false;
+        return PotentialTxnConflicts.DISALLOW;
     }
 }

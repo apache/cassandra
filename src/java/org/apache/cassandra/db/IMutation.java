@@ -24,6 +24,7 @@ import java.util.function.Supplier;
 import javax.annotation.Nullable;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ReadCommand.PotentialTxnConflicts;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.ClientState;
@@ -84,9 +85,9 @@ public interface IMutation
      * like Accord that can't safely read data that is written non-transactionally.
      *
      */
-    default boolean allowsPotentialTransactionConflicts()
+    default PotentialTxnConflicts potentialTxnConflicts()
     {
-        return false;
+        return PotentialTxnConflicts.DISALLOW;
     }
 
     // Construct replacement mutation that is identical except it only includes updates for the specified tables

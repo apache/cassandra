@@ -36,6 +36,7 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.Row;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.impl.Query;
+import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.simulator.Action;
 import org.apache.cassandra.simulator.ActionListener;
 import org.apache.cassandra.simulator.Debug;
@@ -153,10 +154,12 @@ public class PairOfSequencesPaxosSimulation extends AbstractPairOfSequencesPaxos
     }
 
     final List<HistoryChecker> historyCheckers = new ArrayList<>();
+    private final TransactionalMode transactionalMode;
 
     public PairOfSequencesPaxosSimulation(SimulatedSystems simulated,
                                           Cluster cluster,
                                           ClusterActions.Options clusterOptions,
+                                          TransactionalMode transactionalMode,
                                           float readRatio,
                                           int concurrency, IntRange simulateKeyForSeconds, IntRange withinKeyConcurrency,
                                           ConsistencyLevel serialConsistency, RunnableActionScheduler scheduler, Debug debug,
@@ -169,6 +172,7 @@ public class PairOfSequencesPaxosSimulation extends AbstractPairOfSequencesPaxos
               scheduler, debug,
               seed, primaryKeys,
               runForNanos, jitter);
+        this.transactionalMode = transactionalMode;
     }
 
     @Override
@@ -252,7 +256,7 @@ public class PairOfSequencesPaxosSimulation extends AbstractPairOfSequencesPaxos
     @Override
     protected String createTableStmt()
     {
-        return "CREATE TABLE " + KEYSPACE + ".tbl (pk int, count int, seq1 text, seq2 list<int>, PRIMARY KEY (pk))";
+        return "CREATE TABLE " + KEYSPACE + ".tbl (pk int, count int, seq1 text, seq2 list<int>, PRIMARY KEY (pk)) WITH " + transactionalMode.asCqlParam();
     }
 
     @Override

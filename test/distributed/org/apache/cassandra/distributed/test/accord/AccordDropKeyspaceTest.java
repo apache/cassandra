@@ -23,8 +23,11 @@ import java.io.IOException;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.Cluster;
-import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.schema.TableId;
+
+import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
+import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
+import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
 public class AccordDropKeyspaceTest extends AccordDropTableBase
 {
@@ -35,7 +38,7 @@ public class AccordDropKeyspaceTest extends AccordDropTableBase
         int steps = 5;
         try (Cluster cluster = Cluster.build(3)
                                       .withoutVNodes()
-                                      .withConfig(c -> c.with(Feature.values())
+                                      .withConfig(c -> c.with(GOSSIP, NETWORK, NATIVE_PROTOCOL)
                                                         .set("auto_snapshot", false))
                                       .start())
         {

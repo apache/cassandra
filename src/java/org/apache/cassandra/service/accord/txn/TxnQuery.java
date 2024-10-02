@@ -29,6 +29,7 @@ import accord.api.Query;
 import accord.api.Read;
 import accord.api.Result;
 import accord.api.Update;
+import accord.primitives.Ranges;
 import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
@@ -41,22 +42,27 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.metrics.ClientRequestsMetricsHolder;
+import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.txn.TxnData.TxnDataNameKind;
 import org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter;
-import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.ObjectSizes;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.base.Preconditions.checkState;
 import static org.apache.cassandra.service.accord.txn.TxnData.TxnDataNameKind.CAS_READ;
 import static org.apache.cassandra.service.accord.txn.TxnData.txnDataName;
 
 public abstract class TxnQuery implements Query
 {
+
     /**
      * Used by transaction statements which will have Accord pass back to the C* coordinator code all the data that is
      * read even if it is not returned as part of the result to the client. TxnDataName.returning() will fetch the data
      * that is returned from TxnData.
+     *
+     * Also used by SERIAL key reads, and non-SERIAL key reads when they are executed on Accord.
      */
     public static final TxnQuery ALL = new TxnQuery()
     {
@@ -118,7 +124,7 @@ public abstract class TxnQuery implements Query
                 return new TxnData();
             else if (txnData.isEmpty())
             {
-                TxnKeyRead txnKeyRead = (TxnKeyRead)read;
+                TxnRead txnKeyRead = (TxnRead)read;
                 SinglePartitionReadCommand command = (SinglePartitionReadCommand) txnKeyRead.iterator().next().get();
                 // For CAS must return a non-empty result to indicate error even if there was no partition found
                 return TxnData.of(txnDataName(CAS_READ), new TxnDataKeyValue(EmptyIterators.row(command.metadata(), command.partitionKey(), command.isReversed())));
@@ -132,7 +138,7 @@ public abstract class TxnQuery implements Query
     /**
      * UNSAFE_EMPTY doesn't validate that the range is owned by Accord so you want to be careful and use NONE
      * if your transaction simply doesn't have results because that will validate that Accord owns the range
-     * for things like blind writes. Empty is used by Accord for things like sync points which may need to exeucte
+     * for things like blind writes. Empty is used by Accord for things like sync points which may need to execute
      * for ranges Accord used to manage, but no longer does.
      */
     public static final TxnQuery UNSAFE_EMPTY = new TxnQuery()
@@ -175,8 +181,8 @@ public abstract class TxnQuery implements Query
 
         private Result concat(TxnData data, Read read)
         {
-            TxnRangeRead txnRead = (TxnRangeRead) read;
-            PartitionRangeReadCommand command = (PartitionRangeReadCommand) txnRead.get();
+            TxnRead txnRead = (TxnRead) read;
+            PartitionRangeReadCommand command = (PartitionRangeReadCommand) txnRead.iterator().next().get();
             TxnDataRangeValue value = (TxnDataRangeValue) data.get(txnDataName(TxnDataNameKind.USER));
             Supplier<PartitionIterator> source = value.toPartitionIterator(command.isReversed());
             // Because the query was split across multiple command stores the pushed down limit won't be sufficient
@@ -200,14 +206,17 @@ public abstract class TxnQuery implements Query
     @Override
     public Result compute(TxnId txnId, Timestamp executeAt, Seekables<?, ?> keys, @Nullable Data data, @Nullable Read read, @Nullable Update update)
     {
-        Epoch epoch = Epoch.create(executeAt.epoch());
-        if (transactionIsInMigratingOrMigratedRange(epoch, keys))
+        // TODO (required): This is not the cluster metadata of the current transaction
+        ClusterMetadata clusterMetadata = ClusterMetadata.current();
+        checkState(clusterMetadata.epoch.getEpoch() >= executeAt.epoch(), "TCM epoch %d is < executeAt epoch %d", clusterMetadata.epoch.getEpoch(), executeAt.epoch());
+        boolean reads = read != null && !read.keys().isEmpty();
+        if (transactionShouldBeBlocked(clusterMetadata, reads, keys))
         {
             if (txnId.isWrite())
                 ClientRequestsMetricsHolder.accordWriteMetrics.accordMigrationRejects.mark();
             else
                 ClientRequestsMetricsHolder.accordReadMetrics.accordMigrationRejects.mark();
-            return new RetryWithNewProtocolResult(epoch);
+            return RetryWithNewProtocolResult.instance;
         }
         return doCompute(txnId, executeAt, keys, data, read, update);
     }
@@ -249,19 +258,56 @@ public abstract class TxnQuery implements Query
         }
     };
 
-    private static boolean transactionIsInMigratingOrMigratedRange(Epoch epoch, Seekables<?, ?> keys)
+    private static boolean transactionShouldBeBlocked(ClusterMetadata clusterMetadata, boolean reads, Seekables<?, ?> keys)
     {
-        // TODO (required): This is going to be problematic when we presumably support range reads and don't validate them
-        // Whatever this transaction might be it isn't one supported for migration anyways
-        if (!keys.domain().isKey())
-            return false;
+        // TxnQuery needs to be smart enough to allow blind writes through for the non-transactional use cases during migration
+        // This also allows blind write TransactionStatement to run before TransactionStatemetns with reads can run,
+        // but this is harmless since we only promise that TransactionStatement works when migrated to Accord.
+        // TODO (lowpri): This could look at read keys vs write keys to see if it can run in more cases
+        if (reads)
+            return !transactionIsSafeToReadAndWrite(clusterMetadata, keys);
+        else
+            return !transactionIsSafeToWrite(clusterMetadata, keys);
+    }
+
+    private static boolean transactionIsSafeToReadAndWrite(ClusterMetadata clusterMetadata, Seekables<?, ?> keys)
+    {
+        switch (keys.domain())
+        {
+            case Key:
+                for (PartitionKey partitionKey : (Seekables<PartitionKey, ?>)keys)
+                {
+                    // TODO (required): This is looking at ClusterMetadata, but not the ClusterMetadata for the specified epoch, just that epoch or later. Need to store ConsensusMigrationState in the global Topologies Accord stores for itself.
+                    if (!ConsensusRequestRouter.instance.isKeyManagedByAccordForReadAndWrite(clusterMetadata, partitionKey.table(), partitionKey.partitionKey()))
+                        return false;
+                }
+                break;
+            case Range:
+                for (accord.primitives.Range range : (Ranges)keys)
+                {
+                    TokenRange tokenRange = (TokenRange)range;
+                    // TODO (required): This is looking at ClusterMetadata, but not the ClusterMetadata for the specified epoch, just that epoch or later. Need to store ConsensusMigrationState in the global Topologies Accord stores for itself.
+                    if (!ConsensusRequestRouter.instance.isRangeManagedByAccordForReadAndWrite(clusterMetadata, tokenRange.table(), tokenRange))
+                        return false;
+                }
+                break;
+            default:
+                throw new IllegalStateException("Unsupported domain " + keys.domain());
+        }
+
+        return true;
+    }
+
+    private static boolean transactionIsSafeToWrite(ClusterMetadata clusterMetadata, Seekables<?, ?> keys)
+    {
+        checkState(keys.domain().isKey(), "Only key transactions are supported for writes");
 
         for (PartitionKey partitionKey : (Seekables<PartitionKey, ?>)keys)
         {
             // TODO (required): This is looking at ClusterMetadata, but not the ClusterMetadata for the specified epoch, just that epoch or later. Need to store ConsensusMigrationState in the global Topologies Accord stores for itself.
-            if (ConsensusRequestRouter.instance.isKeyInMigratingOrMigratedRangeFromAccord(epoch, partitionKey.table(), partitionKey.partitionKey()))
-                return true;
+            if (!ConsensusRequestRouter.instance.isKeyManagedByAccordForWrite(clusterMetadata, partitionKey.table(), partitionKey.partitionKey()))
+                return false;
         }
-        return false;
+        return true;
     }
 }

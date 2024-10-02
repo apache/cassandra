@@ -18,11 +18,9 @@
 
 package org.apache.cassandra.service.consensus;
 
-import com.google.common.collect.ImmutableList;
-
 import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.dht.NormalizedRanges;
-import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.IAccordService;
@@ -32,7 +30,6 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.LocalizeString;
 
 import static com.google.common.base.Preconditions.checkState;
-import static org.apache.cassandra.dht.NormalizedRanges.normalizedRanges;
 
 /*
  * Configure the transactional behavior of a table. Enables accord on a table and defines how it mixes with non-serial writes
@@ -70,33 +67,7 @@ import static org.apache.cassandra.dht.NormalizedRanges.normalizedRanges;
 public enum TransactionalMode
 {
     // Running on Paxos V1 or V2 with Accord disabled
-    off(false, false, false, false, false),
-
-    // TODO (maybe): These unsafe modes don't have Accord do async commit and single replica reads so how useful are they besides preserving non-SERIAL performance?
-    // These modes are unsafe when Accord and non-SERIAL reads and writes interact with the same data
-    // They don't guarantee that non-SERIAL reads or writes will see the latest Accord writes or that
-    // Accord transactions will recover correctly
-
-    /*
-     * Enables Accord but does not allow non-SERIAL reads and writes to occur safely to data read/written by Accord
-     *
-     * Execute non-SERIAL writes through Cassandra via StorageProxy's normal write path. This can lead Accord to compute
-     * multiple outcomes for a transaction that depend on data written by non-SERIAL writes.
-     *
-     * SERIAL reads and CAS will run on Accord. Accord will honor provided consistency levels and do synchronous commit
-     * so the results can be read correctly with non-SERIAL CLs, but read repair could interfere with Accord.
-     */
-    unsafe(true, false, false, false, false),
-
-    /*
-     * Enables Accord and makes it safe to perform non-SERIAL reads of Accord data without guaranteeing that they will
-     * see the latest Accord writes. non-SERIAL writes to data read by Accord will make Accord txn recovery non-deterministic
-     *
-     * Allow mixing of non-SERIAL writes and Accord, but still force BRR through Accord.
-     * This mode makes it safe to perform non-SERIAL or SERIAL reads of Accord data, but unsafe
-     * to write data that Accord may attempt to read.
-     */
-    unsafe_writes(true, false, false, false, true),
+    off(false, false, false, false),
 
     // These modes always provide correct execution with mixed_reads allow non-transaction non-SERIAL operations
     // at the expense of slower Accord transactions, and full allowing faster transaction execution, but forcing
@@ -107,37 +78,68 @@ public enum TransactionalMode
      * writes at the provided consistency level so they can be read via non-SERIAL consistency levels.
      * This mode makes it safe to read/write data that Accord will read/write.
      */
-    mixed_reads(true, false, true, false, true),
+    mixed_reads(true, true, false, true),
 
     /*
      * Execute writes through Accord skipping StorageProxy's normal write path. Ignores the provided consistency level
      * which makes Accord commit writes at ANY similar to Paxos with commit consistency level ANY.
      */
-    full(true, true, true, true, true),
+    full(true, true, true, true),
+
+    // TODO (maybe): These unsafe modes don't have Accord do async commit and single replica reads so how useful are they besides preserving non-SERIAL performance?
+    // These modes are unsafe when Accord and non-SERIAL reads and writes interact with the same data
+    // They don't guarantee that non-SERIAL reads or writes will see the latest Accord writes or that
+    // Accord transactions will recover correctly
+
+    /*
+     * Enables Accord and makes it safe to perform non-SERIAL reads of Accord data without guaranteeing that they will
+     * see the latest Accord writes. non-SERIAL writes to data read by Accord will make Accord txn recovery non-deterministic
+     *
+     * Allow mixing of non-SERIAL writes and Accord, but still force BRR through Accord.
+     * This mode makes it safe to perform non-SERIAL or SERIAL reads of Accord data, but unsafe
+     * to write data that Accord may attempt to read.
+     */
+    test_unsafe_writes(true, false, false, true),
+
+    /*
+     * Enables Accord but does not allow non-SERIAL reads and writes to occur safely to data read/written by Accord
+     *
+     * Execute non-SERIAL writes through Cassandra via StorageProxy's normal write path. This can lead Accord to compute
+     * multiple outcomes for a transaction that depend on data written by non-SERIAL writes.
+     *
+     * SERIAL reads and CAS will run on Accord. Accord will honor provided consistency levels and do synchronous commit
+     * so the results can be read correctly with non-SERIAL CLs, but read repair could interfere with Accord.
+     **/
+    test_unsafe(true, false, false, false),
 
     // For tests, Accord will read and be forced to do interop reads
-    test_interop_read(true, false, false, true, true);
+    test_interop_read(true, false, true, true);
 
     public final boolean accordIsEnabled;
-    public final boolean ignoresSuppliedCommitCL;
     public final boolean nonSerialWritesThroughAccord;
     public final boolean nonSerialReadsThroughAccord;
     public final boolean blockingReadRepairThroughAccord;
     private final String cqlParam;
 
-    TransactionalMode(boolean accordIsEnabled, boolean ignoreSuppliedCommitCL, boolean nonSerialWritesThroughAccord, boolean nonSerialReadsThroughAccord, boolean blockingReadRepairThroughAccord)
+    TransactionalMode(boolean accordIsEnabled, boolean nonSerialWritesThroughAccord, boolean nonSerialReadsThroughAccord, boolean blockingReadRepairThroughAccord)
     {
         this.accordIsEnabled = accordIsEnabled;
-        this.ignoresSuppliedCommitCL = ignoreSuppliedCommitCL;
         this.nonSerialWritesThroughAccord = nonSerialWritesThroughAccord;
         this.nonSerialReadsThroughAccord = nonSerialReadsThroughAccord;
         this.blockingReadRepairThroughAccord = blockingReadRepairThroughAccord;
         this.cqlParam = String.format("transactional_mode = '%s'", LocalizeString.toLowerCaseLocalized(this.name()));
+        checkState(this.name().startsWith("test_") || (nonSerialReadsThroughAccord && nonSerialWritesThroughAccord) || !nonSerialReadsThroughAccord, "Doesn't make sense to do non-SERIAL reads through Accord without also doing non-SERIAL writes through Accord");
     }
 
-    public ConsistencyLevel commitCLForStrategy(TransactionalMigrationFromMode fromMode, ConsistencyLevel consistencyLevel, ClusterMetadata cm, TableId tableId, Token token)
+    // This can be inferred from whether non-SERIAL reads are done through Accord
+    public boolean ignoresSuppliedCommitCL()
     {
-        if (ignoresSuppliedCommitCL)
+        return nonSerialReadsThroughAccord;
+    }
+
+    public ConsistencyLevel commitCLForMode(TransactionalMigrationFromMode fromMode, ConsistencyLevel consistencyLevel, ClusterMetadata cm, TableId tableId, Token token)
+    {
+        if (ignoresSuppliedCommitCL())
         {
             TableMigrationState tms = cm.consensusMigrationState.tableStates.get(tableId);
             checkState(tms != null || fromMode == TransactionalMigrationFromMode.none);
@@ -160,13 +162,12 @@ public enum TransactionalMode
      * Infer whether Accord can ignore the read CL and bias towards correctness by reading from a quorum
      * if it's needed due to how non-SERIAL writes are done
      */
-    private boolean ignoresSuppliedReadCL()
+    public boolean ignoresSuppliedReadCL()
     {
         return nonSerialWritesThroughAccord && blockingReadRepairThroughAccord;
     }
 
-
-    public ConsistencyLevel readCLForStrategy(TransactionalMigrationFromMode fromMode, ConsistencyLevel consistencyLevel, ClusterMetadata cm, TableId tableId, Token token)
+    public ConsistencyLevel readCLForMode(TransactionalMigrationFromMode fromMode, ConsistencyLevel consistencyLevel, ClusterMetadata cm, TableId tableId, Token token)
     {
         if (ignoresSuppliedReadCL())
         {
@@ -187,19 +188,18 @@ public enum TransactionalMode
         return consistencyLevel;
     }
 
-    public ConsistencyLevel readCLForStrategy(TransactionalMigrationFromMode fromMode, ConsistencyLevel consistencyLevel, ClusterMetadata cm, TableId tableId, Range<Token> range)
+    public ConsistencyLevel readCLForMode(TransactionalMigrationFromMode fromMode, ConsistencyLevel consistencyLevel, ClusterMetadata cm, TableId tableId, AbstractBounds<PartitionPosition> range)
     {
         if (ignoresSuppliedReadCL())
         {
             TableMigrationState tms = cm.consensusMigrationState.tableStates.get(tableId);
             checkState(tms != null || fromMode == TransactionalMigrationFromMode.none);
 
-            NormalizedRanges<Token> ranges = normalizedRanges(ImmutableList.of(range));
             // Only ignore the supplied consistency level if none of the range is migrating
             // otherwise honor it because we might read through Accord for non-SERIAL reads before repair is run
             // this is OK to do because BRR still works and Accord isn't computing a write so recovery
             // determinism isn't an issue
-            if (tms == null || tms.migratedRanges.intersection(ranges).equals(ranges))
+            if (tms == null || range.intersects(tms.migratedRangesAsPartitionPosition()))
                 return null;
         }
 
@@ -231,5 +231,10 @@ public enum TransactionalMode
     public static TransactionalMode fromString(String name)
     {
         return valueOf(LocalizeString.toLowerCaseLocalized(name));
+    }
+
+    public boolean isTestMode()
+    {
+        return name().startsWith("test_");
     }
 }

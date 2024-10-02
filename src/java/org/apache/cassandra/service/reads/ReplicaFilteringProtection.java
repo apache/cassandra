@@ -156,7 +156,7 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
 
         ReadCallback<EndpointsForToken, ReplicaPlan.ForTokenRead> handler = new ReadCallback<>(resolver, cmd, replicaPlan, requestTime);
 
-        if (source.isSelf())
+        if (source.isSelf() && coordinator.localReadSupported())
         {
             Stage.READ.maybeExecuteImmediately(new StorageProxy.LocalReadRunnable(cmd, handler, requestTime));
         }
@@ -164,6 +164,7 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
         {
             if (source.isTransient())
                 cmd = cmd.copyAsTransientQuery(source);
+            cmd = coordinator.maybeAllowOutOfRangeReads(cmd, consistency);
             MessagingService.instance().sendWithCallback(cmd.createMessage(false, requestTime), source.endpoint(), handler);
         }
 

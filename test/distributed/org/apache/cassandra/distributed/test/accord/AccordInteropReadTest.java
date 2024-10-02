@@ -32,6 +32,7 @@ import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.distributed.util.QueryResultUtil;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.service.consensus.TransactionalMode;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
@@ -63,7 +64,7 @@ public class AccordInteropReadTest extends TestBaseImpl
                                         .withConfig(config -> config.with(GOSSIP).with(NETWORK)).start())
         {
             cluster.schemaChange("CREATE KEYSPACE ks WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor':3}");
-            cluster.schemaChange("CREATE TABLE ks.tbl (k int, c int, v int, PRIMARY KEY (k, c)) WITH transactional_mode='unsafe_writes'");
+            cluster.schemaChange("CREATE TABLE ks.tbl (k int, c int, v int, PRIMARY KEY (k, c)) WITH " + TransactionalMode.test_unsafe_writes.asCqlParam());
 
             cluster.get(1).runOnInstance(() -> localWrite("INSERT INTO ks.tbl (k, c, v) VALUES (1, 1, 1)"));
             cluster.get(2).runOnInstance(() -> localWrite("INSERT INTO ks.tbl (k, c, v) VALUES (1, 1, 2)"));

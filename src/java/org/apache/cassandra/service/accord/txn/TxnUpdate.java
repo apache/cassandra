@@ -49,12 +49,14 @@ import org.apache.cassandra.service.accord.AccordObjectSizes;
 import org.apache.cassandra.service.accord.AccordSerializers;
 import org.apache.cassandra.service.accord.IAccordService;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 
 import static accord.utils.Invariants.requireArgument;
 import static accord.utils.SortedArrays.Search.CEIL;
+import static com.google.common.base.Preconditions.checkState;
 import static org.apache.cassandra.service.accord.AccordSerializers.consistencyLevelSerializer;
 import static org.apache.cassandra.service.accord.AccordSerializers.serialize;
 import static org.apache.cassandra.utils.ArraySerializers.deserializeArray;
@@ -214,6 +216,8 @@ public class TxnUpdate extends AccordUpdate
     @Override
     public TxnWrite apply(Timestamp executeAt, Data data)
     {
+        ClusterMetadata cm = ClusterMetadata.current();
+        checkState(cm.epoch.getEpoch() >= executeAt.epoch(), "TCM epoch %d is < executeAt epoch %d", cm.epoch.getEpoch(), executeAt.epoch());
         if (!checkCondition(data))
             return TxnWrite.EMPTY_CONDITION_FAILED;
 

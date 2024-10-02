@@ -53,10 +53,10 @@ import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.collect.Iterables.all;
 import static org.apache.cassandra.net.Verb.READ_REPAIR_REQ;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.concurrent.CountDownLatch.newCountDownLatch;
-import static com.google.common.collect.Iterables.all;
 
 public class BlockingPartitionRepair
         extends AsyncFuture<Object> implements RequestCallback<Object>, PendingPartitionRepair
@@ -155,7 +155,7 @@ public class BlockingPartitionRepair
     @VisibleForTesting
     protected void sendRR(Message<Mutation> message, InetAddressAndPort endpoint)
     {
-        checkArgument(message.payload.allowsPotentialTransactionConflicts() == coordinator.allowsPotentialTransactionConflicts(), "Mutation allowing transaction conflicts should match coordinator");
+        checkArgument(message.payload.potentialTxnConflicts() == coordinator.potentialTxnConflicts(), "Mutation allowing transaction conflicts should match coordinator");
         coordinator.sendReadRepairMutation(message, endpoint, this);
     }
 
@@ -241,7 +241,7 @@ public class BlockingPartitionRepair
 
             if (mutation == null)
             {
-                mutation = BlockingReadRepairs.createRepairMutation(update, repairPlan.consistencyLevel(), replica.endpoint(), true, coordinator.allowsPotentialTransactionConflicts());
+                mutation = BlockingReadRepairs.createRepairMutation(update, repairPlan.consistencyLevel(), replica.endpoint(), true, coordinator.potentialTxnConflicts());
                 versionedMutations[versionIdx] = mutation;
             }
 

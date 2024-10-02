@@ -20,17 +20,21 @@ package org.apache.cassandra.service.consensus.migration;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.List;
+import java.util.SortedSet;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableList;
 import com.google.common.primitives.Ints;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.api.BarrierType;
+import accord.primitives.Keys;
 import accord.primitives.Seekables;
 import com.github.benmanes.caffeine.cache.CacheLoader;
 import com.github.benmanes.caffeine.cache.Caffeine;
@@ -66,6 +70,7 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.Collectors3;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.UUIDSerializer;
@@ -176,7 +181,7 @@ public abstract class ConsensusKeyMigrationState
             repairKeyAccord(key, tms.tableId, tms.minMigrationEpoch(key.getToken()).getEpoch(), Dispatcher.RequestTime.forImmediateExecution(), false, isForWrite);
         }
 
-        private boolean paxosReadSatisfiedByKeyMigration()
+        boolean paxosReadSatisfiedByKeyMigration()
         {
             // No migration in progress, it's safe
             if (tableMigrationState == null)
@@ -230,12 +235,6 @@ public abstract class ConsensusKeyMigrationState
         saveConsensusKeyMigrationLocally(key, tableUUID, migratedAt);
     }
 
-    /*
-     * Should be called where we know we replicate the key so that the system table contains useful information
-     * about whether the migration already occurred.
-     *
-     * This is a more expensive check that might read from the system table to determine if migration occurred.
-     */
     public static KeyMigrationState getKeyMigrationState(TableId tableId, DecoratedKey key)
     {
         ClusterMetadata cm = ClusterMetadata.current();
@@ -243,10 +242,20 @@ public abstract class ConsensusKeyMigrationState
         // No state means no migration for this table
         if (tms == null)
             return KeyMigrationState.MIGRATION_NOT_NEEDED;
+        return getKeyMigrationState(cm, tms, key);
+    }
 
+    /*
+     * Should be called where we know we replicate the key so that the system table contains useful information
+     * about whether the migration already occurred.
+     *
+     * This is a more expensive check that might read from the system table to determine if migration occurred.
+     */
+    static KeyMigrationState getKeyMigrationState(ClusterMetadata cm, TableMigrationState tms, DecoratedKey key)
+    {
         if (tms.migratingRanges.intersects(key.getToken()))
         {
-            ConsensusMigratedAt consensusMigratedAt = getConsensusMigratedAt(tableId, key);
+            ConsensusMigratedAt consensusMigratedAt = getConsensusMigratedAt(tms.tableId, key);
             if (consensusMigratedAt == null)
                 return new KeyMigrationState(null, cm.epoch, tms, key);
             return new KeyMigrationState(consensusMigratedAt, cm.epoch, tms, key);
@@ -270,6 +279,16 @@ public abstract class ConsensusKeyMigrationState
                                 boolean global,
                                 boolean isForWrite)
     {
+        repairKeysAccord(ImmutableList.of(key), tableId, minEpoch, requestTime, global, isForWrite);
+    }
+
+    static void repairKeysAccord(List<DecoratedKey> keys,
+                                 TableId tableId,
+                                 long minEpoch,
+                                 Dispatcher.RequestTime requestTime,
+                                 boolean global,
+                                 boolean isForWrite)
+    {
         ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(tableId);
         if (isForWrite)
             ClientRequestsMetricsHolder.casWriteMetrics.accordKeyMigrations.mark();
@@ -282,7 +301,8 @@ public abstract class ConsensusKeyMigrationState
             // will soon be ready to execute, but only waits for the local replica to be ready
             // Local will only create a transaction if it can't find an existing one to wait on
             BarrierType barrierType = global ? BarrierType.global_async : BarrierType.local;
-            Seekables keysOrRanges = AccordService.instance().barrier(Seekables.of(new PartitionKey(tableId, key)), minEpoch, requestTime, DatabaseDescriptor.getTransactionTimeout(TimeUnit.NANOSECONDS), barrierType, isForWrite);
+            SortedSet<PartitionKey> partitionKeys = keys.stream().map(key -> new PartitionKey(tableId, key)).collect(Collectors3.toSortedSet());
+            Seekables keysOrRanges = AccordService.instance().barrier(new Keys(partitionKeys), minEpoch, requestTime, DatabaseDescriptor.getTransactionTimeout(TimeUnit.NANOSECONDS), barrierType, isForWrite);
             if (keysOrRanges.isEmpty())
                 throw new RetryOnDifferentSystemException();
             // We don't save the state to the cache here. Accord will notify the agent every time a barrier happens.

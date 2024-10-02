@@ -18,8 +18,10 @@
 
 package org.apache.cassandra.service.reads;
 
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.ReadCommand;
+import org.apache.cassandra.db.ReadCommand.PotentialTxnConflicts;
 import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.EndpointsForToken;
@@ -64,16 +66,16 @@ public interface ReadCoordinator
 
     boolean localReadSupported();
     EndpointsForToken forNonLocalStrategyTokenRead(ClusterMetadata metadata, KeyspaceMetadata keyspace, TableId tableId, Token token);
-    default ReadCommand maybeAllowOutOfRangeReads(ReadCommand command)
+    default ReadCommand maybeAllowOutOfRangeReads(ReadCommand command, ConsistencyLevel cl)
     {
         return command;
     }
     void sendReadCommand(Message<ReadCommand> message, InetAddressAndPort to, RequestCallback<ReadResponse> callback);
     default void notifyOfInitialContacts(EndpointsForToken fullDataRequests, EndpointsForToken transientRequests, EndpointsForToken digestRequests) {}
     void sendReadRepairMutation(Message<Mutation> message, InetAddressAndPort to, RequestCallback<Object> callback);
-    default boolean allowsPotentialTransactionConflicts()
+    default PotentialTxnConflicts potentialTxnConflicts()
     {
-        return !isEventuallyConsistent();
+        return isEventuallyConsistent() ? PotentialTxnConflicts.DISALLOW : PotentialTxnConflicts.ALLOW;
     }
     boolean isEventuallyConsistent();
 }

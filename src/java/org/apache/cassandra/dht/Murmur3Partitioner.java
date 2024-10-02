@@ -258,6 +258,7 @@ public class Murmur3Partitioner implements IPartitioner
             // CASSANDRA-17109 Added the below checks, but paxos tests were not updated, rather than fix
             // the paxos tests, disabling the checks for now.  The current paxos tests bias twards MIN but
             // not for MAX, which makes the test very flaky as when MAX is generated the test fails...
+            // TODO (mustfix): This was done as part of CEP-15 and needs to be added back
 //            if (token == MAXIMUM)
 //                throw new IllegalArgumentException("Cannot increase above MAXIMUM");
 

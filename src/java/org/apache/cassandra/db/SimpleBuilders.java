@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.Set;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.db.ReadCommand.PotentialTxnConflicts;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
@@ -120,7 +121,7 @@ public abstract class SimpleBuilders
 
         private final Map<TableId, PartitionUpdateBuilder> updateBuilders = new HashMap<>();
 
-        private boolean allowPotentialTransactionConflicts = false;
+        private PotentialTxnConflicts potentialTxnConflicts = PotentialTxnConflicts.DISALLOW;
 
         public MutationBuilder(String keyspaceName, DecoratedKey key)
         {
@@ -128,9 +129,9 @@ public abstract class SimpleBuilders
             this.key = key;
         }
 
-        public MutationBuilder allowPotentialTransactionConflicts()
+        public MutationBuilder allowPotentialTxnConflicts()
         {
-            allowPotentialTransactionConflicts = true;
+            potentialTxnConflicts = PotentialTxnConflicts.ALLOW;
             return this;
         }
 
@@ -162,9 +163,9 @@ public abstract class SimpleBuilders
             assert !updateBuilders.isEmpty() : "Cannot create empty mutation";
 
             if (updateBuilders.size() == 1)
-                return new Mutation(updateBuilders.values().iterator().next().build(), allowPotentialTransactionConflicts);
+                return new Mutation(updateBuilders.values().iterator().next().build(), potentialTxnConflicts);
 
-            Mutation.PartitionUpdateCollector mutationBuilder = new Mutation.PartitionUpdateCollector(keyspaceName, key, allowPotentialTransactionConflicts);
+            Mutation.PartitionUpdateCollector mutationBuilder = new Mutation.PartitionUpdateCollector(keyspaceName, key, potentialTxnConflicts);
             for (PartitionUpdateBuilder builder : updateBuilders.values())
                 mutationBuilder.add(builder.build());
             return mutationBuilder.build();

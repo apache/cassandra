@@ -72,7 +72,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
                                         boolean isDigest,
                                         int digestVersion,
                                         boolean acceptsTransient,
-                                        boolean allowOutOfRangeReads,
+                                        PotentialTxnConflicts potentialTxnConflicts,
                                         TableMetadata metadata,
                                         long nowInSec,
                                         ColumnFilter columnFilter,
@@ -82,7 +82,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
                                         Index.QueryPlan indexQueryPlan,
                                         boolean trackWarnings)
     {
-        super(serializedAtEpoch, Kind.PARTITION_RANGE, isDigest, digestVersion, acceptsTransient, allowOutOfRangeReads, metadata, nowInSec, columnFilter, rowFilter, limits, indexQueryPlan, trackWarnings, dataRange);
+        super(serializedAtEpoch, Kind.PARTITION_RANGE, isDigest, digestVersion, acceptsTransient, potentialTxnConflicts, metadata, nowInSec, columnFilter, rowFilter, limits, indexQueryPlan, trackWarnings, dataRange);
         this.requestedSlices = dataRange.clusteringIndexFilter.getSlices(metadata());
     }
 
@@ -90,7 +90,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
                                                     boolean isDigest,
                                                     int digestVersion,
                                                     boolean acceptsTransient,
-                                                    boolean allowsOutOfRangeReads,
+                                                    PotentialTxnConflicts potentialTxnConflicts,
                                                     TableMetadata metadata,
                                                     long nowInSec,
                                                     ColumnFilter columnFilter,
@@ -118,7 +118,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
                                              isDigest,
                                              digestVersion,
                                              acceptsTransient,
-                                             allowsOutOfRangeReads,
+                                             potentialTxnConflicts,
                                              metadata,
                                              nowInSec,
                                              columnFilter,
@@ -140,7 +140,30 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
                       false,
                       0,
                       false,
+                      PotentialTxnConflicts.DISALLOW,
+                      metadata,
+                      nowInSec,
+                      columnFilter,
+                      rowFilter,
+                      limits,
+                      dataRange,
+                      findIndexQueryPlan(metadata, rowFilter),
+                      false);
+    }
+
+    public static PartitionRangeReadCommand create(TableMetadata metadata,
+                                                   long nowInSec,
+                                                   ColumnFilter columnFilter,
+                                                   RowFilter rowFilter,
+                                                   DataLimits limits,
+                                                   DataRange dataRange,
+                                                   PotentialTxnConflicts potentialTxnConflicts)
+    {
+        return create(metadata.epoch,
                       false,
+                      0,
+                      false,
+                      potentialTxnConflicts,
                       metadata,
                       nowInSec,
                       columnFilter,
@@ -165,7 +188,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
                       false,
                       0,
                       false,
-                      false,
+                      PotentialTxnConflicts.DISALLOW,
                       metadata,
                       nowInSec,
                       ColumnFilter.all(metadata),
@@ -212,7 +235,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
                       isDigestQuery(),
                       digestVersion(),
                       acceptsTransient(),
-                      allowsOutOfRangeReads(),
+                      potentialTxnConflicts(),
                       metadata(),
                       nowInSec(),
                       columnFilter(),
@@ -223,32 +246,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
                       isTrackingWarnings());
     }
 
-    /*
-     * The execution method does not need to perform reconciliation so the read command
-     * should execute in a mannager suited to not needing reconciliation. Such as when
-     * executing transactionally at a single replica and doing an index scan where the index
-     * scan should not return extra rows and expect post filtering at the coordinator.
-     */
-    public PartitionRangeReadCommand withoutReconciliation()
-    {
-        if (rowFilter().isEmpty())
-            return this;
-        return create(serializedAtEpoch(),
-                      isDigestQuery(),
-                      digestVersion(),
-                      acceptsTransient(),
-                      allowsOutOfRangeReads(),
-                      metadata(),
-                      nowInSec(),
-                      columnFilter(),
-                      rowFilter().withoutReconciliation(),
-                      limits(),
-                      dataRange(),
-                      indexQueryPlan(),
-                      isTrackingWarnings());
-    }
-
-    public PartitionRangeReadCommand forSubRangeWithNowInSeconds(long nowInSec, AbstractBounds<PartitionPosition> range, boolean isRangeContinuation)
+    public PartitionRangeReadCommand withTransactionalSettings(long nowInSec, AbstractBounds<PartitionPosition> range, boolean isRangeContinuation, boolean withoutReconciliation)
     {
         // If we're not a continuation of whatever range we've previously queried, we should ignore the states of the
         // DataLimits as it's either useless, or misleading. This is particularly important for GROUP BY queries, where
@@ -259,26 +257,26 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
                       isDigestQuery(),
                       digestVersion(),
                       acceptsTransient(),
-                      allowsOutOfRangeReads(),
+                      PotentialTxnConflicts.ALLOW,
                       metadata(),
                       nowInSec,
                       columnFilter(),
-                      rowFilter(),
+                      withoutReconciliation ? rowFilter().withoutReconciliation() : rowFilter(),
                       isRangeContinuation ? limits() : limits().withoutState(),
                       dataRange().forSubRange(range),
                       indexQueryPlan(),
                       isTrackingWarnings());
     }
 
-    public PartitionRangeReadCommand withNowInSec(long nowInSec)
+    public PartitionRangeReadCommand withTxnReadName(int txnReadName)
     {
         return create(serializedAtEpoch(),
                       isDigestQuery(),
                       digestVersion(),
                       acceptsTransient(),
-                      allowsOutOfRangeReads(),
+                      potentialTxnConflicts(),
                       metadata(),
-                      nowInSec,
+                      txnReadName,
                       columnFilter(),
                       rowFilter(),
                       limits(),
@@ -293,7 +291,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
                       isDigestQuery(),
                       digestVersion(),
                       acceptsTransient(),
-                      allowsOutOfRangeReads(),
+                      potentialTxnConflicts(),
                       metadata(),
                       nowInSec(),
                       columnFilter(),
@@ -311,7 +309,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
                       true,
                       digestVersion(),
                       false,
-                      allowsOutOfRangeReads(),
+                      potentialTxnConflicts(),
                       metadata(),
                       nowInSec(),
                       columnFilter(),
@@ -329,7 +327,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
                       false,
                       0,
                       true,
-                      allowsOutOfRangeReads(),
+                      potentialTxnConflicts(),
                       metadata(),
                       nowInSec(),
                       columnFilter(),
@@ -347,7 +345,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
                       isDigestQuery(),
                       digestVersion(),
                       acceptsTransient(),
-                      allowsOutOfRangeReads(),
+                      potentialTxnConflicts(),
                       metadata(),
                       nowInSec(),
                       columnFilter(),
@@ -365,7 +363,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
                       isDigestQuery(),
                       digestVersion(),
                       acceptsTransient(),
-                      allowsOutOfRangeReads(),
+                      potentialTxnConflicts(),
                       metadata(),
                       nowInSec(),
                       columnFilter(),
@@ -601,7 +599,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
                                        boolean isDigest,
                                        int digestVersion,
                                        boolean acceptsTransient,
-                                       boolean allowsOutOfRangeReads,
+                                       PotentialTxnConflicts potentialTxnConflicts,
                                        TableMetadata metadata,
                                        long nowInSec,
                                        ColumnFilter columnFilter,
@@ -611,7 +609,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
         throws IOException
         {
             DataRange range = DataRange.serializer.deserialize(in, version, metadata);
-            return PartitionRangeReadCommand.create(serializedAtEpoch, isDigest, digestVersion, acceptsTransient, allowsOutOfRangeReads, metadata, nowInSec, columnFilter, rowFilter, limits, range, indexQueryPlan, false);
+            return PartitionRangeReadCommand.create(serializedAtEpoch, isDigest, digestVersion, acceptsTransient, potentialTxnConflicts, metadata, nowInSec, columnFilter, rowFilter, limits, range, indexQueryPlan, false);
         }
     }
 
@@ -629,7 +627,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
                                                       Index.QueryPlan indexQueryPlan,
                                                       boolean trackWarnings)
         {
-            super(metadata.epoch, isDigest, digestVersion, acceptsTransient, true, metadata, nowInSec, columnFilter, rowFilter, limits, dataRange, indexQueryPlan, trackWarnings);
+            super(metadata.epoch, isDigest, digestVersion, acceptsTransient, PotentialTxnConflicts.ALLOW, metadata, nowInSec, columnFilter, rowFilter, limits, dataRange, indexQueryPlan, trackWarnings);
         }
 
         @Override

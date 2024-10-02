@@ -39,7 +39,7 @@ import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.topology.Topologies;
-import org.apache.cassandra.db.SinglePartitionReadCommand;
+import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -78,7 +78,7 @@ public class AccordInteropStableThenRead extends AccordInteropRead
                 DepsSerializers.partialDeps.serialize(read.partialDeps, out, version);
             if (read.kind.withTxn == HasTxn)
                 KeySerializers.fullRoute.serialize(read.route, out, version);
-            SinglePartitionReadCommand.serializer.serialize(read.command, out, version);
+            ReadCommand.serializer.serialize(read.command, out, version);
         }
 
         @Override
@@ -92,7 +92,7 @@ public class AccordInteropStableThenRead extends AccordInteropRead
             PartialTxn partialTxn = kind.withTxn == NoTxn ? null : CommandSerializers.nullablePartialTxn.deserialize(in, version);
             PartialDeps partialDeps = kind.withDeps == NoDeps ? null : DepsSerializers.partialDeps.deserialize(in, version);
             FullRoute < ?> route = kind.withTxn == HasTxn ? KeySerializers.fullRoute.deserialize(in, version) : null;
-            SinglePartitionReadCommand command = (SinglePartitionReadCommand) SinglePartitionReadCommand.serializer.deserialize(in, version);
+            ReadCommand command = ReadCommand.serializer.deserialize(in, version);
             return new AccordInteropStableThenRead(txnId, scope, kind, minEpoch, executeAt, partialTxn, partialDeps, route, command);
         }
 
@@ -107,7 +107,7 @@ public class AccordInteropStableThenRead extends AccordInteropRead
                    + (read.kind.withTxn == NoTxn ? 0 : CommandSerializers.nullablePartialTxn.serializedSize(read.partialTxn, version))
                    + (read.kind.withDeps != HasDeps ? 0 : DepsSerializers.partialDeps.serializedSize(read.partialDeps, version))
                    + (read.kind.withTxn != HasTxn ? 0 : KeySerializers.fullRoute.serializedSize(read.route, version))
-                   + SinglePartitionReadCommand.serializer.serializedSize(read.command, version);
+                   + ReadCommand.serializer.serializedSize(read.command, version);
         }
     };
 
@@ -121,18 +121,18 @@ public class AccordInteropStableThenRead extends AccordInteropRead
     public final @Nullable PartialDeps partialDeps;
     public final @Nullable FullRoute<?> route;
 
-    public AccordInteropStableThenRead(Node.Id to, Topologies topologies, TxnId txnId, Commit.Kind kind, Timestamp executeAt, Txn txn, Deps deps, FullRoute<?> route, SinglePartitionReadCommand command)
+    public AccordInteropStableThenRead(Node.Id to, Topologies topologies, TxnId txnId, Commit.Kind kind, Timestamp executeAt, Txn txn, Deps deps, FullRoute<?> route, ReadCommand command)
     {
         super(to, topologies, txnId, route, executeAt.epoch(), command);
         this.kind = kind;
         this.minEpoch = topologies.oldestEpoch();
         this.executeAt = executeAt;
-        this.partialTxn = kind.withTxn.select(txn, scope, topologies, txnId, to);
-        this.partialDeps = kind.withDeps.select(deps, scope);
+        this.partialTxn = kind.withTxn.select(txn, route, topologies, txnId, to);
+        this.partialDeps = kind.withDeps.select(deps, route);
         this.route = kind.withTxn.select(route);
     }
 
-    public AccordInteropStableThenRead(TxnId txnId, Participants<?> scope, Commit.Kind kind, long minEpoch, Timestamp executeAt, @Nullable PartialTxn partialTxn, @Nullable PartialDeps partialDeps, @Nullable FullRoute<?> route, SinglePartitionReadCommand command)
+    public AccordInteropStableThenRead(TxnId txnId, Participants<?> scope, Commit.Kind kind, long minEpoch, Timestamp executeAt, @Nullable PartialTxn partialTxn, @Nullable PartialDeps partialDeps, @Nullable FullRoute<?> route, ReadCommand command)
     {
         super(txnId, scope, executeAt.epoch(), command);
         this.minEpoch = minEpoch;

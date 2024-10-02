@@ -27,9 +27,10 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.google.common.util.concurrent.FutureCallback;
-import org.apache.cassandra.distributed.api.*;
-import org.apache.cassandra.distributed.test.accord.AccordTestBase;
-import org.junit.*;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Ignore;
+import org.junit.Test;
 
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
@@ -45,8 +46,14 @@ import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.Feature;
+import org.apache.cassandra.distributed.api.ICoordinator;
+import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IMessageFilters.Filter;
+import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
+import org.apache.cassandra.distributed.test.accord.AccordTestBase;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.service.consensus.TransactionalMode;
@@ -57,7 +64,6 @@ import org.apache.cassandra.utils.concurrent.Future;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
-
 import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_ALTER_RF_DURING_RANGE_MOVEMENT;
 import static org.apache.cassandra.db.Keyspace.open;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ALL;
@@ -116,7 +122,7 @@ public class ReadRepairTest extends TestBaseImpl
 
     private void testReadRepair(ReadRepairStrategy strategy, boolean brrThroughAccord) throws Throwable {
         try (Cluster cluster = init(Cluster.create(3, c -> c.with(Feature.GOSSIP, Feature.NETWORK)))) {
-            TransactionalMode transactionalMode = brrThroughAccord ? TransactionalMode.unsafe_writes : TransactionalMode.off;
+            TransactionalMode transactionalMode = brrThroughAccord ? TransactionalMode.test_unsafe_writes : TransactionalMode.off;
             cluster.schemaChange(withKeyspace("CREATE TABLE %s." + tableName + " (k int, c int, v int, PRIMARY KEY (k, c)) WITH transactional_mode='" + transactionalMode.toString().toLowerCase() + '\'' +
                     String.format(" AND read_repair='%s'", strategy)));
             AccordTestBase.ensureTableIsAccordManaged(cluster, KEYSPACE, "t");

@@ -39,6 +39,7 @@ import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;
 public enum CassandraRelevantProperties
 {
     ACCORD_AGENT_CLASS("cassandra.test.accord.agent"),
+    ACCORD_ALLOW_TEST_MODES("cassandra.test.accord.allow_test_modes", "false"),
     ACCORD_KEY_PARANOIA_COSTFACTOR(Invariants.KEY_PARANOIA_COSTFACTOR),
     ACCORD_KEY_PARANOIA_CPU(Invariants.KEY_PARANOIA_CPU),
     ACCORD_KEY_PARANOIA_MEMORY(Invariants.KEY_PARANOIA_MEMORY),

@@ -33,7 +33,6 @@ import javax.annotation.Nullable;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
@@ -147,10 +146,10 @@ public class ConsensusMigrationState implements MetadataValue<ConsensusMigration
 
         Map<Epoch, List<Range<Token>>> migratingRangesByEpoch = ImmutableMap.of();
         if (!ranges.isEmpty())
-            ImmutableMap.of(Epoch.EMPTY, ranges);
+            migratingRangesByEpoch = ImmutableMap.of(Epoch.EMPTY, ranges);
 
         if (overwrite)
-            tableState = new TableMigrationState(metadata.keyspace, metadata.name, metadata.id, target, ImmutableSet.of(), initialRepairPendingRanges(target, ranges), migratingRangesByEpoch);
+            tableState = new TableMigrationState(metadata.keyspace, metadata.name, metadata.id, target, ImmutableList.of(), initialRepairPendingRanges(target, ranges), migratingRangesByEpoch);
         else
             tableState = tableState.withRangesMigrating(ranges, target);
 
@@ -168,6 +167,7 @@ public class ConsensusMigrationState implements MetadataValue<ConsensusMigration
     private static void putUnchanged(Map<TableId, TableMigrationState> current, ImmutableMap.Builder<TableId, TableMigrationState> next, Collection<TableMetadata> changed)
     {
         Set<TableId> changedIds = changed.stream().map(TableMetadata::id).collect(Collectors.toSet());
+
         putUnchanged(current, next, changedIds);
     }
 
@@ -183,12 +183,6 @@ public class ConsensusMigrationState implements MetadataValue<ConsensusMigration
     {
         ImmutableMap.Builder<TableId, TableMigrationState> updated = ImmutableMap.builder();
         putUnchanged(tableStates, updated, new HashSet<>(completed));
-        for (Map.Entry<TableId, TableMigrationState> entry : tableStates.entrySet())
-        {
-            if (completed.contains(entry.getKey()))
-                continue;
-            updated.put(entry);
-        }
         return new ConsensusMigrationState(lastModified, updated.build());
     }
 
@@ -208,7 +202,6 @@ public class ConsensusMigrationState implements MetadataValue<ConsensusMigration
             updated.put(metadata.id, state);
             return new ConsensusMigrationState(lastModified, updated.build());
         }
-
     }
 
     public ConsensusMigrationState withMigrationsRemovedFor(Set<TableId> removed)

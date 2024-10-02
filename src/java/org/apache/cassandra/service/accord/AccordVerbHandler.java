@@ -27,6 +27,9 @@ import accord.local.Node;
 import accord.messages.Request;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.NoSpamLogger;
 
 public class AccordVerbHandler<T extends Request> implements IVerbHandler<T>
@@ -53,6 +56,7 @@ public class AccordVerbHandler<T extends Request> implements IVerbHandler<T>
         }
 
         logger.trace("Receiving {} from {}", message.payload, message.from());
+
         T request = message.payload;
 
         /*
@@ -62,14 +66,32 @@ public class AccordVerbHandler<T extends Request> implements IVerbHandler<T>
          */
         Node.Id fromNodeId = endpointMapper.mappedId(message.from());
         long waitForEpoch = request.waitForEpoch();
-
-        if (node.topology().hasAtLeastEpoch(waitForEpoch))
+        ClusterMetadata cm = ClusterMetadata.current();
+        boolean cmUpToDate = ClusterMetadata.current().epoch.getEpoch() >= waitForEpoch;
+        if (node.topology().hasAtLeastEpoch(waitForEpoch) && cmUpToDate)
             request.process(node, fromNodeId, message.header);
         else
-            node.withEpoch(waitForEpoch, (ignored, withEpochFailure) -> {
-                if (withEpochFailure != null)
-                    throw new RuntimeException("Timed out waiting for epoch when processing message from " + fromNodeId + " to " + node + " message " + message, withEpochFailure);
-                request.process(node, fromNodeId, message.header);
-            });
+        {
+            // withEpoch does not reliably ensure that TCM is up to date, if Accord has the topology it won't
+            // wait for TCM to come up to date, so do it here in the verb handler
+            if (!cmUpToDate)
+            {
+                ClusterMetadataService.instance().fetchLogFromPeerOrCMSAsync(cm, message.from(), Epoch.create(waitForEpoch)).addCallback((success, failure) ->
+                    node.withEpoch(waitForEpoch, (ignored, withEpochFailure) -> {
+                        if (withEpochFailure != null)
+                            throw new RuntimeException("Timed out waiting for epoch when processing message from " + fromNodeId + " to " + node + " message " + message, withEpochFailure);
+                        request.process(node, fromNodeId, message.header);
+                    })
+                );
+            }
+            else
+            {
+                node.withEpoch(waitForEpoch, (ignored, withEpochFailure) -> {
+                    if (withEpochFailure != null)
+                        throw new RuntimeException("Timed out waiting for epoch when processing message from " + fromNodeId + " to " + node + " message " + message, withEpochFailure);
+                    request.process(node, fromNodeId, message.header);
+                });
+            }
+        }
     }
 }

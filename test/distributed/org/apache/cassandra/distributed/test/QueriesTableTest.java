@@ -18,20 +18,23 @@
 package org.apache.cassandra.distributed.test;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CyclicBarrier;
 
-import accord.impl.progresslog.DefaultProgressLogs;
-import net.bytebuddy.ByteBuddy;
-import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
-import net.bytebuddy.implementation.MethodDelegation;
-import net.bytebuddy.implementation.bind.annotation.SuperCall;
-import org.awaitility.Awaitility;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import accord.impl.progresslog.DefaultProgressLogs;
+import com.datastax.driver.core.ConsistencyLevel;
 import com.datastax.driver.core.Session;
+import com.datastax.driver.core.SimpleStatement;
+import com.datastax.driver.core.Statement;
+import net.bytebuddy.ByteBuddy;
+import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
+import net.bytebuddy.implementation.MethodDelegation;
+import net.bytebuddy.implementation.bind.annotation.SuperCall;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.ReadCommand;
@@ -42,8 +45,11 @@ import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.Row;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
+import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.utils.Throwables;
+import org.awaitility.Awaitility;
 
+import static com.google.common.base.Preconditions.checkState;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static net.bytebuddy.matcher.ElementMatchers.named;
 import static net.bytebuddy.matcher.ElementMatchers.takesArguments;
@@ -171,7 +177,7 @@ public class QueriesTableTest extends TestBaseImpl
     @Test
     public void shouldExposeTransaction() throws Throwable
     {
-        SHARED_CLUSTER.schemaChange("CREATE TABLE " + KEYSPACE + ".accord_tbl (k int primary key, v int)  WITH transactional_mode='mixed_reads'");
+        SHARED_CLUSTER.schemaChange("CREATE TABLE " + KEYSPACE + ".accord_tbl (k int primary key, v int)  WITH " + TransactionalMode.mixed_reads.asCqlParam());
 
         // Disable recovery to make sure only one local read occurs:
         for (IInvokableInstance instance : SHARED_CLUSTER)
@@ -184,8 +190,10 @@ public class QueriesTableTest extends TestBaseImpl
                         "    UPDATE " + KEYSPACE + ".accord_tbl SET v = 10 WHERE k = 0;\n" +
                         "  END IF\n" +
                         "COMMIT TRANSACTION";
-        
-        SESSION.executeAsync(update);
+
+        Statement statement = new SimpleStatement(update);
+        statement.setConsistencyLevel(ConsistencyLevel.QUORUM);
+        SESSION.executeAsync(statement);
 
         // Wait until the coordinator update and local read required by the CAS operation are visible:
         Awaitility.await()
@@ -240,12 +248,14 @@ public class QueriesTableTest extends TestBaseImpl
 
         static void install(ClassLoader cl, int nodeNumber)
         {
+            checkState(Arrays.stream(Mutation.class.getDeclaredMethods()).anyMatch(method -> method.getName().equals("apply") && method.getParameterCount() == 3));
             new ByteBuddy().rebase(Mutation.class)
                            .method(named("apply").and(takesArguments(3)))
                            .intercept(MethodDelegation.to(QueryDelayHelper.class))
                            .make()
                            .load(cl, ClassLoadingStrategy.Default.INJECTION);
 
+            checkState(Arrays.stream(ReadCommand.class.getDeclaredMethods()).anyMatch(method -> method.getName().equals("executeLocally") && method.getParameterCount() == 1));
             new ByteBuddy().rebase(ReadCommand.class)
                            .method(named("executeLocally").and(takesArguments(1)))
                            .intercept(MethodDelegation.to(QueryDelayHelper.class))

@@ -16,29 +16,13 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.service.accord.txn;
+package org.apache.cassandra.distributed.test.accord;
 
-/**
- * Potentially returned by any transaction that tries to execute in an Epoch
- * where the range has migrated away from Accord
- */
-public class RetryWithNewProtocolResult implements TxnResult
+public class MigrationFromAccordReadRaceTest extends AccordMigrationReadRaceTestBase
 {
-    public static final RetryWithNewProtocolResult instance = new RetryWithNewProtocolResult();
-
-    private RetryWithNewProtocolResult()
-    {
-    }
-
     @Override
-    public Kind kind()
+    protected boolean migratingAwayFromAccord()
     {
-        return Kind.retry_new_protocol;
-    }
-
-    @Override
-    public long estimatedSizeOnHeap()
-    {
-        return 0;
+        return true;
     }
 }

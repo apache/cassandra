@@ -52,7 +52,6 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.TokenRange;
-import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.service.paxos.Paxos;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -171,31 +170,26 @@ public abstract class ConsensusTableMigration
         return cm.consensusMigrationState.tableStates.get(tableId);
     }
 
-    public static void startMigrationToConsensusProtocol(@Nonnull String targetProtocolName,
-                                                         @Nullable List<String> keyspaceNames,
+    public static void startMigrationToConsensusProtocol(@Nullable List<String> keyspaceNames,
                                                          @Nonnull Optional<List<String>> maybeTables,
                                                          @Nonnull Optional<String> maybeRangesStr)
     {
         checkArgument(!maybeTables.isPresent() || !maybeTables.get().isEmpty(), "Must provide at least 1 table if Optional is not empty");
-        ConsensusMigrationTarget targetProtocol = ConsensusMigrationTarget.fromString(targetProtocolName);
+        ClusterMetadata cm = ClusterMetadata.current();
 
         if (keyspaceNames == null || keyspaceNames.isEmpty())
         {
             keyspaceNames = ImmutableList.copyOf(StorageService.instance.getNonLocalStrategyKeyspaces());
         }
         checkState(keyspaceNames.size() == 1 || !maybeTables.isPresent(), "Can't specify tables with multiple keyspaces");
-        List<TableId> ids = keyspacesAndTablesToTableIds(keyspaceNames, maybeTables);
+        List<TableId> ids = keyspacesAndTablesToTableIds(cm, keyspaceNames, maybeTables);
 
-        // TODO (review): should this perform the schema change to make these tables accord tables?
         List<TableId> tableIds = new ArrayList<>();
         for (TableId tableId : ids)
         {
-            TableMetadata metadata = Schema.instance.getTableMetadata(tableId);
+            TableMetadata metadata = cm.schema.getTableMetadata(tableId);
             if (metadata == null || !metadata.params.transactionalMigrationFrom.isMigrating())
                 continue;
-            TransactionalMode transactionalMode = metadata.params.transactionalMode;
-            if (!transactionalMode.nonSerialWritesThroughAccord && transactionalMode != TransactionalMode.unsafe_writes)
-                throw new IllegalStateException("non-SERIAL writes need to be routed through Accord before attempting migration, or enable mixed mode");
             tableIds.add(tableId);
         }
 
@@ -207,41 +201,41 @@ public abstract class ConsensusTableMigration
         Token minToken = partitioner.getMinimumToken();
         NormalizedRanges<Token> ranges = normalizedRanges(maybeParsedRanges.orElse(ImmutableList.of(new Range(minToken, minToken))));
 
-
-        ClusterMetadataService.instance().commit(new BeginConsensusMigrationForTableAndRange(targetProtocol, ranges, tableIds));
+        ClusterMetadataService.instance().commit(new BeginConsensusMigrationForTableAndRange(ranges, tableIds));
     }
 
     public static Integer finishMigrationToConsensusProtocol(@Nonnull String keyspace,
-                                                                   @Nonnull Optional<List<String>> maybeTables,
-                                                                   @Nonnull Optional<String> maybeRangesStr,
-                                                                   ConsensusMigrationTarget target)
+                                                             @Nonnull Optional<List<String>> maybeTables,
+                                                             @Nonnull Optional<String> maybeRangesStr,
+                                                             @Nonnull ConsensusMigrationTarget target)
     {
         checkArgument(!maybeTables.isPresent() || !maybeTables.get().isEmpty(), "Must provide at least 1 table if Optional is not empty");
         checkNotNull(target);
+        ClusterMetadata cm = ClusterMetadata.current();
 
         Optional<List<Range<Token>>> localKeyspaceRanges = Optional.of(ImmutableList.copyOf(StorageService.instance.getLocalReplicas(keyspace).onlyFull().ranges()));
         List<Range<Token>> ranges = maybeRangesToRanges(maybeRangesStr, localKeyspaceRanges);
         Map<TableId, TableMigrationState> allTableMigrationStates = ClusterMetadata.current().consensusMigrationState.tableStates;
-        List<TableId> tableIds = keyspacesAndTablesToTableIds(ImmutableList.of(keyspace), maybeTables, Optional.of(allTableMigrationStates::containsKey));
+        List<TableId> tableIds = keyspacesAndTablesToTableIds(cm, ImmutableList.of(keyspace), maybeTables, Optional.of(allTableMigrationStates::containsKey));
 
         checkState(tableIds.stream().allMatch(allTableMigrationStates::containsKey), "All tables need to be migrating");
         List<TableMigrationState> tableMigrationStates = new ArrayList<>();
         tableIds.forEach(table -> {
-            ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(table);
-            if (cfs == null)
+            TableMetadata tm = cm.schema.getTableMetadata(table);
+            if (tm == null)
             {
-                logger.warn("Table {} does not exist or was dropped", cfs);
+                logger.warn("Table {} does not exist or was dropped", table);
                 return;
             }
             TableMigrationState tms = allTableMigrationStates.get(table);
             if (tms == null)
             {
-                logger.warn("Table {} does not have any migration state", cfs.name);
+                logger.warn("Table {} does not have any migration state", tm.name);
                 return;
             }
-            if(!Range.intersects(ranges, tms.migratingRanges))
+            if (!Range.intersects(ranges, tms.migratingRanges))
             {
-                logger.warn("Table {} with migrating ranges {} does not intersect with any requested ranges {}", cfs.name, tms.migratingRanges, ranges);
+                logger.warn("Table {} with migrating ranges {} does not intersect with any requested ranges {}", tm.name, tms.migratingRanges, ranges);
                 return;
             }
             tableMigrationStates.add(tms);
@@ -341,12 +335,12 @@ public abstract class ConsensusTableMigration
     }
 
 
-    private static List<TableId> keyspacesAndTablesToTableIds(@Nonnull List<String> keyspaceNames, @Nonnull Optional<List<String>> maybeTables)
+    private static List<TableId> keyspacesAndTablesToTableIds(@Nonnull ClusterMetadata cm, @Nonnull List<String> keyspaceNames, @Nonnull Optional<List<String>> maybeTables)
     {
-        return keyspacesAndTablesToTableIds(keyspaceNames, maybeTables, Optional.empty());
+        return keyspacesAndTablesToTableIds(cm, keyspaceNames, maybeTables, Optional.empty());
     }
 
-    private static List<TableId> keyspacesAndTablesToTableIds(@Nonnull List<String> keyspaceNames, @Nonnull Optional<List<String>> maybeTables, @Nonnull Optional<Predicate<TableId>> includeTable)
+    private static List<TableId> keyspacesAndTablesToTableIds(@Nonnull ClusterMetadata cm, @Nonnull List<String> keyspaceNames, @Nonnull Optional<List<String>> maybeTables, @Nonnull Optional<Predicate<TableId>> includeTable)
     {
         List<TableId> tableIds = new ArrayList<>();
         for (String keyspaceName : keyspaceNames)
@@ -355,7 +349,7 @@ public abstract class ConsensusTableMigration
                     tableNames
                             .stream()
                             .map(tableName -> {
-                                TableMetadata tm = Schema.instance.getTableMetadata(keyspaceName, tableName);
+                                TableMetadata tm = cm.schema.getTableMetadata(keyspaceName, tableName);
                                 if (tm == null)
                                     throw new IllegalArgumentException(format("Unknown table %s.%s", keyspaceName, tableName));
                                 return tm.id;
@@ -363,7 +357,7 @@ public abstract class ConsensusTableMigration
                             .collect(toImmutableList()));
             tableIds.addAll(
                     maybeTableIds.orElseGet(() ->
-                            Schema.instance.getKeyspaceInstance(keyspaceName).getColumnFamilyStores()
+                            cm.schema.getKeyspace(keyspaceName).getColumnFamilyStores()
                                     .stream()
                                     .map(ColumnFamilyStore::getTableId)
                                     .filter(includeTable.orElse(Predicates.alwaysTrue())) // Filter out non-migrating so they don't generate an error

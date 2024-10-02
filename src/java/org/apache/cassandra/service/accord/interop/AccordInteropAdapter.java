@@ -107,7 +107,7 @@ public class AccordInteropAdapter extends AbstractTxnAdapter
         if (updateKind != AccordUpdate.Kind.UNRECOVERABLE_REPAIR && (consistencyLevel == null || consistencyLevel == ConsistencyLevel.ONE || txn.read().keys().isEmpty()))
             return false;
 
-        new AccordInteropExecution(node, txnId, txn, updateKind, route, txn.read().keys().toParticipants(), executeAt, deps, callback, executor, consistencyLevel, endpointMapper)
+        new AccordInteropExecution(node, txnId, txn, updateKind, route, executeAt, deps, callback, executor, consistencyLevel, endpointMapper)
             .start();
         return true;
     }

@@ -110,17 +110,27 @@ public interface IAccordService
     class AsyncTxnResult extends AsyncPromise<TxnResult>
     {
         public final @Nonnull TxnId txnId;
+        public final long minEpoch;
+        @Nullable
+        public final ConsistencyLevel consistencyLevel;
+        public final boolean isWrite;
+        public final Dispatcher.RequestTime requestTime;
 
-        public AsyncTxnResult(@Nonnull TxnId txnId)
+        public AsyncTxnResult(@Nonnull TxnId txnId, long minEpoch, @Nullable ConsistencyLevel consistencyLevel, boolean isWrite, @Nonnull Dispatcher.RequestTime requestTime)
         {
             checkNotNull(txnId);
+            checkNotNull(requestTime);
             this.txnId = txnId;
+            this.minEpoch = minEpoch;
+            this.consistencyLevel = consistencyLevel;
+            this.isWrite = isWrite;
+            this.requestTime = requestTime;
         }
     }
 
     @Nonnull
     AsyncTxnResult coordinateAsync(long minEpoch, @Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime);
-    TxnResult getTxnResult(AsyncTxnResult asyncTxnResult, boolean isWrite, @Nullable ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime);
+    TxnResult getTxnResult(AsyncTxnResult asyncTxnResult);
 
     long currentEpoch();
 
@@ -236,7 +246,7 @@ public interface IAccordService
         }
 
         @Override
-        public TxnResult getTxnResult(AsyncTxnResult asyncTxnResult, boolean isWrite, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
+        public TxnResult getTxnResult(AsyncTxnResult asyncTxnResult)
         {
             throw new UnsupportedOperationException("No accord transaction should be executed when accord.enabled = false in cassandra.yaml");
         }
@@ -418,9 +428,9 @@ public interface IAccordService
         }
 
         @Override
-        public TxnResult getTxnResult(AsyncTxnResult asyncTxnResult, boolean isWrite, @Nullable ConsistencyLevel consistencyLevel, RequestTime requestTime)
+        public TxnResult getTxnResult(AsyncTxnResult asyncTxnResult)
         {
-            return delegate.getTxnResult(asyncTxnResult, isWrite, consistencyLevel, requestTime);
+            return delegate.getTxnResult(asyncTxnResult);
         }
 
         @Override

@@ -34,6 +34,7 @@ import org.slf4j.LoggerFactory;
 
 import accord.coordinate.CoordinationFailed;
 import accord.primitives.Keys;
+import accord.primitives.Routable.Domain;
 import accord.primitives.Txn;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -54,8 +55,8 @@ import org.apache.cassandra.service.accord.IAccordService;
 import org.apache.cassandra.service.accord.IAccordService.AsyncTxnResult;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.txn.TxnCondition;
-import org.apache.cassandra.service.accord.txn.TxnKeyRead;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
+import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.service.accord.txn.TxnReferenceOperations;
 import org.apache.cassandra.service.accord.txn.TxnUpdate;
 import org.apache.cassandra.service.accord.txn.TxnWrite;
@@ -115,10 +116,10 @@ public class ConsensusMigrationMutationHelper
                 TableParams tableParams = getTableMetadata(cm, tableId).params;
                 TransactionalMode mode = tableParams.transactionalMode;
                 TransactionalMigrationFromMode migrationFromMode = tableParams.transactionalMigrationFrom;
-                // commitCLForStrategy should return either null or the supplied consistency level
+                // commitCLForMode should return either null or the supplied consistency level
                 // in which case we will commit everything at that CL since Accord doesn't support per table
                 // commit consistency
-                ConsistencyLevel commitCL = mode.commitCLForStrategy(migrationFromMode, consistencyLevel, cm, tableId, mutation.key().getToken());
+                ConsistencyLevel commitCL = mode.commitCLForMode(migrationFromMode, consistencyLevel, cm, tableId, mutation.key().getToken());
                 if (commitCL != null)
                     return commitCL;
             }
@@ -217,11 +218,11 @@ public class ConsensusMigrationMutationHelper
 
     public <T extends IMutation> SplitMutation<T> splitMutationIntoAccordAndNormal(T mutation, ClusterMetadata cm)
     {
-        if (mutation.allowsPotentialTransactionConflicts())
+        if (mutation.potentialTxnConflicts().allowed)
             return new SplitMutation<>(null, mutation);
 
         Token token = mutation.key().getToken();
-        Predicate<TableId> isAccordUpdate = tableId -> tokenShouldBeWrittenThroughAccord(cm, tableId, token, TransactionalMode::nonSerialWritesThroughAccord, TransactionalMigrationFromMode::nonSerialReadsThroughAccord);
+        Predicate<TableId> isAccordUpdate = tableId -> tokenShouldBeWrittenThroughAccord(cm, tableId, token, TransactionalMode::nonSerialWritesThroughAccord, TransactionalMigrationFromMode::nonSerialWritesThroughAccord);
 
         T accordMutation = (T)mutation.filter(isAccordUpdate);
         T normalMutation = (T)mutation.filter(not(isAccordUpdate));
@@ -258,15 +259,15 @@ public class ConsensusMigrationMutationHelper
         // Potentially ignore commit consistency level if the TransactionalMode specifies full
         ConsistencyLevel clForCommit = consistencyLevelForCommit(cm, mutations, consistencyLevel);
         TxnUpdate update = new TxnUpdate(fragments, TxnCondition.none(), clForCommit, true);
-        Txn.InMemory txn = new Txn.InMemory(Keys.of(partitionKeys), TxnKeyRead.EMPTY, TxnQuery.NONE, update);
+        Txn.InMemory txn = new Txn.InMemory(Keys.of(partitionKeys), TxnRead.empty(Domain.Key), TxnQuery.NONE, update);
         IAccordService accordService = AccordService.instance();
         try
         {
-            return accordService.coordinateAsync(minEpoch, txn, consistencyLevel, requestTime);
+            return accordService.coordinateAsync(minEpoch, txn, clForCommit, requestTime);
         }
         catch (CoordinationFailed coordinationFailed)
         {
-            AsyncTxnResult failure = new AsyncTxnResult(coordinationFailed.txnId());
+            AsyncTxnResult failure = new AsyncTxnResult(coordinationFailed.txnId(), minEpoch, clForCommit, true, requestTime);
             failure.setFailure(coordinationFailed.wrap());
             return failure;
         }
@@ -274,15 +275,16 @@ public class ConsensusMigrationMutationHelper
 
     public static void validateSafeToExecuteNonTransactionally(IMutation mutation) throws RetryOnDifferentSystemException
     {
-        if (mutation.allowsPotentialTransactionConflicts())
+        if (mutation.potentialTxnConflicts().allowed)
             return;
 
+        String keyspace = mutation.getKeyspaceName();
         // System keyspaces are never managed by Accord
-        if (SchemaConstants.isSystemKeyspace(mutation.getKeyspaceName()))
+        if (SchemaConstants.isSystemKeyspace(keyspace))
             return;
 
         // Local keyspaces are never managed by Accord
-        if (Schema.instance.localKeyspaces().containsKeyspace(mutation.getKeyspaceName()))
+        if (Schema.instance.localKeyspaces().containsKeyspace(keyspace))
             return;
 
         ClusterMetadata cm = ClusterMetadata.current();
@@ -297,7 +299,7 @@ public class ConsensusMigrationMutationHelper
         {
             TableId tableId = pu.metadata().id;
             ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(tableId);
-            if (tokenShouldBeWrittenThroughAccord(cm, tableId, dk.getToken(), TransactionalMode::nonSerialWritesThroughAccord, TransactionalMigrationFromMode::nonSerialReadsThroughAccord))
+            if (tokenShouldBeWrittenThroughAccord(cm, tableId, dk.getToken(), TransactionalMode::nonSerialWritesThroughAccord, TransactionalMigrationFromMode::nonSerialWritesThroughAccord))
             {
                 throwRetryOnDifferentSystem = true;
                 if (markedColumnFamilies == null)
@@ -350,21 +352,18 @@ public class ConsensusMigrationMutationHelper
             // with different results if Accord reads non-transactionally written data that could be seen differently by different coordinators
 
             // If the current mode writes through Accord then we should always write though Accord for ranges managed by Accord.
-            // Accord needs to do synchronous commit and respect the consistency level so that Accord will later be able to
-            // read its own writes
+            // Accord needs to do synchronous commit and respect the consistency level so non-SERIAL reads can read Accord's
+            // writes.
             if (transactionalModeWritesThroughAccord)
+            {
                 return tms.migratingAndMigratedRanges.intersects(token);
+            }
 
-            // If we are migrating from a mode that used to write to Accord then any range that isn't migrating/migrated
-            // should continue to write through Accord.
-            // It's not completely symmetrical because Paxos is able to read Accord's writes by performing a single key barrier
-            // and regular mutations will be able to do the same thing (needs to be added along with non-transactional reads)
-            // This means that migrating ranges don't need to be written through Accord because we are running Paxos now
-            // and not Accord. When migrating to Accord we need to do all the writes through Accord even if we aren't
-            // reading through Accord so that repair + Accord metadata is sufficient for Accord to be able to read
-            // safely and deterministically from any coordinator
+            // If we are migrating from a mode that used to write to Accord then any range that isn't migrated
+            // should continue to write through Accord. Accord might still be executing txns pre-migration so continue
+            // to route writes through Accord until migration is completed.
             if (migrationFromWritesThroughAccord)
-                return !tms.migratingAndMigratedRanges.intersects(token);
+                return !tms.migratedRanges.intersects(token);
         }
         return false;
     }

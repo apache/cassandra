@@ -232,7 +232,7 @@ public class HintsServiceTest
                     public AsyncTxnResult mutateWithAccordAsync(ClusterMetadata cm, Mutation mutation, @Nullable ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
                     {
                         accordTxnCount.incrementAndGet();
-                        AsyncTxnResult asyncTxnResult = new AsyncTxnResult(AccordTestUtils.txnId(42, 43, 44));
+                        AsyncTxnResult asyncTxnResult = new AsyncTxnResult(AccordTestUtils.txnId(42, 43, 44), 42, consistencyLevel, true, requestTime);
                         asyncTxnResult.setSuccess(new TxnData());
                         return asyncTxnResult;
                     }

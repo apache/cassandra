@@ -25,6 +25,7 @@ import org.apache.cassandra.db.CounterMutation;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.ReadCommand.PotentialTxnConflicts;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.commitlog.CommitLogSegment;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
@@ -78,16 +79,16 @@ final class SingleTableSinglePartitionUpdatesCollector implements UpdatesCollect
      * Returns a collection containing all the mutations.
      */
     @Override
-    public List<IMutation> toMutations(ClientState state, boolean allowPotentialTxnConflicts)
+    public List<IMutation> toMutations(ClientState state, PotentialTxnConflicts potentialTxnConflicts)
     {
         // it is possible that a modification statement does not create any mutations
         // for example: DELETE FROM some_table WHERE part_key = 1 AND clust_key < 3 AND clust_key > 5
         if (builder == null)
             return Collections.emptyList();
-        return Collections.singletonList(createMutation(state, builder, allowPotentialTxnConflicts));
+        return Collections.singletonList(createMutation(state, builder, potentialTxnConflicts));
     }
 
-    private IMutation createMutation(ClientState state, PartitionUpdate.Builder builder, boolean allowPotentialTxnConflicts)
+    private IMutation createMutation(ClientState state, PartitionUpdate.Builder builder, PotentialTxnConflicts potentialTxnConflicts)
     {
         IMutation mutation;
 
@@ -96,7 +97,7 @@ final class SingleTableSinglePartitionUpdatesCollector implements UpdatesCollect
         else if (metadata.isCounter())
             mutation = new CounterMutation(new Mutation(builder.build()), counterConsistencyLevel);
         else
-            mutation = new Mutation(builder.build(), allowPotentialTxnConflicts);
+            mutation = new Mutation(builder.build(), potentialTxnConflicts);
 
         mutation.validateIndexedColumns(state);
         mutation.validateSize(MessagingService.current_version, CommitLogSegment.ENTRY_OVERHEAD_SIZE);

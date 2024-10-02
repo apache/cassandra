@@ -21,6 +21,7 @@ package org.apache.cassandra.distributed.impl;
 import java.net.InetSocketAddress;
 
 import org.apache.cassandra.distributed.api.IMessage;
+import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.utils.ByteArrayUtil;
 
 // a container for simplifying the method signature for per-instance message handling/delivery
@@ -78,7 +79,7 @@ public class MessageImpl implements IMessage
     public String toString()
     {
         return "MessageImpl{" +
-               "verb=" + verb +
+               "verb=" + Verb.fromId(verb) +
                ", bytes=" + ByteArrayUtil.bytesToHex(bytes) +
                ", id=" + id +
                ", version=" + version +

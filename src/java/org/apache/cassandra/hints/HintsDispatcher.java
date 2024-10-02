@@ -42,6 +42,8 @@ import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.RetryOnDifferentSystemException;
+import org.apache.cassandra.exceptions.WriteFailureException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -248,7 +250,9 @@ final class HintsDispatcher implements AutoCloseable
                 failedRetryDifferentSystem = true;
         }
 
-        if (failures > 0 || timeouts > 0 || failedRetryDifferentSystem)
+        // The batchlog Accord hints need to return abort if any hint needs to be retried and retry the whole page
+        // since we don't want hints to ping pong back and forth via hintsNeedingRehinting
+        if (failures > 0 || timeouts > 0 || failedRetryDifferentSystem || (isBatchLogHints && retryDifferentSystem > 0))
         {
             HintDiagnostics.pageFailureResult(this, success, failures, timeouts, retryDifferentSystem);
             return Action.ABORT;
@@ -534,16 +538,26 @@ final class HintsDispatcher implements AutoCloseable
             try
             {
                 IAccordService accord = AccordService.instance();
-                TxnResult.Kind kind = accord.getTxnResult(accordTxnResult, true, null, requestTime).kind();
+                TxnResult.Kind kind = accord.getTxnResult(accordTxnResult).kind();
                 if (kind == retry_new_protocol)
                     accordOutcome = RETRY_DIFFERENT_SYSTEM;
                 else
                     accordOutcome = SUCCESS;
             }
+            catch (WriteTimeoutException | WriteFailureException | RetryOnDifferentSystemException e)
+            {
+                if (e instanceof RetryOnDifferentSystemException)
+                    accordOutcome = RETRY_DIFFERENT_SYSTEM;
+                else
+                    accordOutcome = TIMEOUT;
+                String msg = "Accord hint delivery transaction failed retriably";
+                if (noSpamLogger.getStatement(msg).shouldLog(Clock.Global.nanoTime()))
+                    logger.error(msg, e);
+            }
             catch (Exception e)
             {
-                accordOutcome = e instanceof WriteTimeoutException ? TIMEOUT : FAILURE;
-                String msg = "Accord hint delivery transaction failed";
+                accordOutcome = FAILURE;
+                String msg = "Accord hint delivery transaction failed permanently";
                 if (noSpamLogger.getStatement(msg).shouldLog(Clock.Global.nanoTime()))
                     logger.error(msg, e);
             }
