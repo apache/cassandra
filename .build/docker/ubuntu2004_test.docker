@@ -128,8 +128,8 @@ RUN /bin/bash -c "source ${BUILD_HOME}/env3.8/bin/activate && \
 #  this can be checked with:
 #  `curl -s https://downloads.apache.org/cassandra/ | grep -oP '(?<=href=\")[0-9]+\.[0-9]+\.[0-9]+(?=)' | sort -rV | uniq -w 3`
 RUN bash -c 'source ${BUILD_HOME}/env3.8/bin/activate && \
-    for i in {1..13} ; do echo $i ; ccm create --quiet -n 1 -v binary:4.0.$i test && ccm remove test ; done && \
-    for i in {1..5}  ; do echo $i ; ccm create --quiet -n 1 -v binary:4.1.$i test && ccm remove test ; done'
+    for i in {1..14} ; do echo $i ; ccm create --quiet -n 1 -v binary:4.0.$i test && ccm remove test ; done && \
+    for i in {1..7}  ; do echo $i ; ccm create --quiet -n 1 -v binary:4.1.$i test && ccm remove test ; done'
 
 # 5+ requires java11
 RUN sudo update-java-alternatives --set java-1.11.0-openjdk-$(dpkg --print-architecture)
@@ -139,9 +139,7 @@ RUN rm -fr ${BUILD_HOME}/.ccm/repository/_git_cache_apache
 RUN /bin/bash -c 'source ${BUILD_HOME}/env3.8/bin/activate && \
     ccm create --quiet -n 1 -v git:cassandra-5.0 test && ccm remove test && \
     ccm create --quiet -n 1 -v git:trunk test && ccm remove test && \
-    ccm create --quiet -n 1 -v binary:5.0-rc1 test && ccm remove test '
-# TODO When binary:5.0* is GA
-#    for i in {0..0}  ; do echo $i ; ccm create --quiet -n 1 -v binary:5.0.$i test && ccm remove test ; done'
+    for i in {1..1}  ; do echo $i ; ccm create --quiet -n 1 -v binary:5.0.$i test && ccm remove test ; done'
 
 # the .git subdirectories to pip installed cassandra-driver breaks virtualenv-clone, so just remove them
 #  and other directories we don't need in image
