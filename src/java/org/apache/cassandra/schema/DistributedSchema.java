@@ -131,6 +131,12 @@ public class DistributedSchema implements MetadataValue<DistributedSchema>
         return tables.get(id);
     }
 
+    public TableMetadata getTableMetadata(String keyspace, String cf)
+    {
+        var ks = keyspaces.getNullable(keyspace);
+        return ks == null ? null : ks.tables.getNullable(cf);
+    }
+
     public static DistributedSchema fromSystemTables(Keyspaces keyspaces, Set<String> knownDatacenters)
     {
         if (!keyspaces.containsKeyspace(SchemaConstants.METADATA_KEYSPACE_NAME))

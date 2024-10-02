@@ -91,7 +91,6 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
 import static org.apache.cassandra.service.accord.txn.TxnRead.createTxnRead;
 import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.retry_new_protocol;
-import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.values;
 
 public class TransactionStatement implements CQLStatement.CompositeCQLStatement, CQLStatement.ReturningCQLStatement
 {
