@@ -29,7 +29,6 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationTarget;
@@ -83,7 +82,7 @@ public class BeginConsensusMigrationForTableAndRange implements Transformation
     public Result execute(ClusterMetadata prev)
     {
         Transformer transformer = prev.transformer();
-        Collection<TableMetadata> metadata = tables.stream().map(Schema.instance::getTableMetadata).collect(Collectors.toList());
+        Collection<TableMetadata> metadata = tables.stream().map(prev.schema::getTableMetadata).collect(Collectors.toList());
         ConsensusMigrationState consensusMigrationState = prev.consensusMigrationState.withRangesMigrating(metadata, ranges, false);
         return Transformation.success(transformer.with(consensusMigrationState), LockedRanges.AffectedRanges.EMPTY);
     }
