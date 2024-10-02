@@ -31,7 +31,6 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -298,7 +297,7 @@ public class AccordService implements IAccordService, Shutdownable
         @Override
         public CompactionInfo getCompactionInfo()
         {
-            return new CompactionInfo(new Int2ObjectHashMap<>(), new Int2ObjectHashMap<>(), DurableBefore.EMPTY);
+            return new CompactionInfo(new Int2ObjectHashMap<>(), new Int2ObjectHashMap<>(), new Int2ObjectHashMap<>());
         }
 
         @Override
@@ -1261,17 +1260,17 @@ public class AccordService implements IAccordService, Shutdownable
     public CompactionInfo getCompactionInfo()
     {
         Int2ObjectHashMap<RedundantBefore> redundantBefores = new Int2ObjectHashMap<>();
+        Int2ObjectHashMap<DurableBefore> durableBefores = new Int2ObjectHashMap<>();
         Int2ObjectHashMap<RangesForEpoch> ranges = new Int2ObjectHashMap<>();
-        AtomicReference<DurableBefore> durableBefore = new AtomicReference<>(DurableBefore.EMPTY);
         AsyncChains.getBlockingAndRethrow(node.commandStores().forEach(safeStore -> {
             synchronized (redundantBefores)
             {
-                redundantBefores.put(safeStore.commandStore().id(), safeStore.commandStore().redundantBefore());
+                redundantBefores.put(safeStore.commandStore().id(), safeStore.redundantBefore());
                 ranges.put(safeStore.commandStore().id(), safeStore.ranges());
+                durableBefores.put(safeStore.commandStore().id(), safeStore.durableBefore());
             }
-            durableBefore.set(DurableBefore.merge(durableBefore.get(), safeStore.commandStore().durableBefore()));
         }));
-        return new CompactionInfo(redundantBefores, ranges, durableBefore.get());
+        return new CompactionInfo(redundantBefores, ranges, durableBefores);
     }
 
     @Override

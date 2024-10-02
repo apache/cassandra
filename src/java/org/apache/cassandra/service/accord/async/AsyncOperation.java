@@ -269,24 +269,23 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
                     }
                 }
 
-                commandStore.completeOperation(safeStore);
-                context.releaseResources(commandStore);
-                state(COMPLETING);
+                boolean flushed = false;
                 if (diffs != null || safeStore.fieldUpdates() != null)
                 {
                     Runnable onFlush = () -> finish(result, null);
                     if (safeStore.fieldUpdates() != null)
-                    {
-                        if (diffs != null)
-                            appendCommands(diffs, null);
-                        commandStore.persistFieldUpdates(safeStore.fieldUpdates(), onFlush);
-                    }
-                    else
-                    {
+                        commandStore.persistFieldUpdates(safeStore.fieldUpdates(), diffs == null ? onFlush : null);
+                    if (diffs != null)
                         appendCommands(diffs, onFlush);
-                    }
-                    return false;
+                    flushed = true;
                 }
+
+                commandStore.completeOperation(safeStore);
+                context.releaseResources(commandStore);
+                state(COMPLETING);
+                if (flushed)
+                    return false;
+
             case COMPLETING:
                 finish(result, null);
             case FINISHED:

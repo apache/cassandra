@@ -61,6 +61,7 @@ import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.partitions.PurgeFunction;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
@@ -109,6 +110,7 @@ import org.apache.cassandra.service.paxos.uncommitted.PaxosRows;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static accord.local.Cleanup.ERASE;
+import static accord.local.Cleanup.TRUNCATE;
 import static accord.local.Cleanup.TRUNCATE_WITH_OUTCOME;
 import static accord.local.Cleanup.shouldCleanupPartial;
 import static com.google.common.base.Preconditions.checkState;
@@ -148,6 +150,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 {
     private static final Logger logger = LoggerFactory.getLogger(CompactionIterator.class);
     private static final long UNFILTERED_TO_UPDATE_PROGRESS = 100;
+    private static Object[] TRUNCATE_CLUSTERING_VALUE = new Object[] { Long.MAX_VALUE, Integer.MAX_VALUE };
 
     private final OperationType type;
     private final AbstractCompactionController controller;
@@ -806,8 +809,8 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
     class AccordCommandsPurger extends AbstractPurger
     {
         final Int2ObjectHashMap<RedundantBefore> redundantBefores;
+        final Int2ObjectHashMap<DurableBefore> durableBefores;
         final Int2ObjectHashMap<RangesForEpoch> ranges;
-        final DurableBefore durableBefore;
 
         int storeId;
         TxnId txnId;
@@ -817,7 +820,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
             IAccordService.CompactionInfo compactionInfo = accordService.get().getCompactionInfo();
             this.redundantBefores = compactionInfo.redundantBefores;
             this.ranges = compactionInfo.ranges;
-            this.durableBefore = compactionInfo.durableBefore;
+            this.durableBefores = compactionInfo.durableBefores;
         }
 
         protected void beginPartition(UnfilteredRowIterator partition)
@@ -833,6 +836,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
             updateProgress();
 
             RedundantBefore redundantBefore = redundantBefores.get(storeId);
+            DurableBefore durableBefore = durableBefores.get(storeId);
             // TODO (expected): if the store has been retired, this should return null
             if (redundantBefore == null)
                 return row;
@@ -1013,8 +1017,8 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
     class AccordJournalPurger extends AbstractPurger
     {
         final Int2ObjectHashMap<RedundantBefore> redundantBefores;
+        final Int2ObjectHashMap<DurableBefore> durableBefores;
         final Int2ObjectHashMap<CommandStores.RangesForEpoch> ranges;
-        final DurableBefore durableBefore;
         final ColumnMetadata recordColumn;
         final ColumnMetadata versionColumn;
         final KeySupport<JournalKey> keySupport = JournalKey.SUPPORT;
@@ -1026,6 +1030,8 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         Object[] lastClustering = null;
         long maxSeenTimestamp = -1;
         final int userVersion;
+        long lastDescriptor = -1;
+        int lastOffset = -1;
 
         public AccordJournalPurger(Supplier<IAccordService> serviceSupplier)
         {
@@ -1036,7 +1042,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
             this.redundantBefores = compactionInfo.redundantBefores;
             this.ranges = compactionInfo.ranges;
-            this.durableBefore = compactionInfo.durableBefore;
+            this.durableBefores = compactionInfo.durableBefores;
             ColumnFamilyStore cfs = Keyspace.open(AccordKeyspace.metadata().name).getColumnFamilyStore(AccordKeyspace.JOURNAL);
             this.recordColumn = cfs.metadata().getColumn(ColumnIdentifier.getInterned("record", false));
             this.versionColumn = cfs.metadata().getColumn(ColumnIdentifier.getInterned("user_version", false));
@@ -1050,6 +1056,8 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
             serializer = (AccordJournalValueSerializers.FlyweightSerializer<Object, Object>) key.type.serializer;
             builder = serializer.mergerFor(key);
             maxSeenTimestamp = -1;
+            lastDescriptor = -1;
+            lastOffset = -1;
         }
 
         @Override
@@ -1096,6 +1104,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                 }
 
                 RedundantBefore redundantBefore = redundantBefores.get(key.commandStoreId);
+                DurableBefore durableBefore = durableBefores.get(key.commandStoreId);
                 Cleanup cleanup = commandBuilder.shouldCleanup(redundantBefore, durableBefore);
                 if (cleanup == ERASE)
                     return PartitionUpdate.fullPartitionDelete(metadata(), partition.partitionKey(), maxSeenTimestamp, nowInSec).unfilteredIterator();
@@ -1107,9 +1116,16 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                         return null;
 
                     PartitionUpdate.SimpleBuilder newVersion = PartitionUpdate.simpleBuilder(AccordKeyspace.Journal, partition.partitionKey());
-                    newVersion.row(lastClustering)
-                              .add("record", commandBuilder.asByteBuffer(userVersion))
+
+                    Row.SimpleBuilder rowBuilder;
+                    if (cleanup == TRUNCATE || cleanup == TRUNCATE_WITH_OUTCOME)
+                        rowBuilder = newVersion.row(TRUNCATE_CLUSTERING_VALUE);
+                    else
+                        rowBuilder = newVersion.row(lastClustering);
+
+                    rowBuilder.add("record", commandBuilder.asByteBuffer(userVersion))
                               .add("user_version", userVersion);
+
                     return newVersion.build().unfilteredIterator();
                 }
 
@@ -1133,6 +1149,20 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
             updateProgress();
             maxSeenTimestamp = row.primaryKeyLivenessInfo().timestamp();
             ByteBuffer record = row.getCell(recordColumn).buffer();
+            long descriptor = LongType.instance.compose(row.clustering().getBufferArray()[0]);
+            int offset = Int32Type.instance.compose(row.clustering().getBufferArray()[1]);
+
+            if (lastOffset != -1)
+            {
+                Invariants.checkState(descriptor >= lastDescriptor,
+                                      "Descriptors were accessed out of order: %d was accessed after %d", descriptor, lastDescriptor);
+                Invariants.checkState(descriptor != lastDescriptor ||
+                                      offset > lastOffset,
+                                      "Offsets within %s were accessed out of order: %d was accessed after %s", offset, lastOffset);
+            }
+            lastDescriptor = descriptor;
+            lastOffset = offset;
+
             try (DataInputBuffer in = new DataInputBuffer(record, false))
             {
                 int userVersion = Int32Type.instance.compose(row.getCell(versionColumn).buffer());

@@ -47,9 +47,9 @@ import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.service.accord.AccordCommandStore;
 import org.apache.cassandra.service.accord.AccordConfigurationService;
 import org.apache.cassandra.service.accord.AccordConfigurationService.EpochSnapshot;
+import org.apache.cassandra.service.accord.AccordSafeCommandStore;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.streaming.StreamManager;
@@ -271,9 +271,9 @@ public class AccordBootstrapTest extends TestBaseImpl
                     });
 
                     awaitUninterruptiblyAndRethrow(service().node().commandStores().forEach(safeStore -> {
-                        AccordCommandStore commandStore = (AccordCommandStore) safeStore.commandStore();
-                        Assert.assertEquals(Timestamp.NONE, getOnlyElement(commandStore.bootstrapBeganAt().keySet()));
-                        Assert.assertEquals(Timestamp.NONE, getOnlyElement(commandStore.safeToRead().keySet()));
+                        AccordSafeCommandStore ss = (AccordSafeCommandStore) safeStore;
+                        Assert.assertEquals(Timestamp.NONE, getOnlyElement(ss.bootstrapBeganAt().keySet()));
+                        Assert.assertEquals(Timestamp.NONE, getOnlyElement(ss.safeToReadAt().keySet()));
 //
 //                        Assert.assertTrue(commandStore.maxBootstrapEpoch() > 0);
 //                        Assert.assertTrue(commandStore.bootstrapBeganAt().isEmpty());
@@ -316,17 +316,17 @@ public class AccordBootstrapTest extends TestBaseImpl
                         awaitUninterruptiblyAndRethrow(service().node().commandStores().forEach(safeStore -> {
                             if (safeStore.ranges().currentRanges().contains(partitionKey))
                             {
-                                AccordCommandStore commandStore = (AccordCommandStore) safeStore.commandStore();
-                                Assert.assertFalse(commandStore.bootstrapBeganAt().isEmpty());
-                                Assert.assertFalse(commandStore.safeToRead().isEmpty());
+                                AccordSafeCommandStore ss = (AccordSafeCommandStore) safeStore;
+                                Assert.assertFalse(ss.bootstrapBeganAt().isEmpty());
+                                Assert.assertFalse(ss.safeToReadAt().isEmpty());
 
-                                Assert.assertEquals(1, commandStore.bootstrapBeganAt().entrySet().stream()
+                                Assert.assertEquals(1, ss.bootstrapBeganAt().entrySet().stream()
                                                                    .filter(entry -> entry.getValue().contains(partitionKey))
                                                                    .map(entry -> {
                                                                        Assert.assertTrue(entry.getKey().compareTo(Timestamp.NONE) > 0);
                                                                        return entry;
                                                                    }).count());
-                                Assert.assertEquals(1, commandStore.safeToRead().entrySet().stream()
+                                Assert.assertEquals(1, ss.safeToReadAt().entrySet().stream()
                                                                    .filter(entry -> entry.getValue().contains(partitionKey))
                                                                    .map(entry -> {
                                                                        Assert.assertTrue(entry.getKey().compareTo(Timestamp.NONE) > 0);
@@ -458,17 +458,17 @@ public class AccordBootstrapTest extends TestBaseImpl
                                                                                           safeStore -> {
                                 if (!safeStore.ranges().allAt(preMove).contains(partitionKey))
                                 {
-                                    AccordCommandStore commandStore = (AccordCommandStore) safeStore.commandStore();
-                                    Assert.assertFalse(commandStore.bootstrapBeganAt().isEmpty());
-                                    Assert.assertFalse(commandStore.safeToRead().isEmpty());
+                                    AccordSafeCommandStore ss = (AccordSafeCommandStore) safeStore;
+                                    Assert.assertFalse(ss.bootstrapBeganAt().isEmpty());
+                                    Assert.assertFalse(ss.safeToReadAt().isEmpty());
 
-                                    Assert.assertEquals(1, commandStore.bootstrapBeganAt().entrySet().stream()
+                                    Assert.assertEquals(1, ss.bootstrapBeganAt().entrySet().stream()
                                                                        .filter(entry -> entry.getValue().contains(partitionKey))
                                                                        .map(entry -> {
                                                                            Assert.assertTrue(entry.getKey().compareTo(Timestamp.NONE) > 0);
                                                                            return entry;
                                                                        }).count());
-                                    Assert.assertEquals(1, commandStore.safeToRead().entrySet().stream()
+                                    Assert.assertEquals(1, ss.safeToReadAt().entrySet().stream()
                                                                        .filter(entry -> entry.getValue().contains(partitionKey))
                                                                        .map(entry -> {
                                                                            Assert.assertTrue(entry.getKey().compareTo(Timestamp.NONE) > 0);

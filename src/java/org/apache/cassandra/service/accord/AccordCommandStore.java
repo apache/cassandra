@@ -502,9 +502,8 @@ public class AccordCommandStore extends CommandStore
         // We find a set of dependencies for a range then update CommandsFor to know about them
         Ranges allRanges = safeStore.ranges().all();
         deps.keyDeps.keys().forEach(allRanges, key -> {
-            // TODO (now): batch register to minimise GC
+            // TODO (desired): batch register to minimise GC
             deps.keyDeps.forEach(key, (txnId, txnIdx) -> {
-                // TODO (desired, efficiency): this can be made more efficient by batching by epoch
                 if (ranges.coordinates(txnId).contains(key))
                     return; // already coordinates, no need to replicate
                 if (!ranges.allBefore(txnId.epoch()).contains(key))
@@ -525,12 +524,12 @@ public class AccordCommandStore extends CommandStore
                 if (!ranges.allBefore(txnId.epoch()).intersects(range))
                     return;
 
+                // TODO (required): this is potentially not safe - it should not be persisted until we save in journal
+                //   but, preferable to retire historical transactions as a concept entirely, and rely on ExclusiveSyncPoints instead
                 diskCommandsForRanges().mergeHistoricalTransaction(txnId, Ranges.single(range).slice(allRanges), Ranges::with);
             });
         }
     }
-
-    public NavigableMap<Timestamp, Ranges> safeToRead() { return super.safeToRead(); }
 
     public void appendCommands(List<SavedCommand.DiffWriter> diffs, Runnable onFlush)
     {
@@ -545,7 +544,7 @@ public class AccordCommandStore extends CommandStore
     @VisibleForTesting
     public Command loadCommand(TxnId txnId)
     {
-        return journal.loadCommand(id, txnId, redundantBefore(), durableBefore());
+        return journal.loadCommand(id, txnId, unsafeGetRedundantBefore(), unsafeGetDurableBefore());
     }
 
     public interface Loader
@@ -592,7 +591,7 @@ public class AccordCommandStore extends CommandStore
                             Command local = command;
                             if (local.status() != Truncated && local.status() != Invalidated)
                             {
-                                Cleanup cleanup = Cleanup.shouldCleanup(AccordCommandStore.this, local, local.participants());
+                                Cleanup cleanup = Cleanup.shouldCleanup(local, unsafeGetRedundantBefore(), unsafeGetDurableBefore());
                                 switch (cleanup)
                                 {
                                     case NO:

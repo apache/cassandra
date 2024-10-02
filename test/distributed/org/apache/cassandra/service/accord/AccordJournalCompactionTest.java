@@ -141,22 +141,22 @@ public class AccordJournalCompactionTest
             {
                 timestamp = timestamp.next();
                 AccordSafeCommandStore.FieldUpdates updates = new AccordSafeCommandStore.FieldUpdates();
-                updates.durableBefore = durableBeforeGen.next(rs);
+                updates.addDurableBefore = durableBeforeGen.next(rs);
                 // TODO: improve redundant before generator and re-enable
 //                updates.redundantBefore = redundantBeforeGen.next(rs);
-                updates.safeToRead = safeToReadGen.next(rs);
-                updates.rangesForEpoch = rangesForEpochGen.next(rs);
-                updates.historicalTransactions = historicalTransactionsGen.next(rs);
+                updates.newSafeToRead = safeToReadGen.next(rs);
+                updates.newRangesForEpoch = rangesForEpochGen.next(rs);
+                updates.addHistoricalTransactions = historicalTransactionsGen.next(rs);
 
                 journal.persistStoreState(1, updates, null);
 
-                redundantBeforeAccumulator.update(updates.redundantBefore);
-                durableBeforeAccumulator.update(updates.durableBefore);
-                if (updates.bootstrapBeganAt != null)
-                    bootstrapBeganAtAccumulator.update(updates.bootstrapBeganAt);
-                safeToReadAccumulator.update(updates.safeToRead);
-                rangesForEpochAccumulator.update(updates.rangesForEpoch);
-                historicalTransactionsAccumulator.update(updates.historicalTransactions);
+                redundantBeforeAccumulator.update(updates.addRedundantBefore);
+                durableBeforeAccumulator.update(updates.addDurableBefore);
+                if (updates.newBootstrapBeganAt != null)
+                    bootstrapBeganAtAccumulator.update(updates.newBootstrapBeganAt);
+                safeToReadAccumulator.update(updates.newSafeToRead);
+                rangesForEpochAccumulator.update(updates.newRangesForEpoch);
+                historicalTransactionsAccumulator.update(updates.addHistoricalTransactions);
 
                 if (i % 100 == 0)
                     journal.closeCurrentSegmentForTestingIfNonEmpty();

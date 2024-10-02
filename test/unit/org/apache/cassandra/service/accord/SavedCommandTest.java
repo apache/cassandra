@@ -132,6 +132,7 @@ public class SavedCommandTest
         SoftAssertions checks = new SoftAssertions();
         for (Fields field : missing)
         {
+            if (field == Fields.CLEANUP) continue;
             checks.assertThat(SavedCommand.getFieldChanged(field, flags))
                   .describedAs("field %s changed", field)
                   .isFalse();

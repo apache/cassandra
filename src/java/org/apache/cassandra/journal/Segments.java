@@ -63,6 +63,14 @@ class Segments<K, V>
         return new Segments<>(newSegments);
     }
 
+    Segments<K, V> withoutEmptySegment(ActiveSegment<K, V> activeSegment)
+    {
+        Long2ObjectHashMap<Segment<K, V>> newSegments = new Long2ObjectHashMap<>(segments);
+        Segment<K, V> oldValue = segments.remove(activeSegment.descriptor.timestamp);
+        Invariants.checkState(oldValue.asActive().isEmpty());
+        return new Segments<>(newSegments);
+    }
+
     Segments<K, V> withCompletedSegment(ActiveSegment<K, V> activeSegment, StaticSegment<K, V> staticSegment)
     {
         Invariants.checkArgument(activeSegment.descriptor.equals(staticSegment.descriptor));

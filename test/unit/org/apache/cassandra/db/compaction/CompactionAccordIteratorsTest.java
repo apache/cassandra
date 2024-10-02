@@ -420,9 +420,12 @@ public class CompactionAccordIteratorsTest
         Int2ObjectHashMap<RedundantBefore> redundantBefores = new Int2ObjectHashMap<>();
         if (redundantBefore != null)
             redundantBefores.put(commandStore.id(), redundantBefore);
+        Int2ObjectHashMap<DurableBefore> durableBefores = new Int2ObjectHashMap<>();
+        if (durableBefore != null)
+            durableBefores.put(commandStore.id(), durableBefore);
         Int2ObjectHashMap<CommandStores.RangesForEpoch> rangesForEpochs = new Int2ObjectHashMap<>();
         rangesForEpochs.put(commandStore.id(), commandStore.unsafeRangesForEpoch());
-        when(mockAccordService.getCompactionInfo()).thenReturn(new IAccordService.CompactionInfo(redundantBefores, rangesForEpochs, durableBefore));
+        when(mockAccordService.getCompactionInfo()).thenReturn(new IAccordService.CompactionInfo(redundantBefores, rangesForEpochs, durableBefores));
         return mockAccordService;
     }
 

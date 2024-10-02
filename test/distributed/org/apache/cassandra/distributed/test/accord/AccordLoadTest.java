@@ -38,7 +38,6 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.AccordSpec;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.ICoordinator;
@@ -85,7 +84,7 @@ public class AccordLoadTest extends AccordTestBase
 
                  cluster.forEach(i -> i.runOnInstance(() -> {
                      ((AccordService) AccordService.instance()).journal().compactor().updateCompactionPeriod(1, SECONDS);
-                     ((AccordSpec.JournalSpec)((AccordService) AccordService.instance()).journal().configuration()).segmentSize = 128 << 10;
+//                     ((AccordSpec.JournalSpec)((AccordService) AccordService.instance()).journal().configuration()).segmentSize = 128 << 10;
                  }));
 
                  ICoordinator coordinator = cluster.coordinator(1);
@@ -162,14 +161,23 @@ public class AccordLoadTest extends AccordTestBase
                      {
                          nextCompactionAt += compactionInterval;
                          System.out.println("compacting accord...");
-                         cluster.forEach(i -> i.nodetool("compact", "system_accord.journal"));
+                         cluster.forEach(i -> {
+                             i.nodetool("compact", "system_accord.journal");
+                             i.runOnInstance(() -> {
+                                 ((AccordService) AccordService.instance()).journal().checkAllCommands();
+                             });
+                         });
+
                      }
 
                      if ((nextFlushAt -= batchSize) <= 0)
                      {
                          nextFlushAt += flushInterval;
                          System.out.println("flushing journal...");
-                         cluster.forEach(i -> i.runOnInstance(() -> ((AccordService) AccordService.instance()).journal().closeCurrentSegmentForTestingIfNonEmpty()));
+                         cluster.forEach(i -> i.runOnInstance(() -> {
+                             ((AccordService) AccordService.instance()).journal().closeCurrentSegmentForTestingIfNonEmpty();
+                             ((AccordService) AccordService.instance()).journal().checkAllCommands();
+                         }));
                      }
 
                      final Date date = new Date();

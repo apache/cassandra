@@ -99,6 +99,8 @@ public class AccordSegmentCompactor<V> implements SegmentCompactor<JournalKey, V
                         key = reader.key();
                         serializer = (FlyweightSerializer<Object, Object>) key.type.serializer;
                         builder = serializer.mergerFor(key);
+                        lastOffset = -1;
+                        lastDescriptor = -1;
                     }
 
                     boolean advanced;
@@ -106,6 +108,14 @@ public class AccordSegmentCompactor<V> implements SegmentCompactor<JournalKey, V
                     {
                         try (DataInputBuffer in = new DataInputBuffer(reader.record(), false))
                         {
+                            if (lastDescriptor != -1)
+                            {
+                                Invariants.checkState(reader.descriptor.timestamp >= lastDescriptor,
+                                                      "Descriptors were accessed out of order: %d was accessed after %d", reader.descriptor.timestamp, lastDescriptor);
+                                Invariants.checkState(reader.descriptor.timestamp != lastDescriptor ||
+                                                      reader.offset() > lastOffset,
+                                                      "Offsets within %s were accessed out of order: %d was accessed after %s", reader.offset(), lastOffset);
+                            }
                             serializer.deserialize(key, builder, in, reader.descriptor.userVersion);
                             lastDescriptor = reader.descriptor.timestamp;
                             lastOffset = reader.offset();

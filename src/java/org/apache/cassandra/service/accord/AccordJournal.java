@@ -253,18 +253,18 @@ public class AccordJournal implements IJournal, Shutdownable
     {
         RecordPointer pointer = null;
         // TODO: avoid allocating keys
-        if (fieldUpdates.redundantBefore != null)
-            pointer = appendInternal(new JournalKey(TxnId.NONE, JournalKey.Type.REDUNDANT_BEFORE, store), fieldUpdates.redundantBefore);
-        if (fieldUpdates.durableBefore != null)
-            pointer = appendInternal(new JournalKey(TxnId.NONE, JournalKey.Type.DURABLE_BEFORE, store), fieldUpdates.durableBefore);
-        if (fieldUpdates.bootstrapBeganAt != null)
-            pointer = appendInternal(new JournalKey(TxnId.NONE, JournalKey.Type.BOOTSTRAP_BEGAN_AT, store), fieldUpdates.bootstrapBeganAt);
-        if (fieldUpdates.safeToRead != null)
-            pointer = appendInternal(new JournalKey(TxnId.NONE, JournalKey.Type.SAFE_TO_READ, store), fieldUpdates.safeToRead);
-        if (fieldUpdates.rangesForEpoch != null)
-            pointer = appendInternal(new JournalKey(TxnId.NONE, JournalKey.Type.RANGES_FOR_EPOCH, store), fieldUpdates.rangesForEpoch);
-        if (fieldUpdates.historicalTransactions != null)
-            pointer = appendInternal(new JournalKey(TxnId.NONE, JournalKey.Type.HISTORICAL_TRANSACTIONS, store), fieldUpdates.historicalTransactions);
+        if (fieldUpdates.addRedundantBefore != null)
+            pointer = appendInternal(new JournalKey(TxnId.NONE, JournalKey.Type.REDUNDANT_BEFORE, store), fieldUpdates.addRedundantBefore);
+        if (fieldUpdates.addDurableBefore != null)
+            pointer = appendInternal(new JournalKey(TxnId.NONE, JournalKey.Type.DURABLE_BEFORE, store), fieldUpdates.addDurableBefore);
+        if (fieldUpdates.newBootstrapBeganAt != null)
+            pointer = appendInternal(new JournalKey(TxnId.NONE, JournalKey.Type.BOOTSTRAP_BEGAN_AT, store), fieldUpdates.newBootstrapBeganAt);
+        if (fieldUpdates.newSafeToRead != null)
+            pointer = appendInternal(new JournalKey(TxnId.NONE, JournalKey.Type.SAFE_TO_READ, store), fieldUpdates.newSafeToRead);
+        if (fieldUpdates.newRangesForEpoch != null)
+            pointer = appendInternal(new JournalKey(TxnId.NONE, JournalKey.Type.RANGES_FOR_EPOCH, store), fieldUpdates.newRangesForEpoch);
+        if (fieldUpdates.addHistoricalTransactions != null)
+            pointer = appendInternal(new JournalKey(TxnId.NONE, JournalKey.Type.HISTORICAL_TRANSACTIONS, store), fieldUpdates.addHistoricalTransactions);
 
         if (onFlush == null)
             return;
@@ -412,6 +412,64 @@ public class AccordJournal implements IJournal, Shutdownable
         finally
         {
             isReplay.set(false);
+        }
+    }
+
+    // TODO: this is here temporarily; for debugging purposes
+    @VisibleForTesting
+    public void checkAllCommands()
+    {
+        try (AccordJournalTable.KeyOrderIterator<JournalKey> iter = journalTable.readAll())
+        {
+            IAccordService.CompactionInfo compactionInfo = AccordService.instance().getCompactionInfo();
+            JournalKey key;
+            SavedCommand.Builder builder = new SavedCommand.Builder();
+            while ((key = iter.key()) != null)
+            {
+                builder.reset(key.id);
+                if (key.type != JournalKey.Type.COMMAND_DIFF)
+                {
+                    // TODO (required): add "skip" for the key to avoid getting stuck
+                    iter.readAllForKey(key, (segment, position, key1, buffer, hosts, userVersion) -> {});
+                    continue;
+                }
+
+                JournalKey finalKey = key;
+                List<RecordPointer> pointers = new ArrayList<>();
+                try
+                {
+                    iter.readAllForKey(key, (segment, position, local, buffer, hosts, userVersion) -> {
+                        pointers.add(new RecordPointer(segment, position));
+                        Invariants.checkState(finalKey.equals(local));
+                        try (DataInputBuffer in = new DataInputBuffer(buffer, false))
+                        {
+                            builder.deserializeNext(in, userVersion);
+                        }
+                        catch (IOException e)
+                        {
+                            // can only throw if serializer is buggy
+                            throw new RuntimeException(e);
+                        }
+                    });
+
+                    Cleanup cleanup = builder.shouldCleanup(compactionInfo.redundantBefores.get(key.commandStoreId), compactionInfo.durableBefores.get(key.commandStoreId));
+                    switch (cleanup)
+                    {
+                        case ERASE:
+                        case EXPUNGE:
+                        case EXPUNGE_PARTIAL:
+                        case VESTIGIAL:
+                            continue;
+                    }
+                    builder.construct();
+                }
+                catch (Throwable t)
+                {
+                    throw new RuntimeException(String.format("Caught an exception after iterating over: %s", pointers),
+                                               t);
+                }
+            }
+
         }
     }
 }

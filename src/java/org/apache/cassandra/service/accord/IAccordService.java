@@ -134,17 +134,17 @@ public interface IAccordService
 
     class CompactionInfo
     {
-        static final Supplier<CompactionInfo> NO_OP = () ->  new CompactionInfo(new Int2ObjectHashMap<>(), new Int2ObjectHashMap<>(), DurableBefore.EMPTY);
+        static final Supplier<CompactionInfo> NO_OP = () ->  new CompactionInfo(new Int2ObjectHashMap<>(), new Int2ObjectHashMap<>(), new Int2ObjectHashMap<>());
 
         public final Int2ObjectHashMap<RedundantBefore> redundantBefores;
+        public final Int2ObjectHashMap<DurableBefore> durableBefores;
         public final Int2ObjectHashMap<RangesForEpoch> ranges;
-        public final DurableBefore durableBefore;
 
-        public CompactionInfo(Int2ObjectHashMap<RedundantBefore> redundantBefores, Int2ObjectHashMap<RangesForEpoch> ranges, DurableBefore durableBefore)
+        public CompactionInfo(Int2ObjectHashMap<RedundantBefore> redundantBefores, Int2ObjectHashMap<RangesForEpoch> ranges, Int2ObjectHashMap<DurableBefore> durableBefores)
         {
             this.redundantBefores = redundantBefores;
             this.ranges = ranges;
-            this.durableBefore = durableBefore;
+            this.durableBefores = durableBefores;
         }
     }
 
