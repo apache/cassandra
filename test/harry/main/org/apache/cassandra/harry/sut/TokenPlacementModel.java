@@ -150,7 +150,7 @@ public class TokenPlacementModel
         int compareTo(V v);
     }
 
-    public static void addIfUnique(List<Replica> replicas, Set<String> names, Replica replica)
+    private static void addIfUnique(List<Replica> replicas, Set<String> names, Replica replica)
     {
         if (names.contains(replica.node().id()))
             return;
