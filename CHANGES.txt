@@ -1,5 +1,14 @@
-5.0.1
+5.0.2
  * Correct out-of-date metrics and configuration documentation for SAI (CASSANDRA-19898)
+Merged from 4.1:
+Merged from 4.0:
+ * Ensure thread-safety for CommitLogArchiver in CommitLog (CASSANDRA-19960)
+ * Fix text containing "/*" being interpreted as multiline comment in cqlsh (CASSANDRA-17667)
+ * Fix indexing of a frozen collection that is the clustering key and reversed (CASSANDRA-19889)
+ * Emit error when altering a table with non-frozen UDTs with nested non-frozen collections the same way as done upon table creation (CASSANDRA-19925)
+
+
+5.0.1
  * Make configuration entries in memtable section order-independent (CASSANDRA-19906)
  * Add guardrail for enabling usage of VectorType (CASSANDRA-19903)
  * Set executable flag for shell scripts in .build directory for source artifact (CASSANDRA-19896)
@@ -10,10 +19,6 @@
  * Add java.base/java.lang.reflect among opens for jvm11-client.options (CASSANDRA-19780)
 Merged from 4.1:
 Merged from 4.0:
- * Ensure thread-safety for CommitLogArchiver in CommitLog (CASSANDRA-19960)
- * Fix text containing "/*" being interpreted as multiline comment in cqlsh (CASSANDRA-17667)
- * Fix indexing of a frozen collection that is the clustering key and reversed (CASSANDRA-19889)
- * Emit error when altering a table with non-frozen UDTs with nested non-frozen collections the same way as done upon table creation (CASSANDRA-19925)
  * Safer handling of out-of-range tokens (CASSANDRA-13704)
  * Fix memory leak in BTree.FastBuilder (CASSANDRA-19785)
  * Fix millisecond and microsecond precision for commit log replay (CASSANDRA-19448)
