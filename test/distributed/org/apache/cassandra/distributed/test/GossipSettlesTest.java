@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.distributed.test;
 
+import java.io.IOException;
 import java.net.InetAddress;
 import java.util.Arrays;
 import java.util.List;
@@ -30,6 +31,11 @@ import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.api.IInstanceConfig;
+import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.api.NodeToolResult;
+import org.apache.cassandra.distributed.api.TokenSupplier;
+import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.net.MessagingService;
@@ -39,6 +45,7 @@ import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import static org.apache.cassandra.distributed.action.GossipHelper.withProperty;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
@@ -112,6 +119,35 @@ public class GossipSettlesTest extends TestBaseImpl
         }
     }
 
+    @Test
+    public void testGossipSettlesWithMinNodeCount() throws IOException
+    {
+        int originalNodeCount = 2;
+        int expandedNodeCount = originalNodeCount + 1;
+
+        try (Cluster cluster = builder().withNodes(originalNodeCount)
+                                        .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(expandedNodeCount))
+                                        .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(expandedNodeCount, "dc0", "rack0"))
+                                        .withConfig(config -> config.with(NETWORK, GOSSIP))
+                                        .start())
+        {
+            IInstanceConfig config = cluster.newInstanceConfig();
+            config.set("auto_bootstrap", true);
+            IInvokableInstance newInstance = cluster.bootstrap(config);
+            withProperty("cassandra.join_ring", false, () -> newInstance.startup(cluster));
+            System.setProperty("cassandra.gossip_settle_min_node_count", "5");
+            NodeToolResult result = newInstance.nodetoolResult("join");
+            result.asserts().failure();
+            Throwable error = result.getError();
+            Assert.assertNotNull("Error was null", error);
+            error.getMessage().contains("Gossip settled but minimum node count in gossip did not reach requirement, required 5, got 3");
+            // set the requirement to 3 and it will success this time
+            System.setProperty("cassandra.gossip_settle_min_node_count", "3");
+            newInstance.nodetoolResult("join").asserts().success();
+            //restore the property back to default
+            System.setProperty("cassandra.gossip_settle_min_node_count", "0");
+        }
+    }
 
     final static Pattern IP4_ADDRESS = Pattern.compile("(127\\.0\\.\\d{1,3}\\.\\d{1,3})");
 

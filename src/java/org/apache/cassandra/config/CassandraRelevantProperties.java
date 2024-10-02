@@ -348,6 +348,10 @@ public enum CassandraRelevantProperties
      * Number of polls without gossip state change to consider gossip as settled.
      */
     GOSSIP_SETTLE_POLL_SUCCESSES_REQUIRED("cassandra.gossip_settle_poll_success_required", "3"),
+    /**
+     * Minimum number of endpoints in gossip when a node consider gossip as settled
+     */
+    GOSSIP_SETTLE_MIN_NODE_COUNT("cassandra.gossip_settle_min_node_count", "0"),
 
     /**
      * Number of replicas required to store batchlog for atomicity, only accepts values of 1 or 2.

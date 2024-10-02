@@ -2558,6 +2558,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         final int GOSSIP_SETTLE_MIN_WAIT_MS = CassandraRelevantProperties.GOSSIP_SETTLE_MIN_WAIT_MS.getInt();
         final int GOSSIP_SETTLE_POLL_INTERVAL_MS = CassandraRelevantProperties.GOSSIP_SETTLE_POLL_INTERVAL_MS.getInt();
         final int GOSSIP_SETTLE_POLL_SUCCESSES_REQUIRED = CassandraRelevantProperties.GOSSIP_SETTLE_POLL_SUCCESSES_REQUIRED.getInt();
+        final int GOSSIP_SETTLE_MIN_NODE_COUNT = CassandraRelevantProperties.GOSSIP_SETTLE_MIN_NODE_COUNT.getInt();
 
         logger.info("Waiting for gossip to settle...");
         Uninterruptibles.sleepUninterruptibly(GOSSIP_SETTLE_MIN_WAIT_MS, TimeUnit.MILLISECONDS);
@@ -2586,6 +2587,12 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                             totalPolls);
                 break;
             }
+        }
+        int currentSize = Gossiper.instance.getEndpointCount();
+        // only check minimum node count when bootstrap, adding this extra check to be extra safe for new node
+        if (SystemKeyspace.bootstrapInProgress() && currentSize < GOSSIP_SETTLE_MIN_NODE_COUNT)
+        {
+            throw new IllegalStateException(String.format("Gossip settled but minimum node count in gossip did not reach requirement, required %d, got %d", GOSSIP_SETTLE_MIN_NODE_COUNT, currentSize));
         }
         if (totalPolls > GOSSIP_SETTLE_POLL_SUCCESSES_REQUIRED)
             logger.info("Gossip settled after {} extra polls; proceeding", totalPolls - GOSSIP_SETTLE_POLL_SUCCESSES_REQUIRED);
