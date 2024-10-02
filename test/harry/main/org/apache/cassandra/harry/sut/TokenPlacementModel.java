@@ -95,11 +95,17 @@ public class TokenPlacementModel
     {
         public final Range[] ranges;
         public final NavigableMap<Range, List<Replica>> placementsForRange;
+        private final Map<Replica, List<Range>> replicaToRanges = new HashMap<>();
 
         public ReplicatedRanges(Range[] ranges, NavigableMap<Range, List<Replica>> placementsForRange)
         {
             this.ranges = ranges;
             this.placementsForRange = placementsForRange;
+            for (Map.Entry<Range, List<Replica>> e : placementsForRange.entrySet())
+            {
+                for (Replica replica : e.getValue())
+                    replicaToRanges.computeIfAbsent(replica, i -> new ArrayList<>()).add(e.getKey());
+            }
         }
 
         public List<Replica> replicasFor(long token)
@@ -118,7 +124,7 @@ public class TokenPlacementModel
             return placementsForRange.get(ranges[idx]);
         }
 
-        public NavigableMap<Range, List<Replica>> asMap()
+        public NavigableMap<Range, List<Replica>>  asMap()
         {
             return placementsForRange;
         }
@@ -143,6 +149,11 @@ public class TokenPlacementModel
             }
             return -(low + 1); // key not found
         }
+
+        public List<Range> ranges(Replica replica)
+        {
+            return replicaToRanges.get(replica);
+        }
     }
 
     public interface CompareTo<V>
@@ -150,12 +161,12 @@ public class TokenPlacementModel
         int compareTo(V v);
     }
 
-    public static void addIfUnique(List<Replica> replicas, Set<Integer> names, Replica replica)
+    private static void addIfUnique(List<Replica> replicas, Set<String> names, Replica replica)
     {
-        if (names.contains(replica.node().idx()))
+        if (names.contains(replica.node().id()))
             return;
         replicas.add(replica);
-        names.add(replica.node().idx());
+        names.add(replica.node().id());
     }
 
     /**
@@ -589,7 +600,7 @@ public class TokenPlacementModel
             Range skipped = null;
             for (Range range : ranges)
             {
-                Set<Integer> names = new HashSet<>();
+                Set<String> names = new HashSet<>();
                 List<Replica> replicas = new ArrayList<>();
                 int idx = primaryReplica(nodes, range);
                 if (idx >= 0)

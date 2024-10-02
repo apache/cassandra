@@ -134,7 +134,7 @@ public class MaybeFinishConsensusMigrationForTableAndRange implements Transforma
         logger.info("Completed repair eligibiliy '{}' paxos repaired ranges {}, accord repaired ranges {}", repairType, paxosRepairedRanges, accordBarrieredRanges);
         checkNotNull(metadata, "clusterMetadata should not be null");
         String ksAndCF = keyspace + "." + cf;
-        TableMetadata tbm = Schema.instance.getTableMetadata(keyspace, cf);
+        TableMetadata tbm = metadata.schema.getTableMetadata(keyspace, cf);
         if (tbm == null)
             return new Rejected(INVALID, format("Table %s is not currently performing consensus migration", ksAndCF));
 

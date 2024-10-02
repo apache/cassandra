@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.fuzz.topology;
 
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.InetSocketAddress;
@@ -25,7 +26,6 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -39,9 +39,14 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import javax.annotation.Nullable;
 
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
+import org.agrona.collections.Int2ObjectHashMap;
+import org.agrona.collections.IntArrayList;
+import org.agrona.collections.IntHashSet;
+import org.apache.cassandra.harry.sut.TokenPlacementModel.Range;
+import org.apache.cassandra.harry.sut.TokenPlacementModel.Replica;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -53,9 +58,6 @@ import accord.utils.Property;
 import accord.utils.Property.Command;
 import accord.utils.Property.SimpleCommand;
 import accord.utils.RandomSource;
-import org.agrona.collections.Int2ObjectHashMap;
-import org.agrona.collections.IntArrayList;
-import org.agrona.collections.IntHashSet;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.YamlConfigurationLoader;
 import org.apache.cassandra.distributed.Cluster;
@@ -68,6 +70,8 @@ import org.apache.cassandra.distributed.impl.INodeProvisionStrategy;
 import org.apache.cassandra.distributed.impl.InstanceConfig;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.harry.sut.TokenPlacementModel;
+import org.apache.cassandra.harry.sut.injvm.InJVMTokenAwareVisitExecutor;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.schema.ReplicationParams;
@@ -131,6 +135,22 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
                                    state -> state.cluster.get(toCoordinate).nodetoolResult("repair", state.schemaSpec.keyspaceName(), state.schemaSpec.name(), "--force").asserts().success());
     }
 
+    private static <S extends TopologyMixupTestBase.SchemaSpec> Command<State<S>, Void, ?> repairCommand(int toCoordinate, String ks, String... tables) {
+        return new SimpleCommand<>(state -> "nodetool repair " + ks + (tables.length == 0 ? "" : " " + Arrays.asList(tables)) + " from node" + toCoordinate + state.commandNamePostfix(),
+                state -> {
+                    if (tables.length == 0) {
+                        state.cluster.get(toCoordinate).nodetoolResult("repair", ks, "--force").asserts().success();
+                        return;
+                    }
+                    List<String> args = new ArrayList<>(3 + tables.length);
+                    args.add("repair");
+                    args.add(ks);
+                    args.addAll(Arrays.asList(tables));
+                    args.add("--force");
+                    state.cluster.get(toCoordinate).nodetoolResult(args.toArray(String[]::new)).asserts().success();
+                });
+    }
+
     private Command<State<S>, Void, ?> waitForCMSToQuiesce()
     {
         return new SimpleCommand<>(state -> "Waiting for CMS to Quiesce" + state.commandNamePostfix(),
@@ -139,7 +159,7 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
 
     private Command<State<S>, Void, ?> stopInstance(RandomSource rs, State<S> state)
     {
-        int toStop = rs.pickInt(state.topologyHistory.up());
+        int toStop = rs.pickInt(state.upAndSafe());
         return stopInstance(toStop, "Normal Stop");
     }
 
@@ -184,7 +204,7 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
 
     private Command<State<S>, Void, ?> removeNodeDecommission(RandomSource rs, State<S> state)
     {
-        int toRemove = rs.pickInt(state.topologyHistory.up());
+        int toRemove = rs.pickInt(state.upAndSafe());
         return new SimpleCommand<>("nodetool decommission node" + toRemove + state.commandNamePostfix(), s2 -> {
             IInvokableInstance inst = s2.cluster.get(toRemove);
             TopologyHistory.Node node = s2.topologyHistory.node(toRemove);
@@ -198,7 +218,7 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
     private Command<State<S>, Void, ?> removeNode(RandomSource rs, State<S> state)
     {
         int[] up = state.topologyHistory.up();
-        int toRemove = rs.pickInt(up);
+        int toRemove = rs.pickInt(state.upAndSafe());
         int toCoordinate;
         {
             int picked;
@@ -223,14 +243,7 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
 
     private Command<State<S>, Void, ?> removeNodeAssassinate(RandomSource rs, State<S> state)
     {
-        //TODO (correctness): assassinate CMS member isn't allowed
-        IntHashSet up = asSet(state.topologyHistory.up());
-        IntHashSet cmsGroup = asSet(state.cmsGroup);
-        Sets.SetView<Integer> upAndNotInCMS = Sets.difference(up, cmsGroup);
-        if (upAndNotInCMS.isEmpty()) throw new AssertionError("Every node is a CMS member");
-        List<Integer> allowed = new ArrayList<>(upAndNotInCMS);
-        allowed.sort(Comparator.naturalOrder());
-        int toRemove = rs.pick(allowed);
+        int toRemove = rs.pickInt(state.upAndSafe());
         int toCoordinate;
         {
             int[] upInt = state.topologyHistory.up();
@@ -274,7 +287,7 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
 
     private Command<State<S>, Void, ?> hostReplace(RandomSource rs, State<S> state)
     {
-        int nodeToReplace = rs.pickInt(state.topologyHistory.up());
+        int nodeToReplace = rs.pickInt(state.upAndSafe());
         IInvokableInstance toReplace = state.cluster.get(nodeToReplace);
         TopologyHistory.Node adding = state.topologyHistory.replace(nodeToReplace);
         TopologyHistory.Node removing = state.topologyHistory.nodes.get(nodeToReplace);
@@ -326,6 +339,12 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
                                       TopologyMixupTestBase.this.destroyState(state, cause);
                                   }
                               })
+                              .commandsTransformer((state, gen) -> {
+                                  for (BiFunction<State<S>, Gen<Command<State<S>, Void, ?>>, Gen<Command<State<S>, Void, ?>>> fn : state.commandsTransformers)
+                                      gen = fn.apply(state, gen);
+                                  return gen;
+                              })
+                              .onSuccess((state, sut, history) -> logger.info("Successful for the following:\nState {}\nHistory:\n{}", state, Property.formatList("\t\t", history)))
                               .build());
     }
 
@@ -336,12 +355,14 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
         // so up is enough to know the topology size
         int up = state.topologyHistory.up().length;
         int down = state.topologyHistory.down().length;
+        int[] upAndSafe = state.upAndSafe();
         int total = up + down;
         if (total < state.topologyHistory.maxNodes)
             possibleTopologyChanges.add(TopologyChange.AddNode);
-        if (up > state.topologyHistory.quorum())
+        if (upAndSafe.length > 0)
         {
-            if (up > TARGET_RF)
+            // can't remove the node if all nodes are CMS nodes
+            if (!Sets.difference(asSet(upAndSafe), asSet(state.cmsGroup)).isEmpty())
                 possibleTopologyChanges.add(TopologyChange.RemoveNode);
             possibleTopologyChanges.add(TopologyChange.HostReplace);
             possibleTopologyChanges.add(TopologyChange.StopNode);
@@ -395,21 +416,30 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
         String keyspaceName();
     }
 
+    protected interface CommandGen<S extends TopologyMixupTestBase.SchemaSpec>
+    {
+        Command<State<S>, Void, ?> apply(RandomSource rs, State<S> state);
+    }
+
     protected static class State<S extends SchemaSpec> implements AutoCloseable
     {
         final TopologyHistory topologyHistory;
         final Cluster cluster;
         final S schemaSpec;
+        final List<BiFunction<State<S>, Gen<Command<State<S>, Void, ?>>, Gen<Command<State<S>, Void, ?>>>> commandsTransformers = new ArrayList<>();
         final List<Runnable> preActions = new CopyOnWriteArrayList<>();
         final AtomicLong currentEpoch = new AtomicLong();
-        final BiFunction<RandomSource, State<S>, Command<State<S>, Void, ?>> statementGen;
+        final CommandGen<S> statementGen;
         final Gen<RemoveType> removeTypeGen;
         private final Map<String, Object> yamlConfigOverrides;
         int[] cmsGroup = new int[0];
+        private TokenPlacementModel.ReplicationFactor rf;
+        TokenPlacementModel.ReplicatedRanges ring = null;
 
-        public State(RandomSource rs, BiFunction<RandomSource, Cluster, S> schemaSpecGen, Function<S, BiFunction<RandomSource, State<S>, Command<State<S>, Void, ?>>> cqlOperationsGen)
+        public State(RandomSource rs, BiFunction<RandomSource, Cluster, S> schemaSpecGen, Function<S, CommandGen<S>> cqlOperationsGen)
         {
             this.topologyHistory = new TopologyHistory(rs.fork(), 2, 4);
+            rf = new TokenPlacementModel.SimpleReplicationFactor(2);
             try
             {
 
@@ -464,19 +494,46 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
                 result.asserts().success();
                 logger.info("CMS reconfigure: {}", result.getStdout());
             }
-            preActions.add(new Runnable()
-            {
+            commandsTransformers.add(new BiFunction<State<S>, Gen<Command<State<S>, Void, ?>>, Gen<Command<State<S>, Void, ?>>>() {
                 // in order to remove this action, an anonymous class is needed so "this" works, lambda "this" is the parent class
                 @Override
-                public void run()
-                {
-                    if (topologyHistory.up().length == TARGET_RF)
-                    {
+                public Gen<Command<State<S>, Void, ?>> apply(State<S> state, Gen<Command<State<S>, Void, ?>> commandGen) {
+                    if (topologyHistory.up().length < TARGET_RF)
+                        return commandGen;
+                    SimpleCommand<State<S>> reconfig = new SimpleCommand<>("nodetool cms reconfigure " + TARGET_RF, ignore -> {
                         NodeToolResult result = cluster.get(1).nodetoolResult("cms", "reconfigure", Integer.toString(TARGET_RF));
                         result.asserts().success();
                         logger.info("CMS reconfigure: {}", result.getStdout());
-                        preActions.remove(this);
-                    }
+                    });
+                    SimpleCommand<State<S>> fixDistributedSchemas = new SimpleCommand<>("Set system distributed keyspaces to RF=" + TARGET_RF, ignore ->
+                            fixDistributedSchemas(cluster));
+                    SimpleCommand<State<S>> fixTestKeyspace = new SimpleCommand<>("Set " + KEYSPACE + " keyspace to RF=" + TARGET_RF, s -> {
+                        cluster.schemaChange("ALTER KEYSPACE " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': " + TARGET_RF + "}");
+                        rf = new TokenPlacementModel.SimpleReplicationFactor(TARGET_RF);
+                    });
+                    var self = this;
+                    return rs -> {
+                        Command<State<S>, Void, ?> next = commandGen.next(rs);
+                        if (next.checkPreconditions(state) == Property.PreCheckResult.Ignore)
+                            return next;
+                        commandsTransformers.remove(self);
+                        int[] up = state.topologyHistory.up();
+                        List<Command<State<S>, Void, ?>> commands = new ArrayList<>();
+                        commands.add(fixDistributedSchemas);
+                        for (String ks : Arrays.asList("system_auth", "system_traces"))
+                        {
+                            int coordinator = rs.pickInt(up);
+                            commands.add(repairCommand(coordinator, ks));
+                        }
+                        commands.add(fixTestKeyspace);
+                        {
+                            int coordinator = rs.pickInt(up);
+                            commands.add(repairCommand(coordinator, KEYSPACE));
+                        }
+                        commands.add(reconfig);
+                        commands.add(next);
+                        return multistep(commands);
+                    };
                 }
             });
             preActions.add(() -> {
@@ -485,6 +542,8 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
                 IInvokableInstance node = cluster.get(up[up.length - 1]);
                 cmsGroup = HackSerialization.cmsGroup(node);
                 currentEpoch.set(HackSerialization.tcmEpoch(node));
+
+                ring = InJVMTokenAwareVisitExecutor.getRing(cluster.coordinator(up[0]), rf);
             });
             preActions.add(() -> cluster.checkAndResetUncaughtExceptions());
             this.schemaSpec = schemaSpecGen.apply(rs, cluster);
@@ -509,7 +568,49 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
 
         protected String commandNamePostfix()
         {
-            return "; epoch=" + currentEpoch.get() + ", cms=" + Arrays.toString(cmsGroup);
+            return "; epoch=" + currentEpoch.get() + ", cms=" + Arrays.toString(cmsGroup) + ", up=" + Arrays.toString(topologyHistory.up()) + ", down=" + Arrays.toString(topologyHistory.down());
+        }
+
+        public int[] upAndSafe()
+        {
+            IntHashSet up = asSet(topologyHistory.up());
+            int quorum = topologyHistory.quorum();
+            // find what ranges are able to handle 1 node loss
+            Set<Range> safeRanges = new HashSet<>();
+            Int2ObjectHashMap<Replica> idToReplica = new Int2ObjectHashMap<>();
+            for (Map.Entry<Range, List<Replica>> e : ring.asMap().entrySet())
+            {
+                IntHashSet alive = new IntHashSet();
+                for (var replica : e.getValue())
+                {
+                    //TODO (fix test api): NodeId is in the API but is always null.  Cheapest way to get the id is to assume the address has it
+                    // same issue with address...
+                    // /127.0.0.2
+                    String harryId = replica.node().id();
+                    int index = harryId.lastIndexOf('.');
+                    int peer = Integer.parseInt(harryId.substring(index + 1));
+                    idToReplica.put(peer, replica);
+                    if (up.contains(peer))
+                        alive.add(peer);
+                }
+                if (quorum < alive.size())
+                    safeRanges.add(e.getKey());
+            }
+
+            // filter nodes where 100% of their ranges are "safe"
+            IntArrayList safeNodes = new IntArrayList();
+            for (int id : up)
+            {
+                Replica replica = idToReplica.get(id);
+                List<Range> ranges = ring.ranges(replica);
+
+                if (ranges.stream().allMatch(safeRanges::contains))
+                    safeNodes.add(id);
+            }
+
+            int[] upAndSafe = safeNodes.toIntArray();
+            Arrays.sort(upAndSafe);
+            return upAndSafe;
         }
 
         @Override
@@ -529,17 +630,26 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
         @Override
         public void close() throws Exception
         {
-            epochHistory = cluster.get(cmsGroup[0]).callOnInstance(() -> {
-                LogState all = ClusterMetadataService.instance()
-                                                     .processor()
-                                                     .getLogState(Epoch.EMPTY, Epoch.create(Long.MAX_VALUE), false,
-                                                                  Retry.Deadline.retryIndefinitely(DatabaseDescriptor.getCmsAwaitTimeout().to(NANOSECONDS),
-                                                                                                   TCMMetrics.instance.commitRetries));
-                StringBuilder sb = new StringBuilder("Epochs:");
-                for (Entry e : all.entries)
-                    sb.append("\n").append(e.epoch.getEpoch()).append(": ").append(e.transform);
-                return sb.toString();
-            });
+            var cmsNodesUp = Sets.intersection(asSet(cmsGroup), asSet(topologyHistory.up()));
+            int cmsNode = Iterables.getFirst(cmsNodesUp, null);
+            try
+            {
+                epochHistory = cluster.get(cmsNode).callOnInstance(() -> {
+                    LogState all = ClusterMetadataService.instance()
+                                                         .processor()
+                                                         .getLogState(Epoch.EMPTY, Epoch.create(Long.MAX_VALUE), false,
+                                                                      Retry.Deadline.retryIndefinitely(DatabaseDescriptor.getCmsAwaitTimeout().to(NANOSECONDS),
+                                                                                                       TCMMetrics.instance.commitRetries));
+                    StringBuilder sb = new StringBuilder("Epochs:");
+                    for (Entry e : all.entries)
+                        sb.append("\n\t\t").append(e.epoch.getEpoch()).append(": ").append(e.transform);
+                    return sb.toString();
+                });
+            }
+            catch (Throwable t)
+            {
+                logger.warn("Unable to fetch epoch history on node{}", cmsNode, t);
+            }
             cluster.close();
         }
     }

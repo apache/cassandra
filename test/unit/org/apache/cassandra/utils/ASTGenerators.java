@@ -344,6 +344,12 @@ public class ASTGenerators
             return this;
         }
 
+        public MutationGenBuilder withoutTtl()
+        {
+            ttlGen = ignore -> OptionalInt.empty();
+            return this;
+        }
+
         public MutationGenBuilder withOperators()
         {
             allowOperators = true;
@@ -548,9 +554,10 @@ public class ASTGenerators
                         builder.addReturn(selectGen.generate(rnd));
                     }
                     MutationGenBuilder mutationBuilder = new MutationGenBuilder(metadata)
-                                                          .withoutCas()
-                                                          .withoutTimestamp()
-                                                          .withReferences(new ArrayList<>(builder.allowedReferences()));
+                                                         .withoutCas()
+                                                         .withoutTimestamp()
+                                                         .withoutTtl()
+                                                         .withReferences(new ArrayList<>(builder.allowedReferences()));
                     if (!allowReferences)
                         mutationBuilder.withReferences(Collections.emptyList());
                     Gen<Mutation> updateGen = mutationBuilder.build();

@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.fuzz.topology;
 
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -80,7 +79,7 @@ public class HarryTopologyMixupTest extends TopologyMixupTestBase<HarryTopologyM
         return new Spec(harry);
     }
 
-    private static BiFunction<RandomSource, State<Spec>, Command<State<Spec>, Void, ?>> cqlOperations(Spec spec)
+    private static CommandGen<Spec> cqlOperations(Spec spec)
     {
         class HarryCommand extends SimpleCommand<State<Spec>>
         {
