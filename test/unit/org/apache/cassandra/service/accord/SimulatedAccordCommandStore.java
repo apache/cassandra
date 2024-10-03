@@ -38,7 +38,9 @@ import accord.impl.TestAgent;
 import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.CommandStores;
+import accord.local.DurableBefore;
 import accord.local.Node;
+import accord.local.NodeCommandStoreService;
 import accord.local.NodeTimeService;
 import accord.local.PreLoadContext;
 import accord.local.SafeCommand;
@@ -92,7 +94,7 @@ public class SimulatedAccordCommandStore implements AutoCloseable
     private final CommandStore.EpochUpdateHolder updateHolder;
     private final BooleanSupplier shouldEvict, shouldFlush, shouldCompact;
 
-    public final NodeTimeService timeService;
+    public final NodeCommandStoreService storeService;
     public final AccordCommandStore store;
     public final Node.Id nodeId;
     public final Topology topology;
@@ -114,9 +116,11 @@ public class SimulatedAccordCommandStore implements AutoCloseable
 
         this.updateHolder = new CommandStore.EpochUpdateHolder();
         this.nodeId = AccordTopology.tcmIdToAccord(ClusterMetadata.currentNullable().myNodeId());
-        this.timeService = new NodeTimeService()
+        this.storeService = new NodeCommandStoreService()
         {
             private final ToLongFunction<TimeUnit> elapsed = NodeTimeService.elapsedWrapperFromNonMonotonicSource(TimeUnit.NANOSECONDS, this::now);
+
+            @Override public DurableBefore durableBefore() { return DurableBefore.EMPTY; }
 
             @Override
             public Node.Id id()
@@ -155,7 +159,7 @@ public class SimulatedAccordCommandStore implements AutoCloseable
         AccordStateCache stateCache = new AccordStateCache(Stage.READ.executor(), Stage.MUTATION.executor(), 8 << 20, new AccordStateCacheMetrics("test"));
         this.journal = new MockJournal();
         this.store = new AccordCommandStore(0,
-                                            timeService,
+                                            storeService,
                                             new TestAgent.RethrowAgent()
                                             {
                                                 @Override
@@ -222,7 +226,7 @@ public class SimulatedAccordCommandStore implements AutoCloseable
 
     public TxnId nextTxnId(Txn.Kind kind, Routable.Domain domain)
     {
-        return new TxnId(timeService.epoch(), timeService.now(), kind, domain, nodeId);
+        return new TxnId(storeService.epoch(), storeService.now(), kind, domain, nodeId);
     }
 
     public void maybeCacheEvict(Unseekables<?> keysOrRanges)
@@ -362,7 +366,7 @@ public class SimulatedAccordCommandStore implements AutoCloseable
     public Pair<TxnId, AsyncResult<BeginRecovery.RecoverOk>> enqueueBeginRecovery(Txn txn, FullRoute<?> route)
     {
         TxnId txnId = nextTxnId(txn.kind(), txn.keys().domain());
-        Ballot ballot = Ballot.fromValues(timeService.epoch(), timeService.now(), nodeId);
+        Ballot ballot = Ballot.fromValues(storeService.epoch(), storeService.now(), nodeId);
         BeginRecovery br = new BeginRecovery(nodeId, topologies, txnId, null, txn, route, ballot);
 
         return Pair.create(txnId, processAsync(br, safe -> {

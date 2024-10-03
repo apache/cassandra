@@ -189,7 +189,7 @@ public class CommandsForRangesLoader
     {
         //TODO (now): this logic is kinda duplicate of org.apache.cassandra.service.accord.CommandsForRange.mapReduce
         // should figure out if this can be improved... also what is correct?
-        DurableBefore durableBefore = store.unsafeGetDurableBefore();
+        DurableBefore durableBefore = store.durableBefore();
         NavigableMap<TxnId, Summary> map = new TreeMap<>();
         for (TxnId txnId : possibleTxns)
         {

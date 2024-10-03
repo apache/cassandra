@@ -35,7 +35,6 @@ import accord.impl.AbstractSafeCommandStore;
 import accord.impl.CommandsSummary;
 import accord.local.CommandStores;
 import accord.local.CommandStores.RangesForEpoch;
-import accord.local.DurableBefore;
 import accord.local.NodeTimeService;
 import accord.local.PreLoadContext;
 import accord.local.RedundantBefore;
@@ -182,7 +181,7 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     public NodeTimeService time()
     {
         // TODO: safe command store should not have arbitrary time
-        return commandStore.time();
+        return commandStore.node();
     }
 
     @Override
@@ -296,12 +295,6 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     }
 
     @Override
-    public void upsertDurableBefore(DurableBefore addDurableBefore)
-    {
-        ensureFieldUpdates().addDurableBefore = addDurableBefore;
-    }
-
-    @Override
     public void setSafeToRead(NavigableMap<Timestamp, Ranges> newSafeToRead)
     {
         ensureFieldUpdates().newSafeToRead = newSafeToRead;
@@ -342,15 +335,6 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     }
 
     @Override
-    public DurableBefore durableBefore()
-    {
-        if (fieldUpdates != null && fieldUpdates.newDurableBefore != null)
-            return fieldUpdates.newDurableBefore;
-
-        return super.durableBefore();
-    }
-
-    @Override
     protected void registerHistoricalTransactions(Deps deps)
     {
         ensureFieldUpdates().addHistoricalTransactions = deps;
@@ -378,9 +362,6 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
         if (fieldUpdates.newRedundantBefore != null)
             super.unsafeSetRedundantBefore(fieldUpdates.newRedundantBefore);
 
-        if (fieldUpdates.newDurableBefore != null)
-            super.unsafeSetDurableBefore(fieldUpdates.newDurableBefore);
-
         if (fieldUpdates.newBootstrapBeganAt != null)
             super.setBootstrapBeganAt(fieldUpdates.newBootstrapBeganAt);
 
@@ -394,7 +375,6 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     public static class FieldUpdates
     {
         public RedundantBefore addRedundantBefore, newRedundantBefore;
-        public DurableBefore addDurableBefore, newDurableBefore;
         public NavigableMap<TxnId, Ranges> newBootstrapBeganAt;
         public NavigableMap<Timestamp, Ranges> newSafeToRead;
         public RangesForEpoch.Snapshot newRangesForEpoch;

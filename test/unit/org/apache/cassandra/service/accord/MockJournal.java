@@ -47,6 +47,9 @@ import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.primitives.Writes;
 import accord.utils.Invariants;
+import accord.utils.PersistentField.Persister;
+import accord.utils.async.AsyncResult;
+import accord.utils.async.AsyncResults;
 import org.apache.cassandra.service.accord.AccordJournalValueSerializers.DurableBeforeAccumulator;
 import org.apache.cassandra.service.accord.AccordJournalValueSerializers.HistoricalTransactionsAccumulator;
 import org.apache.cassandra.service.accord.AccordJournalValueSerializers.IdentityAccumulator;
@@ -60,13 +63,13 @@ public class MockJournal implements IJournal
     private static class FieldUpdates
     {
         final RedundantBeforeAccumulator redundantBeforeAccumulator = new RedundantBeforeAccumulator();
-        final DurableBeforeAccumulator durableBeforeAccumulator = new DurableBeforeAccumulator();
         final IdentityAccumulator<NavigableMap<TxnId, Ranges>> bootstrapBeganAtAccumulator = new IdentityAccumulator<>(ImmutableSortedMap.of(TxnId.NONE, Ranges.EMPTY));
         final IdentityAccumulator<NavigableMap<Timestamp, Ranges>> safeToReadAccumulator = new IdentityAccumulator<>(ImmutableSortedMap.of(Timestamp.NONE, Ranges.EMPTY));
         final IdentityAccumulator<CommandStores.RangesForEpoch.Snapshot> rangesForEpochAccumulator = new IdentityAccumulator<>(null);
         final HistoricalTransactionsAccumulator historicalTransactionsAccumulator = new HistoricalTransactionsAccumulator();
     }
 
+    final DurableBeforeAccumulator durableBeforeAccumulator = new DurableBeforeAccumulator();
     private final Map<Integer, FieldUpdates> fieldUpdates = new HashMap<>();
     @Override
     public Command loadCommand(int store, TxnId txnId, RedundantBefore redundantBefore, DurableBefore durableBefore)
@@ -85,9 +88,23 @@ public class MockJournal implements IJournal
     }
 
     @Override
-    public DurableBefore loadDurableBefore(int store)
+    public Persister<DurableBefore, DurableBefore> durableBeforePersister()
     {
-        return fieldUpdates(store).durableBeforeAccumulator.get();
+        return new Persister<>()
+        {
+            @Override
+            public AsyncResult<?> persist(DurableBefore addDurableBefore, DurableBefore newDurableBefore)
+            {
+                durableBeforeAccumulator.update(addDurableBefore);
+                return AsyncResults.success(null);
+            }
+
+            @Override
+            public DurableBefore load()
+            {
+                return durableBeforeAccumulator.get();
+            }
+        };
     }
 
     @Override
@@ -139,8 +156,6 @@ public class MockJournal implements IJournal
         FieldUpdates updates = fieldUpdates(store);
         if (fieldUpdates.addRedundantBefore != null)
             updates.redundantBeforeAccumulator.update(fieldUpdates.addRedundantBefore);
-        if (fieldUpdates.addDurableBefore != null)
-            updates.durableBeforeAccumulator.update(fieldUpdates.addDurableBefore);
         if (fieldUpdates.newBootstrapBeganAt != null)
             updates.bootstrapBeganAtAccumulator.update(fieldUpdates.newBootstrapBeganAt);
         if (fieldUpdates.newSafeToRead != null)
