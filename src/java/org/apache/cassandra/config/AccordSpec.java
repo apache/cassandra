@@ -87,7 +87,7 @@ public class AccordSpec
      * default transactional mode for tables created by this node when no transactional mode has been specified in the DDL
      */
     public TransactionalMode default_transactional_mode = TransactionalMode.off;
-    public boolean ephemeralReadEnabled = true;
+    public boolean ephemeralReadEnabled = false;
     public boolean state_cache_listener_jfr_enabled = true;
     public final JournalSpec journal = new JournalSpec();
     public final MinEpochRetrySpec minEpochSyncRetry = new MinEpochRetrySpec();
