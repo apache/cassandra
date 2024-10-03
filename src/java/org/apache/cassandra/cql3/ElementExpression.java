@@ -214,11 +214,13 @@ public final class ElementExpression
         {
             if (kind == Kind.COLLECTION_ELEMENT)
             {
-                if (!(column.type.isCollection()))
+                AbstractType<?> baseType = column.type.unwrap();
+
+                if (!(baseType.isCollection()))
                     throw invalidRequest("Invalid element access syntax for non-collection column %s", column.name);
 
                 Term term = prepareCollectionElement(column);
-                CollectionType<?> collectionType = (CollectionType<?>) column.type;
+                CollectionType<?> collectionType = (CollectionType<?>) baseType;
                 AbstractType<?> elementType = collectionType.valueComparator();
                 AbstractType<?> keyOrIndexType = collectionType.isMap() ? ((MapType<?, ?>) collectionType).getKeysType() : Int32Type.instance;
                 return new ElementExpression(kind, elementType, keyOrIndexType, term);
@@ -238,7 +240,7 @@ public final class ElementExpression
         private Term prepareCollectionElement(ColumnMetadata receiver)
         {
             ColumnSpecification elementSpec;
-            switch ((((CollectionType<?>) receiver.type).kind))
+            switch ((((CollectionType<?>) receiver.type.unwrap()).kind))
             {
                 case LIST:
                     elementSpec = Lists.indexSpecOf(receiver);
