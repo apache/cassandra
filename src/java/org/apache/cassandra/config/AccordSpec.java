@@ -65,9 +65,9 @@ public class AccordSpec
 
     public volatile DurationSpec.IntSecondsBound fast_path_update_delay = new DurationSpec.IntSecondsBound(5);
 
-    public volatile DurationSpec.IntSecondsBound schedule_durability_frequency = new DurationSpec.IntSecondsBound(5);
-    public volatile DurationSpec.IntSecondsBound durability_txnid_lag = new DurationSpec.IntSecondsBound(5);
-    public volatile DurationSpec.IntSecondsBound shard_durability_cycle = new DurationSpec.IntSecondsBound(1, TimeUnit.MINUTES);
+    public volatile DurationSpec.IntSecondsBound schedule_durability_frequency = new DurationSpec.IntSecondsBound(120);
+    public volatile DurationSpec.IntSecondsBound durability_txnid_lag = new DurationSpec.IntSecondsBound(10);
+    public volatile DurationSpec.IntSecondsBound shard_durability_cycle = new DurationSpec.IntSecondsBound(5, TimeUnit.MINUTES);
     public volatile DurationSpec.IntSecondsBound global_durability_cycle = new DurationSpec.IntSecondsBound(10, TimeUnit.MINUTES);
 
     public enum TransactionalRangeMigration
@@ -87,7 +87,7 @@ public class AccordSpec
      * default transactional mode for tables created by this node when no transactional mode has been specified in the DDL
      */
     public TransactionalMode default_transactional_mode = TransactionalMode.off;
-    public boolean ephemeralReadEnabled = true;
+    public boolean ephemeralReadEnabled = false;
     public boolean state_cache_listener_jfr_enabled = true;
     public final JournalSpec journal = new JournalSpec();
     public final MinEpochRetrySpec minEpochSyncRetry = new MinEpochRetrySpec();
