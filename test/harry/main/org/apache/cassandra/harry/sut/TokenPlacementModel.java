@@ -95,11 +95,17 @@ public class TokenPlacementModel
     {
         public final Range[] ranges;
         public final NavigableMap<Range, List<Replica>> placementsForRange;
+        private final Map<Replica, List<Range>> replicaToRanges = new HashMap<>();
 
         public ReplicatedRanges(Range[] ranges, NavigableMap<Range, List<Replica>> placementsForRange)
         {
             this.ranges = ranges;
             this.placementsForRange = placementsForRange;
+            for (Map.Entry<Range, List<Replica>> e : placementsForRange.entrySet())
+            {
+                for (Replica replica : e.getValue())
+                    replicaToRanges.computeIfAbsent(replica, i -> new ArrayList<>()).add(e.getKey());
+            }
         }
 
         public List<Replica> replicasFor(long token)
@@ -118,7 +124,7 @@ public class TokenPlacementModel
             return placementsForRange.get(ranges[idx]);
         }
 
-        public NavigableMap<Range, List<Replica>> asMap()
+        public NavigableMap<Range, List<Replica>>  asMap()
         {
             return placementsForRange;
         }
@@ -142,6 +148,11 @@ public class TokenPlacementModel
                     return mid;
             }
             return -(low + 1); // key not found
+        }
+
+        public List<Range> ranges(Replica replica)
+        {
+            return replicaToRanges.get(replica);
         }
     }
 

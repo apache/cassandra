@@ -45,6 +45,8 @@ import com.google.common.collect.Sets;
 import org.agrona.collections.Int2ObjectHashMap;
 import org.agrona.collections.IntArrayList;
 import org.agrona.collections.IntHashSet;
+import org.apache.cassandra.harry.sut.TokenPlacementModel.Range;
+import org.apache.cassandra.harry.sut.TokenPlacementModel.Replica;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -562,38 +564,49 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
 
         protected String commandNamePostfix()
         {
-            return "; epoch=" + currentEpoch.get() + ", cms=" + Arrays.toString(cmsGroup);
+            return "; epoch=" + currentEpoch.get() + ", cms=" + Arrays.toString(cmsGroup) + ", up=" + Arrays.toString(topologyHistory.up()) + ", down=" + Arrays.toString(topologyHistory.down());
         }
 
         public int[] upAndSafe()
         {
             IntHashSet up = asSet(topologyHistory.up());
-            IntArrayList safeNodes = new IntArrayList();
             int quorum = topologyHistory.quorum();
-            for (int id : up)
+            // find what ranges are able to handle 1 node loss
+            Set<Range> safeRanges = new HashSet<>();
+            Int2ObjectHashMap<Replica> idToReplica = new Int2ObjectHashMap<>();
+            for (Map.Entry<Range, List<Replica>> e : ring.asMap().entrySet())
             {
-                TopologyHistory.Node node = topologyHistory.node(id);
                 IntHashSet alive = new IntHashSet();
-                for (String token : node.tokens)
+                for (var replica : e.getValue())
                 {
-                    long tokenLong = Long.parseLong(token); //TODO (coverage): have harry support more types, and have this test do so as well
-                    List<TokenPlacementModel.Replica> replicas = ring.replicasFor(tokenLong);
-                    for (TokenPlacementModel.Replica replica : replicas)
-                    {
-                        //TODO (fix test api): NodeId is in the API but is always null.  Cheapest way to get the id is to assume the address has it
-                        // same issue with address...
-                        // /127.0.0.2
-                        String harryId = replica.node().id();
-                        int index = harryId.lastIndexOf('.');
-                        int peer = Integer.parseInt(harryId.substring(index + 1));
-                        if (up.contains(peer))
-                            alive.add(peer);
-                    }
+                    //TODO (fix test api): NodeId is in the API but is always null.  Cheapest way to get the id is to assume the address has it
+                    // same issue with address...
+                    // /127.0.0.2
+                    String harryId = replica.node().id();
+                    int index = harryId.lastIndexOf('.');
+                    int peer = Integer.parseInt(harryId.substring(index + 1));
+                    idToReplica.put(peer, replica);
+                    if (up.contains(peer))
+                        alive.add(peer);
                 }
                 if (quorum < alive.size())
+                    safeRanges.add(e.getKey());
+            }
+
+            // filter nodes where 100% of their ranges are "safe"
+            IntArrayList safeNodes = new IntArrayList();
+            for (int id : up)
+            {
+                Replica replica = idToReplica.get(id);
+                List<Range> ranges = ring.ranges(replica);
+
+                if (ranges.stream().allMatch(safeRanges::contains))
                     safeNodes.add(id);
             }
-            return safeNodes.toIntArray();
+
+            int[] upAndSafe = safeNodes.toIntArray();
+            Arrays.sort(upAndSafe);
+            return upAndSafe;
         }
 
         @Override
@@ -615,14 +628,21 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
         {
             var cmsNodesUp = Sets.intersection(asSet(cmsGroup), asSet(topologyHistory.up()));
             int cmsNode = Iterables.getFirst(cmsNodesUp, null);
-            epochHistory = cluster.get(cmsNode).callOnInstance(() -> {
-                LogState all = ClusterMetadataService.instance().processor().reconstruct(Epoch.EMPTY, Epoch.create(Long.MAX_VALUE), Retry.Deadline.retryIndefinitely(DatabaseDescriptor.getCmsAwaitTimeout().to(NANOSECONDS),
-                                                                                                                                                                     TCMMetrics.instance.commitRetries));
-                StringBuilder sb = new StringBuilder("Epochs:");
-                for (Entry e : all.entries)
-                    sb.append("\n\t\t").append(e.epoch.getEpoch()).append(": ").append(e.transform);
-                return sb.toString();
-            });
+            try
+            {
+                epochHistory = cluster.get(cmsNode).callOnInstance(() -> {
+                    LogState all = ClusterMetadataService.instance().processor().reconstruct(Epoch.EMPTY, Epoch.create(Long.MAX_VALUE), Retry.Deadline.retryIndefinitely(DatabaseDescriptor.getCmsAwaitTimeout().to(NANOSECONDS),
+                            TCMMetrics.instance.commitRetries));
+                    StringBuilder sb = new StringBuilder("Epochs:");
+                    for (Entry e : all.entries)
+                        sb.append("\n\t\t").append(e.epoch.getEpoch()).append(": ").append(e.transform);
+                    return sb.toString();
+                });
+            }
+            catch (Throwable t)
+            {
+                logger.warn("Unable to fetch epoch history on node{}", cmsNode, t);
+            }
             cluster.close();
         }
     }
