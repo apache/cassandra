@@ -18,7 +18,7 @@
 
 package org.apache.cassandra.service;
 
-import org.junit.After;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -35,18 +35,13 @@ public class AutoRepairServiceBasicTest extends CQLTester {
 
     @Before
     public void setUp() {
-        System.setProperty("cassandra.streaming.requires_view_build_during_repair", "false");
+        CassandraRelevantProperties.STREAMING_REQUIRES_VIEW_BUILD_DURING_REPAIR.setBoolean(false);
         DatabaseDescriptor.setCDCOnRepairEnabled(false);
         DatabaseDescriptor.setMaterializedViewsEnabled(false);
         DatabaseDescriptor.setCDCEnabled(false);
         config = new AutoRepairConfig();
         autoRepairService = new AutoRepairService();
         autoRepairService.config = config;
-    }
-
-    @After
-    public void tearDown() {
-        System.clearProperty("cassandra.streaming.requires_view_build_during_repair");
     }
 
     @Test
@@ -96,7 +91,7 @@ public class AutoRepairServiceBasicTest extends CQLTester {
     @Test(expected = ConfigurationException.class)
     public void testSetAutoRepairEnabledThrowsForIRWithMVReplay() {
         autoRepairService.config = new AutoRepairConfig(true);
-        System.setProperty("cassandra.streaming.requires_view_build_during_repair", "true");
+        CassandraRelevantProperties.STREAMING_REQUIRES_VIEW_BUILD_DURING_REPAIR.setBoolean(true);
 
         autoRepairService.setAutoRepairEnabled(AutoRepairConfig.RepairType.incremental, true);
     }
@@ -105,7 +100,7 @@ public class AutoRepairServiceBasicTest extends CQLTester {
     public void testSetAutoRepairEnabledDoesNotThrowForIRWithMVReplayDisabled() {
         autoRepairService.config = new AutoRepairConfig(true);
         DatabaseDescriptor.setMaterializedViewsEnabled(true);
-        System.setProperty("cassandra.streaming.requires_view_build_during_repair", "false");
+        CassandraRelevantProperties.STREAMING_REQUIRES_VIEW_BUILD_DURING_REPAIR.setBoolean(false);
 
         autoRepairService.setAutoRepairEnabled(AutoRepairConfig.RepairType.incremental, true);
     }

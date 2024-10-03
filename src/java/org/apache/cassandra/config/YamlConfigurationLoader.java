@@ -461,4 +461,3 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         return loaderOptions;
     }
 }
-

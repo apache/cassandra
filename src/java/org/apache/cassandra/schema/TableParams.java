@@ -104,8 +104,7 @@ public final class TableParams
         TRANSACTIONAL_MIGRATION_FROM,
         PENDING_DROP,
         AUTOMATED_REPAIR_FULL,
-        AUTOMATED_REPAIR_INCREMENTAL,
-        ;
+        AUTOMATED_REPAIR_INCREMENTAL;
 
         @Override
         public String toString()
