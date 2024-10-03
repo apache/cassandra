@@ -21,6 +21,7 @@ package org.apache.cassandra.repair.autorepair;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -54,7 +55,7 @@ public class AutoRepairTest extends CQLTester
     public void setup()
     {
         AutoRepair.SLEEP_IF_REPAIR_FINISHES_QUICKLY = new DurationSpec.IntSecondsBound("0s");
-        System.setProperty("cassandra.streaming.requires_view_build_during_repair", "false");
+        CassandraRelevantProperties.STREAMING_REQUIRES_VIEW_BUILD_DURING_REPAIR.setBoolean(false);
         DatabaseDescriptor.setCDCOnRepairEnabled(false);
         DatabaseDescriptor.getAutoRepairConfig().setAutoRepairEnabled(RepairType.full, true);
         DatabaseDescriptor.getAutoRepairConfig().setAutoRepairEnabled(RepairType.incremental, true);
@@ -104,7 +105,7 @@ public class AutoRepairTest extends CQLTester
     @Test(expected = ConfigurationException.class)
     public void testSetupFailsWhenIREnabledWithCDCReplay()
     {
-        System.setProperty("cassandra.streaming.requires_view_build_during_repair", "false");
+        CassandraRelevantProperties.STREAMING_REQUIRES_VIEW_BUILD_DURING_REPAIR.setBoolean(false);
 
         DatabaseDescriptor.getAutoRepairConfig().setAutoRepairEnabled(RepairType.incremental, true);
         DatabaseDescriptor.setCDCEnabled(true);
@@ -118,7 +119,7 @@ public class AutoRepairTest extends CQLTester
     public void testSetupFailsWhenIREnabledWithMVReplay()
     {
         DatabaseDescriptor.getAutoRepairConfig().setAutoRepairEnabled(RepairType.incremental, true);
-        System.setProperty("cassandra.streaming.requires_view_build_during_repair", "true");
+        CassandraRelevantProperties.STREAMING_REQUIRES_VIEW_BUILD_DURING_REPAIR.setBoolean(true);
         DatabaseDescriptor.setCDCOnRepairEnabled(false);
         AutoRepair instance = new AutoRepair();
         instance.setup();

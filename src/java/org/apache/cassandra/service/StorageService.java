@@ -458,11 +458,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     private volatile int totalCFs, remainingCFs;
 
-    public static final AtomicInteger nextRepairCommand = new AtomicInteger();
-
     private final List<IEndpointLifecycleSubscriber> lifecycleSubscribers = new CopyOnWriteArrayList<>();
 
     private final String jmxObjectName;
+
+    public static final AtomicInteger nextRepairCommand = new AtomicInteger();
 
     // true when keeping strict consistency while bootstrapping
     public static final boolean useStrictConsistency = CONSISTENT_RANGE_MOVEMENT.getBoolean();

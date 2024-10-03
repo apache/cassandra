@@ -24,7 +24,6 @@ import org.apache.cassandra.auth.AuthKeyspace;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.MetaStrategy;
-import org.apache.cassandra.repair.autorepair.AutoRepairKeyspace;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
