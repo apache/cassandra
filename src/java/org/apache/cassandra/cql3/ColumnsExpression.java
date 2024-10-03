@@ -368,7 +368,7 @@ public final class ColumnsExpression
      */
     public boolean isMapElementExpression()
     {
-        return kind == Kind.ELEMENT && element != null && element.kind() == ElementExpression.Kind.COLLECTION_ELEMENT && firstColumn().type instanceof MapType;
+        return kind == Kind.ELEMENT && element != null && element.kind() == ElementExpression.Kind.COLLECTION_ELEMENT && firstColumn().type.unwrap() instanceof MapType;
     }
 
     /**
