@@ -24,7 +24,7 @@ public class ClearSnapshotFilesMetrics
 {
     public static final MetricNameFactory factory = new DefaultNameFactory("ClearSnapshotFiles");
 
-    public static LatencyMetrics success = new LatencyMetrics(factory, "success");
-    public static Meter ioException = CassandraMetricsRegistry.Metrics.meter(factory.createMetricName("ioException"));
-    public static Meter noTableDir = CassandraMetricsRegistry.Metrics.meter(factory.createMetricName("noTableDir"));
+    public static LatencyMetrics success = new LatencyMetrics(factory, "Success");
+    public static Meter ioException = CassandraMetricsRegistry.Metrics.meter(factory.createMetricName("IoException"));
+    public static Meter noTableDir = CassandraMetricsRegistry.Metrics.meter(factory.createMetricName("NoTableDir"));
 }

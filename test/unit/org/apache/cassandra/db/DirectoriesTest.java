@@ -73,6 +73,7 @@ import org.apache.cassandra.db.Directories.DataDirectories;
 import org.apache.cassandra.db.Directories.DataDirectory;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.index.internal.CassandraIndex;
+import org.apache.cassandra.io.FSDiskFullWriteError;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -83,6 +84,7 @@ import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.metrics.AvailableDiskMetrics;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.Indexes;
 import org.apache.cassandra.schema.MockSchema;
@@ -1060,5 +1062,124 @@ public class DirectoriesTest
         checkFormattedMessage(filteredLog, Level.WARN, logMsg, 1);
         logMsg = String.format(logMsgFormat, "[/nearlyFullDir1,/uniformDir2,/veryFullDir]", "0 bytes", "1 MiB");
         checkFormattedMessage(filteredLog, Level.WARN, logMsg, 1);
+    }
+
+    @Test
+    public void testAvailableDiskMetricsInHasAvailableDiskSpace()
+    {
+        DataDirectory[] dataDirectories = new DataDirectory[]
+                                          {
+                                          new DataDirectory(new File("/nearlyFullDir1"))
+                                          {
+                                              public long getAvailableSpace()
+                                              {
+                                                  return 11L;
+                                              }
+                                          },
+                                          new DataDirectory(new File("/uniformDir2"))
+                                          {
+                                              public long getAvailableSpace()
+                                              {
+                                                  return 999L;
+                                              }
+                                          },
+                                          new DataDirectory(new File("/veryFullDir"))
+                                          {
+                                              public long getAvailableSpace()
+                                              {
+                                                  return 4L;
+                                              }
+                                          }
+                                          };
+
+        Directories d = new Directories( ((TableMetadata) CFM.toArray()[0]), dataDirectories);
+
+        long compactionNeededBefore;
+        long compactionAvailableBefore;
+        long compactionInsufficientBefore;
+        long compactionNeededAfter;
+        long compactionAvailableAfter;
+        long compactionInsufficientAfter;
+
+        compactionNeededBefore = AvailableDiskMetrics.compactionNeeded.getCount();
+        compactionAvailableBefore = AvailableDiskMetrics.compactionAvailable.getCount();
+        compactionInsufficientBefore = AvailableDiskMetrics.compactionInsufficient.getCount();
+        assertTrue(d.hasAvailableDiskSpace(1,2));
+        compactionNeededAfter = AvailableDiskMetrics.compactionNeeded.getCount();
+        compactionAvailableAfter = AvailableDiskMetrics.compactionAvailable.getCount();
+        compactionInsufficientAfter = AvailableDiskMetrics.compactionInsufficient.getCount();
+        assertEquals(1, compactionNeededAfter - compactionNeededBefore);
+        assertEquals(1, compactionAvailableAfter - compactionAvailableBefore);
+        assertEquals(0, compactionInsufficientAfter - compactionInsufficientBefore);
+
+        compactionNeededBefore = AvailableDiskMetrics.compactionNeeded.getCount();
+        compactionAvailableBefore = AvailableDiskMetrics.compactionAvailable.getCount();
+        compactionInsufficientBefore = AvailableDiskMetrics.compactionInsufficient.getCount();
+        assertFalse(d.hasAvailableDiskSpace(10,1024));
+        compactionNeededAfter = AvailableDiskMetrics.compactionNeeded.getCount();
+        compactionAvailableAfter = AvailableDiskMetrics.compactionAvailable.getCount();
+        compactionInsufficientAfter = AvailableDiskMetrics.compactionInsufficient.getCount();
+        assertEquals(1, compactionNeededAfter - compactionNeededBefore);
+        assertEquals(1, compactionAvailableAfter - compactionAvailableBefore);
+        assertEquals(1, compactionInsufficientAfter - compactionInsufficientBefore);
+    }
+
+    @Test
+    public void testAvailableDiskMetricsInGetWriteableLocation()
+    {
+        DataDirectory[] dataDirectories = new DataDirectory[]
+                                          {
+                                          new DataDirectory(new File("/veryFullDir"))
+                                          {
+                                              public long getAvailableSpace()
+                                              {
+                                                  return 4L;
+                                              }
+                                          }
+                                          };
+
+        Directories d = new Directories( ((TableMetadata) CFM.toArray()[0]), dataDirectories);
+
+        long otherNeededBefore;
+        long otherAvailableBefore;
+        long otherInsufficientBefore;
+        long otherNeededAfter;
+        long otherAvailableAfter;
+        long otherInsufficientAfter;
+
+        otherNeededBefore = AvailableDiskMetrics.otherNeeded.getCount();
+        otherAvailableBefore = AvailableDiskMetrics.otherAvailable.getCount();
+        otherInsufficientBefore = AvailableDiskMetrics.otherInsufficient.getCount();
+        try
+        {
+            d.getWriteableLocation(5L);
+            fail(); // we expect the disk full error
+        } catch (Throwable e)
+        {
+            assertTrue(e instanceof FSDiskFullWriteError);
+        }
+        otherNeededAfter = AvailableDiskMetrics.otherNeeded.getCount();
+        otherAvailableAfter  = AvailableDiskMetrics.otherAvailable.getCount();
+        otherInsufficientAfter  = AvailableDiskMetrics.otherInsufficient.getCount();
+        assertEquals(1, otherNeededAfter - otherNeededBefore);
+        assertEquals(1, otherAvailableAfter - otherAvailableBefore);
+        assertEquals(1, otherInsufficientAfter - otherInsufficientBefore);
+
+        otherNeededBefore = AvailableDiskMetrics.otherNeeded.getCount();
+        otherAvailableBefore = AvailableDiskMetrics.otherAvailable.getCount();
+        otherInsufficientBefore = AvailableDiskMetrics.otherInsufficient.getCount();
+        try
+        {
+            d.getWriteableLocation(1L);
+        } catch (Throwable e)
+        {
+            fail(); // we don't expect the disk full error
+        }
+        otherNeededAfter = AvailableDiskMetrics.otherNeeded.getCount();
+        otherAvailableAfter  = AvailableDiskMetrics.otherAvailable.getCount();
+        otherInsufficientAfter  = AvailableDiskMetrics.otherInsufficient.getCount();
+        assertEquals(1, otherNeededAfter - otherNeededBefore);
+        assertEquals(1, otherAvailableAfter - otherAvailableBefore);
+        assertEquals(0, otherInsufficientAfter - otherInsufficientBefore);
     }
 }

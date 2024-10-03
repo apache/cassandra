@@ -53,6 +53,7 @@ import org.apache.cassandra.io.FSNoDiskAvailableForWriteError;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.sstable.*;
+import org.apache.cassandra.metrics.AvailableDiskMetrics;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.io.util.PathUtils;
 import org.apache.cassandra.schema.TableMetadata;
@@ -434,6 +435,7 @@ public class Directories
                 continue;
             }
             DataDirectoryCandidate candidate = new DataDirectoryCandidate(dataDir);
+            AvailableDiskMetrics.otherAvailable.update(candidate.availableSpace);
             // exclude directory if its total writeSize does not fit to data directory
             if (candidate.availableSpace < writeSize)
             {
@@ -445,10 +447,15 @@ public class Directories
             totalAvailable += candidate.availableSpace;
         }
 
+        AvailableDiskMetrics.otherNeeded.update(writeSize);
+
         if (candidates.isEmpty())
         {
             if (tooBig)
+            {
+                AvailableDiskMetrics.otherInsufficient.mark();
                 throw new FSDiskFullWriteError(metadata.keyspace, writeSize);
+            }
 
             throw new FSNoDiskAvailableForWriteError(metadata.keyspace);
         }
@@ -512,6 +519,9 @@ public class Directories
             totalAvailable += candidate.availableSpace;
         }
 
+        AvailableDiskMetrics.compactionNeeded.update(expectedTotalWriteSize);
+        AvailableDiskMetrics.compactionAvailable.update(totalAvailable);
+
         if (totalAvailable <= expectedTotalWriteSize)
         {
             StringJoiner pathString = new StringJoiner(",", "[", "]");
@@ -519,6 +529,7 @@ public class Directories
             {
                 pathString.add(p.location.toJavaIOFile().getAbsolutePath());
             }
+            AvailableDiskMetrics.compactionInsufficient.mark();
             logger.warn("Insufficient disk space for compaction. Across {} there's only {} available, but {} is needed.",
                         pathString.toString(),
                         FileUtils.stringifyFileSize(totalAvailable),
