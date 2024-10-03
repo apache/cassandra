@@ -24,7 +24,9 @@ import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.cql3.restrictions.SimpleRestriction;
 import org.apache.cassandra.cql3.restrictions.SingleRestriction;
-import org.apache.cassandra.cql3.terms.*;
+import org.apache.cassandra.cql3.terms.Term;
+import org.apache.cassandra.cql3.terms.Terms;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.MapType;
@@ -198,9 +200,10 @@ public final class Relation
         if (columnsExpression.isMapElementExpression())
         {
             ColumnMetadata column = columnsExpression.firstColumn();
-            checkFalse(column.type instanceof ListType, "Indexes on list entries (%s[index] = value) are not supported.", column.name);
-            checkTrue(column.type instanceof MapType, "Column %s cannot be used as a map", column.name);
-            checkTrue(column.type.isMultiCell(), "Map-entry predicates on frozen map column %s are not supported", column.name);
+            AbstractType<?> baseType = column.type.unwrap();
+            checkFalse(baseType instanceof ListType, "Indexes on list entries (%s[index] = value) are not supported.", column.name);
+            checkTrue(baseType instanceof MapType, "Column %s cannot be used as a map", column.name);
+            checkTrue(baseType.isMultiCell(), "Map-entry predicates on frozen map column %s are not supported", column.name);
             columnsExpression.collectMarkerSpecification(boundNames);
         }
 

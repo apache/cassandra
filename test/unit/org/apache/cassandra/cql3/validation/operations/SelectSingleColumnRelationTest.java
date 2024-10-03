@@ -30,6 +30,14 @@ import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
 public class SelectSingleColumnRelationTest extends CQLTester
 {
     @Test
+    public void textInvalidMapEntryPredicate()  throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck frozen<map<int, int>>, v int, PRIMARY KEY(pk, ck)) WITH CLUSTERING ORDER BY (ck DESC)");
+        assertInvalidMessage("Map-entry predicates on frozen map column ck are not supported",
+                             "SELECT * FROM %s WHERE pk=? AND ck[0] = ?", 0, 0);
+    }
+
+    @Test
     public void testInvalidCollectionEqualityRelation() throws Throwable
     {
         createTable("CREATE TABLE %s (a int PRIMARY KEY, b set<int>, c list<int>, d map<int, int>)");
