@@ -29,19 +29,20 @@ import accord.primitives.Deps;
 import accord.primitives.Ranges;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
+import accord.utils.PersistentField.Persister;
 
 public interface IJournal
 {
     Command loadCommand(int commandStoreId, TxnId txnId, RedundantBefore redundantBefore, DurableBefore durableBefore);
 
     RedundantBefore loadRedundantBefore(int commandStoreId);
-    DurableBefore loadDurableBefore(int commandStoreId);
     NavigableMap<TxnId, Ranges> loadBootstrapBeganAt(int commandStoreId);
     NavigableMap<Timestamp, Ranges> loadSafeToRead(int commandStoreId);
     CommandStores.RangesForEpoch.Snapshot loadRangesForEpoch(int commandStoreId);
     List<Deps> loadHistoricalTransactions(int store);
 
     void appendCommand(int store, SavedCommand.DiffWriter value, Runnable onFlush);
+    Persister<DurableBefore, DurableBefore> durableBeforePersister();
     void persistStoreState(int store,
                            // TODO: this class should not live under ASCS
                            AccordSafeCommandStore.FieldUpdates fieldUpdates,

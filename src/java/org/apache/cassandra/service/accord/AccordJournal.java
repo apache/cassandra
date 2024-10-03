@@ -46,6 +46,9 @@ import accord.primitives.Ranges;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
+import accord.utils.PersistentField;
+import accord.utils.async.AsyncResult;
+import accord.utils.async.AsyncResults;
 import org.apache.cassandra.concurrent.Shutdownable;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.DataInputBuffer;
@@ -197,13 +200,6 @@ public class AccordJournal implements IJournal, Shutdownable
     }
 
     @Override
-    public DurableBefore loadDurableBefore(int store)
-    {
-        DurableBeforeAccumulator accumulator = readAll(new JournalKey(TxnId.NONE, JournalKey.Type.DURABLE_BEFORE, store));
-        return accumulator.get();
-    }
-
-    @Override
     public NavigableMap<TxnId, Ranges> loadBootstrapBeganAt(int store)
     {
         IdentityAccumulator<NavigableMap<TxnId, Ranges>> accumulator = readAll(new JournalKey(TxnId.NONE, JournalKey.Type.BOOTSTRAP_BEGAN_AT, store));
@@ -249,14 +245,40 @@ public class AccordJournal implements IJournal, Shutdownable
     }
 
     @Override
+    public PersistentField.Persister<DurableBefore, DurableBefore> durableBeforePersister()
+    {
+        return new PersistentField.Persister<>()
+        {
+            @Override
+            public AsyncResult<?> persist(DurableBefore addDurableBefore, DurableBefore newDurableBefore)
+            {
+                if (isReplay.get())
+                    return AsyncResults.success(null);
+
+                AsyncResult.Settable<Void> result = AsyncResults.settable();
+                JournalKey key = new JournalKey(TxnId.NONE, JournalKey.Type.DURABLE_BEFORE, 0);
+                RecordPointer pointer = appendInternal(key, addDurableBefore);
+                // TODO (required): what happens on failure?
+                journal.onFlush(pointer, () -> result.setSuccess(null));
+                return result;
+            }
+
+            @Override
+            public DurableBefore load()
+            {
+                DurableBeforeAccumulator accumulator = readAll(new JournalKey(TxnId.NONE, JournalKey.Type.DURABLE_BEFORE, 0));
+                return accumulator.get();
+            }
+        };
+    }
+
+    @Override
     public void persistStoreState(int store, AccordSafeCommandStore.FieldUpdates fieldUpdates, Runnable onFlush)
     {
         RecordPointer pointer = null;
         // TODO: avoid allocating keys
         if (fieldUpdates.addRedundantBefore != null)
             pointer = appendInternal(new JournalKey(TxnId.NONE, JournalKey.Type.REDUNDANT_BEFORE, store), fieldUpdates.addRedundantBefore);
-        if (fieldUpdates.addDurableBefore != null)
-            pointer = appendInternal(new JournalKey(TxnId.NONE, JournalKey.Type.DURABLE_BEFORE, store), fieldUpdates.addDurableBefore);
         if (fieldUpdates.newBootstrapBeganAt != null)
             pointer = appendInternal(new JournalKey(TxnId.NONE, JournalKey.Type.BOOTSTRAP_BEGAN_AT, store), fieldUpdates.newBootstrapBeganAt);
         if (fieldUpdates.newSafeToRead != null)

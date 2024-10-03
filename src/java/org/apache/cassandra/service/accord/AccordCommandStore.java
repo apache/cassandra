@@ -48,9 +48,8 @@ import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.CommandStores;
 import accord.local.Commands;
-import accord.local.DurableBefore;
 import accord.local.KeyHistory;
-import accord.local.NodeTimeService;
+import accord.local.NodeCommandStoreService;
 import accord.local.PreLoadContext;
 import accord.local.RedundantBefore;
 import accord.local.SafeCommand;
@@ -172,7 +171,7 @@ public class AccordCommandStore extends CommandStore
     }
 
     public AccordCommandStore(int id,
-                              NodeTimeService time,
+                              NodeCommandStoreService node,
                               Agent agent,
                               DataStore dataStore,
                               ProgressLog.Factory progressLogFactory,
@@ -181,7 +180,7 @@ public class AccordCommandStore extends CommandStore
                               IJournal journal,
                               CommandStoreExecutor commandStoreExecutor)
     {
-        super(id, time, agent, dataStore, progressLogFactory, listenerFactory, epochUpdateHolder);
+        super(id, node, agent, dataStore, progressLogFactory, listenerFactory, epochUpdateHolder);
         this.journal = journal;
         loggingId = String.format("[%s]", id);
         executor = commandStoreExecutor;
@@ -218,7 +217,6 @@ public class AccordCommandStore extends CommandStore
         this.commandsForRangesLoader = new CommandsForRangesLoader(this);
 
         loadRedundantBefore(journal.loadRedundantBefore(id()));
-        loadDurableBefore(journal.loadDurableBefore(id()));
         loadBootstrapBeganAt(journal.loadBootstrapBeganAt(id()));
         loadSafeToRead(journal.loadSafeToRead(id()));
         loadRangesForEpoch(journal.loadRangesForEpoch(id()));
@@ -229,8 +227,8 @@ public class AccordCommandStore extends CommandStore
 
     static Factory factory(AccordJournal journal, IntFunction<CommandStoreExecutor> executorFactory)
     {
-        return (id, time, agent, dataStore, progressLogFactory, listenerFactory, rangesForEpoch) ->
-               new AccordCommandStore(id, time, agent, dataStore, progressLogFactory, listenerFactory, rangesForEpoch, journal, executorFactory.apply(id));
+        return (id, node, agent, dataStore, progressLogFactory, listenerFactory, rangesForEpoch) ->
+               new AccordCommandStore(id, node, agent, dataStore, progressLogFactory, listenerFactory, rangesForEpoch, journal, executorFactory.apply(id));
     }
 
     public CommandsForRangesLoader diskCommandsForRanges()
@@ -416,9 +414,9 @@ public class AccordCommandStore extends CommandStore
         return store;
     }
 
-    NodeTimeService time()
+    NodeCommandStoreService node()
     {
-        return time;
+        return node;
     }
 
     ProgressLog progressLog()
@@ -544,7 +542,7 @@ public class AccordCommandStore extends CommandStore
     @VisibleForTesting
     public Command loadCommand(TxnId txnId)
     {
-        return journal.loadCommand(id, txnId, unsafeGetRedundantBefore(), unsafeGetDurableBefore());
+        return journal.loadCommand(id, txnId, unsafeGetRedundantBefore(), durableBefore());
     }
 
     public interface Loader
@@ -591,7 +589,7 @@ public class AccordCommandStore extends CommandStore
                             Command local = command;
                             if (local.status() != Truncated && local.status() != Invalidated)
                             {
-                                Cleanup cleanup = Cleanup.shouldCleanup(local, unsafeGetRedundantBefore(), unsafeGetDurableBefore());
+                                Cleanup cleanup = Cleanup.shouldCleanup(local, unsafeGetRedundantBefore(), durableBefore());
                                 switch (cleanup)
                                 {
                                     case NO:
@@ -651,12 +649,6 @@ public class AccordCommandStore extends CommandStore
     {
         if (redundantBefore != null)
             unsafeSetRedundantBefore(redundantBefore);
-    }
-
-    void loadDurableBefore(DurableBefore durableBefore)
-    {
-        if (durableBefore != null)
-            unsafeSetDurableBefore(durableBefore);
     }
 
     void loadBootstrapBeganAt(NavigableMap<TxnId, Ranges> bootstrapBeganAt)

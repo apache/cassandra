@@ -46,8 +46,10 @@ import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.CommandStores;
 import accord.local.CommonAttributes;
+import accord.local.DurableBefore;
 import accord.local.Node;
 import accord.local.Node.Id;
+import accord.local.NodeCommandStoreService;
 import accord.local.NodeTimeService;
 import accord.local.PreLoadContext;
 import accord.local.SafeCommand;
@@ -364,16 +366,16 @@ public class AccordTestUtils
         TableMetadata metadata = Schema.instance.getTableMetadata(keyspace, table);
         TokenRange range = TokenRange.fullRange(metadata.id);
         Node.Id node = new Id(1);
-        NodeTimeService time = new NodeTimeService()
+        NodeCommandStoreService time = new NodeCommandStoreService()
         {
             private ToLongFunction<TimeUnit> elapsed = NodeTimeService.elapsedWrapperFromNonMonotonicSource(TimeUnit.MICROSECONDS, this::now);
 
             @Override public Id id() { return node;}
+            @Override public DurableBefore durableBefore() { return DurableBefore.EMPTY; }
             @Override public long epoch() {return 1; }
             @Override public long now() {return now.getAsLong(); }
             @Override public Timestamp uniqueNow(Timestamp atLeast) { return Timestamp.fromValues(1, now.getAsLong(), node); }
-            @Override
-            public long elapsed(TimeUnit timeUnit) { return elapsed.applyAsLong(timeUnit); }
+            @Override public long elapsed(TimeUnit timeUnit) { return elapsed.applyAsLong(timeUnit); }
         };
 
         SingleEpochRanges holder = new SingleEpochRanges(Ranges.of(range));
@@ -386,10 +388,11 @@ public class AccordTestUtils
     public static AccordCommandStore createAccordCommandStore(
         Node.Id node, LongSupplier now, Topology topology, ExecutorPlus loadExecutor, ExecutorPlus saveExecutor)
     {
-        NodeTimeService time = new NodeTimeService()
+        NodeCommandStoreService time = new NodeCommandStoreService()
         {
             private ToLongFunction<TimeUnit> elapsed = NodeTimeService.elapsedWrapperFromNonMonotonicSource(TimeUnit.MICROSECONDS, this::now);
 
+            @Override public DurableBefore durableBefore() { return DurableBefore.EMPTY; }
             @Override public Id id() { return node;}
             @Override public long epoch() {return 1; }
             @Override public long now() {return now.getAsLong(); }
