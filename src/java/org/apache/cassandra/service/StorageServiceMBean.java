@@ -1193,4 +1193,10 @@ public interface StorageServiceMBean extends NotificationEmitter
     /** WARNING!!!!! DO NOT USE THIS API FOR PRODUCTION; THIS IS EMERGENCY
      TOOLING FOR FASTER MITIGATION PURPOSES ONLY  */
     public boolean internalQueueCleanupEMERGENCYUSEONLY(String queueName);
+
+    /* Get clear_snapshot_files_log_enabled */
+    boolean getClearSnapshotFilesLogEnabled();
+
+    /* Set clear_snapshot_files_log_enabled */
+    void setClearSnapshotFilesLogEnabled(boolean enabled);
 }

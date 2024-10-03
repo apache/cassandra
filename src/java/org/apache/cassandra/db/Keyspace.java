@@ -350,10 +350,17 @@ public class Keyspace
      */
     public static void clearSnapshotFiles(String snapshotName, String keyspace, String tableDir, String... files) throws IOException
     {
+        clearSnapshotFilesWithLogger(logger, snapshotName, keyspace, tableDir, files);
+    }
+
+    public static void clearSnapshotFilesWithLogger(Logger log, String snapshotName, String keyspace, String tableDir, String... files) throws IOException
+    {
         long start = nanoTime();
         File cfDir = Directories.getKSChildDirectoryWithName(keyspace, tableDir);
         if (cfDir == null)
         {
+            log.error("clearSnapshotFiles noTableDir. "
+                         + convertToSingleStringForLogging(snapshotName, keyspace, tableDir, files));
             ClearSnapshotFilesMetrics.noTableDir.mark();
             throw new RuntimeException(String.format("No table dir found for ks %s with dir name %s", keyspace, tableDir));
         }
@@ -362,10 +369,36 @@ public class Keyspace
         try {
             Directories.clearSnapshotFiles(snapshotName, cfDir, clearSnapshotRateLimiter, filesToDelete);
         } catch (IOException e) {
+            log.error("clearSnapshotFiles ioException. " +
+                         convertToSingleStringForLogging(snapshotName, keyspace, tableDir, files) + " exception=" + e);
             ClearSnapshotFilesMetrics.ioException.mark();
             throw e;
         }
-        ClearSnapshotFilesMetrics.success.addNano(nanoTime() - start);
+        long latencyNano = nanoTime() - start;
+        ClearSnapshotFilesMetrics.success.addNano(latencyNano);
+        if (DatabaseDescriptor.getClearSnapshotFilesLogEnabled()) {
+            log.info("clearSnapshotFiles success. " +
+                        convertToSingleStringForLogging(snapshotName, keyspace, tableDir, files) +
+                        " latency(nano)=" + latencyNano);
+        }
+    }
+
+    @VisibleForTesting
+    public static String convertToSingleStringForLogging(String snapshotName, String keyspace, String tableDir, String... files) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("snapshotName=");
+        sb.append(snapshotName);
+        sb.append(" keyspace=");
+        sb.append(keyspace);
+        sb.append(" tableDir=");
+        sb.append(tableDir);
+        sb.append(" files=[ ");
+        for (String f : files) {
+            sb.append(f);
+            sb.append(' ');
+        }
+        sb.append("]");
+        return sb.toString();
     }
 
     /**

@@ -5046,6 +5046,16 @@ public class DatabaseDescriptor
         conf.throttling_options = throttlingOptions;
     }
 
+    public static boolean getClearSnapshotFilesLogEnabled()
+    {
+        return conf.clear_snapshot_files_log_enabled;
+    }
+
+    public static void setClearSnapshotFilesLogEnabled(boolean enabled)
+    {
+        conf.clear_snapshot_files_log_enabled = enabled;
+    }
+
     public static AutoRepairConfig getAutoRepairConfig()
     {
         return conf.auto_repair;

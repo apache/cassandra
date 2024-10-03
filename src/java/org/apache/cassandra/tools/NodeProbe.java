@@ -2916,6 +2916,16 @@ public class NodeProbe implements AutoCloseable
     {
         return ssProxy.internalQueueCleanupEMERGENCYUSEONLY(queueName);
     }
+
+    public boolean getClearSnapshotFilesLogEnabled()
+    {
+        return ssProxy.getClearSnapshotFilesLogEnabled();
+    }
+
+    public void setClearSnapshotFilesLogEnabled(boolean enabled)
+    {
+        ssProxy.setClearSnapshotFilesLogEnabled(enabled);
+    }
 }
 
 class ColumnFamilyStoreMBeanIterator implements Iterator<Map.Entry<String, ColumnFamilyStoreMBean>>

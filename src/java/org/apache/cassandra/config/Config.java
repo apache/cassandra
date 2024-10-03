@@ -804,6 +804,9 @@ public class Config
     // rate limiter related variables:
     public volatile ThrottlingOptions throttling_options = new ThrottlingOptions();
 
+    // whether to enable logging for nodetool clearsnapshotfiles
+    public volatile boolean clear_snapshot_files_log_enabled = false;
+
     // throw_on_overload has the same effect as the client side "THROW_ON_OVERLOAD" flag that
     // was implemented in CASSANDRA-15013.
     // Either this flag is true or the client side counterpart is true will enable the throwing of

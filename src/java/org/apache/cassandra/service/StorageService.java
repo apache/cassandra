@@ -7571,4 +7571,16 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
         return false;
     }
+
+    @Override
+    public boolean getClearSnapshotFilesLogEnabled()
+    {
+        return DatabaseDescriptor.getClearSnapshotFilesLogEnabled();
+    }
+
+    @Override
+    public void setClearSnapshotFilesLogEnabled(boolean enabled)
+    {
+        DatabaseDescriptor.setClearSnapshotFilesLogEnabled(enabled);
+    }
 }

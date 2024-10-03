@@ -18,10 +18,10 @@
 
 package org.apache.cassandra.db;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.metrics.ClearSnapshotFilesMetrics;
 import org.apache.cassandra.schema.Schema;
@@ -45,6 +45,20 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.metrics.ClearableHistogram;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+
+import org.slf4j.Logger;
+
+import org.mockito.Mockito;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anySet;
+import static org.mockito.ArgumentMatchers.contains;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.mock;
 
 import static java.lang.String.format;
 import static org.junit.Assert.*;
@@ -603,6 +617,61 @@ public class KeyspaceTest extends CQLTester
             assertEquals(0, ioExceptionAfter - ioExceptionBefore);
             assertEquals(1, successCountAfter - successCountBefore);
         }
+    }
+
+    @Test
+    public void testClearSnapshotFilesWithLogger() throws Throwable
+    {
+        String snapshotName = "test_snapshot_files";
+        createTable("CREATE TABLE %s (a text, b int, c int, PRIMARY KEY (a, b))");
+        final ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        cfs.disableAutoCompaction();
+
+        for (int j = 0; j < 10; j++)
+        {
+            for (int i = 1000 + (j * 100); i < 1000 + ((j + 1) * 100); i++)
+                execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?) USING TIMESTAMP ?", "0", i, i, (long) i);
+
+            Util.flush(cfs);
+        }
+        // take snapshot of this table
+        Keyspace.open(KEYSPACE_PER_TEST).snapshot(snapshotName, cfs.name);
+
+        Logger mockLogger = Mockito.mock(Logger.class);
+        for (File tableDir : cfs.getDirectories().getCFDirectories())
+        {
+            DatabaseDescriptor.setClearSnapshotFilesLogEnabled(false);
+            File snapshotDir = Directories.getSnapshotDirectory(tableDir, snapshotName);
+            File[] files = snapshotDir.list();
+            Keyspace.clearSnapshotFilesWithLogger(mockLogger, snapshotName, KEYSPACE_PER_TEST, tableDir.name(), files[0].name());
+            verify(mockLogger, never()).info(Mockito.anyString());
+
+            DatabaseDescriptor.setClearSnapshotFilesLogEnabled(true);
+            files = Directories.getSnapshotDirectory(tableDir, snapshotName).list();
+            Keyspace.clearSnapshotFilesWithLogger(mockLogger, snapshotName, KEYSPACE_PER_TEST, tableDir.name(), files[0].name());
+            verify(mockLogger).info(contains("clearSnapshotFiles success."));
+
+            DatabaseDescriptor.setClearSnapshotFilesLogEnabled(false);
+            files = Directories.getSnapshotDirectory(tableDir, snapshotName).list();
+            String nonExistingTable = tableDir.name() + "nonexisting";
+            try {
+                Keyspace.clearSnapshotFilesWithLogger(mockLogger, snapshotName, KEYSPACE_PER_TEST, nonExistingTable, files[0].name());
+                fail(); // should not reach here
+            } catch (Exception e) {
+                verify(mockLogger).error(Mockito.contains("clearSnapshotFiles noTableDir."));
+            }
+        }
+
+        // always make sure it is set to false after the test
+        DatabaseDescriptor.setClearSnapshotFilesLogEnabled(false);
+    }
+
+    @Test
+    public void testConvertToSingleStringForLogging()
+    {
+        String res = Keyspace.convertToSingleStringForLogging(
+        "snapshot1", "ks1", "tb1", new String[]{"file1", "file2"});
+        assertEquals(res, "snapshotName=snapshot1 keyspace=ks1 tableDir=tb1 files=[ file1 file2 ]");
     }
 
     @Test
