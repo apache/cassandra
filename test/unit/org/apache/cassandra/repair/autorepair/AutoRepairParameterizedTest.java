@@ -30,12 +30,14 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.collect.Sets;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.cql3.statements.schema.TableAttributes;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.repair.RepairCoordinator;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.Pair;
 
@@ -130,7 +132,7 @@ public class AutoRepairParameterizedTest extends CQLTester
         QueryProcessor.executeInternal(String.format("CREATE MATERIALIZED VIEW %s.%s AS SELECT i, k from %s.%s " +
                 "WHERE k IS NOT null AND i IS NOT null PRIMARY KEY (i, k)", KEYSPACE, MV, KEYSPACE, TABLE));
 
-        System.setProperty("cassandra.streaming.requires_view_build_during_repair", "false");
+        CassandraRelevantProperties.STREAMING_REQUIRES_VIEW_BUILD_DURING_REPAIR.setBoolean(false);
         MockitoAnnotations.initMocks(this);
 
         Keyspace.open(KEYSPACE).getColumnFamilyStore(TABLE).truncateBlocking();
@@ -139,8 +141,8 @@ public class AutoRepairParameterizedTest extends CQLTester
         Keyspace.open(KEYSPACE).getColumnFamilyStore(MV).truncateBlocking();
         Keyspace.open(KEYSPACE).getColumnFamilyStore(MV).disableAutoCompaction();
 
-        Keyspace.open(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME).getColumnFamilyStore(AutoRepairKeyspace.AUTO_REPAIR_PRIORITY).truncateBlocking();
-        Keyspace.open(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME).getColumnFamilyStore(AutoRepairKeyspace.AUTO_REPAIR_HISTORY).truncateBlocking();
+        Keyspace.open(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME).getColumnFamilyStore(SystemDistributedKeyspace.AUTO_REPAIR_PRIORITY).truncateBlocking();
+        Keyspace.open(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME).getColumnFamilyStore(SystemDistributedKeyspace.AUTO_REPAIR_HISTORY).truncateBlocking();
 
 
         AutoRepair.instance = new AutoRepair();
@@ -197,7 +199,7 @@ public class AutoRepairParameterizedTest extends CQLTester
         QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, s) VALUES ('k', 's')");
         QueryProcessor.executeInternal("SELECT s FROM ks.tbl WHERE k='k'");
         Keyspace.open(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME)
-                .getColumnFamilyStore(AutoRepairKeyspace.AUTO_REPAIR_PRIORITY)
+                .getColumnFamilyStore(SystemDistributedKeyspace.AUTO_REPAIR_PRIORITY)
                 .forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
     }
 
@@ -678,7 +680,7 @@ public class AutoRepairParameterizedTest extends CQLTester
     public void testRepairThrowsForIRWithMVReplay()
     {
         AutoRepair.instance.setup();
-        System.setProperty("cassandra.streaming.requires_view_build_during_repair", "true");
+        CassandraRelevantProperties.STREAMING_REQUIRES_VIEW_BUILD_DURING_REPAIR.setBoolean(true);
 
         if (repairType == AutoRepairConfig.RepairType.incremental)
         {
