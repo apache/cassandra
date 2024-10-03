@@ -53,6 +53,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.ViewMetadata;
 import org.apache.cassandra.serializers.SetSerializer;
@@ -96,56 +97,56 @@ public class AutoRepairUtils
 
     final static String SELECT_REPAIR_HISTORY = String.format(
     "SELECT * FROM %s.%s WHERE %s = ?", SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
-    AutoRepairKeyspace.AUTO_REPAIR_HISTORY, COL_REPAIR_TYPE);
+    SystemDistributedKeyspace.AUTO_REPAIR_HISTORY, COL_REPAIR_TYPE);
     final static String SELECT_REPAIR_PRIORITY = String.format(
     "SELECT * FROM %s.%s WHERE %s = ?", SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
-    AutoRepairKeyspace.AUTO_REPAIR_PRIORITY, COL_REPAIR_TYPE);
+    SystemDistributedKeyspace.AUTO_REPAIR_PRIORITY, COL_REPAIR_TYPE);
     final static String DEL_REPAIR_PRIORITY = String.format(
     "DELETE %s[?] FROM %s.%s WHERE %s = ?", COL_REPAIR_PRIORITY, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
-    AutoRepairKeyspace.AUTO_REPAIR_PRIORITY, COL_REPAIR_TYPE);
+    SystemDistributedKeyspace.AUTO_REPAIR_PRIORITY, COL_REPAIR_TYPE);
     final static String ADD_PRIORITY_HOST = String.format(
     "UPDATE %s.%s SET %s = %s + ?  WHERE %s = ?", SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
-    AutoRepairKeyspace.AUTO_REPAIR_PRIORITY, COL_REPAIR_PRIORITY, COL_REPAIR_PRIORITY, COL_REPAIR_TYPE);
+    SystemDistributedKeyspace.AUTO_REPAIR_PRIORITY, COL_REPAIR_PRIORITY, COL_REPAIR_PRIORITY, COL_REPAIR_TYPE);
 
     final static String INSERT_NEW_REPAIR_HISTORY = String.format(
     "INSERT INTO %s.%s (%s, %s, %s, %s, %s, %s) values (?, ? ,?, ?, {}, ?) IF NOT EXISTS",
-    SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, AutoRepairKeyspace.AUTO_REPAIR_HISTORY, COL_REPAIR_TYPE,
+    SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY, COL_REPAIR_TYPE,
     COL_HOST_ID, COL_REPAIR_START_TS, COL_REPAIR_FINISH_TS, COL_DELETE_HOSTS, COL_DELETE_HOSTS_UPDATE_TIME);
 
     final static String ADD_HOST_ID_TO_DELETE_HOSTS = String.format(
     "UPDATE %s.%s SET %s = %s + ?, %s = ? WHERE %s = ? AND %s = ? IF EXISTS"
-    , SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, AutoRepairKeyspace.AUTO_REPAIR_HISTORY, COL_DELETE_HOSTS,
+    , SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY, COL_DELETE_HOSTS,
     COL_DELETE_HOSTS, COL_DELETE_HOSTS_UPDATE_TIME, COL_REPAIR_TYPE, COL_HOST_ID);
 
     final static String DEL_AUTO_REPAIR_HISTORY = String.format(
     "DELETE FROM %s.%s WHERE %s = ? AND %s = ?"
-    , SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, AutoRepairKeyspace.AUTO_REPAIR_HISTORY, COL_REPAIR_TYPE,
+    , SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY, COL_REPAIR_TYPE,
     COL_HOST_ID);
 
     final static String RECORD_START_REPAIR_HISTORY = String.format(
     "UPDATE %s.%s SET %s= ?, repair_turn = ? WHERE %s = ? AND %s = ?"
-    , SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, AutoRepairKeyspace.AUTO_REPAIR_HISTORY, COL_REPAIR_START_TS,
+    , SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY, COL_REPAIR_START_TS,
     COL_REPAIR_TYPE, COL_HOST_ID);
 
     final static String RECORD_FINISH_REPAIR_HISTORY = String.format(
 
     "UPDATE %s.%s SET %s= ?, %s=false WHERE %s = ? AND %s = ?"
-    , SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, AutoRepairKeyspace.AUTO_REPAIR_HISTORY, COL_REPAIR_FINISH_TS,
+    , SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY, COL_REPAIR_FINISH_TS,
     COL_FORCE_REPAIR, COL_REPAIR_TYPE, COL_HOST_ID);
 
     final static String CLEAR_DELETE_HOSTS = String.format(
     "UPDATE %s.%s SET %s= {} WHERE %s = ? AND %s = ?"
-    , SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, AutoRepairKeyspace.AUTO_REPAIR_HISTORY, COL_DELETE_HOSTS,
+    , SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY, COL_DELETE_HOSTS,
     COL_REPAIR_TYPE, COL_HOST_ID);
 
     final static String SET_FORCE_REPAIR = String.format(
     "UPDATE %s.%s SET %s=true  WHERE %s = ? AND %s = ?"
-    , SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, AutoRepairKeyspace.AUTO_REPAIR_HISTORY, COL_FORCE_REPAIR,
+    , SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY, COL_FORCE_REPAIR,
     COL_REPAIR_TYPE, COL_HOST_ID);
 
     final static String SELECT_LAST_REPAIR_TIME_FOR_NODE = String.format(
     "SELECT %s FROM %s.%s WHERE %s = ? AND %s = ?", COL_REPAIR_FINISH_TS, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
-    AutoRepairKeyspace.AUTO_REPAIR_HISTORY, COL_REPAIR_TYPE, COL_HOST_ID);
+    SystemDistributedKeyspace.AUTO_REPAIR_HISTORY, COL_REPAIR_TYPE, COL_HOST_ID);
 
     static ModificationStatement delStatementRepairHistory;
     static SelectStatement selectStatementRepairHistory;

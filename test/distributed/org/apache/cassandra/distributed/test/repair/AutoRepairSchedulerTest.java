@@ -26,7 +26,9 @@ import java.util.UUID;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.Uninterruptibles;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -37,7 +39,6 @@ import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.repair.autorepair.AutoRepair;
 import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
-import org.apache.cassandra.repair.autorepair.AutoRepairKeyspace;
 
 import static org.apache.cassandra.schema.SchemaConstants.DISTRIBUTED_KEYSPACE_NAME;
 import static org.junit.Assert.assertEquals;
@@ -51,7 +52,7 @@ public class AutoRepairSchedulerTest extends TestBaseImpl
     @BeforeClass
     public static void init() throws IOException
     {
-        System.setProperty("cassandra.streaming.requires_view_build_during_repair", "false");
+        CassandraRelevantProperties.STREAMING_REQUIRES_VIEW_BUILD_DURING_REPAIR.setBoolean(false);
 
         // Define the expected date format pattern
         String pattern = "EEE MMM dd HH:mm:ss z yyyy";
@@ -93,7 +94,7 @@ public class AutoRepairSchedulerTest extends TestBaseImpl
     public void testScheduler() throws ParseException
     {
         // ensure there was no history of previous repair runs through the scheduler
-        Object[][] rows = cluster.coordinator(1).execute(String.format("SELECT repair_type, host_id, repair_start_ts, repair_finish_ts, repair_turn FROM %s.%s", DISTRIBUTED_KEYSPACE_NAME, AutoRepairKeyspace.AUTO_REPAIR_HISTORY), ConsistencyLevel.QUORUM);
+        Object[][] rows = cluster.coordinator(1).execute(String.format("SELECT repair_type, host_id, repair_start_ts, repair_finish_ts, repair_turn FROM %s.%s", DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY), ConsistencyLevel.QUORUM);
         assertEquals(0, rows.length);
 
         cluster.forEach(i -> i.runOnInstance(() -> {
@@ -116,7 +117,7 @@ public class AutoRepairSchedulerTest extends TestBaseImpl
 
     private void validate(String repairType) throws ParseException
     {
-        Object[][] rows = cluster.coordinator(1).execute(String.format("SELECT repair_type, host_id, repair_start_ts, repair_finish_ts, repair_turn FROM %s.%s where repair_type='%s'", DISTRIBUTED_KEYSPACE_NAME, AutoRepairKeyspace.AUTO_REPAIR_HISTORY, repairType), ConsistencyLevel.QUORUM);
+        Object[][] rows = cluster.coordinator(1).execute(String.format("SELECT repair_type, host_id, repair_start_ts, repair_finish_ts, repair_turn FROM %s.%s where repair_type='%s'", DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY, repairType), ConsistencyLevel.QUORUM);
         assertEquals(3, rows.length);
         for (int node = 0; node < rows.length; node++)
         {

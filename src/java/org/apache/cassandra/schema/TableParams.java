@@ -72,8 +72,7 @@ public final class TableParams
         CDC,
         READ_REPAIR,
         AUTOMATED_REPAIR_FULL,
-        AUTOMATED_REPAIR_INCREMENTAL,
-        ;
+        AUTOMATED_REPAIR_INCREMENTAL;
 
         @Override
         public String toString()

@@ -76,7 +76,6 @@ import com.google.common.util.concurrent.RateLimiter;
 import com.google.common.util.concurrent.Uninterruptibles;
 
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.repair.autorepair.AutoRepairKeyspace;
 import org.apache.cassandra.repair.autorepair.AutoRepair;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -466,11 +465,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     private volatile int totalCFs, remainingCFs;
 
-    public static final AtomicInteger nextRepairCommand = new AtomicInteger();
-
     private final List<IEndpointLifecycleSubscriber> lifecycleSubscribers = new CopyOnWriteArrayList<>();
 
     private final String jmxObjectName;
+
+    public static final AtomicInteger nextRepairCommand = new AtomicInteger();
 
     // true when keeping strict consistency while bootstrapping
     public static final boolean useStrictConsistency = CONSISTENT_RANGE_MOVEMENT.getBoolean();

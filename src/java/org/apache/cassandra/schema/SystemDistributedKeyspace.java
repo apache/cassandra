@@ -58,8 +58,6 @@ import org.apache.cassandra.utils.TimeUUID;
 
 import static java.lang.String.format;
 
-import static org.apache.cassandra.repair.autorepair.AutoRepairKeyspace.AutoRepairHistory;
-import static org.apache.cassandra.repair.autorepair.AutoRepairKeyspace.AutoRepairPriority;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
 public final class SystemDistributedKeyspace
@@ -98,7 +96,11 @@ public final class SystemDistributedKeyspace
 
     public static final String PARTITION_DENYLIST_TABLE = "partition_denylist";
 
-    public static final Set<String> TABLE_NAMES = ImmutableSet.of(REPAIR_HISTORY, PARENT_REPAIR_HISTORY, VIEW_BUILD_STATUS, PARTITION_DENYLIST_TABLE);
+    public static final String AUTO_REPAIR_HISTORY = "auto_repair_history";
+
+    public static final String AUTO_REPAIR_PRIORITY = "auto_repair_priority";
+
+    public static final Set<String> TABLE_NAMES = ImmutableSet.of(REPAIR_HISTORY, PARENT_REPAIR_HISTORY, VIEW_BUILD_STATUS, PARTITION_DENYLIST_TABLE, AUTO_REPAIR_HISTORY, AUTO_REPAIR_PRIORITY);
 
     public static final String REPAIR_HISTORY_CQL = "CREATE TABLE IF NOT EXISTS %s ("
                                                      + "keyspace_name text,"
@@ -161,6 +163,29 @@ public final class SystemDistributedKeyspace
     private static final TableMetadata PartitionDenylistTable =
         parse(PARTITION_DENYLIST_TABLE, "Partition keys which have been denied access", PARTITION_DENYLIST_CQL).build();
 
+    public static final String AUTO_REPAIR_HISTORY_CQL = "CREATE TABLE IF NOT EXISTS %s ("
+                            + "host_id uuid,"
+                            + "repair_type text,"
+                            + "repair_turn text,"
+                            + "repair_start_ts timestamp,"
+                            + "repair_finish_ts timestamp,"
+                            + "delete_hosts set<uuid>,"
+                            + "delete_hosts_update_time timestamp,"
+                            + "force_repair boolean,"
+                            + "PRIMARY KEY (repair_type, host_id))";
+
+    private static final TableMetadata AutoRepairHistoryTable =
+            parse(AUTO_REPAIR_HISTORY, "Auto repair history for each node", AUTO_REPAIR_HISTORY_CQL).build();
+
+    public static final String AUTO_REPAIR_PRIORITY_CQL =  "CREATE TABLE IF NOT EXISTS %s ("
+                            + "repair_type text,"
+                            + "repair_priority set<uuid>,"
+                            + "PRIMARY KEY (repair_type))";
+
+    private static final TableMetadata AutoRepairPriorityTable =
+            parse(AUTO_REPAIR_PRIORITY, "Auto repair priority for each group", AUTO_REPAIR_PRIORITY_CQL).build();
+
+
     private static TableMetadata.Builder parse(String table, String description, String cql)
     {
         return CreateTableStatement.parse(format(cql, table), SchemaConstants.DISTRIBUTED_KEYSPACE_NAME)
@@ -173,7 +198,7 @@ public final class SystemDistributedKeyspace
     {
         return KeyspaceMetadata.create(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
                                        KeyspaceParams.simple(Math.max(DEFAULT_RF, DatabaseDescriptor.getDefaultKeyspaceRF())),
-                                       Tables.of(RepairHistory, ParentRepairHistory, ViewBuildStatus, PartitionDenylistTable, AutoRepairHistory, AutoRepairPriority));
+                                       Tables.of(RepairHistory, ParentRepairHistory, ViewBuildStatus, PartitionDenylistTable, AutoRepairHistoryTable, AutoRepairPriorityTable));
     }
 
     public static void startParentRepair(TimeUUID parent_id, String keyspaceName, String[] cfnames, RepairOption options)

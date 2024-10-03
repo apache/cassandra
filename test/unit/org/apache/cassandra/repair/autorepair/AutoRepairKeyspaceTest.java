@@ -18,49 +18,37 @@
 
 package org.apache.cassandra.repair.autorepair;
 
-import java.util.Optional;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Set;
 
-import com.google.common.collect.ImmutableSet;
-
+import org.apache.cassandra.schema.*;
+import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.DurationSpec;
-import org.apache.cassandra.schema.KeyspaceMetadata;
-import org.apache.cassandra.schema.TableMetadata;
-
-import static org.apache.cassandra.Util.setAutoRepairEnabled;
 
 public class AutoRepairKeyspaceTest
 {
-    private static final Set<String> tables = ImmutableSet.of(
-    AutoRepairKeyspace.AUTO_REPAIR_HISTORY,
-    AutoRepairKeyspace.AUTO_REPAIR_PRIORITY
-    );
-
     @BeforeClass
     public static void setupDatabaseDescriptor()
     {
         DatabaseDescriptor.daemonInitialization();
-        AutoRepair.SLEEP_IF_REPAIR_FINISHES_QUICKLY = new DurationSpec.IntSecondsBound("0s");
     }
 
-
     @Test
-    public void testMetadataCanParseSchemas() throws Exception
+    public void testEnsureAutoRepairTablesArePresent()
     {
-        setAutoRepairEnabled(true);
-        KeyspaceMetadata keyspaceMetadata = AutoRepairKeyspace.metadata();
-
-        assert keyspaceMetadata.tables.size() == tables.size() : "Expected " + tables.size() + " tables, got " + keyspaceMetadata.tables.size();
-
-        for (String table : tables)
+        KeyspaceMetadata keyspaceMetadata = SystemDistributedKeyspace.metadata();
+        Iterator<TableMetadata> iter = keyspaceMetadata.tables.iterator();
+        Set<String> actualDistributedTablesIter = new HashSet<>();
+        while (iter.hasNext())
         {
-            Optional<TableMetadata> tableMetadata = keyspaceMetadata.tables.get(table);
-
-            assert tableMetadata.isPresent() : "Table " + table + " not found in metadata";
+            actualDistributedTablesIter.add(iter.next().name);
         }
+
+        Assert.assertTrue(actualDistributedTablesIter.contains(SystemDistributedKeyspace.AUTO_REPAIR_HISTORY));
+        Assert.assertTrue(actualDistributedTablesIter.contains(SystemDistributedKeyspace.AUTO_REPAIR_PRIORITY));
     }
 }
