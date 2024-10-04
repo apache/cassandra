@@ -359,16 +359,25 @@ public class AccordService implements IAccordService, Shutdownable
             return;
         }
         AccordService as = new AccordService(AccordTopology.tcmIdToAccord(tcmId));
-        as.startup();
-        if (StorageService.instance.isReplacingSameAddress())
-        {
-            // when replacing another node but using the same ip the hostId will also match, this causes no TCM transactions
-            // to be committed...
-            // In order to bootup correctly, need to pull in the current epoch
-            ClusterMetadata current = ClusterMetadata.current();
-            as.configurationService().notifyPostCommit(current, current, false);
-        }
+        // Set the instance early as there is an edge case on startup where we reply topology history, and AccordConfigurationService reaches out to AccordService.instance
         instance = as;
+        try
+        {
+            as.startup();
+            if (StorageService.instance.isReplacingSameAddress())
+            {
+                // when replacing another node but using the same ip the hostId will also match, this causes no TCM transactions
+                // to be committed...
+                // In order to bootup correctly, need to pull in the current epoch
+                ClusterMetadata current = ClusterMetadata.current();
+                as.configurationService().notifyPostCommit(current, current, false);
+            }
+        }
+        catch (Throwable t)
+        {
+            instance = null;
+            throw t;
+        }
 
         as.journal().replay();
     }
