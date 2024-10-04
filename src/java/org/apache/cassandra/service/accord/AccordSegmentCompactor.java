@@ -85,8 +85,8 @@ public class AccordSegmentCompactor<V> implements SegmentCompactor<JournalKey, V
             JournalKey key = null;
             Object builder = null;
             FlyweightSerializer<Object, Object> serializer = null;
-            long lastDescriptor = -1;
-            int lastOffset = -1;
+            long firstDescriptor = -1, lastDescriptor = -1;
+            int firstOffset = -1, lastOffset = -1;
             try
             {
                 KeyOrderReader<JournalKey> reader;
@@ -94,13 +94,13 @@ public class AccordSegmentCompactor<V> implements SegmentCompactor<JournalKey, V
                 {
                     if (key == null || !reader.key().equals(key))
                     {
-                        maybeWritePartition(cfs, writer, key, builder, serializer, lastDescriptor, lastOffset);
+                        maybeWritePartition(cfs, writer, key, builder, serializer, firstDescriptor, firstOffset);
 
                         key = reader.key();
                         serializer = (FlyweightSerializer<Object, Object>) key.type.serializer;
                         builder = serializer.mergerFor(key);
-                        lastOffset = -1;
-                        lastDescriptor = -1;
+                        firstDescriptor = lastDescriptor = -1;
+                        firstOffset = lastOffset = -1;
                     }
 
                     boolean advanced;
@@ -110,15 +110,20 @@ public class AccordSegmentCompactor<V> implements SegmentCompactor<JournalKey, V
                         {
                             if (lastDescriptor != -1)
                             {
-                                Invariants.checkState(reader.descriptor.timestamp >= lastDescriptor,
+                                Invariants.checkState(reader.descriptor.timestamp <= lastDescriptor,
                                                       "Descriptors were accessed out of order: %d was accessed after %d", reader.descriptor.timestamp, lastDescriptor);
                                 Invariants.checkState(reader.descriptor.timestamp != lastDescriptor ||
-                                                      reader.offset() > lastOffset,
-                                                      "Offsets within %s were accessed out of order: %d was accessed after %s", reader.offset(), lastOffset);
+                                                      reader.offset() < lastOffset,
+                                                      "Offsets were accessed out of order: %d was accessed after %s", reader.offset(), lastOffset);
                             }
                             serializer.deserialize(key, builder, in, reader.descriptor.userVersion);
                             lastDescriptor = reader.descriptor.timestamp;
                             lastOffset = reader.offset();
+                            if (firstDescriptor == -1)
+                            {
+                                firstDescriptor = lastDescriptor;
+                                firstOffset = lastOffset;
+                            }
                         }
                     }
                     while ((advanced = reader.advance()) && reader.key().equals(key));
@@ -126,7 +131,7 @@ public class AccordSegmentCompactor<V> implements SegmentCompactor<JournalKey, V
                     if (advanced) readers.offer(reader); // there is more to this reader, but not with this key
                 }
 
-                maybeWritePartition(cfs, writer, key, builder, serializer, lastDescriptor, lastOffset);
+                maybeWritePartition(cfs, writer, key, builder, serializer, firstDescriptor, firstOffset);
             }
             catch (Throwable t)
             {

@@ -150,7 +150,6 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 {
     private static final Logger logger = LoggerFactory.getLogger(CompactionIterator.class);
     private static final long UNFILTERED_TO_UPDATE_PROGRESS = 100;
-    private static Object[] TRUNCATE_CLUSTERING_VALUE = new Object[] { Long.MAX_VALUE, Integer.MAX_VALUE };
 
     private final OperationType type;
     private final AbstractCompactionController controller;
@@ -1027,7 +1026,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         JournalKey key = null;
         Object builder = null;
         FlyweightSerializer<Object, Object> serializer = null;
-        Object[] lastClustering = null;
+        Object[] firstClustering = null;
         long maxSeenTimestamp = -1;
         final int userVersion;
         long lastDescriptor = -1;
@@ -1058,6 +1057,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
             maxSeenTimestamp = -1;
             lastDescriptor = -1;
             lastOffset = -1;
+            firstClustering = null;
         }
 
         @Override
@@ -1084,7 +1084,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                     try (DataOutputBuffer out = DataOutputBuffer.scratchBuffer.get())
                     {
                         serializer.reserialize(key, builder, out, userVersion);
-                        newVersion.row(lastClustering)
+                        newVersion.row(firstClustering)
                                   .add("record", out.asNewBuffer())
                                   .add("user_version", userVersion);
                     }
@@ -1117,12 +1117,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
                     PartitionUpdate.SimpleBuilder newVersion = PartitionUpdate.simpleBuilder(AccordKeyspace.Journal, partition.partitionKey());
 
-                    Row.SimpleBuilder rowBuilder;
-                    if (cleanup == TRUNCATE || cleanup == TRUNCATE_WITH_OUTCOME)
-                        rowBuilder = newVersion.row(TRUNCATE_CLUSTERING_VALUE);
-                    else
-                        rowBuilder = newVersion.row(lastClustering);
-
+                    Row.SimpleBuilder rowBuilder = newVersion.row(firstClustering);
                     rowBuilder.add("record", commandBuilder.asByteBuffer(userVersion))
                               .add("user_version", userVersion);
 
@@ -1154,10 +1149,10 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
             if (lastOffset != -1)
             {
-                Invariants.checkState(descriptor >= lastDescriptor,
+                Invariants.checkState(descriptor <= lastDescriptor,
                                       "Descriptors were accessed out of order: %d was accessed after %d", descriptor, lastDescriptor);
                 Invariants.checkState(descriptor != lastDescriptor ||
-                                      offset > lastOffset,
+                                      offset < lastOffset,
                                       "Offsets within %s were accessed out of order: %d was accessed after %s", offset, lastOffset);
             }
             lastDescriptor = descriptor;
@@ -1167,7 +1162,8 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
             {
                 int userVersion = Int32Type.instance.compose(row.getCell(versionColumn).buffer());
                 serializer.deserialize(key, builder, in, userVersion);
-                lastClustering = row.clustering().getBufferArray();
+                if (firstClustering == null)
+                    firstClustering = row.clustering().getBufferArray();
             }
             catch (IOException e)
             {

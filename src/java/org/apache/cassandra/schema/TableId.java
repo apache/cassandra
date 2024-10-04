@@ -185,6 +185,11 @@ public class TableId implements Comparable<TableId>
         return 16;
     }
 
+    public static int staticSerializedSize()
+    {
+        return 16;
+    }
+
     public static TableId deserialize(DataInput in) throws IOException
     {
         return new TableId(new UUID(in.readLong(), in.readLong()));
@@ -201,7 +206,7 @@ public class TableId implements Comparable<TableId>
         return id.compareTo(o.id);
     }
 
-    public static final IVersionedSerializer<TableId> serializer = new IVersionedSerializer<TableId>()
+    public static final IVersionedSerializer<TableId> serializer = new IVersionedSerializer<>()
     {
         @Override
         public void serialize(TableId t, DataOutputPlus out, int version) throws IOException

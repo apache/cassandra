@@ -32,6 +32,7 @@ import com.google.common.collect.Maps;
 import org.junit.Assert;
 import org.junit.Test;
 
+import accord.utils.Invariants;
 import org.agrona.collections.IntHashSet;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.Generators;
@@ -87,8 +88,8 @@ public class IndexTest
         assertArrayEquals(EMPTY, index.lookUp(key0));
 
         assertArrayEquals(new long[] { composeOffsetAndSize(val11, 1) }, index.lookUp(key1));
-        assertArrayEquals(new long[] { composeOffsetAndSize(val21, 2), composeOffsetAndSize(val22, 3) }, index.lookUp(key2));
-        assertArrayEquals(new long[] { composeOffsetAndSize(val31, 4), composeOffsetAndSize(val32, 5), composeOffsetAndSize(val33, 6) }, index.lookUp(key3));
+        assertArrayEquals(new long[] { composeOffsetAndSize(val22, 3), composeOffsetAndSize(val21, 2) }, index.lookUp(key2));
+        assertArrayEquals(new long[] { composeOffsetAndSize(val33, 6), composeOffsetAndSize(val32, 5), composeOffsetAndSize(val31, 4) }, index.lookUp(key3));
         assertArrayEquals(EMPTY, index.lookUp(key4));
 
         assertEquals(key1, index.firstId());
@@ -160,13 +161,23 @@ public class IndexTest
         Gen<long[]> valueGen = rs -> {
             long[] array = new long[(int) rs.next(valueSizeConstraint)];
             IntHashSet uniq = new IntHashSet();
-            for (int i = 0; i < array.length; i++)
+            for (int i = 0 ; i < array.length ; ++i)
             {
                 int offset = (int) rs.next(positionConstraint);
                 while (!uniq.add(offset))
                     offset = (int) rs.next(positionConstraint);
                 array[i] = Index.composeOffsetAndSize(offset, (int) rs.next(positionConstraint));
             }
+
+            Arrays.sort(array);
+            for (int i = 0 ; i < array.length / 2 ; ++i)
+            {
+                int back = array.length - (1 + i);
+                long v = array[i];
+                array[i] = array[back];
+                array[back] = v;
+            }
+
             return array;
         };
         Gen<Map<TimeUUID, long[]>> gen = rs -> {
@@ -190,7 +201,7 @@ public class IndexTest
         });
         File directory = new File(Files.createTempDirectory(null));
         directory.deleteOnExit();
-        qt().forAll(gen).checkAssert(map -> test(directory, map));
+        qt().withFixedSeed(185124544959375L).forAll(gen).checkAssert(map -> test(directory, map));
     }
 
     private static void test(File directory, Map<TimeUUID, long[]> map)
@@ -206,7 +217,8 @@ public class IndexTest
                 continue;
             for (long i : value)
                 inMemory.update(key, Index.readOffset(i), Index.readSize(i));
-            Arrays.sort(value);
+            for (int i = 1 ; i < value.length ; ++i)
+                Invariants.checkState(value[i - 1] > value[i]);
         }
         assertIndex(map, inMemory);
 
@@ -261,6 +273,9 @@ public class IndexTest
             TimeUUID key = e.getKey();
             long[] value = e.getValue();
             long[] read = actual.lookUp(key);
+
+            if (!Arrays.equals(value, read))
+                actual.lookUp(key);
 
             if (value.length == 0)
             {

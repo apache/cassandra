@@ -19,10 +19,11 @@
 package org.apache.cassandra.index.accord;
 
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Set;
 
+import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
+import org.agrona.collections.ObjectHashSet;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DataRange;
@@ -67,10 +68,10 @@ public class RoutesSearcher
                                                    limits,
                                                    dataRange);
         Index.Searcher s = index.searcherFor(cmd);
-        try (var controler = cmd.executionController())
+        try (var controller = cmd.executionController())
         {
-            UnfilteredPartitionIterator partitionIterator = s.search(controler);
-            return new CloseableIterator<Entry>()
+            UnfilteredPartitionIterator partitionIterator = s.search(controller);
+            return new CloseableIterator<>()
             {
                 private final Entry entry = new Entry();
                 @Override
@@ -98,21 +99,22 @@ public class RoutesSearcher
         }
     }
 
-    public Set<TxnId> intersects(int store, TokenRange range)
+    public Set<TxnId> intersects(int store, TokenRange range, TxnId minTxnId, Timestamp maxTxnId)
     {
-        return intersects(store, (AccordRoutingKey) range.start(), (AccordRoutingKey) range.end());
+        return intersects(store, range.start(), range.end(), minTxnId, maxTxnId);
     }
 
-    public Set<TxnId> intersects(int store, AccordRoutingKey start, AccordRoutingKey end)
+    public Set<TxnId> intersects(int store, AccordRoutingKey start, AccordRoutingKey end, TxnId minTxnId, Timestamp maxTxnId)
     {
-        var set = new HashSet<TxnId>();
+        var set = new ObjectHashSet<TxnId>();
         try (var it = searchKeysAccord(store, start, end))
         {
             while (it.hasNext())
             {
                 Entry next = it.next();
                 if (next.store_id != store) continue; // the index should filter out, but just in case...
-                set.add(next.txnId);
+                if (next.txnId.compareTo(minTxnId) >= 0 && next.txnId.compareTo(maxTxnId) < 0)
+                    set.add(next.txnId);
             }
         }
         return set.isEmpty() ? Collections.emptySet() : set;

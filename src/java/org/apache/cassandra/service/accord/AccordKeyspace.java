@@ -174,6 +174,7 @@ public class AccordKeyspace
                                                                   TOPOLOGIES, EPOCH_METADATA,
                                                                   JOURNAL);
 
+    // TODO (desired): implement a custom type so we can get correct sort order
     private static final TupleType TIMESTAMP_TYPE = new TupleType(Lists.newArrayList(LongType.instance, LongType.instance, Int32Type.instance));
     private static final String TIMESTAMP_TUPLE = TIMESTAMP_TYPE.asCQL3Type().toString();
     private static final TupleType KEY_TYPE = new TupleType(Arrays.asList(UUIDType.instance, BytesType.instance));
@@ -235,7 +236,7 @@ public class AccordKeyspace
               + "user_version int,"
               + "record blob,"
               + "PRIMARY KEY(key, descriptor, offset)"
-              + ") WITH compression = {'class':'NoopCompressor'};")
+              + ") WITH CLUSTERING ORDER BY (descriptor DESC, offset DESC) WITH compression = {'class':'NoopCompressor'};")
         .partitioner(new LocalPartitioner(BytesType.instance))
         .build();
 

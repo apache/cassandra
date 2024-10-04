@@ -323,6 +323,7 @@ public class AccordJournal implements IJournal, Shutdownable
         BUILDER builder = (BUILDER) key.type.serializer.mergerFor(key);
         // TODO: this can be further improved to avoid allocating lambdas
         AccordJournalValueSerializers.FlyweightSerializer<?, BUILDER> serializer = (AccordJournalValueSerializers.FlyweightSerializer<?, BUILDER>) key.type.serializer;
+        // TODO (expected): for those where we store an image, read only the first entry we find in DESC order
         journalTable.readAll(key, (in, userVersion) -> serializer.deserialize(key, builder, in, userVersion));
         return builder;
     }

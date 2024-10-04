@@ -240,7 +240,7 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
             case INITIALIZED:
                 state(LOADING);
             case LOADING:
-                if (!loader.load(context, this::onLoaded))
+                if (!loader.load(preLoadContext.primaryTxnId(), context, this::onLoaded))
                     return false;
                 state(PREPARING);
                 if (loadOnly)

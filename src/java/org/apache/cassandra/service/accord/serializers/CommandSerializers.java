@@ -111,6 +111,13 @@ public class CommandSerializers
             if (!ownsEqualsTouches) KeySerializers.participants.serialize(t.owns(), out, version);
         }
 
+        public void skip(DataInputPlus in, int version) throws IOException
+        {
+            int flags = in.readByte();
+            if (0 != (flags & HAS_ROUTE))
+                KeySerializers.route.deserialize(in, version);
+        }
+
         @Override
         public StoreParticipants deserialize(DataInputPlus in, int version) throws IOException
         {
@@ -192,6 +199,11 @@ public class CommandSerializers
             out.putLong(ts.msb);
             out.putLong(ts.lsb);
             TopologySerializers.nodeId.serialize(ts.node, out);
+        }
+
+        public void skip(DataInputPlus in, int version) throws IOException
+        {
+            in.skipBytesFully(serializedSize());
         }
 
         @Override

@@ -24,6 +24,5 @@ import org.agrona.collections.IntHashSet;
 @FunctionalInterface
 public interface RecordConsumer<K>
 {
-    default void init() {}
     void accept(long segment, int position, K key, ByteBuffer buffer, IntHashSet hosts, int userVersion);
 }

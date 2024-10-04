@@ -223,6 +223,14 @@ public abstract class Token implements RingPosition<Token>, Serializable
             return p.getTokenFactory().fromByteArray(ByteBuffer.wrap(bytes));
         }
 
+        public void skip(DataInputPlus in, IPartitioner p, int version) throws IOException
+        {
+            int size = p.isFixedLength() ? p.getMaxTokenSize() : in.readUnsignedVInt32();
+            if (logPartitioner && deserializePartitioners.add(p.getClass()))
+                logger.debug("Deserializing token with partitioner " + p);
+            in.skipBytesFully(size);
+        }
+
         public Token deserialize(DataInputPlus in, IPartitioner p, int version) throws IOException
         {
             int size = p.isFixedLength() ? p.getMaxTokenSize() : in.readUnsignedVInt32();

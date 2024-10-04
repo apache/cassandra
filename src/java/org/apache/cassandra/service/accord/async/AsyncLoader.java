@@ -42,6 +42,7 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
+import javax.annotation.Nullable;
 
 public class AsyncLoader
 {
@@ -126,6 +127,7 @@ public class AsyncLoader
                 referenceAndAssembleReadsForKey(key, context.timestampsForKey, commandStore.timestampsForKeyCache(), listenChains);
                 break;
             case COMMANDS:
+            case RECOVERY:
                 referenceAndAssembleReadsForKey(key, context.commandsForKey, commandStore.commandsForKeyCache(), listenChains);
             case NONE:
                 break;
@@ -141,7 +143,7 @@ public class AsyncLoader
         keys.forEach(key -> referenceAndAssembleReadsForKey(key, context, cache, listenChains));
     }
 
-    private AsyncResult<?> referenceAndDispatchReads(AsyncOperation.Context context)
+    private AsyncResult<?> referenceAndDispatchReads(@Nullable TxnId primaryTxnId, AsyncOperation.Context context)
     {
         List<AsyncChain<?>> chains = new ArrayList<>();
 
@@ -154,7 +156,7 @@ public class AsyncLoader
                 keys.forEach(key -> referenceAndAssembleReadsForKey(key, context, chains));
                 break;
             case Range:
-                chains.add(referenceAndDispatchReadsForRange(context));
+                chains.add(referenceAndDispatchReadsForRange(primaryTxnId, context));
                 break;
             default:
                 throw new UnsupportedOperationException("Unable to process keys of " + keysOrRanges.domain());
@@ -163,7 +165,7 @@ public class AsyncLoader
         return !chains.isEmpty() ? AsyncChains.reduce(chains, (a, b) -> null).beginAsResult() : null;
     }
 
-    private AsyncChain<?> referenceAndDispatchReadsForRange(AsyncOperation.Context context)
+    private AsyncChain<?> referenceAndDispatchReadsForRange(@Nullable TxnId primaryTxnId, AsyncOperation.Context context)
     {
         Ranges ranges = ((AbstractRanges) keysOrRanges).toRanges();
 
@@ -183,6 +185,8 @@ public class AsyncLoader
                     cached.add(pk);
             }
         }
+
+        // TODO (required): this needs to be optimised (e.g. to not load redundant commands, but maybe to be avoided altogether with async evaluation)
         Watcher watcher = new Watcher();
         commandStore.commandsForKeyCache().register(watcher);
         root.add(findOverlappingKeys(ranges).flatMap(keys -> {
@@ -195,7 +199,7 @@ public class AsyncLoader
             return chains.isEmpty() ? AsyncChains.success(null) : AsyncChains.reduce(chains, (a, b) -> null);
         }, commandStore));
 
-        var chain = commandStore.diskCommandsForRanges().get(ranges);
+        var chain = commandStore.diskCommandsForRanges().get(primaryTxnId, keyHistory, ranges);
         root.add(chain);
         context.commandsForRanges = new AccordSafeCommandsForRanges(ranges, chain);
 
@@ -234,7 +238,7 @@ public class AsyncLoader
         this.state = state;
     }
 
-    public boolean load(AsyncOperation.Context context, BiConsumer<Object, Throwable> callback)
+    public boolean load(@Nullable TxnId primaryTxnId, AsyncOperation.Context context, BiConsumer<Object, Throwable> callback)
     {
         logger.trace("Running load for {} with state {}: {} {}", callback, state, txnIds, keysOrRanges);
         commandStore.checkInStoreThread();
@@ -244,7 +248,7 @@ public class AsyncLoader
                 state(State.SETUP);
 
             case SETUP:
-                readResult = referenceAndDispatchReads(context);
+                readResult = referenceAndDispatchReads(primaryTxnId, context);
                 state(State.LOADING);
 
             case LOADING:

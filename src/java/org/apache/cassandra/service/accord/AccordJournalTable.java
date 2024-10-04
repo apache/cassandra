@@ -143,8 +143,7 @@ public class AccordJournalTable<K, V>
             this.tableRecordConsumer = new TableRecordConsumer(reader);
         }
 
-        @Override
-        public void init()
+        void readTable()
         {
             readAllFromTable(key, tableRecordConsumer);
         }
@@ -164,7 +163,9 @@ public class AccordJournalTable<K, V>
      */
     public void readAll(K key, Reader reader)
     {
-        journal.readAll(key, new JournalAndTableRecordConsumer(key, reader));
+        JournalAndTableRecordConsumer consumer = new JournalAndTableRecordConsumer(key, reader);
+        journal.readAll(key, consumer);
+        consumer.readTable();
     }
 
     private void readAllFromTable(K key, TableRecordConsumer onEntry)
@@ -332,14 +333,14 @@ public class AccordJournalTable<K, V>
         {
             K tableKey = tableIterator.key();
             K journalKey = staticSegmentIterator.key();
-            if (tableKey != null && keySupport.compare(tableKey, key) == 0)
-                tableIterator.readAllForKey(key, reader);
-
             if (journalKey != null && keySupport.compare(journalKey, key) == 0)
                 staticSegmentIterator.readAllForKey(key, (segment, position, key1, buffer, hosts, userVersion) -> {
                     if (!tableIterator.visited(segment))
                         reader.accept(segment, position, key1, buffer, hosts, userVersion);
                 });
+
+            if (tableKey != null && keySupport.compare(tableKey, key) == 0)
+                tableIterator.readAllForKey(key, reader);
 
             tableIterator.clear();
         }

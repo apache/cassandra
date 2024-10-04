@@ -49,11 +49,13 @@ import accord.primitives.Range;
 import accord.primitives.Ranges;
 import accord.primitives.Routable;
 import accord.primitives.Route;
+import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.utils.RandomSource;
 import org.agrona.collections.Int2ObjectHashMap;
 import org.agrona.collections.Long2ObjectHashMap;
+import org.agrona.collections.ObjectHashSet;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -297,7 +299,8 @@ public class AccordIndexStressTest extends CQLTester
                 }
 
                 var startNs = nanoTime();
-                Set<TxnId> actual = read(store, start, end);
+                // TODO (desired): randomise lower bound for reading
+                Set<TxnId> actual = read(store, start, end, TxnId.NONE, Timestamp.MAX);
                 var durationNs = nanoTime() - startNs;
                 samples[size] = durationNs;
                 counts[size++] = actual.size();
@@ -334,32 +337,36 @@ public class AccordIndexStressTest extends CQLTester
         return durationNs >= SLOW_NS;
     }
 
-    private Set<TxnId> read(int store, AccordRoutingKey start, AccordRoutingKey end)
+    private Set<TxnId> read(int store, AccordRoutingKey start, AccordRoutingKey end, TxnId minTxnId, Timestamp maxTxnId)
     {
         switch (read)
         {
             case INDEX:
-                return readIndex(store, start, end);
+                return readIndex(store, start, end, minTxnId, maxTxnId);
             case CQL:
-                return readCQL(store, start, end);
+                return readCQL(store, start, end, minTxnId, maxTxnId);
             default:
                 throw new AssertionError("Unknown read type: " + read);
         }
     }
 
-    private Set<TxnId> readIndex(int store, AccordRoutingKey start, AccordRoutingKey end)
+    private Set<TxnId> readIndex(int store, AccordRoutingKey start, AccordRoutingKey end, TxnId minTxnId, Timestamp maxTxnId)
     {
-        return searcher.intersects(store, start, end);
+        return searcher.intersects(store, start, end, minTxnId, maxTxnId);
     }
 
-    private Set<TxnId> readCQL(int store, AccordRoutingKey start, AccordRoutingKey end)
+    private Set<TxnId> readCQL(int store, AccordRoutingKey start, AccordRoutingKey end, TxnId minTxnId, Timestamp maxTxnId)
     {
-        Set<TxnId> actual = new HashSet<>();
+        Set<TxnId> actual = new ObjectHashSet<>();
         try
         {
             UntypedResultSet results = execute("SELECT txn_id FROM system_accord.commands WHERE store_id = ? AND route > ? AND route <= ?", store, OrderedRouteSerializer.serializeRoutingKey(start), OrderedRouteSerializer.serializeRoutingKey(end));
             for (var row : results)
-                actual.add(AccordKeyspace.deserializeTxnId(row));
+            {
+                TxnId txnId = AccordKeyspace.deserializeTxnId(row);
+                if (txnId.compareTo(minTxnId) >= 0 && txnId.compareTo(maxTxnId) < 0)
+                    actual.add(txnId);
+            }
         }
         catch (ReadSizeAbortException e)
         {

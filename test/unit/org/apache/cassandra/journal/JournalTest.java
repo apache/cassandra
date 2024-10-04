@@ -65,20 +65,20 @@ public class JournalTest
         journal.blockingWrite(id3, 3L, Collections.singleton(1));
         journal.blockingWrite(id4, 4L, Collections.singleton(1));
 
-        assertEquals(1L, (long) journal.readFirst(id1));
-        assertEquals(2L, (long) journal.readFirst(id2));
-        assertEquals(3L, (long) journal.readFirst(id3));
-        assertEquals(4L, (long) journal.readFirst(id4));
+        assertEquals(1L, (long) journal.readLast(id1));
+        assertEquals(2L, (long) journal.readLast(id2));
+        assertEquals(3L, (long) journal.readLast(id3));
+        assertEquals(4L, (long) journal.readLast(id4));
 
         journal.shutdown();
 
         journal = new Journal<>("TestJournal", directory, TestParams.INSTANCE, TimeUUIDKeySupport.INSTANCE, LongSerializer.INSTANCE, SegmentCompactor.noop());
         journal.start();
 
-        assertEquals(1L, (long) journal.readFirst(id1));
-        assertEquals(2L, (long) journal.readFirst(id2));
-        assertEquals(3L, (long) journal.readFirst(id3));
-        assertEquals(4L, (long) journal.readFirst(id4));
+        assertEquals(1L, (long) journal.readLast(id1));
+        assertEquals(2L, (long) journal.readLast(id2));
+        assertEquals(3L, (long) journal.readLast(id3));
+        assertEquals(4L, (long) journal.readLast(id4));
 
         journal.shutdown();
     }

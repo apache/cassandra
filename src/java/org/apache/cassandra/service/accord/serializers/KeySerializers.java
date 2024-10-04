@@ -50,6 +50,8 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.TokenRange;
+import org.apache.cassandra.service.accord.api.AccordRoutableKey;
+import org.apache.cassandra.service.accord.api.AccordRoutableKey.AccordKeySerializer;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.utils.NullableSerializer;
@@ -58,11 +60,11 @@ public class KeySerializers
 {
     private KeySerializers() {}
 
-    public static final IVersionedSerializer<Key> key = (IVersionedSerializer<Key>) (IVersionedSerializer<?>) PartitionKey.serializer;
-    public static final IVersionedSerializer<RoutingKey> routingKey = (IVersionedSerializer<RoutingKey>) (IVersionedSerializer<?>) AccordRoutingKey.serializer;
+    public static final AccordKeySerializer<Key> key = (AccordKeySerializer<Key>) (AccordKeySerializer<?>) PartitionKey.serializer;
+    public static final IVersionedSerializer<RoutingKey> routingKey = (AccordKeySerializer<RoutingKey>) (AccordKeySerializer<?>) AccordRoutingKey.serializer;
     public static final IVersionedSerializer<RoutingKey> nullableRoutingKey = NullableSerializer.wrap(routingKey);
 
-    public static final IVersionedSerializer<RoutingKeys> routingKeys = new AbstractKeysSerializer<RoutingKey, RoutingKeys>(routingKey, RoutingKey[]::new)
+    public static final AbstractKeysSerializer<RoutingKey, RoutingKeys> routingKeys = new AbstractKeysSerializer<>(routingKey, RoutingKey[]::new)
     {
         @Override RoutingKeys deserialize(DataInputPlus in, int version, RoutingKey[] keys)
         {
@@ -78,7 +80,7 @@ public class KeySerializers
         }
     };
 
-    public static final IVersionedSerializer<Ranges> ranges = new AbstractRangesSerializer<Ranges>()
+    public static final AbstractRangesSerializer<Ranges> ranges = new AbstractRangesSerializer<Ranges>()
     {
         @Override
         public Ranges deserialize(DataInputPlus in, int version, Range[] ranges)
@@ -87,7 +89,7 @@ public class KeySerializers
         }
     };
 
-    public static final IVersionedSerializer<PartialKeyRoute> partialKeyRoute = new AbstractKeysSerializer<RoutingKey, PartialKeyRoute>(routingKey, RoutingKey[]::new)
+    public static final AbstractKeysSerializer<?, PartialKeyRoute> partialKeyRoute = new AbstractKeysSerializer<RoutingKey, PartialKeyRoute>(routingKey, RoutingKey[]::new)
     {
         @Override PartialKeyRoute deserialize(DataInputPlus in, int version, RoutingKey[] keys) throws IOException
         {
@@ -110,7 +112,7 @@ public class KeySerializers
         }
     };
 
-    public static final IVersionedSerializer<FullKeyRoute> fullKeyRoute = new AbstractKeysSerializer<>(routingKey, RoutingKey[]::new)
+    public static final AbstractKeysSerializer<?, FullKeyRoute> fullKeyRoute = new AbstractKeysSerializer<>(routingKey, RoutingKey[]::new)
     {
         @Override FullKeyRoute deserialize(DataInputPlus in, int version, RoutingKey[] keys) throws IOException
         {
@@ -133,7 +135,7 @@ public class KeySerializers
         }
     };
 
-    public static final IVersionedSerializer<PartialRangeRoute> partialRangeRoute = new AbstractRangesSerializer<PartialRangeRoute>()
+    public static final AbstractRangesSerializer<PartialRangeRoute> partialRangeRoute = new AbstractRangesSerializer<>()
     {
         @Override PartialRangeRoute deserialize(DataInputPlus in, int version, Range[] rs) throws IOException
         {
@@ -157,7 +159,7 @@ public class KeySerializers
         }
     };
 
-    public static final IVersionedSerializer<FullRangeRoute> fullRangeRoute = new AbstractRangesSerializer<FullRangeRoute>()
+    public static final AbstractRangesSerializer<FullRangeRoute> fullRangeRoute = new AbstractRangesSerializer<>()
     {
         @Override FullRangeRoute deserialize(DataInputPlus in, int version, Range[] Ranges) throws IOException
         {
@@ -180,7 +182,7 @@ public class KeySerializers
         }
     };
 
-    public static final IVersionedSerializer<Route<?>> route = new AbstractRoutablesSerializer<>(
+    public static final AbstractRoutablesSerializer<Route<?>> route = new AbstractRoutablesSerializer<>(
         EnumSet.of(UnseekablesKind.PartialKeyRoute, UnseekablesKind.FullKeyRoute, UnseekablesKind.PartialRangeRoute, UnseekablesKind.FullRangeRoute)
     );
     public static final IVersionedSerializer<Route<?>> nullableRoute = NullableSerializer.wrap(route);
@@ -269,6 +271,21 @@ public class KeySerializers
             if (!permitted.contains(kind))
                 throw new IllegalStateException();
             return result;
+        }
+
+        public void skip(DataInputPlus in, int version) throws IOException
+        {
+            byte b = in.readByte();
+            switch (b)
+            {
+                default: throw new IOException("Corrupted input: expected byte 1, 2, 3, 4 or 5; received " + b);
+                case 1: routingKeys.skip(in, version); break;
+                case 2: partialKeyRoute.skip(in, version); break;
+                case 3: fullKeyRoute.skip(in, version); break;
+                case 4: ranges.skip(in, version); break;
+                case 5: partialRangeRoute.skip(in, version); break;
+                case 6: fullRangeRoute.skip(in, version); break;
+            }
         }
 
         @Override
@@ -362,6 +379,13 @@ public class KeySerializers
 
         abstract KS deserialize(DataInputPlus in, int version, K[] keys) throws IOException;
 
+        public void skip(DataInputPlus in, int version) throws IOException
+        {
+            int count = in.readUnsignedVInt32();
+            for (int i = 0; i < count ; i++)
+                keySerializer.deserialize(in, version);
+        }
+
         @Override
         public KS deserialize(DataInputPlus in, int version) throws IOException
         {
@@ -389,6 +413,13 @@ public class KeySerializers
             out.writeUnsignedVInt32(ranges.size());
             for (int i=0, mi=ranges.size(); i<mi; i++)
                 TokenRange.serializer.serialize((TokenRange) ranges.get(i), out, version);
+        }
+
+        public void skip(DataInputPlus in, int version) throws IOException
+        {
+            int count = in.readUnsignedVInt32();
+            for (int i = 0; i < count ; i++)
+                TokenRange.serializer.deserialize(in, version);
         }
 
         @Override

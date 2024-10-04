@@ -39,6 +39,7 @@ import accord.primitives.SaveStatus;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
+import accord.utils.Invariants;
 
 import static accord.local.SafeCommandStore.TestDep.ANY_DEPS;
 import static accord.local.SafeCommandStore.TestDep.WITH;
@@ -107,7 +108,7 @@ public class CommandsForRanges implements CommandsSummary
 
             // range specific logic... ranges don't update CommandsForRange based off the life cycle and instead
             // merge the cache with the disk state; so exclude states that should get removed from CommandsFor*
-            if (summary.saveStatus.compareTo(SaveStatus.Erased) >= 0)
+            if (summary.saveStatus != null && summary.saveStatus.compareTo(SaveStatus.Erased) >= 0)
                 return;
 
             switch (testStatus)
@@ -153,8 +154,10 @@ public class CommandsForRanges implements CommandsSummary
                 // and so it is safe to execute, when in fact it is only a dependency on a different shard
                 // (and that other shard, perhaps, does not know that it is a dependency - and so it is not durably known)
                 // TODO (required): consider this some more
-                if ((testDep == WITH) == !summary.depsIds.contains(testTxnId))
+                if ((testDep == WITH) == !summary.hasAsDep)
                     return;
+
+                Invariants.checkState(testTxnId.equals(summary.findAsDep));
             }
 
             // TODO (required): ensure we are excluding any ranges that are now shard-redundant (not sure if this is enforced yet)

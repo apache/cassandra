@@ -235,7 +235,7 @@ public class SimulatedAsyncOperationTest extends SimulatedAccordCommandStoreTest
         }
 
         @Override
-        public boolean load(AsyncOperation.Context context, BiConsumer<Object, Throwable> callback)
+        public boolean load(TxnId primaryTxnId, AsyncOperation.Context context, BiConsumer<Object, Throwable> callback)
         {
             if (delay)
             {

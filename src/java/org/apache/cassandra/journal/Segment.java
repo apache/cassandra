@@ -56,9 +56,9 @@ public abstract class Segment<K, V> implements Closeable, RefCounted<Segment<K, 
      * Reading entries (by id, by offset, iterate)
      */
 
-    boolean readFirst(K id, RecordConsumer<K> consumer)
+    boolean readLast(K id, RecordConsumer<K> consumer)
     {
-        long offsetAndSize = index().lookUpFirst(id);
+        long offsetAndSize = index().lookUpLast(id);
         if (offsetAndSize == -1)
             return false;
 
@@ -74,9 +74,9 @@ public abstract class Segment<K, V> implements Closeable, RefCounted<Segment<K, 
         return false;
     }
 
-    boolean readFirst(K id, EntrySerializer.EntryHolder<K> into)
+    boolean readLast(K id, EntrySerializer.EntryHolder<K> into)
     {
-        long offsetAndSize = index().lookUpFirst(id);
+        long offsetAndSize = index().lookUpLast(id);
         if (offsetAndSize == -1 || !read(Index.readOffset(offsetAndSize), Index.readSize(offsetAndSize), into))
             return false;
         Invariants.checkState(id.equals(into.key), "Index for %s read incorrect key: expected %s but read %s", descriptor, id, into.key);
@@ -86,10 +86,12 @@ public abstract class Segment<K, V> implements Closeable, RefCounted<Segment<K, 
     void readAll(K id, EntrySerializer.EntryHolder<K> into, RecordConsumer<K> onEntry)
     {
         long[] all = index().lookUpAll(id);
+        int prevOffset = Integer.MAX_VALUE;
         for (int i = 0; i < all.length; i++)
         {
             int offset = Index.readOffset(all[i]);
             int size = Index.readSize(all[i]);
+            Invariants.checkState(offset < prevOffset);
             Invariants.checkState(read(offset, size, into), "Read should always return true");
             onEntry.accept(descriptor.timestamp, offset, into.key, into.value, into.hosts, into.userVersion);
         }

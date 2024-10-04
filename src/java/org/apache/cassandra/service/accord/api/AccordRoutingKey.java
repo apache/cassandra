@@ -37,7 +37,6 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
@@ -168,13 +167,19 @@ public abstract class AccordRoutingKey extends AccordRoutableKey implements Rout
             return isMin ? "-Inf" : "+Inf";
         }
 
-        public static final IVersionedSerializer<SentinelKey> serializer = new IVersionedSerializer<SentinelKey>()
+        public static final AccordKeySerializer<SentinelKey> serializer = new AccordKeySerializer<SentinelKey>()
         {
             @Override
             public void serialize(SentinelKey key, DataOutputPlus out, int version) throws IOException
             {
                 key.table.serialize(out);
                 out.writeBoolean(key.isMin);
+            }
+
+            @Override
+            public void skip(DataInputPlus in, int version) throws IOException
+            {
+                in.skipBytesFully(TableId.staticSerializedSize() + 1);
             }
 
             @Override
@@ -260,7 +265,7 @@ public abstract class AccordRoutingKey extends AccordRoutableKey implements Rout
         }
 
         public static final Serializer serializer = new Serializer();
-        public static class Serializer implements IVersionedSerializer<TokenKey>
+        public static class Serializer implements AccordKeySerializer<TokenKey>
         {
             private Serializer() {}
 
@@ -269,6 +274,14 @@ public abstract class AccordRoutingKey extends AccordRoutableKey implements Rout
             {
                 key.table.serialize(out);
                 Token.compactSerializer.serialize(key.token, out, version);
+            }
+
+            @Override
+            public void skip(DataInputPlus in, int version) throws IOException
+            {
+                in.skipBytesFully(TableId.staticSerializedSize());
+                // TODO (expected): should we be using the TableId partitioner here?
+                Token.compactSerializer.skip(in, getPartitioner(), version);
             }
 
             @Override
@@ -306,7 +319,7 @@ public abstract class AccordRoutingKey extends AccordRoutableKey implements Rout
         }
     }
 
-    public static class Serializer implements IVersionedSerializer<AccordRoutingKey>
+    public static class Serializer implements AccordKeySerializer<AccordRoutingKey>
     {
         static final RoutingKeyKind[] kinds = RoutingKeyKind.values();
 
@@ -355,6 +368,23 @@ public abstract class AccordRoutingKey extends AccordRoutableKey implements Rout
                 {
                     throw new RuntimeException(e);
                 }
+            }
+        }
+
+        @Override
+        public void skip(DataInputPlus in, int version) throws IOException
+        {
+            RoutingKeyKind kind = kinds[in.readByte()];
+            switch (kind)
+            {
+                case TOKEN:
+                    TokenKey.serializer.skip(in, version);
+                    break;
+                case SENTINEL:
+                    SentinelKey.serializer.skip(in, version);
+                    break;
+                default:
+                    throw new IllegalArgumentException();
             }
         }
 

@@ -105,7 +105,7 @@ public class AccordJournalSimulationTest extends SimulationTestBase
             for (int i = 0; i < count; i++)
             {
                 State.logger.debug("Reading {}", i);
-                Assert.assertEquals(State.journal.readFirst("test" + i), "test" + i);
+                Assert.assertEquals(State.journal.readLast("test" + i), "test" + i);
             }
         }
 

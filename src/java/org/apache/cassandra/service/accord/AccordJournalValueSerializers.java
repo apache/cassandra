@@ -116,6 +116,7 @@ public class AccordJournalValueSerializers
 
     public static class IdentityAccumulator<T> extends Accumulator<T, T>
     {
+        boolean hasRead;
         public IdentityAccumulator(T initial)
         {
             super(initial);
@@ -124,6 +125,9 @@ public class AccordJournalValueSerializers
         @Override
         protected T accumulate(T oldValue, T newValue)
         {
+            if (hasRead)
+                return oldValue;
+            hasRead = true;
             return newValue;
         }
     }

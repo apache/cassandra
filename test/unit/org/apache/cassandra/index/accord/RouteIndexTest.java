@@ -44,6 +44,7 @@ import accord.primitives.Range;
 import accord.primitives.Ranges;
 import accord.primitives.Routable.Domain;
 import accord.primitives.Route;
+import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.utils.Gen;
@@ -345,7 +346,7 @@ public class RouteIndexTest extends CQLTester.InMemory
         @Override
         public Set<TxnId> run(ColumnFamilyStore sut) throws Throwable
         {
-            return ROUTES_SEARCHER.intersects(storeId, range);
+            return ROUTES_SEARCHER.intersects(storeId, range, TxnId.NONE, Timestamp.MAX);
         }
 
         @Override

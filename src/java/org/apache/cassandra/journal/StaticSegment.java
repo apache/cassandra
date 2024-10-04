@@ -475,10 +475,10 @@ public final class StaticSegment<K, V> extends Segment<K, V>
             int cmp = keySupport.compare(this.key(), that.key());
             if (cmp != 0)
                 return cmp;
-            cmp = Long.compare(this.descriptor.timestamp, that.descriptor.timestamp);
+            cmp = Long.compare(that.descriptor.timestamp, this.descriptor.timestamp);
             if (cmp != 0)
                 return cmp;
-            return Integer.compare(this.offset, that.offset);
+            return Integer.compare(that.offset, this.offset);
         }
     }
 }

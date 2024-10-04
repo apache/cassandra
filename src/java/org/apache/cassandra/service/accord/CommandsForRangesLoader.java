@@ -21,9 +21,6 @@ package org.apache.cassandra.service.accord;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Set;
@@ -35,7 +32,8 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 
 import accord.local.Command;
-import accord.local.DurableBefore;
+import accord.local.KeyHistory;
+import accord.local.RedundantBefore;
 import accord.primitives.SaveStatus;
 import accord.primitives.Status;
 import accord.primitives.Range;
@@ -46,16 +44,19 @@ import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.async.AsyncChains;
 import accord.utils.async.AsyncResult;
+import org.agrona.collections.ObjectHashSet;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.index.accord.RoutesSearcher;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 import org.apache.cassandra.utils.Pair;
 
+import static accord.primitives.Txn.Kind.ExclusiveSyncPoint;
+
 public class CommandsForRangesLoader
 {
     private final RoutesSearcher searcher = new RoutesSearcher();
     //TODO (now, durability): find solution for this...
-    private final Map<TxnId, Ranges> historicalTransaction = new HashMap<>();
+    private final NavigableMap<TxnId, Ranges> historicalTransaction = new TreeMap<>();
     private final AccordCommandStore store;
 
     public CommandsForRangesLoader(AccordCommandStore store)
@@ -63,34 +64,38 @@ public class CommandsForRangesLoader
         this.store = store;
     }
 
-    public AsyncResult<Pair<Watcher, NavigableMap<TxnId, Summary>>> get(Ranges ranges)
+    public AsyncResult<Pair<Watcher, NavigableMap<TxnId, Summary>>> get(@Nullable TxnId primaryTxnId, KeyHistory keyHistory, Ranges ranges)
     {
-        var watcher = fromCache(ranges);
+        RedundantBefore redundantBefore = store.unsafeGetRedundantBefore();
+        TxnId minTxnId = redundantBefore.minGcBefore(ranges);
+        Timestamp maxTxnId = primaryTxnId == null || keyHistory == KeyHistory.RECOVERY || !primaryTxnId.is(ExclusiveSyncPoint) ? Timestamp.MAX : primaryTxnId;
+        TxnId findAsDep = primaryTxnId != null && keyHistory == KeyHistory.RECOVERY ? primaryTxnId : null;
+        var watcher = fromCache(findAsDep, ranges, minTxnId, maxTxnId, redundantBefore);
         var before = ImmutableMap.copyOf(watcher.get());
-        return AsyncChains.ofCallable(Stage.READ.executor(), () -> get(ranges, before))
+        return AsyncChains.ofCallable(Stage.READ.executor(), () -> get(ranges, before, findAsDep, minTxnId, maxTxnId, redundantBefore))
                           .map(map -> Pair.create(watcher, map), store)
                .beginAsResult();
     }
 
-    private NavigableMap<TxnId, Summary> get(Ranges ranges, Map<TxnId, Summary> cacheHits)
+    private NavigableMap<TxnId, Summary> get(Ranges ranges, Map<TxnId, Summary> cacheHits, @Nullable TxnId findAsDep, TxnId minTxnId, Timestamp maxTxnId, RedundantBefore redundantBefore)
     {
-        Set<TxnId> matches = new HashSet<>();
+        Set<TxnId> matches = new ObjectHashSet<>();
         for (Range range : ranges)
-            matches.addAll(intersects(range));
+            matches.addAll(intersects(range, minTxnId, maxTxnId));
         if (matches.isEmpty())
             return new TreeMap<>();
-        return load(ranges, cacheHits, matches);
+        return load(ranges, cacheHits, matches, findAsDep, redundantBefore);
     }
 
-    private Collection<TxnId> intersects(Range range)
+    private Collection<TxnId> intersects(Range range, TxnId minTxnId, Timestamp maxTxnId)
     {
         assert range instanceof TokenRange : "Require TokenRange but given " + range.getClass();
-        Set<TxnId> intersects = searcher.intersects(store.id(), (TokenRange) range);
+        Set<TxnId> intersects = searcher.intersects(store.id(), (TokenRange) range, minTxnId, maxTxnId);
         if (!historicalTransaction.isEmpty())
         {
             if (intersects.isEmpty())
-                intersects = new HashSet<>();
-            for (var e : historicalTransaction.entrySet())
+                intersects = new ObjectHashSet<>();
+            for (var e : historicalTransaction.tailMap(minTxnId, true).entrySet())
             {
                 if (e.getValue().intersects(range))
                     intersects.add(e.getKey());
@@ -104,13 +109,21 @@ public class CommandsForRangesLoader
     public class Watcher implements AccordStateCache.Listener<TxnId, Command>, AutoCloseable
     {
         private final Ranges ranges;
+        private final @Nullable TxnId findAsDep;
+        private final TxnId minTxnId;
+        private final Timestamp maxTxnId;
+        private final RedundantBefore redundantBefore;
 
         private NavigableMap<TxnId, Summary> summaries = null;
-        private List<AccordCachingState<TxnId, Command>> needToDoubleCheck = null;
+        private Set<AccordCachingState<TxnId, Command>> needToDoubleCheck = null;
 
-        public Watcher(Ranges ranges)
+        public Watcher(Ranges ranges, @Nullable TxnId findAsDep, TxnId minTxnId, Timestamp maxTxnId, RedundantBefore redundantBefore)
         {
             this.ranges = ranges;
+            this.findAsDep = findAsDep;
+            this.minTxnId = minTxnId;
+            this.maxTxnId = maxTxnId;
+            this.redundantBefore = redundantBefore;
         }
 
         public NavigableMap<TxnId, Summary> get()
@@ -123,15 +136,18 @@ public class CommandsForRangesLoader
         {
             if (n.key().domain() != Routable.Domain.Range)
                 return;
+            if (n.key().compareTo(minTxnId) < 0 || n.key().compareTo(maxTxnId) >= 0)
+                return;
+
             var state = n.state();
             if (state instanceof AccordCachingState.Loading)
             {
                 if (needToDoubleCheck == null)
-                    needToDoubleCheck = new ArrayList<>();
+                    needToDoubleCheck = new ObjectHashSet<>();
                 needToDoubleCheck.add(n);
                 return;
             }
-            //TODO (now): include FailedToSave?  Most likely need to, but need to improve test coverage to have failed writes
+            //TODO (required): include FailedToSave?  Most likely need to, but need to improve test coverage to have failed writes
             if (!(state instanceof AccordCachingState.Loaded
                   || state instanceof AccordCachingState.Modified
                   || state instanceof AccordCachingState.Saving))
@@ -140,7 +156,7 @@ public class CommandsForRangesLoader
             var cmd = state.get();
             if (cmd == null)
                 return;
-            Summary summary = create(cmd, ranges, null);
+            Summary summary = create(cmd, ranges, findAsDep, redundantBefore);
             if (summary != null)
             {
                 if (summaries == null)
@@ -175,19 +191,18 @@ public class CommandsForRangesLoader
         }
     }
 
-    private Watcher fromCache(Ranges ranges)
+    private Watcher fromCache(@Nullable TxnId findAsDep, Ranges ranges, TxnId minTxnId, Timestamp maxTxnId, RedundantBefore redundantBefore)
     {
-        Watcher watcher = new Watcher(ranges);
+        Watcher watcher = new Watcher(ranges, findAsDep, minTxnId, maxTxnId, redundantBefore);
         store.commandCache().stream().forEach(watcher::onAdd);
         store.commandCache().register(watcher);
         return watcher;
     }
 
-    private NavigableMap<TxnId, Summary> load(Ranges ranges, Map<TxnId, Summary> cacheHits, Collection<TxnId> possibleTxns)
+    private NavigableMap<TxnId, Summary> load(Ranges ranges, Map<TxnId, Summary> cacheHits, Collection<TxnId> possibleTxns, @Nullable TxnId findAsDep, RedundantBefore redundantBefore)
     {
-        //TODO (now): this logic is kinda duplicate of org.apache.cassandra.service.accord.CommandsForRange.mapReduce
+        //TODO (required): this logic is kinda duplicate of org.apache.cassandra.service.accord.CommandsForRange.mapReduce
         // should figure out if this can be improved... also what is correct?
-        var durableBefore = store.durableBefore();
         NavigableMap<TxnId, Summary> map = new TreeMap<>();
         for (TxnId txnId : possibleTxns)
         {
@@ -196,7 +211,7 @@ public class CommandsForRangesLoader
             var cmd = store.loadCommand(txnId);
             if (cmd == null)
                 continue; // unknown command
-            var summary = create(cmd, ranges, durableBefore);
+            var summary = create(cmd, ranges, findAsDep, redundantBefore);
             if (summary == null)
                 continue;
             map.put(txnId, summary);
@@ -204,9 +219,9 @@ public class CommandsForRangesLoader
         return map;
     }
 
-    private static Summary create(Command cmd, Ranges cacheRanges, @Nullable DurableBefore durableBefore)
+    private static Summary create(Command cmd, Ranges cacheRanges, @Nullable TxnId findAsDep, @Nullable RedundantBefore redundantBefore)
     {
-        //TODO (now, correctness): C* did Invalidated, accord-core did Erased... what is correct?
+        //TODO (required, correctness): C* did Invalidated, accord-core did Erased... what is correct?
         SaveStatus saveStatus = cmd.saveStatus();
         if (saveStatus == SaveStatus.Invalidated
             || saveStatus == SaveStatus.Erased
@@ -223,10 +238,10 @@ public class CommandsForRangesLoader
         if (!ranges.intersects(cacheRanges))
             return null;
 
-        if (durableBefore != null)
+        if (redundantBefore != null)
         {
-            Ranges durableAlready = Ranges.of(durableBefore.foldlWithBounds(ranges, (e, accum, start, end) -> {
-                if (e.universalBefore.compareTo(cmd.txnId()) < 0)
+            Ranges durableAlready = Ranges.of(redundantBefore.foldlWithBounds(ranges, (e, accum, start, end) -> {
+                if (e.gcBefore.compareTo(cmd.txnId()) < 0)
                     return accum;
                 accum.add(new TokenRange((AccordRoutingKey) start, (AccordRoutingKey) end));
                 return accum;
@@ -238,8 +253,8 @@ public class CommandsForRangesLoader
         }
 
         var partialDeps = cmd.partialDeps();
-        List<TxnId> deps = partialDeps == null ? Collections.emptyList() : partialDeps.txnIds();
-        return new Summary(cmd.txnId(), cmd.executeAt(), saveStatus, ranges, deps);
+        boolean hasAsDep = findAsDep != null && partialDeps.rangeDeps.intersects(findAsDep, ranges);
+        return new Summary(cmd.txnId(), cmd.executeAt(), saveStatus, ranges, findAsDep, hasAsDep);
     }
 
     public void mergeHistoricalTransaction(TxnId txnId, Ranges ranges, BiFunction<? super Ranges, ? super Ranges, ? extends Ranges> remappingFunction)
@@ -250,25 +265,28 @@ public class CommandsForRangesLoader
     public static class Summary
     {
         public final TxnId txnId;
-        @Nullable
-        public final Timestamp executeAt;
-        public final SaveStatus saveStatus;
-        public final Ranges ranges;
-        public final List<TxnId> depsIds;
+        @Nullable public final Timestamp executeAt;
+        @Nullable public final SaveStatus saveStatus;
+        @Nullable public final Ranges ranges;
+
+        // TODO (required): this logic is still broken (was already): needs to consider exact range matches
+        public final TxnId findAsDep;
+        public final boolean hasAsDep;
 
         @VisibleForTesting
-        Summary(TxnId txnId, @Nullable Timestamp executeAt, SaveStatus saveStatus, Ranges ranges, List<TxnId> depsIds)
+        Summary(TxnId txnId, @Nullable Timestamp executeAt, SaveStatus saveStatus, Ranges ranges, TxnId findAsDep, boolean hasAsDep)
         {
             this.txnId = txnId;
             this.executeAt = executeAt;
             this.saveStatus = saveStatus;
             this.ranges = ranges;
-            this.depsIds = depsIds;
+            this.findAsDep = findAsDep;
+            this.hasAsDep = hasAsDep;
         }
 
         public Summary slice(Ranges slice)
         {
-            return new Summary(txnId, executeAt, saveStatus, ranges.slice(slice, Routables.Slice.Minimal), depsIds);
+            return new Summary(txnId, executeAt, saveStatus, ranges.slice(slice, Routables.Slice.Minimal), findAsDep, hasAsDep);
         }
 
         @Override
@@ -279,7 +297,8 @@ public class CommandsForRangesLoader
                    ", executeAt=" + executeAt +
                    ", saveStatus=" + saveStatus +
                    ", ranges=" + ranges +
-                   ", depsIds=" + depsIds +
+                   ", findAsDep=" + findAsDep +
+                   ", hasAsDep=" + hasAsDep +
                    '}';
         }
     }
