@@ -694,6 +694,11 @@ public class AccordCommandStore extends CommandStore
             this.threadId = threadId;
         }
 
+        public boolean hasTasks()
+        {
+            return delegate.getPendingTaskCount() > 0 || delegate.getActiveTaskCount() > 0;
+        }
+
         CommandStoreExecutor(AccordStateCache stateCache, SequentialExecutorPlus delegate)
         {
             this.stateCache = stateCache;

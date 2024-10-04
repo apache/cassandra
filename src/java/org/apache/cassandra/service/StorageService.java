@@ -173,6 +173,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.schema.ViewMetadata;
 import org.apache.cassandra.service.accord.AccordService;
+import org.apache.cassandra.service.accord.AccordVerbHandler;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationTarget;
 import org.apache.cassandra.service.disk.usage.DiskUsageBroadcaster;
@@ -3961,9 +3962,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 logger.debug(msg);
             transientMode = Optional.of(Mode.DRAINING);
 
-            if (DatabaseDescriptor.getAccordTransactionsEnabled())
-                AccordService.instance().shutdownAndWait(1, MINUTES);
-
             try
             {
                 /* not clear this is reasonable time, but propagated from prior embedded behaviour */
@@ -3979,7 +3977,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
             if (daemon != null)
                 shutdownClientServers();
-            ScheduledExecutors.optionalTasks.shutdown();
+
             Gossiper.instance.stop();
             ActiveRepairService.instance().stop();
 
@@ -3988,6 +3986,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 logger.debug("shutting down MessageService");
                 transientMode = Optional.of(Mode.DRAINING);
             }
+
+            if (AccordService.isSetup())
+                AccordService.instance().shutdownAndWait(1, MINUTES);
 
             // In-progress writes originating here could generate hints to be written,
             // which is currently scheduled on the mutation stage. So shut down MessagingService
@@ -4002,6 +4003,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 // drain process; otherwise drain and/or shutdown might throw
                 logger.error("Messaging service timed out shutting down", t);
             }
+
+            // ScheduledExecutors shuts down after MessagingService, as MessagingService may issue tasks to it.
+            ScheduledExecutors.optionalTasks.shutdown();
 
             if (!isFinalShutdown)
             {

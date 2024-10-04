@@ -26,7 +26,6 @@ import java.util.NavigableMap;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
@@ -40,9 +39,10 @@ import accord.local.CommandStores.RangesForEpoch;
 import accord.local.DurableBefore;
 import accord.local.Node;
 import accord.local.RedundantBefore;
-import accord.primitives.SaveStatus;
+import accord.local.cfk.CommandsForKey;
 import accord.primitives.Deps;
 import accord.primitives.Ranges;
+import accord.primitives.SaveStatus;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
@@ -73,9 +73,6 @@ import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.
 
 public class AccordJournal implements IJournal, Shutdownable
 {
-
-    private final AtomicBoolean isReplay = new AtomicBoolean(false);
-
     static
     {
         // make noise early if we forget to update our version mappings
@@ -93,7 +90,7 @@ public class AccordJournal implements IJournal, Shutdownable
     private final Params params;
     Node node;
 
-    enum Status { INITIALIZED, STARTING, STARTED, TERMINATING, TERMINATED }
+    enum Status { INITIALIZED, STARTING, REPLAY, STARTED, TERMINATING, TERMINATED }
     private volatile Status status = Status.INITIALIZED;
 
     @VisibleForTesting
@@ -127,8 +124,12 @@ public class AccordJournal implements IJournal, Shutdownable
         this.node = node;
         status = Status.STARTING;
         journal.start();
-        status = Status.STARTED;
         return this;
+    }
+
+    public boolean started()
+    {
+        return status == Status.STARTED;
     }
 
     public Params configuration()
@@ -150,7 +151,7 @@ public class AccordJournal implements IJournal, Shutdownable
     @Override
     public void shutdown()
     {
-        Invariants.checkState(status == Status.STARTED);
+        Invariants.checkState(status == Status.REPLAY || status == Status.STARTED);
         status = Status.TERMINATING;
         journal.shutdown();
         status = Status.TERMINATED;
@@ -230,7 +231,7 @@ public class AccordJournal implements IJournal, Shutdownable
     @Override
     public void appendCommand(int store, SavedCommand.DiffWriter value, Runnable onFlush)
     {
-        if (value == null || isReplay.get())
+        if (value == null || status == Status.REPLAY)
         {
             if (onFlush != null)
                 onFlush.run();
@@ -252,7 +253,7 @@ public class AccordJournal implements IJournal, Shutdownable
             @Override
             public AsyncResult<?> persist(DurableBefore addDurableBefore, DurableBefore newDurableBefore)
             {
-                if (isReplay.get())
+                if (status == Status.REPLAY)
                     return AsyncResults.success(null);
 
                 AsyncResult.Settable<Void> result = AsyncResults.settable();
@@ -306,18 +307,6 @@ public class AccordJournal implements IJournal, Shutdownable
         return builder;
     }
 
-    public List<SavedCommand.Builder> loadSeparateDiffs(int commandStoreId, TxnId txnId)
-    {
-        JournalKey key = new JournalKey(txnId, JournalKey.Type.COMMAND_DIFF, commandStoreId);
-        List<SavedCommand.Builder> builders = new ArrayList<>();
-        journalTable.readAll(key, (in, version) -> {
-            SavedCommand.Builder builder = new SavedCommand.Builder(txnId);
-            builder.deserializeNext(in, version);
-            builders.add(builder);
-        });
-        return builders;
-    }
-
     private <BUILDER> BUILDER readAll(JournalKey key)
     {
         BUILDER builder = (BUILDER) key.type.serializer.mergerFor(key);
@@ -367,6 +356,10 @@ public class AccordJournal implements IJournal, Shutdownable
 
     public void replay()
     {
+        logger.info("Starting journal replay.");
+        CommandsForKey.disableLinearizabilityViolationsReporting();
+        AccordKeyspace.truncateAllCaches();
+
         // TODO (expected): optimize replay memory footprint
         class ToApply
         {
@@ -383,8 +376,6 @@ public class AccordJournal implements IJournal, Shutdownable
         List<ToApply> toApply = new ArrayList<>();
         try (AccordJournalTable.KeyOrderIterator<JournalKey> iter = journalTable.readAll())
         {
-            isReplay.set(true);
-
             JournalKey key;
             SavedCommand.Builder builder = new SavedCommand.Builder();
             while ((key = iter.key()) != null)
@@ -425,16 +416,19 @@ public class AccordJournal implements IJournal, Shutdownable
             for (ToApply apply : toApply)
             {
                 AccordCommandStore commandStore = (AccordCommandStore) node.commandStores().forId(apply.key.commandStoreId);
+                logger.info("Apply {}", apply.command);
                 commandStore.loader().apply(apply.command);
             }
+
+            logger.info("Waiting for command stores to quiesce.");
+            ((AccordCommandStores)node.commandStores()).waitForQuiescense();
+            CommandsForKey.enableLinearizabilityViolationsReporting();
+            logger.info("Finished journal replay.");
+            status = Status.STARTED;
         }
         catch (Throwable t)
         {
             throw new RuntimeException("Can not replay journal.", t);
-        }
-        finally
-        {
-            isReplay.set(false);
         }
     }
 
@@ -492,7 +486,6 @@ public class AccordJournal implements IJournal, Shutdownable
                                                t);
                 }
             }
-
         }
     }
 }

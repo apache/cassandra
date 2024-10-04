@@ -79,6 +79,34 @@ public class ExecutorUtils
         }
     }
 
+    public static void shutdownSequentiallyAndWait(Iterable<?> executors, long timeout, TimeUnit unit)
+    {
+        long deadline = System.nanoTime() + unit.toNanos(timeout);
+
+        for (Object executor : executors)
+        {
+            try
+            {
+                if (executor instanceof ExecutorService)
+                {
+                    ((ExecutorService) executor).shutdown();
+                    ((ExecutorService) executor).awaitTermination(Math.max(0, deadline - System.nanoTime()), NANOSECONDS);
+                }
+                else if (executor instanceof Shutdownable)
+                {
+                    ((Shutdownable) executor).shutdown();
+                    ((Shutdownable) executor).awaitTermination(Math.max(0, deadline - System.nanoTime()), NANOSECONDS);
+                }
+                else
+                    throw new IllegalArgumentException(executor.toString());
+            }
+            catch (Throwable t)
+            {
+                throw new IllegalStateException("Caught interrupt while shutting down " + executor);
+            }
+        }
+    }
+
     public static void shutdown(ExecutorService ... executors)
     {
         shutdown(Arrays.asList(executors));

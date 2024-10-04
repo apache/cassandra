@@ -489,7 +489,13 @@ final class Flusher<K, V>
         {
             WaitQueue.Signal signal = fsyncComplete.register(context, Timer.Context::stop);
             if (fsyncFinishedFor < flushTime)
-                signal.awaitUninterruptibly();
+            {
+                signal.awaitThrowUncheckedOnInterrupt();
+
+                Journal.State state = journal.state.get();
+                Invariants.checkState(state == Journal.State.NORMAL,
+                                      "Thread %s outlived journal, which is in %s state", Thread.currentThread(), state);
+            }
             else
                 signal.cancel();
         }

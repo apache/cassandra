@@ -37,23 +37,22 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
-import org.apache.cassandra.tcm.ClusterMetadata;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.api.RoutingKey;
-import accord.local.StoreParticipants;
-import accord.local.cfk.CommandsForKey;
 import accord.impl.TimestampsForKey;
 import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.Node;
 import accord.local.RedundantBefore;
+import accord.local.StoreParticipants;
+import accord.local.cfk.CommandsForKey;
+import accord.primitives.Ranges;
+import accord.primitives.Route;
 import accord.primitives.SaveStatus;
 import accord.primitives.Status;
 import accord.primitives.Status.Durability;
-import accord.primitives.Ranges;
-import accord.primitives.Route;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.topology.Topology;
@@ -138,6 +137,7 @@ import org.apache.cassandra.service.accord.serializers.AccordRoutingKeyByteSourc
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import org.apache.cassandra.service.accord.serializers.CommandsForKeySerializer;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.Clock.Global;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.btree.BTree;
@@ -745,6 +745,13 @@ public class AccordKeyspace
     public static Tables tables()
     {
         return Tables.of(Commands, TimestampsForKeys, CommandsForKeys, Topologies, EpochMetadata, Journal);
+    }
+
+    public static void truncateAllCaches()
+    {
+        Keyspace ks = Keyspace.open(ACCORD_KEYSPACE_NAME);
+        for (String table : new String[]{ TimestampsForKeys.name, CommandsForKeys.name })
+            ks.getColumnFamilyStore(table).truncateBlocking();
     }
 
     private static <T> ByteBuffer serialize(T obj, LocalVersionedSerializer<T> serializer) throws IOException

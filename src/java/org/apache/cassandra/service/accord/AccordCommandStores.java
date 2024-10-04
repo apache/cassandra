@@ -17,6 +17,10 @@
  */
 package org.apache.cassandra.service.accord;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
@@ -41,6 +45,7 @@ import org.apache.cassandra.metrics.CacheSizeMetrics;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.AccordCommandStore.CommandStoreExecutor;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 
@@ -152,6 +157,39 @@ public class AccordCommandStores extends CommandStores implements CacheSize
             });
             return ready;
         };
+    }
+
+    public void waitForQuiescense()
+    {
+        boolean hadPending;
+        try
+        {
+            do
+            {
+                hadPending = false;
+                List<Future<?>> futures = new ArrayList<>();
+                for (CommandStoreExecutor executor : executors)
+                {
+                    if (executor.hasTasks())
+                    {
+                        futures.add(executor.submit(() -> {}));
+                        hadPending = true;
+                    }
+                }
+                for (Future<?> future : futures)
+                    future.get();
+                futures.clear();
+            }
+            while (hadPending);
+        }
+        catch (ExecutionException e)
+        {
+            throw new IllegalStateException("Should have never been thrown", e);
+        }
+        catch (InterruptedException e)
+        {
+            throw new UncheckedInterruptedException(e);
+        }
     }
 
     @Override
