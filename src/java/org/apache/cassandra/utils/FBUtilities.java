@@ -598,7 +598,13 @@ public class FBUtilities
         EnumSet<MetadataType> types = EnumSet.of(MetadataType.VALIDATION, MetadataType.HEADER);
         Map<MetadataType, MetadataComponent> sstableMetadata = desc.getMetadataSerializer().deserialize(desc, types);
         ValidationMetadata validationMetadata = (ValidationMetadata) sstableMetadata.get(MetadataType.VALIDATION);
+        if (validationMetadata == null) {
+            throw new IOException("validationMetadata is null");
+        }
         SerializationHeader.Component header = (SerializationHeader.Component) sstableMetadata.get(MetadataType.HEADER);
+        if (header == null) {
+            throw new IOException("header is null");
+        }
         return newPartitioner(validationMetadata.partitioner, Optional.of(header.getKeyType()));
     }
 

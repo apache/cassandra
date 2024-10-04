@@ -255,9 +255,13 @@ public class SSTablePartitions
 
         for (ExtendedDescriptor desc : descriptors)
         {
-            processSSTable(keys, excludes, desc,
-                           sizeThreshold, cellCountThreshold, rowCountThreshold, tombstoneCountThreshold, partitionsOnly,
-                           csv, currentTime);
+            try {
+                processSSTable(keys, excludes, desc,
+                               sizeThreshold, cellCountThreshold, rowCountThreshold, tombstoneCountThreshold, partitionsOnly,
+                               csv, currentTime);
+            } catch (IOException | RuntimeException | AssertionError e) {
+                System.err.printf("Failure processing sstable %s: %s%n", desc.descriptor, e);
+            }
         }
 
         return 0;
