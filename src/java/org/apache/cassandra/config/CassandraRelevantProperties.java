@@ -77,9 +77,9 @@ public enum CassandraRelevantProperties
     CACHEABLE_MUTATION_SIZE_LIMIT("cassandra.cacheable_mutation_size_limit_bytes", convertToString(1_000_000)),
     CASSANDRA_ALLOW_SIMPLE_STRATEGY("cassandra.allow_simplestrategy"),
     CASSANDRA_AVAILABLE_PROCESSORS("cassandra.available_processors"),
-    /** By default, the standard Cassandra CLI layout is used for backward compatibility, however, the new Picocli
-     * layout can be enabled by setting this property to {@code true}. */
-    CASSANDRA_CLI_PICOCLI_LAYOUT("cassandra.cli.picocli.layout", "false"),
+    /** By default, the standard Cassandra CLI layout is used for backward compatibility, however,
+     * the new Picocli layout can be enabled by setting this property to the {@code "picocli"}. */
+    CASSANDRA_CLI_LAYOUT("cassandra.cli.layout", "cassandra"),
     /** The classpath storage configuration file. */
     CASSANDRA_CONFIG("cassandra.config", "cassandra.yaml"),
     /**

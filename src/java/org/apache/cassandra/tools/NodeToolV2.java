@@ -182,12 +182,25 @@ public class NodeToolV2
 
     private static void configureCliLayout(CommandLine commandLine)
     {
-        if (CassandraRelevantProperties.CASSANDRA_CLI_PICOCLI_LAYOUT.getBoolean())
-            return;
+        switch (CassandraRelevantProperties.CASSANDRA_CLI_LAYOUT.getEnum(true, CliLayout.class))
+        {
+            case CASSANDRA:
+                commandLine.setHelpFactory(CassandraHelpLayout::new)
+                           .setUsageHelpWidth(CassandraHelpLayout.DEFAULT_USAGE_HELP_WIDTH)
+                           .setHelpSectionKeys(CassandraHelpLayout.cassandraHelpSectionKeys());
+                break;
+            case PICOCLI:
+                break;
+            default:
+                throw new IllegalStateException("Unknown CLI layout: " +
+                                                CassandraRelevantProperties.CASSANDRA_CLI_LAYOUT.getString());
+        }
+    }
 
-        commandLine.setHelpFactory(CassandraHelpLayout::new)
-                   .setUsageHelpWidth(CassandraHelpLayout.DEFAULT_USAGE_HELP_WIDTH)
-                   .setHelpSectionKeys(CassandraHelpLayout.cassandraHelpSectionKeys());
+    private enum CliLayout
+    {
+        CASSANDRA,
+        PICOCLI
     }
 
     private static class CassandraCliFactory implements CommandLine.IFactory
