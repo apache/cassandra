@@ -18,26 +18,36 @@
 
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-
-import java.util.ArrayList;
 import java.util.List;
 
+import com.google.common.collect.Lists;
+
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import picocli.CommandLine;
 
 import static com.google.common.base.Preconditions.checkArgument;
+import static org.apache.cassandra.tools.NodeTool.NodeToolCmd.parsePartitionKeys;
 
-@Command(name = "forcecompact", description = "Force a (major) compaction on a table")
-public class ForceCompact extends NodeToolCmd
+@CommandLine.Command(name = "forcecompact", description = "Force a (major) compaction on a table")
+public class ForceCompact extends AbstractCommand
 {
-    @Arguments(usage = "[<keyspace> <table> <keys>]", description = "The keyspace, table, and a list of partition keys ignoring the gc_grace_seconds")
-    private List<String> args = new ArrayList<>();
+    @CassandraUsage(usage = "[<keyspace> <table> <keys>]",
+                          description = "The keyspace, table, and a list of partition keys ignoring the gc_grace_seconds")
+    public List<String> args;
+
+    @CommandLine.Parameters(index = "0", arity = "1", description = "The keyspace name to compact")
+    public String keyspace;
+
+    @CommandLine.Parameters(index = "1", arity = "1", description = "The table name to compact")
+    public String table;
+
+    @CommandLine.Parameters(index = "2..*", arity = "1", description = "The partition keys to compact")
+    public String[] keys;
 
     @Override
     public void execute(NodeProbe probe)
     {
+        args = Lists.asList(keyspace, table, keys);
         // Check if the input has valid size
         checkArgument(args.size() >= 3, "forcecompact requires keyspace, table and keys args");
 

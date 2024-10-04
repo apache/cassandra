@@ -16,30 +16,21 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.tools;
+package org.apache.cassandra.tools.nodetool;
 
-import java.io.PrintStream;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
-public class Output
+/**
+ * Argument annotation for Cassandra commands, used to provide a message
+ * for command-line argument for backward compatibility when help is requested.
+ */
+@Retention(RetentionPolicy.RUNTIME)
+@Target({ ElementType.FIELD })
+public @interface CassandraUsage
 {
-    public final static Output CONSOLE = new Output(System.out, System.err);
-
-    public final PrintStream out;
-    public final PrintStream err;
-
-    public Output(PrintStream out, PrintStream err)
-    {
-        this.out = out;
-        this.err = err;
-    }
-
-    public void info(String msg, Object... args)
-    {
-        out.printf(msg, args);
-    }
-
-    public void error(String msg, Object... args)
-    {
-        err.printf(msg, args);
-    }
+    String description() default "";
+    String usage() default "";
 }

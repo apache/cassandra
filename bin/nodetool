@@ -98,13 +98,19 @@ if [ "x$MAX_HEAP_SIZE" = "x" ]; then
     MAX_HEAP_SIZE="128m"
 fi
 
+if [ "x$NODETOOL_RUNNER" = "x" ]; then
+    NODETOOL_RUNNER="org.apache.cassandra.tools.NodeTool"
+fi
+
+# shellcheck disable=SC2116
 CMD=$(echo "$JAVA" $JAVA_AGENT -ea -cp "$CLASSPATH" $JVM_OPTS -Xmx$MAX_HEAP_SIZE \
             -XX:ParallelGCThreads=1 \
             -Dcassandra.storagedir="$cassandra_storagedir" \
             -Dcassandra.logdir="$CASSANDRA_LOG_DIR" \
             -Dlogback.configurationFile=logback-tools.xml \
-            $JVM_ARGS \
-            org.apache.cassandra.tools.NodeTool -p $JMX_PORT $ARGS)
+            "$JVM_ARGS" \
+            $NODETOOL_RUNNER \
+            -p "$JMX_PORT" "$ARGS")
 
 if [ "x$ARCHIVE_COMMAND" != "x" ]
 then

@@ -17,39 +17,43 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import static org.apache.commons.lang3.StringUtils.EMPTY;
-
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
-
 import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import picocli.CommandLine;
 
-@Command(name = "compact", description = "Force a (major) compaction on one or more tables or user-defined compaction on given SSTables")
-public class Compact extends NodeToolCmd
+import static org.apache.cassandra.tools.NodeTool.NodeToolCmd.parseOptionalKeyspace;
+import static org.apache.cassandra.tools.NodeTool.NodeToolCmd.parseOptionalTables;
+import static org.apache.commons.lang3.StringUtils.EMPTY;
+
+@CommandLine.Command(name = "compact", description = "Force a (major) compaction on one or more tables or user-defined compaction on given SSTables")
+public class Compact extends AbstractCommand
 {
-    @Arguments(usage = "[<keyspace> <tables>...] or <SSTable file>...", description = "The keyspace followed by one or many tables or list of SSTable data files when using --user-defined")
-    private List<String> args = new ArrayList<>();
+    @CassandraUsage(usage = "[<keyspace> <tables>...] or <SSTable file>...",
+        description = "The keyspace followed by one or many tables or list of SSTable data files when using --user-defined")
+    @CommandLine.Parameters(index = "0..*", description = "The keyspace followed by one or many tables or " +
+                                                          "list of SSTable data files when using --user-defined")
+    public List<String> args = new ArrayList<>();
 
-    @Option(title = "split_output", name = {"-s", "--split-output"}, description = "Use -s to not create a single big file")
-    private boolean splitOutput = false;
+    @CommandLine.Option(names = { "-s", "--split-output" }, description = "Use -s to not create a single big file")
+    public boolean splitOutput = false;
 
-    @Option(title = "user-defined", name = {"--user-defined"}, description = "Use --user-defined to submit listed files for user-defined compaction")
-    private boolean userDefined = false;
+    @CommandLine.Option(names = { "--user-defined" },
+        description = "Use --user-defined to submit listed files for user-defined compaction")
+    public boolean userDefined = false;
 
-    @Option(title = "start_token", name = {"-st", "--start-token"}, description = "Use -st to specify a token at which the compaction range starts (inclusive)")
-    private String startToken = EMPTY;
+    @CommandLine.Option(names = { "-st", "--start-token" }, paramLabel = "start_token",
+        description = "Use -st to specify a token at which the compaction range starts (inclusive)")
+    public String startToken = EMPTY;
 
-    @Option(title = "end_token", name = {"-et", "--end-token"}, description = "Use -et to specify a token at which compaction range ends (inclusive)")
-    private String endToken = EMPTY;
+    @CommandLine.Option(names = { "-et", "--end-token" }, paramLabel = "end_token",
+        description = "Use -et to specify a token at which compaction range ends (inclusive)")
+    public String endToken = EMPTY;
 
-    @Option(title = "partition_key", name = {"--partition"}, description = "String representation of the partition key")
-    private String partitionKey = EMPTY;
-
+    @CommandLine.Option(names = { "--partition" }, paramLabel = "partition_key",
+        description = "String representation of the partition key")
+    public String partitionKey = EMPTY;
 
     @Override
     public void execute(NodeProbe probe)

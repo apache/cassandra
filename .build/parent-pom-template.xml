@@ -663,6 +663,12 @@
         <scope>test</scope>
       </dependency>
       <dependency>
+        <groupId>io.github.java-diff-utils</groupId>
+        <artifactId>java-diff-utils</artifactId>
+        <version>4.12</version>
+        <scope>test</scope>
+      </dependency>
+      <dependency>
         <groupId>org.apache.ant</groupId>
         <artifactId>ant-junit</artifactId>
         <version>1.10.12</version>
@@ -714,6 +720,11 @@
         <groupId>org.mindrot</groupId>
         <artifactId>jbcrypt</artifactId>
         <version>0.4</version>
+      </dependency>
+      <dependency>
+        <groupId>info.picocli</groupId>
+        <artifactId>picocli</artifactId>
+        <version>4.7.5</version>
       </dependency>
       <dependency>
         <groupId>io.airlift</groupId>

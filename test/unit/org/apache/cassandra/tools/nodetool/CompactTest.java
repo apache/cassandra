@@ -19,26 +19,15 @@ package org.apache.cassandra.tools.nodetool;
 
 import java.util.Arrays;
 
-import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.assertj.core.api.Assertions;
 
-import static org.apache.cassandra.tools.ToolRunner.invokeNodetool;
-
-public class CompactTest extends CQLTester
+public class CompactTest extends NodetoolRunnerTester
 {
-    @BeforeClass
-    public static void setup() throws Throwable
-    {
-        requireNetwork();
-        startJMXServer();
-    }
-
     @Test
     public void keyPresent() throws Throwable
     {
