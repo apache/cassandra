@@ -23,25 +23,26 @@ import java.util.List;
 import com.google.common.collect.Lists;
 
 import org.apache.cassandra.tools.NodeProbe;
-import picocli.CommandLine;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Parameters;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static org.apache.cassandra.tools.NodeTool.NodeToolCmd.parsePartitionKeys;
 
-@CommandLine.Command(name = "forcecompact", description = "Force a (major) compaction on a table")
+@Command(name = "forcecompact", description = "Force a (major) compaction on a table")
 public class ForceCompact extends AbstractCommand
 {
     @CassandraUsage(usage = "[<keyspace> <table> <keys>]",
                           description = "The keyspace, table, and a list of partition keys ignoring the gc_grace_seconds")
     public List<String> args;
 
-    @CommandLine.Parameters(index = "0", arity = "1", description = "The keyspace name to compact")
+    @Parameters(index = "0", arity = "1", description = "The keyspace name to compact")
     public String keyspace;
 
-    @CommandLine.Parameters(index = "1", arity = "1", description = "The table name to compact")
+    @Parameters(index = "1", arity = "1", description = "The table name to compact")
     public String table;
 
-    @CommandLine.Parameters(index = "2..*", arity = "1", description = "The partition keys to compact")
+    @Parameters(index = "2..*", arity = "1", description = "The partition keys to compact")
     public String[] keys;
 
     @Override

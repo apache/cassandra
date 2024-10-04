@@ -25,6 +25,10 @@ import java.util.Map;
 import com.google.common.base.Preconditions;
 
 import picocli.CommandLine;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.IHelpCommandInitializable2;
+import picocli.CommandLine.Option;
+import picocli.CommandLine.Parameters;
 
 import static picocli.CommandLine.Model.UsageMessageSpec.SECTION_KEY_COMMAND_LIST;
 import static picocli.CommandLine.Model.UsageMessageSpec.SECTION_KEY_COMMAND_LIST_HEADING;
@@ -36,19 +40,19 @@ import static picocli.CommandLine.Model.UsageMessageSpec.SECTION_KEY_HEADER;
 import static picocli.CommandLine.Model.UsageMessageSpec.SECTION_KEY_HEADER_HEADING;
 import static picocli.CommandLine.Model.UsageMessageSpec.SECTION_KEY_SYNOPSIS;
 
-@CommandLine.Command(name = "help",
+@Command(name = "help",
     header = "Display help information about the specified command.",
     synopsisHeading = "%nUsage: ",
     helpCommand = true,
     description = { "%nWhen no COMMAND is given, the usage help for the main command is displayed.",
                     "If a COMMAND is specified, the help for that command is shown.%n" })
-public class CassandraHelpCommand implements CommandLine.IHelpCommandInitializable2, Runnable
+public class CassandraHelpCommand implements IHelpCommandInitializable2, Runnable
 {
-    @CommandLine.Option(names = { "--help" }, usageHelp = true, descriptionKey = "helpCommand.help",
+    @Option(names = { "--help" }, usageHelp = true, descriptionKey = "helpCommand.help",
         description = "Show usage help for the help command and exit.")
     private boolean helpRequested;
 
-    @CommandLine.Parameters(paramLabel = "command", arity = "0..1", descriptionKey = "helpCommand.command",
+    @Parameters(paramLabel = "command", arity = "0..1", descriptionKey = "helpCommand.command",
         description = "The COMMAND to display the usage help message for.")
     private String commands;
 
@@ -60,6 +64,7 @@ public class CassandraHelpCommand implements CommandLine.IHelpCommandInitializab
      * Invokes {@code #usage(PrintStream, CommandLine.Help.ColorScheme) usage} for the specified command,
      * or for the parent command.
      */
+    @Override
     public void run()
     {
         CommandLine parent = self == null ? null : self.getParent();

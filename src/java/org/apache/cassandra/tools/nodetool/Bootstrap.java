@@ -18,9 +18,9 @@
 
 package org.apache.cassandra.tools.nodetool;
 
-import picocli.CommandLine;
+import picocli.CommandLine.Command;
 
-@CommandLine.Command(name = "bootstrap",
+@Command(name = "bootstrap",
     subcommands = { BootstrapResume.class },
     description = "Monitor/manage node's bootstrap process")
 public class Bootstrap

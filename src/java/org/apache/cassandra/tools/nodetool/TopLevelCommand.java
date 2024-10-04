@@ -18,11 +18,13 @@
 
 package org.apache.cassandra.tools.nodetool;
 
-import picocli.CommandLine;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Model.CommandSpec;
+import picocli.CommandLine.Spec;
 
 import static org.apache.cassandra.tools.nodetool.CassandraHelpCommand.printTopCommandUsage;
 
-@CommandLine.Command(name = "nodetool",
+@Command(name = "nodetool",
     description = "Manage your Cassandra cluster",
     subcommands = { CassandraHelpCommand.class,
                     AbortBootstrap.class,
@@ -32,8 +34,8 @@ import static org.apache.cassandra.tools.nodetool.CassandraHelpCommand.printTopC
                     Compact.class })
 public class TopLevelCommand implements Runnable
 {
-    @CommandLine.Spec
-    public CommandLine.Model.CommandSpec spec;
+    @Spec
+    public CommandSpec spec;
 
     public void run()
     {

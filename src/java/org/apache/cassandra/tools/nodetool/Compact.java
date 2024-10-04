@@ -21,37 +21,39 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.cassandra.tools.NodeProbe;
-import picocli.CommandLine;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
+import picocli.CommandLine.Parameters;
 
 import static org.apache.cassandra.tools.NodeTool.NodeToolCmd.parseOptionalKeyspace;
 import static org.apache.cassandra.tools.NodeTool.NodeToolCmd.parseOptionalTables;
 import static org.apache.commons.lang3.StringUtils.EMPTY;
 
-@CommandLine.Command(name = "compact", description = "Force a (major) compaction on one or more tables or user-defined compaction on given SSTables")
+@Command(name = "compact", description = "Force a (major) compaction on one or more tables or user-defined compaction on given SSTables")
 public class Compact extends AbstractCommand
 {
     @CassandraUsage(usage = "[<keyspace> <tables>...] or <SSTable file>...",
         description = "The keyspace followed by one or many tables or list of SSTable data files when using --user-defined")
-    @CommandLine.Parameters(index = "0..*", description = "The keyspace followed by one or many tables or " +
+    @Parameters(index = "0..*", description = "The keyspace followed by one or many tables or " +
                                                           "list of SSTable data files when using --user-defined")
     public List<String> args = new ArrayList<>();
 
-    @CommandLine.Option(names = { "-s", "--split-output" }, description = "Use -s to not create a single big file")
+    @Option(names = { "-s", "--split-output" }, description = "Use -s to not create a single big file")
     public boolean splitOutput = false;
 
-    @CommandLine.Option(names = { "--user-defined" },
+    @Option(names = { "--user-defined" },
         description = "Use --user-defined to submit listed files for user-defined compaction")
     public boolean userDefined = false;
 
-    @CommandLine.Option(names = { "-st", "--start-token" }, paramLabel = "start_token",
+    @Option(names = { "-st", "--start-token" }, paramLabel = "start_token",
         description = "Use -st to specify a token at which the compaction range starts (inclusive)")
     public String startToken = EMPTY;
 
-    @CommandLine.Option(names = { "-et", "--end-token" }, paramLabel = "end_token",
+    @Option(names = { "-et", "--end-token" }, paramLabel = "end_token",
         description = "Use -et to specify a token at which compaction range ends (inclusive)")
     public String endToken = EMPTY;
 
-    @CommandLine.Option(names = { "--partition" }, paramLabel = "partition_key",
+    @Option(names = { "--partition" }, paramLabel = "partition_key",
         description = "String representation of the partition key")
     public String partitionKey = EMPTY;
 

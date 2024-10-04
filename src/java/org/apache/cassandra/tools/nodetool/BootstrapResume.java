@@ -21,14 +21,15 @@ import java.io.IOError;
 import java.io.IOException;
 
 import org.apache.cassandra.tools.NodeProbe;
-import picocli.CommandLine;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.RESET_BOOTSTRAP_PROGRESS;
 
-@CommandLine.Command(name = "resume", description = "Resume bootstrap streaming")
+@Command(name = "resume", description = "Resume bootstrap streaming")
 public class BootstrapResume extends AbstractCommand
 {
-    @CommandLine.Option(names = {"-f", "--force"},
+    @Option(names = { "-f", "--force"},
         description = "Use --force to resume bootstrap regardless of cassandra.reset_bootstrap_progress environment " +
                       "variable. WARNING: This is potentially dangerous, see CASSANDRA-17679")
     boolean force = false;

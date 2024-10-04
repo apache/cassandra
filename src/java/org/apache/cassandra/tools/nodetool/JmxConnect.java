@@ -25,7 +25,16 @@ import com.google.common.base.Throwables;
 
 import org.apache.cassandra.tools.INodeProbeFactory;
 import org.apache.cassandra.tools.NodeProbe;
-import picocli.CommandLine;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.ExecutionException;
+import picocli.CommandLine.IExecutionStrategy;
+import picocli.CommandLine.InitializationException;
+import picocli.CommandLine.Model.CommandSpec;
+import picocli.CommandLine.Option;
+import picocli.CommandLine.ParameterException;
+import picocli.CommandLine.ParseResult;
+import picocli.CommandLine.RunLast;
+import picocli.CommandLine.Spec;
 
 import static java.lang.Integer.parseInt;
 import static org.apache.cassandra.tools.NodeTool.NodeToolCmd.promptAndReadPassword;
@@ -38,31 +47,31 @@ import static org.apache.commons.lang3.StringUtils.isNotEmpty;
 /**
  * Command options for NodeTool commands that are executed via JMX.
  */
-@CommandLine.Command(name = "connect", description = "Connect to a Cassandra node via JMX")
+@Command(name = "connect", description = "Connect to a Cassandra node via JMX")
 public class JmxConnect extends AbstractCommand implements AutoCloseable
 {
     public static final String MIXIN_KEY = "jmx";
 
     /** The command specification, used to access command-specific properties. */
-    @CommandLine.Spec
-    protected CommandLine.Model.CommandSpec spec; // injected by picocli
+    @Spec
+    protected CommandSpec spec; // injected by picocli
 
-    @CommandLine.Option(names = { "-h", "--host" }, description = "Node hostname or ip address")
+    @Option(names = { "-h", "--host" }, description = "Node hostname or ip address")
     public String host = "127.0.0.1";
 
-    @CommandLine.Option(names = { "-p", "--port" }, description = "Remote jmx agent port number")
+    @Option(names = { "-p", "--port" }, description = "Remote jmx agent port number")
     public String port = "7199";
 
-    @CommandLine.Option(names = { "-u", "--username" }, description = "Remote jmx agent username")
+    @Option(names = { "-u", "--username" }, description = "Remote jmx agent username")
     public String username = EMPTY;
 
-    @CommandLine.Option(names = { "-pw", "--password" }, description = "Remote jmx agent password")
+    @Option(names = { "-pw", "--password" }, description = "Remote jmx agent password")
     public String password = EMPTY;
 
-    @CommandLine.Option(names = { "-pwf", "--password-file" }, description = "Path to the JMX password file")
+    @Option(names = { "-pwf", "--password-file" }, description = "Path to the JMX password file")
     public String passwordFilePath = EMPTY;
 
-    @CommandLine.Option(names = { "-pp", "--print-port" }, description = "Operate in 4.0 mode with hosts disambiguated by port number")
+    @Option(names = { "-pp", "--print-port" }, description = "Operate in 4.0 mode with hosts disambiguated by port number")
     public boolean printPort = false;
 
     @Inject
@@ -73,11 +82,11 @@ public class JmxConnect extends AbstractCommand implements AutoCloseable
      * @param parseResult The parsed command line.
      * @return The exit code.
      */
-    public static int executionStrategy(CommandLine.ParseResult parseResult)
+    public static int executionStrategy(ParseResult parseResult)
     {
-        CommandLine.Model.CommandSpec jmx = parseResult.commandSpec().mixins().get(MIXIN_KEY);
+        CommandSpec jmx = parseResult.commandSpec().mixins().get(MIXIN_KEY);
         if (jmx == null)
-            throw new CommandLine.InitializationException("No JmxConnect command found in the top-level hierarchy");
+            throw new InitializationException("No JmxConnect command found in the top-level hierarchy");
 
         try (JmxConnectionCommandInvoker invoker = new JmxConnectionCommandInvoker((JmxConnect) jmx.userObject()))
         {
@@ -117,7 +126,7 @@ public class JmxConnect extends AbstractCommand implements AutoCloseable
             Throwable rootCause = Throwables.getRootCause(e);
             logger.error("nodetool: Failed to connect to '%s:%s' - %s: '%s'.%n", host, port,
                               rootCause.getClass().getSimpleName(), rootCause.getMessage());
-            throw new CommandLine.ExecutionException(spec.commandLine(), "Failed to connect to JMX", e);
+            throw new ExecutionException(spec.commandLine(), "Failed to connect to JMX", e);
         }
     }
 
@@ -128,7 +137,7 @@ public class JmxConnect extends AbstractCommand implements AutoCloseable
             ((AutoCloseable) probe).close();
     }
 
-    private static class JmxConnectionCommandInvoker implements CommandLine.IExecutionStrategy, AutoCloseable
+    private static class JmxConnectionCommandInvoker implements IExecutionStrategy, AutoCloseable
     {
         private final JmxConnect connect;
 
@@ -138,15 +147,15 @@ public class JmxConnect extends AbstractCommand implements AutoCloseable
         }
 
         @Override
-        public int execute(CommandLine.ParseResult parseResult) throws CommandLine.ExecutionException, CommandLine.ParameterException
+        public int execute(ParseResult parseResult) throws ExecutionException, ParameterException
         {
-            CommandLine.Model.CommandSpec lastParent = lastExecutableSubcommandWithSameParent(parseResult.asCommandLineList());
+            CommandSpec lastParent = lastExecutableSubcommandWithSameParent(parseResult.asCommandLineList());
             if (lastParent.userObject() instanceof AbstractCommand)
             {
                 connect.run();
                 ((AbstractCommand) lastParent.userObject()).probe(connect.probe());
             }
-            return new CommandLine.RunLast().execute(parseResult);
+            return new RunLast().execute(parseResult);
         }
 
         @Override

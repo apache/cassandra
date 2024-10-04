@@ -52,7 +52,7 @@ import static picocli.CommandLine.Model.UsageMessageSpec.SECTION_KEY_SYNOPSIS;
 import static picocli.CommandLine.Model.UsageMessageSpec.SECTION_KEY_SYNOPSIS_HEADING;
 
 /**
- * Help facotry for the Cassandra nodetool to generate the help output. This class is used to match
+ * Help factory for the Cassandra nodetool to generate the help output. This class is used to match
  * the command output with the previously available nodetool help output format.
  */
 public class CassandraHelpLayout extends CommandLine.Help
