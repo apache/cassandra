@@ -35,7 +35,6 @@ import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.Schema;
@@ -119,7 +118,7 @@ public final class PartitionKey extends AccordRoutableKey implements Key
     }
 
     public static final Serializer serializer = new Serializer();
-    public static class Serializer implements IVersionedSerializer<PartitionKey>
+    public static class Serializer implements AccordKeySerializer<PartitionKey>
     {
         // TODO: add vint to value accessor and use vints
         private Serializer() {}
@@ -142,6 +141,14 @@ public final class PartitionKey extends AccordRoutableKey implements Key
             position += accessor.copyByteBufferTo(bytes, 0, dst, position, numBytes);
             return position - offset;
 
+        }
+
+        @Override
+        public void skip(DataInputPlus in, int version) throws IOException
+        {
+            TableId tableId = TableId.deserialize(in);
+            IPartitioner partitioner = Schema.instance.getExistingTablePartitioner(tableId);
+            ByteBufferUtil.skipShortLength(in);
         }
 
         @Override

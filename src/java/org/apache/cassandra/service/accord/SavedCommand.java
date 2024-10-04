@@ -161,43 +161,63 @@ public class SavedCommand
     public static void serialize(Command before, Command after, DataOutputPlus out, int userVersion) throws IOException
     {
         int flags = getFlags(before, after);
-
         out.writeInt(flags);
 
-        // We encode all changed fields unless their value is null
-        if (getFieldChanged(Fields.EXECUTE_AT, flags) && after.executeAt() != null)
-            CommandSerializers.timestamp.serialize(after.executeAt(), out, userVersion);
-        // TODO (desired): check if this can fold into executeAt
-        if (getFieldChanged(Fields.EXECUTES_AT_LEAST, flags) && after.executesAtLeast() != null)
-            CommandSerializers.timestamp.serialize(after.executesAtLeast(), out, userVersion);
-        if (getFieldChanged(Fields.SAVE_STATUS, flags))
-            out.writeInt(after.saveStatus().ordinal());
-        if (getFieldChanged(Fields.DURABILITY, flags) && after.durability() != null)
-            out.writeInt(after.durability().ordinal());
-
-        if (getFieldChanged(Fields.ACCEPTED, flags) && after.acceptedOrCommitted() != null)
-            CommandSerializers.ballot.serialize(after.acceptedOrCommitted(), out, userVersion);
-        if (getFieldChanged(Fields.PROMISED, flags) && after.promised() != null)
-            CommandSerializers.ballot.serialize(after.promised(), out, userVersion);
-
-        if (getFieldChanged(Fields.PARTICIPANTS, flags) && after.participants() != null)
-            CommandSerializers.participants.serialize(after.participants(), out, userVersion);
-        if (getFieldChanged(Fields.PARTIAL_TXN, flags) && after.partialTxn() != null)
-            CommandSerializers.partialTxn.serialize(after.partialTxn(), out, userVersion);
-        if (getFieldChanged(Fields.PARTIAL_DEPS, flags) && after.partialDeps() != null)
-            DepsSerializer.partialDeps.serialize(after.partialDeps(), out, userVersion);
-
-        Command.WaitingOn waitingOn = getWaitingOn(after);
-        if (getFieldChanged(Fields.WAITING_ON, flags) && waitingOn != null)
+        int iterable = toIterableSetFields(flags);
+        while (iterable != 0)
         {
-            long size = WaitingOnSerializer.serializedSize(waitingOn);
-            ByteBuffer serialized = WaitingOnSerializer.serialize(after.txnId(), waitingOn);
-            out.writeInt((int) size);
-            out.write(serialized);
-        }
+            Fields field = nextSetField(iterable);
+            if (getFieldIsNull(field, flags))
+            {
+                iterable = unsetIterableFields(field, iterable);
+                continue;
+            }
 
-        if (getFieldChanged(Fields.WRITES, flags) && after.writes() != null)
-            CommandSerializers.writes.serialize(after.writes(), out, userVersion);
+            switch (field)
+            {
+                case EXECUTE_AT:
+                    CommandSerializers.timestamp.serialize(after.executeAt(), out, userVersion);
+                    break;
+                case EXECUTES_AT_LEAST:
+                    CommandSerializers.timestamp.serialize(after.executesAtLeast(), out, userVersion);
+                    break;
+                case SAVE_STATUS:
+                    out.writeShort(after.saveStatus().ordinal());
+                    break;
+                case DURABILITY:
+                    out.writeByte(after.durability().ordinal());
+                    break;
+                case ACCEPTED:
+                    CommandSerializers.ballot.serialize(after.acceptedOrCommitted(), out, userVersion);
+                    break;
+                case PROMISED:
+                    CommandSerializers.ballot.serialize(after.promised(), out, userVersion);
+                    break;
+                case PARTICIPANTS:
+                    CommandSerializers.participants.serialize(after.participants(), out, userVersion);
+                    break;
+                case PARTIAL_TXN:
+                    CommandSerializers.partialTxn.serialize(after.partialTxn(), out, userVersion);
+                    break;
+                case PARTIAL_DEPS:
+                    DepsSerializer.partialDeps.serialize(after.partialDeps(), out, userVersion);
+                    break;
+                case WAITING_ON:
+                    Command.WaitingOn waitingOn = getWaitingOn(after);
+                    long size = WaitingOnSerializer.serializedSize(waitingOn);
+                    ByteBuffer serialized = WaitingOnSerializer.serialize(after.txnId(), waitingOn);
+                    out.writeInt((int) size);
+                    out.write(serialized);
+                    break;
+                case WRITES:
+                    CommandSerializers.writes.serialize(after.writes(), out, userVersion);
+                    break;
+                case CLEANUP:
+                    throw new IllegalStateException();
+            }
+
+            iterable = unsetIterableFields(field, iterable);
+        }
     }
 
     @VisibleForTesting
@@ -258,13 +278,29 @@ public class SavedCommand
 
     private static int setFieldChanged(Fields field, int oldFlags)
     {
-        return oldFlags | (1 << (field.ordinal() + Short.SIZE));
+        return oldFlags | (0x10000 << field.ordinal());
     }
 
     @VisibleForTesting
     static boolean getFieldChanged(Fields field, int oldFlags)
     {
-        return (oldFlags & (1 << (field.ordinal() + Short.SIZE))) != 0;
+        return (oldFlags & (0x10000 << field.ordinal())) != 0;
+    }
+
+    static int toIterableSetFields(int flags)
+    {
+        return flags >>> 16;
+    }
+
+    static Fields nextSetField(int iterable)
+    {
+        int i = Integer.numberOfTrailingZeros(Integer.lowestOneBit(iterable));
+        return i == 32 ? null : Fields.FIELDS[i];
+    }
+
+    static int unsetIterableFields(Fields field, int iterable)
+    {
+        return iterable & ~(1 << field.ordinal());
     }
 
     @VisibleForTesting
@@ -547,42 +583,60 @@ public class SavedCommand
         {
             out.writeInt(flags);
 
-            // We encode all changed fields unless their value is null
-            if (getFieldChanged(Fields.EXECUTE_AT, flags) && !getFieldIsNull(Fields.EXECUTE_AT, flags))
-                CommandSerializers.timestamp.serialize(executeAt(), out, userVersion);
-            // TODO (desired): check if this can fold into executeAt
-            if (getFieldChanged(Fields.EXECUTES_AT_LEAST, flags) && !getFieldIsNull(Fields.EXECUTES_AT_LEAST, flags))
-                CommandSerializers.timestamp.serialize(executeAtLeast(), out, userVersion);
-            if (getFieldChanged(Fields.SAVE_STATUS, flags) && !getFieldIsNull(Fields.SAVE_STATUS, flags))
-                out.writeInt(saveStatus().ordinal());
-            if (getFieldChanged(Fields.DURABILITY, flags) && !getFieldIsNull(Fields.DURABILITY, flags))
-                out.writeInt(durability().ordinal());
-
-            if (getFieldChanged(Fields.ACCEPTED, flags) && !getFieldIsNull(Fields.ACCEPTED, flags))
-                CommandSerializers.ballot.serialize(acceptedOrCommitted(), out, userVersion);
-            if (getFieldChanged(Fields.PROMISED, flags) && !getFieldIsNull(Fields.PROMISED, flags))
-                CommandSerializers.ballot.serialize(promised(), out, userVersion);
-
-            if (getFieldChanged(Fields.PARTICIPANTS, flags) && !getFieldIsNull(Fields.PARTICIPANTS, flags))
-                CommandSerializers.participants.serialize(participants(), out, userVersion);
-            if (getFieldChanged(Fields.PARTIAL_TXN, flags) && !getFieldIsNull(Fields.PARTIAL_TXN, flags))
-                CommandSerializers.partialTxn.serialize(partialTxn(), out, userVersion);
-            if (getFieldChanged(Fields.PARTIAL_DEPS, flags) && !getFieldIsNull(Fields.PARTIAL_DEPS, flags))
-                DepsSerializer.partialDeps.serialize(partialDeps(), out, userVersion);
-
-            if (getFieldChanged(Fields.WAITING_ON, flags) && !getFieldIsNull(Fields.WAITING_ON, flags))
+            int iterable = toIterableSetFields(flags);
+            while (iterable != 0)
             {
-                out.writeInt(waitingOnBytes.length);
-                out.write(waitingOnBytes);
+                Fields field = nextSetField(iterable);
+                if (getFieldIsNull(field, flags))
+                {
+                    iterable = unsetIterableFields(field, iterable);
+                    continue;
+                }
+
+                switch (field)
+                {
+                    case EXECUTE_AT:
+                        CommandSerializers.timestamp.serialize(executeAt(), out, userVersion);
+                        break;
+                    case EXECUTES_AT_LEAST:
+                        CommandSerializers.timestamp.serialize(executeAtLeast(), out, userVersion);
+                        break;
+                    case SAVE_STATUS:
+                        out.writeShort(saveStatus().ordinal());
+                        break;
+                    case DURABILITY:
+                        out.writeByte(durability().ordinal());
+                        break;
+                    case ACCEPTED:
+                        CommandSerializers.ballot.serialize(acceptedOrCommitted(), out, userVersion);
+                        break;
+                    case PROMISED:
+                        CommandSerializers.ballot.serialize(promised(), out, userVersion);
+                        break;
+                    case PARTICIPANTS:
+                        CommandSerializers.participants.serialize(participants(), out, userVersion);
+                        break;
+                    case PARTIAL_TXN:
+                        CommandSerializers.partialTxn.serialize(partialTxn(), out, userVersion);
+                        break;
+                    case PARTIAL_DEPS:
+                        DepsSerializer.partialDeps.serialize(partialDeps(), out, userVersion);
+                        break;
+                    case WAITING_ON:
+                        out.writeInt(waitingOnBytes.length);
+                        out.write(waitingOnBytes);
+                        break;
+                    case WRITES:
+                        CommandSerializers.writes.serialize(writes(), out, userVersion);
+                        break;
+                    case CLEANUP:
+                        out.writeByte(cleanup.ordinal());
+                        break;
+                }
+
+                iterable = unsetIterableFields(field, iterable);
             }
-
-            if (getFieldChanged(Fields.WRITES, flags) && !getFieldIsNull(Fields.WRITES, flags))
-                CommandSerializers.writes.serialize(writes(), out, userVersion);
-
-            if (getFieldChanged(Fields.CLEANUP, flags))
-                out.writeByte(cleanup.ordinal());
         }
-
 
         // TODO: we seem to be writing some form of empty transaction
         @SuppressWarnings({ "rawtypes", "unchecked" })
@@ -593,97 +647,65 @@ public class SavedCommand
             nextCalled = true;
             count++;
 
-            for (Fields field : Fields.FIELDS)
+            int iterable = toIterableSetFields(flags);
+            while (iterable != 0)
             {
-                if (getFieldChanged(field, flags))
+                Fields field = nextSetField(iterable);
+                if (getFieldChanged(field, this.flags))
                 {
-                    this.flags = setFieldChanged(field, this.flags);
-                    if (getFieldIsNull(field, flags))
-                        this.flags = setFieldIsNull(field, this.flags);
-                    else
-                        this.flags = unsetFieldIsNull(field, this.flags);
-                }
-            }
+                    if (!getFieldIsNull(field, flags))
+                        skip(field, in, userVersion);
 
-            if (getFieldChanged(Fields.EXECUTE_AT, flags))
-            {
-                if (getFieldIsNull(Fields.EXECUTE_AT, flags))
-                    executeAt = null;
+                    iterable = unsetIterableFields(field, iterable);
+                    continue;
+                }
+                this.flags = setFieldChanged(field, this.flags);
+
+                if (getFieldIsNull(field, flags))
+                {
+                    this.flags = setFieldIsNull(field, this.flags);
+                }
                 else
+                {
+                    deserialize(field, in, userVersion);
+                }
+
+                iterable = unsetIterableFields(field, iterable);
+            }
+        }
+
+        private void deserialize(Fields field, DataInputPlus in, int userVersion) throws IOException
+        {
+            switch (field)
+            {
+                case EXECUTE_AT:
                     executeAt = CommandSerializers.timestamp.deserialize(in, userVersion);
-            }
-
-            if (getFieldChanged(Fields.EXECUTES_AT_LEAST, flags))
-            {
-                if (getFieldIsNull(Fields.EXECUTES_AT_LEAST, flags))
-                    executeAtLeast = null;
-                else
+                    break;
+                case EXECUTES_AT_LEAST:
                     executeAtLeast = CommandSerializers.timestamp.deserialize(in, userVersion);
-            }
-
-            if (getFieldChanged(Fields.SAVE_STATUS, flags))
-            {
-                if (getFieldIsNull(Fields.SAVE_STATUS, flags))
-                    saveStatus = null;
-                else
-                    saveStatus = SaveStatus.values()[in.readInt()];
-            }
-            if (getFieldChanged(Fields.DURABILITY, flags))
-            {
-                if (getFieldIsNull(Fields.DURABILITY, flags))
-                    durability = null;
-                else
-                    durability = Status.Durability.values()[in.readInt()];
-            }
-
-            if (getFieldChanged(Fields.ACCEPTED, flags))
-            {
-                if (getFieldIsNull(Fields.ACCEPTED, flags))
-                    acceptedOrCommitted = null;
-                else
+                    break;
+                case SAVE_STATUS:
+                    saveStatus = SaveStatus.values()[in.readShort()];
+                    break;
+                case DURABILITY:
+                    durability = Status.Durability.values()[in.readByte()];
+                    break;
+                case ACCEPTED:
                     acceptedOrCommitted = CommandSerializers.ballot.deserialize(in, userVersion);
-            }
-
-            if (getFieldChanged(Fields.PROMISED, flags))
-            {
-                if (getFieldIsNull(Fields.PROMISED, flags))
-                    promised = null;
-                else
+                    break;
+                case PROMISED:
                     promised = CommandSerializers.ballot.deserialize(in, userVersion);
-            }
-
-            if (getFieldChanged(Fields.PARTICIPANTS, flags))
-            {
-                if (getFieldIsNull(Fields.PARTICIPANTS, flags))
-                    participants = null;
-                else
+                    break;
+                case PARTICIPANTS:
                     participants = CommandSerializers.participants.deserialize(in, userVersion);
-            }
-
-            if (getFieldChanged(Fields.PARTIAL_TXN, flags))
-            {
-                if (getFieldIsNull(Fields.PARTIAL_TXN, flags))
-                    partialTxn = null;
-                else
+                    break;
+                case PARTIAL_TXN:
                     partialTxn = CommandSerializers.partialTxn.deserialize(in, userVersion);
-            }
-
-            if (getFieldChanged(Fields.PARTIAL_DEPS, flags))
-            {
-                if (getFieldIsNull(Fields.PARTIAL_DEPS, flags))
-                    partialDeps = null;
-                else
+                    break;
+                case PARTIAL_DEPS:
                     partialDeps = DepsSerializer.partialDeps.deserialize(in, userVersion);
-            }
-
-            if (getFieldChanged(Fields.WAITING_ON, flags))
-            {
-                if (getFieldIsNull(Fields.WAITING_ON, flags))
-                {
-                    waitingOn = null;
-                }
-                else
-                {
+                    break;
+                case WAITING_ON:
                     int size = in.readInt();
                     waitingOnBytes = new byte[size];
                     in.readFully(waitingOnBytes);
@@ -699,22 +721,56 @@ public class SavedCommand
                             throw Throwables.unchecked(e);
                         }
                     };
-                }
-            }
-
-            if (getFieldChanged(Fields.WRITES, flags))
-            {
-                if (getFieldIsNull(Fields.WRITES, flags))
-                    writes = null;
-                else
+                    break;
+                case WRITES:
                     writes = CommandSerializers.writes.deserialize(in, userVersion);
+                    break;
+                case CLEANUP:
+                    Cleanup newCleanup = Cleanup.forOrdinal(in.readByte());
+                    if (cleanup == null || newCleanup.compareTo(cleanup) > 0)
+                        cleanup = newCleanup;
+                    break;
             }
+        }
 
-            if (getFieldChanged(Fields.CLEANUP, flags))
+        private void skip(Fields field, DataInputPlus in, int userVersion) throws IOException
+        {
+            switch (field)
             {
-                Cleanup newCleanup = Cleanup.forOrdinal(in.readByte());
-                if (cleanup == null || newCleanup.compareTo(cleanup) > 0)
-                    cleanup = newCleanup;
+                case EXECUTE_AT:
+                case EXECUTES_AT_LEAST:
+                    CommandSerializers.timestamp.skip(in, userVersion);
+                    break;
+                case SAVE_STATUS:
+                    in.readShort();
+                    break;
+                case DURABILITY:
+                    in.readByte();
+                    break;
+                case ACCEPTED:
+                case PROMISED:
+                    CommandSerializers.ballot.skip(in, userVersion);
+                    break;
+                case PARTICIPANTS:
+                    CommandSerializers.participants.deserialize(in, userVersion);
+                    break;
+                case PARTIAL_TXN:
+                    CommandSerializers.partialTxn.deserialize(in, userVersion);
+                    break;
+                case PARTIAL_DEPS:
+                    DepsSerializer.partialDeps.deserialize(in, userVersion);
+                    break;
+                case WAITING_ON:
+                    int size = in.readInt();
+                    in.skipBytesFully(size);
+                    break;
+                case WRITES:
+                    // TODO (expected): skip
+                    CommandSerializers.writes.deserialize(in, userVersion);
+                    break;
+                case CLEANUP:
+                    in.readByte();
+                    break;
             }
         }
 

@@ -104,13 +104,22 @@ public class TokenRange extends Range.EndInclusive
         return new org.apache.cassandra.dht.Range<>(left, right);
     }
 
-    public static final IVersionedSerializer<TokenRange> serializer = new IVersionedSerializer<>()
+
+    public static final Serializer serializer = new Serializer();
+
+    public static final class Serializer implements IVersionedSerializer<TokenRange>
     {
         @Override
         public void serialize(TokenRange range, DataOutputPlus out, int version) throws IOException
         {
             AccordRoutingKey.serializer.serialize(range.start(), out, version);
             AccordRoutingKey.serializer.serialize(range.end(), out, version);
+        }
+
+        public void skip(DataInputPlus in, int version) throws IOException
+        {
+            AccordRoutingKey.serializer.skip(in, version);
+            AccordRoutingKey.serializer.skip(in, version);
         }
 
         @Override

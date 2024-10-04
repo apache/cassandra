@@ -21,7 +21,6 @@ import java.io.IOException;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.StandardOpenOption;
-import java.util.Arrays;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.zip.CRC32;
@@ -172,8 +171,8 @@ final class OnDiskIndex<K> extends Index<K>
                 if (prev != -1)
                 {
                     long tmp = prev;
-                    Invariants.checkState(readOffset(offsetAndSize) > readOffset(prev),
-                                          () -> String.format("Offsets should be strictly monotonic, but found %d following %d",
+                    Invariants.checkState(readOffset(offsetAndSize) < readOffset(prev),
+                                          () -> String.format("Offsets should be strictly reverse monotonic, but found %d following %d",
                                                               readOffset(offsetAndSize), readOffset(tmp)));
                 }
                 out.writeLong(offsetAndSize);
@@ -202,53 +201,16 @@ final class OnDiskIndex<K> extends Index<K>
     @Override
     public long[] lookUp(K id)
     {
-        if (!mayContainId(id))
-            return EMPTY;
-
-        int keyIndex = binarySearch(id);
-        if (keyIndex < 0)
-            return EMPTY;
-
-        long[] records = new long[] { recordAtIndex(keyIndex) };
-
-        /*
-         * Duplicate entries are possible within one segment (but should be rare).
-         * Check and add entries before and after the found result (not guaranteed to be first).
-         */
-
-        for (int i = keyIndex - 1; i >= 0 && id.equals(keyAtIndex(i)); i--)
-        {
-            int length = records.length;
-            records = Arrays.copyOf(records, length + 1);
-            records[length] = recordAtIndex(i);
-        }
-
-        for (int i = keyIndex + 1; i < entryCount && id.equals(keyAtIndex(i)); i++)
-        {
-            int length = records.length;
-            records = Arrays.copyOf(records, length + 1);
-            records[length] = recordAtIndex(i);
-        }
-
-        Arrays.sort(records);
-        return records;
+        return lookUpAll(id);
     }
 
     @Override
-    public long lookUpFirst(K id)
+    public long lookUpLast(K id)
     {
         if (!mayContainId(id))
             return -1L;
 
         int keyIndex = binarySearch(id);
-
-        /*
-         * Duplicate entries are possible within one segment (but should be rare).
-         * Check and add entries before until we find the first occurrence of key.
-         */
-        for (int i = keyIndex - 1; i >= 0 && id.equals(keyAtIndex(i)); i--)
-            keyIndex = i;
-
         return keyIndex < 0 ? -1 : recordAtIndex(keyIndex);
     }
 
@@ -258,27 +220,22 @@ final class OnDiskIndex<K> extends Index<K>
         if (!mayContainId(id))
             return EMPTY;
 
-        int start = binarySearch(id);
-        int firstKeyIndex = start;
-
-        for (int i = firstKeyIndex - 1; i >= 0 && id.equals(keyAtIndex(i)); i--)
-            firstKeyIndex = i;
-
-        if (firstKeyIndex < 0)
+        int someIndex = binarySearch(id);
+        if (someIndex < 0)
             return EMPTY;
 
-        int lastKeyIndex = start;
+        int firstKeyIndex = someIndex;
+        while (firstKeyIndex > 0 && id.equals(keyAtIndex(firstKeyIndex - 1)))
+            --firstKeyIndex;
 
-        for (int i = lastKeyIndex + 1; i < entryCount && id.equals(keyAtIndex(i)); i++)
-            lastKeyIndex = i;
+        int lastKeyIndex = someIndex;
+        while (lastKeyIndex + 1 < entryCount && id.equals(keyAtIndex(lastKeyIndex + 1)))
+            ++lastKeyIndex;
 
         long[] all = new long[lastKeyIndex - firstKeyIndex + 1];
         int idx = firstKeyIndex;
         for (int i = 0; i < all.length; i++)
-        {
-            all[i] = recordAtIndex(idx);
-            idx++;
-        }
+            all[i] = recordAtIndex(idx++);
         return all;
     }
 

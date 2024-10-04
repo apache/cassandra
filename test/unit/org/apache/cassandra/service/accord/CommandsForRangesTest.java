@@ -51,7 +51,7 @@ public class CommandsForRangesTest
         for (int i = 0; i < numTxn; i++)
         {
             TxnId id = TXN_ID_GEN.next(rs);
-            map.put(id, new CommandsForRangesLoader.Summary(id, id, SaveStatus.ReadyToExecute, ranges, Collections.emptyList()));
+            map.put(id, new CommandsForRangesLoader.Summary(id, id, SaveStatus.ReadyToExecute, ranges, null, false));
         }
         return CommandsForRanges.create(ranges, map);
     };

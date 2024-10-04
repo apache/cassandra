@@ -123,7 +123,7 @@ public class AsyncLoaderTest
         // everything is cached, so the loader should return immediately
         commandStore.executeBlocking(() -> {
             Context context = new Context();
-            boolean result = loader.load(context, (o, t) -> Assert.fail());
+            boolean result = loader.load(txnId, context, (o, t) -> Assert.fail());
             Assert.assertEquals(safeCommandGlobal, context.commands.get(txnId).global());
             Assert.assertEquals(safeTimestampsGlobal, context.timestampsForKey.get(key).global());
             Assert.assertTrue(result);
@@ -162,7 +162,7 @@ public class AsyncLoaderTest
         AsyncPromise<Void> cbFired = new AsyncPromise<>();
         Context context = new Context();
         commandStore.executeBlocking(() -> {
-            boolean result = loader.load(context, (o, t) -> {
+            boolean result = loader.load(txnId, context, (o, t) -> {
                 Assert.assertNull(t);
                 Assert.assertTrue(context.commands.containsKey(txnId));
                 Assert.assertTrue(context.timestampsForKey.containsKey(key));
@@ -175,7 +175,7 @@ public class AsyncLoaderTest
 
         // then return immediately after the callback has fired
         commandStore.executeBlocking(() -> {
-            boolean result = loader.load(context, (o, t) -> Assert.fail());
+            boolean result = loader.load(txnId, context, (o, t) -> Assert.fail());
             Assert.assertTrue(context.commands.containsKey(txnId));
             Assert.assertTrue(context.timestampsForKey.containsKey(key));
             Assert.assertTrue(result);
@@ -210,7 +210,7 @@ public class AsyncLoaderTest
         AsyncPromise<Void> cbFired = new AsyncPromise<>();
         Context context = new Context();
         commandStore.executeBlocking(() -> {
-            boolean result = loader.load(context, (o, t) -> {
+            boolean result = loader.load(txnId, context, (o, t) -> {
                 Assert.assertNull(t);
                 Assert.assertTrue(context.commands.containsKey(txnId));
                 Assert.assertTrue(context.timestampsForKey.containsKey(key));
@@ -225,7 +225,7 @@ public class AsyncLoaderTest
         // then return immediately after the callback has fired
         commandStore.executeBlocking(() -> {
 
-            boolean result = loader.load(context, (o, t) -> Assert.fail());
+            boolean result = loader.load(txnId, context, (o, t) -> Assert.fail());
             Assert.assertTrue(context.commands.containsKey(txnId));
             Assert.assertTrue(context.timestampsForKey.containsKey(key));
             Assert.assertTrue(result);
@@ -260,7 +260,7 @@ public class AsyncLoaderTest
         AsyncPromise<Void> cbFired = new AsyncPromise<>();
         Context context = new Context();
         commandStore.executeBlocking(() -> {
-            boolean result = loader.load(context, (o, t) -> {
+            boolean result = loader.load(txnId, context, (o, t) -> {
                 Assert.assertNull(t);
                 Assert.assertTrue(context.commands.containsKey(txnId));
                 Assert.assertFalse(context.timestampsForKey.containsKey(key));
@@ -277,7 +277,7 @@ public class AsyncLoaderTest
 
         // then return immediately after the callback has fired
         commandStore.executeBlocking(() -> {
-            boolean result = loader.load(context, (o, t) -> Assert.fail());
+            boolean result = loader.load(txnId, context, (o, t) -> Assert.fail());
             Assert.assertTrue(context.commands.containsKey(txnId));
             Assert.assertFalse(context.timestampsForKey.containsKey(key));
             Assert.assertTrue(result);
@@ -322,7 +322,7 @@ public class AsyncLoaderTest
 
             AsyncLoader loader = new AsyncLoader(commandStore, ImmutableList.of(txnId1, txnId2), RoutingKeys.EMPTY, KeyHistory.COMMANDS);
 
-            boolean result =  loader.load(new Context(), (u, t) -> {
+            boolean result =  loader.load(txnId1, new Context(), (u, t) -> {
                 Assert.assertFalse(callback.isDone());
                 Assert.assertNull(u);
                 Assert.assertEquals(failure, t);
@@ -369,7 +369,7 @@ public class AsyncLoaderTest
         AsyncPromise<Void> cbFired = new AsyncPromise<>();
         Context context = new Context();
         commandStore.executeBlocking(() -> {
-            boolean result = loader.load(context, (o, t) -> {
+            boolean result = loader.load(txnId, context, (o, t) -> {
                 Assert.assertNull(t);
                 Assert.assertTrue(context.commands.containsKey(txnId));
                 cbFired.setSuccess(null);
@@ -384,7 +384,7 @@ public class AsyncLoaderTest
 
         // then return immediately after the callback has fired
         commandStore.executeBlocking(() -> {
-            boolean result = loader.load(context, (o, t) -> Assert.fail());
+            boolean result = loader.load(txnId, context, (o, t) -> Assert.fail());
             Assert.assertTrue(context.commands.containsKey(txnId));
             Assert.assertTrue(result);
         });
@@ -432,7 +432,7 @@ public class AsyncLoaderTest
         AsyncPromise<Void> cbFired = new AsyncPromise<>();
         Context context = new Context();
         commandStore.executeBlocking(() -> {
-            boolean result = loader.load(context, (o, t) -> {
+            boolean result = loader.load(txnId, context, (o, t) -> {
                 Assert.assertNull(t);
                 Assert.assertEquals(context.timestampsForKey.containsKey(key), inContext.apply(context) == context.timestampsForKey);
                 Assert.assertEquals(context.commandsForKey.containsKey(key), inContext.apply(context) == context.commandsForKey);
@@ -446,7 +446,7 @@ public class AsyncLoaderTest
 
         // then return immediately after the callback has fired
         commandStore.executeBlocking(() -> {
-            boolean result = loader.load(context, (o, t) -> Assert.fail());
+            boolean result = loader.load(txnId, context, (o, t) -> Assert.fail());
             Assert.assertEquals(context.timestampsForKey.containsKey(key), inContext.apply(context) == context.timestampsForKey);
             Assert.assertEquals(context.commandsForKey.containsKey(key), inContext.apply(context) == context.commandsForKey);
             Assert.assertTrue(result);

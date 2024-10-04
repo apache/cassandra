@@ -18,16 +18,24 @@
 
 package org.apache.cassandra.service.accord.api;
 
+import java.io.IOException;
 import java.util.Objects;
 
 import accord.primitives.RoutableKey;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.SentinelKey;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 
 public abstract class AccordRoutableKey implements RoutableKey
 {
+    public interface AccordKeySerializer<T> extends IVersionedSerializer<T>
+    {
+        void skip(DataInputPlus in, int version) throws IOException;
+    }
+
     final TableId table; // TODO (desired): use an id (TrM)
 
     protected AccordRoutableKey(TableId table)

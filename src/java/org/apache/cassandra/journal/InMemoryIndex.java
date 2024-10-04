@@ -18,7 +18,6 @@
 package org.apache.cassandra.journal;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.NavigableMap;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentSkipListMap;
@@ -61,16 +60,24 @@ final class InMemoryIndex<K> extends Index<K>
         index.merge(id, new long[] { currentOffsetAndSize },
                     (current, value) ->
                     {
-                        int idx = Arrays.binarySearch(current, currentOffsetAndSize);
-                        if (idx >= 0) // repeat update() call; shouldn't occur, but we might as well allow this NOOP
-                            return current;
+                        long inserting = value[0];
+                        int idx = 0;
+                        while (idx < current.length)
+                        {
+                            long cur = current[idx];
+                            if (cur <= inserting)
+                            {
+                                if (cur == inserting)
+                                    return current; // TODO (expected): throw exception?
+                                break;
+                            }
+                            ++idx;
+                        }
 
-                        /* Merge the new offset with existing values */
-                        int pos = -idx - 1;
                         long[] merged = new long[current.length + 1];
-                        System.arraycopy(current, 0, merged, 0, pos);
-                        merged[pos] = currentOffsetAndSize;
-                        System.arraycopy(current, pos, merged, pos + 1, current.length - pos);
+                        System.arraycopy(current, 0, merged, 0, idx);
+                        merged[idx] = inserting;
+                        System.arraycopy(current, idx, merged, idx + 1, current.length - idx);
                         return merged;
                     });
 
@@ -98,7 +105,7 @@ final class InMemoryIndex<K> extends Index<K>
     }
 
     @Override
-    public long lookUpFirst(K id)
+    public long lookUpLast(K id)
     {
         long[] offsets = lookUp(id);
         return offsets.length == 0 ? -1 : offsets[0];

@@ -106,10 +106,11 @@ class Segments<K, V>
     /**
      * Returns segments in timestamp order. Will allocate and sort the segment collection.
      */
-    List<Segment<K, V>> allSorted()
+    List<Segment<K, V>> allSorted(boolean asc)
     {
         List<Segment<K, V>> segments = new ArrayList<>(this.segments.values());
-        segments.sort(Comparator.comparing(s -> s.descriptor));
+        if (asc) segments.sort(Comparator.comparing(s -> s.descriptor));
+        else segments.sort((o1, o2) -> -o1.descriptor.compareTo(o2.descriptor));
         return segments;
     }
 

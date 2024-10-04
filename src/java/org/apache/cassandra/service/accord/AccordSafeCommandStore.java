@@ -48,6 +48,7 @@ import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.primitives.Unseekables;
+import accord.utils.Invariants;
 
 public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeCommand, AccordSafeTimestampsForKey, AccordSafeCommandsForKey>
 {
@@ -74,7 +75,7 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
         this.commandStore = commandStore;
         commandStore.updateRangesForEpoch(this);
         if (this.ranges == null)
-            this.ranges = commandStore.unsafeRangesForEpoch();
+            this.ranges = Invariants.nonNull(commandStore.unsafeRangesForEpoch());
     }
 
     public static AccordSafeCommandStore create(PreLoadContext preLoadContext,

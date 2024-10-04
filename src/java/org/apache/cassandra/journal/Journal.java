@@ -306,15 +306,15 @@ public class Journal<K, V> implements Shutdownable
      * @return deserialized record if found, null otherwise
      */
     @SuppressWarnings("unused")
-    public V readFirst(K id)
+    public V readLast(K id)
     {
         EntrySerializer.EntryHolder<K> holder = new EntrySerializer.EntryHolder<>();
 
         try (ReferencedSegments<K, V> segments = selectAndReference(id))
         {
-            for (Segment<K, V> segment : segments.allSorted())
+            for (Segment<K, V> segment : segments.allSorted(true))
             {
-                if (segment.readFirst(id, holder))
+                if (segment.readLast(id, holder))
                 {
                     try (DataInputBuffer in = new DataInputBuffer(holder.value, false))
                     {
@@ -336,8 +336,7 @@ public class Journal<K, V> implements Shutdownable
         EntrySerializer.EntryHolder<K> holder = new EntrySerializer.EntryHolder<>();
         try (ReferencedSegments<K, V> segments = selectAndReference(id))
         {
-            consumer.init();
-            for (Segment<K, V> segment : segments.allSorted())
+            for (Segment<K, V> segment : segments.allSorted(false))
                 segment.readAll(id, holder, consumer);
         }
     }
@@ -422,12 +421,12 @@ public class Journal<K, V> implements Shutdownable
      * @return true if the record was found, false otherwise
      */
     @SuppressWarnings("unused")
-    public boolean readFirst(K id, RecordConsumer<K> consumer)
+    public boolean readLast(K id, RecordConsumer<K> consumer)
     {
         try (ReferencedSegments<K, V> segments = selectAndReference(id))
         {
             for (Segment<K, V> segment : segments.all())
-                if (segment.readFirst(id, consumer))
+                if (segment.readLast(id, consumer))
                     return true;
         }
         return false;
@@ -448,7 +447,7 @@ public class Journal<K, V> implements Shutdownable
             {
                 for (K id : test)
                 {
-                    if (segment.index().lookUpFirst(id) != -1)
+                    if (segment.index().lookUpLast(id) != -1)
                     {
                         present.add(id);
                         if (test.size() == present.size())

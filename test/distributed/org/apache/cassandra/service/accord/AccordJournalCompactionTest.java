@@ -19,6 +19,8 @@
 package org.apache.cassandra.service.accord;
 
 import java.nio.file.Files;
+import java.util.Collections;
+import java.util.List;
 import java.util.NavigableMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -53,7 +55,6 @@ import org.apache.cassandra.utils.AccordGenerators;
 
 import static accord.local.CommandStores.RangesForEpoch;
 import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.DurableBeforeAccumulator;
-import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.IdentityAccumulator;
 import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.RedundantBeforeAccumulator;
 
 
@@ -88,9 +89,9 @@ public class AccordJournalCompactionTest
 
         RedundantBeforeAccumulator redundantBeforeAccumulator = new RedundantBeforeAccumulator();
         DurableBeforeAccumulator durableBeforeAccumulator = new DurableBeforeAccumulator();
-        IdentityAccumulator<NavigableMap<TxnId, Ranges>> bootstrapBeganAtAccumulator = new IdentityAccumulator<>(ImmutableSortedMap.of(TxnId.NONE, Ranges.EMPTY));
-        IdentityAccumulator<NavigableMap<Timestamp, Ranges>> safeToReadAccumulator = new IdentityAccumulator<>(ImmutableSortedMap.of(Timestamp.NONE, Ranges.EMPTY));
-        IdentityAccumulator<RangesForEpoch.Snapshot> rangesForEpochAccumulator = new IdentityAccumulator<>(null);
+        NavigableMap<Timestamp, Ranges> safeToReadAtAccumulator = ImmutableSortedMap.of(Timestamp.NONE, Ranges.EMPTY);
+        NavigableMap<TxnId, Ranges> bootstrapBeganAtAccumulator = ImmutableSortedMap.of(TxnId.NONE, Ranges.EMPTY);
+        RangesForEpoch.Snapshot rangesForEpochAccumulator = null;
         HistoricalTransactionsAccumulator historicalTransactionsAccumulator = new HistoricalTransactionsAccumulator();
 
         Gen<RedundantBefore> redundantBeforeGen = AccordGenerators.redundantBefore(DatabaseDescriptor.getPartitioner());
@@ -118,7 +119,7 @@ public class AccordJournalCompactionTest
             journal.start(null);
             Timestamp timestamp = Timestamp.NONE;
 
-            RandomSource rs = new DefaultRandom();
+            RandomSource rs = new DefaultRandom(1);
 
             int count = 1_000;
 //            RedundantBefore redundantBefore = RedundantBefore.EMPTY;
@@ -140,9 +141,11 @@ public class AccordJournalCompactionTest
                 redundantBeforeAccumulator.update(updates.newRedundantBefore);
                 durableBeforeAccumulator.update(addDurableBefore);
                 if (updates.newBootstrapBeganAt != null)
-                    bootstrapBeganAtAccumulator.update(updates.newBootstrapBeganAt);
-                safeToReadAccumulator.update(updates.newSafeToRead);
-                rangesForEpochAccumulator.update(updates.newRangesForEpoch);
+                    bootstrapBeganAtAccumulator = updates.newBootstrapBeganAt;
+                if (updates.newSafeToRead != null)
+                    safeToReadAtAccumulator = updates.newSafeToRead;
+                if (updates.newRangesForEpoch != null)
+                    rangesForEpochAccumulator = updates.newRangesForEpoch;
                 historicalTransactionsAccumulator.update(updates.addHistoricalTransactions);
 
                 if (i % 100 == 0)
@@ -153,10 +156,12 @@ public class AccordJournalCompactionTest
 
 //            Assert.assertEquals(redundantBeforeAccumulator.get(), journal.loadRedundantBefore(1));
             Assert.assertEquals(durableBeforeAccumulator.get(), journal.durableBeforePersister().load());
-            Assert.assertEquals(bootstrapBeganAtAccumulator.get(), journal.loadBootstrapBeganAt(1));
-            Assert.assertEquals(safeToReadAccumulator.get(), journal.loadSafeToRead(1));
-            Assert.assertEquals(rangesForEpochAccumulator.get(), journal.loadRangesForEpoch(1));
-            Assert.assertEquals(historicalTransactionsAccumulator.get(), journal.loadHistoricalTransactions(1));
+            Assert.assertEquals(bootstrapBeganAtAccumulator, journal.loadBootstrapBeganAt(1));
+            Assert.assertEquals(safeToReadAtAccumulator, journal.loadSafeToRead(1));
+            Assert.assertEquals(rangesForEpochAccumulator, journal.loadRangesForEpoch(1));
+            List<Deps> historical = historicalTransactionsAccumulator.get();
+            Collections.reverse(historical);
+            Assert.assertEquals(historical, journal.loadHistoricalTransactions(1));
         }
         finally
         {
