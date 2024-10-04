@@ -17,9 +17,14 @@
  */
 package org.apache.cassandra.batchlog;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.tracing.Tracing;
+
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 
 public final class BatchStoreVerbHandler implements IVerbHandler<Batch>
 {
@@ -27,6 +32,13 @@ public final class BatchStoreVerbHandler implements IVerbHandler<Batch>
 
     public void doVerb(Message<Batch> message)
     {
+        // Drop the batch message if it has expired
+        if (DatabaseDescriptor.getNativeTransportThrowOnOverload() && approxTime.now() > message.expiresAtNanos())
+        {
+            Tracing.trace("Discarding batch store from {} (timed out)", message.from());
+            MessagingService.instance().metrics.recordDroppedMessage(message, message.elapsedSinceCreated(NANOSECONDS), NANOSECONDS);
+            return;
+        }
         BatchlogManager.store(message.payload);
         MessagingService.instance().send(message.emptyResponse(), message.from());
     }

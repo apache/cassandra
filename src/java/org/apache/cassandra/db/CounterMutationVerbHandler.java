@@ -25,7 +25,11 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageProxy;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
+
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 
 public class CounterMutationVerbHandler extends AbstractMutationVerbHandler<CounterMutation>
 {
@@ -36,6 +40,13 @@ public class CounterMutationVerbHandler extends AbstractMutationVerbHandler<Coun
     @Override
     protected void applyMutation(final Message<CounterMutation> message, InetAddressAndPort respondToAddress)
     {
+        // Drop the counter mutation if it has expired
+        if (DatabaseDescriptor.getNativeTransportThrowOnOverload() && approxTime.now() > message.expiresAtNanos())
+        {
+            Tracing.trace("Discarding counter mutation from {} (timed out)", message.from());
+            MessagingService.instance().metrics.recordDroppedMessage(message, message.elapsedSinceCreated(NANOSECONDS), NANOSECONDS);
+            return;
+        }
         final CounterMutation cm = message.payload;
         logger.trace("Applying forwarded {}", cm);
 

@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * [SO-33153] Supply the expiry time for BATCH and COUNTER verbs
  * [SO-28713] Add observability for available disk check
  * [SO-35390] Add feature to not settle gossip if minimum node count is not reached
  * [SO-35418] Log the behavior of nodetool clearsnapshotfiles

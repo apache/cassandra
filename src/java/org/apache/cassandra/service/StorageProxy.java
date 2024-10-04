@@ -1404,7 +1404,13 @@ public class StorageProxy implements StorageProxyMBean
                                                                      requestTime);
 
         Batch batch = Batch.createLocal(uuid, FBUtilities.timestampMicros(), mutations);
-        Message<Batch> message = Message.out(BATCH_STORE_REQ, batch);
+
+        // We create a batchstore message with requestTime to assign expiry time for the message
+        Message<Batch> message = Message.outWithFlags(BATCH_STORE_REQ,
+                                       batch,
+                                       requestTime,
+                                       Collections.<MessageFlag>emptyList());
+
         for (Replica replica : replicaPlan.liveAndDown())
         {
             logger.trace("Sending batchlog store request {} to {} for {} mutations", batch.id, replica, batch.size());
@@ -1854,7 +1860,9 @@ public class StorageProxy implements StorageProxyMBean
                                                                                                  WriteType.COUNTER, null, requestTime);
 
             Tracing.trace("Enqueuing counter update to {}", replica);
-            Message message = Message.outWithFlag(Verb.COUNTER_MUTATION_REQ, cm, MessageFlag.CALL_BACK_ON_FAILURE);
+
+            // We send requestTime to assign expiry time for the message
+            Message message = Message.outWithFlags(Verb.COUNTER_MUTATION_REQ, cm, requestTime, Collections.singletonList(MessageFlag.CALL_BACK_ON_FAILURE));
             MessagingService.instance().sendWriteWithCallback(message, replica, responseHandler);
             return responseHandler;
         }
