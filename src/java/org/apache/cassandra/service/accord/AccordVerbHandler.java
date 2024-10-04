@@ -43,6 +43,12 @@ public class AccordVerbHandler<T extends Request> implements IVerbHandler<T>
     @Override
     public void doVerb(Message<T> message) throws IOException
     {
+        if (!((AccordService)AccordService.instance()).shouldAcceptMessages())
+        {
+            logger.debug("Dropping message {} from {}", message.verb(), message.from());
+            return;
+        }
+
         logger.trace("Receiving {} from {}", message.payload, message.from());
         T request = message.payload;
 

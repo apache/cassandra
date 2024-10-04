@@ -201,6 +201,7 @@ public class AccordService implements IAccordService, Shutdownable
     private final CoordinateDurabilityScheduling durabilityScheduling;
     private final AccordVerbHandler<? extends Request> requestHandler;
     private final LocalConfig configuration;
+
     @GuardedBy("this")
     private State state = State.INIT;
 
@@ -381,6 +382,10 @@ public class AccordService implements IAccordService, Shutdownable
         i.shutdownAndWait(timeout, unit);
     }
 
+    public boolean shouldAcceptMessages()
+    {
+        return state == State.STARTED && journal.started();
+    }
     public static IAccordService instance()
     {
         if (!DatabaseDescriptor.getAccordTransactionsEnabled())
@@ -964,7 +969,7 @@ public class AccordService implements IAccordService, Shutdownable
     {
         if (state != State.STARTED)
             return;
-        ExecutorUtils.shutdown(shutdownableSubsystems());
+        ExecutorUtils.shutdownSequentiallyAndWait(shutdownableSubsystems(), 1, TimeUnit.MINUTES);
         state = State.SHUTDOWN;
     }
 

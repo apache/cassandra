@@ -111,7 +111,10 @@ public class Journal<K, V> implements Shutdownable
 
     private final AtomicReference<Segments<K, V>> segments = new AtomicReference<>();
 
+    final AtomicReference<State> state = new AtomicReference<>(State.UNINITIALIZED);
+
     Interruptible allocator;
+    // TODO (required): we do not need wait queues here, we can just wait on a signal on a segment while its byte buffer is being allocated
     private final WaitQueue segmentPrepared = newWaitQueue();
     private final WaitQueue allocatorThreadWaitQueue = newWaitQueue();
     private final BooleanSupplier allocatorThreadWaitCondition = () -> (availableSegment == null);
@@ -210,6 +213,8 @@ public class Journal<K, V> implements Shutdownable
 
     public void start()
     {
+        Invariants.checkState(state.compareAndSet(State.UNINITIALIZED, State.INITIALIZING),
+                              "Unexpected journal state during initialization", state);
         metrics.register(flusher);
 
         deleteTmpFiles();
@@ -228,6 +233,8 @@ public class Journal<K, V> implements Shutdownable
         advanceSegment(null);
         flusher.start();
         compactor.start();
+        Invariants.checkState(state.compareAndSet(State.INITIALIZING, State.NORMAL),
+                              "Unexpected journal state after initialization", state);
     }
 
     @VisibleForTesting
@@ -253,16 +260,19 @@ public class Journal<K, V> implements Shutdownable
     @Override
     public boolean isTerminated()
     {
-        return false;
+        return state.get() == State.TERMINATED;
     }
 
     public void shutdown()
     {
         try
         {
+            Invariants.checkState(state.compareAndSet(State.NORMAL, State.SHUTDOWN),
+                                  "Unexpected journal state while trying to shut down", state);
             allocator.shutdown();
             wakeAllocator(); // Wake allocator to force it into shutdown
             allocator.awaitTermination(1, TimeUnit.MINUTES);
+            segmentPrepared.signalAll(); // Wake up all threads waiting on the new segment
             compactor.shutdown();
             compactor.awaitTermination(1, TimeUnit.MINUTES);
             flusher.shutdown();
@@ -270,6 +280,8 @@ public class Journal<K, V> implements Shutdownable
             closer.awaitTermination(1, TimeUnit.MINUTES);
             closeAllSegments();
             metrics.deregister();
+            Invariants.checkState(state.compareAndSet(State.SHUTDOWN, State.TERMINATED),
+                                  "Unexpected journal state while trying to shut down", state);
         }
         catch (InterruptedException e)
         {
@@ -574,7 +586,14 @@ public class Journal<K, V> implements Shutdownable
         {
             WaitQueue.Signal prepared = segmentPrepared.register(metrics.waitingOnSegmentAllocation.time(), Context::stop);
             if (availableSegment == null && currentSegment == currentActiveSegment)
-                prepared.awaitUninterruptibly();
+            {
+                prepared.awaitThrowUncheckedOnInterrupt();
+
+                // In case we woke up due to shutdown signal or interrupt, check mode
+                State state = this.state.get();
+                if (state.ordinal() > State.NORMAL.ordinal())
+                    throw new IllegalStateException("Can not obtain allocated segment due to shutdown " + state);
+            }
             else
                 prepared.cancel();
         }
@@ -1023,5 +1042,14 @@ public class Journal<K, V> implements Shutdownable
         {
             segments.close();
         }
+    }
+
+    enum State
+    {
+        UNINITIALIZED,
+        INITIALIZING,
+        NORMAL,
+        SHUTDOWN,
+        TERMINATED
     }
 }
