@@ -123,5 +123,3 @@
 *** xref:reference/cql-commands/create-table.adoc[]
 *** xref:reference/cql-commands/drop-index.adoc[]
 *** xref:reference/cql-commands/drop-table.adoc[]
-
-** xref:integrating/plugins/index.adoc[]
