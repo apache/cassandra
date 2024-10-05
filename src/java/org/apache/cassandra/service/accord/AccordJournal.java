@@ -419,7 +419,7 @@ public class AccordJournal implements IJournal, Shutdownable
                     AccordCommandStore.Loader loader = commandStore.loader();
                     loader.load(command).get();
                     if (command.saveStatus().compareTo(SaveStatus.Stable) >= 0 && !command.hasBeen(Truncated))
-                        loader.apply(command);
+                        loader.apply(command).get();
                 }
             }
 

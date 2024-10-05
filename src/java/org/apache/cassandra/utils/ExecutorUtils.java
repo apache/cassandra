@@ -79,10 +79,11 @@ public class ExecutorUtils
         }
     }
 
-    public static void shutdownSequentiallyAndWait(Iterable<?> executors, long timeout, TimeUnit unit)
+    public static boolean shutdownSequentiallyAndWait(Iterable<?> executors, long timeout, TimeUnit unit)
     {
         long deadline = nanoTime() + unit.toNanos(timeout);
 
+        boolean shutdown = true;
         for (Object executor : executors)
         {
             try
@@ -90,12 +91,14 @@ public class ExecutorUtils
                 if (executor instanceof ExecutorService)
                 {
                     ((ExecutorService) executor).shutdown();
-                    ((ExecutorService) executor).awaitTermination(Math.max(0, deadline - nanoTime()), NANOSECONDS);
+                    if (!((ExecutorService) executor).awaitTermination(Math.max(0, deadline - nanoTime()), NANOSECONDS))
+                        shutdown = false;
                 }
                 else if (executor instanceof Shutdownable)
                 {
                     ((Shutdownable) executor).shutdown();
-                    ((Shutdownable) executor).awaitTermination(Math.max(0, deadline - nanoTime()), NANOSECONDS);
+                    if (!((Shutdownable) executor).awaitTermination(Math.max(0, deadline - nanoTime()), NANOSECONDS))
+                        shutdown = false;
                 }
                 else
                     throw new IllegalArgumentException(executor.toString());
@@ -105,6 +108,8 @@ public class ExecutorUtils
                 throw new IllegalStateException("Caught interrupt while shutting down " + executor);
             }
         }
+
+        return shutdown;
     }
 
     public static void shutdown(ExecutorService ... executors)

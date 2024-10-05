@@ -186,7 +186,7 @@ public class AccordService implements IAccordService, Shutdownable
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordService.class);
 
-    private enum State {INIT, STARTED, SHUTDOWN}
+    private enum State {INIT, STARTED, SHUTTING_DOWN, SHUTDOWN}
 
     private static final Future<Void> BOOTSTRAP_SUCCESS = ImmediateFuture.success(null);
 
@@ -399,6 +399,7 @@ public class AccordService implements IAccordService, Shutdownable
     {
         return state == State.STARTED && journal.started();
     }
+
     public static IAccordService instance()
     {
         if (!DatabaseDescriptor.getAccordTransactionsEnabled())
@@ -987,7 +988,8 @@ public class AccordService implements IAccordService, Shutdownable
     {
         if (state != State.STARTED)
             return;
-        ExecutorUtils.shutdownSequentiallyAndWait(shutdownableSubsystems(), 1, TimeUnit.MINUTES);
+        state = State.SHUTTING_DOWN;
+        shutdownAndWait(1, TimeUnit.MINUTES);
         state = State.SHUTDOWN;
     }
 
@@ -1019,10 +1021,10 @@ public class AccordService implements IAccordService, Shutdownable
 
     @VisibleForTesting
     @Override
-    public void shutdownAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
+    public void shutdownAndWait(long timeout, TimeUnit unit)
     {
-        shutdown();
-        ExecutorUtils.shutdownAndWait(timeout, unit, this);
+        if (!ExecutorUtils.shutdownSequentiallyAndWait(shutdownableSubsystems(), timeout, unit))
+            logger.error("One or more subsystems did not shut down cleanly.");
     }
 
     @Override
