@@ -46,6 +46,7 @@ import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.IMessage;
 import org.apache.cassandra.distributed.api.IMessageFilters;
+import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.shared.DistributedTestBase;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.service.accord.AccordService;
@@ -95,6 +96,7 @@ public class AccordLoadTest extends AccordTestBase
 
                      ICoordinator coordinator = cluster.coordinator(1);
                      final int repairInterval = Integer.MAX_VALUE;
+                     final int bounceInterval = 3000;
     //                 final int repairInterval = 3000;
 //                     final int compactionInterval = Integer.MAX_VALUE;
                      final int compactionInterval = 3000;
@@ -108,6 +110,7 @@ public class AccordLoadTest extends AccordTestBase
                      final int ratePerSecond = 1000;
                      final int keyCount = 1_000_000;
                      final float readChance = 0.33f;
+                     long nextBounce = bounceInterval;
                      long nextRepairAt = repairInterval;
                      long nextCompactionAt = compactionInterval;
                      long nextFlushAt = flushInterval;
@@ -175,6 +178,15 @@ public class AccordLoadTest extends AccordTestBase
                              nextRepairAt += repairInterval;
                              System.out.println("repairing...");
                              cluster.coordinator(1).instance().nodetool("repair", qualifiedAccordTableName);
+                         }
+
+                         if ((nextBounce -= batchSize) <= 0)
+                         {
+                             nextBounce += bounceInterval;
+                             System.out.println("bouncing...");
+                             cluster.get(2).nodetool("drain");
+                             ClusterUtils.stopUnchecked(cluster.get(2));
+                             cluster.get(2).startup();
                          }
 
                          if ((nextCompactionAt -= batchSize) <= 0)
