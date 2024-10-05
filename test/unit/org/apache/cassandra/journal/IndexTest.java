@@ -136,8 +136,8 @@ public class IndexTest
         {
             assertArrayEquals(EMPTY, onDisk.lookUp(key0));
             assertArrayEquals(new long[] { composeOffsetAndSize(val11, 1) }, onDisk.lookUp(key1));
-            assertArrayEquals(new long[] { composeOffsetAndSize(val21, 2), composeOffsetAndSize(val22, 3) }, onDisk.lookUp(key2));
-            assertArrayEquals(new long[] { composeOffsetAndSize(val31, 4), composeOffsetAndSize(val32, 5), composeOffsetAndSize(val33, 6) }, onDisk.lookUp(key3));
+            assertArrayEquals(new long[] { composeOffsetAndSize(val22, 3), composeOffsetAndSize(val21, 2) }, onDisk.lookUp(key2));
+            assertArrayEquals(new long[] { composeOffsetAndSize(val33, 6), composeOffsetAndSize(val32, 5), composeOffsetAndSize(val31, 4) }, onDisk.lookUp(key3));
             assertArrayEquals(EMPTY, onDisk.lookUp(key4));
 
             assertEquals(key1, onDisk.firstId());

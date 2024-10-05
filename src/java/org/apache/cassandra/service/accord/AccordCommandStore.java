@@ -80,11 +80,8 @@ import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Promise;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
-import static accord.primitives.SaveStatus.Applying;
 import static accord.primitives.Status.Committed;
 import static accord.primitives.Status.Invalidated;
-import static accord.primitives.Status.PreApplied;
-import static accord.primitives.Status.Stable;
 import static accord.primitives.Status.Truncated;
 import static accord.utils.Invariants.checkState;
 
@@ -309,7 +306,6 @@ public class AccordCommandStore extends CommandStore
     {
         journal.persistStoreState(id, fieldUpdates, onFlush);
     }
-
 
     @Nullable
     @VisibleForTesting
@@ -626,10 +622,7 @@ public class AccordCommandStore extends CommandStore
                          safeStore -> {
                              SafeCommand safeCommand = safeStore.unsafeGet(txnId);
                              Command local = safeCommand.current();
-                             if (local.is(Stable) || local.is(PreApplied))
-                                 Commands.maybeExecute(safeStore, safeCommand, local, true, true);
-                             else if (local.saveStatus().compareTo(Applying) >= 0 && !local.hasBeen(Truncated))
-                                 Commands.applyWrites(safeStore, context, local).begin(agent);
+                             Commands.maybeExecute(safeStore, safeCommand, local, true, true);
                          })
                 .begin((unused, throwable) -> {
                     if (throwable != null)

@@ -49,7 +49,6 @@ import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
-import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.journal.EntrySerializer.EntryHolder;
 import org.apache.cassandra.journal.Journal;
 import org.apache.cassandra.journal.KeySupport;
@@ -58,7 +57,7 @@ import org.apache.cassandra.schema.ColumnMetadata;
 
 import static org.apache.cassandra.io.sstable.SSTableReadsListener.NOOP_LISTENER;
 
-public class AccordJournalTable<K, V>
+public class AccordJournalTable<K extends JournalKey, V>
 {
     private static final IntHashSet SENTINEL_HOSTS = new IntHashSet();
 
@@ -170,8 +169,7 @@ public class AccordJournalTable<K, V>
 
     private void readAllFromTable(K key, TableRecordConsumer onEntry)
     {
-        DecoratedKey pk = makePartitionKey(cfs, key, keySupport, accordJournalVersion);
-
+        DecoratedKey pk = AccordKeyspace.JournalColumns.decorate(key);
         try (RefViewFragment view = cfs.selectAndReference(View.select(SSTableSet.LIVE, pk)))
         {
             if (view.sstables.isEmpty())
@@ -209,20 +207,6 @@ public class AccordJournalTable<K, V>
         onEntry.accept(descriptor, position, into.key, into.value, into.hosts, into.userVersion);
     }
 
-    public static <K> DecoratedKey makePartitionKey(ColumnFamilyStore cfs, K key, KeySupport<K> keySupport, int version)
-    {
-        try (DataOutputBuffer out = new DataOutputBuffer(keySupport.serializedSize(version)))
-        {
-            keySupport.serialize(key, out, version);
-            return cfs.decorateKey(out.buffer(false));
-        }
-        catch (IOException e)
-        {
-            // can only throw if (key) serializer is buggy
-            throw new RuntimeException("Could not serialize key " + key + ", this shouldn't be possible", e);
-        }
-    }
-
     @SuppressWarnings("resource") // Auto-closeable iterator will release related resources
     public KeyOrderIterator<K> readAll()
     {
@@ -249,7 +233,7 @@ public class AccordJournalTable<K, V>
                      : UnfilteredPartitionIterators.merge(scanners, UnfilteredPartitionIterators.MergeListener.NOOP);
         }
 
-        public K key()
+        public JournalKey key()
         {
             if (partition == null)
             {
@@ -259,7 +243,7 @@ public class AccordJournalTable<K, V>
                     return null;
             }
 
-            return keySupport.deserialize(partition.partitionKey().getKey(), 0, accordJournalVersion);
+            return AccordKeyspace.JournalColumns.getJournalKey(partition.partitionKey());
         }
 
         protected void readAllForKey(K key, RecordConsumer<K> recordConsumer)
@@ -318,7 +302,8 @@ public class AccordJournalTable<K, V>
         @Override
         public K key()
         {
-            K tableKey = tableIterator.key();
+            // TODO (expected): fix generics mismatch here
+            K tableKey = (K)tableIterator.key();
             K journalKey = staticSegmentIterator.key();
             if (tableKey == null)
                 return journalKey;
@@ -331,7 +316,7 @@ public class AccordJournalTable<K, V>
         @Override
         public void readAllForKey(K key, RecordConsumer<K> reader)
         {
-            K tableKey = tableIterator.key();
+            K tableKey = (K)tableIterator.key();
             K journalKey = staticSegmentIterator.key();
             if (journalKey != null && keySupport.compare(journalKey, key) == 0)
                 staticSegmentIterator.readAllForKey(key, (segment, position, key1, buffer, hosts, userVersion) -> {

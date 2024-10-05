@@ -20,7 +20,6 @@ package org.apache.cassandra.service.accord;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.NavigableMap;
 import java.util.Set;
@@ -32,6 +31,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.impl.ErasedSafeCommand;
+import accord.impl.TimestampsForKey;
 import accord.local.Cleanup;
 import accord.local.Command;
 import accord.local.CommandStores;
@@ -113,7 +113,7 @@ public class AccordJournal implements IJournal, Shutdownable
                                              throw new UnsupportedOperationException();
                                          }
                                      },
-                                     new AccordSegmentCompactor<>(JournalKey.SUPPORT, params.userVersion()));
+                                     new AccordSegmentCompactor<>(params.userVersion()));
         this.journalTable = new AccordJournalTable<>(journal, JournalKey.SUPPORT, params.userVersion());
         this.params = params;
     }
@@ -151,7 +151,7 @@ public class AccordJournal implements IJournal, Shutdownable
     @Override
     public void shutdown()
     {
-        Invariants.checkState(status == Status.REPLAY || status == Status.STARTED);
+        Invariants.checkState(status == Status.REPLAY || status == Status.STARTED, "%s", status);
         status = Status.TERMINATING;
         journal.shutdown();
         status = Status.TERMINATED;
@@ -357,23 +357,10 @@ public class AccordJournal implements IJournal, Shutdownable
     public void replay()
     {
         logger.info("Starting journal replay.");
+        TimestampsForKey.unsafeSetReplay(true);
         CommandsForKey.disableLinearizabilityViolationsReporting();
         AccordKeyspace.truncateAllCaches();
 
-        // TODO (expected): optimize replay memory footprint
-        class ToApply
-        {
-            final JournalKey key;
-            final Command command;
-
-            ToApply(JournalKey key, Command command)
-            {
-                this.key = key;
-                this.command = command;
-            }
-        }
-
-        List<ToApply> toApply = new ArrayList<>();
         try (AccordJournalTable.KeyOrderIterator<JournalKey> iter = journalTable.readAll())
         {
             JournalKey key;
@@ -406,23 +393,17 @@ public class AccordJournal implements IJournal, Shutdownable
                 {
                     Command command = builder.construct();
                     AccordCommandStore commandStore = (AccordCommandStore) node.commandStores().forId(key.commandStoreId);
-                    commandStore.loader().load(command).get();
+                    AccordCommandStore.Loader loader = commandStore.loader();
+                    loader.load(command).get();
                     if (command.saveStatus().compareTo(SaveStatus.Stable) >= 0 && !command.hasBeen(Truncated))
-                        toApply.add(new ToApply(key, command));
+                        loader.apply(command);
                 }
-            }
-
-            toApply.sort(Comparator.comparing(v -> v.command.executeAt()));
-            for (ToApply apply : toApply)
-            {
-                AccordCommandStore commandStore = (AccordCommandStore) node.commandStores().forId(apply.key.commandStoreId);
-                logger.info("Apply {}", apply.command);
-                commandStore.loader().apply(apply.command);
             }
 
             logger.info("Waiting for command stores to quiesce.");
             ((AccordCommandStores)node.commandStores()).waitForQuiescense();
             CommandsForKey.enableLinearizabilityViolationsReporting();
+            TimestampsForKey.unsafeSetReplay(false);
             logger.info("Finished journal replay.");
             status = Status.STARTED;
         }
@@ -487,5 +468,10 @@ public class AccordJournal implements IJournal, Shutdownable
                 }
             }
         }
+    }
+
+    public void unsafeSetStarted()
+    {
+        status = Status.STARTED;
     }
 }

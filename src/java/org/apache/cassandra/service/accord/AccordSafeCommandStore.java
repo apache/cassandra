@@ -35,7 +35,7 @@ import accord.impl.AbstractSafeCommandStore;
 import accord.impl.CommandsSummary;
 import accord.local.CommandStores;
 import accord.local.CommandStores.RangesForEpoch;
-import accord.local.NodeTimeService;
+import accord.local.NodeCommandStoreService;
 import accord.local.PreLoadContext;
 import accord.local.RedundantBefore;
 import accord.local.cfk.CommandsForKey;
@@ -179,7 +179,7 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     }
 
     @Override
-    public NodeTimeService time()
+    public NodeCommandStoreService node()
     {
         // TODO: safe command store should not have arbitrary time
         return commandStore.node();

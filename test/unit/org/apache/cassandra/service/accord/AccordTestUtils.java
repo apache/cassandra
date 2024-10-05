@@ -50,7 +50,7 @@ import accord.local.DurableBefore;
 import accord.local.Node;
 import accord.local.Node.Id;
 import accord.local.NodeCommandStoreService;
-import accord.local.NodeTimeService;
+import accord.local.TimeService;
 import accord.local.PreLoadContext;
 import accord.local.SafeCommand;
 import accord.local.SafeCommandStore;
@@ -368,12 +368,14 @@ public class AccordTestUtils
         Node.Id node = new Id(1);
         NodeCommandStoreService time = new NodeCommandStoreService()
         {
-            private ToLongFunction<TimeUnit> elapsed = NodeTimeService.elapsedWrapperFromNonMonotonicSource(TimeUnit.MICROSECONDS, this::now);
+            private ToLongFunction<TimeUnit> elapsed = TimeService.elapsedWrapperFromNonMonotonicSource(TimeUnit.MICROSECONDS, this::now);
 
             @Override public Id id() { return node;}
             @Override public DurableBefore durableBefore() { return DurableBefore.EMPTY; }
+
             @Override public long epoch() {return 1; }
             @Override public long now() {return now.getAsLong(); }
+            @Override public Timestamp uniqueNow() { return uniqueNow(Timestamp.NONE); }
             @Override public Timestamp uniqueNow(Timestamp atLeast) { return Timestamp.fromValues(1, now.getAsLong(), node); }
             @Override public long elapsed(TimeUnit timeUnit) { return elapsed.applyAsLong(timeUnit); }
         };
@@ -390,12 +392,13 @@ public class AccordTestUtils
     {
         NodeCommandStoreService time = new NodeCommandStoreService()
         {
-            private ToLongFunction<TimeUnit> elapsed = NodeTimeService.elapsedWrapperFromNonMonotonicSource(TimeUnit.MICROSECONDS, this::now);
+            private ToLongFunction<TimeUnit> elapsed = TimeService.elapsedWrapperFromNonMonotonicSource(TimeUnit.MICROSECONDS, this::now);
 
             @Override public DurableBefore durableBefore() { return DurableBefore.EMPTY; }
             @Override public Id id() { return node;}
             @Override public long epoch() {return 1; }
             @Override public long now() {return now.getAsLong(); }
+            @Override public Timestamp uniqueNow() { return uniqueNow(Timestamp.NONE); }
             @Override public Timestamp uniqueNow(Timestamp atLeast) { return Timestamp.fromValues(1, now.getAsLong(), node); }
             @Override
             public long elapsed(TimeUnit timeUnit) { return elapsed.applyAsLong(timeUnit); }

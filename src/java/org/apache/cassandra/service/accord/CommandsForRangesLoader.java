@@ -35,11 +35,11 @@ import accord.local.Command;
 import accord.local.KeyHistory;
 import accord.local.RedundantBefore;
 import accord.primitives.PartialDeps;
+import accord.primitives.Routable.Domain;
 import accord.primitives.SaveStatus;
 import accord.primitives.Status;
 import accord.primitives.Range;
 import accord.primitives.Ranges;
-import accord.primitives.Routable;
 import accord.primitives.Routables;
 import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
@@ -54,16 +54,34 @@ import org.apache.cassandra.utils.Pair;
 
 import static accord.primitives.Txn.Kind.ExclusiveSyncPoint;
 
-public class CommandsForRangesLoader
+public class CommandsForRangesLoader implements AccordStateCache.Listener<TxnId, Command>
 {
     private final RoutesSearcher searcher = new RoutesSearcher();
     //TODO (now, durability): find solution for this...
     private final NavigableMap<TxnId, Ranges> historicalTransaction = new TreeMap<>();
     private final AccordCommandStore store;
+    private final ObjectHashSet<TxnId> cachedRangeTxns = new ObjectHashSet<>();
 
     public CommandsForRangesLoader(AccordCommandStore store)
     {
         this.store = store;
+        store.commandCache().register(this);
+    }
+
+    @Override
+    public void onAdd(AccordCachingState<TxnId, Command> state)
+    {
+        TxnId txnId = state.key();
+        if (txnId.is(Domain.Range))
+            cachedRangeTxns.add(txnId);
+    }
+
+    @Override
+    public void onEvict(AccordCachingState<TxnId, Command> state)
+    {
+        TxnId txnId = state.key();
+        if (txnId.is(Domain.Range))
+            cachedRangeTxns.remove(txnId);
     }
 
     public AsyncResult<Pair<Watcher, NavigableMap<TxnId, Summary>>> get(@Nullable TxnId primaryTxnId, KeyHistory keyHistory, Ranges ranges)
@@ -136,7 +154,7 @@ public class CommandsForRangesLoader
         @Override
         public void onAdd(AccordCachingState<TxnId, Command> n)
         {
-            if (n.key().domain() != Routable.Domain.Range)
+            if (n.key().domain() != Domain.Range)
                 return;
 
             if (n.key().compareTo(minTxnId) < 0 || n.key().compareTo(maxTxnId) >= 0)
@@ -197,7 +215,8 @@ public class CommandsForRangesLoader
     private Watcher fromCache(@Nullable TxnId findAsDep, Ranges ranges, TxnId minTxnId, Timestamp maxTxnId, RedundantBefore redundantBefore)
     {
         Watcher watcher = new Watcher(ranges, findAsDep, minTxnId, maxTxnId, redundantBefore);
-        store.commandCache().stream().forEach(watcher::onAdd);
+        for (TxnId rangeTxnId : cachedRangeTxns)
+            watcher.onAdd(store.commandCache().getUnsafe(rangeTxnId));
         store.commandCache().register(watcher);
         return watcher;
     }
@@ -234,11 +253,12 @@ public class CommandsForRangesLoader
             return null;
 
         Seekables<?, ? extends Seekables<?, ?>> keysOrRanges = cmd.partialTxn().keys();
-        if (keysOrRanges.domain() != Routable.Domain.Range)
+        if (keysOrRanges.domain() != Domain.Range)
             throw new AssertionError(String.format("Txn keys are not range for %s", cmd.partialTxn()));
         Ranges ranges = (Ranges) keysOrRanges;
 
-        if (!ranges.intersects(cacheRanges))
+        ranges = ranges.slice(cacheRanges, Routables.Slice.Minimal);
+        if (ranges.isEmpty())
             return null;
 
         if (redundantBefore != null)

@@ -83,6 +83,7 @@ import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.marshal.ByteArrayAccessor;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
+import org.apache.cassandra.db.marshal.ByteType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.Int32Type;
@@ -230,12 +231,14 @@ public class AccordKeyspace
         parse(JOURNAL,
               "accord journal",
               "CREATE TABLE %s ("
-              + "key blob,"
+              + "store_id int,"
+              + "type tinyint,"
+              + "id blob,"
               + "descriptor bigint,"
               + "offset int,"
               + "user_version int,"
               + "record blob,"
-              + "PRIMARY KEY(key, descriptor, offset)"
+              + "PRIMARY KEY((store_id, type, id), descriptor, offset)"
               + ") WITH CLUSTERING ORDER BY (descriptor DESC, offset DESC) WITH compression = {'class':'NoopCompressor'};")
         .partitioner(new LocalPartitioner(BytesType.instance))
         .build();
@@ -1347,6 +1350,68 @@ public class AccordKeyspace
         public int hashCode()
         {
             throw new UnsupportedOperationException();
+        }
+    }
+
+    public static class JournalColumns
+    {
+        static final ClusteringComparator keyComparator = Journal.partitionKeyAsClusteringComparator();
+        static final CompositeType partitionKeyType = (CompositeType) Journal.partitionKeyType;
+        public static final ColumnMetadata store_id = getColumn(Journal, "store_id");
+        public static final ColumnMetadata type = getColumn(Journal, "type");
+        public static final ColumnMetadata id = getColumn(Journal, "id");
+        public static final ColumnMetadata record = getColumn(Journal, "record");
+
+        public static DecoratedKey decorate(JournalKey key)
+        {
+            ByteBuffer id = ByteBuffer.allocate(CommandSerializers.txnId.serializedSize());
+            CommandSerializers.txnId.serialize(key.id, id);
+            id.flip();
+            ByteBuffer pk = keyComparator.make(key.commandStoreId, (byte)key.type.id, id).serializeAsPartitionKey();
+            Invariants.checkState(getTxnId(splitPartitionKey(pk)).equals(key.id));
+            return Journal.partitioner.decorateKey(pk);
+        }
+
+        public static ByteBuffer[] splitPartitionKey(DecoratedKey key)
+        {
+            return JournalColumns.partitionKeyType.split(key.getKey());
+        }
+
+        public static ByteBuffer[] splitPartitionKey(ByteBuffer key)
+        {
+            return JournalColumns.partitionKeyType.split(key);
+        }
+
+        public static int getStoreId(DecoratedKey pk)
+        {
+            return getStoreId(splitPartitionKey(pk));
+        }
+
+        public static int getStoreId(ByteBuffer[] partitionKeyComponents)
+        {
+            return Int32Type.instance.compose(partitionKeyComponents[store_id.position()]);
+        }
+
+        public static JournalKey.Type getType(ByteBuffer[] partitionKeyComponents)
+        {
+            return JournalKey.Type.fromId(ByteType.instance.compose(partitionKeyComponents[type.position()]));
+        }
+
+        public static TxnId getTxnId(DecoratedKey key)
+        {
+            return getTxnId(splitPartitionKey(key));
+        }
+
+        public static TxnId getTxnId(ByteBuffer[] partitionKeyComponents)
+        {
+            ByteBuffer buffer = partitionKeyComponents[id.position()];
+            return CommandSerializers.txnId.deserialize(buffer, buffer.position());
+        }
+
+        public static JournalKey getJournalKey(DecoratedKey key)
+        {
+            ByteBuffer[] parts = splitPartitionKey(key);
+            return new JournalKey(getTxnId(parts), getType(parts), getStoreId(parts));
         }
     }
 

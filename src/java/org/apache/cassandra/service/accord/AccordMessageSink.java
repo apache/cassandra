@@ -26,12 +26,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import accord.impl.RequestCallbacks;
 import accord.messages.*;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
+
+import org.apache.cassandra.config.AccordSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.metrics.ClientRequestsMetricsHolder;
+import org.apache.cassandra.service.TimeoutStrategy;
+import org.apache.cassandra.service.TimeoutStrategy.LatencySourceFactory;
 import org.apache.cassandra.utils.Clock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,6 +56,7 @@ import org.apache.cassandra.net.ResponseContext;
 import org.apache.cassandra.net.Verb;
 
 import static accord.messages.MessageType.Kind.REMOTE;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 public class AccordMessageSink implements MessageSink
 {
@@ -201,17 +208,28 @@ public class AccordMessageSink implements MessageSink
     private final Agent agent;
     private final MessageDelivery messaging;
     private final AccordEndpointMapper endpointMapper;
+    private final RequestCallbacks callbacks;
+    // TODO (required): make hot property
+    private TimeoutStrategy slowPreaccept, slowRead;
 
-    public AccordMessageSink(Agent agent, MessageDelivery messaging, AccordEndpointMapper endpointMapper)
+    public AccordMessageSink(Agent agent, MessageDelivery messaging, AccordEndpointMapper endpointMapper, RequestCallbacks callbacks)
     {
+        AccordSpec config = DatabaseDescriptor.getAccord();
+        if (config != null)
+        {
+            // TODO (expected): introduce better metrics, esp. for preaccept, but also to disambiguate DC latencies
+            slowPreaccept = new TimeoutStrategy(config.slowPreAccept, LatencySourceFactory.of(ClientRequestsMetricsHolder.accordReadMetrics));
+            slowRead = new TimeoutStrategy(config.slowRead, LatencySourceFactory.of(ClientRequestsMetricsHolder.accordReadMetrics));
+        }
         this.agent = agent;
         this.messaging = messaging;
         this.endpointMapper = endpointMapper;
+        this.callbacks = callbacks;
     }
 
-    public AccordMessageSink(Agent agent, AccordConfigurationService endpointMapper)
+    public AccordMessageSink(Agent agent, AccordConfigurationService endpointMapper, RequestCallbacks callbacks)
     {
-        this(agent, MessagingService.instance(), endpointMapper);
+        this(agent, MessagingService.instance(), endpointMapper, callbacks);
     }
 
     @Override
@@ -237,24 +255,42 @@ public class AccordMessageSink implements MessageSink
         return txnRequest.txnId.domain().isRange();
     }
 
+    // TODO (expected): permit bulk send to save esp. on callback registration (and combine records)
     @Override
     public void send(Node.Id to, Request request, AgentExecutor executor, Callback callback)
     {
         Verb verb = getVerb(request);
         Preconditions.checkNotNull(verb, "Verb is null for type %s", request.type());
-        Message<Request> message;
-        if (isRangeBarrier(request))
+        long nowNanos = Clock.Global.nanoTime();
+        long expiresAtNanos;
+        if (isRangeBarrier(request)) expiresAtNanos = nowNanos + DatabaseDescriptor.getAccordRangeBarrierTimeoutNanos();
+        else expiresAtNanos = nowNanos + verb.expiresAfterNanos();
+        long delayedAtNanos = Long.MAX_VALUE;
+        switch (verb)
         {
-            long nowNanos = Clock.Global.nanoTime();
-            message = Message.out(verb, request, nowNanos + DatabaseDescriptor.getAccordRangeBarrierTimeoutNanos());
+            case ACCORD_COMMIT_REQ:
+                if (((Commit)request).readData == null)
+                    break;
+
+            case ACCORD_READ_REQ:
+                if (slowRead == null || isRangeBarrier(request))
+                    break;
+
+            case ACCORD_CHECK_STATUS_REQ:
+                delayedAtNanos = nowNanos + slowRead.computeWait(1, NANOSECONDS);
+                break;
+
+            case ACCORD_PRE_ACCEPT_REQ:
+                if (slowPreaccept == null || isRangeBarrier(request))
+                    break;
+                delayedAtNanos = nowNanos + slowPreaccept.computeWait(1, NANOSECONDS);
         }
-        else
-        {
-            message = Message.out(verb, request);
-        }
+
+        Message<Request> message = Message.out(verb, request, expiresAtNanos);
         InetAddressAndPort endpoint = endpointMapper.mappedEndpoint(to);
         logger.trace("Sending {} {} to {}", verb, message.payload, endpoint);
-        messaging.sendWithCallback(message, endpoint, new AccordCallback<>(executor, (Callback<Reply>) callback, endpointMapper));
+        callbacks.registerAt(message.id(), executor, callback, to, nowNanos, delayedAtNanos, expiresAtNanos, NANOSECONDS);
+        messaging.send(message, endpoint);
     }
 
     @Override

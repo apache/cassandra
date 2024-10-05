@@ -117,6 +117,7 @@ public class AccordJournalCompactionTest
         try
         {
             journal.start(null);
+            journal.unsafeSetStarted();
             Timestamp timestamp = Timestamp.NONE;
 
             RandomSource rs = new DefaultRandom(1);

@@ -41,7 +41,7 @@ import accord.local.CommandStores;
 import accord.local.DurableBefore;
 import accord.local.Node;
 import accord.local.NodeCommandStoreService;
-import accord.local.NodeTimeService;
+import accord.local.TimeService;
 import accord.local.PreLoadContext;
 import accord.local.SafeCommand;
 import accord.local.SafeCommandStore;
@@ -118,9 +118,15 @@ public class SimulatedAccordCommandStore implements AutoCloseable
         this.nodeId = AccordTopology.tcmIdToAccord(ClusterMetadata.currentNullable().myNodeId());
         this.storeService = new NodeCommandStoreService()
         {
-            private final ToLongFunction<TimeUnit> elapsed = NodeTimeService.elapsedWrapperFromNonMonotonicSource(TimeUnit.NANOSECONDS, this::now);
+            private final ToLongFunction<TimeUnit> elapsed = TimeService.elapsedWrapperFromNonMonotonicSource(TimeUnit.NANOSECONDS, this::now);
 
             @Override public DurableBefore durableBefore() { return DurableBefore.EMPTY; }
+
+            @Override
+            public Timestamp uniqueNow()
+            {
+                return uniqueNow(Timestamp.NONE);
+            }
 
             @Override
             public Node.Id id()

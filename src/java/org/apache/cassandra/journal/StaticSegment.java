@@ -28,6 +28,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.locks.LockSupport;
 
+import accord.utils.Invariants;
 import org.agrona.collections.IntHashSet;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.File;
@@ -260,7 +261,11 @@ public final class StaticSegment<K, V> extends Segment<K, V>
         ByteBuffer duplicate = buffer.duplicate().position(offset).limit(offset + size);
         try (DataInputBuffer in = new DataInputBuffer(duplicate, false))
         {
-            return EntrySerializer.tryRead(into, keySupport, duplicate, in, syncedOffsets.syncedOffset(), descriptor.userVersion);
+            if (!EntrySerializer.tryRead(into, keySupport, duplicate, in, syncedOffsets.syncedOffset(), descriptor.userVersion))
+                return false;
+
+            Invariants.checkState(in.available() == 0);
+            return true;
         }
         catch (IOException e)
         {

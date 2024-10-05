@@ -71,13 +71,13 @@ public final class JournalKey
 
     public static final class JournalKeySupport implements KeySupport<JournalKey>
     {
-        private static final int MSB_OFFSET = 0;
+        private static final int CS_ID_OFFSET = 0;
+        private static final int TYPE_OFFSET = INT_SIZE;
+        private static final int MSB_OFFSET = TYPE_OFFSET + BYTE_SIZE;
         private static final int LSB_OFFSET = MSB_OFFSET + LONG_SIZE;
         private static final int NODE_OFFSET = LSB_OFFSET + LONG_SIZE;
-        private static final int TYPE_OFFSET = NODE_OFFSET + INT_SIZE;
-        private static final int CS_ID_OFFSET = TYPE_OFFSET + BYTE_SIZE;
         // TODO (required): revisit commandStoreId - this can go arbitrarily high so may want to use vint
-        public static final int TOTAL_SIZE = CS_ID_OFFSET + INT_SIZE;
+        public static final int TOTAL_SIZE = NODE_OFFSET + INT_SIZE;
 
         @Override
         public int serializedSize(int userVersion)
@@ -88,33 +88,33 @@ public final class JournalKey
         @Override
         public void serialize(JournalKey key, DataOutputPlus out, int userVersion) throws IOException
         {
-            serializeTxnId(key.id, out);
-            out.writeByte(key.type.id);
             out.writeInt(key.commandStoreId);
+            out.writeByte(key.type.id);
+            serializeTxnId(key.id, out);
         }
 
         private void serialize(JournalKey key, byte[] out)
         {
-            serializeTxnId(key.id, out);
-            out[TYPE_OFFSET] = (byte) (key.type.id & 0xFF);
             ByteArrayUtil.putInt(out, CS_ID_OFFSET, key.commandStoreId);
+            out[TYPE_OFFSET] = (byte) (key.type.id & 0xFF);
+            serializeTxnId(key.id, out);
         }
 
         @Override
         public JournalKey deserialize(DataInputPlus in, int userVersion) throws IOException
         {
-            TxnId txnId = deserializeTxnId(in);
-            int type = in.readByte();
             int commandStoreId = in.readInt();
+            int type = in.readByte();
+            TxnId txnId = deserializeTxnId(in);
             return new JournalKey(txnId, Type.fromId(type), commandStoreId);
         }
 
         @Override
         public JournalKey deserialize(ByteBuffer buffer, int position, int userVersion)
         {
-            TxnId txnId = deserializeTxnId(buffer, position);
-            int type = buffer.get(position + TYPE_OFFSET);
             int commandStoreId = buffer.getInt(position + CS_ID_OFFSET);
+            int type = buffer.get(position + TYPE_OFFSET);
+            TxnId txnId = deserializeTxnId(buffer, position);
             return new JournalKey(txnId, Type.fromId(type), commandStoreId);
         }
 
@@ -159,15 +159,15 @@ public final class JournalKey
         @Override
         public int compareWithKeyAt(JournalKey k, ByteBuffer buffer, int position, int userVersion)
         {
-            int cmp = compareWithTxnIdAt(k.id, buffer, position);
+            int commandStoreId = buffer.getInt(position + CS_ID_OFFSET);
+            int cmp = Integer.compare(k.commandStoreId, commandStoreId);
             if (cmp != 0) return cmp;
 
             byte type = buffer.get(position + TYPE_OFFSET);
             cmp = Byte.compare((byte) k.type.id, type);
             if (cmp != 0) return cmp;
 
-            int commandStoreId = buffer.getInt(position + CS_ID_OFFSET);
-            cmp = Integer.compare(k.commandStoreId, commandStoreId);
+            cmp = compareWithTxnIdAt(k.id, buffer, position);
             return cmp;
         }
 
@@ -189,9 +189,9 @@ public final class JournalKey
         @Override
         public int compare(JournalKey k1, JournalKey k2)
         {
-            int cmp = k1.id.compareTo(k2.id);
+            int cmp = Integer.compare(k1.commandStoreId, k2.commandStoreId);
             if (cmp == 0) cmp = Byte.compare((byte) k1.type.id, (byte) k2.type.id);
-            if (cmp == 0) cmp = Integer.compare(k1.commandStoreId, k2.commandStoreId);
+            if (cmp == 0) cmp = k1.id.compareTo(k2.id);
             return cmp;
         }
     };
