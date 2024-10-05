@@ -69,7 +69,7 @@ import accord.impl.AbstractConfigurationService;
 import accord.impl.CoordinateDurabilityScheduling;
 import accord.impl.DefaultLocalListeners;
 import accord.impl.DefaultRemoteListeners;
-import accord.impl.DefaultRequestTimeouts;
+import accord.impl.RequestCallbacks;
 import accord.impl.SizeOfIntersectionSorter;
 import accord.impl.progresslog.DefaultProgressLogs;
 import accord.local.Command;
@@ -80,13 +80,13 @@ import accord.local.DurableBefore;
 import accord.local.KeyHistory;
 import accord.local.Node;
 import accord.local.Node.Id;
-import accord.local.NodeTimeService;
 import accord.local.PreLoadContext;
 import accord.local.RedundantBefore;
 import accord.local.ShardDistributor.EvenSplit;
 import accord.local.cfk.CommandsForKey;
 import accord.messages.Callback;
 import accord.messages.ReadData;
+import accord.messages.Reply;
 import accord.messages.Request;
 import accord.messages.WaitUntilApplied;
 import accord.primitives.FullRoute;
@@ -142,6 +142,7 @@ import org.apache.cassandra.service.accord.api.AccordAgent;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.KeyspaceSplitter;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.service.accord.api.AccordScheduler;
+import org.apache.cassandra.service.accord.api.AccordTimeService;
 import org.apache.cassandra.service.accord.api.AccordTopologySorter;
 import org.apache.cassandra.service.accord.api.CompositeTopologySorter;
 import org.apache.cassandra.service.accord.api.PartitionKey;
@@ -161,7 +162,6 @@ import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.Blocking;
-import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
@@ -200,6 +200,7 @@ public class AccordService implements IAccordService, Shutdownable
     private final AccordJournal journal;
     private final CoordinateDurabilityScheduling durabilityScheduling;
     private final AccordVerbHandler<? extends Request> requestHandler;
+    private final AccordResponseVerbHandler<? extends Reply> responseHandler;
     private final LocalConfig configuration;
 
     @GuardedBy("this")
@@ -208,7 +209,13 @@ public class AccordService implements IAccordService, Shutdownable
     private static final IAccordService NOOP_SERVICE = new IAccordService()
     {
         @Override
-        public IVerbHandler<? extends Request> verbHandler()
+        public IVerbHandler<? extends Request> requestHandler()
+        {
+            return null;
+        }
+
+        @Override
+        public IVerbHandler<? extends Reply> responseHandler()
         {
             return null;
         }
@@ -346,10 +353,16 @@ public class AccordService implements IAccordService, Shutdownable
         return instance != null;
     }
 
-    public static IVerbHandler<? extends Request> verbHandlerOrNoop()
+    public static IVerbHandler<? extends Request> requestHandlerOrNoop()
     {
         if (!isSetup()) return ignore -> {};
-        return instance().verbHandler();
+        return instance().requestHandler();
+    }
+
+    public static IVerbHandler<? extends Reply> responseHandlerOrNoop()
+    {
+        if (!isSetup()) return ignore -> {};
+        return instance().responseHandler();
     }
 
     public synchronized static void startup(NodeId tcmId)
@@ -395,20 +408,17 @@ public class AccordService implements IAccordService, Shutdownable
         return i;
     }
 
-    public static long now()
-    {
-        return TimeUnit.MILLISECONDS.toMicros(Clock.Global.currentTimeMillis());
-    }
-
     private AccordService(Id localId)
     {
         Invariants.checkState(localId != null, "static localId must be set before instantiating AccordService");
         logger.info("Starting accord with nodeId {}", localId);
         AccordAgent agent = FBUtilities.construct(CassandraRelevantProperties.ACCORD_AGENT_CLASS.getString(AccordAgent.class.getName()), "AccordAgent");
         agent.setNodeId(localId);
+        AccordTimeService time = new AccordTimeService();
+        final RequestCallbacks callbacks = new RequestCallbacks(time);
         this.configService = new AccordConfigurationService(localId);
         this.fastPathCoordinator = AccordFastPathCoordinator.create(localId, configService);
-        this.messageSink = new AccordMessageSink(agent, configService);
+        this.messageSink = new AccordMessageSink(agent, configService, callbacks);
         this.scheduler = new AccordScheduler();
         this.dataStore = new AccordDataStore();
         this.configuration = new AccordConfiguration(DatabaseDescriptor.getRawConfig());
@@ -416,8 +426,7 @@ public class AccordService implements IAccordService, Shutdownable
         this.node = new Node(localId,
                              messageSink,
                              configService,
-                             AccordService::now,
-                             NodeTimeService.elapsedWrapperFromMonotonicSource(NANOSECONDS, Clock.Global::nanoTime),
+                             time,
                              () -> dataStore,
                              new KeyspaceSplitter(new EvenSplit<>(DatabaseDescriptor.getAccordShardCount(), getPartitioner().accordSplitter())),
                              agent,
@@ -426,7 +435,7 @@ public class AccordService implements IAccordService, Shutdownable
                              CompositeTopologySorter.create(SizeOfIntersectionSorter.SUPPLIER,
                                                             new AccordTopologySorter.Supplier(configService, DatabaseDescriptor.getEndpointSnitch())),
                              DefaultRemoteListeners::new,
-                             DefaultRequestTimeouts::new,
+                             ignore -> callbacks,
                              DefaultProgressLogs::new,
                              DefaultLocalListeners.Factory::new,
                              AccordCommandStores.factory(journal),
@@ -436,6 +445,7 @@ public class AccordService implements IAccordService, Shutdownable
         this.nodeShutdown = toShutdownable(node);
         this.durabilityScheduling = new CoordinateDurabilityScheduling(node);
         this.requestHandler = new AccordVerbHandler<>(node, configService);
+        this.responseHandler = new AccordResponseVerbHandler<>(callbacks, configService);
     }
 
     @Override
@@ -568,9 +578,15 @@ public class AccordService implements IAccordService, Shutdownable
     }
 
     @Override
-    public IVerbHandler<? extends Request> verbHandler()
+    public IVerbHandler<? extends Request> requestHandler()
     {
         return requestHandler;
+    }
+
+    @Override
+    public IVerbHandler<? extends Reply> responseHandler()
+    {
+        return responseHandler;
     }
 
     private Seekables<?, ?> barrier(@Nonnull Seekables<?, ?> keysOrRanges, long epoch, Dispatcher.RequestTime requestTime, long timeoutNanos, BarrierType barrierType, boolean isForWrite, BiFunction<Node, FullRoute<?>, AsyncSyncPoint> syncPoint)

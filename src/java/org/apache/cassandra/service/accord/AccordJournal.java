@@ -151,7 +151,7 @@ public class AccordJournal implements IJournal, Shutdownable
     @Override
     public void shutdown()
     {
-        Invariants.checkState(status == Status.REPLAY || status == Status.STARTED);
+        Invariants.checkState(status == Status.REPLAY || status == Status.STARTED, "%s", status);
         status = Status.TERMINATING;
         journal.shutdown();
         status = Status.TERMINATED;
@@ -487,5 +487,10 @@ public class AccordJournal implements IJournal, Shutdownable
                 }
             }
         }
+    }
+
+    public void unsafeSetStarted()
+    {
+        status = Status.STARTED;
     }
 }

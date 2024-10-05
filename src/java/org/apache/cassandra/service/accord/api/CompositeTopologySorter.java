@@ -81,4 +81,10 @@ public class CompositeTopologySorter implements TopologySorter
         }
         return 0;
     }
+
+    @Override
+    public boolean isFaulty(Node.Id node)
+    {
+        return false;
+    }
 }

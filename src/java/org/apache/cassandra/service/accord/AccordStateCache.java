@@ -291,7 +291,6 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
         private final BiFunction<K, V, Boolean> validateFunction;
         private final ToLongFunction<V> heapEstimator;
         private long bytesCached;
-//        private int itemsCached;
 
         @VisibleForTesting
         final CacheAccessMetrics instanceMetrics;
@@ -381,7 +380,6 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
 
             return safeRefFactory.apply(acquireExisting(node, false));
         }
-
 
         public void maybeLoad(K key, V initial)
         {

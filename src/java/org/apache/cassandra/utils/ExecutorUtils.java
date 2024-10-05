@@ -81,7 +81,7 @@ public class ExecutorUtils
 
     public static void shutdownSequentiallyAndWait(Iterable<?> executors, long timeout, TimeUnit unit)
     {
-        long deadline = System.nanoTime() + unit.toNanos(timeout);
+        long deadline = nanoTime() + unit.toNanos(timeout);
 
         for (Object executor : executors)
         {
@@ -90,12 +90,12 @@ public class ExecutorUtils
                 if (executor instanceof ExecutorService)
                 {
                     ((ExecutorService) executor).shutdown();
-                    ((ExecutorService) executor).awaitTermination(Math.max(0, deadline - System.nanoTime()), NANOSECONDS);
+                    ((ExecutorService) executor).awaitTermination(Math.max(0, deadline - nanoTime()), NANOSECONDS);
                 }
                 else if (executor instanceof Shutdownable)
                 {
                     ((Shutdownable) executor).shutdown();
-                    ((Shutdownable) executor).awaitTermination(Math.max(0, deadline - System.nanoTime()), NANOSECONDS);
+                    ((Shutdownable) executor).awaitTermination(Math.max(0, deadline - nanoTime()), NANOSECONDS);
                 }
                 else
                     throw new IllegalArgumentException(executor.toString());

@@ -34,6 +34,7 @@ import accord.local.DurableBefore;
 import accord.local.Node;
 import accord.local.Node.Id;
 import accord.local.RedundantBefore;
+import accord.messages.Reply;
 import accord.messages.Request;
 import accord.primitives.Ranges;
 import accord.primitives.Seekables;
@@ -68,7 +69,8 @@ public interface IAccordService
     Set<ConsistencyLevel> SUPPORTED_COMMIT_CONSISTENCY_LEVELS = ImmutableSet.of(ConsistencyLevel.ANY, ConsistencyLevel.ONE, ConsistencyLevel.LOCAL_ONE, ConsistencyLevel.QUORUM, ConsistencyLevel.SERIAL, ConsistencyLevel.ALL);
     Set<ConsistencyLevel> SUPPORTED_READ_CONSISTENCY_LEVELS = ImmutableSet.of(ConsistencyLevel.ONE, ConsistencyLevel.QUORUM, ConsistencyLevel.SERIAL);
 
-    IVerbHandler<? extends Request> verbHandler();
+    IVerbHandler<? extends Request> requestHandler();
+    IVerbHandler<? extends Reply> responseHandler();
 
     Seekables<?, ?> barrierWithRetries(Seekables<?, ?> keysOrRanges, long minEpoch, BarrierType barrierType, boolean isForWrite) throws InterruptedException;
 

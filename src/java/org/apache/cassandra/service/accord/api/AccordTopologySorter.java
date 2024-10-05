@@ -28,6 +28,10 @@ import accord.topology.ShardSelection;
 import accord.topology.Topologies;
 import accord.topology.Topology;
 import accord.utils.SortedList;
+import org.apache.cassandra.gms.ApplicationState;
+import org.apache.cassandra.gms.EndpointState;
+import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.locator.DynamicEndpointSnitch;
 import org.apache.cassandra.locator.Endpoint;
 import org.apache.cassandra.locator.IEndpointSnitch;
@@ -71,8 +75,8 @@ public class AccordTopologySorter implements TopologySorter
     }
 
     private final AccordEndpointMapper mapper;
-
     private final Comparator<Endpoint> comparator;
+
     private AccordTopologySorter(AccordEndpointMapper mapper, Comparator<Endpoint> comparator)
     {
         this.mapper = mapper;
@@ -93,6 +97,27 @@ public class AccordTopologySorter implements TopologySorter
     public int compare(Node.Id node1, Node.Id node2, ShardSelection shards)
     {
         return comparator.compare(() -> mapper.mappedEndpoint(node1), () -> mapper.mappedEndpoint(node2));
+    }
+
+    @Override
+    public boolean isFaulty(Node.Id node)
+    {
+        InetAddressAndPort ep = mapper.mappedEndpointOrNull(node);
+        if (ep == null)
+            return true;
+
+        EndpointState epState = Gossiper.instance.getEndpointStateForEndpoint(ep);
+        if (epState == null)
+            return true;
+
+        if (!epState.isAlive())
+            return true;
+
+        VersionedValue event = epState.getApplicationState(ApplicationState.SEVERITY);
+        if (event == null)
+            return true;
+
+        return Double.parseDouble(event.value) == 0.0;
     }
 
     private static class EndpointTuple implements Endpoint

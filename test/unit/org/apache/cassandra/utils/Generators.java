@@ -501,7 +501,7 @@ public final class Generators
         };
     }
 
-    public static <T extends Comparable<T>> Gen<List<T>> uniqueList(Gen<T> gen, Gen<Integer> sizeGen)
+    public static <T extends Comparable<? super T>> Gen<List<T>> uniqueList(Gen<T> gen, Gen<Integer> sizeGen)
     {
         return set(gen, sizeGen).map(t -> {
             List<T> list = new ArrayList<>(t);

@@ -27,6 +27,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import accord.api.TopologySorter;
+import accord.api.TopologySorter.StaticSorter;
 import accord.coordinate.tracking.RequestStatus;
 import accord.local.Node;
 import accord.topology.Topologies;
@@ -58,7 +59,7 @@ public class RequiredResponseTrackerTest
     private static final Location LOCATION = new Location("DC1", "RACK1");
 
     private static final List<Range<Token>> RANGES = ImmutableList.of(range(-100, 0), range(0, 100), range(100, -100));
-    private static final TopologySorter TOPOLOGY_SORTER = (node1, node2, shards) -> node1.compareTo(node2);
+    private static final TopologySorter TOPOLOGY_SORTER = (StaticSorter)(node1, node2, shards) -> node1.compareTo(node2);
 
     @BeforeClass
     public static void beforeClass() throws Throwable

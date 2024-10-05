@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.NavigableMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSortedMap;
 import org.junit.Assert;
 import org.junit.Before;
@@ -56,7 +55,6 @@ import org.apache.cassandra.utils.AccordGenerators;
 
 import static accord.local.CommandStores.RangesForEpoch;
 import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.DurableBeforeAccumulator;
-import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.IdentityAccumulator;
 import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.RedundantBeforeAccumulator;
 
 
@@ -119,6 +117,7 @@ public class AccordJournalCompactionTest
         try
         {
             journal.start(null);
+            journal.unsafeSetStarted();
             Timestamp timestamp = Timestamp.NONE;
 
             RandomSource rs = new DefaultRandom(1);

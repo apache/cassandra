@@ -31,7 +31,7 @@ import com.codahale.metrics.Counting;
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.Timer;
-import org.apache.cassandra.service.accord.AccordService;
+import org.apache.cassandra.service.accord.api.AccordTimeService;
 
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
@@ -206,7 +206,7 @@ public class AccordMetrics
         @Override
         public void onStable(Command cmd)
         {
-            long now = AccordService.now();
+            long now = AccordTimeService.nowMicros();
             AccordMetrics metrics = forTransaction(cmd.txnId());
             if (metrics != null)
             {
@@ -218,7 +218,7 @@ public class AccordMetrics
         @Override
         public void onExecuted(Command cmd)
         {
-            long now = AccordService.now();
+            long now = AccordTimeService.nowMicros();
             AccordMetrics metrics = forTransaction(cmd.txnId());
             if (metrics != null)
             {
@@ -232,7 +232,7 @@ public class AccordMetrics
         @Override
         public void onApplied(Command cmd, long applyStartTimestamp)
         {
-            long now = AccordService.now();
+            long now = AccordTimeService.nowMicros();
             AccordMetrics metrics = forTransaction(cmd.txnId());
             if (metrics != null)
             {
@@ -270,7 +270,7 @@ public class AccordMetrics
             AccordMetrics metrics = forTransaction(txnId);
             if (metrics != null)
             {
-                long now = AccordService.now();
+                long now = AccordTimeService.nowMicros();
 
                 metrics.recoveryDuration.update(now - recoveryTimestamp.hlc(), MICROSECONDS);
                 metrics.recoveryDelay.update(recoveryTimestamp.hlc() - txnId.hlc(), MICROSECONDS);
