@@ -28,6 +28,8 @@ import javax.annotation.Nonnull;
 
 import org.apache.cassandra.exceptions.AuthenticationException;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.transport.messages.AuthenticateMessage;
 
 public interface IAuthenticator
 {
@@ -77,6 +79,17 @@ public interface IAuthenticator
      * For example, use this method to create any required keyspaces/column families.
      */
     void setup();
+
+    /**
+     * Allows custom authenticators to return their own {@link AuthenticateMessage} based on
+     * {@link ClientState} information. For example, this allows returning the FQCN of a driver's
+     * known authenticator (e.g. "com.datastax.bdp.cassandra.auth.DseAuthenticator") to enable
+     * SASL scheme negotiation.
+     */
+    default AuthenticateMessage getAuthenticateMessage(ClientState clientState)
+    {
+        return new AuthenticateMessage(getClass().getName());
+    }
 
     /**
      * Provide a SASL handler to perform authentication for an single connection. SASL

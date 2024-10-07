@@ -143,12 +143,12 @@ public class StartupMessage extends Message.Request
                         {
                             // It's expected that any negotiator that requires a challenge will likely not support early
                             // authentication, in this case we can just go through the traditional auth flow.
-                            return new AuthenticateMessage(DatabaseDescriptor.getAuthenticator().getClass().getName());
+                            return authenticator.getAuthenticateMessage(clientState);
                         }
                     });
                 }
             }
-            return new AuthenticateMessage(DatabaseDescriptor.getAuthenticator().getClass().getName());
+            return authenticator.getAuthenticateMessage(clientState);
         }
         else
             return new ReadyMessage();
