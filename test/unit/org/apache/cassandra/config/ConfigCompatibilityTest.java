@@ -160,8 +160,16 @@ public class ConfigCompatibilityTest
     @Test
     public void diff_5_0() throws IOException
     {
-        diff(TEST_DIR + "/version=5.0-alpha1.yml", ImmutableSet.<String>builder().addAll(REMOVED_IN_51)
+        diff(TEST_DIR + "/version=5.0-alpha1.yml", ImmutableSet.<String>builder()
+                                                               .addAll(REMOVED_IN_51)
                                                                .build(), EXPECTED_FOR_50);
+    }
+
+    @Test
+    public void diff_5_1() throws IOException
+    {
+        diff(TEST_DIR + "/version=5.1-alpha1.yml", ImmutableSet.<String>builder()
+                                                               .build(), ImmutableSet.of());
     }
 
     private void diff(String original, Set<String> ignore, Set<String> expectedErrors) throws IOException
