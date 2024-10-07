@@ -45,35 +45,9 @@ public class AutoRepairKeyspace
      */
     public static final long GENERATION = 3;
 
-    static final String AUTO_REPAIR_HISTORY = "auto_repair_history";
-
-    static final String AUTO_REPAIR_PRIORITY = "auto_repair_priority";
-
     public static final String AUTO_REPAIR_HISTORY_V2 = "auto_repair_history_v2";
 
     public static final String AUTO_REPAIR_PRIORITY_V2 = "auto_repair_priority_v2";
-
-    private static final TableMetadata AutoRepairHistory =
-    parse(AUTO_REPAIR_HISTORY,
-            "Auto repair history for each node",
-            "CREATE TABLE %s ("
-            + "pid int,"
-            + "host_id uuid,"
-            + "repair_turn text,"
-            + "repair_start_ts timestamp,"
-            + "repair_finish_ts timestamp,"
-            + "delete_hosts set<uuid>,"
-            + "delete_hosts_update_time timestamp,"
-            + "force_repair boolean,"
-            + "PRIMARY KEY (pid, host_id))");
-
-    private static final TableMetadata AutoRepairPriority =
-    parse(AUTO_REPAIR_PRIORITY,
-            "Auto repair priority for each group",
-            "CREATE TABLE %s ("
-            + "pid int,"
-            + "repair_priority set<uuid>,"
-            + "PRIMARY KEY (pid))");
 
     private static final TableMetadata AutoRepairHistoryV2 =
     parse(AUTO_REPAIR_HISTORY_V2,
@@ -110,11 +84,7 @@ public class AutoRepairKeyspace
 
     public static KeyspaceMetadata metadata()
     {
-        Tables tables = Tables.of(AutoRepairPriority, AutoRepairHistory);
-        if (DatabaseDescriptor.getAutoRepairConfig().isAutoRepairSchedulingEnabled()) {
-            tables = tables.with(AutoRepairHistoryV2);
-            tables = tables.with(AutoRepairPriorityV2);
-        }
+        Tables tables = Tables.of(AutoRepairHistoryV2, AutoRepairPriorityV2);
 
         return KeyspaceMetadata.create(SchemaConstants.AUTO_REPAIR_KEYSPACE_NAME, KeyspaceParams.simple(1), tables);
     }

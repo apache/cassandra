@@ -53,7 +53,6 @@ import static org.mockito.Mockito.when;
 public class GetAutoRepairConfigTest
 {
     private static final String RESOURCES_DIR = "test/resources/nodetool/getautorepairconfig/";
-    protected static final String LEGACY_CONFIG_FILENAME = "legacy_config";
     protected static final String CONFIG_ALL_TYPES_DISABLED_FILENAME = "config_all_types_disabled";
     protected static final String CONFIG_ALL_TYPES_ENABLED_FILENAME = "config_all_types_enabled";
     protected static final String CONFIG_ONE_TYPE_ENABLED_FILENAME = "config_%s_repair_enabled";
@@ -96,35 +95,8 @@ public class GetAutoRepairConfigTest
         }
 
         @Test
-        public void testLegacyConfigDisabled()
-        {
-            cmd.v2 = false;
-            when(probe.isAutoRepairEnabled()).thenReturn(false);
-
-            cmd.execute(probe);
-
-            verify(probe, times(1)).isAutoRepairEnabled();
-            verify(out, times(1)).println("AutoRepair is not enabled");
-        }
-
-        @Test
-        public void testLegacyConfigEnabled()
-        {
-            cmd.v2 = false;
-            when(probe.isAutoRepairEnabled()).thenReturn(true);
-            when(probe.getRepairThreads()).thenReturn(9);
-            when(probe.getMVRepairEnabled()).thenReturn(true);
-
-            cmd.execute(probe);
-
-            verify(probe, times(1)).isAutoRepairEnabled();
-            verify(out, times(1)).println(loadExpectedConfig(LEGACY_CONFIG_FILENAME));
-        }
-
-        @Test
         public void testAutoRepairConfigNull()
         {
-            cmd.v2 = true;
             when(probe.getAutoRepairConfig()).thenReturn(null);
 
             cmd.execute(probe);
@@ -136,7 +108,6 @@ public class GetAutoRepairConfigTest
         @Test
         public void testAutoRepairConfigDisabled()
         {
-            cmd.v2 = true;
             AutoRepairConfig config = new AutoRepairConfig(false);
             when(probe.getAutoRepairConfig()).thenReturn(config);
 
@@ -149,7 +120,6 @@ public class GetAutoRepairConfigTest
         @Test
         public void testAllRepairTypesDisabled()
         {
-            cmd.v2 = true;
             AutoRepairConfig config = new AutoRepairConfig(true);
             config.setAutoRepairHistoryClearDeleteHostsBufferInSec(700);
             for (RepairType repairType : RepairType.values())
@@ -170,7 +140,6 @@ public class GetAutoRepairConfigTest
         @Test
         public void testAllRepairTypesEnabled()
         {
-            cmd.v2 = true;
             AutoRepairConfig config = new AutoRepairConfig(true);
             config.setAutoRepairHistoryClearDeleteHostsBufferInSec(700);
             for (RepairType repairType : RepairType.values())
@@ -230,7 +199,6 @@ public class GetAutoRepairConfigTest
         @Test
         public void testOneRepairTypeEnabled()
         {
-            cmd.v2 = true;
             AutoRepairConfig config = new AutoRepairConfig(true);
             config.setAutoRepairHistoryClearDeleteHostsBufferInSec(700);
             config.setMVRepairEnabled(repairType, true);

@@ -40,19 +40,16 @@ import static com.google.common.base.Preconditions.checkArgument;
 public class AutoRepairStatus extends NodeTool.NodeToolCmd
 {
     @VisibleForTesting
-    @Option(title = "v2", name = { "--v2" }, description = "Use v2 repair framework")
-    protected boolean v2 = false;
+    @Option(title = "v2", name = { "--v2" }, description = "(Deprecated) Use v2 repair framework")
+    protected boolean v2 = true;
 
     @VisibleForTesting
-    @Option(title = "repair type", name = { "-t", "--repair-type" }, description = "Repair type")
+    @Option(title = "repair type", name = { "-t", "--repair-type" }, description = "Repair type", required = true)
     protected RepairType repairType;
 
     @Override
     public void execute(NodeProbe probe)
     {
-        checkArgument(v2 || repairType == null, "--repair-type is only supported with the -v2 option.");
-        checkArgument(!v2 || repairType != null, "--repair-type is required when using -v2 option.");
-
         AutoRepairConfig config = probe.getAutoRepairConfig();
 
         PrintStream out = probe.output().out;
@@ -61,7 +58,7 @@ public class AutoRepairStatus extends NodeTool.NodeToolCmd
         table.add("Data center group", "Active repairs", "Acitve force repairs");
         Set<String> allHosts = new HashSet<>();
         Set<String> allForceHosts = new HashSet<>();
-        Set<Set<String>> dcGroups = v2 ? getDCGroups(config, repairType) : probe.getDCGroups();
+        Set<Set<String>> dcGroups = getDCGroups(config, repairType);
         if (dcGroups == null || dcGroups.isEmpty())
         {
             dcGroups = new HashSet<>();
@@ -69,10 +66,8 @@ public class AutoRepairStatus extends NodeTool.NodeToolCmd
         }
         for (Set<String> group : dcGroups)
         {
-            Set<String> ongoingRepairHostIds = v2 ? probe.getOnGoingRepairHostIdsByGroupHash(repairType, group.hashCode())
-                                                  : probe.getOnGoingRepairHostIdsByGroupHash(group.hashCode());
-            Set<String> ongoingForceRepairHostIds = v2 ? probe.getOnGoingForceRepairHostIdsByGroupHash(repairType, group.hashCode())
-                                                       : probe.getOnGoingForceRepairHostIdsByGroupHash(group.hashCode());
+            Set<String> ongoingRepairHostIds = probe.getOnGoingRepairHostIdsByGroupHash(repairType, group.hashCode());
+            Set<String> ongoingForceRepairHostIds = probe.getOnGoingForceRepairHostIdsByGroupHash(repairType, group.hashCode());
             String groupName = group.isEmpty() ? "ALL NODES" : group.toString();
             table.add(groupName, getSetString(ongoingRepairHostIds), getSetString(ongoingForceRepairHostIds));
             allHosts.addAll(ongoingRepairHostIds);

@@ -21,6 +21,7 @@ package org.apache.cassandra.service.throttler.dynamic;
 import com.codahale.metrics.Counter;
 import org.apache.cassandra.config.DatabaseDescriptor;
 
+import org.apache.cassandra.repair.AutoRepairV2;
 import org.apache.cassandra.service.RateLimiterService;
 import org.junit.Assert;
 import org.junit.Before;
@@ -42,7 +43,6 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.repair.AutoRepair;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
@@ -77,7 +77,7 @@ public class CassandraResourceUtilizationTest extends CQLTester
     public CassandraResourceUtilizationTest()
     {
         requireNetwork();
-        AutoRepair.instance.setup();
+        AutoRepairV2.instance.setup();
     }
 
     @BeforeClass
@@ -1365,7 +1365,7 @@ public class CassandraResourceUtilizationTest extends CQLTester
                 new String[]{"system_traces","events"},
                 new String[]{"system_auth","role_members"},
                 new String[]{"system_distributed","parent_repair_history"},
-                new String[]{"system_auto_repair","auto_repair_history"},
+                new String[]{"system_auto_repair","auto_repair_history_v2"},
             };
             for (String[] keyspaceAndTable : systemKeyspaceTables)
             {

@@ -57,16 +57,7 @@ public class RunAutoRepairOnceTest
     {
         MockitoAnnotations.initMocks(this);
         cmd = new RunAutoRepairOnce();
-        cmd.v2 = true;
     }
-
-    @Test(expected = IllegalArgumentException.class)
-    public void testExecuteWithoutRepairType()
-    {
-        cmd.repairType = null;
-        cmd.execute(probe);
-    }
-
 
     @Test
     public void testExecuteWithRepairType()

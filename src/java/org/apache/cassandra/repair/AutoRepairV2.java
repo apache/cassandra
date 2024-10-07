@@ -159,7 +159,7 @@ public class AutoRepairV2
             {
                 repairState.recordTurn(turn);
                 // For normal auto repair, we will use primary range only repairs (Repair with -pr option).
-                // For some cases, we may set the auto_repair_primary_token_range_only flag to false then we will do repair
+                // For some cases, we may set the primary_token_range_only flag to false then we will do repair
                 // without -pr. We may also do force repair for certain node that we want to repair all the data on one node
                 // When doing force repair, we want to repair without -pr.
                 boolean primaryRangeOnly = config.getRepairPrimaryTokenRangeOnly(repairType)

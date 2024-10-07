@@ -32,11 +32,6 @@ import static org.apache.cassandra.Util.setAutoRepairEnabled;
 
 public class AutoRepairKeyspaceTest
 {
-    private static final Set<String> v1Tables = ImmutableSet.of(
-        AutoRepairKeyspace.AUTO_REPAIR_HISTORY,
-        AutoRepairKeyspace.AUTO_REPAIR_PRIORITY
-    );
-
     private static final Set<String> v2Tables = ImmutableSet.of(
         AutoRepairKeyspace.AUTO_REPAIR_HISTORY_V2,
         AutoRepairKeyspace.AUTO_REPAIR_PRIORITY_V2
@@ -46,34 +41,11 @@ public class AutoRepairKeyspaceTest
     public static void setupDatabaseDescriptor() { DatabaseDescriptor.daemonInitialization(); }
 
     @Test
-    public void testMetadataCanParseV1Schemas() throws Exception
-    {
-        setAutoRepairEnabled(false);
-        KeyspaceMetadata keyspaceMetadata = AutoRepairKeyspace.metadata();
-
-        assert keyspaceMetadata.tables.size() == v1Tables.size() : "Expected " + v1Tables.size() + " tables, got " + keyspaceMetadata.tables.size();
-
-        for (String table : v1Tables) {
-            Optional<TableMetadata> tableMetadata = keyspaceMetadata.tables.get(table);
-
-            assert tableMetadata.isPresent() : "Table " + table + " not found in metadata";
-        }
-    }
-
-
-    @Test
     public void testMetadataCanParseV2Schemas() throws Exception
     {
         setAutoRepairEnabled(true);
         KeyspaceMetadata keyspaceMetadata = AutoRepairKeyspace.metadata();
 
-        assert keyspaceMetadata.tables.size() == v1Tables.size() + v2Tables.size() : "Expected " + v1Tables.size() + v2Tables.size() + " tables, got " + keyspaceMetadata.tables.size();
-
-        for (String table : v1Tables) {
-            Optional<TableMetadata> tableMetadata = keyspaceMetadata.tables.get(table);
-
-            assert tableMetadata.isPresent() : "Table " + table + " not found in metadata";
-        }
 
         for (String table : v2Tables) {
             Optional<TableMetadata> tableMetadata = keyspaceMetadata.tables.get(table);

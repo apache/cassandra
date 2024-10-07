@@ -98,7 +98,9 @@ import org.apache.cassandra.fql.FullQueryLoggerOptionsCompositeData;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
 import org.apache.cassandra.db.monitoring.BadQuery;
-import org.apache.cassandra.repair.AutoRepair;
+import org.apache.cassandra.repair.AutoRepairConfig;
+import org.apache.cassandra.repair.AutoRepairConfig.RepairType;
+import org.apache.cassandra.repair.AutoRepairUtilsV2;
 import org.apache.cassandra.repair.AutoRepairV2;
 import org.apache.cassandra.service.throttler.dynamic.CassandraResourceUtilization;
 import org.apache.commons.lang3.StringUtils;
@@ -186,7 +188,6 @@ import org.apache.cassandra.net.AsyncOneResponse;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.AutoRepairKeyspace;
-import org.apache.cassandra.repair.AutoRepairUtils;
 import org.apache.cassandra.repair.RepairRunnable;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.schema.CompactionParams.TombstoneOption;
@@ -1288,8 +1289,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             if (dataAvailable)
             {
                 finishJoiningRing(shouldBootstrap, bootstrapTokens);
-                if (forceRepair && DatabaseDescriptor.isAutoRepairEnabled() && DatabaseDescriptor.isAutoRepairForceRepairNewNode()) {
-                    AutoRepairUtils.setForceRepairNewNode();
+                AutoRepairConfig repairConfig = DatabaseDescriptor.getAutoRepairConfig();
+                if (forceRepair && repairConfig.isAutoRepairSchedulingEnabled())
+                {
+                    for (RepairType rType : RepairType.values())
+                        if (repairConfig.isAutoRepairEnabled(rType) && repairConfig.getForceRepairNewNode(rType))
+                            AutoRepairUtilsV2.setForceRepairNewNode(rType);
                 }
                 // remove the existing info about the replaced node.
                 if (!current.isEmpty())
@@ -1475,17 +1480,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     private void doAutoRepairSetup()
     {
-        if (DatabaseDescriptor.isAutoRepairEnabled())
-        {
-            logger.info("Enable AutoRepair");
-            AutoRepair.instance.setup();
-        }
         if (DatabaseDescriptor.getAutoRepairConfig().isAutoRepairSchedulingEnabled())
         {
             logger.info("Enable auto-repair scheduling");
             AutoRepairV2.instance.setup();
         }
-        AutoRepairService.instance.setAutoRepairStatus(DatabaseDescriptor.isAutoRepairEnabled());
         logger.info("AutoRepair setup complete!");
     }
 
@@ -7420,26 +7419,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public boolean getPaxosRepairRaceWait()
     {
         return DatabaseDescriptor.getPaxosRepairRaceWait();
-    }
-    public void stopAutoRepair()
-    {
-        autoRepairStarted = false;
-    }
-
-    @Override
-    public void startAutoRepair()
-    {
-        autoRepairStarted = true;
-    }
-
-    public boolean isAutoRepairStarted()
-    {
-        return autoRepairStarted;
-    }
-
-    public boolean isAutoRepairEnabled()
-    {
-        return DatabaseDescriptor.isAutoRepairEnabled();
     }
 
     public boolean getIgnoreRepairedatEnabled()

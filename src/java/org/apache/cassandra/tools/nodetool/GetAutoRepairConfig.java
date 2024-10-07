@@ -33,8 +33,8 @@ import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 @Command(name = "getautorepairconfig", description = "Print autorepair configurations")
 public class GetAutoRepairConfig extends NodeToolCmd
 {
-    @Option(title = "v2", name = { "--v2" }, description = "Use v2 auto-repair framework")
-    protected boolean v2 = false;
+    @Option(title = "v2", name = { "--v2" }, description = "(Deprecated) Use v2 auto-repair framework")
+    protected boolean v2 = true;
 
     @VisibleForTesting
     protected static PrintStream out = System.out;
@@ -42,12 +42,6 @@ public class GetAutoRepairConfig extends NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
-        if (!v2)
-        {
-            printLegacyConfig(probe);
-            return;
-        }
-
         AutoRepairConfig config = probe.getAutoRepairConfig();
         if (config == null || !config.isAutoRepairSchedulingEnabled())
         {
@@ -67,41 +61,6 @@ public class GetAutoRepairConfig extends NodeToolCmd
         }
 
         out.println(sb.toString());
-    }
-
-    // TODO: deprecate legacy config
-    private void printLegacyConfig(NodeProbe probe)
-    {
-        if (probe.isAutoRepairEnabled())
-        {
-            StringBuilder sb = new StringBuilder();
-            sb.append("repair threads: " + probe.getRepairThreads());
-            sb.append("\nnumber of repair subranges: " + probe.getRepairSubRangeNum());
-            sb.append("\nignore keyspaces: " + probe.getRepairIgnoreKeyspaces());
-            sb.append("\nrepair only keyspaces: " + probe.getRepairOnlyKeyspaces());
-            sb.append("\npriority hosts: " + Joiner.on(',').skipNulls().join(probe.getRepairPriorityForHosts()));
-            sb.append("\nminimum repair frequency in hours: " + probe.getRepairMinFrequencyInHours());
-            sb.append("\nsstable count higher threshold: " + probe.getRepairSSTableCountHigherThreshold());
-            sb.append("\ntable max repair time in sec: " + probe
-                                                           .getAutoRepairTableMaxRepairTimeInSec());
-            sb.append("\nignore datacenters: " + Joiner.on(',').skipNulls().join(probe.getAutoRepairIgnoreDCs()));
-            sb.append("\ndatacenter groups: ");
-            for (Set<String> dcGroup : probe.getDCGroups())
-            {
-                sb.append('\n' + Joiner.on(',').skipNulls().join(dcGroup));
-            }
-            sb.append("\nauto repair history table delete hosts clear buffer in seconds: " + probe.getAutoRepairHistoryClearDeleteHostsBufferInSec());
-            sb.append("\nrepair primary token-range: " + probe.getPrimaryTokenRangeOnly());
-            sb.append("\nnumber of parallel repairs within group: " + probe.getParallelRepairCountInGroup());
-            sb.append("\npercentage of parallel repairs within group: " + probe.getParallelRepairPercentageInGroup());
-            sb.append("\nmv repair enabled: " + probe.getMVRepairEnabled());
-
-            out.println(sb.toString());
-        }
-        else
-        {
-            out.println("AutoRepair is not enabled");
-        }
     }
 
     private String formatRepairTypeConfig(NodeProbe probe, RepairType repairType, AutoRepairConfig config)

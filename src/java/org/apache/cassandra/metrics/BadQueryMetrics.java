@@ -22,7 +22,6 @@ import com.codahale.metrics.Gauge;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.monitoring.BadQuery;
-import org.apache.cassandra.repair.AutoRepair;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 

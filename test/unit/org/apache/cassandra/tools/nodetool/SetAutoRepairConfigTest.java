@@ -28,7 +28,6 @@ import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
-import org.apache.commons.math3.util.Pair;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -42,7 +41,6 @@ import org.apache.cassandra.tools.NodeProbe;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
-import static org.junit.Assert.fail;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -77,13 +75,11 @@ public class SetAutoRepairConfigTest
         {
             MockitoAnnotations.initMocks(this);
             before(probe, out);
-            cmd.v2 = true;
         }
 
         @Test
         public void testHistoryDeleteHostsClearBufferInSec()
         {
-            cmd.v2 = true;
             cmd.args = ImmutableList.of("historydeletehostsclearbufferinsec", "1");
 
             cmd.execute(probe);
@@ -102,7 +98,6 @@ public class SetAutoRepairConfigTest
         @Test
         public void testRepairMaxRetries()
         {
-            cmd.v2 = true;
             cmd.args = ImmutableList.of("repairmaxretries", "2");
 
             cmd.execute(probe);
@@ -114,24 +109,11 @@ public class SetAutoRepairConfigTest
         @Test
         public void testRetryBackoffInSec()
         {
-            cmd.v2 = true;
             cmd.args = ImmutableList.of("retrybackoffinsec", "3");
 
             cmd.execute(probe);
 
             verify(probe, times(1)).setAutoRepairRetryBackoffInSec(3);
-        }
-
-        @Test
-        public void testLegacy()
-        {
-            cmd.v2 = false;
-            cmd.args = ImmutableList.of("threads", "1");
-            when(probe.isAutoRepairEnabled()).thenReturn(true);
-
-            cmd.execute(probe);
-
-            verify(probe, times(1)).setRepairThreads(1);
         }
     }
 
@@ -177,7 +159,6 @@ public class SetAutoRepairConfigTest
         {
             when(probe.getAutoRepairConfig()).thenReturn(new AutoRepairConfig(false));
             cmd.repairType = repairType;
-            cmd.v2 = true;
             cmd.args = ImmutableList.of("threads", "1");
 
             cmd.execute(probe);
@@ -190,7 +171,6 @@ public class SetAutoRepairConfigTest
         public void testRepairTypeDisabled()
         {
             config.setAutoRepairEnabled(repairType, false);
-            cmd.v2 = true;
             cmd.repairType = repairType;
             cmd.args = ImmutableList.of("threads", "1");
 
@@ -199,32 +179,9 @@ public class SetAutoRepairConfigTest
             verify(probe, times(1)).setRepairThreads(repairType, 1);
         }
 
-
-        @Test
-        public void testV2FlagMissing()
-        {
-            cmd.v2 = false;
-            cmd.repairType = repairType;
-            cmd.args = ImmutableList.of("threads", "1");
-
-            try
-            {
-                cmd.execute(probe);
-
-                fail("expected IllegalArgumentException");
-            }
-            catch (IllegalArgumentException e)
-            {
-                // expected
-            }
-
-            verify(probe, times(0)).setRepairThreads(repairType, 0);
-        }
-
         @Test(expected = IllegalArgumentException.class)
         public void testInvalidParamType()
         {
-            cmd.v2 = true;
             cmd.repairType = repairType;
             cmd.args = ImmutableList.of("unknown_type", "1");
 
@@ -236,7 +193,6 @@ public class SetAutoRepairConfigTest
         public void testPriorityHosts()
         {
             when(probe.filterHostsInLocalGroup(repairType, ImmutableSet.of(localEndpoint, otherEndpoint))).thenReturn(ImmutableSet.of(otherEndpoint));
-            cmd.v2 = true;
             cmd.repairType = repairType;
             cmd.args = ImmutableList.of("priorityhost", String.join(",", localEndpoint.toString().substring(1), otherEndpoint.toString().substring(1)));
 
@@ -250,7 +206,6 @@ public class SetAutoRepairConfigTest
         public void testForceRepairHosts()
         {
             when(probe.filterHostsInLocalGroup(repairType, ImmutableSet.of(localEndpoint, otherEndpoint))).thenReturn(ImmutableSet.of(otherEndpoint));
-            cmd.v2 = true;
             cmd.repairType = repairType;
             cmd.args = ImmutableList.of("forcerepairhosts", String.join(",", localEndpoint.toString().substring(1), otherEndpoint.toString().substring(1)));
 
@@ -319,7 +274,6 @@ public class SetAutoRepairConfigTest
         {
             MockitoAnnotations.initMocks(this);
             before(probe, out);
-            cmd.v2 = true;
         }
 
         @Test

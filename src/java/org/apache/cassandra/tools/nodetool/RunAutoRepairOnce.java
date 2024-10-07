@@ -27,8 +27,6 @@ import org.apache.cassandra.repair.AutoRepairConfig.RepairType;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool;
 
-import static com.google.common.base.Preconditions.checkArgument;
-
 @Command(name = "runautorepaironce", description =  "Trigger auto repair once, this is non-blocking call.")
 public class RunAutoRepairOnce extends NodeTool.NodeToolCmd
 {
@@ -37,25 +35,16 @@ public class RunAutoRepairOnce extends NodeTool.NodeToolCmd
     protected Long millisToWait = null;
 
     @VisibleForTesting
-    @Option(title = "v2", name = { "--v2" }, description = "Use v2 repair framework")
-    protected boolean v2 = false;
+    @Option(title = "v2", name = { "--v2" }, description = "(Deprecated) Use v2 repair framework")
+    protected boolean v2 = true;
 
     @VisibleForTesting
-    @Option(title = "repair type", name = { "-t", "--repair-type" }, description = "Repair type")
+    @Option(title = "repair type", name = { "-t", "--repair-type" }, description = "Repair type", required = true)
     protected RepairType repairType;
 
     @Override
     public void execute(NodeProbe probe)
     {
-        checkArgument(v2 || repairType == null, "--repair-type is only supported with the -v2 option.");
-        checkArgument(!v2 || repairType != null, "--repair-type is required when using -v2 option.");
-
-        if (!v2)
-        {
-            probe.runAutoRepairOnce(millisToWait);
-            return;
-        }
-
         probe.runAutoRepairOnce(repairType, millisToWait);
     }
 }

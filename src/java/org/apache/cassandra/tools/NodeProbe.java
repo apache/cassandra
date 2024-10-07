@@ -2353,18 +2353,8 @@ public class NodeProbe implements AutoCloseable
         monitoringProxy.setBadQueryIgnoreKeyspacesPattern(badQueryIgnoreKeyspaces);
     }
 
-    public boolean isAutoRepairEnabled()
-    {
-        return autoRepairProxy.isAutoRepairEnabled();
-    }
-
     public AutoRepairConfig getAutoRepairConfig() {
         return autoRepairProxy.getAutoRepairConfig();
-    }
-
-    public void runAutoRepairOnce(long millisToWait)
-    {
-        autoRepairProxy.runAutoRepairOnce(millisToWait);
     }
 
     public void runAutoRepairOnce(RepairType type, long millisToWait)
@@ -2372,39 +2362,14 @@ public class NodeProbe implements AutoCloseable
         autoRepairProxy.runAutoRepairOnce(type, millisToWait);
     }
 
-    public void startAutoRepair()
-    {
-        autoRepairProxy.startAutoRepair();
-    }
-
-    public boolean isAutoRepairStarted()
-    {
-        return autoRepairProxy.isAutoRepairStarted();
-    }
-
-    public void stopAutoRepair()
-    {
-        autoRepairProxy.stopAutoRepair();
-    }
-
     public void setAutoRepairEnabled(RepairType repairType, boolean enabled)
     {
         autoRepairProxy.setAutoRepairEnabled(repairType, enabled);
     }
 
-    public void setRepairThreads(int repairThreads)
-    {
-        autoRepairProxy.setRepairThreads(repairThreads);
-    }
-
     public void setRepairThreads(RepairType repairType, int repairThreads)
     {
         autoRepairProxy.setRepairThreads(repairType, repairThreads);
-    }
-
-    public int getRepairThreads()
-    {
-        return autoRepairProxy.getRepairThreads();
     }
 
     public void setThrottlingOptionsEnabled(boolean enabled)
@@ -2522,19 +2487,9 @@ public class NodeProbe implements AutoCloseable
         return rateLimiterProxy.getThrottlingOptionsToString();
     }
 
-    public void setRepairPriorityForHosts(Set<InetAddressAndPort> hosts)
-    {
-        autoRepairProxy.setRepairPriorityForHosts(hosts);
-    }
-
     public void setRepairPriorityForHosts(RepairType repairType, Set<InetAddressAndPort> hosts)
     {
         autoRepairProxy.setRepairPriorityForHosts(repairType, hosts);
-    }
-
-    public Set<InetAddressAndPort> getRepairPriorityForHosts()
-    {
-        return autoRepairProxy.getRepairHostPriority();
     }
 
     public Set<InetAddressAndPort> getRepairPriorityForHosts(RepairType repairType)
@@ -2542,22 +2497,8 @@ public class NodeProbe implements AutoCloseable
         return autoRepairProxy.getRepairHostPriority(repairType);
     }
 
-    public void setForceRepairForHosts(Set<InetAddressAndPort> hosts){
-        autoRepairProxy.setForceRepairForHosts(hosts);
-    }
-
     public void setForceRepairForHosts(RepairType repairType, Set<InetAddressAndPort> hosts){
         autoRepairProxy.setForceRepairForHosts(repairType, hosts);
-    }
-
-    public int getRepairSubRangeNum()
-    {
-        return autoRepairProxy.getRepairSubRangeNum();
-    }
-
-    public void setRepairSubRangeNum(int repairSubRanges)
-    {
-        autoRepairProxy.setRepairSubRangeNum(repairSubRanges);
     }
 
     public void setRepairSubRangeNum(RepairType repairType, int repairSubRanges)
@@ -2565,29 +2506,9 @@ public class NodeProbe implements AutoCloseable
         autoRepairProxy.setRepairSubRangeNum(repairType, repairSubRanges);
     }
 
-    public int getRepairMinFrequencyInHours()
-    {
-        return autoRepairProxy.getRepairMinFrequencyInHours();
-    }
-
-    public void setRepairMinFrequencyInHours(int repairMinFrequencyInHours)
-    {
-        autoRepairProxy.setRepairMinFrequencyInHours(repairMinFrequencyInHours);
-    }
-
     public void setRepairMinIntervalInHours(RepairType repairType, int repairMinIntervalInHours)
     {
         autoRepairProxy.setRepairMinIntervalInHours(repairType, repairMinIntervalInHours);
-    }
-
-    public int getAutoRepairHistoryClearDeleteHostsBufferInSec()
-    {
-        return autoRepairProxy.getAutoRepairHistoryClearDeleteHostsBufferInSec();
-    }
-
-    public void setAutoRepairHistoryClearDeleteHostsBufferInSec(int seconds)
-    {
-        autoRepairProxy.setAutoRepairHistoryClearDeleteHostsBufferInSec(seconds);
     }
 
     public void setAutoRepairHistoryClearDeleteHostsBufferInSecV2(int seconds)
@@ -2605,29 +2526,9 @@ public class NodeProbe implements AutoCloseable
         autoRepairProxy.setAutoRepairRetryBackoffInSec(seconds);
     }
 
-    public int getRepairSSTableCountHigherThreshold()
-    {
-        return autoRepairProxy.getRepairSSTableCountHigherThreshold();
-    }
-
-    public void setRepairSSTableCountHigherThreshold(int ssTableHigherThreshold)
-    {
-        autoRepairProxy.setRepairSSTableCountHigherThreshold(ssTableHigherThreshold);
-    }
-
     public void setRepairSSTableCountHigherThreshold(RepairType repairType, int ssTableHigherThreshold)
     {
         autoRepairProxy.setRepairSSTableCountHigherThreshold(repairType, ssTableHigherThreshold);
-    }
-
-    public String getRepairIgnoreKeyspaces()
-    {
-        return autoRepairProxy.getRepairIgnoreKeyspaces() == null? "" : autoRepairProxy.getRepairIgnoreKeyspaces().toString();
-    }
-
-    public void setRepairIgnoreKeyspaces(String ignoreKeyspaceRegex)
-    {
-        autoRepairProxy.setRepairIgnoreKeyspaces(Pattern.compile(ignoreKeyspaceRegex));
     }
 
     public void setRepairIgnoreKeyspaces(RepairType repairType, String ignoreKeyspaceRegex)
@@ -2635,29 +2536,9 @@ public class NodeProbe implements AutoCloseable
         autoRepairProxy.setRepairIgnoreKeyspaces(repairType, ignoreKeyspaceRegex);
     }
 
-    public String getRepairOnlyKeyspaces()
-    {
-        return autoRepairProxy.getRepairOnlyKeyspaces() == null? "" : autoRepairProxy.getRepairOnlyKeyspaces().toString();
-    }
-
-    public void setRepairOnlyKeyspaces(String repairOnlyKeyspacesRegex)
-    {
-        autoRepairProxy.setRepairOnlyKeyspaces(Pattern.compile(repairOnlyKeyspacesRegex));
-    }
-
     public void setRepairOnlyKeyspaces(RepairType repairType, String repairOnlyKeyspacesRegex)
     {
         autoRepairProxy.setRepairOnlyKeyspaces(repairType, repairOnlyKeyspacesRegex);
-    }
-
-    public long getAutoRepairTableMaxRepairTimeInSec()
-    {
-        return autoRepairProxy.getAutoRepairTableMaxRepairTimeInSec();
-    }
-
-    public void setAutoRepairTableMaxRepairTimeInSec(long autoRepairTableMaxRepairTimeInSec)
-    {
-        autoRepairProxy.setAutoRepairTableMaxRepairTimeInSec(autoRepairTableMaxRepairTimeInSec);
     }
 
     public void setAutoRepairTableMaxRepairTimeInSec(RepairType repairType, long autoRepairTableMaxRepairTimeInSec)
@@ -2665,28 +2546,9 @@ public class NodeProbe implements AutoCloseable
         autoRepairProxy.setAutoRepairTableMaxRepairTimeInSec(repairType, autoRepairTableMaxRepairTimeInSec);
     }
 
-    public Set<String> getAutoRepairIgnoreDCs()
-    {
-        return autoRepairProxy.getIgnoreDCs();
-    }
-
-    public void setAutoRepairIgnoreDCs(Set<String> ignoreDCs)
-    {
-        autoRepairProxy.setIgnoreDCs(ignoreDCs);
-    }
-
     public void setAutoRepairIgnoreDCs(RepairType repairType, Set<String> ignoreDCs)
     {
         autoRepairProxy.setIgnoreDCs(repairType, ignoreDCs);
-    }
-
-    public Set<Set<String>> getDCGroups() {
-        return autoRepairProxy.getDCGroups();
-    }
-
-    public Set<String> getOnGoingRepairHostIdsByGroupHash(int groupHash)
-    {
-        return autoRepairProxy.getOnGoingRepairHostIdsByGroupHash(groupHash);
     }
 
     public Set<String> getOnGoingRepairHostIdsByGroupHash(RepairType type, int groupHash)
@@ -2694,72 +2556,22 @@ public class NodeProbe implements AutoCloseable
         return autoRepairProxy.getOnGoingRepairHostIdsByGroupHash(type, groupHash);
     }
 
-    public Set<String> getOnGoingForceRepairHostIdsByGroupHash(int groupHash)
-    {
-        return autoRepairProxy.getOnGoingForceRepairHostIdsByGroupHash(groupHash);
-    }
-
     public Set<String> getOnGoingForceRepairHostIdsByGroupHash(RepairType type, int groupHash)
     {
         return autoRepairProxy.getOnGoingForceRepairHostIdsByGroupHash(type, groupHash);
-    }
-
-    public void setDCGourps(Set<Set<String>> dcGourps) {
-        autoRepairProxy.setDCGourps(dcGourps);
-    }
-
-    public TreeSet<UUID> getCurrentRingHostIds()
-    {
-        return autoRepairProxy.getCurrentRingHostIds();
-    }
-
-    public int getParallelRepairPercentageInGroup() {
-        return autoRepairProxy.getParallelRepairPercentageInGroup();
-    }
-
-    public void setParallelRepairPercentageInGroup(int percentageInGroup) {
-        autoRepairProxy.setParallelRepairPercentageInGroup(percentageInGroup);
     }
 
     public void setParallelRepairPercentageInGroup(RepairType repairType, int percentageInGroup) {
         autoRepairProxy.setParallelRepairPercentageInGroup(repairType, percentageInGroup);
     }
 
-    public int getParallelRepairCountInGroup() {
-        return autoRepairProxy.getParallelRepairCountInGroup();
-    }
-
-    public void setParallelRepairCountInGroup(int countInGroup) {
-        autoRepairProxy.setParallelRepairCountInGroup(countInGroup);
-    }
-
     public void setParallelRepairCountInGroup(RepairType repairType, int countInGroup) {
         autoRepairProxy.setParallelRepairCountInGroup(repairType, countInGroup);
-    }
-
-    public boolean getPrimaryTokenRangeOnly()
-    {
-        return autoRepairProxy.getRepairPrimaryTokenRangeOnly();
-    }
-
-    public void setPrimaryTokenRangeOnly(boolean primaryTokenRangeOnly)
-    {
-        autoRepairProxy.setPrimaryTokenRangeOnly(primaryTokenRangeOnly);
     }
 
     public void setPrimaryTokenRangeOnly(RepairType repairType, boolean primaryTokenRangeOnly)
     {
         autoRepairProxy.setPrimaryTokenRangeOnly(repairType, primaryTokenRangeOnly);
-    }
-
-    public boolean getMVRepairEnabled()
-    {
-        return autoRepairProxy.getMVRepairEnabled();
-    }
-
-    public void setMVRepairEnabled(boolean enabled)
-    {
-        autoRepairProxy.setMVRepairEnabled(enabled);
     }
 
     public void setMVRepairEnabled(RepairType repairType, boolean enabled)

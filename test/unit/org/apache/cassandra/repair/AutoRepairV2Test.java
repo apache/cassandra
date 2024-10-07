@@ -125,10 +125,4 @@ public class AutoRepairV2Test extends CQLTester
             }
         }
     }
-
-    @Test
-    public void testDefaultMVRepairEnabled()
-    {
-        Assert.assertTrue("Expected MV repair to be enabled by default", DatabaseDescriptor.getMVRepairEnabled());
-    }
 }

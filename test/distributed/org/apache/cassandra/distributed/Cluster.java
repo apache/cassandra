@@ -21,6 +21,8 @@ package org.apache.cassandra.distributed;
 import java.io.IOException;
 import java.util.function.Consumer;
 
+import com.google.common.collect.ImmutableMap;
+
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.impl.AbstractCluster;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
@@ -69,7 +71,7 @@ public class Cluster extends AbstractCluster<IInvokableInstance>
             super(Cluster::new);
             withVersion(CURRENT_VERSION);
             this.appendConfig(c -> {
-                c.set("auto_repair_enabled", false);
+                c.set("auto_repair", ImmutableMap.of("enabled", false));
                 c.set("block_unqualified_prepared_statement_enabled", false);
             });
         }

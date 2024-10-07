@@ -72,14 +72,6 @@ public class AutoRepairStatusTest
         when(probe.output()).thenReturn(new Output(out, out));
         when(probe.getAutoRepairConfig()).thenReturn(config);
         cmd = new AutoRepairStatus();
-        cmd.v2 = true;
-    }
-
-    @Test(expected = IllegalArgumentException.class)
-    public void testExecuteWithoutRepairType()
-    {
-        cmd.repairType = null;
-        cmd.execute(probe);
     }
 
     @Test
