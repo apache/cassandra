@@ -40,8 +40,8 @@ public class AccordSpec
     // TODO (expected): we should be able to support lower recover delays, at least for txns
     public volatile DurationSpec.IntMillisecondsBound recover_delay = new DurationSpec.IntMillisecondsBound(5000);
     public volatile DurationSpec.IntMillisecondsBound range_sync_recover_delay = new DurationSpec.IntMillisecondsBound(10000);
-    public String slowPreAccept = "10ms <= p50*2 <= 100ms";
-    public String slowRead = "10ms <= p50*2 <= 100ms";
+    public String slowPreAccept = "100ms <= p50*2 <= 1000ms";
+    public String slowRead = "100ms <= p50*2 <= 1000ms";
 
     public long recoveryDelayFor(TxnId txnId, TimeUnit unit)
     {
