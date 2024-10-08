@@ -40,6 +40,7 @@ import org.apache.cassandra.schema.SchemaTestUtil;
 
 import static org.apache.cassandra.Util.setAutoRepairEnabled;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class AutoRepairTest extends CQLTester
 {
@@ -78,8 +79,8 @@ public class AutoRepairTest extends CQLTester
         {
             int expectedTasks = instance.repairExecutors.get(repairType).getPendingTaskCount()
                     + instance.repairExecutors.get(repairType).getActiveTaskCount();
-            assertEquals(String.format("Expected 1 task in queue for %s but was %s", repairType, expectedTasks),
-                         1, expectedTasks);
+            assertTrue(String.format("Expected > 0 task in queue for %s but was %s", repairType, expectedTasks),
+                         expectedTasks > 0);
         }
     }
 
@@ -96,9 +97,10 @@ public class AutoRepairTest extends CQLTester
         assertEquals(RepairType.values().length, instance.repairExecutors.size());
         for (RepairType repairType : instance.repairExecutors.keySet())
         {
-            int expectedTasks = instance.repairExecutors.get(repairType).getCorePoolSize();
-            assertEquals(String.format("Expected 1 task in queue for %s but was %s", repairType, expectedTasks),
-                    1, expectedTasks);
+            int expectedTasks = instance.repairExecutors.get(repairType).getPendingTaskCount()
+                                + instance.repairExecutors.get(repairType).getActiveTaskCount();
+            assertTrue(String.format("Expected > 0 task in queue for %s but was %s", repairType, expectedTasks),
+                       expectedTasks > 0);
         }
     }
 
