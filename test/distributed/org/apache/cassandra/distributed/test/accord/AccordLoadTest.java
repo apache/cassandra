@@ -40,6 +40,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.IMessage;
 import org.apache.cassandra.distributed.api.IMessageFilters;
@@ -61,7 +62,7 @@ public class AccordLoadTest extends AccordTestBase
     public static void setUp() throws IOException
     {
         CassandraRelevantProperties.SIMULATOR_STARTED.setString(Long.toString(MILLISECONDS.toSeconds(currentTimeMillis())));
-        AccordTestBase.setupCluster(builder -> builder, 3);
+        AccordTestBase.setupCluster(builder -> builder.withConfig(config -> config.with(Feature.values())), 3);
     }
 
     @Ignore
@@ -92,6 +93,7 @@ public class AccordLoadTest extends AccordTestBase
                  final int repairInterval = 3000;
                  final int compactionInterval = 3000;
                  final int flushInterval = 1000;
+                 final int restartInterval = 10_000;
                  final int batchSizeLimit = 1000;
                  final long batchTime = TimeUnit.SECONDS.toNanos(10);
                  final int concurrency = 100;
@@ -101,6 +103,7 @@ public class AccordLoadTest extends AccordTestBase
                  long nextRepairAt = repairInterval;
                  long nextCompactionAt = compactionInterval;
                  long nextFlushAt = flushInterval;
+                 long nextRestartAt = restartInterval;
                  final BitSet initialised = new BitSet();
 
                  Random random = new Random();
@@ -168,7 +171,6 @@ public class AccordLoadTest extends AccordTestBase
                                  ((AccordService) AccordService.instance()).journal().checkAllCommands();
                              });
                          });
-
                      }
 
                      if ((nextFlushAt -= batchSize) <= 0)
@@ -179,6 +181,15 @@ public class AccordLoadTest extends AccordTestBase
                              ((AccordService) AccordService.instance()).journal().closeCurrentSegmentForTestingIfNonEmpty();
                              ((AccordService) AccordService.instance()).journal().checkAllCommands();
                          }));
+                     }
+
+                     if ((nextRestartAt -= batchSize) <= 0)
+                     {
+                         nextRestartAt += flushInterval;
+                         int nodeIdx = random.nextInt(cluster.size());
+                         System.out.printf("restarting node %d...\n", nodeIdx);
+                         cluster.get(nodeIdx).shutdown().get();
+                         cluster.get(nodeIdx).startup();
                      }
 
                      final Date date = new Date();

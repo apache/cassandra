@@ -21,9 +21,9 @@ package org.apache.cassandra.service.accord.repair;
 import java.util.HashSet;
 import java.util.Set;
 
-import accord.coordinate.tracking.AbstractSimpleTracker;
 import accord.coordinate.tracking.RequestStatus;
 import accord.coordinate.tracking.ShardTracker;
+import accord.coordinate.tracking.SimpleTracker;
 import accord.local.Node;
 import accord.topology.Shard;
 import accord.topology.Topologies;
@@ -32,7 +32,7 @@ import static accord.coordinate.tracking.AbstractTracker.ShardOutcomes.Fail;
 import static accord.coordinate.tracking.AbstractTracker.ShardOutcomes.NoChange;
 import static accord.coordinate.tracking.AbstractTracker.ShardOutcomes.Success;
 
-public class RequiredResponseTracker extends AbstractSimpleTracker<RequiredResponseTracker.RequiredResponseShardTracker>
+public class RequiredResponseTracker extends SimpleTracker<RequiredResponseTracker.RequiredResponseShardTracker>
 {
     public static class RequiredResponseShardTracker extends ShardTracker
     {

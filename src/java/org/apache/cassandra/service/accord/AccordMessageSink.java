@@ -56,7 +56,6 @@ import org.apache.cassandra.net.ResponseContext;
 import org.apache.cassandra.net.Verb;
 
 import static accord.messages.MessageType.Kind.REMOTE;
-import static java.util.concurrent.TimeUnit.MICROSECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 public class AccordMessageSink implements MessageSink
