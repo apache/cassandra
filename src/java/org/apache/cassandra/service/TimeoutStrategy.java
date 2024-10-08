@@ -41,6 +41,7 @@ import static java.lang.Math.min;
 import static java.lang.Math.pow;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
 import static java.util.concurrent.TimeUnit.MINUTES;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
@@ -257,14 +258,14 @@ public class TimeoutStrategy
         this.wait = parseWait(spec, latencies);
     }
 
-    public long computeWait(int attempts)
+    public long computeWait(int attempts, TimeUnit units)
     {
-        return wait.get(attempts);
+        return units.convert(wait.get(attempts), MICROSECONDS);
     }
 
     public long computeWaitUntil(int attempts)
     {
-        long nanos = wait.get(attempts);
+        long nanos = computeWait(attempts, NANOSECONDS);
         return nanoTime() + nanos;
     }
 

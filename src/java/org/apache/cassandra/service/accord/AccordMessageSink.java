@@ -57,6 +57,7 @@ import org.apache.cassandra.net.Verb;
 
 import static accord.messages.MessageType.Kind.REMOTE;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 public class AccordMessageSink implements MessageSink
 {
@@ -259,12 +260,12 @@ public class AccordMessageSink implements MessageSink
     @Override
     public void send(Node.Id to, Request request, AgentExecutor executor, Callback callback)
     {
+        long nowNanos = Clock.Global.nanoTime();
         Verb verb = getVerb(request);
         Preconditions.checkNotNull(verb, "Verb is null for type %s", request.type());
         Message<Request> message;
         if (isRangeBarrier(request))
         {
-            long nowNanos = Clock.Global.nanoTime();
             message = Message.out(verb, request, nowNanos + DatabaseDescriptor.getAccordRangeBarrierTimeoutNanos());
         }
         else
@@ -273,26 +274,26 @@ public class AccordMessageSink implements MessageSink
         }
         InetAddressAndPort endpoint = endpointMapper.mappedEndpoint(to);
         logger.trace("Sending {} {} to {}", verb, message.payload, endpoint);
-        long expiresAfterMicros = verb.expiresAfter(MICROSECONDS);
+        long expiresAtNanos = message.expiresAtNanos();
         switch (verb)
         {
             case ACCORD_READ_REQ:
             {
-                long delayedAfterMicros = Long.MAX_VALUE;
-                if (slowRead != null && !isRangeBarrier(request)) delayedAfterMicros = slowRead.computeWait(1);
-                callbacks.register(message.id(), executor, callback, to, delayedAfterMicros, expiresAfterMicros, MICROSECONDS);
+                long delayedAtNanos = Long.MAX_VALUE;
+                if (slowRead != null && !isRangeBarrier(request)) delayedAtNanos = nowNanos + slowRead.computeWait(1, NANOSECONDS);
+                callbacks.register(message.id(), executor, callback, to, nowNanos, delayedAtNanos, expiresAtNanos, NANOSECONDS);
                 break;
             }
             case ACCORD_PRE_ACCEPT_REQ:
             {
-                long delayedAfterMicros = Long.MAX_VALUE;
-                if (slowPreaccept != null && !isRangeBarrier(request)) delayedAfterMicros = slowPreaccept.computeWait(1);
-                callbacks.register(message.id(), executor, callback, to, delayedAfterMicros, expiresAfterMicros, MICROSECONDS);
+                long delayedAtNanos = Long.MAX_VALUE;
+                if (slowPreaccept != null && !isRangeBarrier(request)) delayedAtNanos = slowPreaccept.computeWait(1, NANOSECONDS);
+                callbacks.register(message.id(), executor, callback, to, delayedAtNanos, expiresAtNanos, NANOSECONDS);
                 break;
             }
             default:
             {
-                callbacks.register(message.id(), executor, callback, to, expiresAfterMicros, MICROSECONDS);
+                callbacks.register(message.id(), executor, callback, to, expiresAtNanos, NANOSECONDS);
             }
         }
         messaging.send(message, endpoint);
