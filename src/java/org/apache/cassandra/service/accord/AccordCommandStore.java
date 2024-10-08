@@ -309,7 +309,6 @@ public class AccordCommandStore extends CommandStore
         journal.persistStoreState(id, fieldUpdates, onFlush);
     }
 
-
     @Nullable
     @VisibleForTesting
     public void appendToLog(Command before, Command after, Runnable onFlush)

@@ -63,18 +63,18 @@ public class SavedCommand
     // This enum is order-dependent
     public enum Fields
     {
+        PARTICIPANTS, // stored first so we can index it
+        SAVE_STATUS,
+        PARTIAL_DEPS,
         EXECUTE_AT,
         EXECUTES_AT_LEAST,
-        SAVE_STATUS,
         DURABILITY,
         ACCEPTED,
         PROMISED,
-        PARTICIPANTS,
-        PARTIAL_TXN,
-        PARTIAL_DEPS,
         WAITING_ON,
+        PARTIAL_TXN,
         WRITES,
-        CLEANUP
+        CLEANUP,
         ;
 
         public static final Fields[] FIELDS = values();
