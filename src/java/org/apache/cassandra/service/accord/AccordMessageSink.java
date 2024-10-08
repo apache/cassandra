@@ -279,14 +279,14 @@ public class AccordMessageSink implements MessageSink
             case ACCORD_READ_REQ:
             {
                 long delayedAfterMicros = Long.MAX_VALUE;
-//                if (slowRead != null) delayedAfterMicros = slowRead.computeWait(1);
+                if (slowRead != null && !isRangeBarrier(request)) delayedAfterMicros = slowRead.computeWait(1);
                 callbacks.register(message.id(), executor, callback, to, delayedAfterMicros, expiresAfterMicros, MICROSECONDS);
                 break;
             }
             case ACCORD_PRE_ACCEPT_REQ:
             {
                 long delayedAfterMicros = Long.MAX_VALUE;
-//                if (slowPreaccept != null) delayedAfterMicros = slowPreaccept.computeWait(1);
+                if (slowPreaccept != null && !isRangeBarrier(request)) delayedAfterMicros = slowPreaccept.computeWait(1);
                 callbacks.register(message.id(), executor, callback, to, delayedAfterMicros, expiresAfterMicros, MICROSECONDS);
                 break;
             }

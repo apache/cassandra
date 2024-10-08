@@ -61,7 +61,7 @@ public class AccordLoadTest extends AccordTestBase
     public static void setUp() throws IOException
     {
         CassandraRelevantProperties.SIMULATOR_STARTED.setString(Long.toString(MILLISECONDS.toSeconds(currentTimeMillis())));
-        AccordTestBase.setupCluster(builder -> builder, 2);
+        AccordTestBase.setupCluster(builder -> builder, 3);
     }
 
     @Ignore
@@ -82,6 +82,7 @@ public class AccordLoadTest extends AccordTestBase
                     }
                 }).drop();
 
+                 cluster.get(1).nodetoolResult("cms", "reconfigure", "3").asserts().success();
                  cluster.forEach(i -> i.runOnInstance(() -> {
                      ((AccordService) AccordService.instance()).journal().compactor().updateCompactionPeriod(1, SECONDS);
 //                     ((AccordSpec.JournalSpec)((AccordService) AccordService.instance()).journal().configuration()).segmentSize = 128 << 10;
