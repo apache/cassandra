@@ -85,7 +85,6 @@ import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.journal.KeySupport;
 import org.apache.cassandra.metrics.TopPartitionTracker;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.CompactionParams.TombstoneOption;
@@ -110,7 +109,6 @@ import org.apache.cassandra.service.paxos.uncommitted.PaxosRows;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static accord.local.Cleanup.ERASE;
-import static accord.local.Cleanup.TRUNCATE;
 import static accord.local.Cleanup.TRUNCATE_WITH_OUTCOME;
 import static accord.local.Cleanup.shouldCleanupPartial;
 import static com.google.common.base.Preconditions.checkState;
@@ -1020,7 +1018,6 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         final Int2ObjectHashMap<CommandStores.RangesForEpoch> ranges;
         final ColumnMetadata recordColumn;
         final ColumnMetadata versionColumn;
-        final KeySupport<JournalKey> keySupport = JournalKey.SUPPORT;
         final AccordService service;
 
         JournalKey key = null;
@@ -1051,7 +1048,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         @Override
         protected void beginPartition(UnfilteredRowIterator partition)
         {
-            key = keySupport.deserialize(partition.partitionKey().getKey(), 0, userVersion);
+            key = AccordKeyspace.JournalColumns.getJournalKey(partition.partitionKey());
             serializer = (AccordJournalValueSerializers.FlyweightSerializer<Object, Object>) key.type.serializer;
             builder = serializer.mergerFor(key);
             maxSeenTimestamp = -1;

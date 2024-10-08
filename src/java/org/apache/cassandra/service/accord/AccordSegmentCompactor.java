@@ -36,7 +36,6 @@ import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableTxnWriter;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.journal.KeySupport;
 import org.apache.cassandra.journal.SegmentCompactor;
 import org.apache.cassandra.journal.StaticSegment;
 import org.apache.cassandra.journal.StaticSegment.KeyOrderReader;
@@ -49,12 +48,10 @@ public class AccordSegmentCompactor<V> implements SegmentCompactor<JournalKey, V
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordSegmentCompactor.class);
     private final int userVersion;
-    private final KeySupport<JournalKey> keySupport;
 
-    public AccordSegmentCompactor(KeySupport<JournalKey> keySupport, int userVersion)
+    public AccordSegmentCompactor(int userVersion)
     {
         this.userVersion = userVersion;
-        this.keySupport = keySupport;
     }
 
     @Override
@@ -148,7 +145,7 @@ public class AccordSegmentCompactor<V> implements SegmentCompactor<JournalKey, V
     {
         if (builder != null)
         {
-            SimpleBuilder partitionBuilder = PartitionUpdate.simpleBuilder(AccordKeyspace.Journal, AccordJournalTable.makePartitionKey(cfs, key, keySupport, userVersion));
+            SimpleBuilder partitionBuilder = PartitionUpdate.simpleBuilder(AccordKeyspace.Journal, AccordKeyspace.JournalColumns.decorate(key));
             try (DataOutputBuffer out = DataOutputBuffer.scratchBuffer.get())
             {
                 serializer.reserialize(key, builder, out, userVersion);

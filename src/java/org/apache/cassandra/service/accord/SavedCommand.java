@@ -35,6 +35,7 @@ import accord.local.StoreParticipants;
 import accord.primitives.Ballot;
 import accord.primitives.PartialDeps;
 import accord.primitives.PartialTxn;
+import accord.primitives.Route;
 import accord.primitives.SaveStatus;
 import accord.primitives.Status;
 import accord.primitives.Timestamp;
@@ -57,6 +58,7 @@ import static accord.primitives.Known.KnownDeps.DepsUnknown;
 import static accord.primitives.Known.KnownDeps.NoDeps;
 import static accord.primitives.Status.Durability.NotDurable;
 import static accord.utils.Invariants.illegalState;
+import static org.apache.cassandra.service.accord.SavedCommand.Fields.PARTICIPANTS;
 
 public class SavedCommand
 {
@@ -233,7 +235,7 @@ public class SavedCommand
         flags = collectFlags(before, after, Command::acceptedOrCommitted, false, Fields.ACCEPTED, flags);
         flags = collectFlags(before, after, Command::promised, false, Fields.PROMISED, flags);
 
-        flags = collectFlags(before, after, Command::participants, true, Fields.PARTICIPANTS, flags);
+        flags = collectFlags(before, after, Command::participants, true, PARTICIPANTS, flags);
         flags = collectFlags(before, after, Command::partialTxn, false, Fields.PARTIAL_TXN, flags);
         flags = collectFlags(before, after, Command::partialDeps, false, Fields.PARTIAL_DEPS, flags);
 
@@ -540,7 +542,7 @@ public class SavedCommand
             }
             if (participants != null)
             {
-                builder.flags = setFieldChanged(Fields.PARTICIPANTS, builder.flags);
+                builder.flags = setFieldChanged(PARTICIPANTS, builder.flags);
                 builder.participants = participants;
             }
             if (includeOutcome && builder.writes != null)
@@ -577,6 +579,16 @@ public class SavedCommand
                 serialize(out, userVersion);
                 return out.asNewBuffer();
             }
+        }
+
+        public static Route<?> deserializeRouteOrNull(DataInputPlus in, int userVersion) throws IOException
+        {
+            int flags = in.readInt();
+
+            if (!getFieldChanged(PARTICIPANTS, flags) || getFieldIsNull(PARTICIPANTS, flags))
+                return null;
+
+            return CommandSerializers.participants.deserializeRouteOnly(in, userVersion);
         }
 
         public void serialize(DataOutputPlus out, int userVersion) throws IOException

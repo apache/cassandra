@@ -113,7 +113,7 @@ public class AccordJournal implements IJournal, Shutdownable
                                              throw new UnsupportedOperationException();
                                          }
                                      },
-                                     new AccordSegmentCompactor<>(JournalKey.SUPPORT, params.userVersion()));
+                                     new AccordSegmentCompactor<>(params.userVersion()));
         this.journalTable = new AccordJournalTable<>(journal, JournalKey.SUPPORT, params.userVersion());
         this.params = params;
     }
