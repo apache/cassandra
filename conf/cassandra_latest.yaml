@@ -240,7 +240,7 @@ network_authorizer:
 #   increase system_auth keyspace replication factor if you use this authorizer, otherwise any changes to
 #   system_auth tables being used by this feature may be lost when a host goes down.
 cidr_authorizer:
-  class_name: AllowAllCIDRAuthorizer
+  class_name: org.apache.cassandra.auth.AllowAllCIDRAuthorizer
   # Below parameters are used only when CIDR authorizer is enabled
   # parameters:
     # CIDR authorizer when enabled, i.e, CassandraCIDRAuthorizer, is applicable for non-superusers only by default.

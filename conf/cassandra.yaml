@@ -189,7 +189,8 @@ authenticator:
 # - AllowAllAuthorizer allows any action to any user - set it to disable authorization.
 # - CassandraAuthorizer stores permissions in system_auth.role_permissions table. Please
 #   increase system_auth keyspace replication factor if you use this authorizer.
-authorizer: AllowAllAuthorizer
+authorizer:
+  class_name: org.apache.cassandra.auth.AllowAllAuthorizer
 
 # Part of the Authentication & Authorization backend, implementing IRoleManager; used
 # to maintain grants and memberships between roles.
@@ -204,7 +205,8 @@ authorizer: AllowAllAuthorizer
 #
 # - CassandraRoleManager stores role data in the system_auth keyspace. Please
 #   increase system_auth keyspace replication factor if you use this role manager.
-role_manager: CassandraRoleManager
+role_manager:
+  class_name: org.apache.cassandra.auth.CassandraRoleManager
 
 # Network authorization backend, implementing INetworkAuthorizer; used to restrict user
 # access to certain DCs
@@ -218,7 +220,8 @@ role_manager: CassandraRoleManager
 # - AllowAllNetworkAuthorizer allows access to any DC to any user - set it to disable authorization.
 # - CassandraNetworkAuthorizer stores permissions in system_auth.network_permissions table. Please
 #   increase system_auth keyspace replication factor if you use this authorizer.
-network_authorizer: AllowAllNetworkAuthorizer
+network_authorizer:
+  class_name: org.apache.cassandra.auth.AllowAllNetworkAuthorizer
 
 # CIDR authorization backend, implementing ICIDRAuthorizer; used to restrict user
 # access from certain CIDRs
@@ -234,7 +237,7 @@ network_authorizer: AllowAllNetworkAuthorizer
 #   increase system_auth keyspace replication factor if you use this authorizer, otherwise any changes to
 #   system_auth tables being used by this feature may be lost when a host goes down.
 cidr_authorizer:
-  class_name: AllowAllCIDRAuthorizer
+  class_name: org.apache.cassandra.auth.AllowAllCIDRAuthorizer
   # Below parameters are used only when CIDR authorizer is enabled
   # parameters:
     # CIDR authorizer when enabled, i.e, CassandraCIDRAuthorizer, is applicable for non-superusers only by default.
