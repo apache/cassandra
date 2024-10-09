@@ -36,6 +36,7 @@ import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.service.AutoRepairService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.PreviewKind;
+import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.apache.cassandra.utils.progress.ProgressEvent;
 import org.apache.cassandra.utils.progress.ProgressEventType;
@@ -60,7 +61,7 @@ public abstract class AutoRepairState implements ProgressListener
     protected static final Logger logger = LoggerFactory.getLogger(AutoRepairState.class);
     private final SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss,SSS");
     @VisibleForTesting
-    protected static Supplier<Long> timeFunc = System::currentTimeMillis;
+    protected static Supplier<Long> timeFunc = Clock.Global::currentTimeMillis;
 
     @VisibleForTesting
     protected final RepairType repairType;

@@ -29,7 +29,6 @@ import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.EndpointsByReplica;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
 import org.apache.cassandra.repair.autorepair.AutoRepairUtils;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.StorageService;
