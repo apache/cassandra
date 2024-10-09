@@ -39,6 +39,7 @@ import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.repair.autorepair.AutoRepair;
 import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
+import org.apache.cassandra.service.AutoRepairService;
 
 import static org.apache.cassandra.schema.SchemaConstants.DISTRIBUTED_KEYSPACE_NAME;
 import static org.junit.Assert.assertEquals;
@@ -100,6 +101,7 @@ public class AutoRepairSchedulerTest extends TestBaseImpl
         cluster.forEach(i -> i.runOnInstance(() -> {
             try
             {
+                AutoRepairService.instance.setup();
                 DatabaseDescriptor.setCDCOnRepairEnabled(false);
                 AutoRepair.instance.setup();
             }
