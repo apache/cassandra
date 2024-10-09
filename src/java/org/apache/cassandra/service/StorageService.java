@@ -86,6 +86,7 @@ import com.google.common.util.concurrent.RateLimiter;
 import com.google.common.util.concurrent.Uninterruptibles;
 
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
 import org.apache.cassandra.repair.autorepair.AutoRepairKeyspace;
 import org.apache.cassandra.repair.autorepair.AutoRepair;
 import org.apache.commons.lang3.StringUtils;
@@ -174,6 +175,7 @@ import org.apache.cassandra.net.AsyncOneResponse;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.RepairRunnable;
+import org.apache.cassandra.repair.autorepair.AutoRepairUtils;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.schema.CompactionParams.TombstoneOption;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -1211,6 +1213,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             if (dataAvailable)
             {
                 finishJoiningRing(shouldBootstrap, bootstrapTokens);
+                AutoRepairConfig repairConfig = DatabaseDescriptor.getAutoRepairConfig();
+                // this node might have just bootstrapped; check if we should run repair immediately
+                if (shouldBootstrap && repairConfig.isAutoRepairSchedulingEnabled())
+                {
+                    for (AutoRepairConfig.RepairType rType : AutoRepairConfig.RepairType.values())
+                        if (repairConfig.isAutoRepairEnabled(rType) && repairConfig.getForceRepairNewNode(rType))
+                            AutoRepairUtils.setForceRepairNewNode(rType);
+                }
                 // remove the existing info about the replaced node.
                 if (!current.isEmpty())
                 {
