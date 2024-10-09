@@ -119,7 +119,6 @@ public class AutoRepair
                 return;
             }
             AutoRepairConfig config = DatabaseDescriptor.getAutoRepairConfig();
-            AutoRepairService.setup();
             AutoRepairUtils.setup();
 
             for (AutoRepairConfig.RepairType repairType : AutoRepairConfig.RepairType.values())
