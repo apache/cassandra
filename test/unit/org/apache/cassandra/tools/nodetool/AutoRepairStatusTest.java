@@ -48,9 +48,6 @@ public class AutoRepairStatusTest
 
     private ByteArrayOutputStream cmdOutput;
 
-    @Mock
-    private static AutoRepairConfig config;
-
     private static AutoRepairStatus cmd;
 
     @Parameterized.Parameter()
