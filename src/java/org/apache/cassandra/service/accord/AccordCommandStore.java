@@ -624,10 +624,7 @@ public class AccordCommandStore extends CommandStore
                          safeStore -> {
                              SafeCommand safeCommand = safeStore.unsafeGet(txnId);
                              Command local = safeCommand.current();
-                             if (local.is(Stable) || local.is(PreApplied))
-                                 Commands.maybeExecute(safeStore, safeCommand, local, true, true);
-                             else if (local.saveStatus().compareTo(Applying) >= 0 && !local.hasBeen(Truncated))
-                                 Commands.applyWrites(safeStore, context, local).begin(agent);
+                             Commands.maybeExecute(safeStore, safeCommand, local, true, true);
                          })
                 .begin((unused, throwable) -> {
                     if (throwable != null)

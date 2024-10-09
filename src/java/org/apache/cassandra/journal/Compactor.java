@@ -45,7 +45,7 @@ public final class Compactor<K, V> implements Runnable, Shutdownable
 
     synchronized void start()
     {
-        if (!journal.params.enableCompaction())
+        if (journal.params.enableCompaction())
             schedule(journal.params.compactionPeriodMillis(), TimeUnit.MILLISECONDS);
     }
 
