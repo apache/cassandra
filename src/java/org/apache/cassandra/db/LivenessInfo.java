@@ -359,8 +359,12 @@ public class LivenessInfo implements IMeasurableMemory
         public void digest(Digest digest)
         {
             super.digest(digest);
-            digest.updateWithLong(localExpirationTime)
-                  .updateWithInt(ttl);
+
+            // As of 5.0, local expiration times are encoded as unsigned integers on disk, so we can do the
+            // same thing here to populate the digest. This supports extended TTLs, but also maintains digest
+            // compatibility with previous versions, avoiding false digest mismatches during upgrades.
+            digest.updateWithInt(Cell.deletionTimeLongToUnsignedInteger(localExpirationTime));
+            digest.updateWithInt(ttl);
         }
 
         @Override
