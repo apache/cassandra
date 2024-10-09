@@ -38,6 +38,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.repair.RepairRunnable;
 import org.apache.cassandra.schema.AutoRepairParams;
+import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.Pair;
@@ -170,8 +171,8 @@ public class AutoRepairParameterizedTest extends CQLTester
         Keyspace.open(KEYSPACE).getColumnFamilyStore(MV).truncateBlocking();
         Keyspace.open(KEYSPACE).getColumnFamilyStore(MV).disableAutoCompaction();
 
-        Keyspace.open(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME).getColumnFamilyStore(AutoRepairKeyspace.AUTO_REPAIR_PRIORITY).truncateBlocking();
-        Keyspace.open(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME).getColumnFamilyStore(AutoRepairKeyspace.AUTO_REPAIR_HISTORY).truncateBlocking();
+        Keyspace.open(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME).getColumnFamilyStore(SystemDistributedKeyspace.AUTO_REPAIR_PRIORITY).truncateBlocking();
+        Keyspace.open(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME).getColumnFamilyStore(SystemDistributedKeyspace.AUTO_REPAIR_HISTORY).truncateBlocking();
 
 
         AutoRepair.instance = new AutoRepair();
@@ -224,7 +225,7 @@ public class AutoRepairParameterizedTest extends CQLTester
         QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, s) VALUES ('k', 's')");
         QueryProcessor.executeInternal("SELECT s FROM ks.tbl WHERE k='k'");
         Keyspace.open(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME)
-                .getColumnFamilyStore(AutoRepairKeyspace.AUTO_REPAIR_PRIORITY)
+                .getColumnFamilyStore(SystemDistributedKeyspace.AUTO_REPAIR_PRIORITY)
                 .forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
     }
 

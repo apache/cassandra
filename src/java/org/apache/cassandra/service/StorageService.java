@@ -87,7 +87,6 @@ import com.google.common.util.concurrent.Uninterruptibles;
 
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
-import org.apache.cassandra.repair.autorepair.AutoRepairKeyspace;
 import org.apache.cassandra.repair.autorepair.AutoRepair;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -1377,10 +1376,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         Schema.instance.transform(SchemaTransformations.updateSystemKeyspace(TraceKeyspace.metadata(), TraceKeyspace.GENERATION));
         Schema.instance.transform(SchemaTransformations.updateSystemKeyspace(SystemDistributedKeyspace.metadata(), SystemDistributedKeyspace.GENERATION));
         Schema.instance.transform(SchemaTransformations.updateSystemKeyspace(AuthKeyspace.metadata(), AuthKeyspace.GENERATION));
-        if (DatabaseDescriptor.getAutoRepairConfig().isAutoRepairSchedulingEnabled())
-        {
-            Schema.instance.transform(SchemaTransformations.updateSystemKeyspace(AutoRepairKeyspace.metadata(), AutoRepairKeyspace.GENERATION));
-        }
     }
 
     public boolean isJoined()

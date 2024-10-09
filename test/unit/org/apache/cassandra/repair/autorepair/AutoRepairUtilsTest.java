@@ -47,6 +47,7 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 import org.mockito.Mock;
@@ -105,10 +106,10 @@ public class AutoRepairUtilsTest extends CQLTester
         DatabaseDescriptor.setEndpointSnitch(defaultSnitch);
         QueryProcessor.executeInternal(String.format(
         "TRUNCATE %s.%s",
-        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, AutoRepairKeyspace.AUTO_REPAIR_HISTORY));
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY));
         QueryProcessor.executeInternal(String.format(
         "TRUNCATE %s.%s",
-        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, AutoRepairKeyspace.AUTO_REPAIR_PRIORITY));
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_PRIORITY));
     }
 
     @Test
@@ -116,14 +117,14 @@ public class AutoRepairUtilsTest extends CQLTester
     {
         QueryProcessor.executeInternal(String.format(
         "INSERT INTO %s.%s (repair_type, host_id, force_repair) VALUES ('%s', %s, false)",
-        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, AutoRepairKeyspace.AUTO_REPAIR_HISTORY,
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY,
         repairType.toString(), hostId));
 
         AutoRepairUtils.setForceRepair(repairType, ImmutableSet.of(localEndpoint));
 
         UntypedResultSet result = QueryProcessor.executeInternal(String.format(
         "SELECT force_repair FROM %s.%s WHERE repair_type = '%s' AND host_id = %s",
-        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, AutoRepairKeyspace.AUTO_REPAIR_HISTORY,
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY,
         repairType.toString(), hostId));
         assertNotNull(result);
         assertEquals(1, result.size());
@@ -137,7 +138,7 @@ public class AutoRepairUtilsTest extends CQLTester
 
         UntypedResultSet result = QueryProcessor.executeInternal(String.format(
         "SELECT force_repair FROM %s.%s WHERE repair_type = '%s' AND host_id = %s",
-        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, AutoRepairKeyspace.AUTO_REPAIR_HISTORY,
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY,
         repairType.toString(), hostId));
         assertNotNull(result);
         assertEquals(1, result.size());
@@ -150,14 +151,14 @@ public class AutoRepairUtilsTest extends CQLTester
     {
         QueryProcessor.executeInternal(String.format(
         "INSERT INTO %s.%s (repair_type, host_id, delete_hosts, delete_hosts_update_time) VALUES ('%s', %s, { %s }, toTimestamp(now()))",
-        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, AutoRepairKeyspace.AUTO_REPAIR_HISTORY,
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY,
         repairType.toString(), hostId, hostId));
 
         AutoRepairUtils.clearDeleteHosts(repairType, hostId);
 
         UntypedResultSet result = QueryProcessor.executeInternal(String.format(
         "SELECT delete_hosts FROM %s.%s WHERE repair_type = '%s' AND host_id = %s",
-        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, AutoRepairKeyspace.AUTO_REPAIR_HISTORY,
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY,
         repairType.toString(), hostId));
         assertNotNull(result);
         assertEquals(1, result.size());
@@ -170,7 +171,7 @@ public class AutoRepairUtilsTest extends CQLTester
     {
         QueryProcessor.executeInternal(String.format(
         "INSERT INTO %s.%s (repair_type, host_id, force_repair) VALUES ('%s', %s, false)",
-        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, AutoRepairKeyspace.AUTO_REPAIR_HISTORY,
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY,
         repairType.toString(), hostId));
 
         List<AutoRepairHistory> history = AutoRepairUtils.getAutoRepairHistory(repairType);
@@ -194,19 +195,19 @@ public class AutoRepairUtilsTest extends CQLTester
         UUID regularRepair = UUID.randomUUID();
         QueryProcessor.executeInternal(String.format(
         "INSERT INTO %s.%s (repair_type, host_id) VALUES ('%s', %s)",
-        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, AutoRepairKeyspace.AUTO_REPAIR_HISTORY,
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY,
         repairType.toString(), hostId));
         QueryProcessor.executeInternal(String.format(
         "INSERT INTO %s.%s (repair_type, host_id, force_repair, repair_start_ts) VALUES ('%s', %s, true, toTimestamp(now()))",
-        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, AutoRepairKeyspace.AUTO_REPAIR_HISTORY,
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY,
         repairType.toString(), forceRepair));
         QueryProcessor.executeInternal(String.format(
         "INSERT INTO %s.%s (repair_type, host_id, repair_start_ts) VALUES ('%s', %s, toTimestamp(now()))",
-        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, AutoRepairKeyspace.AUTO_REPAIR_HISTORY,
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY,
         repairType.toString(), regularRepair));
         QueryProcessor.executeInternal(String.format(
         "INSERT INTO %s.%s (repair_type, repair_priority) VALUES ('%s', { %s })",
-        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, AutoRepairKeyspace.AUTO_REPAIR_PRIORITY,
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_PRIORITY,
         repairType.toString(), regularRepair));
 
         CurrentRepairStatus status = AutoRepairUtils.getCurrentRepairStatus(repairType);
@@ -256,11 +257,11 @@ public class AutoRepairUtilsTest extends CQLTester
         UUID otherHostId = UUID.randomUUID();
         QueryProcessor.executeInternal(String.format(
         "INSERT INTO %s.%s (repair_type, host_id) VALUES ('%s', %s)",
-        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, AutoRepairKeyspace.AUTO_REPAIR_HISTORY,
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY,
         repairType.toString(), hostId));
         QueryProcessor.executeInternal(String.format(
         "INSERT INTO %s.%s (repair_type, host_id, repair_finish_ts) VALUES ('%s', %s, toTimestamp(now()))",
-        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, AutoRepairKeyspace.AUTO_REPAIR_HISTORY,
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY,
         repairType.toString(), otherHostId));
 
         AutoRepairHistory history = AutoRepairUtils.getHostWithLongestUnrepairTime(repairType);
@@ -296,14 +297,14 @@ public class AutoRepairUtilsTest extends CQLTester
     {
         QueryProcessor.executeInternal(String.format(
         "INSERT INTO %s.%s (repair_type, host_id) VALUES ('%s', %s)",
-        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, AutoRepairKeyspace.AUTO_REPAIR_HISTORY,
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY,
         repairType.toString(), hostId));
 
         AutoRepairUtils.deleteAutoRepairHistory(repairType, hostId);
 
         UntypedResultSet result = QueryProcessor.executeInternal(String.format(
         "SELECT * FROM %s.%s WHERE repair_type = '%s' AND host_id = %s",
-        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, AutoRepairKeyspace.AUTO_REPAIR_HISTORY,
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY,
         repairType.toString(), hostId));
         assertNotNull(result);
         assertEquals(0, result.size());
@@ -314,14 +315,14 @@ public class AutoRepairUtilsTest extends CQLTester
     {
         QueryProcessor.executeInternal(String.format(
         "INSERT INTO %s.%s (repair_type, host_id) VALUES ('%s', %s)",
-        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, AutoRepairKeyspace.AUTO_REPAIR_HISTORY,
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY,
         repairType.toString(), hostId));
 
         AutoRepairUtils.updateStartAutoRepairHistory(repairType, hostId, 123, AutoRepairUtils.RepairTurn.MY_TURN);
 
         UntypedResultSet result = QueryProcessor.executeInternal(String.format(
         "SELECT repair_start_ts, repair_turn FROM %s.%s WHERE repair_type = '%s' AND host_id = %s",
-        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, AutoRepairKeyspace.AUTO_REPAIR_HISTORY,
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY,
         repairType.toString(), hostId));
         assertNotNull(result);
         assertEquals(1, result.size());
@@ -335,14 +336,14 @@ public class AutoRepairUtilsTest extends CQLTester
     {
         QueryProcessor.executeInternal(String.format(
         "INSERT INTO %s.%s (repair_type, host_id) VALUES ('%s', %s)",
-        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, AutoRepairKeyspace.AUTO_REPAIR_HISTORY,
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY,
         repairType.toString(), hostId));
 
         AutoRepairUtils.updateFinishAutoRepairHistory(repairType, hostId, 123);
 
         UntypedResultSet result = QueryProcessor.executeInternal(String.format(
         "SELECT repair_finish_ts FROM %s.%s WHERE repair_type = '%s' AND host_id = %s",
-        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, AutoRepairKeyspace.AUTO_REPAIR_HISTORY,
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY,
         repairType.toString(), hostId));
         assertNotNull(result);
         assertEquals(1, result.size());
@@ -355,14 +356,14 @@ public class AutoRepairUtilsTest extends CQLTester
         UUID otherHostId = UUID.randomUUID();
         QueryProcessor.executeInternal(String.format(
         "INSERT INTO %s.%s (repair_type, host_id) VALUES ('%s', %s)",
-        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, AutoRepairKeyspace.AUTO_REPAIR_HISTORY,
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY,
         repairType.toString(), otherHostId));
 
         AutoRepairUtils.addHostIdToDeleteHosts(repairType, hostId, otherHostId);
 
         UntypedResultSet result = QueryProcessor.executeInternal(String.format(
         "SELECT * FROM %s.%s WHERE repair_type = '%s' AND host_id = %s",
-        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, AutoRepairKeyspace.AUTO_REPAIR_HISTORY,
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY,
         repairType.toString(), otherHostId));
         assertNotNull(result);
         assertEquals(1, result.size());
@@ -379,7 +380,7 @@ public class AutoRepairUtilsTest extends CQLTester
 
         UntypedResultSet result = QueryProcessor.executeInternal(String.format(
         "SELECT * FROM %s.%s WHERE repair_type = '%s'",
-        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, AutoRepairKeyspace.AUTO_REPAIR_PRIORITY,
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_PRIORITY,
         repairType.toString()));
         assertNotNull(result);
         assertEquals(1, result.size());
@@ -394,14 +395,14 @@ public class AutoRepairUtilsTest extends CQLTester
     {
         QueryProcessor.executeInternal(String.format(
         "INSERT INTO %s.%s (repair_type, repair_priority) VALUES ('%s', { %s })",
-        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, AutoRepairKeyspace.AUTO_REPAIR_PRIORITY,
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_PRIORITY,
         repairType.toString(), hostId));
 
         AutoRepairUtils.removePriorityStatus(repairType, hostId);
 
         UntypedResultSet result = QueryProcessor.executeInternal(String.format(
         "SELECT * FROM %s.%s WHERE repair_type = '%s'",
-        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, AutoRepairKeyspace.AUTO_REPAIR_PRIORITY,
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_PRIORITY,
         repairType.toString()));
         assertNotNull(result);
         assertEquals(1, result.size());
@@ -414,7 +415,7 @@ public class AutoRepairUtilsTest extends CQLTester
     {
         QueryProcessor.executeInternal(String.format(
         "INSERT INTO %s.%s (repair_type, repair_priority) VALUES ('%s', { %s })",
-        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, AutoRepairKeyspace.AUTO_REPAIR_PRIORITY,
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_PRIORITY,
         repairType.toString(), hostId));
 
         Set<InetAddressAndPort> hosts = AutoRepairUtils.getPriorityHosts(repairType);

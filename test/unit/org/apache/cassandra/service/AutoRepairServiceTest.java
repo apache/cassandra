@@ -44,9 +44,9 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
-import org.apache.cassandra.repair.autorepair.AutoRepairKeyspace;
 import org.apache.cassandra.repair.autorepair.AutoRepairUtils;
 import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.SystemDistributedKeyspace;
 
 import static org.apache.cassandra.Util.setAutoRepairEnabled;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SYSTEM_DISTRIBUTED_DEFAULT_RF;
@@ -256,7 +256,7 @@ public class AutoRepairServiceTest
             UUID hostId = Gossiper.instance.getHostId(InetAddressAndPort.getLocalHost());
             UntypedResultSet resultSet = QueryProcessor.executeInternal(String.format(
             "SELECT force_repair FROM %s.%s WHERE host_id = %s and repair_type = '%s'",
-            SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, AutoRepairKeyspace.AUTO_REPAIR_HISTORY, hostId, type));
+            SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY, hostId, type));
 
             if (!resultSet.isEmpty() && resultSet.one().getBoolean("force_repair"))
             {
@@ -292,10 +292,10 @@ public class AutoRepairServiceTest
         {
             QueryProcessor.executeInternal(String.format(
             "TRUNCATE %s.%s",
-            SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, AutoRepairKeyspace.AUTO_REPAIR_HISTORY));
+            SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY));
             QueryProcessor.executeInternal(String.format(
             "TRUNCATE %s.%s",
-            SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, AutoRepairKeyspace.AUTO_REPAIR_PRIORITY));
+            SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_PRIORITY));
         }
 
         @Test
