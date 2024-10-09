@@ -1005,8 +1005,8 @@ public class DescribeStatementTest extends CQLTester
                "    AND min_index_interval = 128\n" +
                "    AND read_repair = 'BLOCKING'\n" +
                "    AND speculative_retry = '99p'\n" +
-               "    AND automated_repair_full = {'enabled': 'true'}\n" +
-               "    AND automated_repair_incremental = {'enabled': 'true'};";
+               "    AND repair_full = {'enabled': 'true'}\n" +
+               "    AND repair_incremental = {'enabled': 'true'};";
     }
 
     private static String mvParametersCql()
@@ -1027,8 +1027,8 @@ public class DescribeStatementTest extends CQLTester
                "    AND min_index_interval = 128\n" +
                "    AND read_repair = 'BLOCKING'\n" +
                "    AND speculative_retry = '99p'\n" +
-               "    AND automated_repair_full = {'enabled': 'true'}\n" +
-               "    AND automated_repair_incremental = {'enabled': 'true'};";
+               "    AND repair_full = {'enabled': 'true'}\n" +
+               "    AND repair_incremental = {'enabled': 'true'};";
     }
 
     private static String keyspaceOutput()

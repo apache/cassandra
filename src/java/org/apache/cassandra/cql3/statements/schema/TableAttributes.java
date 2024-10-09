@@ -157,11 +157,11 @@ public final class TableAttributes extends PropertyDefinitions
         if (hasOption(Option.READ_REPAIR))
             builder.readRepair(ReadRepairStrategy.fromString(getString(Option.READ_REPAIR)));
 
-        if (hasOption(Option.AUTOMATED_REPAIR_FULL))
-            builder.automatedRepairFull(AutoRepairParams.fromMap(AutoRepairConfig.RepairType.full, getMap(Option.AUTOMATED_REPAIR_FULL)));
+        if (hasOption(Option.REPAIR_FULL))
+            builder.automatedRepairFull(AutoRepairParams.fromMap(AutoRepairConfig.RepairType.full, getMap(Option.REPAIR_FULL)));
 
-        if (hasOption(Option.AUTOMATED_REPAIR_INCREMENTAL))
-            builder.automatedRepairIncremental(AutoRepairParams.fromMap(AutoRepairConfig.RepairType.incremental, getMap(Option.AUTOMATED_REPAIR_INCREMENTAL)));
+        if (hasOption(Option.REPAIR_INCREMENTAL))
+            builder.automatedRepairIncremental(AutoRepairParams.fromMap(AutoRepairConfig.RepairType.incremental, getMap(Option.REPAIR_INCREMENTAL)));
 
         return builder.build();
     }

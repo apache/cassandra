@@ -586,8 +586,8 @@ public class AutoRepairParameterizedTest extends CQLTester
     @Test
     public void testTableAttribute()
     {
-        assertTrue(TableAttributes.validKeywords().contains("automated_repair_full"));
-        assertTrue(TableAttributes.validKeywords().contains("automated_repair_incremental"));
+        assertTrue(TableAttributes.validKeywords().contains("repair_full"));
+        assertTrue(TableAttributes.validKeywords().contains("repair_incremental"));
     }
 
     @Test
