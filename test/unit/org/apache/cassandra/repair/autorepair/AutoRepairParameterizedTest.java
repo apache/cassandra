@@ -127,7 +127,7 @@ public class AutoRepairParameterizedTest extends CQLTester
         SYSTEM_DISTRIBUTED_DEFAULT_RF.setInt(1);
         QueryProcessor.executeInternal(String.format("CREATE KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}", KEYSPACE));
         QueryProcessor.executeInternal(String.format("CREATE TABLE %s.%s (k text, s text static, i int, v text, primary key(k,i))", KEYSPACE, TABLE));
-        QueryProcessor.executeInternal(String.format("CREATE TABLE %s.%s (k text, s text static, i int, v text, primary key(k,i)) WITH automated_repair_full = {'enabled': 'false'} AND automated_repair_incremental = {'enabled': 'false'}", KEYSPACE, TABLE_DISABLED_AUTO_REPAIR));
+        QueryProcessor.executeInternal(String.format("CREATE TABLE %s.%s (k text, s text static, i int, v text, primary key(k,i)) WITH repair_full = {'enabled': 'false'} AND repair_incremental = {'enabled': 'false'}", KEYSPACE, TABLE_DISABLED_AUTO_REPAIR));
 
         QueryProcessor.executeInternal(String.format("CREATE MATERIALIZED VIEW %s.%s AS SELECT i, k from %s.%s " +
                 "WHERE k IS NOT null AND i IS NOT null PRIMARY KEY (i, k)", KEYSPACE, MV, KEYSPACE, TABLE));
@@ -560,8 +560,8 @@ public class AutoRepairParameterizedTest extends CQLTester
     @Test
     public void testTableAttribute()
     {
-        assertTrue(TableAttributes.validKeywords().contains("automated_repair_full"));
-        assertTrue(TableAttributes.validKeywords().contains("automated_repair_incremental"));
+        assertTrue(TableAttributes.validKeywords().contains("repair_full"));
+        assertTrue(TableAttributes.validKeywords().contains("repair_incremental"));
     }
 
     @Test
