@@ -702,8 +702,8 @@ class TestCqlshOutput(BaseTestCase):
                 AND transactional_mode = 'off'
                 AND transactional_migration_from = 'none'
                 AND speculative_retry = '99p'
-                AND automated_repair_full = {'enabled': 'true'}
-                AND automated_repair_incremental = {'enabled': 'true'};""" % quote_name(get_keyspace()))
+                AND repair_full = {'enabled': 'true'}
+                AND repair_incremental = {'enabled': 'true'};""" % quote_name(get_keyspace()))
 
         with cqlsh_testrun(tty=True, env=self.default_env) as c:
             for cmdword in ('describe table', 'desc columnfamily'):

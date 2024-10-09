@@ -103,8 +103,8 @@ public final class TableParams
         TRANSACTIONAL_MODE,
         TRANSACTIONAL_MIGRATION_FROM,
         PENDING_DROP,
-        AUTOMATED_REPAIR_FULL,
-        AUTOMATED_REPAIR_INCREMENTAL;
+        REPAIR_FULL,
+        REPAIR_INCREMENTAL;
 
         @Override
         public String toString()
@@ -372,8 +372,8 @@ public final class TableParams
                           .add(Option.TRANSACTIONAL_MODE.toString(), transactionalMode)
                           .add(Option.TRANSACTIONAL_MIGRATION_FROM.toString(), transactionalMigrationFrom)
                           .add(PENDING_DROP.toString(), pendingDrop)
-                          .add(Option.AUTOMATED_REPAIR_FULL.toString(), automatedRepair.get(AutoRepairConfig.RepairType.full))
-                          .add(Option.AUTOMATED_REPAIR_INCREMENTAL.toString(), automatedRepair.get(AutoRepairConfig.RepairType.incremental))
+                          .add(Option.REPAIR_FULL.toString(), automatedRepair.get(AutoRepairConfig.RepairType.full))
+                          .add(Option.REPAIR_INCREMENTAL.toString(), automatedRepair.get(AutoRepairConfig.RepairType.incremental))
                           .toString();
     }
 
@@ -436,9 +436,9 @@ public final class TableParams
 
         builder.append("AND speculative_retry = ").appendWithSingleQuotes(speculativeRetry.toString())
                .newLine()
-               .append("AND automated_repair_full = ").append(automatedRepair.get(AutoRepairConfig.RepairType.full).asMap())
+               .append("AND repair_full = ").append(automatedRepair.get(AutoRepairConfig.RepairType.full).asMap())
                .newLine()
-               .append("AND automated_repair_incremental = ").append(automatedRepair.get(AutoRepairConfig.RepairType.incremental).asMap());
+               .append("AND repair_incremental = ").append(automatedRepair.get(AutoRepairConfig.RepairType.incremental).asMap());
     }
 
     public static final class Builder

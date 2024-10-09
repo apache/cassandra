@@ -350,8 +350,8 @@ public class SchemaCQLHelperTest extends CQLTester
                             "    AND transactional_mode = 'off'\n" +
                             "    AND transactional_migration_from = 'none'\n" +
                             "    AND speculative_retry = 'ALWAYS'\n" +
-                            "    AND automated_repair_full = {'enabled': 'true'}\n" +
-                            "    AND automated_repair_incremental = {'enabled': 'true'};"
+                            "    AND repair_full = {'enabled': 'true'}\n" +
+                            "    AND repair_incremental = {'enabled': 'true'};"
                    ));
     }
 
