@@ -169,8 +169,7 @@ batchlog_replay_throttle: 1024KiB
 #   users. It keeps usernames and hashed passwords in system_auth.roles table.
 #   Please increase system_auth keyspace replication factor if you use this authenticator.
 #   If using PasswordAuthenticator, CassandraRoleManager must also be used (see below)
-authenticator:
-  class_name : org.apache.cassandra.auth.AllowAllAuthenticator
+authenticator: AllowAllAuthenticator
 # MutualTlsAuthenticator can be configured using the following configuration. One can add their own validator
 # which implements MutualTlsCertificateValidator class and provide logic for extracting identity out of certificates
 # and validating certificates.
