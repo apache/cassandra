@@ -1,4 +1,5 @@
 5.0.2
+ * Always write local expiration time as an int to LivenessInfo digest (CASSANDRA-19989)
  * Enables IAuthenticator's to return own AuthenticateMessage (CASSANDRA-19984)
  * Use ParameterizedClass for all auth-related implementations (CASSANDRA-19946)
  * Correct out-of-date metrics and configuration documentation for SAI (CASSANDRA-19898)
