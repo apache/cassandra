@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.tools.nodetool;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.commons.lang3.StringUtils;
@@ -26,18 +27,18 @@ import org.junit.Test;
 import org.apache.cassandra.cql3.CQLTester;
 
 import static org.apache.cassandra.tools.nodetool.NodetoolRunnerTester.computeDiff;
-import static org.apache.cassandra.tools.nodetool.NodetoolRunnerTester.fetchCommandsNodeTool;
 import static org.apache.cassandra.tools.nodetool.NodetoolRunnerTester.invokeNodetoolV1InJvm;
 import static org.apache.cassandra.tools.nodetool.NodetoolRunnerTester.invokeNodetoolV2InJvm;
 import static org.apache.cassandra.tools.nodetool.NodetoolRunnerTester.printFormattedDiffsMessage;
 import static org.apache.cassandra.tools.nodetool.NodetoolRunnerTester.readCommandLines;
 import static org.apache.cassandra.tools.nodetool.NodetoolRunnerTester.sliceStdout;
+import static org.apache.cassandra.tools.nodetool.layout.CassandraHelpLayout.TOP_LEVEL_COMMAND_HEADING;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class NodetoolHelpOutputTest extends CQLTester
 {
-    private static final String NODETOOL_COMMAND_HELP_FILE = "nodetool/help/help";
+    private static final String NODETOOL_COMMAND_HELP_FILE = "nodetool/help/nodetool";
 
     @Test
     public void testCompareHelpCommand() throws Exception
@@ -53,11 +54,35 @@ public class NodetoolHelpOutputTest extends CQLTester
     @Test
     public void testBaseCommandOutput() throws Exception
     {
-        List<String> commands = fetchCommandsNodeTool(readCommandLines(NODETOOL_COMMAND_HELP_FILE), c -> true);
+        List<String> commands = fetchCommandsNodeTool(readCommandLines(NODETOOL_COMMAND_HELP_FILE));
         List<String> outNodeToolV2 = sliceStdout(invokeNodetoolV2InJvm("help"));
         assertFalse(outNodeToolV2.isEmpty());
 
-        List<String> commandsV2 = fetchCommandsNodeTool(outNodeToolV2, c -> true);
+        List<String> commandsV2 = fetchCommandsNodeTool(outNodeToolV2);
         assertTrue(commands.containsAll(commandsV2));
+    }
+
+    /**
+     * Get the list of commands available in the V2 version of nodetool.
+     * @return List of available commands.
+     */
+    protected static List<String> fetchCommandsNodeTool(List<String> outNodeTool)
+    {
+        List<String> commands = new ArrayList<>();
+        boolean headerFound = false;
+        for (String commandOutput : outNodeTool)
+        {
+            if (headerFound && commandOutput.startsWith("    "))
+            {
+                if (commandOutput.startsWith(" ", 4))
+                    continue;
+                commands.add(commandOutput.substring(4, commandOutput.indexOf(' ', 4)));
+            }
+
+            headerFound = headerFound || commandOutput.equals(TOP_LEVEL_COMMAND_HEADING);
+        }
+        // Remove the help command from the list of commands, as it's not applicable.
+        assertFalse(commands.isEmpty());
+        return commands;
     }
 }

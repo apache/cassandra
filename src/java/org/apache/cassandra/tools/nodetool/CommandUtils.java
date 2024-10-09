@@ -23,6 +23,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 
+import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
 import org.apache.cassandra.utils.Pair;
 
 /**

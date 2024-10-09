@@ -20,10 +20,13 @@ package org.apache.cassandra.tools.nodetool;
 
 import java.io.PrintWriter;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
 
+import org.apache.cassandra.tools.nodetool.layout.CassandraHelpLayout;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.IHelpCommandInitializable2;
@@ -41,20 +44,17 @@ import static picocli.CommandLine.Model.UsageMessageSpec.SECTION_KEY_HEADER_HEAD
 import static picocli.CommandLine.Model.UsageMessageSpec.SECTION_KEY_SYNOPSIS;
 
 @Command(name = "help",
-    header = "Display help information about the specified command.",
-    synopsisHeading = "%nUsage: ",
-    helpCommand = true,
-    description = { "%nWhen no COMMAND is given, the usage help for the main command is displayed.",
-                    "If a COMMAND is specified, the help for that command is shown.%n" })
-public class CassandraHelpCommand implements IHelpCommandInitializable2, Runnable
+         helpCommand = true,
+         description = "Display help information")
+public class Help implements IHelpCommandInitializable2, Runnable
 {
-    @Option(names = { "--help" }, usageHelp = true, descriptionKey = "helpCommand.help",
-        description = "Show usage help for the help command and exit.")
+    @Option(names = { "--help" }, hidden = true, usageHelp = true, descriptionKey = "helpCommand.help",
+            description = "Show usage help for the help command and exit.")
     private boolean helpRequested;
 
-    @Parameters(paramLabel = "command", arity = "0..1", descriptionKey = "helpCommand.command",
-        description = "The COMMAND to display the usage help message for.")
-    private String commands;
+    @Parameters(paramLabel = "command", arity = "1..*", descriptionKey = "helpCommand.command",
+                description = "The COMMAND to display the usage help message for.")
+    private List<String> commands;
 
     private CommandLine self;
     private PrintWriter out;
@@ -82,14 +82,17 @@ public class CassandraHelpCommand implements IHelpCommandInitializable2, Runnabl
             return;
         }
 
-        Map<String, CommandLine> parentSubcommands = parent.getCommandSpec().subcommands();
-        CommandLine subcommand = parentSubcommands.get(commands);
-
         if (parent.isAbbreviatedSubcommandsAllowed())
-            throw new CommandLine.ParameterException(parent, "Abbreviated subcommands are not allowed.", null, commands);
+            throw new CommandLine.ParameterException(parent, "Abbreviated subcommands are not allowed.");
 
-        if (subcommand == null)
-            throw new CommandLine.ParameterException(parent, "Unknown subcommand '" + commands + "'.", null, commands);
+        // Pritn help for the last command in the list of commands.
+        CommandLine subcommand = parent;
+        for (String command : commands)
+        {
+            subcommand = subcommand.getSubcommands().get(command);
+            if (subcommand == null)
+                throw new CommandLine.ParameterException(parent, "Unknown subcommand '" + command + "'.", null, command);
+        }
 
         subcommand.usage(out, colors);
     }
@@ -113,7 +116,9 @@ public class CassandraHelpCommand implements IHelpCommandInitializable2, Runnabl
             CommandLine.IHelpSectionRenderer renderer = helpSectionMap.get(key);
             if (renderer == null)
                 continue;
-            sb.append(renderer.render(help));
+            String rendered = renderer.render(help);
+            if (!Strings.isNullOrEmpty(rendered))
+                sb.append(rendered);
         }
 
         writer.println(sb);
@@ -133,7 +138,7 @@ public class CassandraHelpCommand implements IHelpCommandInitializable2, Runnabl
         sectionMap.put(SECTION_KEY_HEADER, CommandLine.Help::header);
         sectionMap.put(SECTION_KEY_SYNOPSIS, layout::topLevelSynopsis);
         sectionMap.put(SECTION_KEY_COMMAND_LIST_HEADING, layout::topLevelCommandListHeading);
-        sectionMap.put(SECTION_KEY_COMMAND_LIST, CommandLine.Help::commandList);
+        sectionMap.put(SECTION_KEY_COMMAND_LIST, layout::topCommandList);
         sectionMap.put(SECTION_KEY_EXIT_CODE_LIST_HEADING, CommandLine.Help::exitCodeListHeading);
         sectionMap.put(SECTION_KEY_EXIT_CODE_LIST, CommandLine.Help::exitCodeList);
         sectionMap.put(SECTION_KEY_FOOTER_HEADING, CommandLine.Help::footerHeading);

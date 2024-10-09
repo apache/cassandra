@@ -18,11 +18,13 @@
 
 package org.apache.cassandra.tools.nodetool;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import com.google.common.collect.Lists;
 
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Parameters;
 
@@ -32,9 +34,8 @@ import static org.apache.cassandra.tools.NodeTool.NodeToolCmd.parsePartitionKeys
 @Command(name = "forcecompact", description = "Force a (major) compaction on a table")
 public class ForceCompact extends AbstractCommand
 {
-    @CassandraUsage(usage = "[<keyspace> <table> <keys>]",
-                          description = "The keyspace, table, and a list of partition keys ignoring the gc_grace_seconds")
-    public List<String> args;
+    @CassandraUsage(usage = "[<keyspace> <table> <keys>]", description = "The keyspace, table, and a list of partition keys ignoring the gc_grace_seconds")
+    public List<String> args = new ArrayList<>();
 
     @Parameters(index = "0", arity = "1", description = "The keyspace name to compact")
     public String keyspace;

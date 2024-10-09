@@ -33,6 +33,7 @@ import java.util.Scanner;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 import javax.management.InstanceNotFoundException;
 
 import com.google.common.base.Joiner;
@@ -61,6 +62,7 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileWriter;
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
 import org.apache.cassandra.tools.nodetool.*;
+import org.apache.cassandra.tools.nodetool.layout.CassandraHelpLayout;
 import org.apache.cassandra.utils.FBUtilities;
 import picocli.CommandLine;
 
@@ -371,12 +373,12 @@ public class NodeTool
             NodeToolV2 cmd = new NodeToolV2(nodeProbeFactory, output);
             if (command.isEmpty())
             {
-                usage(global, cmd.getCommandsDescription(), sb);
+                usage(global, cmd.getTopLevelCommandsDescription(), sb);
             }
             else
             {
-                if (cmd.isCommandPresent(command.get(0)))
-                    cmd.execute("help", command.get(0));
+                if (cmd.isCommandPresent(command))
+                    cmd.execute(Stream.concat(Stream.of("help"), command.stream()).toArray(String[]::new));
                 else
                     help(global, command, sb);
             }

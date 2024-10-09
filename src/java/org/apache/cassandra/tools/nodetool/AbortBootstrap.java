@@ -27,10 +27,10 @@ import static org.apache.commons.lang3.StringUtils.isEmpty;
 @Command(name = "abortbootstrap", description = "Abort a failed bootstrap")
 public class AbortBootstrap extends AbstractCommand
 {
-    @Option(names = "--node", paramLabel = "node_id", description = "Node ID of the node that failed bootstrap")
+    @Option(paramLabel = "node_id", names = "--node", description = "Node ID of the node that failed bootstrap")
     public String nodeId = EMPTY;
 
-    @Option(names = "--ip", paramLabel = "ip", description = "IP of the node that failed bootstrap")
+    @Option(paramLabel = "ip", names = "--ip", description = "IP of the node that failed bootstrap")
     public String endpoint = EMPTY;
 
     @Override

@@ -22,16 +22,16 @@ import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Spec;
 
-import static org.apache.cassandra.tools.nodetool.CassandraHelpCommand.printTopCommandUsage;
+import static org.apache.cassandra.tools.nodetool.Help.printTopCommandUsage;
 
 @Command(name = "nodetool",
-    description = "Manage your Cassandra cluster",
-    subcommands = { CassandraHelpCommand.class,
-                    AbortBootstrap.class,
-                    Bootstrap.class,
-                    Assassinate.class,
-                    ForceCompact.class,
-                    Compact.class })
+         description = "Manage your Cassandra cluster",
+         subcommands = { Help.class,
+                         AbortBootstrap.class,
+                         Bootstrap.class,
+                         Assassinate.class,
+                         ForceCompact.class,
+                         Compact.class })
 public class TopLevelCommand implements Runnable
 {
     @Spec

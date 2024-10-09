@@ -19,6 +19,7 @@ package org.apache.cassandra.tools;
 
 import java.io.PrintWriter;
 import java.lang.reflect.Field;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -28,7 +29,7 @@ import javax.inject.Inject;
 import com.google.common.base.Throwables;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
-import org.apache.cassandra.tools.nodetool.CassandraHelpLayout;
+import org.apache.cassandra.tools.nodetool.layout.CassandraHelpLayout;
 import org.apache.cassandra.tools.nodetool.JmxConnect;
 import org.apache.cassandra.tools.nodetool.TopLevelCommand;
 import org.apache.cassandra.utils.FBUtilities;
@@ -81,13 +82,9 @@ public class NodeToolV2
      */
     public int execute(String... args)
     {
-        return execute(createCommandLine(new CassandraCliFactory(nodeProbeFactory, output)), args);
-    }
-
-    protected int execute(CommandLine commandLine, String... args)
-    {
         try
         {
+            CommandLine commandLine = createCommandLine(new CassandraCliFactory(nodeProbeFactory, output));
             configureCliLayout(commandLine);
             commandLine.setExecutionStrategy(strategy == null ? JmxConnect::executionStrategy : strategy)
                        .setExecutionExceptionHandler(executionExceptionHandler)
@@ -139,14 +136,21 @@ public class NodeToolV2
         return this;
     }
 
-    public boolean isCommandPresent(String commandName)
+    public boolean isCommandPresent(List<String> commands)
     {
         CommandLine commandLine = createCommandLine(new CassandraCliFactory(nodeProbeFactory, output));
-        return commandLine.getSubcommands().values().stream()
-                          .anyMatch(sub -> sub.getCommandName().equals(commandName));
+        Map<String, CommandLine> subs = commandLine.getSubcommands();
+        for (String command : commands)
+        {
+            CommandLine cli = subs.get(command);
+            if (cli == null)
+                return false;
+            subs = cli.getSubcommands();
+        }
+        return true;
     }
 
-    public Map<String, String> getCommandsDescription()
+    public Map<String, String> getTopLevelCommandsDescription()
     {
         Map<String, String> commands = new TreeMap<>();
         CommandLine commandLine = createCommandLine(new CassandraCliFactory(nodeProbeFactory, output));
@@ -158,6 +162,23 @@ public class NodeToolV2
                                                                          sub.getCommandSpec().usageMessage().description(), new StringBuilder()).toString()));
         // Remove the help command from the list of commands, as it's not applicable for backward compatibility.
         return commands;
+    }
+
+    public static List<String> getCommandsWithoutRoot(String separator)
+    {
+        List<String> commands = new ArrayList<>();
+        getCommandsWithoutRoot(createCommandLine(new CassandraCliFactory(new NodeProbeFactory(), Output.CONSOLE)), commands, separator);
+        return commands;
+    }
+
+    private static void getCommandsWithoutRoot(CommandLine cli, List<String> commands, String separator)
+    {
+        String name = cli.getCommandSpec().qualifiedName(separator);
+        // Skip the root command as it's not a real command.
+        if (cli.getCommandSpec().root() != cli.getCommandSpec())
+            commands.add(name.replace(cli.getCommandSpec().root().qualifiedName() + separator, ""));
+        for (CommandLine sub : cli.getSubcommands().values())
+            getCommandsWithoutRoot(sub, commands, separator);
     }
 
     public static CommandLine.Model.CommandSpec lastExecutableSubcommandWithSameParent(List<CommandLine> parsedCommands)

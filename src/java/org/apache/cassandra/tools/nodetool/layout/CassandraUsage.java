@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.tools.nodetool;
+package org.apache.cassandra.tools.nodetool.layout;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;

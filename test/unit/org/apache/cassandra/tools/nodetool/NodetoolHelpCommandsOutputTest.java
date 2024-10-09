@@ -21,17 +21,22 @@ package org.apache.cassandra.tools.nodetool;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.stream.Stream;
 
+import com.google.common.collect.Streams;
 import org.apache.commons.lang3.StringUtils;
 import org.junit.Test;
 import org.junit.runners.Parameterized;
+
+import org.apache.cassandra.tools.NodeToolV2;
 
 import static org.junit.Assert.assertTrue;
 
 public class NodetoolHelpCommandsOutputTest extends NodetoolRunnerTester
 {
     private static final String NODETOOL_COMMAND_HELP_FILE_PATTERN = "nodetool/help/%s";
-    private static final List<String> COMMANDS = fetchCommandsNodeTool(sliceStdout(invokeNodetoolV2InJvm("help")), c -> !c.equals("help"));
+    private static final String COMMAND_FULL_NAME_SEPARATOR = "_";
+    private static final List<String> COMMANDS = NodeToolV2.getCommandsWithoutRoot(COMMAND_FULL_NAME_SEPARATOR);
 
     @Parameterized.Parameter(1)
     public String command;
@@ -55,7 +60,9 @@ public class NodetoolHelpCommandsOutputTest extends NodetoolRunnerTester
     private void compareCommandHelpOutput(String commandName) throws Exception
     {
         List<String> origLines = readCommandLines(String.format(NODETOOL_COMMAND_HELP_FILE_PATTERN, commandName));
-        List<String> targetLines = sliceStdout(invokeNodetool("help", commandName));
+        List<String> targetLines = sliceStdout(invokeNodetool(Streams.concat(Stream.of("help"),
+                                                                             Stream.of(commandName.split(COMMAND_FULL_NAME_SEPARATOR)))
+                                                                     .toArray(String[]::new)));
         String diff = computeDiff(targetLines, origLines);
         assertTrue(printFormattedDiffsMessage(origLines, targetLines, commandName, diff),
                    StringUtils.isBlank(diff));

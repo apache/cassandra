@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.tools.nodetool;
+package org.apache.cassandra.tools.nodetool.layout;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
@@ -25,7 +25,9 @@ import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
+import org.apache.cassandra.tools.nodetool.CommandUtils;
 import org.apache.cassandra.utils.Pair;
 import picocli.CommandLine;
 
@@ -61,6 +63,7 @@ public class CassandraHelpLayout extends CommandLine.Help
     private static final String DESCRIPTION_HEADING = "NAME%n";
     private static final String SYNOPSIS_HEADING = "SYNOPSIS%n";
     private static final String OPTIONS_HEADING = "OPTIONS%n";
+    private static final String COMMANDS_HEADING = "COMMANDS%n";
     private static final String FOOTER_HEADING = "%n";
     private static final int DESCRIPTION_INDENT = 4;
     public static final int COLUMN_INDENT = 8;
@@ -76,6 +79,8 @@ public class CassandraHelpLayout extends CommandLine.Help
     public static final String TOP_LEVEL_COMMAND_HEADING = "The most commonly used nodetool commands are:";
     public static final String USAGE_HELP_FOOTER = "See 'nodetool help <command>' for more information on a specific command.";
     public static final String SYNOPSIS_SUBCOMMANDS_LABEL = "<command> [<args>]";
+    public static final String SUBCOMMAND_OPTION_TEMPLATE = "With %s option, %s";
+    public static final String SUBCOMMAND_SUBHEADER = "With no arguments, Display help information";
     private static final String[] EMPTY_FOOTER = new String[0];
 
     public CassandraHelpLayout(CommandLine.Model.CommandSpec spec, ColorScheme scheme)
@@ -94,7 +99,8 @@ public class CassandraHelpLayout extends CommandLine.Help
      * @return the header string.
      */
     @Override
-    public String description(Object... params) {
+    public String description(Object... params)
+    {
         CommandLine.Model.CommandSpec spec = commandSpec();
         String fullName = spec.qualifiedName();
 
@@ -117,26 +123,44 @@ public class CassandraHelpLayout extends CommandLine.Help
         return createHeading(SYNOPSIS_HEADING, params);
     }
 
+    /**
+     * This method is overridden to provide a detailed synopsis for the command and its subcommands.
+     * <pre>
+     * {@code
+     *     SYNOPSIS
+     *         nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+     *                 [(-pp | --print-port)] [(-pw <password> | --password <password>)]
+     *                 [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+     *                 [(-u <username> | --username <username>)] bootstrap <command>
+     *                 [<args>]
+     * }
+     * </pre>
+     *
+     * @param synopsisHeadingLength the length of the synopsis heading that will be displayed on the same line
+     * @return The synopsis string.
+     */
     @Override
     public String synopsis(int synopsisHeadingLength)
     {
         return printDetailedSynopsis("", COLUMN_INDENT, true);
     }
 
-    private Ansi.Text createCassandraSynopsisCommandText()
-    {
-        Ansi.Text commandText = ansi().new Text(0);
-        if (!commandSpec().subcommands().isEmpty())
-            return commandText.concat(SYNOPSIS_SUBCOMMANDS_LABEL);
-        return commandText;
-    }
-
     private String printDetailedSynopsis(String synopsisPrefix, int columnIndent, boolean showEndOfOptionsDelimiter)
     {
-        // Cassandra uses end of options delimiter in usage help.
-        commandSpec().usageMessage().showEndOfOptionsDelimiterInUsageHelp(showEndOfOptionsDelimiter);
+        StringBuilder top = new StringBuilder(printDetailedSynopsis(commandSpec(), synopsisPrefix, columnIndent, showEndOfOptionsDelimiter));
+        for (CommandLine sub : commandSpec().subcommands().values())
+            top.append(printDetailedSynopsis(sub.getCommandSpec(), synopsisPrefix, columnIndent, showEndOfOptionsDelimiter));
+        return top.toString();
+    }
 
-        CommandLine.Model.CommandSpec commandSpec = commandSpec();
+    private String printDetailedSynopsis(CommandLine.Model.CommandSpec commandSpec,
+                                         String synopsisPrefix,
+                                         int columnIndent,
+                                         boolean showEndOfOptionsDelimiter)
+    {
+        // Cassandra uses end of options delimiter in usage help.
+        commandSpec.usageMessage().showEndOfOptionsDelimiterInUsageHelp(showEndOfOptionsDelimiter);
+
         ColorScheme colorScheme = colorScheme();
 
         List<Ansi.Text> parentOptionsList = createCassandraSynopsisOptionsText(parentCommandOptions(commandSpec));
@@ -148,21 +172,28 @@ public class CassandraHelpLayout extends CommandLine.Help
                                      colorScheme.text("[")
                                                 .concat(commandSpec.parser().endOfOptionsDelimiter())
                                                 .concat("]");
-        Ansi.Text commandText = createCassandraSynopsisCommandText();
+
+        Ansi.Text commandText = ansi().new Text(0);
+        if (!commandSpec.subcommands().isEmpty())
+            commandText = commandText.concat(SYNOPSIS_SUBCOMMANDS_LABEL);
 
         int width = commandSpec.usageMessage().width();
-        boolean isEmptyParent = commandSpec.parent() == null;
+        boolean isEmptyParent = commandSpec.root() == commandSpec;
+        Ansi.Text rootCommandText = colorScheme.commandText(commandSpec.root().name());
+        // If the command is the top-level command, use the command name as the root command text.
+        // Otherwise, use the fully qualified command name without the root command name.
+        // Example: "nodetool status" -> "status", "nodetool status thrift" -> "status thrift"
         Ansi.Text mainCommandText = isEmptyParent ? colorScheme.commandText(commandSpec.name()) :
-                                    colorScheme.commandText(commandSpec.parent().qualifiedName());
+                                    colorScheme.commandText(commandSpec.qualifiedName().replace(rootCommandText.plainString(), "").trim());
         TextTable textTable = TextTable.forColumns(colorScheme, new Column(width, columnIndent, Column.Overflow.WRAP));
-        textTable.indentWrappedLines = COLUMN_INDENT;
+        textTable.indentWrappedLines = columnIndent;
         textTable.setAdjustLineBreaksForWideCJKCharacters(commandSpec.usageMessage().adjustLineBreaksForWideCJKCharacters());
 
         // List<Text>
         new LineBreakingLayout(colorScheme, width, textTable)
-            .concatItem(synopsisPrefix.isEmpty() ? mainCommandText : colorScheme.text(synopsisPrefix).concat(" ").concat(mainCommandText))
+            .concatItem(synopsisPrefix.isEmpty() ? rootCommandText : colorScheme.text(synopsisPrefix).concat(" ").concat(rootCommandText))
             .concatItems(parentOptionsList)
-            .concatItem(isEmptyParent ? colorScheme.text("") : colorScheme.text(commandSpec.name()))
+            .concatItem(isEmptyParent ? colorScheme.text("") : mainCommandText)
             .concatItems(commandOptionsList)
             .concatItem(endOfOptionsText)
             // All other fields added to the synopsis are left-adjusted, so we don't need to add them one by one.
@@ -194,6 +225,10 @@ public class CassandraHelpLayout extends CommandLine.Help
 
     private static List<CommandLine.Model.OptionSpec> parentCommandOptions(CommandLine.Model.CommandSpec commandSpec)
     {
+        // If the command is the help local command, no need to show the parent options.
+        if (commandSpec.helpCommand())
+            return Collections.emptyList();
+
         List<CommandLine.Model.CommandSpec> hierarhy = new LinkedList<>();
         CommandLine.Model.CommandSpec curr;
         while ((curr = commandSpec.parent()) != null)
@@ -255,12 +290,29 @@ public class CassandraHelpLayout extends CommandLine.Help
         return createHeading(OPTIONS_HEADING, params);
     }
 
+    /**
+     * Returns the help for the options of the current command.
+     * <pre>
+     * {@code
+     * OPTIONS
+     *         --help
+     *             Show usage help for the help command and exit.
+     *
+     *         --
+     *             This option can be used to separate command-line options from
+     *             the list of argument, (useful when arguments might be mistaken
+     *             for command-line options
+     * }
+     * </pre>
+     * @return The string representation of the options.
+     */
     @Override
     public String optionList()
     {
+        CommandLine.Model.CommandSpec spec = commandSpec();
         Comparator<CommandLine.Model.OptionSpec> comparator = createShortOptionNameComparator();
         List<CommandLine.Model.OptionSpec> options = new LinkedList<>(parentCommandOptions(commandSpec()));
-        options.addAll(commandSpec().options());
+        options.addAll(spec.options().stream().filter(o -> !o.hidden()).collect(Collectors.toList()));
         options.sort(comparator);
 
         Layout layout = cassandraSingleColumnOptionsParametersLayout();
@@ -333,28 +385,64 @@ public class CassandraHelpLayout extends CommandLine.Help
     }
 
     @Override
+    public String commandListHeading(Object... params)
+    {
+        if (commandSpec().subcommands().isEmpty())
+            return "";
+        return createHeading(COMMANDS_HEADING, params);
+    }
+
+    /**
+     * Returns the help for the subcommands of the current command.
+     * <pre>
+     * {@code
+     * COMMANDS
+     *         With no arguments, Display help information
+     *
+     *         resume
+     *             Resume bootstrap streaming
+     *
+     *             With --force option, Use --force to resume bootstrap regardless of
+     *             cassandra.reset_bootstrap_progress environment variable. WARNING: This
+     *             is potentially dangerous, see CASSANDRA-17679
+     * }
+     * </pre>
+     * @param subcommands The subcommands of the current command.
+     * @return The string representation of the subcommands.
+     */
+    @Override
     public String commandList(Map<String, CommandLine.Help> subcommands)
     {
         if (subcommands.isEmpty())
             return "";
-        int width = commandSpec().usageMessage().width();
-        int commandLength = Math.min(CommandUtils.maxLength(subcommands.keySet()), width / 2);
-        int leadinColumnWidth = commandLength + SUBCOMMANDS_INDENT;
-        TextTable table = TextTable.forColumns(colorScheme(),
-                                                                new Column(leadinColumnWidth, SUBCOMMANDS_INDENT,
-                                                                                            Column.Overflow.SPAN),
-                                                                new Column(width - leadinColumnWidth, SUBCOMMANDS_INDENT,
-                                                                                            Column.Overflow.WRAP));
+        TextTable table = TextTable.forColumns(colorScheme(), new Column(commandSpec().usageMessage().width(),
+                                                                         COLUMN_INDENT, Column.Overflow.WRAP));
+        table.indentWrappedLines = SUBCOMMANDS_INDENT;
         table.setAdjustLineBreaksForWideCJKCharacters(commandSpec().usageMessage().adjustLineBreaksForWideCJKCharacters());
+        table.addRowValues(colorScheme().parameterText(SUBCOMMAND_SUBHEADER));
+        table.addEmptyRow();
 
         for (Map.Entry<String, CommandLine.Help> entry : subcommands.entrySet())
         {
             CommandLine.Help help = entry.getValue();
             CommandLine.Model.UsageMessageSpec usage = help.commandSpec().usageMessage();
             String header = isEmpty(usage.header()) ? (isEmpty(usage.description()) ? "" : usage.description()[0]) : usage.header()[0];
-            Ansi.Text[] lines = colorScheme().text(header).splitLines();
-            for (int i = 0; i < lines.length; i++)
-                table.addRowValues(i == 0 ? help.commandNamesText(", ") : Ansi.OFF.new Text(0), lines[i]);
+            table.addRowValues(colorScheme().commandText(entry.getKey()));
+
+            Ansi.Text leadingSpaces = Ansi.OFF.new Text(leadingSpaces(SUBCOMMANDS_INDENT), colorScheme());
+            table.addRowValues(leadingSpaces.concat(colorScheme().text(header)));
+
+            List<CommandLine.Model.OptionSpec> optionSpecs = help.commandSpec().options();
+            for (CommandLine.Model.OptionSpec optionSpec : optionSpecs)
+            {
+                if (optionSpec.hidden())
+                    continue;
+                table.addEmptyRow();
+                table.addRowValues(leadingSpaces.concat(colorScheme().optionText(
+                    String.format(SUBCOMMAND_OPTION_TEMPLATE,
+                                  optionSpec.longestName(),
+                                  String.join("", optionSpec.description())))));
+            }
         }
         return table.toString();
     }
@@ -393,6 +481,46 @@ public class CassandraHelpLayout extends CommandLine.Help
     public String topLevelSynopsis(Object... params)
     {
         return printDetailedSynopsis(TOP_LEVEL_SYNOPSIS_LIST_PREFIX, 0, false);
+    }
+
+    /**
+     * Returns the help for the top-level command. This differs from the {@link #commandList(Map)} method
+     * in that it does not include the subcommands.
+     * <pre>
+     * {@code
+     * The most commonly used nodetool commands are:
+     *     abortbootstrap                      Abort a failed bootstrap
+     *     bootstrap                           Monitor/manage node's bootstrap process
+     *     cidrfilteringstats                  Print statistics on CIDR filtering
+     *     clientstats                         Print information about connected clients
+     * }
+     * </pre>
+     * @param params Arguments referenced by the format specifiers in the header strings.
+     * @return The top-level subcommands list.
+     */
+    public String topCommandList(Object... params)
+    {
+        Map<String, CommandLine.Help> subcommands = commandSpec().commandLine().getHelp().subcommands();
+        int width = commandSpec().usageMessage().width();
+        int commandLength = Math.min(CommandUtils.maxLength(subcommands.keySet()), width / 2);
+        int leadinColumnWidth = commandLength + SUBCOMMANDS_INDENT;
+        TextTable table = TextTable.forColumns(colorScheme(),
+                                               new Column(leadinColumnWidth, SUBCOMMANDS_INDENT,
+                                                          Column.Overflow.SPAN),
+                                               new Column(width - leadinColumnWidth, SUBCOMMANDS_INDENT,
+                                                          Column.Overflow.WRAP));
+        table.setAdjustLineBreaksForWideCJKCharacters(commandSpec().usageMessage().adjustLineBreaksForWideCJKCharacters());
+
+        for (Map.Entry<String, CommandLine.Help> entry : subcommands.entrySet())
+        {
+            CommandLine.Help help = entry.getValue();
+            CommandLine.Model.UsageMessageSpec usage = help.commandSpec().usageMessage();
+            String header = isEmpty(usage.header()) ? (isEmpty(usage.description()) ? "" : usage.description()[0]) : usage.header()[0];
+            Ansi.Text[] lines = colorScheme().text(header).splitLines();
+            for (int i = 0; i < lines.length; i++)
+                table.addRowValues(i == 0 ? help.commandNamesText(", ") : Ansi.OFF.new Text(0), lines[i]);
+        }
+        return table.toString();
     }
 
     private static List<CommandLine.Model.PositionalParamSpec> cassandraPositionals(CommandLine.Model.CommandSpec commandSpec)
@@ -490,12 +618,14 @@ public class CassandraHelpLayout extends CommandLine.Help
             }
 
             Ansi.Text descPadding = Ansi.OFF.new Text(leadingSpaces(DESCRIPTION_INDENT), scheme);
-            Ansi.Text desc = scheme.optionText(option.description().length == 0 ? "" : option.description()[0]);
-
-            Ansi.Text[][] result = new Ansi.Text[3][];
+            String[] description = option.description().length == 0 ? new String[]{ "" } : option.description();
+            // header, descriptions [0..*], empty line
+            int height = 2 + description.length;
+            Ansi.Text[][] result = new Ansi.Text[height][];
             result[0] = new Ansi.Text[]{ optionText };
-            result[1] = new Ansi.Text[]{ descPadding.concat(desc) };
-            result[2] = new Ansi.Text[]{ Ansi.OFF.new Text("", scheme) };
+            for (int i = 0; i < description.length; i++)
+                result[i + 1] = new Ansi.Text[]{ descPadding.concat(scheme.optionText(description[i])) };
+            result[height - 1] = new Ansi.Text[]{ scheme.text("") };
             return result;
         }
     }

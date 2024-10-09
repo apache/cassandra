@@ -27,8 +27,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.junit.BeforeClass;
@@ -42,9 +40,6 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.tools.NodeTool;
 import org.apache.cassandra.tools.NodeToolV2;
 import org.apache.cassandra.tools.ToolRunner;
-
-import static org.apache.cassandra.tools.nodetool.CassandraHelpLayout.TOP_LEVEL_COMMAND_HEADING;
-import static org.junit.Assert.assertFalse;
 
 @RunWith(Parameterized.class)
 public abstract class NodetoolRunnerTester extends CQLTester
@@ -144,30 +139,6 @@ public abstract class NodetoolRunnerTester extends CQLTester
         }
 
         return '\n' + String.join("\n", diffLines);
-    }
-
-    /**
-     * Get the list of commands available in the V2 version of nodetool.
-     * @return List of available commands.
-     */
-    protected static List<String> fetchCommandsNodeTool(List<String> outNodeTool, Predicate<String> filter)
-    {
-        List<String> commands = new ArrayList<>();
-        boolean headerFound = false;
-        for (String commandOutput : outNodeTool)
-        {
-            if (headerFound && commandOutput.startsWith("    "))
-            {
-                if (commandOutput.startsWith(" ", 4))
-                    continue;
-                commands.add(commandOutput.substring(4, commandOutput.indexOf(' ', 4)));
-            }
-
-            headerFound = headerFound || commandOutput.equals(TOP_LEVEL_COMMAND_HEADING);
-        }
-        // Remove the help command from the list of commands, as it's not applicable.
-        assertFalse(commands.isEmpty());
-        return commands.stream().filter(filter).collect(Collectors.toList());
     }
 
     protected static List<String> readCommandLines(String resource) throws Exception

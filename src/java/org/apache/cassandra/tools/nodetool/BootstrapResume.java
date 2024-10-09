@@ -29,10 +29,12 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.RESET_BOOT
 @Command(name = "resume", description = "Resume bootstrap streaming")
 public class BootstrapResume extends AbstractCommand
 {
-    @Option(names = { "-f", "--force"},
-        description = "Use --force to resume bootstrap regardless of cassandra.reset_bootstrap_progress environment " +
-                      "variable. WARNING: This is potentially dangerous, see CASSANDRA-17679")
-    boolean force = false;
+    @Option(paramLabel = "force",
+            names = { "-f", "--force" },
+            description = { "Use --force to resume bootstrap regardless of ",
+                            "cassandra.reset_bootstrap_progress environment variable. " +
+                            "WARNING: This is potentially dangerous, see CASSANDRA-17679" })
+    public boolean force = false;
 
     @Override
     protected void execute(NodeProbe probe)
