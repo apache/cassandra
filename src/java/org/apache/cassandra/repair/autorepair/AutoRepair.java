@@ -38,6 +38,7 @@ import com.google.common.util.concurrent.Uninterruptibles;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.repair.RepairRunnable;
+import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.Pair;
 
 import org.slf4j.Logger;
@@ -67,7 +68,7 @@ public class AutoRepair
     private static final Logger logger = LoggerFactory.getLogger(AutoRepair.class);
 
     @VisibleForTesting
-    protected static Supplier<Long> timeFunc = System::currentTimeMillis;
+    protected static Supplier<Long> timeFunc = Clock.Global::currentTimeMillis;
 
     public static AutoRepair instance = new AutoRepair();
 
