@@ -110,8 +110,14 @@ public class ConfigCompatibilityTest
                                                                    // Switched to a parameterized class that can construct from a bare string
                                                                    .add("internode_authenticator types do not match; org.apache.cassandra.config.ParameterizedClass != java.lang.String")
                                                                    .add("authenticator types do not match; org.apache.cassandra.config.ParameterizedClass != java.lang.String")
+                                                                   .add("authorizer types do not match; org.apache.cassandra.config.ParameterizedClass != java.lang.String")
+                                                                   .add("network_authorizer types do not match; org.apache.cassandra.config.ParameterizedClass != java.lang.String")
+                                                                   .add("role_manager types do not match; org.apache.cassandra.config.ParameterizedClass != java.lang.String")
                                                                    .add("Property internode_authenticator used to be a value-type, but now is nested type class org.apache.cassandra.config.ParameterizedClass")
                                                                    .add("Property authenticator used to be a value-type, but now is nested type class org.apache.cassandra.config.ParameterizedClass")
+                                                                   .add("Property authorizer used to be a value-type, but now is nested type class org.apache.cassandra.config.ParameterizedClass")
+                                                                   .add("Property role_manager used to be a value-type, but now is nested type class org.apache.cassandra.config.ParameterizedClass")
+                                                                   .add("Property network_authorizer used to be a value-type, but now is nested type class org.apache.cassandra.config.ParameterizedClass")
                                                                    .add("require_client_auth types do not match; java.lang.String != java.lang.Boolean")
                                                                    .build();
 
@@ -154,8 +160,16 @@ public class ConfigCompatibilityTest
     @Test
     public void diff_5_0() throws IOException
     {
-        diff(TEST_DIR + "/version=5.0-alpha1.yml", ImmutableSet.<String>builder().addAll(REMOVED_IN_51)
+        diff(TEST_DIR + "/version=5.0-alpha1.yml", ImmutableSet.<String>builder()
+                                                               .addAll(REMOVED_IN_51)
                                                                .build(), EXPECTED_FOR_50);
+    }
+
+    @Test
+    public void diff_5_1() throws IOException
+    {
+        diff(TEST_DIR + "/version=5.1-alpha1.yml", ImmutableSet.<String>builder()
+                                                               .build(), ImmutableSet.of());
     }
 
     private void diff(String original, Set<String> ignore, Set<String> expectedErrors) throws IOException
