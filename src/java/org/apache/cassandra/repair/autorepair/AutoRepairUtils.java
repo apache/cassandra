@@ -833,4 +833,15 @@ public class AutoRepairUtils
         }
         return allMvs;
     }
+
+    public static void runRepairOnNewlyBootstrappedNodeIfEnabled()
+    {
+        AutoRepairConfig repairConfig = DatabaseDescriptor.getAutoRepairConfig();
+        if (repairConfig.isAutoRepairSchedulingEnabled())
+        {
+            for (AutoRepairConfig.RepairType rType : AutoRepairConfig.RepairType.values())
+                if (repairConfig.isAutoRepairEnabled(rType) && repairConfig.getForceRepairNewNode(rType))
+                    AutoRepairUtils.setForceRepairNewNode(rType);
+        }
+    }
 }
