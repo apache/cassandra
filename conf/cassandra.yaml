@@ -170,7 +170,7 @@ batchlog_replay_throttle: 1024KiB
 #   Please increase system_auth keyspace replication factor if you use this authenticator.
 #   If using PasswordAuthenticator, CassandraRoleManager must also be used (see below)
 authenticator:
-  class_name : org.apache.cassandra.auth.AllowAllAuthenticator
+  class_name : AllowAllAuthenticator
 # MutualTlsAuthenticator can be configured using the following configuration. One can add their own validator
 # which implements MutualTlsCertificateValidator class and provide logic for extracting identity out of certificates
 # and validating certificates.
@@ -190,7 +190,7 @@ authenticator:
 # - CassandraAuthorizer stores permissions in system_auth.role_permissions table. Please
 #   increase system_auth keyspace replication factor if you use this authorizer.
 authorizer:
-  class_name: org.apache.cassandra.auth.AllowAllAuthorizer
+  class_name: AllowAllAuthorizer
 
 # Part of the Authentication & Authorization backend, implementing IRoleManager; used
 # to maintain grants and memberships between roles.
@@ -206,7 +206,7 @@ authorizer:
 # - CassandraRoleManager stores role data in the system_auth keyspace. Please
 #   increase system_auth keyspace replication factor if you use this role manager.
 role_manager:
-  class_name: org.apache.cassandra.auth.CassandraRoleManager
+  class_name: CassandraRoleManager
 
 # Network authorization backend, implementing INetworkAuthorizer; used to restrict user
 # access to certain DCs
@@ -221,7 +221,7 @@ role_manager:
 # - CassandraNetworkAuthorizer stores permissions in system_auth.network_permissions table. Please
 #   increase system_auth keyspace replication factor if you use this authorizer.
 network_authorizer:
-  class_name: org.apache.cassandra.auth.AllowAllNetworkAuthorizer
+  class_name: AllowAllNetworkAuthorizer
 
 # CIDR authorization backend, implementing ICIDRAuthorizer; used to restrict user
 # access from certain CIDRs
@@ -237,7 +237,7 @@ network_authorizer:
 #   increase system_auth keyspace replication factor if you use this authorizer, otherwise any changes to
 #   system_auth tables being used by this feature may be lost when a host goes down.
 cidr_authorizer:
-  class_name: org.apache.cassandra.auth.AllowAllCIDRAuthorizer
+  class_name: AllowAllCIDRAuthorizer
   # Below parameters are used only when CIDR authorizer is enabled
   # parameters:
     # CIDR authorizer when enabled, i.e, CassandraCIDRAuthorizer, is applicable for non-superusers only by default.
