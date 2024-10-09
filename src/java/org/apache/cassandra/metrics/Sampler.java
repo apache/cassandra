@@ -42,7 +42,7 @@ public abstract class Sampler<T>
     MonotonicClock clock = MonotonicClock.approxTime;
 
     @VisibleForTesting
-    static final ThreadPoolExecutor samplerExecutor = new JMXEnabledThreadPoolExecutor(1, 1,
+    public static final ThreadPoolExecutor samplerExecutor = new JMXEnabledThreadPoolExecutor(1, 1,
             TimeUnit.SECONDS,
             new ArrayBlockingQueue<Runnable>(1000),
             new NamedThreadFactory("Sampler"),
