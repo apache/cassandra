@@ -190,7 +190,7 @@ public class AutoRepairService implements AutoRepairServiceMBean
         List<AutoRepairUtils.AutoRepairHistory> histories = AutoRepairUtils.getAutoRepairHistory(rType);
         if (histories == null)
         {
-            return null;
+            return hostIds;
         }
         AutoRepairUtils.CurrentRepairStatus currentRepairStatus = new AutoRepairUtils.CurrentRepairStatus(histories, AutoRepairUtils.getPriorityHostIds(rType));
         for (UUID id : currentRepairStatus.hostIdsWithOnGoingRepair)
