@@ -29,12 +29,14 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.Output;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
+import static org.apache.cassandra.Util.setAutoRepairEnabled;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.when;
 
@@ -45,9 +47,6 @@ public class AutoRepairStatusTest
     private static NodeProbe probe;
 
     private ByteArrayOutputStream cmdOutput;
-
-    @Mock
-    private static AutoRepairConfig config;
 
     private static AutoRepairStatus cmd;
 
@@ -61,14 +60,19 @@ public class AutoRepairStatusTest
     }
 
     @Before
-    public void setUp()
+    public void setUp() throws Exception
     {
         MockitoAnnotations.initMocks(this);
         cmdOutput = new ByteArrayOutputStream();
         PrintStream out = new PrintStream(cmdOutput);
         when(probe.output()).thenReturn(new Output(out, out));
-        when(probe.getAutoRepairConfig()).thenReturn(config);
         cmd = new AutoRepairStatus();
+        DatabaseDescriptor.daemonInitialization();
+        DatabaseDescriptor.loadConfig();
+        setAutoRepairEnabled(true);
+        DatabaseDescriptor.getAutoRepairConfig().setAutoRepairEnabled(AutoRepairConfig.RepairType.full, true);
+        DatabaseDescriptor.getAutoRepairConfig().setAutoRepairEnabled(AutoRepairConfig.RepairType.incremental, true);
+        when(probe.getAutoRepairConfig()).thenReturn(DatabaseDescriptor.getAutoRepairConfig());
     }
 
     @Test(expected = IllegalArgumentException.class)
