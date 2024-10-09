@@ -29,6 +29,8 @@ import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.EndpointsByReplica;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
+import org.apache.cassandra.repair.autorepair.AutoRepairUtils;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -85,6 +87,8 @@ public class ReplaceSameAddress
                             "For more, see `nodetool help bootstrap`. {}", SystemKeyspace.getBootstrapState());
                 throw new IllegalStateException("Could not finish join for during replacement");
             }
+            // this node might have just bootstrapped; check if we should run repair immediately
+            AutoRepairUtils.runRepairOnNewlyBootstrappedNodeIfEnabled();
         }
 
         if (finishJoiningRing)

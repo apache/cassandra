@@ -38,6 +38,7 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.repair.autorepair.AutoRepairConfig.RepairType;
 import org.apache.cassandra.schema.SchemaTestUtil;
+import org.apache.cassandra.service.AutoRepairService;
 
 import static org.apache.cassandra.Util.setAutoRepairEnabled;
 import static org.junit.Assert.assertEquals;
@@ -60,6 +61,7 @@ public class AutoRepairTest extends CQLTester
         DatabaseDescriptor.setCDCOnRepairEnabled(false);
         DatabaseDescriptor.getAutoRepairConfig().setAutoRepairEnabled(RepairType.full, true);
         DatabaseDescriptor.getAutoRepairConfig().setAutoRepairEnabled(RepairType.incremental, true);
+        AutoRepairService.setup();
     }
 
     @After
