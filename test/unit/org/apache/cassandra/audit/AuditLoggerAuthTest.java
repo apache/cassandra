@@ -70,8 +70,8 @@ public class AuditLoggerAuthTest
     {
         OverrideConfigurationLoader.override((config) -> {
             config.authenticator = new ParameterizedClass("PasswordAuthenticator");
-            config.role_manager = "CassandraRoleManager";
-            config.authorizer = "CassandraAuthorizer";
+            config.role_manager = new ParameterizedClass("CassandraRoleManager");
+            config.authorizer = new ParameterizedClass("CassandraAuthorizer");
             config.audit_logging_options.enabled = true;
             config.audit_logging_options.logger = new ParameterizedClass("InMemoryAuditLogger", null);
         });

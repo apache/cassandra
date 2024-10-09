@@ -159,6 +159,10 @@ batchlog_replay_throttle: 1024KiB
 # Authentication backend, implementing IAuthenticator; used to identify users
 # Out of the box, Cassandra provides org.apache.cassandra.auth.{AllowAllAuthenticator,
 # PasswordAuthenticator}.
+# Optional parameters can be specified in the form of:
+#   parameters:
+#    param_key1: param_value1
+#    ...
 #
 # - AllowAllAuthenticator performs no checks - set it to disable authentication.
 # - PasswordAuthenticator relies on username/password pairs to authenticate
@@ -166,7 +170,7 @@ batchlog_replay_throttle: 1024KiB
 #   Please increase system_auth keyspace replication factor if you use this authenticator.
 #   If using PasswordAuthenticator, CassandraRoleManager must also be used (see below)
 authenticator:
-  class_name : org.apache.cassandra.auth.AllowAllAuthenticator
+  class_name : AllowAllAuthenticator
 # MutualTlsAuthenticator can be configured using the following configuration. One can add their own validator
 # which implements MutualTlsCertificateValidator class and provide logic for extracting identity out of certificates
 # and validating certificates.
@@ -177,11 +181,16 @@ authenticator:
 # Authorization backend, implementing IAuthorizer; used to limit access/provide permissions
 # Out of the box, Cassandra provides org.apache.cassandra.auth.{AllowAllAuthorizer,
 # CassandraAuthorizer}.
+# Optional parameters can be specified in the form of:
+#   parameters:
+#    param_key1: param_value1
+#    ...
 #
 # - AllowAllAuthorizer allows any action to any user - set it to disable authorization.
 # - CassandraAuthorizer stores permissions in system_auth.role_permissions table. Please
 #   increase system_auth keyspace replication factor if you use this authorizer.
-authorizer: AllowAllAuthorizer
+authorizer:
+  class_name: AllowAllAuthorizer
 
 # Part of the Authentication & Authorization backend, implementing IRoleManager; used
 # to maintain grants and memberships between roles.
@@ -189,25 +198,40 @@ authorizer: AllowAllAuthorizer
 # which stores role information in the system_auth keyspace. Most functions of the
 # IRoleManager require an authenticated login, so unless the configured IAuthenticator
 # actually implements authentication, most of this functionality will be unavailable.
+# Optional parameters can be specified in the form of:
+#   parameters:
+#    param_key1: param_value1
+#    ...
 #
 # - CassandraRoleManager stores role data in the system_auth keyspace. Please
 #   increase system_auth keyspace replication factor if you use this role manager.
-role_manager: CassandraRoleManager
+role_manager:
+  class_name: CassandraRoleManager
 
 # Network authorization backend, implementing INetworkAuthorizer; used to restrict user
 # access to certain DCs
 # Out of the box, Cassandra provides org.apache.cassandra.auth.{AllowAllNetworkAuthorizer,
 # CassandraNetworkAuthorizer}.
+# Optional parameters can be specified in the form of:
+#   parameters:
+#    param_key1: param_value1
+#    ...
 #
 # - AllowAllNetworkAuthorizer allows access to any DC to any user - set it to disable authorization.
 # - CassandraNetworkAuthorizer stores permissions in system_auth.network_permissions table. Please
 #   increase system_auth keyspace replication factor if you use this authorizer.
-network_authorizer: AllowAllNetworkAuthorizer
+network_authorizer:
+  class_name: AllowAllNetworkAuthorizer
 
 # CIDR authorization backend, implementing ICIDRAuthorizer; used to restrict user
 # access from certain CIDRs
 # Out of the box, Cassandra provides org.apache.cassandra.auth.{AllowAllCIDRAuthorizer,
 # CassandraCIDRAuthorizer}.
+# Optional parameters can be specified in the form of:
+#   parameters:
+#    param_key1: param_value1
+#    ...
+#
 # - AllowAllCIDRAuthorizer allows access from any CIDR to any user - set it to disable CIDR authorization.
 # - CassandraCIDRAuthorizer stores user's CIDR permissions in system_auth.cidr_permissions table. Please
 #   increase system_auth keyspace replication factor if you use this authorizer, otherwise any changes to
