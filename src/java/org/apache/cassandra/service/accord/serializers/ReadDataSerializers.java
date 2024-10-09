@@ -145,7 +145,7 @@ public class ReadDataSerializers
         }
     };
 
-    private static final ReadDataSerializer<ReadEphemeralTxnData> readEphemeralTxnData = new ReadDataSerializer<ReadEphemeralTxnData>()
+    public static final ReadDataSerializer<ReadEphemeralTxnData> readEphemeralTxnData = new ReadDataSerializer<>()
     {
         @Override
         public void serialize(ReadEphemeralTxnData read, DataOutputPlus out, int version) throws IOException

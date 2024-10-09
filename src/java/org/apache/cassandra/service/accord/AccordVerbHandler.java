@@ -60,7 +60,7 @@ public class AccordVerbHandler<T extends Request> implements IVerbHandler<T>
         Node.Id fromNodeId = endpointMapper.mappedId(message.from());
         long waitForEpoch = request.waitForEpoch();
 
-        if (node.topology().hasEpoch(waitForEpoch))
+        if (node.topology().hasAtLeastEpoch(waitForEpoch))
             request.process(node, fromNodeId, message);
         else
             node.withEpoch(waitForEpoch, (ignored, withEpochFailure) -> {

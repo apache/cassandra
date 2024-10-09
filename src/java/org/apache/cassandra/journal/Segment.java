@@ -93,6 +93,7 @@ public abstract class Segment<K, V> implements Closeable, RefCounted<Segment<K, 
             int size = Index.readSize(all[i]);
             Invariants.checkState(offset < prevOffset);
             Invariants.checkState(read(offset, size, into), "Read should always return true");
+            Invariants.checkState(id.equals(into.key), "Index for %s read incorrect key: expected %s but read %s", descriptor, id, into.key);
             onEntry.accept(descriptor.timestamp, offset, into.key, into.value, into.hosts, into.userVersion);
         }
     }

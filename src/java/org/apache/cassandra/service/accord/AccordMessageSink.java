@@ -259,42 +259,37 @@ public class AccordMessageSink implements MessageSink
     @Override
     public void send(Node.Id to, Request request, AgentExecutor executor, Callback callback)
     {
-        long nowNanos = Clock.Global.nanoTime();
         Verb verb = getVerb(request);
         Preconditions.checkNotNull(verb, "Verb is null for type %s", request.type());
-        Message<Request> message;
-        if (isRangeBarrier(request))
-        {
-            message = Message.out(verb, request, nowNanos + DatabaseDescriptor.getAccordRangeBarrierTimeoutNanos());
-        }
-        else
-        {
-            message = Message.out(verb, request);
-        }
-        InetAddressAndPort endpoint = endpointMapper.mappedEndpoint(to);
-        logger.trace("Sending {} {} to {}", verb, message.payload, endpoint);
-        long expiresAtNanos = message.expiresAtNanos();
+        long nowNanos = Clock.Global.nanoTime();
+        long expiresAtNanos;
+        if (isRangeBarrier(request)) expiresAtNanos = nowNanos + DatabaseDescriptor.getAccordRangeBarrierTimeoutNanos();
+        else expiresAtNanos = nowNanos + verb.expiresAfterNanos();
+        long delayedAtNanos = Long.MAX_VALUE;
         switch (verb)
         {
+            case ACCORD_COMMIT_REQ:
+                if (((Commit)request).readData == null)
+                    break;
+
             case ACCORD_READ_REQ:
-            {
-                long delayedAtNanos = Long.MAX_VALUE;
-                if (slowRead != null && !isRangeBarrier(request)) delayedAtNanos = nowNanos + slowRead.computeWait(1, NANOSECONDS);
-                callbacks.register(message.id(), executor, callback, to, nowNanos, delayedAtNanos, expiresAtNanos, NANOSECONDS);
+                if (slowRead == null || isRangeBarrier(request))
+                    break;
+
+            case ACCORD_CHECK_STATUS_REQ:
+                delayedAtNanos = nowNanos + slowRead.computeWait(1, NANOSECONDS);
                 break;
-            }
+
             case ACCORD_PRE_ACCEPT_REQ:
-            {
-                long delayedAtNanos = Long.MAX_VALUE;
-                if (slowPreaccept != null && !isRangeBarrier(request)) delayedAtNanos = slowPreaccept.computeWait(1, NANOSECONDS);
-                callbacks.register(message.id(), executor, callback, to, delayedAtNanos, expiresAtNanos, NANOSECONDS);
-                break;
-            }
-            default:
-            {
-                callbacks.register(message.id(), executor, callback, to, expiresAtNanos, NANOSECONDS);
-            }
+                if (slowPreaccept == null || isRangeBarrier(request))
+                    break;
+                delayedAtNanos = nowNanos + slowPreaccept.computeWait(1, NANOSECONDS);
         }
+
+        Message<Request> message = Message.out(verb, request, expiresAtNanos);
+        InetAddressAndPort endpoint = endpointMapper.mappedEndpoint(to);
+        logger.trace("Sending {} {} to {}", verb, message.payload, endpoint);
+        callbacks.registerAt(message.id(), executor, callback, to, nowNanos, delayedAtNanos, expiresAtNanos, NANOSECONDS);
         messaging.send(message, endpoint);
     }
 

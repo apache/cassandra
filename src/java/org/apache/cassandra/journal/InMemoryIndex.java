@@ -25,8 +25,10 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import javax.annotation.Nullable;
 
+import accord.utils.Invariants;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileOutputStreamPlus;
+import org.apache.cassandra.journal.StaticSegment.SequentialReader;
 
 /**
  * An index for a segment that's still being updated by journal writers concurrently.
@@ -138,17 +140,10 @@ final class InMemoryIndex<K> extends Index<K>
     {
         InMemoryIndex<K> index = new InMemoryIndex<>(keySupport, new TreeMap<>(keySupport));
 
-        try (StaticSegment.SequentialReader<K> reader = StaticSegment.sequentialReader(descriptor, keySupport, fsyncedLimit))
+        try (SequentialReader<K> reader = StaticSegment.sequentialReader(descriptor, keySupport, fsyncedLimit))
         {
-            int last = -1;
             while (reader.advance())
-            {
-                int current = reader.offset();
-                if (last >= 0)
-                    index.update(reader.key(), last, current);
-                last = current;
-            }
-
+                index.update(reader.key(), reader.offset, reader.buffer.position() - reader.offset);
         }
         return index;
     }

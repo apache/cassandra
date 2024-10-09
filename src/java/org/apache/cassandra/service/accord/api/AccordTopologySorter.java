@@ -115,7 +115,7 @@ public class AccordTopologySorter implements TopologySorter
 
         VersionedValue event = epState.getApplicationState(ApplicationState.SEVERITY);
         if (event == null)
-            return true;
+            return false;
 
         return Double.parseDouble(event.value) == 0.0;
     }

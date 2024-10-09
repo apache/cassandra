@@ -27,9 +27,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import com.google.common.util.concurrent.RateLimiter;
 import org.junit.BeforeClass;
@@ -62,7 +67,8 @@ public class AccordLoadTest extends AccordTestBase
     public static void setUp() throws IOException
     {
         CassandraRelevantProperties.SIMULATOR_STARTED.setString(Long.toString(MILLISECONDS.toSeconds(currentTimeMillis())));
-        AccordTestBase.setupCluster(builder -> builder.withConfig(config -> config.with(Feature.values())), 3);
+        AccordTestBase.setupCluster(builder -> builder, 3);
+//        AccordTestBase.setupCluster(builder -> builder.withConfig(config -> config.with(Feature.values())), 3);
     }
 
     @Ignore
@@ -72,162 +78,187 @@ public class AccordLoadTest extends AccordTestBase
         test("CREATE TABLE " + qualifiedAccordTableName + " (k int, v int, PRIMARY KEY(k)) WITH transactional_mode = 'full'",
              cluster -> {
 
-                final ConcurrentHashMap<Verb, AtomicInteger> verbs = new ConcurrentHashMap<>();
-                cluster.filters().outbound().messagesMatching(new IMessageFilters.Matcher()
+                try
                 {
-                    @Override
-                    public boolean matches(int i, int i1, IMessage iMessage)
+
+                    final ConcurrentHashMap<Verb, AtomicInteger> verbs = new ConcurrentHashMap<>();
+                    cluster.filters().outbound().messagesMatching(new IMessageFilters.Matcher()
                     {
-                        verbs.computeIfAbsent(Verb.fromId(iMessage.verb()), ignore -> new AtomicInteger()).incrementAndGet();
-                        return false;
-                    }
-                }).drop();
+                        @Override
+                        public boolean matches(int i, int i1, IMessage iMessage)
+                        {
+                            verbs.computeIfAbsent(Verb.fromId(iMessage.verb()), ignore -> new AtomicInteger()).incrementAndGet();
+                            return false;
+                        }
+                    }).drop();
 
-                 cluster.get(1).nodetoolResult("cms", "reconfigure", "3").asserts().success();
-                 cluster.forEach(i -> i.runOnInstance(() -> {
-                     ((AccordService) AccordService.instance()).journal().compactor().updateCompactionPeriod(1, SECONDS);
-//                     ((AccordSpec.JournalSpec)((AccordService) AccordService.instance()).journal().configuration()).segmentSize = 128 << 10;
-                 }));
+                     ICoordinator coordinator = cluster.coordinator(1);
+                     final int repairInterval = Integer.MAX_VALUE;
+    //                 final int repairInterval = 3000;
+                     final int compactionInterval = Integer.MAX_VALUE;
+    //                 final int compactionInterval = 3000;
+                     final int flushInterval = Integer.MAX_VALUE;
+    //                 final int flushInterval = 1000;
+                     final int compactionPeriodSeconds = -1;
+                     final int restartInterval = 150_000_000;
+                     final int batchSizeLimit = 1000;
+                     final long batchTime = TimeUnit.SECONDS.toNanos(10);
+                     final int concurrency = 100;
+                     final int ratePerSecond = 1000;
+                     final int keyCount = 1000000;
+                     final float readChance = 0.33f;
+                     long nextRepairAt = repairInterval;
+                     long nextCompactionAt = compactionInterval;
+                     long nextFlushAt = flushInterval;
+                     long nextRestartAt = restartInterval;
+                     final ExecutorService restartExecutor = Executors.newSingleThreadExecutor();
+                     final BitSet initialised = new BitSet();
 
-                 ICoordinator coordinator = cluster.coordinator(1);
-                 final int repairInterval = 3000;
-                 final int compactionInterval = 3000;
-                 final int flushInterval = 1000;
-                 final int restartInterval = 10_000;
-                 final int batchSizeLimit = 1000;
-                 final long batchTime = TimeUnit.SECONDS.toNanos(10);
-                 final int concurrency = 100;
-                 final int ratePerSecond = 1000;
-                 final int keyCount = 1000000;
-                 final float readChance = 0.33f;
-                 long nextRepairAt = repairInterval;
-                 long nextCompactionAt = compactionInterval;
-                 long nextFlushAt = flushInterval;
-                 long nextRestartAt = restartInterval;
-                 final BitSet initialised = new BitSet();
+                     cluster.get(1).nodetoolResult("cms", "reconfigure", "3").asserts().success();
+                     cluster.forEach(i -> i.runOnInstance(() -> {
+                         if (compactionPeriodSeconds > 0)
+                            ((AccordService) AccordService.instance()).journal().compactor().updateCompactionPeriod(1, SECONDS);
+    //                     ((AccordSpec.JournalSpec)((AccordService) AccordService.instance()).journal().configuration()).segmentSize = 128 << 10;
+                     }));
 
-                 Random random = new Random();
-//                 CopyOnWriteArrayList<Throwable> exceptions = new CopyOnWriteArrayList<>();
-                 final Semaphore inFlight = new Semaphore(concurrency);
-                 final RateLimiter rateLimiter = RateLimiter.create(ratePerSecond);
-//                 long testStart = System.nanoTime();
-//                 while (NANOSECONDS.toMinutes(System.nanoTime() - testStart) < 10 && exceptions.size() < 10000)
-                 while (true)
-                 {
-                     final EstimatedHistogram histogram = new EstimatedHistogram(200);
-                     long batchStart = System.nanoTime();
-                     long batchEnd = batchStart + batchTime;
-                     int batchSize = 0;
-                     while (batchSize < batchSizeLimit)
+                     Random random = new Random();
+    //                 CopyOnWriteArrayList<Throwable> exceptions = new CopyOnWriteArrayList<>();
+                     final Semaphore inFlight = new Semaphore(concurrency);
+                     final RateLimiter rateLimiter = RateLimiter.create(ratePerSecond);
+    //                 long testStart = System.nanoTime();
+    //                 while (NANOSECONDS.toMinutes(System.nanoTime() - testStart) < 10 && exceptions.size() < 10000)
+                     while (true)
                      {
-                         inFlight.acquire();
-                         rateLimiter.acquire();
-                         long commandStart = System.nanoTime();
-                         int k = random.nextInt(keyCount);
-                         if (random.nextFloat() < readChance)
+                         final EstimatedHistogram histogram = new EstimatedHistogram(200);
+                         long batchStart = System.nanoTime();
+                         long batchEnd = batchStart + batchTime;
+                         int batchSize = 0;
+                         while (batchSize < batchSizeLimit)
                          {
-                             coordinator.executeWithResult((success, fail) -> {
-                                 inFlight.release();
-                                 if (fail == null) histogram.add(NANOSECONDS.toMicros(System.nanoTime() - commandStart));
-                                 //                             else exceptions.add(fail);
-                             }, "SELECT * FROM " + qualifiedAccordTableName + " WHERE k = ?;", ConsistencyLevel.SERIAL, k);
+                             inFlight.acquire();
+                             rateLimiter.acquire();
+                             long commandStart = System.nanoTime();
+                             int k = random.nextInt(keyCount);
+                             if (random.nextFloat() < readChance)
+                             {
+                                 coordinator.executeWithResult((success, fail) -> {
+                                     inFlight.release();
+                                     if (fail == null) histogram.add(NANOSECONDS.toMicros(System.nanoTime() - commandStart));
+                                     //                             else exceptions.add(fail);
+                                 }, "SELECT * FROM " + qualifiedAccordTableName + " WHERE k = ?;", ConsistencyLevel.SERIAL, k);
+                             }
+                             else if (initialised.get(k))
+                             {
+                                 coordinator.executeWithResult((success, fail) -> {
+                                     inFlight.release();
+                                     if (fail == null) histogram.add(NANOSECONDS.toMicros(System.nanoTime() - commandStart));
+        //                             else exceptions.add(fail);
+                                 }, "UPDATE " + qualifiedAccordTableName + " SET v += 1 WHERE k = ? IF EXISTS;", ConsistencyLevel.SERIAL, ConsistencyLevel.QUORUM, k);
+                             }
+                             else
+                             {
+                                 initialised.set(k);
+                                 coordinator.executeWithResult((success, fail) -> {
+                                     inFlight.release();
+                                     if (fail == null) histogram.add(NANOSECONDS.toMicros(System.nanoTime() - commandStart));
+                                     //                             else exceptions.add(fail);
+                                 }, "UPDATE " + qualifiedAccordTableName + " SET v = 0 WHERE k = ? IF NOT EXISTS;", ConsistencyLevel.SERIAL, ConsistencyLevel.QUORUM, k);
+                             }
+                             batchSize++;
+                             if (System.nanoTime() >= batchEnd)
+                                 break;
                          }
-                         else if (initialised.get(k))
-                         {
-                             coordinator.executeWithResult((success, fail) -> {
-                                 inFlight.release();
-                                 if (fail == null) histogram.add(NANOSECONDS.toMicros(System.nanoTime() - commandStart));
-    //                             else exceptions.add(fail);
-                             }, "UPDATE " + qualifiedAccordTableName + " SET v += 1 WHERE k = ? IF EXISTS;", ConsistencyLevel.SERIAL, ConsistencyLevel.QUORUM, k);
-                         }
-                         else
-                         {
-                             initialised.set(k);
-                             coordinator.executeWithResult((success, fail) -> {
-                                 inFlight.release();
-                                 if (fail == null) histogram.add(NANOSECONDS.toMicros(System.nanoTime() - commandStart));
-                                 //                             else exceptions.add(fail);
-                             }, "UPDATE " + qualifiedAccordTableName + " SET v = 0 WHERE k = ? IF NOT EXISTS;", ConsistencyLevel.SERIAL, ConsistencyLevel.QUORUM, k);
-                         }
-                         batchSize++;
-                         if (System.nanoTime() >= batchEnd)
-                             break;
-                     }
 
-                     if ((nextRepairAt -= batchSize) <= 0)
-                     {
-                         nextRepairAt += repairInterval;
-                         System.out.println("repairing...");
-                         cluster.coordinator(1).instance().nodetool("repair", qualifiedAccordTableName);
-                     }
+                         if ((nextRepairAt -= batchSize) <= 0)
+                         {
+                             nextRepairAt += repairInterval;
+                             System.out.println("repairing...");
+                             cluster.coordinator(1).instance().nodetool("repair", qualifiedAccordTableName);
+                         }
 
-                     if ((nextCompactionAt -= batchSize) <= 0)
-                     {
-                         nextCompactionAt += compactionInterval;
-                         System.out.println("compacting accord...");
-                         cluster.forEach(i -> {
-                             i.nodetool("compact", "system_accord.journal");
-                             i.runOnInstance(() -> {
-                                 ((AccordService) AccordService.instance()).journal().checkAllCommands();
+                         if ((nextCompactionAt -= batchSize) <= 0)
+                         {
+                             nextCompactionAt += compactionInterval;
+                             System.out.println("compacting accord...");
+                             cluster.forEach(i -> {
+                                 i.nodetool("compact", "system_accord.journal");
+                                 i.runOnInstance(() -> {
+                                     ((AccordService) AccordService.instance()).journal().checkAllCommands();
+                                 });
                              });
-                         });
-                     }
-
-                     if ((nextFlushAt -= batchSize) <= 0)
-                     {
-                         nextFlushAt += flushInterval;
-                         System.out.println("flushing journal...");
-                         cluster.forEach(i -> i.runOnInstance(() -> {
-                             ((AccordService) AccordService.instance()).journal().closeCurrentSegmentForTestingIfNonEmpty();
-                             ((AccordService) AccordService.instance()).journal().checkAllCommands();
-                         }));
-                     }
-
-                     if ((nextRestartAt -= batchSize) <= 0)
-                     {
-                         nextRestartAt += flushInterval;
-                         int nodeIdx = random.nextInt(cluster.size());
-                         System.out.printf("restarting node %d...\n", nodeIdx);
-                         cluster.get(nodeIdx).shutdown().get();
-                         cluster.get(nodeIdx).startup();
-                     }
-
-                     final Date date = new Date();
-                     System.out.printf("%tT rate: %.2f/s (%d total)\n", date, (((float)batchSizeLimit * 1000) / NANOSECONDS.toMillis(System.nanoTime() - batchStart)), batchSize);
-                     System.out.printf("%tT percentiles: %d %d %d %d\n", date, histogram.percentile(.25)/1000, histogram.percentile(.5)/1000, histogram.percentile(.75)/1000, histogram.percentile(1)/1000);
-
-                     class VerbCount
-                     {
-                         final Verb verb;
-                         final int count;
-
-                         VerbCount(Verb verb, int count)
-                         {
-                             this.verb = verb;
-                             this.count = count;
                          }
-                     }
-                     List<VerbCount> verbCounts = new ArrayList<>();
-                     for (Map.Entry<Verb, AtomicInteger> e : verbs.entrySet())
-                     {
-                         int count = e.getValue().getAndSet(0);
-                         if (count != 0) verbCounts.add(new VerbCount(e.getKey(), count));
-                     }
-                     verbCounts.sort(Comparator.comparing(v -> -v.count));
 
-                     StringBuilder verbSummary = new StringBuilder();
-                     for (VerbCount vs : verbCounts)
-                     {
+                         if ((nextFlushAt -= batchSize) <= 0)
                          {
-                             if (verbSummary.length() > 0)
-                                 verbSummary.append(", ");
-                             verbSummary.append(vs.verb);
-                             verbSummary.append(": ");
-                             verbSummary.append(vs.count);
+                             nextFlushAt += flushInterval;
+                             System.out.println("flushing journal...");
+                             cluster.forEach(i -> i.runOnInstance(() -> {
+                                 ((AccordService) AccordService.instance()).journal().closeCurrentSegmentForTestingIfNonEmpty();
+                                 ((AccordService) AccordService.instance()).journal().checkAllCommands();
+                             }));
                          }
+
+                         if ((nextRestartAt -= batchSize) <= 0)
+                         {
+                             nextRestartAt += restartInterval;
+                             int nodeIdx = random.nextInt(cluster.size());
+
+                             restartExecutor.submit(() -> {
+                                 System.out.printf("restarting node %d...\n", nodeIdx);
+                                 try
+                                 {
+                                     cluster.get(nodeIdx).shutdown().get();
+                                     cluster.get(nodeIdx).startup();
+                                     return null;
+                                 }
+                                 catch (InterruptedException | ExecutionException e)
+                                 {
+                                     throw new RuntimeException(e);
+                                 }
+                             });
+                         }
+
+                         final Date date = new Date();
+                         System.out.printf("%tT rate: %.2f/s (%d total)\n", date, (((float)batchSizeLimit * 1000) / NANOSECONDS.toMillis(System.nanoTime() - batchStart)), batchSize);
+                         System.out.printf("%tT percentiles: %d %d %d %d\n", date, histogram.percentile(.25)/1000, histogram.percentile(.5)/1000, histogram.percentile(.75)/1000, histogram.percentile(1)/1000);
+
+                         class VerbCount
+                         {
+                             final Verb verb;
+                             final int count;
+
+                             VerbCount(Verb verb, int count)
+                             {
+                                 this.verb = verb;
+                                 this.count = count;
+                             }
+                         }
+                         List<VerbCount> verbCounts = new ArrayList<>();
+                         for (Map.Entry<Verb, AtomicInteger> e : verbs.entrySet())
+                         {
+                             int count = e.getValue().getAndSet(0);
+                             if (count != 0) verbCounts.add(new VerbCount(e.getKey(), count));
+                         }
+                         verbCounts.sort(Comparator.comparing(v -> -v.count));
+
+                         StringBuilder verbSummary = new StringBuilder();
+                         for (VerbCount vs : verbCounts)
+                         {
+                             {
+                                 if (verbSummary.length() > 0)
+                                     verbSummary.append(", ");
+                                 verbSummary.append(vs.verb);
+                                 verbSummary.append(": ");
+                                 verbSummary.append(vs.count);
+                             }
+                         }
+                         System.out.printf("%tT verbs: %s\n", date, verbSummary);
                      }
-                     System.out.printf("%tT verbs: %s\n", date, verbSummary);
-                 }
+                }
+                catch (Throwable t)
+                {
+                    t.printStackTrace();
+                }
              }
         );
     }
