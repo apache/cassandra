@@ -33,13 +33,16 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.metrics.Sampler;
 import org.apache.cassandra.service.StorageService;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.junit.Assert.assertEquals;
 
 public class TopPartitionsTest
@@ -76,10 +79,35 @@ public class TopPartitionsTest
     @Test
     public void testServiceTopPartitionsSingleTable() throws Exception
     {
-        ColumnFamilyStore.getIfExists("system", "local").beginLocalSampling("READS", 5, 240000);
+        ColumnFamilyStore columnFamilyStore = ColumnFamilyStore.getIfExists("system", "local");
+        String samplerName = "READS";
+        long executedBefore = Sampler.samplerExecutor.getCompletedTaskCount();
+        columnFamilyStore.beginLocalSampling(samplerName, 5, 240_000);
+
         String req = "SELECT * FROM system.%s WHERE key='%s'";
         executeInternal(format(req, SystemKeyspace.LOCAL, SystemKeyspace.LOCAL));
-        List<CompositeData> result = ColumnFamilyStore.getIfExists("system", "local").finishLocalSampling("READS", 5);
+        ensureThatSamplerExecutorProcessedAllSamples(executedBefore);
+
+        List<CompositeData> result = columnFamilyStore.finishLocalSampling(samplerName, 5);
         assertEquals("If this failed you probably have to raise the beginLocalSampling duration", 1, result.size());
+    }
+
+    private static void ensureThatSamplerExecutorProcessedAllSamples(long executedBefore)
+    {
+        Util.spinAssertEquals("samplerExecutor should not have pending tasks",
+                              0,
+                              () -> Sampler.samplerExecutor.getQueue().size(),
+                              60,
+                              TimeUnit.SECONDS);
+        Util.spinAssertEquals("samplerExecutor should not have active tasks",
+                              0,
+                              Sampler.samplerExecutor::getActiveCount,
+                              60,
+                              TimeUnit.SECONDS);
+        Util.spinAssert("samplerExecutor has not completed any new tasks after beginLocalSampling",
+                        greaterThan(executedBefore),
+                        Sampler.samplerExecutor::getCompletedTaskCount,
+                        60,
+                        TimeUnit.SECONDS);
     }
 }
