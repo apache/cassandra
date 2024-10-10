@@ -253,6 +253,8 @@ public enum CassandraRelevantProperties
     MEMTABLE_OVERHEAD_SIZE("cassandra.memtable.row_overhead_size", "-1"),
     MEMTABLE_OVERHEAD_COMPUTE_STEPS("cassandra.memtable_row_overhead_computation_step", "100000"),
     MIGRATION_DELAY("cassandra.migration_delay_ms", "60000"),
+    /** If set to false, schema modifications will not be allowed, defaults to true. */
+    SCHEMA_MODIFICATIONS("cassandra.schema.modifications", "true"),
     /** Defines how often schema definitions are pulled from the other nodes */
     SCHEMA_PULL_INTERVAL_MS("cassandra.schema_pull_interval_ms", "60000"),
 
