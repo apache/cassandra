@@ -34,6 +34,7 @@ import accord.utils.async.AsyncResult;
 import accord.utils.async.AsyncResults;
 import org.agrona.collections.Object2ObjectHashMap;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.Keyspace;
@@ -91,7 +92,8 @@ public class AccordDataStore implements DataStore
 
             ColumnFamilyStore cfs = Keyspace.openAndGetStoreIfExists(tableMetadata);
             // TODO (required): when we can safely map TxnId.hlc() -> local timestamp, consult Memtable timestamps
-            e.getValue().position = cfs.getCurrentMemtable().getCommitLogLowerBound();
+            Memtable memtable = cfs.getCurrentMemtable();
+            e.getValue().position = memtable.getCommitLogLowerBound();
         }
 
         ScheduledExecutors.scheduledTasks.schedule(() -> {
@@ -118,7 +120,7 @@ public class AccordDataStore implements DataStore
                 else
                     result.setSuccess(null);
             });
-        }, 5L, TimeUnit.MINUTES);
+        }, DatabaseDescriptor.getAccordGCDelay(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
 
         return result;
     }
