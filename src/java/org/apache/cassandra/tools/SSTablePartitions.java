@@ -299,13 +299,30 @@ public class SSTablePartitions
                     // ignore that error when scanning directories
                 }
             }
-            if (scanRecursive && file.isDirectory())
+            if (scanRecursive && file.isDirectory() && !directoryIsSystemKeyspace(file))
             {
                 processDirectory(true,
                                  withSnapshots, withBackups,
                                  file,
                                  descriptors);
             }
+        }
+    }
+
+    private static boolean directoryIsSystemKeyspace(File dir)
+    {
+        if (dir.name() != null &&
+            dir.parent() != null && dir.parent().name() != null &&
+            dir.parent().parent() != null && dir.parent().parent().name() != null &&
+            dir.name().startsWith("system") &&
+            dir.parent().name().equals("data") &&
+            dir.parent().parent().name().equals("data"))
+        {
+            return true;
+        }
+        else
+        {
+            return false;
         }
     }
 

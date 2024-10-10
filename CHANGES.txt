@@ -176,6 +176,7 @@ Merged from 3.0:
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
  * [SO-29062] Deprecate v1 auto-repair framework
+ * [SO-35644] Make sstablepartitions scan to ignore system keyspace folders
 4.1.3.13
  * [SO-34666] Add error handlings to sstablepartitions to avoid crashes due to SSTable deletion
  * [SO-33153] Supply the expiry time for BATCH and COUNTER verbs

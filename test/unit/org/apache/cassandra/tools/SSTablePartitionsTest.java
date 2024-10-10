@@ -193,6 +193,44 @@ public class SSTablePartitionsTest extends OfflineToolUtils
     }
 
     /**
+     *  Vertify that the tool can ignore directories with the form "data/data/system*"
+     */
+    @Test
+    public void testIgnoreSystemKeyspaceDirectories()
+    {
+        File srcDir = new File("test/data/legacy-sstables/ma/legacy_tables/");
+        File dataDirSystem = new File("build/test/cassandra/data/data/data/system");
+        try
+        {
+            org.apache.commons.io.FileUtils.copyDirectory(new File(srcDir, "legacy_ma_clust").toJavaIOFile(),
+                                                          new File(dataDirSystem, "legacy_ma_clust").toJavaIOFile());
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+        assertThatToolSucceds("-r", dataDirSystem.path() + "/legacy_ma_clust").contains(HEADER_2 + SUMMARY_2);
+        assertThatToolSucceds("-r", dataDirSystem.path()).contains(HEADER_2 + SUMMARY_2);
+        assertThatToolSucceds("-r", dataDirSystem.parentPath()).contains("");
+        assertThatToolSucceds("-r", dataDirSystem.parent().parentPath()).contains("");
+
+        File dataDirSystemTraces = new File("build/test/cassandra/data/data/data/system_traces");
+        try
+        {
+            org.apache.commons.io.FileUtils.copyDirectory(new File(srcDir, "legacy_ma_clust").toJavaIOFile(),
+                                                          new File(dataDirSystemTraces, "legacy_ma_clust").toJavaIOFile());
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+        assertThatToolSucceds("-r", dataDirSystemTraces.path() + "/legacy_ma_clust").contains(HEADER_2 + SUMMARY_2);
+        assertThatToolSucceds("-r", dataDirSystemTraces.path()).contains(HEADER_2 + SUMMARY_2);
+        assertThatToolSucceds("-r", dataDirSystemTraces.parentPath()).contains("");
+        assertThatToolSucceds("-r", dataDirSystemTraces.parent().parentPath()).contains("");
+    }
+
+    /**
      * Test the flag for collecting and printing sstable partition sizes only.
      */
     @Test
