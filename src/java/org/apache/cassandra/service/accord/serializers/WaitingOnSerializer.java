@@ -35,8 +35,9 @@ import org.apache.cassandra.utils.vint.VIntCoding;
 
 public class WaitingOnSerializer
 {
-    public static long serializedSize(WaitingOn waitingOn)
+    public static long serializedSize(TxnId txnId, WaitingOn waitingOn)
     {
+        Invariants.checkState(txnId.is(Routable.Domain.Key) == (waitingOn.appliedOrInvalidated == null));
         int keyCount = waitingOn.keys.size();
         int txnIdCount = waitingOn.txnIdCount();
         int waitingOnLength = (txnIdCount + keyCount + 63) / 64;
@@ -57,8 +58,9 @@ public class WaitingOnSerializer
         return (long) TypeSizes.LONG_SIZE * length;
     }
 
-    public static ByteBuffer serialize(WaitingOn waitingOn) throws IOException
+    public static ByteBuffer serialize(TxnId txnId, WaitingOn waitingOn) throws IOException
     {
+        Invariants.checkState(txnId.is(Routable.Domain.Key) == (waitingOn.appliedOrInvalidated == null));
         int keyCount = waitingOn.keys.size();
         int txnIdCount = waitingOn.txnIdCount();
         int waitingOnLength = (txnIdCount + keyCount + 63) / 64;

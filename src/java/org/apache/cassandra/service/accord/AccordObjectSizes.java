@@ -352,7 +352,7 @@ public class AccordObjectSizes
             return size;
 
         Command.Committed committed = command.asCommitted();
-        size += WaitingOnSerializer.serializedSize(committed.waitingOn);
+        size += WaitingOnSerializer.serializedSize(committed.txnId(), committed.waitingOn);
 
         return size;
     }

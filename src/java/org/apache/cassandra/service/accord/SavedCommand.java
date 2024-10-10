@@ -56,6 +56,7 @@ import static accord.local.Cleanup.TRUNCATE_WITH_OUTCOME;
 import static accord.primitives.Known.KnownDeps.DepsErased;
 import static accord.primitives.Known.KnownDeps.DepsUnknown;
 import static accord.primitives.Known.KnownDeps.NoDeps;
+import static accord.primitives.SaveStatus.TruncatedApplyWithOutcome;
 import static accord.primitives.Status.Durability.NotDurable;
 import static accord.utils.Invariants.illegalState;
 import static org.apache.cassandra.service.accord.SavedCommand.Fields.PARTICIPANTS;
@@ -206,8 +207,8 @@ public class SavedCommand
                     break;
                 case WAITING_ON:
                     Command.WaitingOn waitingOn = getWaitingOn(after);
-                    long size = WaitingOnSerializer.serializedSize(waitingOn);
-                    ByteBuffer serialized = WaitingOnSerializer.serialize(waitingOn);
+                    long size = WaitingOnSerializer.serializedSize(after.txnId(), waitingOn);
+                    ByteBuffer serialized = WaitingOnSerializer.serialize(after.txnId(), waitingOn);
                     Invariants.checkState(serialized.remaining() == size);
                     out.writeInt((int) size);
                     out.write(serialized);
@@ -852,6 +853,8 @@ public class SavedCommand
                 case TruncatedApplyWithOutcome:
                 case TruncatedApplyWithDeps:
                 case TruncatedApply:
+                    if (status != TruncatedApplyWithOutcome)
+                        result = null;
                     if (attrs.txnId().kind().awaitsOnlyDeps())
                         return Command.Truncated.truncatedApply(attrs, status, executeAt, writes, result, executesAtLeast);
                     return Command.Truncated.truncatedApply(attrs, status, executeAt, writes, result, null);
