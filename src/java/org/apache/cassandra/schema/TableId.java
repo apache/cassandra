@@ -200,6 +200,12 @@ public class TableId implements Comparable<TableId>
         return new TableId(new UUID(accessor.getLong(src, offset), accessor.getLong(src, offset + TypeSizes.LONG_SIZE)));
     }
 
+    public TableId tryIntern()
+    {
+        TableMetadata metadata = Schema.instance.getTableMetadata(this);
+        return metadata == null ? this : metadata.id;
+    }
+
     @Override
     public int compareTo(TableId o)
     {

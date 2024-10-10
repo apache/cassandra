@@ -18,7 +18,6 @@
 package org.apache.cassandra.service.accord;
 
 import java.util.concurrent.Callable;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.ToLongFunction;
 
@@ -208,10 +207,10 @@ public class AccordCachingState<K, V> extends IntrusiveLinkedListNode
      * has completed, the state save will have either completed or failed.
      */
     @VisibleForTesting
-    public void save(ExecutorPlus executor, BiFunction<?, ?, Runnable> saveFunction)
+    public void save(ExecutorPlus executor, Function<?, Runnable> saveFunction)
     {
         @SuppressWarnings("unchecked")
-        State<K, V> savingOrLoaded = state.save((BiFunction<V, V, Runnable>) saveFunction);
+        State<K, V> savingOrLoaded = state.save((Function<V, Runnable>) saveFunction);
         if (savingOrLoaded.status() == SAVING)
             executor.submit(savingOrLoaded.saving());
         state(savingOrLoaded);
@@ -319,7 +318,7 @@ public class AccordCachingState<K, V> extends IntrusiveLinkedListNode
             throw illegalState(this, "set(value)");
         }
 
-        default State<K, V> save(BiFunction<V, V, Runnable> saveFunction)
+        default State<K, V> save(Function<V, Runnable> saveFunction)
         {
             throw illegalState(this, "save(saveFunction)");
         }
@@ -447,7 +446,7 @@ public class AccordCachingState<K, V> extends IntrusiveLinkedListNode
         @Override
         public State<K, V> set(V value)
         {
-            return value == original ? this : new Modified<>(original, value);
+            return value == original ? this : new Modified<>(value);
         }
 
         @Override
@@ -499,12 +498,10 @@ public class AccordCachingState<K, V> extends IntrusiveLinkedListNode
 
     static class Modified<K, V> implements State<K, V>
     {
-        final V original;
         V current;
 
-        Modified(V original, V current)
+        Modified(V current)
         {
-            this.original = original;
             this.current = current;
         }
 
@@ -523,17 +520,14 @@ public class AccordCachingState<K, V> extends IntrusiveLinkedListNode
         @Override
         public State<K, V> set(V value)
         {
-            if (value == original) // change reverted
-                return new Loaded<>(original);
-
             current = value;
             return this;
         }
 
         @Override
-        public State<K, V> save(BiFunction<V, V, Runnable> saveFunction)
+        public State<K, V> save(Function<V, Runnable> saveFunction)
         {
-            Runnable runnable = saveFunction.apply(original, current);
+            Runnable runnable = saveFunction.apply(current);
             if (null == runnable) // null mutation -> null Runnable -> no change on disk
                 return new Loaded<>(current);
             else
@@ -543,8 +537,7 @@ public class AccordCachingState<K, V> extends IntrusiveLinkedListNode
         @Override
         public long estimateOnHeapSize(ToLongFunction<V> estimateFunction)
         {
-            return (null == original ? 0 : estimateFunction.applyAsLong(original))
-                 + (null == current  ? 0 : estimateFunction.applyAsLong(current));
+            return (null == current  ? 0 : estimateFunction.applyAsLong(current));
         }
     }
 

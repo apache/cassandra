@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.service.accord.async;
 
+import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -155,7 +156,7 @@ public class AsyncLoaderTest
         timestamps.preExecute();
         timestamps.initialize();
 
-        AccordKeyspace.getTimestampsForKeyMutation(commandStore.id(), null, timestamps.current(), commandStore.nextSystemTimestampMicros()).apply();
+        AccordKeyspace.getTimestampsForKeyMutation(commandStore.id(), timestamps.current(), commandStore.nextSystemTimestampMicros()).apply();
 
         // resources are on disk only, so the loader should suspend...
         AsyncLoader loader = new AsyncLoader(commandStore, singleton(txnId), RoutingKeys.of(key), TIMESTAMPS);
@@ -203,7 +204,7 @@ public class AsyncLoaderTest
         testLoad(executor, safeCommand, notDefined(txnId, txn));
         commandCache.release(safeCommand);
 
-        AccordKeyspace.getTimestampsForKeyMutation(commandStore.id(), null, new TimestampsForKey(key), commandStore.nextSystemTimestampMicros()).apply();
+        AccordKeyspace.getTimestampsForKeyMutation(commandStore.id(), new TimestampsForKey(key), commandStore.nextSystemTimestampMicros()).apply();
 
         // resources are on disk only, so the loader should suspend...
         AsyncLoader loader = new AsyncLoader(commandStore, singleton(txnId), RoutingKeys.of(key), TIMESTAMPS);
@@ -353,7 +354,7 @@ public class AsyncLoaderTest
         // acquire / release
 
         commandCache.unsafeSetLoadFunction(id -> notDefined(id, txn));
-        commandCache.unsafeSetSaveFunction((before, after) -> () -> { throw new AssertionError("nodes expected to be saved manually"); });
+        commandCache.unsafeSetSaveFunction((after) -> () -> { throw new AssertionError("nodes expected to be saved manually"); });
 
         AccordSafeCommand safeCommand = commandCache.acquire(txnId);
         testLoad(executor, safeCommand, notDefined(txnId, txn));
@@ -361,7 +362,7 @@ public class AsyncLoaderTest
         commandCache.release(safeCommand);
 
         Assert.assertEquals(AccordCachingState.Status.MODIFIED, commandCache.getUnsafe(txnId).status());
-        commandCache.getUnsafe(txnId).save(executor, (before, after) -> () -> {});
+        commandCache.getUnsafe(txnId).save(executor, (after) -> () -> {});
         Assert.assertEquals(AccordCachingState.Status.SAVING, commandCache.getUnsafe(txnId).status());
 
         // since the command is still saving, the loader shouldn't be able to acquire a reference
@@ -402,7 +403,7 @@ public class AsyncLoaderTest
         inProgressCFKSaveTest(TIMESTAMPS, AccordCommandStore::timestampsForKeyCache, context -> context.timestampsForKey, TimestampsForKey::new, (tfk, c) -> new TimestampsForKey(tfk.key(), c.executeAt(), c.executeAt().hlc(), c.txnId(), c.executeAt()));
     }
 
-    private <T1, T2 extends AccordSafeState<RoutingKey, T1>, C extends AccordStateCache.Instance<RoutingKey, T1, T2>>  void inProgressCFKSaveTest(KeyHistory history, Function<AccordCommandStore, C> getter, Function<Context, TreeMap<?, ?>> inContext, Function<RoutingKey, T1> initialiser, BiFunction<T1, Command, T1> update)
+    private <T1, T2 extends AccordSafeState<RoutingKey, T1>, C extends AccordStateCache.Instance<RoutingKey, T1, T2>>  void inProgressCFKSaveTest(KeyHistory history, Function<AccordCommandStore, C> getter, Function<Context, Map<?, ?>> inContext, Function<RoutingKey, T1> initialiser, BiFunction<T1, Command, T1> update)
     {
         AtomicLong clock = new AtomicLong(0);
         ManualExecutor executor = new ManualExecutor();
@@ -410,7 +411,7 @@ public class AsyncLoaderTest
         createAccordCommandStore(clock::incrementAndGet, "ks", "tbl", executor, executor);
 
         C cache = getter.apply(commandStore);
-        cache.unsafeSetSaveFunction((before, after) -> () -> { throw new AssertionError("nodes expected to be saved manually"); });
+        cache.unsafeSetSaveFunction((after) -> () -> { throw new AssertionError("nodes expected to be saved manually"); });
 
         TxnId txnId = txnId(1, clock.incrementAndGet(), 1);
         PartialTxn txn = createPartialTxn(0);
@@ -424,7 +425,7 @@ public class AsyncLoaderTest
         cache.release(safe);
 
         Assert.assertEquals(AccordCachingState.Status.MODIFIED, cache.getUnsafe(key).status());
-        cache.getUnsafe(key).save(executor, (before, after) -> () -> {});
+        cache.getUnsafe(key).save(executor, (after) -> () -> {});
         Assert.assertEquals(AccordCachingState.Status.SAVING, cache.getUnsafe(key).status());
 
         // since the command is still saving, the loader shouldn't be able to acquire a reference

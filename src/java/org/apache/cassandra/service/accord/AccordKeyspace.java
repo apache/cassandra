@@ -805,6 +805,18 @@ public class AccordKeyspace
         }
     }
 
+    private static <C, V> void addCell(ColumnMetadata column, Function<C, V> get, SerializeFunction<V> serialize, Row.Builder builder, long timestampMicros, int nowInSeconds, C current) throws IOException
+    {
+        V newValue = get.apply(current);
+        if (newValue == null) builder.addCell(tombstone(column, timestampMicros, nowInSeconds));
+        else builder.addCell(live(column, timestampMicros, serialize.apply(newValue)));
+    }
+
+    private static <C extends Command, V> void addCell(ColumnMetadata column, Function<C, V> get, LocalVersionedSerializer<V> serializer, Row.Builder builder, long timestampMicros, int nowInSeconds, C command) throws IOException
+    {
+        addCell(column, get, v -> serializeOrNull(v, serializer), builder, timestampMicros, nowInSeconds, command);
+    }
+
     private static <C extends Command, V> void addCellIfModified(ColumnMetadata column, Function<C, V> get, LocalVersionedSerializer<V> serializer, Row.Builder builder, long timestampMicros, int nowInSeconds, C original, C command) throws IOException
     {
         addCellIfModified(column, get, v -> serializeOrNull(v, serializer), builder, timestampMicros, nowInSeconds, original, command);
@@ -817,29 +829,34 @@ public class AccordKeyspace
         addCellIfModified(column, get, v -> accessor.valueOf(v.ordinal()), builder, timestampMicros, nowInSeconds, original, command);
     }
 
-    public static Mutation getCommandMutation(AccordCommandStore commandStore, AccordSafeCommand liveCommand, long timestampMicros)
+    private static <C extends Command, V extends Enum<V>> void addEnumCell(ColumnMetadata column, Function<C, V> get, Row.Builder builder, long timestampMicros, int nowInSeconds, C command) throws IOException
     {
-        return getCommandMutation(commandStore.id(), liveCommand.original(), liveCommand.current(), timestampMicros);
+        // TODO: convert to byte arrays
+        ValueAccessor<ByteBuffer> accessor = ByteBufferAccessor.instance;
+        addCell(column, get, v -> accessor.valueOf(v.ordinal()), builder, timestampMicros, nowInSeconds, command);
     }
 
-    public static Mutation getCommandMutation(int storeId, Command original, Command command, long timestampMicros)
+    public static Mutation getCommandMutation(AccordCommandStore commandStore, AccordSafeCommand liveCommand, long timestampMicros)
+    {
+        return getCommandMutation(commandStore.id(), liveCommand.current(), timestampMicros);
+    }
+
+    public static Mutation getCommandMutation(int storeId, Command command, long timestampMicros)
     {
         if (command.saveStatus() == SaveStatus.Uninitialised)
             return null;
 
         try
         {
-            Invariants.checkArgument(original != command);
-
             Row.Builder builder = BTreeRow.unsortedBuilder();
             builder.newRow(Clustering.EMPTY);
             int nowInSeconds = (int) TimeUnit.MICROSECONDS.toSeconds(timestampMicros);
             builder.addPrimaryKeyLivenessInfo(LivenessInfo.create(timestampMicros, nowInSeconds));
 
-            addEnumCellIfModified(CommandsColumns.durability, Command::durability, builder, timestampMicros, nowInSeconds, original, command);
-            addCellIfModified(CommandsColumns.participants, Command::participants, LocalVersionedSerializers.participants, builder, timestampMicros, nowInSeconds, original, command);
-            addEnumCellIfModified(CommandsColumns.status, Command::saveStatus, builder, timestampMicros, nowInSeconds, original, command);
-            addCellIfModified(CommandsColumns.execute_at, Command::executeAt, AccordKeyspace::serializeTimestamp, builder, timestampMicros, nowInSeconds, original, command);
+            addEnumCell(CommandsColumns.durability, Command::durability, builder, timestampMicros, nowInSeconds, command);
+            addCell(CommandsColumns.participants, Command::participants, LocalVersionedSerializers.participants, builder, timestampMicros, nowInSeconds, command);
+            addEnumCell(CommandsColumns.status, Command::saveStatus, builder, timestampMicros, nowInSeconds, command);
+            addCell(CommandsColumns.execute_at, Command::executeAt, AccordKeyspace::serializeTimestamp, builder, timestampMicros, nowInSeconds, command);
 
             Row row = builder.build();
             if (row.columnCount() == 0)
@@ -1080,11 +1097,10 @@ public class AccordKeyspace
         return (TokenKey) AccordRoutingKeyByteSource.Serializer.fromComparableBytes(ByteBufferAccessor.instance, tokenBytes, tableId, currentVersion, null);
     }
 
-    public static Mutation getTimestampsForKeyMutation(int storeId, TimestampsForKey original, TimestampsForKey current, long timestampMicros)
+    public static Mutation getTimestampsForKeyMutation(int storeId, TimestampsForKey current, long timestampMicros)
     {
         try
         {
-            Invariants.checkArgument(original != current);
             // TODO: convert to byte arrays
             ValueAccessor<ByteBuffer> accessor = ByteBufferAccessor.instance;
 
@@ -1093,9 +1109,9 @@ public class AccordKeyspace
             int nowInSeconds = (int) TimeUnit.MICROSECONDS.toSeconds(timestampMicros);
             LivenessInfo livenessInfo = LivenessInfo.create(timestampMicros, nowInSeconds);
             builder.addPrimaryKeyLivenessInfo(livenessInfo);
-            addCellIfModified(TimestampsForKeyColumns.last_executed_timestamp, TimestampsForKey::lastExecutedTimestamp, AccordKeyspace::serializeTimestamp, builder, timestampMicros, nowInSeconds, original, current);
-            addCellIfModified(TimestampsForKeyColumns.last_executed_micros, TimestampsForKey::rawLastExecutedHlc, accessor::valueOf, builder, timestampMicros, nowInSeconds, original, current);
-            addCellIfModified(TimestampsForKeyColumns.last_write_timestamp, TimestampsForKey::lastWriteTimestamp, AccordKeyspace::serializeTimestamp, builder, timestampMicros, nowInSeconds, original, current);
+            addCell(TimestampsForKeyColumns.last_executed_timestamp, TimestampsForKey::lastExecutedTimestamp, AccordKeyspace::serializeTimestamp, builder, timestampMicros, nowInSeconds, current);
+            addCell(TimestampsForKeyColumns.last_executed_micros, TimestampsForKey::rawLastExecutedHlc, accessor::valueOf, builder, timestampMicros, nowInSeconds, current);
+            addCell(TimestampsForKeyColumns.last_write_timestamp, TimestampsForKey::lastWriteTimestamp, AccordKeyspace::serializeTimestamp, builder, timestampMicros, nowInSeconds, current);
 
             Row row = builder.build();
             if (row.columnCount() == 0)
@@ -1113,7 +1129,7 @@ public class AccordKeyspace
 
     public static Mutation getTimestampsForKeyMutation(AccordCommandStore commandStore, AccordSafeTimestampsForKey liveTimestamps, long timestampMicros)
     {
-        return getTimestampsForKeyMutation(commandStore.id(), liveTimestamps.original(), liveTimestamps.current(), timestampMicros);
+        return getTimestampsForKeyMutation(commandStore.id(), liveTimestamps.current(), timestampMicros);
     }
 
     public static UntypedResultSet loadTimestampsForKeyRow(CommandStore commandStore, TokenKey key)

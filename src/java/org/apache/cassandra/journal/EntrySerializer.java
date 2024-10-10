@@ -23,7 +23,6 @@ import java.nio.ByteBuffer;
 import java.util.Set;
 import java.util.zip.CRC32;
 
-import accord.utils.Invariants;
 import org.agrona.collections.IntHashSet;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.util.DataInputBuffer;

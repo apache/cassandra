@@ -18,9 +18,7 @@
 package org.apache.cassandra.service.accord.async;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.TreeMap;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -39,13 +37,13 @@ import accord.primitives.TxnId;
 import accord.primitives.Unseekables;
 import accord.utils.Invariants;
 import accord.utils.async.AsyncChains;
+import org.agrona.collections.Object2ObjectHashMap;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.service.accord.AccordCommandStore;
 import org.apache.cassandra.service.accord.AccordSafeCommand;
 import org.apache.cassandra.service.accord.AccordSafeCommandStore;
 import org.apache.cassandra.service.accord.AccordSafeCommandsForKey;
 import org.apache.cassandra.service.accord.AccordSafeCommandsForRanges;
-import org.apache.cassandra.service.accord.AccordSafeState;
 import org.apache.cassandra.service.accord.AccordSafeTimestampsForKey;
 import org.apache.cassandra.service.accord.SavedCommand;
 import org.apache.cassandra.utils.concurrent.Condition;
@@ -71,28 +69,28 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
 
     static class Context
     {
-        final HashMap<TxnId, AccordSafeCommand> commands = new HashMap<>();
-        final TreeMap<RoutingKey, AccordSafeTimestampsForKey> timestampsForKey = new TreeMap<>();
-        final TreeMap<RoutingKey, AccordSafeCommandsForKey> commandsForKey = new TreeMap<>();
+        final Object2ObjectHashMap<TxnId, AccordSafeCommand> commands = new Object2ObjectHashMap<>();
+        final Object2ObjectHashMap<RoutingKey, AccordSafeTimestampsForKey> timestampsForKey = new Object2ObjectHashMap<>();
+        final Object2ObjectHashMap<RoutingKey, AccordSafeCommandsForKey> commandsForKey = new Object2ObjectHashMap<>();
         @Nullable
         AccordSafeCommandsForRanges commandsForRanges = null;
 
         void releaseResources(AccordCommandStore commandStore)
         {
             // TODO (expected): we should destructively iterate to avoid invoking second time in fail; or else read and set to null
-            commands.values().forEach(commandStore.commandCache()::release);
+            commands.forEach((k, v) -> commandStore.commandCache().release(v));
             commands.clear();
-            timestampsForKey.values().forEach(commandStore.timestampsForKeyCache()::release);
+            timestampsForKey.forEach((k, v) -> commandStore.timestampsForKeyCache().release(v));
             timestampsForKey.clear();
-            commandsForKey.values().forEach(commandStore.commandsForKeyCache()::release);
+            commandsForKey.forEach((k, v) -> commandStore.commandsForKeyCache().release(v));
             commandsForKey.clear();
         }
 
         void revertChanges()
         {
-            commands.values().forEach(AccordSafeState::revert);
-            timestampsForKey.values().forEach(AccordSafeState::revert);
-            commandsForKey.values().forEach(AccordSafeState::revert);
+            commands.forEach((k, v) -> v.revert());
+            timestampsForKey.forEach((k, v) -> v.revert());
+            commandsForKey.forEach((k, v) -> v.revert());
             if (commandsForRanges != null)
                 commandsForRanges.revert();
         }

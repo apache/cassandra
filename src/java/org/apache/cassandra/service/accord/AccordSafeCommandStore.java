@@ -53,8 +53,8 @@ import accord.utils.Invariants;
 public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeCommand, AccordSafeTimestampsForKey, AccordSafeCommandsForKey>
 {
     private final Map<TxnId, AccordSafeCommand> commands;
-    private final NavigableMap<RoutingKey, AccordSafeCommandsForKey> commandsForKeys;
-    private final NavigableMap<RoutingKey, AccordSafeTimestampsForKey> timestampsForKeys;
+    private final Map<RoutingKey, AccordSafeCommandsForKey> commandsForKeys;
+    private final Map<RoutingKey, AccordSafeTimestampsForKey> timestampsForKeys;
     private final @Nullable AccordSafeCommandsForRanges commandsForRanges;
     private final AccordCommandStore commandStore;
     private RangesForEpoch ranges;
@@ -62,8 +62,8 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
 
     private AccordSafeCommandStore(PreLoadContext context,
                                    Map<TxnId, AccordSafeCommand> commands,
-                                   NavigableMap<RoutingKey, AccordSafeTimestampsForKey> timestampsForKey,
-                                   NavigableMap<RoutingKey, AccordSafeCommandsForKey> commandsForKey,
+                                   Map<RoutingKey, AccordSafeTimestampsForKey> timestampsForKey,
+                                   Map<RoutingKey, AccordSafeCommandsForKey> commandsForKey,
                                    @Nullable AccordSafeCommandsForRanges commandsForRanges,
                                    AccordCommandStore commandStore)
     {
@@ -80,8 +80,8 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
 
     public static AccordSafeCommandStore create(PreLoadContext preLoadContext,
                                                 Map<TxnId, AccordSafeCommand> commands,
-                                                NavigableMap<RoutingKey, AccordSafeTimestampsForKey> timestampsForKey,
-                                                NavigableMap<RoutingKey, AccordSafeCommandsForKey> commandsForKey,
+                                                Map<RoutingKey, AccordSafeTimestampsForKey> timestampsForKey,
+                                                Map<RoutingKey, AccordSafeCommandsForKey> commandsForKey,
                                                 @Nullable AccordSafeCommandsForRanges commandsForRanges,
                                                 AccordCommandStore commandStore)
     {
