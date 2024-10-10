@@ -147,22 +147,22 @@ public class SavedCommand
         return new SavedCommand.DiffWriter(original, current);
     }
 
-    // TODO (required): this is very inefficient
+    // TODO (required): calculate flags once
     private static boolean anyFieldChanged(Command before, Command after)
     {
-        int flags = getFlags(before, after);
-        for (Fields field : Fields.values())
-        {
-            if (getFieldChanged(field, flags))
-                return true;
-        }
+        int flags = validateFlags(getFlags(before, after));
+        return (flags >>> 16) != 0;
+    }
 
-        return false;
-    }    
+    private static int validateFlags(int flags)
+    {
+        Invariants.checkState(0 == (~(flags >>> 16) & (flags & 0xffff)));
+        return flags;
+    }
     
     public static void serialize(Command before, Command after, DataOutputPlus out, int userVersion) throws IOException
     {
-        int flags = getFlags(before, after);
+        int flags = validateFlags(getFlags(before, after));
         out.writeInt(flags);
 
         int iterable = toIterableSetFields(flags);
@@ -207,7 +207,8 @@ public class SavedCommand
                 case WAITING_ON:
                     Command.WaitingOn waitingOn = getWaitingOn(after);
                     long size = WaitingOnSerializer.serializedSize(waitingOn);
-                    ByteBuffer serialized = WaitingOnSerializer.serialize(after.txnId(), waitingOn);
+                    ByteBuffer serialized = WaitingOnSerializer.serialize(waitingOn);
+                    Invariants.checkState(serialized.remaining() == size);
                     out.writeInt((int) size);
                     out.write(serialized);
                     break;
@@ -254,28 +255,28 @@ public class SavedCommand
         return null;
     }
 
-    private static <OBJ, VAL> int collectFlags(OBJ lo, OBJ ro, Function<OBJ, VAL> convert, boolean allowClassMismatch, Fields field, int oldFlags)
+    private static <OBJ, VAL> int collectFlags(OBJ lo, OBJ ro, Function<OBJ, VAL> convert, boolean allowClassMismatch, Fields field, int flags)
     {
         VAL l = null;
         VAL r = null;
         if (lo != null) l = convert.apply(lo);
         if (ro != null) r = convert.apply(ro);
 
-        if (r == null)
-            oldFlags = setFieldIsNull(field, oldFlags);
-
         if (l == r)
-            return oldFlags; // no change
+            return flags; // no change
+
+        if (r == null)
+            flags = setFieldIsNull(field, flags);
 
         if (l == null || r == null)
-            return setFieldChanged(field, oldFlags);
+            return setFieldChanged(field, flags);
 
         assert allowClassMismatch || l.getClass() == r.getClass() : String.format("%s != %s", l.getClass(), r.getClass());
 
         if (l.equals(r))
-            return oldFlags; // no change
+            return flags; // no change
 
-        return setFieldChanged(field, oldFlags);
+        return setFieldChanged(field, flags);
     }
 
     private static int setFieldChanged(Fields field, int oldFlags)
@@ -593,7 +594,7 @@ public class SavedCommand
 
         public void serialize(DataOutputPlus out, int userVersion) throws IOException
         {
-            out.writeInt(flags);
+            out.writeInt(validateFlags(flags));
 
             int iterable = toIterableSetFields(flags);
             while (iterable != 0)

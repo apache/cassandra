@@ -67,6 +67,7 @@ public class AccordLoadTest extends AccordTestBase
 //        AccordTestBase.setupCluster(builder -> builder, 3);
         AccordTestBase.setupCluster(builder -> builder.withConfig(config -> config
                                                                             .set("accord.schedule_durability_frequency", "5s")
+                                                                            .set("accord.ephemeral_read_enabled", "true")
                                                                             .set("accord.gc_delay", "5s")), 3);
     }
 

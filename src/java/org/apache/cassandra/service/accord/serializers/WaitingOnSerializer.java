@@ -57,13 +57,13 @@ public class WaitingOnSerializer
         return (long) TypeSizes.LONG_SIZE * length;
     }
 
-    public static ByteBuffer serialize(TxnId txnId, WaitingOn waitingOn) throws IOException
+    public static ByteBuffer serialize(WaitingOn waitingOn) throws IOException
     {
         int keyCount = waitingOn.keys.size();
         int txnIdCount = waitingOn.txnIdCount();
         int waitingOnLength = (txnIdCount + keyCount + 63) / 64;
         int appliedOrInvalidatedLength = 0;
-        if (txnId.domain() == Routable.Domain.Range)
+        if (waitingOn.appliedOrInvalidated != null)
             appliedOrInvalidatedLength = (txnIdCount + 63) / 64;
 
         ByteBuffer out = ByteBuffer.allocate(TypeSizes.sizeofUnsignedVInt(keyCount) + TypeSizes.sizeofUnsignedVInt(txnIdCount)

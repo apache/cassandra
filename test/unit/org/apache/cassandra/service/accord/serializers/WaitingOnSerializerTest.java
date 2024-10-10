@@ -55,12 +55,12 @@ public class WaitingOnSerializerTest
             TxnId txnId = TxnId.NONE;
             if (waitingOn.appliedOrInvalidated != null) txnId = new TxnId(txnId.epoch(), txnId.hlc(), txnId.kind(), Routable.Domain.Range, txnId.node);
             long expectedSize = WaitingOnSerializer.serializedSize(waitingOn);
-            ByteBuffer bb = WaitingOnSerializer.serialize(txnId, waitingOn);
+            ByteBuffer bb = WaitingOnSerializer.serialize(waitingOn);
             Assertions.assertThat(bb.remaining()).isEqualTo(expectedSize);
             Command.WaitingOn read = WaitingOnSerializer.deserialize(txnId, waitingOn.keys, waitingOn.directRangeDeps, waitingOn.directKeyDeps, bb);
             Assertions.assertThat(read)
                       .isEqualTo(waitingOn)
-                      .isEqualTo(WaitingOnSerializer.deserialize(txnId, waitingOn.keys, waitingOn.directRangeDeps, waitingOn.directKeyDeps, WaitingOnSerializer.serialize(txnId, waitingOn)));
+                      .isEqualTo(WaitingOnSerializer.deserialize(txnId, waitingOn.keys, waitingOn.directRangeDeps, waitingOn.directKeyDeps, WaitingOnSerializer.serialize(waitingOn)));
         });
     }
 
