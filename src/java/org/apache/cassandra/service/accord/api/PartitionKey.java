@@ -154,7 +154,7 @@ public final class PartitionKey extends AccordRoutableKey implements Key
         @Override
         public PartitionKey deserialize(DataInputPlus in, int version) throws IOException
         {
-            TableId tableId = TableId.deserialize(in);
+            TableId tableId = TableId.deserialize(in).tryIntern();
             IPartitioner partitioner = Schema.instance.getExistingTablePartitioner(tableId);
             DecoratedKey key = partitioner.decorateKey(ByteBufferUtil.readWithShortLength(in));
             return new PartitionKey(tableId, key);
@@ -162,7 +162,7 @@ public final class PartitionKey extends AccordRoutableKey implements Key
 
         public <V> PartitionKey deserialize(V src, ValueAccessor<V> accessor, int offset) throws IOException
         {
-            TableId tableId = TableId.deserialize(src, accessor, offset);
+            TableId tableId = TableId.deserialize(src, accessor, offset).tryIntern();
             offset += tableId.serializedSize();
             TableMetadata metadata = Schema.instance.getTableMetadata(tableId);
             int numBytes = accessor.getShort(src, offset);

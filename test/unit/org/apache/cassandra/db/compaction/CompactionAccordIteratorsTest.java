@@ -522,7 +522,7 @@ public class CompactionAccordIteratorsTest
     private static BiConsumer<Command, Command> appendDiffToKeyspace(AccordCommandStore commandStore)
     {
         return (before, after) -> {
-            AccordKeyspace.getCommandMutation(commandStore.id(), before, after, commandStore.nextSystemTimestampMicros()).applyUnsafe();
+            AccordKeyspace.getCommandMutation(commandStore.id(), after, commandStore.nextSystemTimestampMicros()).applyUnsafe();
         };
     }
 

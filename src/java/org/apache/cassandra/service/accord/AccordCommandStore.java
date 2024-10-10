@@ -288,12 +288,12 @@ public class AccordCommandStore extends CommandStore
 
     @Nullable
     @VisibleForTesting
-    public Runnable appendToKeyspace(Command before, Command after)
+    public Runnable appendToKeyspace(Command after)
     {
         if (after.txnId().is(Routable.Domain.Key))
             return null;
 
-        Mutation mutation = AccordKeyspace.getCommandMutation(this.id, before, after, nextSystemTimestampMicros());
+        Mutation mutation = AccordKeyspace.getCommandMutation(this.id, after, nextSystemTimestampMicros());
 
         // TODO (required): make sure we test recovering when this has failed to be persisted
         if (null != mutation)
@@ -358,14 +358,14 @@ public class AccordCommandStore extends CommandStore
     }
 
     @Nullable
-    private Runnable saveTimestampsForKey(TimestampsForKey before, TimestampsForKey after)
+    private Runnable saveTimestampsForKey(TimestampsForKey after)
     {
-        Mutation mutation = AccordKeyspace.getTimestampsForKeyMutation(id, before, after, nextSystemTimestampMicros());
+        Mutation mutation = AccordKeyspace.getTimestampsForKeyMutation(id, after, nextSystemTimestampMicros());
         return null != mutation ? mutation::applyUnsafe : null;
     }
 
     @Nullable
-    private Runnable saveCommandsForKey(CommandsForKey before, CommandsForKey after)
+    private Runnable saveCommandsForKey(CommandsForKey after)
     {
         Mutation mutation = AccordKeyspace.getCommandsForKeyMutation(id, after, nextSystemTimestampMicros());
         return null != mutation ? mutation::applyUnsafe : null;
@@ -445,8 +445,8 @@ public class AccordCommandStore extends CommandStore
 
     public AccordSafeCommandStore beginOperation(PreLoadContext preLoadContext,
                                                  Map<TxnId, AccordSafeCommand> commands,
-                                                 NavigableMap<RoutingKey, AccordSafeTimestampsForKey> timestampsForKeys,
-                                                 NavigableMap<RoutingKey, AccordSafeCommandsForKey> commandsForKeys,
+                                                 Map<RoutingKey, AccordSafeTimestampsForKey> timestampsForKeys,
+                                                 Map<RoutingKey, AccordSafeCommandsForKey> commandsForKeys,
                                                  @Nullable AccordSafeCommandsForRanges commandsForRanges)
     {
         checkState(current == null);

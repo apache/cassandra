@@ -240,7 +240,7 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
         Class<S> valClass,
         Function<AccordCachingState<K, V>, S> safeRefFactory,
         Function<K, V> loadFunction,
-        BiFunction<V, V, Runnable> saveFunction,
+        Function<V, Runnable> saveFunction,
         BiFunction<K, V, Boolean> validateFunction,
         ToLongFunction<V> heapEstimator,
         AccordCachingState.Factory<K, V> nodeFactory)
@@ -262,7 +262,7 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
         Class<S> valClass,
         Function<AccordCachingState<K, V>, S> safeRefFactory,
         Function<K, V> loadFunction,
-        BiFunction<V, V, Runnable> saveFunction,
+        Function<V, Runnable> saveFunction,
         BiFunction<K, V, Boolean> validateFunction,
         ToLongFunction<V> heapEstimator)
     {
@@ -287,7 +287,7 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
         private final Class<K> keyClass;
         private final Function<AccordCachingState<K, V>, S> safeRefFactory;
         private Function<K, V> loadFunction;
-        private BiFunction<V, V, Runnable> saveFunction;
+        private Function<V, Runnable> saveFunction;
         private final BiFunction<K, V, Boolean> validateFunction;
         private final ToLongFunction<V> heapEstimator;
         private long bytesCached;
@@ -303,7 +303,7 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
             int index, Class<K> keyClass,
             Function<AccordCachingState<K, V>, S> safeRefFactory,
             Function<K, V> loadFunction,
-            BiFunction<V, V, Runnable> saveFunction,
+            Function<V, Runnable> saveFunction,
             BiFunction<K, V, Boolean> validateFunction,
             ToLongFunction<V> heapEstimator,
             AccordCachingState.Factory<K, V> nodeFactory)
@@ -643,7 +643,7 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
         }
 
         @VisibleForTesting
-        public void unsafeSetSaveFunction(BiFunction<V, V, Runnable> saveFunction)
+        public void unsafeSetSaveFunction(Function<V, Runnable> saveFunction)
         {
             this.saveFunction = saveFunction;
         }
