@@ -97,7 +97,7 @@ public abstract class Sampler<T>
     MonotonicClock clock = MonotonicClock.Global.approxTime;
 
     @VisibleForTesting
-    static final ExecutorPlus samplerExecutor = executorFactory()
+    public static final ExecutorPlus samplerExecutor = executorFactory()
             .withJmxInternal()
             .configureSequential("Sampler")
             .withQueueLimit(1000)
