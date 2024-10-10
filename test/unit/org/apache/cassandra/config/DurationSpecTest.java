@@ -40,10 +40,11 @@ public class DurationSpecTest
     @Test
     public void testConversions()
     {
-        assertEquals(10000000000L, new DurationSpec.LongNanosecondsBound ("10s").toNanoseconds());
+        assertEquals(0, new DurationSpec.LongNanosecondsBound("0").toNanoseconds());
+        assertEquals(10000000000L, new DurationSpec.LongNanosecondsBound("10s").toNanoseconds());
         assertEquals(MAX_INT_CONFIG_VALUE, new DurationSpec.IntSecondsBound(MAX_INT_CONFIG_VALUE + "s").toSeconds());
         assertEquals(MAX_INT_CONFIG_VALUE, new DurationSpec.LongMillisecondsBound(MAX_INT_CONFIG_VALUE + "ms").toMilliseconds());
-        assertEquals(600000000000L, new DurationSpec.LongNanosecondsBound ("10m").toNanoseconds());
+        assertEquals(600000000000L, new DurationSpec.LongNanosecondsBound("10m").toNanoseconds());
         assertEquals(MAX_INT_CONFIG_VALUE, new DurationSpec.IntMinutesBound(MAX_INT_CONFIG_VALUE + "m").toMinutes());
         assertEquals(MAX_INT_CONFIG_VALUE, new DurationSpec.IntSecondsBound(MAX_INT_CONFIG_VALUE + "s").toSeconds());
         assertEquals(new DurationSpec.IntMillisecondsBound(0.7, TimeUnit.MILLISECONDS), new DurationSpec.LongNanosecondsBound("1ms"));
@@ -80,6 +81,8 @@ public class DurationSpecTest
     @Test
     public void testInvalidInputs()
     {
+        assertThatThrownBy(() -> new DurationSpec.LongNanosecondsBound("-0")).isInstanceOf(IllegalArgumentException.class)
+                                                                             .hasMessageContaining("Invalid duration: -0");
         assertThatThrownBy(() -> new DurationSpec.LongNanosecondsBound("10")).isInstanceOf(IllegalArgumentException.class)
                                                                              .hasMessageContaining("Invalid duration: 10");
         assertThatThrownBy(() -> new DurationSpec.LongNanosecondsBound("-10s")).isInstanceOf(IllegalArgumentException.class)
@@ -182,15 +185,22 @@ public class DurationSpecTest
     @Test
     public void testEquals()
     {
-        assertEquals(new DurationSpec.LongNanosecondsBound ("10s"), new DurationSpec.LongNanosecondsBound ("10s"));
-        assertEquals(new DurationSpec.LongNanosecondsBound ("10s"), new DurationSpec.LongNanosecondsBound ("10000ms"));
-        assertEquals(new DurationSpec.LongNanosecondsBound ("10000ms"), new DurationSpec.LongNanosecondsBound ("10s"));
-        assertEquals(new DurationSpec.LongNanosecondsBound ("4h"), new DurationSpec.LongNanosecondsBound ("14400s"));
-        assertEquals(DurationSpec.LongNanosecondsBound .IntSecondsBound.inSecondsString("14400"), new DurationSpec.LongNanosecondsBound ("14400s"));
-        assertEquals(DurationSpec.LongNanosecondsBound .IntSecondsBound.inSecondsString("4h"), new DurationSpec.LongNanosecondsBound ("14400s"));
-        assertEquals(DurationSpec.LongNanosecondsBound .IntSecondsBound.inSecondsString("14400s"), new DurationSpec.LongNanosecondsBound ("14400s"));
-        assertNotEquals(new DurationSpec.LongNanosecondsBound ("0m"), new DurationSpec.LongNanosecondsBound ("10ms"));
-        assertEquals(Long.MAX_VALUE-1, new DurationSpec.LongNanosecondsBound ("9223372036854775806ns").toNanoseconds());
+        assertEquals(new DurationSpec.IntSecondsBound("0"), new DurationSpec.IntSecondsBound("0s"));
+        assertEquals(new DurationSpec.LongSecondsBound("0"), new DurationSpec.LongSecondsBound("0s"));
+        assertEquals(new DurationSpec.IntMillisecondsBound("0"), new DurationSpec.IntMillisecondsBound("0ms"));
+        assertEquals(new DurationSpec.LongMillisecondsBound("0"), new DurationSpec.LongMillisecondsBound("0ms"));
+        assertEquals(new DurationSpec.IntMinutesBound("0"), new DurationSpec.IntMinutesBound("0m"));
+        assertEquals(new DurationSpec.LongNanosecondsBound("0"), new DurationSpec.LongNanosecondsBound("0ns"));
+
+        assertEquals(new DurationSpec.LongNanosecondsBound("10s"), new DurationSpec.LongNanosecondsBound("10s"));
+        assertEquals(new DurationSpec.LongNanosecondsBound("10s"), new DurationSpec.LongNanosecondsBound("10000ms"));
+        assertEquals(new DurationSpec.LongNanosecondsBound("10000ms"), new DurationSpec.LongNanosecondsBound("10s"));
+        assertEquals(new DurationSpec.LongNanosecondsBound("4h"), new DurationSpec.LongNanosecondsBound("14400s"));
+        assertEquals(DurationSpec.LongNanosecondsBound.IntSecondsBound.inSecondsString("14400"), new DurationSpec.LongNanosecondsBound("14400s"));
+        assertEquals(DurationSpec.LongNanosecondsBound.IntSecondsBound.inSecondsString("4h"), new DurationSpec.LongNanosecondsBound("14400s"));
+        assertEquals(DurationSpec.LongNanosecondsBound.IntSecondsBound.inSecondsString("14400s"), new DurationSpec.LongNanosecondsBound("14400s"));
+        assertNotEquals(new DurationSpec.LongNanosecondsBound("0m"), new DurationSpec.LongNanosecondsBound("10ms"));
+        assertEquals(Long.MAX_VALUE-1, new DurationSpec.LongNanosecondsBound("9223372036854775806ns").toNanoseconds());
     }
 
     @Test
