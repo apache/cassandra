@@ -631,13 +631,13 @@ public class Util
         spinAssert(message, equalTo(expected), actualSupplier, timeout, timeUnit);
     }
 
-    public static <T> void spinAssert(String message, Matcher<T> mather, Supplier<? extends T> actualSupplier, long timeout, TimeUnit timeUnit)
+    public static <T> void spinAssert(String message, Matcher<T> matcher, Supplier<? extends T> actualSupplier, long timeout, TimeUnit timeUnit)
     {
         Awaitility.await()
                   .pollInterval(Duration.ofMillis(100))
                   .pollDelay(0, TimeUnit.MILLISECONDS)
                   .atMost(timeout, timeUnit)
-                  .untilAsserted(() -> assertThat(message, actualSupplier.get(), mather));
+                  .untilAsserted(() -> assertThat(message, actualSupplier.get(), matcher));
     }
 
     public static void joinThread(Thread thread) throws InterruptedException
