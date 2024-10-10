@@ -4983,6 +4983,11 @@ public class DatabaseDescriptor
         conf.should_compare_gossip_and_storage_service_cache = compareGossipAndStorageServiceCache;
     }
 
+    public static boolean getGossipShouldBroadcastFullLocalStates()
+    {
+        return conf.gossip_should_broadcast_full_local_states;
+    }
+
     public static long getGossipAndStorageServiceCacheComparisonIntervalInSec()
     {
         return conf.gossip_and_storage_service_cache_comparison_interval_in_sec;

@@ -1908,6 +1908,11 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             deltaEpStateMap.put(gDigest.getEndpoint(), localEpStatePtr);
     }
 
+    public boolean shouldSendFullLocalStates(InetAddressAndPort endpoint)
+    {
+        return DatabaseDescriptor.getGossipShouldBroadcastFullLocalStates() && getBroadcastAddressAndPort().equals(endpoint);
+    }
+
     /**
      * Used during a shadow round to collect the current state; this method clones the current state, no filtering
      * is done.
@@ -1999,7 +2004,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                     /* we request everything from the gossiper */
                     requestAll(gDigest, deltaGossipDigestList, remoteGeneration);
                 }
-                else if (remoteGeneration < localGeneration || FBUtilities.getBroadcastAddressAndPort().equals(gDigest.getEndpoint()))
+                else if (remoteGeneration < localGeneration || shouldSendFullLocalStates(gDigest.getEndpoint()))
                 {
                     /* send all data with generation = localgeneration and version > -1 */
                     sendAll(gDigest, deltaEpStateMap, HeartBeatState.EMPTY_VERSION);

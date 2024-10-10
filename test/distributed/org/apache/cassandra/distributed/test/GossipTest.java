@@ -35,6 +35,9 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
@@ -68,6 +71,7 @@ import static org.apache.cassandra.distributed.shared.ClusterUtils.runAndWaitFor
 import static org.apache.cassandra.distributed.shared.NetworkTopology.singleDcNetworkTopology;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 public class GossipTest extends TestBaseImpl

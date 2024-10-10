@@ -24,6 +24,7 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -31,6 +32,7 @@ import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.net.Verb.GOSSIP_DIGEST_ACK2;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 
 public class GossipDigestAckVerbHandler extends GossipVerbHandler<GossipDigestAck>
 {
@@ -88,7 +90,7 @@ public class GossipDigestAckVerbHandler extends GossipVerbHandler<GossipDigestAc
         {
             InetAddressAndPort addr = gDigest.getEndpoint();
             // reply everything regardless of heartbeat if remote is asking about me, adding the flag check so we have the ability to rollback to OSS behavior
-            int maxVersion = FBUtilities.getBroadcastAddressAndPort().equals(addr) ? HeartBeatState.EMPTY_VERSION : gDigest.getMaxVersion();
+            int maxVersion = Gossiper.instance.shouldSendFullLocalStates(addr) ? HeartBeatState.EMPTY_VERSION : gDigest.getMaxVersion();
             EndpointState localEpStatePtr = Gossiper.instance.getStateForVersionBiggerThan(addr, maxVersion);
             if (localEpStatePtr != null)
                 deltaEpStateMap.put(addr, localEpStatePtr);

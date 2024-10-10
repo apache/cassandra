@@ -737,6 +737,9 @@ public class Config
      */
     public volatile Boolean should_compare_gossip_and_storage_service_cache = true;
 
+    // This flag control if local node should send back the full gossip information regardless of heartbeat version asked for itself
+    public volatile Boolean gossip_should_broadcast_full_local_states = true;
+
     // The frequency at which the Gossip and the Storage Service caches are validated
     public volatile Long gossip_and_storage_service_cache_comparison_interval_in_sec = 300L;
 
