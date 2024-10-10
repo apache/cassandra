@@ -143,6 +143,7 @@ import org.apache.cassandra.utils.FilterFactory;
 import org.apache.cassandra.utils.OutputHandler;
 import org.apache.cassandra.utils.Throwables;
 import org.awaitility.Awaitility;
+import org.hamcrest.Matcher;
 import org.mockito.Mockito;
 import org.mockito.internal.stubbing.defaultanswers.ForwardsInvocations;
 
@@ -692,11 +693,16 @@ public class Util
 
     public static <T> void spinAssertEquals(String message, T expected, Supplier<? extends T> actualSupplier, long timeout, TimeUnit timeUnit)
     {
+        spinAssert(message, equalTo(expected), actualSupplier, timeout, timeUnit);
+    }
+
+    public static <T> void spinAssert(String message, Matcher<T> matcher, Supplier<? extends T> actualSupplier, long timeout, TimeUnit timeUnit)
+    {
         Awaitility.await()
                   .pollInterval(Duration.ofMillis(100))
                   .pollDelay(0, TimeUnit.MILLISECONDS)
                   .atMost(timeout, timeUnit)
-                  .untilAsserted(() -> assertThat(message, actualSupplier.get(), equalTo(expected)));
+                  .untilAsserted(() -> assertThat(message, actualSupplier.get(), matcher));
     }
 
     public static void joinThread(Thread thread) throws InterruptedException
