@@ -30,11 +30,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 
 import com.google.common.util.concurrent.RateLimiter;
 import org.junit.BeforeClass;
@@ -45,7 +43,6 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
-import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.IMessage;
 import org.apache.cassandra.distributed.api.IMessageFilters;
@@ -70,6 +67,7 @@ public class AccordLoadTest extends AccordTestBase
 //        AccordTestBase.setupCluster(builder -> builder, 3);
         AccordTestBase.setupCluster(builder -> builder.withConfig(config -> config
                                                                             .set("accord.schedule_durability_frequency", "5s")
+                                                                            .set("accord.ephemeral_read_enabled", "true")
                                                                             .set("accord.gc_delay", "5s")), 3);
     }
 
