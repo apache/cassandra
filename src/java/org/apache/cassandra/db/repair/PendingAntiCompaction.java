@@ -225,6 +225,7 @@ public class PendingAntiCompaction
             // and we only retry when runWithCompactionsDisabled throws when uses the predicate, not when acquireTuple is.
             // This avoids the case when we have an sstable [0, 100] and a user starts a repair on [0, 50] and then [51, 100] before
             // anticompaction has finished but not when the second repair is [25, 75] for example - then we will fail it without retry.
+            int retry = 0;
             do
             {
                 try
@@ -235,11 +236,14 @@ public class PendingAntiCompaction
                 }
                 catch (SSTableAcquisitionException e)
                 {
-                    logger.warn("Session {} failed acquiring sstables: {}, retrying every {}ms for another {}s",
-                                sessionID,
-                                e.getMessage(),
-                                acquireSleepMillis,
-                                TimeUnit.SECONDS.convert(delay + start - currentTimeMillis(), TimeUnit.MILLISECONDS));
+                    if (retry % 10 == 0)
+                    {
+                        logger.warn("Session {} failed acquiring sstables: {}, retrying every {}ms for another {}s",
+                                    sessionID,
+                                    e.getMessage(),
+                                    acquireSleepMillis,
+                                    TimeUnit.SECONDS.convert(delay + start - currentTimeMillis(), TimeUnit.MILLISECONDS));
+                    }
                     Uninterruptibles.sleepUninterruptibly(acquireSleepMillis, TimeUnit.MILLISECONDS);
 
                     if (currentTimeMillis() - start > delay)
@@ -251,6 +255,7 @@ public class PendingAntiCompaction
                     logger.error("Got exception disabling compactions for session {}", sessionID, t);
                     throw t;
                 }
+                retry++;
             } while (currentTimeMillis() - start < delay);
             return null;
         }

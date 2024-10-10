@@ -590,7 +590,9 @@ public class AutoRepairUtilsV2
             CurrentRepairStatus currentRepairStatus = getCurrentRepairStatus(repairType, autoRepairHistories);
             if (currentRepairStatus != null)
             {
-                logger.info("Latest repair status {}", currentRepairStatus);
+                logger.info("Latest repair status. Ongoing repair {}, ongoing force repair: {}, repair priority: {}",
+                            currentRepairStatus.hostIdsWithOnGoingRepair, currentRepairStatus.hostIdsWithOnGoingForceRepair,
+                            currentRepairStatus.priority);
                 //check if I am forced to run repair
                 for (AutoRepairHistory history : currentRepairStatus.historiesWithoutOnGoingRepair)
                 {
