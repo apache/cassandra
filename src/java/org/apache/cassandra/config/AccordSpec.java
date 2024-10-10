@@ -67,6 +67,7 @@ public class AccordSpec
 
     public volatile DurationSpec.IntSecondsBound fast_path_update_delay = new DurationSpec.IntSecondsBound(5);
 
+    public volatile DurationSpec.IntSecondsBound gc_delay = new DurationSpec.IntSecondsBound(300);
     public volatile DurationSpec.IntSecondsBound schedule_durability_frequency = new DurationSpec.IntSecondsBound(120);
     public volatile DurationSpec.IntSecondsBound durability_txnid_lag = new DurationSpec.IntSecondsBound(10);
     public volatile DurationSpec.IntSecondsBound shard_durability_cycle = new DurationSpec.IntSecondsBound(5, TimeUnit.MINUTES);

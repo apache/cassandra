@@ -5110,6 +5110,11 @@ public class DatabaseDescriptor
         conf.accord.fast_path_update_delay = new DurationSpec.IntSecondsBound(seconds);
     }
 
+    public static long getAccordGCDelay(TimeUnit unit)
+    {
+        return conf.accord.gc_delay.to(unit);
+    }
+
     public static long getAccordScheduleDurabilityFrequency(TimeUnit unit)
     {
         return conf.accord.schedule_durability_frequency.to(unit);

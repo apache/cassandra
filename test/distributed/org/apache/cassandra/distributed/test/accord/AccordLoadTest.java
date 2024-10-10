@@ -67,8 +67,10 @@ public class AccordLoadTest extends AccordTestBase
     public static void setUp() throws IOException
     {
         CassandraRelevantProperties.SIMULATOR_STARTED.setString(Long.toString(MILLISECONDS.toSeconds(currentTimeMillis())));
-        AccordTestBase.setupCluster(builder -> builder, 3);
-//        AccordTestBase.setupCluster(builder -> builder.withConfig(config -> config.with(Feature.values())), 3);
+//        AccordTestBase.setupCluster(builder -> builder, 3);
+        AccordTestBase.setupCluster(builder -> builder.withConfig(config -> config
+                                                                            .set("accord.schedule_durability_frequency", "5s")
+                                                                            .set("accord.gc_delay", "5s")), 3);
     }
 
     @Ignore
@@ -95,11 +97,11 @@ public class AccordLoadTest extends AccordTestBase
                      ICoordinator coordinator = cluster.coordinator(1);
                      final int repairInterval = Integer.MAX_VALUE;
     //                 final int repairInterval = 3000;
-                     final int compactionInterval = Integer.MAX_VALUE;
-    //                 final int compactionInterval = 3000;
-                     final int flushInterval = Integer.MAX_VALUE;
-    //                 final int flushInterval = 1000;
-                     final int compactionPeriodSeconds = -1;
+//                     final int compactionInterval = Integer.MAX_VALUE;
+                     final int compactionInterval = 3000;
+//                     final int flushInterval = Integer.MAX_VALUE;
+                     final int flushInterval = 1000;
+                     final int compactionPeriodSeconds = 1;
                      final int restartInterval = 150_000_000;
                      final int batchSizeLimit = 1000;
                      final long batchTime = TimeUnit.SECONDS.toNanos(10);
