@@ -21,10 +21,12 @@ package org.apache.cassandra.contraints;
 
 import org.junit.Test;
 
+import org.apache.cassandra.cql3.ConstraintInvalidException;
 import org.apache.cassandra.cql3.ConstraintViolationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstraintValidationTester
 {
@@ -87,6 +89,19 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
     }
 
     @Test
+    public void testCreateTableWithColumnWithClusteringColumnLessThanScalarDecimalConstraint() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck1 decimal CHECK ck1 < 4.2, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 ASC);");
+
+        // Valid
+        execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 2, 3)");
+
+        // Invalid
+        assertInvalidThrow(ConstraintViolationException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 4.2, 2, 3)");
+        assertInvalidThrow(ConstraintViolationException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 5, 2, 3)");
+    }
+
+    @Test
     public void testCreateTableWithColumnWithClusteringColumnBiggerThanScalarConstraint() throws Throwable
     {
         createTable("CREATE TABLE %s (pk int, ck1 int CHECK ck1 > 4, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 ASC);");
@@ -100,6 +115,19 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
     }
 
     @Test
+    public void testCreateTableWithColumnWithClusteringColumnBiggerThanScalarDecimalConstraint() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck1 double CHECK ck1 > 4.2, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 ASC);");
+
+        // Valid
+        execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 5, 2, 3)");
+
+        // Invalid
+        assertInvalidThrow(ConstraintViolationException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 1, 2, 3)");
+        assertInvalidThrow(ConstraintViolationException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 4.2, 2, 3)");
+    }
+
+    @Test
     public void testCreateTableWithColumnWithClusteringColumnBiggerOrEqualThanScalarConstraint() throws Throwable
     {
         createTable("CREATE TABLE %s (pk int, ck1 int CHECK ck1 >= 4, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 ASC);");
@@ -107,6 +135,19 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 5, 2, 3)");
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 4, 2, 3)");
+
+        // Invalid
+        assertInvalidThrow(ConstraintViolationException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 1, 2, 3)");
+    }
+
+    @Test
+    public void testCreateTableWithColumnWithClusteringColumnBiggerOrEqualThanScalarDecimalConstraint() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck1 decimal CHECK ck1 >= 4.2, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 ASC);");
+
+        // Valid
+        execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 5, 2, 3)");
+        execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 4.2, 2, 3)");
 
         // Invalid
         assertInvalidThrow(ConstraintViolationException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 1, 2, 3)");
@@ -126,6 +167,19 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
     }
 
     @Test
+    public void testCreateTableWithColumnWithClusteringColumnLessOrEqualThanScalarDecimalConstraint() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck1 decimal CHECK ck1 <= 4.2, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 ASC);");
+
+        // Valid
+        execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 3, 2, 3)");
+        execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 4.2, 2, 3)");
+
+        // Invalid
+        assertInvalidThrow(ConstraintViolationException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 5, 2, 3)");
+    }
+
+    @Test
     public void testCreateTableWithColumnWithClusteringColumnDifferentThanScalarConstraint() throws Throwable
     {
         createTable("CREATE TABLE %s (pk int, ck1 int CHECK ck1 != 4, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 ASC);");
@@ -136,6 +190,19 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
 
         // Invalid
         assertInvalidThrow(ConstraintViolationException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 4, 2, 3)");
+    }
+
+    @Test
+    public void testCreateTableWithColumnWithClusteringColumnDifferentThanScalarDecimalConstraint() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck1 decimal CHECK ck1 != 4.2, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 ASC);");
+
+        // Valid
+        execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 3, 2, 3)");
+        execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 5, 2, 3)");
+
+        // Invalid
+        assertInvalidThrow(ConstraintViolationException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 4.2, 2, 3)");
     }
 
     // FUNCTION
@@ -399,10 +466,11 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         try
         {
             createTable("CREATE TABLE %s (pk text, ck1 int CHECK LENGTH(pk) = 4, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 ASC);");
+            fail();
         }
         catch (InvalidRequestException e)
         {
-
+            assertTrue(e.getCause() instanceof ConstraintInvalidException);
             assertTrue(e.getMessage().contains("Error setting schema for test"));
         }
     }
@@ -413,9 +481,11 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         try
         {
             createTable("CREATE TABLE %s (pk int, ck1 int CHECK LENGTH(ck1) = 4, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 ASC);");
+            fail();
         }
         catch (InvalidRequestException e)
         {
+            assertTrue(e.getCause() instanceof ConstraintInvalidException);
             assertTrue(e.getMessage().contains("Error setting schema for test"));
         }
     }

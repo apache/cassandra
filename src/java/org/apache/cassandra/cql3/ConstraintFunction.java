@@ -23,10 +23,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.io.IVersionedAsymmetricSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.tcm.serialization.Version;
 
 public class ConstraintFunction
 {
@@ -44,12 +45,17 @@ public class ConstraintFunction
 
     public void checkConstraint(Operator relationType, String term, TableMetadata tableMetadata, Map<String, String> columnValues)
     {
-        executor.checkConstraint(this.arg, relationType, term, tableMetadata, columnValues);
+        executor.evaluate(this.arg, relationType, term, tableMetadata, columnValues);
     }
 
     public void validateConstraint(Operator relationType, String term, TableMetadata tableMetadata)
     {
         executor.validate(this.arg, relationType, term, tableMetadata);
+    }
+
+    public String toCqlString()
+    {
+        return toString();
     }
 
     @Override
@@ -64,9 +70,10 @@ public class ConstraintFunction
         return String.format("%s(%s)", executor.getName(), args);
     }
 
-    public final static class Serializer
+    public final static class Serializer implements IVersionedAsymmetricSerializer<ConstraintFunction, ConstraintFunction>
     {
-        public void serialize(ConstraintFunction constraintFunction, DataOutputPlus out, Version version) throws IOException
+        @Override
+        public void serialize(ConstraintFunction constraintFunction, DataOutputPlus out, int version) throws IOException
         {
             out.writeUTF(constraintFunction.executor.getClass().getName());
             out.writeUnsignedVInt32(constraintFunction.arg.size());
@@ -74,7 +81,8 @@ public class ConstraintFunction
                 out.writeUTF(arg.toString());
         }
 
-        public ConstraintFunction deserialize(DataInputPlus in) throws IOException
+        @Override
+        public ConstraintFunction deserialize(DataInputPlus in, int version) throws IOException
         {
             String executorClass = in.readUTF();
             CqlConstraintFunctionExecutor executor;
@@ -84,7 +92,7 @@ public class ConstraintFunction
             }
             catch (Exception e)
             {
-                throw new RuntimeException(e);
+                throw new IOException(e);
             }
             int argCount = in.readUnsignedVInt32();
             List<ColumnIdentifier> arg = new ArrayList<>();
@@ -93,6 +101,20 @@ public class ConstraintFunction
                 arg.add(new ColumnIdentifier(in.readUTF(), true));
             }
             return new ConstraintFunction(executor, arg);
+        }
+
+        @Override
+        public long serializedSize(ConstraintFunction constraintFunction, int version)
+        {
+            long sizeInBytes = TypeSizes.sizeof(constraintFunction.executor.getClass().getName())
+            + TypeSizes.sizeof(constraintFunction.arg.size());
+
+            for (ColumnIdentifier id : constraintFunction.arg)
+            {
+                sizeInBytes += TypeSizes.sizeof(id.toString());
+            }
+
+            return sizeInBytes;
         }
     }
 }

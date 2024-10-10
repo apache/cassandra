@@ -76,6 +76,9 @@ New features
     metadata. In the first instance, this encompasses cluster membership, token ownership and schema metadata. See
     https://cwiki.apache.org/confluence/display/CASSANDRA/CEP-21%3A+Transactional+Cluster+Metadata for more detail on
     the motivation and design, and see "Upgrading" below for specific instructions on migrating clusters to this system.
+    - CEP-42 Constraints Framework provides more flexibility to Cassandra users and operators by providing a set of
+    different usable constraints at a more granular level, that will ease validations at application level and protect
+    the Database from misconfigured clients.
     More updates and documentation to follow.
     - New Guardrails added:
       - Whether bulk loading of SSTables is allowed.

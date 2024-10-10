@@ -45,17 +45,17 @@ public interface CqlConstraintFunctionExecutor
      * @param tableMetadata
      * @param columnValues
      */
-    void checkConstraint(List<ColumnIdentifier> args, Operator relationType, String term, TableMetadata tableMetadata, Map<String, String> columnValues);
+    void evaluate(List<ColumnIdentifier> args, Operator relationType, String term, TableMetadata tableMetadata, Map<String, String> columnValues) throws ConstraintViolationException;
 
     /**
      * Method that validates that a condition is valid. This method is called when the CQL constraint is created to determine
-     * if the CQL statement is valid or needs to be rejected as invalid.
+     * if the CQL statement is valid or needs to be rejected as invalid throwing a {@link ConstraintInvalidException}
      * @param args
      * @param relationType
      * @param term
      * @param tableMetadata
      */
-    void validate(List<ColumnIdentifier> args, Operator relationType, String term, TableMetadata tableMetadata);
+    void validate(List<ColumnIdentifier> args, Operator relationType, String term, TableMetadata tableMetadata) throws ConstraintInvalidException;
 
     /**
      * Removes initial and ending quotes from a column value

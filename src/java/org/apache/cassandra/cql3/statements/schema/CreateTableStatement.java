@@ -573,10 +573,8 @@ public final class CreateTableStatement extends AlterSchemaStatement
 
         public void addTableConstraint(CqlConstraint constraint)
         {
-            if (tableConstraints.contains(constraint))
+            if (!tableConstraints.add(constraint))
                 throw ire("Duplicate table constraint: '%s'", constraint);
-
-            tableConstraints.add(constraint);
         }
 
         public void setCompactStorage()

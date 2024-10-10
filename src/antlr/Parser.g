@@ -787,7 +787,7 @@ tableColumns[CreateTableStatement.Raw stmt]
     ;
 
 cqlConstraintExp[CreateTableStatement.Raw stmt] returns [CqlConstraint.Raw cqlConstraint]
-    : cond=cqlConstraintFunctionCondition[stmt] { cqlConstraint = new CqlConstraint.Raw(null, cond); }
+    : cond=cqlConstraintFunctionCondition[stmt] { cqlConstraint = new CqlConstraint.Raw(cond); }
     ;
 
 cqlConstraintFunctionCondition[CreateTableStatement.Raw stmt] returns [ConstraintCondition cond]
@@ -796,10 +796,6 @@ cqlConstraintFunctionCondition[CreateTableStatement.Raw stmt] returns [Constrain
     ;
 
 constraintFunctionName returns [CqlConstraintFunctionExecutor e]
-    : f=constraintAllowedFunctionName   { $e = f == null ? null : f; }
-    ;
-
-constraintAllowedFunctionName returns [CqlConstraintFunctionExecutor e]
     : K_LENGTH                       { $e = new CqlConstraintLength(); }
     ;
 
@@ -1007,7 +1003,7 @@ alterTableStatement returns [AlterTableStatement.Raw stmt]
     ;
 
 alterCqlConstraintExp[AlterTableStatement.Raw stmt] returns [CqlConstraint.Raw cqlConstraint]
-    : cond=alterConstraintFunctionCondition[stmt] { cqlConstraint = new CqlConstraint.Raw(null, cond); }
+    : cond=alterConstraintFunctionCondition[stmt] { cqlConstraint = new CqlConstraint.Raw(cond); }
     ;
 
 alterConstraintFunctionCondition[AlterTableStatement.Raw stmt] returns [ConstraintCondition cond]

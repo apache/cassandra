@@ -1,0 +1,53 @@
+= Constraints
+
+Constraints provide a way of specifying and enforcing conditions at a
+column level in a table schema definition and enforcing them at write time.
+
+== CREATE CONSTRAINT
+
+Constraints can be created within the column definition, or as part
+of the table properties.
+
+[source,bnf]
+----
+CREATE TABLE keyspace.table (
+	name text,
+	i int CHECK (condition)
+	...,
+	CONSTRAINT [name] CHECK (condition)
+);
+----
+
+
+== ALTER CONSTRAINT
+
+[source,bnf]
+----
+ALTER TABLE keyspace.table ALTER CONSTRAINT [name] CHECK (condition)
+----
+
+== DROP CONSTRAINT
+
+[source,bnf]
+----
+ALTER TABLE keyspace.table DROP CONSTRAINT [name]
+----
+
+== AVAILABLE CONSTRAINTS
+
+=== SCALAR CONSTRAINT
+
+Defines a comparator against a numeric type.
+
+[source,bnf]
+----
+i int CHECK i < 1000
+----
+
+=== LENGTH CONSTRAINT
+
+Defines a condition that checks the lenght of text or binary type.
+
+----
+n text CHECK length(n) < 256
+----

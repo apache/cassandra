@@ -21,11 +21,11 @@ package org.apache.cassandra.cql3;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 
 /**
- * Thrown to indicate that the CQL operation did not comply with the defined Constraints
+ * Thrown to indicate that the CQL constraint is not valid
  */
-public class ConstraintViolationException extends InvalidRequestException
+public class ConstraintInvalidException extends InvalidRequestException
 {
-    public ConstraintViolationException(String msg)
+    public ConstraintInvalidException(String msg)
     {
         super(msg);
     }

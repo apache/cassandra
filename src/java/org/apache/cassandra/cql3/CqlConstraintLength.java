@@ -36,7 +36,7 @@ public class CqlConstraintLength implements CqlConstraintFunctionExecutor
     }
 
     @Override
-    public void checkConstraint(List<ColumnIdentifier> args, Operator relationType, String term, TableMetadata tableMetadata, Map<String, String> columnValues)
+    public void evaluate(List<ColumnIdentifier> args, Operator relationType, String term, TableMetadata tableMetadata, Map<String, String> columnValues)
     {
         ColumnMetadata columnMetadata = tableMetadata.getColumn(args.get(0));
         if (!columnValues.containsKey(columnMetadata.name.toString()))
@@ -81,14 +81,14 @@ public class CqlConstraintLength implements CqlConstraintFunctionExecutor
     public void validate(List<ColumnIdentifier> args, Operator relationType, String term, TableMetadata tableMetadata)
     {
         if (args.size() != 1)
-            throw new ConstraintViolationException("LENGTH requires exactly one argument");
+            throw new ConstraintInvalidException("LENGTH requires exactly one argument");
 
         ColumnMetadata columnMetadata = tableMetadata.getColumn(args.get(0));
         if (columnMetadata.type.getClass() != UTF8Type.class && columnMetadata.type.getClass() != AsciiType.class)
         {
-            throw new ConstraintViolationException("Column shout be of type "
-                                                   + UTF8Type.class + " or " + AsciiType.class
-                                                   + " but got " + columnMetadata.type.getClass());
+            throw new ConstraintInvalidException("Column should be of type "
+                                                 + UTF8Type.class + " or " + AsciiType.class
+                                                 + " but got " + columnMetadata.type.getClass());
         }
     }
 }

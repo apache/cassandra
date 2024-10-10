@@ -21,5 +21,6 @@ For that reason, when used in this document, these terms (tables, rows and colum
 * xref:developing/cql/json.adoc[JSON]
 * xref:developing/cql/security.adoc[CQL security]
 * xref:developing/cql/triggers.adoc[Triggers]
+* xref:developing/cql/constraints.adoc[Constraints]
 * xref:developing/cql/appendices.adoc[Appendices]
 * xref:developing/cql/changes.adoc[Changes]

@@ -20,17 +20,16 @@ package org.apache.cassandra.cql3;
 
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.io.IVersionedAsymmetricSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.schema.Types;
-import org.apache.cassandra.schema.UserFunctions;
-import org.apache.cassandra.tcm.serialization.Version;
 
 public class CqlConstraintFunctionCondition implements ConstraintCondition
 {
@@ -40,7 +39,8 @@ public class CqlConstraintFunctionCondition implements ConstraintCondition
 
     public static Serializer serializer = new Serializer();
 
-    public final static class Raw {
+    public final static class Raw
+    {
         public final ConstraintFunction function;
         public final Operator relationType;
         public final String term;
@@ -65,13 +65,21 @@ public class CqlConstraintFunctionCondition implements ConstraintCondition
         this.term = term;
     }
 
-    public void checkCondition(Map<String, String> columnValues, ColumnMetadata columnMetadata, TableMetadata tableMetadata)
+    @Override
+    public IVersionedAsymmetricSerializer<ConstraintCondition, ConstraintCondition> getSerializer()
+    {
+        return serializer;
+    }
+
+    @Override
+    public void evaluate(Map<String, String> columnValues, ColumnMetadata columnMetadata, TableMetadata tableMetadata)
     {
         if (function != null)
             function.checkConstraint(relationType, term, tableMetadata, columnValues);
     }
 
-    public void validateCondition(ColumnMetadata columnMetadata, TableMetadata tableMetadata)
+    @Override
+    public void validate(Map<String, ColumnMetadata> columnMetadata, TableMetadata tableMetadata)
     {
         if (columnMetadata != null)
             validateArgs(columnMetadata);
@@ -79,10 +87,14 @@ public class CqlConstraintFunctionCondition implements ConstraintCondition
             function.validateConstraint(relationType, term, tableMetadata);
     }
 
-    void validateArgs(ColumnMetadata columnMetadata)
+    void validateArgs(Map<String, ColumnMetadata> columnMetadata)
     {
-        if (function != null && !Objects.equals(function.arg.get(0).toCQLString(), columnMetadata.name.toCQLString()))
-            throw new ConstraintViolationException("Function parameter should be the column name");
+        if (function == null)
+            throw new ConstraintInvalidException("Function parameter should be the column name");
+
+        for (ColumnIdentifier param : function.arg)
+            if (!columnMetadata.containsKey(param.toString()))
+                throw new ConstraintInvalidException("Function parameter should be the column name");
     }
 
     @Override
@@ -91,34 +103,33 @@ public class CqlConstraintFunctionCondition implements ConstraintCondition
         return String.format("%s %s %s", function, relationType, term);
     }
 
-    @Override
-    public void serialize(ConstraintCondition constraintFunctionCondition, DataOutputPlus out, Version version) throws IOException
+    public static class Serializer implements IVersionedAsymmetricSerializer<ConstraintCondition, ConstraintCondition>
     {
-        serializer.serialize((CqlConstraintFunctionCondition) constraintFunctionCondition, out, version);
-    }
-
-    @Override
-    public ConstraintCondition deserialize(DataInputPlus in, String keyspace, AbstractType<?> columnType, Types types, UserFunctions functions, Version version) throws IOException
-    {
-        return serializer.deserialize(in, keyspace, columnType, types, functions, version);
-    }
-
-    public static class Serializer implements CqlConstraintSerializer
-    {
-        public void serialize(ConstraintCondition cqlConstraintFunctionCondition, DataOutputPlus out, Version version) throws IOException
+        @Override
+        public void serialize(ConstraintCondition constraintCondition, DataOutputPlus out, int version) throws IOException
         {
-            CqlConstraintFunctionCondition condition = (CqlConstraintFunctionCondition) cqlConstraintFunctionCondition;
+            CqlConstraintFunctionCondition condition = (CqlConstraintFunctionCondition) constraintCondition;
             ConstraintFunction.serializer.serialize(condition.function, out, version);
             out.writeUTF(condition.relationType.toString());
             out.writeUTF(condition.term);
         }
 
-        public CqlConstraintFunctionCondition deserialize(DataInputPlus in, String keyspace, AbstractType<?> columnType, Types types, UserFunctions functions, Version version) throws IOException
+        @Override
+        public ConstraintCondition deserialize(DataInputPlus in, int version) throws IOException
         {
-            ConstraintFunction constraintFunction = ConstraintFunction.serializer.deserialize(in);
+            ConstraintFunction constraintFunction = ConstraintFunction.serializer.deserialize(in, version);
             Operator relationType = Operator.valueOf(in.readUTF());
             final String term = in.readUTF();
             return new CqlConstraintFunctionCondition(constraintFunction, relationType, term);
+        }
+
+        @Override
+        public long serializedSize(ConstraintCondition constraintCondition, int version)
+        {
+            CqlConstraintFunctionCondition condition = (CqlConstraintFunctionCondition) constraintCondition;
+            return TypeSizes.sizeof(condition.term)
+                   + TypeSizes.sizeof(condition.relationType.toString())
+                   + ConstraintFunction.serializer.serializedSize(condition.function, version);
         }
     }
 }

@@ -18,17 +18,12 @@
 
 package org.apache.cassandra.cql3;
 
-import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.io.util.DataInputPlus;
-import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.io.IVersionedAsymmetricSerializer;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.schema.Types;
-import org.apache.cassandra.schema.UserFunctions;
-import org.apache.cassandra.tcm.serialization.Version;
 
 /**
  * Common class for the conditions that a CQL Constraint needs to implement to be integrated in the
@@ -36,49 +31,23 @@ import org.apache.cassandra.tcm.serialization.Version;
  */
 public interface ConstraintCondition
 {
-
-
-
-    /**
-     *
-     * Generic condition serializer.
-     *
-     * @param constraintFunctionCondition
-     * @param out
-     * @param version
-     * @throws IOException
-     */
-    void serialize(ConstraintCondition constraintFunctionCondition, DataOutputPlus out, Version version) throws IOException;
+    IVersionedAsymmetricSerializer<ConstraintCondition, ConstraintCondition> getSerializer();
 
     /**
-     * Generig condition deserializer.
+     * Method that evaluates the condition. It can either succeed or throw a {@link ConstraintViolationException}.
      *
-     * @param in
-     * @param keyspace
-     * @param columnType
-     * @param types
-     * @param functions
-     * @param version
-     * @return
-     * @throws IOException
+     * @param columnValues Column values to be evaluated at write time.
+     * @param columnMetadata Metadata of the column in which the constraint is defined.
+     * @param tableMetadata Metadata of the table in which the constraint is defined.
      */
-    ConstraintCondition deserialize(DataInputPlus in, String keyspace, AbstractType<?> columnType, Types types, UserFunctions functions, Version version) throws IOException;
+    void evaluate(Map<String, String> columnValues, ColumnMetadata columnMetadata, TableMetadata tableMetadata) throws ConstraintViolationException;
 
     /**
-     * Method that provides the execution of the condition. It can either succeed or throw a {@link ConstraintViolationException}.
+     * Method to validate the condition. Method to validate the condition. This method is called when creating constraint via CQL.
+     * A {@link ConstraintInvalidException} is thrown for invalid consrtaint definition.
      *
-     * @param columnValues
-     * @param columnMetadata
-     * @param tableMetadata
+     * @param columnMetadata Metadata of the column in which the constraint is defined.
+     * @param tableMetadata Metadata of the table in which the constraint is defined.
      */
-    void checkCondition(Map<String, String> columnValues, ColumnMetadata columnMetadata, TableMetadata tableMetadata);
-
-    /**
-     * Method that validates that a condition is valid. This method is called when the CQL constraint is created to determine
-     * if the CQL statement is valid or needs to be rejected as invalid.
-     *
-     * @param columnMetadata
-     * @param tableMetadata
-     */
-    void validateCondition(ColumnMetadata columnMetadata, TableMetadata tableMetadata);
+    void validate(Map<String, ColumnMetadata> columnMetadata, TableMetadata tableMetadata) throws ConstraintInvalidException;
 }

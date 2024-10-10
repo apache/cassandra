@@ -24,11 +24,13 @@ import java.util.regex.Pattern;
 import org.junit.Test;
 
 import com.datastax.driver.core.ResultSet;
+import org.apache.cassandra.cql3.ConstraintInvalidException;
 import org.apache.cassandra.cql3.ConstraintViolationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
 
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class CreateTableWithTableCqlConstraintValidationTest extends CqlConstraintValidationTester
 {
@@ -434,31 +436,34 @@ public class CreateTableWithTableCqlConstraintValidationTest extends CqlConstrai
         assertInvalidThrow(ConstraintViolationException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES ('fooo', 2, 3, 'foooo')");
         assertInvalidThrow(ConstraintViolationException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES ('foooo', 2, 3, 'foooo')");
     }
-    
+
 
     @Test
     public void testCreateTableWithWrongColumnConstraint() throws Throwable
     {
         try
         {
-            createTable("CREATE TABLE %s (pk text, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT cons1 CHECK LENGTH(pk) = 4) WITH CLUSTERING ORDER BY (ck1 ASC);");
+            createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT cons1 CHECK LENGTH(pk) = 4) WITH CLUSTERING ORDER BY (ck1 ASC);");
+            fail();
         }
         catch (InvalidRequestException e)
         {
+            assertTrue(e.getCause() instanceof ConstraintInvalidException);
             assertTrue(e.getMessage().contains("Error setting schema for test"));
         }
     }
 
-
     @Test
-    public void testCreateTableWithColumnWithClusteringColumnInvalidTypeConstraint() throws Throwable
+    public void testCreateTableWithWrongTextColumnConstraint() throws Throwable
     {
         try
         {
-            createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT cons1 CHECK LENGTH(ck1) = 4) WITH CLUSTERING ORDER BY (ck1 ASC);");
+            createTable("CREATE TABLE %s (pk text, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT cons1 CHECK pk < 4) WITH CLUSTERING ORDER BY (ck1 ASC);");
+            fail();
         }
         catch (InvalidRequestException e)
         {
+            assertTrue(e.getCause() instanceof ConstraintInvalidException);
             assertTrue(e.getMessage().contains("Error setting schema for test"));
         }
     }

@@ -669,7 +669,7 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
                 ColumnMask.serializer.serialize(t.mask, out, version);
             out.writeBoolean(t.cqlConstraint != null);
             if (t.cqlConstraint != null)
-                CqlConstraint.serializer.serialize(t.cqlConstraint, out, version);
+                CqlConstraint.serializer.serialize(t.cqlConstraint, out, version.asInt());
         }
 
         public ColumnMetadata deserialize(DataInputPlus in, Types types, UserFunctions functions, Version version) throws IOException
@@ -691,7 +691,7 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
             CqlConstraint cqlConstraint = null;
             boolean hasConstraint = in.readBoolean();
             if (hasConstraint)
-                cqlConstraint = CqlConstraint.serializer.deserialize(in, ksName, type, types, functions, version);
+                cqlConstraint = CqlConstraint.serializer.deserialize(in, version.asInt());
 
             return new ColumnMetadata(ksName, tableName, new ColumnIdentifier(nameBB, name), type, position, kind, mask, cqlConstraint);
         }
@@ -707,7 +707,10 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
                    sizeof(t.name.toString()) +
                    ByteBufferUtil.serializedSizeWithShortLength(t.name.bytes) +
                    BOOL_SIZE +
-                   ((t.mask == null) ? 0 : ColumnMask.serializer.serializedSize(t.mask, version));
+                   ((t.mask == null) ? 0 : ColumnMask.serializer.serializedSize(t.mask, version)) +
+                   BOOL_SIZE +
+                   ((t.cqlConstraint == null) ? 0 : CqlConstraint.serializer.serializedSize(t.cqlConstraint, version.asInt()))
+            ;
         }
     }
 }

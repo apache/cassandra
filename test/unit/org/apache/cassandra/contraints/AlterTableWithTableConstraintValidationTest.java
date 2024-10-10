@@ -190,7 +190,7 @@ public class AlterTableWithTableConstraintValidationTest extends CqlConstraintVa
     @Test
     public void testCreateTableWithColumnAndConstraintAddExistingConstraint() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT cons1 CHECK LENGTH(ck1) = 4) WITH CLUSTERING ORDER BY (ck1 ASC);");
+        createTable("CREATE TABLE %s (pk int, ck1 text, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT cons1 CHECK LENGTH(ck1) = 4) WITH CLUSTERING ORDER BY (ck1 ASC);");
         assertInvalidThrow(ConstraintViolationException.class, "ALTER TABLE %s ADD CONSTRAINT cons1 CHECK LENGTH(ck2) = 4");
     }
 }

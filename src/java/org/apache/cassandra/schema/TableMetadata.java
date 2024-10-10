@@ -543,7 +543,17 @@ public class TableMetadata implements SchemaElement
         {
             CqlConstraint constraint = columnMetadata.getColumnConstraint();
             if (constraint != null)
-                constraint.validateConstraint(columnMetadata, this);
+                constraint.validateConstraint(Map.of(columnMetadata.name.toString(), columnMetadata), this);
+        }
+
+        if (!constraints.isEmpty())
+        {
+            Map<String, ColumnMetadata> columns = new HashMap<>();
+            for (ColumnMetadata columnMetadata : this.columns())
+                columns.put(columnMetadata.name.toString(), columnMetadata);
+
+            for (CqlConstraint cqlConstraint : constraints)
+                cqlConstraint.validateConstraint(columns, this);
         }
     }
 
@@ -795,6 +805,7 @@ public class TableMetadata implements SchemaElement
                           .add("droppedColumns", droppedColumns.values())
                           .add("indexes", indexes)
                           .add("triggers", triggers)
+                          .add("constraints", constraints)
                           .toString();
     }
 
@@ -1469,7 +1480,7 @@ public class TableMetadata implements SchemaElement
             builder.append("CONSTRAINT ")
                    .append(constraint.constraintName)
                    .append(" CHECK ")
-                   .append(constraint.toString());
+                   .append(constraint.toCqlString());
             if (iterator.hasNext())
                 builder.append(",").newLine();
         }
@@ -1912,6 +1923,7 @@ public class TableMetadata implements SchemaElement
 
             Indexes.serializer.serialize(t.indexes, out, version);
             Triggers.serializer.serialize(t.triggers, out, version);
+            CqlConstraint.serializer.serializeSet(t.constraints, out, version.asInt());
         }
 
         public TableMetadata deserialize(DataInputPlus in, Types types, UserFunctions functions, Version version) throws IOException
@@ -1945,6 +1957,7 @@ public class TableMetadata implements SchemaElement
             builder.droppedColumns(droppedColumns);
             builder.indexes(Indexes.serializer.deserialize(in, version));
             builder.triggers(Triggers.serializer.deserialize(in, version));
+            builder.constraints(CqlConstraint.serializer.deserializeSet(in, version.asInt()));
             return builder.build();
         }
 
@@ -1978,6 +1991,7 @@ public class TableMetadata implements SchemaElement
 
             size += Indexes.serializer.serializedSize(t.indexes, version);
             size += Triggers.serializer.serializedSize(t.triggers, version);
+            size += CqlConstraint.serializer.serializedSetSize(t.constraints, version.asInt());
 
             return size;
 

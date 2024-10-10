@@ -7,6 +7,7 @@ This section covers the new features in Apache Cassandra 5.1.
 
 * https://cwiki.apache.org/confluence/x/FQRACw[ACID Transactions (Accord)]
 * https://cwiki.apache.org/confluence/x/YyD1D[Transactional Cluster Metadata]
+* https://cwiki.apache.org/confluence/x/8IpyEg[Constraints]
 
 
 == New Features in Apache Cassandra 5.0
