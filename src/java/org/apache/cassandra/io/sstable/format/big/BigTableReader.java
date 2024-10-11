@@ -325,6 +325,7 @@ public class BigTableReader extends SSTableReaderWithFilter implements IndexSumm
         // of the next interval).
         int i = 0;
         String path = null;
+        ByteBuffer indexKey = null;
         try (FileDataInput in = ifile.createReader(sampledPosition))
         {
             path = in.getPath();
@@ -332,7 +333,13 @@ public class BigTableReader extends SSTableReaderWithFilter implements IndexSumm
             {
                 i++;
 
-                ByteBuffer indexKey = ByteBufferUtil.readWithShortLength(in);
+                int length = in.readUnsignedShort();
+                if (indexKey == null || indexKey.capacity() < length)
+                    indexKey = ByteBuffer.allocate(length);
+
+                in.readFully(indexKey.array(), 0, length);
+                indexKey.position(0);
+                indexKey.limit(length);
 
                 boolean opSatisfied; // did we find an appropriate position for the op requested
                 boolean exactMatch; // is the current position an exact match for the key, suitable for caching

@@ -72,6 +72,11 @@ public class LocalPartitioner implements IPartitioner
         return new LocalToken(key);
     }
 
+    public int compareToken(ByteBuffer key, Token token)
+    {
+        return comparator.compare(key, ((LocalToken)token).token);
+    }
+
     public LocalToken getRandomToken()
     {
         throw new UnsupportedOperationException();

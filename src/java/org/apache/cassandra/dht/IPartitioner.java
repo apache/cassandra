@@ -83,6 +83,16 @@ public interface IPartitioner
     public Token getToken(ByteBuffer key);
 
     /**
+     * @return a Token that can be used to route a given key
+     * (This is NOT a method to create a Token from its string representation;
+     * for that, use TokenFactory.fromString.)
+     */
+    default int compareToken(ByteBuffer key, Token token)
+    {
+        return getToken(key).compareTo(token);
+    }
+
+    /**
      * @return a randomly generated token
      */
     public Token getRandomToken();

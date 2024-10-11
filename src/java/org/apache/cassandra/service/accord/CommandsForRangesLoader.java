@@ -249,7 +249,7 @@ public class CommandsForRangesLoader implements AccordStateCache.Listener<TxnId,
         if (cmd.partialTxn() == null)
             return null;
 
-        var keysOrRanges = cmd.participants().touches();
+        var keysOrRanges = cmd.participants().touches().toRanges();
         if (keysOrRanges.domain() != Domain.Range)
             throw new AssertionError(String.format("Txn keys are not range for %s", cmd.partialTxn()));
         Ranges ranges = (Ranges) keysOrRanges;
@@ -273,7 +273,7 @@ public class CommandsForRangesLoader implements AccordStateCache.Listener<TxnId,
         }
 
         var partialDeps = cmd.partialDeps();
-        boolean hasAsDep = findAsDep != null && partialDeps.rangeDeps.intersects(findAsDep, ranges);
+        boolean hasAsDep = findAsDep != null && partialDeps != null && partialDeps.rangeDeps.intersects(findAsDep, ranges);
         return new Summary(cmd.txnId(), cmd.executeAt(), saveStatus, ranges, findAsDep, hasAsDep);
     }
 
