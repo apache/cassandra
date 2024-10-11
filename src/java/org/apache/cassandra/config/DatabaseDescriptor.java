@@ -1562,7 +1562,14 @@ public class DatabaseDescriptor
         }
         else if (compressOrEncrypt && accessModeDirectIoPair.left != DiskAccessMode.standard)
         {
-            throw new ConfigurationException("commitlog_disk_access_mode = " + accessModeDirectIoPair.left + " is not supported with compression or encryption. Please use 'auto' when unsure.", false);
+            String with;
+            if (null != getCommitLogCompression() && (null != getEncryptionContext() && getEncryptionContext().isEnabled()))
+                with = "compression or encryption";
+            else if (null != getCommitLogCompression())
+                with = "compression";
+            else
+                with = "encryption";
+            throw new ConfigurationException("commitlog_disk_access_mode = " + accessModeDirectIoPair.left + " is not supported with " + with + ". Please use 'auto' when unsure.", false);
         }
         else if (!compressOrEncrypt && accessModeDirectIoPair.left != DiskAccessMode.mmap && accessModeDirectIoPair.left != DiskAccessMode.direct)
         {

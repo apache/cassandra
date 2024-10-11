@@ -57,12 +57,12 @@ public class ConfigGenBuilderTest
     private static void validate(Map<String, Object> config, Config c)
     {
         YamlConfigurationLoader.updateFromMap(config, true, c);
-        DatabaseDescriptor.unsafeDaemonInitialization(() -> c);
+        DatabaseDescriptor.unsafeDaemonInitialization(() -> ConfigGenBuilder.sanitize(c));
     }
 
     private static Config defaultConfig()
     {
-        return ConfigGenBuilder.sanitize(DatabaseDescriptor.loadConfig());
+        return ConfigGenBuilder.prepare(DatabaseDescriptor.loadConfig());
     }
 
     private static Config simpleConfig()
