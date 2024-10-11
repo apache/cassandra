@@ -175,6 +175,11 @@ public final class TableAttributes extends PropertyDefinitions
         return value;
     }
 
+    public boolean propertyIsEmpty()
+    {
+        return this.properties.isEmpty();
+    }
+
     private boolean getBoolean(Option option)
     {
         return parseBoolean(option.toString(), getString(option));

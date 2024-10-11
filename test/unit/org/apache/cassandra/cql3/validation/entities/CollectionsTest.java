@@ -38,7 +38,7 @@ import static org.junit.Assert.assertEquals;
 public class CollectionsTest extends CQLTester
 {
     @Test
-    public void testMapBulkRemoval() throws Throwable
+    public void testMapBulkRemoval()
     {
         createTable("CREATE TABLE %s (k int PRIMARY KEY, m map<text, text>)");
 
@@ -65,7 +65,6 @@ public class CollectionsTest extends CQLTester
     public void testInvalidCollectionsMix() throws Throwable
     {
         createTable("CREATE TABLE %s (k int PRIMARY KEY, l list<text>, s set<text>, m map<text, text>)");
-
         // Note: we force the non-prepared form for some of those tests because a list and a set
         // have the same serialized format in practice and CQLTester don't validate that the type
         // of what's passed as a value in the prepared case, so the queries would work (which is ok,
@@ -88,7 +87,7 @@ public class CollectionsTest extends CQLTester
     }
 
     @Test
-    public void testSets() throws Throwable
+    public void testSets()
     {
         createTable("CREATE TABLE %s (k int PRIMARY KEY, s set<text>)");
 
@@ -384,7 +383,7 @@ public class CollectionsTest extends CQLTester
     }
 
     @Test
-    public void testSetWithUnsetValues() throws Throwable
+    public void testSetWithUnsetValues()
     {
         createTable("CREATE TABLE %s (k int PRIMARY KEY, s set<text>)");
 
@@ -420,7 +419,6 @@ public class CollectionsTest extends CQLTester
     public void testSet() throws Throwable
     {
         createTable("CREATE TABLE %s ( fn text, ln text, tags set<text>, PRIMARY KEY (fn, ln) )");
-
         execute("UPDATE %s SET tags = tags + { 'foo' } WHERE fn='Tom' AND ln='Bombadil'");
         execute("UPDATE %s SET tags = tags + { 'bar' } WHERE fn='Tom' AND ln='Bombadil'");
         execute("UPDATE %s SET tags = tags + { 'foo' } WHERE fn='Tom' AND ln='Bombadil'");
@@ -453,7 +451,6 @@ public class CollectionsTest extends CQLTester
     public void testMap() throws Throwable
     {
         createTable("CREATE TABLE %s (fn text, ln text, m map<text, int>, PRIMARY KEY (fn, ln))");
-
         execute("UPDATE %s SET m['foo'] = 3 WHERE fn='Tom' AND ln='Bombadil'");
         execute("UPDATE %s SET m['bar'] = 4 WHERE fn='Tom' AND ln='Bombadil'");
         execute("UPDATE %s SET m['woot'] = 5 WHERE fn='Tom' AND ln='Bombadil'");
@@ -479,7 +476,7 @@ public class CollectionsTest extends CQLTester
      * Migrated from cql_tests.py:TestCQL.list_test()
      */
     @Test
-    public void testList() throws Throwable
+    public void testList()
     {
         createTable("CREATE TABLE %s (fn text, ln text, tags list<text>, PRIMARY KEY (fn, ln))");
 
@@ -516,7 +513,7 @@ public class CollectionsTest extends CQLTester
      * Migrated from cql_tests.py:TestCQL.multi_collection_test()
      */
     @Test
-    public void testMultiCollections() throws Throwable
+    public void testMultiCollections()
     {
         UUID id = UUID.fromString("b017f48f-ae67-11e1-9096-005056c00008");
 
@@ -540,7 +537,7 @@ public class CollectionsTest extends CQLTester
      * Migrated from cql_tests.py:TestCQL.collection_and_regular_test()
      */
     @Test
-    public void testCollectionAndRegularColumns() throws Throwable
+    public void testCollectionAndRegularColumns()
     {
         createTable("CREATE TABLE %s (k int PRIMARY KEY, l list<int>, c int)");
 
@@ -554,7 +551,7 @@ public class CollectionsTest extends CQLTester
      * Migrated from cql_tests.py:TestCQL.multi_list_set_test()
      */
     @Test
-    public void testMultipleLists() throws Throwable
+    public void testMultipleLists()
     {
         createTable(" CREATE TABLE %s (k int PRIMARY KEY, l1 list<int>, l2 list<int>)");
 
@@ -570,9 +567,10 @@ public class CollectionsTest extends CQLTester
      * migrated from cql_tests.py:TestCQL.alter_with_collections_test()
      */
     @Test
-    public void testAlterCollections() throws Throwable
+    public void testAlterCollections()
     {
         createTable("CREATE TABLE %s (key int PRIMARY KEY, aset set<text>)");
+
         execute("ALTER TABLE %s ADD c text");
         execute("ALTER TABLE %s ADD alist list<text>");
     }
@@ -630,10 +628,9 @@ public class CollectionsTest extends CQLTester
      * migrated from cql_tests.py:TestCQL.nonpure_function_collection_test()
      */
     @Test
-    public void testNonPureFunctionCollection() throws Throwable
+    public void testNonPureFunctionCollection()
     {
         createTable("CREATE TABLE %s (k int PRIMARY KEY, v list<timeuuid>)");
-
         // we just want to make sure this doesn't throw
         execute("INSERT INTO %s (k, v) VALUES (0, [now()])");
     }
@@ -643,7 +640,7 @@ public class CollectionsTest extends CQLTester
      * migrated from cql_tests.py:TestCQL.collection_flush_test()
      */
     @Test
-    public void testCollectionFlush() throws Throwable
+    public void testCollectionFlush()
     {
         createTable("CREATE TABLE %s (k int PRIMARY KEY, s set<int>)");
 
@@ -672,7 +669,7 @@ public class CollectionsTest extends CQLTester
     }
 
     @Test
-    public void testDropAndReaddDroppedCollection() throws Throwable
+    public void testDropAndReaddDroppedCollection()
     {
         createTable("create table %s (k int primary key, v set<text>, x int)");
         execute("insert into %s (k, v) VALUES (0, {'fffffffff'})");
@@ -682,7 +679,7 @@ public class CollectionsTest extends CQLTester
     }
 
     @Test
-    public void testMapWithLargePartition() throws Throwable
+    public void testMapWithLargePartition()
     {
         Random r = new Random();
         long seed = nanoTime();
@@ -708,7 +705,7 @@ public class CollectionsTest extends CQLTester
     }
 
     @Test
-    public void testMapWithTwoSStables() throws Throwable
+    public void testMapWithTwoSStables()
     {
         createTable("CREATE TABLE %s (userid text PRIMARY KEY, properties map<int, text>) with compression = {}");
 
@@ -729,7 +726,7 @@ public class CollectionsTest extends CQLTester
     }
 
     @Test
-    public void testSetWithTwoSStables() throws Throwable
+    public void testSetWithTwoSStables()
     {
         createTable("CREATE TABLE %s (userid text PRIMARY KEY, properties set<text>) with compression = {}");
 
@@ -750,7 +747,7 @@ public class CollectionsTest extends CQLTester
     }
 
     @Test
-    public void testUpdateStaticList() throws Throwable
+    public void testUpdateStaticList()
     {
         createTable("CREATE TABLE %s (k1 text, k2 text, s_list list<int> static, PRIMARY KEY (k1, k2))");
 
@@ -769,7 +766,7 @@ public class CollectionsTest extends CQLTester
     }
 
     @Test
-    public void testListWithElementsBiggerThan64K() throws Throwable
+    public void testListWithElementsBiggerThan64K()
     {
         createTable("CREATE TABLE %s (k int PRIMARY KEY, l list<text>)");
 
@@ -819,7 +816,7 @@ public class CollectionsTest extends CQLTester
     }
 
     @Test
-    public void testMapsWithElementsBiggerThan64K() throws Throwable
+    public void testMapsWithElementsBiggerThan64K()
     {
         byte[] bytes = new byte[FBUtilities.MAX_UNSIGNED_SHORT + 10];
         Arrays.fill(bytes, (byte) 1);
@@ -887,7 +884,7 @@ public class CollectionsTest extends CQLTester
     }
 
     @Test
-    public void testSetsWithElementsBiggerThan64K() throws Throwable
+    public void testSetsWithElementsBiggerThan64K()
     {
         createTable("CREATE TABLE %s (k int PRIMARY KEY, s set<text>)");
 
@@ -1033,7 +1030,7 @@ public class CollectionsTest extends CQLTester
     }
 
     @Test
-    public void testMultipleOperationOnMapWithinTheSameQuery() throws Throwable
+    public void testMultipleOperationOnMapWithinTheSameQuery()
     {
         createTable("CREATE TABLE %s (pk int PRIMARY KEY, m map<int, int>)");
         execute("INSERT INTO %s (pk, m) VALUES (1, {0 : 1, 1 : 2, 2 : 3, 3 : 4})");
@@ -1073,7 +1070,7 @@ public class CollectionsTest extends CQLTester
     }
 
     @Test
-    public void testMultipleOperationOnSetWithinTheSameQuery() throws Throwable
+    public void testMultipleOperationOnSetWithinTheSameQuery()
     {
         createTable("CREATE TABLE %s (pk int PRIMARY KEY, s set<int>)");
         execute("INSERT INTO %s (pk, s) VALUES (1, {0, 1, 2})");
@@ -1494,7 +1491,7 @@ public class CollectionsTest extends CQLTester
     }
 
     @Test
-    public void testMapOperationOnClustKey() throws Throwable
+    public void testMapOperationOnClustKey()
     {
         createTable("CREATE TABLE %s (k int, c frozen<map<text, text>>, l text, o int, PRIMARY KEY (k, c))");
 
@@ -1548,7 +1545,7 @@ public class CollectionsTest extends CQLTester
     }
 
     @Test
-    public void testSetOperation() throws Throwable
+    public void testSetOperation()
     {
         createTable("CREATE TABLE %s (k int, c int, l text, " +
                     "s set<text>, " +
@@ -1662,7 +1659,7 @@ public class CollectionsTest extends CQLTester
     }
 
     @Test
-    public void testCollectionOperationResultSetMetadata() throws Throwable
+    public void testCollectionOperationResultSetMetadata()
     {
         createTable("CREATE TABLE %s (k int PRIMARY KEY," +
                     "m map<text, text>," +

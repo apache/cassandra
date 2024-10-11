@@ -57,6 +57,16 @@ public final class DroppedColumn
         return column.equals(dc.column) && droppedTime == dc.droppedTime;
     }
 
+    public boolean equalsWithoutKsTb(DroppedColumn other)
+    {
+        return column.equalsWithoutKsTb(other.column) && droppedTime == other.droppedTime;
+    }
+
+    protected DroppedColumn cloneWithoutTableName(String keyspace, String table)
+    {
+        return new DroppedColumn(column.cloneWithoutTableName(keyspace, table), droppedTime);
+    }
+
     @Override
     public int hashCode()
     {

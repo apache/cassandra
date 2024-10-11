@@ -261,6 +261,50 @@ public class TableMetadata implements SchemaElement
                .epoch(epoch);
     }
 
+    /**
+     * clone the basical information of the original table, see CEP-43
+     * the table params, indexs and trigger may be differenet from source
+     * table. This is used for a new copied table's creation, so the epoch
+     * and id is not used. The newly created table's indexes and triggers
+     * are not cloned because the names should not be same.
+     *
+     * @param newKeyspace new keyspace name that will clone the TableMetadata
+     * @param newTable new table name that will clone the TableMetadata
+     */
+    public Builder cloneBuilder(String newKeyspace, String newTable)
+    {
+        ImmutableCollection<ColumnMetadata> clonedColumns = cloneColumns(newKeyspace, newTable);
+        Map<ByteBuffer, DroppedColumn> clonedDroppedColumns = cloneDroppedColumns(newKeyspace, newTable);
+        return builder(newKeyspace, newTable)
+               .partitioner(partitioner)
+               .kind(kind)
+               .flags(flags)
+               .params(params)
+               .addColumns(clonedColumns)
+               .droppedColumns(clonedDroppedColumns);
+    }
+
+    private ImmutableCollection<ColumnMetadata> cloneColumns(String keyspace, String table)
+    {
+        ImmutableCollection.Builder<ColumnMetadata> builder = new ImmutableSet.Builder<>();
+        for (ColumnMetadata cm : columns())
+        {
+            builder.add(cm.cloneWithoutTableName(keyspace, table));
+        }
+        return builder.build();
+    }
+
+    private Map<ByteBuffer, DroppedColumn> cloneDroppedColumns(String keyspace, String table)
+    {
+        ImmutableMap.Builder<ByteBuffer, DroppedColumn> builder = ImmutableMap.builder();
+        for(Entry<ByteBuffer, DroppedColumn> entry : droppedColumns.entrySet())
+        {
+            DroppedColumn droppedColumn = entry.getValue();
+            builder.put(entry.getKey(), droppedColumn.cloneWithoutTableName(keyspace, table));
+        }
+        return builder.build();
+    }
+
     public boolean isIndex()
     {
         return kind == Kind.INDEX;
@@ -284,6 +328,26 @@ public class TableMetadata implements SchemaElement
     public TableMetadata withSwapped(Indexes indexes)
     {
         return unbuild().indexes(indexes).build();
+    }
+
+    public TableMetadata cloneWithNewTableParams(String newKeyspace, String newTable, TableParams newParams)
+    {
+        return cloneBuilder(newKeyspace, newTable).params(newParams).build();
+    }
+
+    public TableMetadata cloneWithNewIndexs(String newKeyspace, String newTable, Indexes newIndexes)
+    {
+        return cloneBuilder(newKeyspace, newTable).indexes(newIndexes).build();
+    }
+
+    public TableMetadata cloneWithNewTriggers(String newKeyspace, String newTable, Triggers newTriggers)
+    {
+        return cloneBuilder(newKeyspace, newTable).triggers(newTriggers).build();
+    }
+
+    public TableMetadata cloneWithNewTriggersAndIndexs(String newKeyspace, String newTable, Triggers newTriggers, Indexes newIndexes)
+    {
+        return cloneBuilder(newKeyspace, newTable).triggers(newTriggers).indexes(newIndexes).build();
     }
 
     public boolean isView()
@@ -714,6 +778,39 @@ public class TableMetadata implements SchemaElement
             && droppedColumns.equals(tm.droppedColumns)
             && indexes.equals(tm.indexes)
             && triggers.equals(tm.triggers);
+    }
+
+    public boolean equalsWithoutTableName(TableMetadata tm)
+    {
+        return partitioner.equals(tm.partitioner)
+            && kind == tm.kind
+            && params.equals(tm.params)
+            && flags.equals(tm.flags)
+            && indexes.equals(tm.indexes)
+            && triggers.equals(tm.triggers)
+            && columnsEqualWitoutKsTb(tm);
+    }
+
+    // including columns and droppedColumns
+    private boolean columnsEqualWitoutKsTb(TableMetadata tm)
+    {
+        if ((columns == tm.columns) && (droppedColumns == tm.droppedColumns))
+            return true;
+
+        boolean result = true;
+        for (Map.Entry<ByteBuffer, ColumnMetadata> entry : columns.entrySet())
+        {
+            ColumnMetadata thisColumn = entry.getValue();
+            ColumnMetadata thatColumn = tm.columns.get(entry.getKey());
+            result &= thatColumn != null && thisColumn.equalsWithoutKsTb(thatColumn);
+        }
+        for (Map.Entry<ByteBuffer, DroppedColumn> entry : droppedColumns.entrySet())
+        {
+            DroppedColumn thisColumn = entry.getValue();
+            DroppedColumn thatColumn = tm.droppedColumns.get(entry.getKey());
+            result &= thatColumn != null && thisColumn.equalsWithoutKsTb(thatColumn);
+        }
+        return result;
     }
 
     Optional<Difference> compare(TableMetadata other)

@@ -208,6 +208,11 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
         this.mask = mask;
     }
 
+    protected ColumnMetadata cloneWithoutTableName(String keyspace, String table)
+    {
+        return new ColumnMetadata(keyspace, table, name, type, position, kind, mask);
+    }
+
     private static Comparator<CellPath> makeCellPathComparator(Kind kind, AbstractType<?> type)
     {
         if (kind.isPrimaryKeyKind() || !type.isMultiCell())
@@ -311,6 +316,15 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
         ColumnMetadata cd = (ColumnMetadata) o;
 
         return equalsWithoutType(cd) && type.equals(cd.type);
+    }
+
+    protected boolean equalsWithoutKsTb(ColumnMetadata other)
+    {
+        return name.equals(other.name)
+            && kind == other.kind
+            && position == other.position
+            && Objects.equals(mask, other.mask)
+            && type.equals(other.type);
     }
 
     private boolean equalsWithoutType(ColumnMetadata other)

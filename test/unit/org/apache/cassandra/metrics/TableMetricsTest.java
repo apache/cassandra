@@ -53,6 +53,7 @@ public class TableMetricsTest
     private static final String TABLE = "tablemetricstest";
     private static final String COUNTER_TABLE = "tablemetricscountertest";
     private static final String TWCS_TABLE = "tablemetricstesttwcs";
+    private static final String LIKE_TABLE = "liketablemetrics";
 
     private static EmbeddedCassandraService cassandra;
     private static Cluster cluster;
@@ -72,6 +73,13 @@ public class TableMetricsTest
     private ColumnFamilyStore recreateTable()
     {
         return recreateTable(TABLE);
+    }
+
+    private ColumnFamilyStore createLikeTable()
+    {
+        session.execute(String.format("DROP TABLE IF EXISTS %s.%s", KEYSPACE, LIKE_TABLE));
+        session.execute(String.format("CREATE TABLE %s.%s Like %s.%s ;", KEYSPACE, LIKE_TABLE, KEYSPACE, TABLE));
+        return ColumnFamilyStore.getIfExists(KEYSPACE, LIKE_TABLE);
     }
 
     private ColumnFamilyStore recreateTWCSTable()
@@ -294,6 +302,22 @@ public class TableMetricsTest
         session.execute(String.format("UPDATE %s.%s SET id_c = id_c + 1 WHERE id = 1 AND val = 'val1'", KEYSPACE, COUNTER_TABLE));
         assertEquals(1, cfs.metric.coordinatorWriteLatency.getCount());
         assertGreaterThan(cfs.metric.coordinatorWriteLatency.getMeanRate(), 0);
+    }
+
+    @Test
+    public void testCreateLikeTableMetric()
+    {
+        recreateTable();
+        ColumnFamilyStore likeCfs = createLikeTable();
+        assertEquals(0, likeCfs.metric.coordinatorWriteLatency.getCount());
+        assertEquals(0.0, likeCfs.metric.coordinatorWriteLatency.getMeanRate(), 0.0);
+        for (int i = 0; i < 10; i++)
+        {
+            session.execute(String.format("INSERT INTO %s.%s (id, val1, val2) VALUES (%d, '%s', '%s')", KEYSPACE, LIKE_TABLE, i, "val" + i, "val" + i));
+        }
+
+        assertEquals(10, likeCfs.metric.coordinatorWriteLatency.getCount());
+        assertGreaterThan(likeCfs.metric.coordinatorWriteLatency.getMeanRate(), 0);
     }
 
     private static void assertGreaterThan(double actual, double expectedLessThan) {

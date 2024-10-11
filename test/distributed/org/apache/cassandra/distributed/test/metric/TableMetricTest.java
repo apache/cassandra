@@ -105,8 +105,14 @@ public class TableMetricTest extends TestBaseImpl
             cluster.schemaChange(withKeyspace("ALTER TABLE %s.tbl DROP value"));
             cluster.forEach(i -> assertTableMetricsExist(i, KEYSPACE, "tbl"));
 
+            cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".targettb LIKE " + KEYSPACE + ".tbl");
+            cluster.forEach(i -> assertTableMetricsExist(i, KEYSPACE, "targettb"));
+
             // drop and make sure table no longer exists
             cluster.schemaChange(withKeyspace("DROP TABLE %s.tbl"));
+            cluster.forEach(i -> assertTableMetricsDoesNotExist(i, KEYSPACE, "tbl"));
+
+            cluster.schemaChange(withKeyspace("DROP TABLE %s.targettb"));
             cluster.forEach(i -> assertTableMetricsDoesNotExist(i, KEYSPACE, "tbl"));
 
             cluster.schemaChange(withKeyspace("DROP KEYSPACE %s"));

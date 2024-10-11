@@ -760,21 +760,25 @@ createKeyspaceStatement returns [CreateKeyspaceStatement.Raw stmt]
     ;
 
 /**
- * CREATE TABLE [IF NOT EXISTS] <CF> (
+ * CREATE TABLE [IF NOT EXISTS] [<NCF> LIKE] <CF> (
  *     <name1> <type>,
  *     <name2> <type>,
  *     <name3> <type>
  * ) WITH <property> = <value> AND ...;
  */
 createTableStatement returns [CreateTableStatement.Raw stmt]
-    @init { boolean ifNotExists = false; }
+    @init {
+        boolean ifNotExists = false;
+        boolean isCreateLike = false;
+    }
     : K_CREATE K_COLUMNFAMILY (K_IF K_NOT K_EXISTS { ifNotExists = true; } )?
-      cf=columnFamilyName { $stmt = new CreateTableStatement.Raw(cf, ifNotExists); }
+      (likeCf=columnFamilyName K_LIKE {isCreateLike = true;})?
+      cf=columnFamilyName { $stmt = new CreateTableStatement.Raw(cf, likeCf, ifNotExists, isCreateLike); }
       tableDefinition[stmt]
     ;
 
 tableDefinition[CreateTableStatement.Raw stmt]
-    : '(' tableColumns[stmt] ( ',' tableColumns[stmt]? )* ')'
+    : ('(' tableColumns[stmt] ( ',' tableColumns[stmt]? )* ')')?
       ( K_WITH tableProperty[stmt] ( K_AND tableProperty[stmt] )*)?
     ;
 

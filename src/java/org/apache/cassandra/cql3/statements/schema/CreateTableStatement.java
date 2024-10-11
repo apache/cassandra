@@ -51,7 +51,9 @@ import static com.google.common.collect.Iterables.concat;
 
 public final class CreateTableStatement extends AlterSchemaStatement
 {
+    private final String likeKeyspaceName;
     private final String tableName;
+    private final String likeTableName;
 
     private final Map<ColumnIdentifier, ColumnProperties.Raw> rawColumns;
     private final Set<ColumnIdentifier> staticColumns;
@@ -63,11 +65,14 @@ public final class CreateTableStatement extends AlterSchemaStatement
 
     private final boolean ifNotExists;
     private final boolean useCompactStorage;
+    private final boolean isCreateLike;
 
     private String expandedCql;
 
     public CreateTableStatement(String keyspaceName,
+                                String likeKeyspaceName,
                                 String tableName,
+                                String likeTableName,
                                 Map<ColumnIdentifier, ColumnProperties.Raw> rawColumns,
                                 Set<ColumnIdentifier> staticColumns,
                                 List<ColumnIdentifier> partitionKeyColumns,
@@ -75,10 +80,13 @@ public final class CreateTableStatement extends AlterSchemaStatement
                                 LinkedHashMap<ColumnIdentifier, Boolean> clusteringOrder,
                                 TableAttributes attrs,
                                 boolean ifNotExists,
-                                boolean useCompactStorage)
+                                boolean useCompactStorage,
+                                boolean isCreateLike)
     {
         super(keyspaceName);
+        this.likeKeyspaceName = likeKeyspaceName;
         this.tableName = tableName;
+        this.likeTableName = likeTableName;
 
         this.rawColumns = rawColumns;
         this.staticColumns = staticColumns;
@@ -90,6 +98,7 @@ public final class CreateTableStatement extends AlterSchemaStatement
 
         this.ifNotExists = ifNotExists;
         this.useCompactStorage = useCompactStorage;
+        this.isCreateLike = isCreateLike;
     }
 
     @Override
@@ -104,34 +113,77 @@ public final class CreateTableStatement extends AlterSchemaStatement
     {
         Keyspaces schema = metadata.schema.getKeyspaces();
         KeyspaceMetadata keyspace = schema.getNullable(keyspaceName);
+
+        KeyspaceMetadata targetKeyspace = keyspace;
         if (null == keyspace)
             throw ire("Keyspace '%s' doesn't exist", keyspaceName);
 
-        if (keyspace.hasTable(tableName))
+        TableMetadata table;
+        if (isCreateLike)
         {
-            if (ifNotExists)
-                return schema;
+            // when using create table like ,that means the source table has already been created
+            // so there is no need to do some validation for the first time creating a new table
+            if (!keyspace.hasTable(tableName))
+            {
+                throw ire("Souce Table '%s'.'%s' doesn't exist", keyspaceName, tableName);
+            }
 
-            throw new AlreadyExistsException(keyspaceName, tableName);
+            TableMetadata sourceTableMeta = keyspace.getTableNullable(tableName);
+
+            if (sourceTableMeta.isIndex())
+                throw ire("Cannot use CTREAT TABLE LIKE on a index table '%s'.'%s'.", keyspaceName, tableName);
+
+            if (sourceTableMeta.isView())
+                throw ire("Cannot use CTREAT TABLE LIKE on a materialized view '%s'.'%s'.", keyspaceName, tableName);
+
+            KeyspaceMetadata likeKeyspaceMeta = schema.getNullable(likeKeyspaceName);
+            if (null == likeKeyspaceMeta)
+                throw ire("Target Keyspace '%s' doesn't exist", likeKeyspaceName);
+
+            targetKeyspace = likeKeyspaceMeta;
+            if (likeKeyspaceMeta.hasTable(likeTableName))
+            {
+                throw new AlreadyExistsException(likeKeyspaceName, likeTableName);
+            }
+
+            // todo support udt for differenet ks latter
+            if (!keyspaceName.equalsIgnoreCase(likeKeyspaceName) &&
+                !keyspace.types.isEmpty())
+            {
+                throw ire("Cannot use CTREAT TABLE LIKE across different keyspace when source table have UDT.");
+            }
+
+            table = buildTargetTableMeta(metadata, sourceTableMeta);
+        }
+        else
+        {
+            assert likeKeyspaceName == null && likeTableName == null ;
+            if (keyspace.hasTable(tableName))
+            {
+                if (ifNotExists)
+                    return schema;
+
+                throw new AlreadyExistsException(keyspaceName, tableName);
+            }
+
+            // add all user functions to be able to give a good error message to the user if the alter references
+            // a function from another keyspace
+            UserFunctions.Builder ufBuilder = UserFunctions.builder().add();
+            for (KeyspaceMetadata ksm : schema)
+                ufBuilder.add(ksm.userFunctions);
+
+            TableMetadata.Builder builder = builder(keyspace.types, ufBuilder.build()).epoch(metadata.nextEpoch());
+
+            // We do not want to set table ID here just yet, since we are using CQL for serialising a fully expanded CREATE TABLE statement.
+            this.expandedCql = builder.build().toCqlString(false, attrs.hasProperty(TableAttributes.ID), ifNotExists);
+
+            if (!attrs.hasProperty(TableAttributes.ID))
+                builder.id(TableId.get(metadata));
+            table = builder.build();
         }
 
-        // add all user functions to be able to give a good error message to the user if the alter references
-        // a function from another keyspace
-        UserFunctions.Builder ufBuilder = UserFunctions.builder().add();
-        for (KeyspaceMetadata ksm : schema)
-            ufBuilder.add(ksm.userFunctions);
-
-        TableMetadata.Builder builder = builder(keyspace.types, ufBuilder.build()).epoch(metadata.nextEpoch());
-
-        // We do not want to set table ID here just yet, since we are using CQL for serialising a fully expanded CREATE TABLE statement.
-        this.expandedCql = builder.build().toCqlString(false, attrs.hasProperty(TableAttributes.ID), ifNotExists);
-
-        if (!attrs.hasProperty(TableAttributes.ID))
-            builder.id(TableId.get(metadata));
-        TableMetadata table = builder.build();
         table.validate();
-
-        if (keyspace.replicationStrategy.hasTransientReplicas()
+        if (targetKeyspace.replicationStrategy.hasTransientReplicas()
             && table.params.readRepair != ReadRepairStrategy.NONE)
         {
             throw ire("read_repair must be set to 'NONE' for transiently replicated keyspaces");
@@ -140,13 +192,37 @@ public final class CreateTableStatement extends AlterSchemaStatement
         if (!table.params.compression.isEnabled())
             Guardrails.uncompressedTablesEnabled.ensureEnabled(state);
 
-        return schema.withAddedOrUpdated(keyspace.withSwapped(keyspace.tables.with(table)));
+        return schema.withAddedOrUpdated(targetKeyspace.withSwapped(targetKeyspace.tables.with(table)));
     }
 
     @Override
     public void validate(ClientState state)
     {
         super.validate(state);
+
+        if (isCreateLike)
+        {
+            if (ifNotExists)
+                throw ire("CREATE TABLE LIKE do not support using 'IF NOT EXISTS'.");
+
+            if (!rawColumns.isEmpty() ||
+                (partitionKeyColumns != null &&!partitionKeyColumns.isEmpty()) ||
+                !clusteringColumns.isEmpty() ||
+                !staticColumns.isEmpty() ||
+                !clusteringOrder.isEmpty())
+            {
+                throw ire("CREATE TABLE LIKE do not support creating table columns.");
+            }
+
+            //todo support latter
+            if (!attrs.propertyIsEmpty())
+            {
+                throw ire("CREATE TABLE LIKE do not support create table with table properties.");
+            }
+
+            //todo support table params definition
+            return;
+        }
 
         // If a memtable configuration is specified, validate it against config
         if (attrs.hasOption(TableParams.Option.MEMTABLE))
@@ -174,34 +250,53 @@ public final class CreateTableStatement extends AlterSchemaStatement
 
         validateDefaultTimeToLive(attrs.asNewTableParams());
 
+        if (rawColumns.isEmpty())
+            throw ire("There must be at least one table column when create table.");
+
+        if (partitionKeyColumns.isEmpty())
+            throw ire("There must be at least one partition key column when create table.");
+
         rawColumns.forEach((name, raw) -> raw.validate(state, name));
     }
 
     SchemaChange schemaChangeEvent(KeyspacesDiff diff)
     {
-        return new SchemaChange(Change.CREATED, Target.TABLE, keyspaceName, tableName);
+        String keyspace = isCreateLike ? likeKeyspaceName : keyspaceName;
+        String table = isCreateLike ? likeTableName : tableName;
+        return new SchemaChange(Change.CREATED, Target.TABLE, keyspace, table);
     }
 
     public void authorize(ClientState client)
     {
-        client.ensureAllTablesPermission(keyspaceName, Permission.CREATE);
+        if (isCreateLike)
+        {
+            client.ensureTablePermission(keyspaceName, tableName, Permission.SELECT);
+            client.ensureAllTablesPermission(likeKeyspaceName, Permission.CREATE);
+        }
+        else
+        {
+            client.ensureAllTablesPermission(keyspaceName, Permission.CREATE);
+        }
     }
 
     @Override
     Set<IResource> createdResources(KeyspacesDiff diff)
     {
-        return ImmutableSet.of(DataResource.table(keyspaceName, tableName));
+        return  isCreateLike ? ImmutableSet.of(DataResource.table(likeKeyspaceName, likeTableName)) :
+                               ImmutableSet.of(DataResource.table(keyspaceName, tableName));
     }
 
     @Override
     public AuditLogContext getAuditLogContext()
     {
-        return new AuditLogContext(AuditLogEntryType.CREATE_TABLE, keyspaceName, tableName);
+        return  isCreateLike ? new AuditLogContext(AuditLogEntryType.CREATE_TABLE_LIKE, likeKeyspaceName, likeTableName) :
+                               new AuditLogContext(AuditLogEntryType.CREATE_TABLE, keyspaceName, tableName);
     }
 
     public String toString()
     {
-        return String.format("%s (%s, %s)", getClass().getSimpleName(), keyspaceName, tableName);
+        return  isCreateLike ? String.format("CREATE TABLE (%s, %s) LIKE (%s, %s)", likeKeyspaceName, likeTableName, keyspaceName, tableName) :
+                               String.format("%s (%s, %s)", getClass().getSimpleName(), keyspaceName, tableName);
     }
 
     public TableMetadata.Builder builder(Types types, UserFunctions functions)
@@ -442,6 +537,15 @@ public final class CreateTableStatement extends AlterSchemaStatement
         }
     }
 
+    private TableMetadata buildTargetTableMeta(ClusterMetadata metadata, TableMetadata sourceTableMetadata)
+    {
+        TableMetadata.Builder builder = sourceTableMetadata.cloneBuilder(likeKeyspaceName, likeTableName);
+        // todo support indexes and triggers's copy latter
+        builder.id(TableId.get(metadata))
+               .epoch(metadata.nextEpoch()); // new table with next expoch
+        return builder.build();
+    }
+
     private static class DefaultNames
     {
         private static final String DEFAULT_CLUSTERING_NAME = "column";
@@ -490,7 +594,9 @@ public final class CreateTableStatement extends AlterSchemaStatement
     public final static class Raw extends CQLStatement.Raw
     {
         private final QualifiedName name;
+        private final QualifiedName likeName;
         private final boolean ifNotExists;
+        private final boolean isCreateLike;
 
         private boolean useCompactStorage = false;
         private final Map<ColumnIdentifier, ColumnProperties.Raw> rawColumns = new HashMap<>();
@@ -502,21 +608,27 @@ public final class CreateTableStatement extends AlterSchemaStatement
         private final LinkedHashMap<ColumnIdentifier, Boolean> clusteringOrder = new LinkedHashMap<>();
         public final TableAttributes attrs = new TableAttributes();
 
-        public Raw(QualifiedName name, boolean ifNotExists)
+        public Raw(QualifiedName name, QualifiedName likeName, boolean ifNotExists, boolean isCreateLike)
         {
             this.name = name;
+            this.likeName = likeName;
             this.ifNotExists = ifNotExists;
+            this.isCreateLike = isCreateLike;
         }
 
         public CreateTableStatement prepare(ClientState state)
         {
             String keyspaceName = name.hasKeyspace() ? name.getKeyspace() : state.getKeyspace();
+            String likeKeyspaceName = likeName == null ? null : likeName.hasKeyspace() ? likeName.getKeyspace() : state.getKeyspace();
+            String likeTableName = likeName == null ? null : likeName.getName();
 
-            if (null == partitionKeyColumns)
+            if (!isCreateLike && null == partitionKeyColumns)
                 throw ire("No PRIMARY KEY specifed for table '%s' (exactly one required)", name);
 
             return new CreateTableStatement(keyspaceName,
+                                            likeKeyspaceName,
                                             name.getName(),
+                                            likeTableName,
                                             rawColumns,
                                             staticColumns,
                                             partitionKeyColumns,
@@ -524,7 +636,8 @@ public final class CreateTableStatement extends AlterSchemaStatement
                                             clusteringOrder,
                                             attrs,
                                             ifNotExists,
-                                            useCompactStorage);
+                                            useCompactStorage,
+                                            isCreateLike);
         }
 
         public String keyspace()

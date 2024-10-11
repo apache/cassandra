@@ -152,6 +152,7 @@ import org.apache.cassandra.db.virtual.VirtualSchemaKeyspace;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.SecondaryIndexManager;
@@ -204,7 +205,10 @@ import static org.apache.cassandra.cql3.SchemaElement.SchemaElementType.TABLE;
 import static org.apache.cassandra.cql3.SchemaElement.SchemaElementType.TYPE;
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.createMetricsKeyspaceTables;
 import static org.apache.cassandra.schema.SchemaConstants.VIRTUAL_METRICS;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -1078,6 +1082,30 @@ public abstract class CQLTester
         return currentTable;
     }
 
+    protected String createTableLike(String query, String sourceTable)
+    {
+        return createTableLike(query, sourceTable, KEYSPACE, null, KEYSPACE);
+    }
+
+    protected String createTableLike(String query, String sourceTable, String sourceKeyspace, String targetKeyspace)
+    {
+        return createTableLike(query, sourceTable, sourceKeyspace, null, targetKeyspace);
+    }
+
+    protected String createTableLike(String query, String sourceTable, String sourceKeyspace, String targetTable, String targetKeyspace)
+    {
+        if (!tables.contains(sourceTable))
+        {
+            throw new IllegalArgumentException("Source table " + sourceTable + " is not exists");
+        }
+
+        String currentTable = createTableName(targetTable);
+        String fullQuery = formatQuery(sourceKeyspace, sourceTable, targetKeyspace, query);
+        logger.info(fullQuery);
+        schemaChange(fullQuery);
+        return currentTable;
+    }
+
     protected String createTableName()
     {
         return createTableName(null);
@@ -1098,6 +1126,11 @@ public abstract class CQLTester
         QueryProcessor.executeOnceInternal(fullQuery);
     }
 
+    protected String createView(String keyspace, String query)
+    {
+        return createView(keyspace, null, query);
+    }
+
     /**
      * Creates a materialized view, waiting for the completion of its builder tasks.
      *
@@ -1106,19 +1139,20 @@ public abstract class CQLTester
      */
     protected String createView(String query)
     {
-        return createView(null, query);
+        return createView(null, null, query);
     }
 
     /**
      * Creates a materialized view, waiting for the completion of its builder tasks.
      *
+     * @param keyspace the keyspace of the view to be created, or {@code null} for using {{@link #KEYSPACE}} as keyspace
      * @param viewName the name of the view to be created, or {@code null} for using an automatically generated a name
      * @param query the {@code CREATE VIEW} query, with {@code %s} placeholders for the view and table names
      * @return the name of the created view
      */
-    protected String createView(String viewName, String query)
+    protected String createView(String keyspace, String viewName, String query)
     {
-        String currentView = createViewAsync(viewName, query);
+        String currentView = createViewAsync(keyspace, viewName, query);
         waitForViewBuild(currentView);
         return currentView;
     }
@@ -1131,20 +1165,22 @@ public abstract class CQLTester
      */
     protected String createViewAsync(String query)
     {
-        return createViewAsync(null, query);
+        return createViewAsync(null, null, query);
     }
 
     /**
      * Creates a materialized view, without waiting for the completion of its builder tasks.
      *
+     * @param keyspace the keyspace of the view to be created
      * @param viewName the name of the view to be created, or {@code null} for using an automatically generated a name
      * @param query the {@code CREATE VIEW} query, with {@code %s} placeholders for the view and table names
      * @return the name of the created view
      */
-    protected String createViewAsync(String viewName, String query)
+    protected String createViewAsync(String keyspace, String viewName, String query)
     {
+        String targetKs = keyspace == null ? KEYSPACE : keyspace;
         String currentView = viewName == null ? createViewName() : viewName;
-        String fullQuery = String.format(query, KEYSPACE + "." + currentView, KEYSPACE + "." + currentTable());
+        String fullQuery = String.format(query, targetKs + "." + currentView, targetKs + "." + currentTable());
         logger.info(fullQuery);
         schemaChange(fullQuery);
         return currentView;
@@ -1152,12 +1188,18 @@ public abstract class CQLTester
 
     protected void dropView()
     {
-        dropView(currentView());
+        dropView(null, currentView());
     }
 
     protected void dropView(String view)
     {
-        dropFormattedTable(String.format("DROP MATERIALIZED VIEW IF EXISTS %s.%s", KEYSPACE, view));
+        dropView(null, view);
+    }
+
+    protected void dropView(String keyspace, String view)
+    {
+        String targetKs = keyspace == null ? KEYSPACE : keyspace;
+        dropFormattedTable(String.format("DROP MATERIALIZED VIEW IF EXISTS %s.%s", targetKs, view));
         views.remove(view);
     }
 
@@ -1518,6 +1560,13 @@ public abstract class CQLTester
         }
     }
 
+    protected void expectedFailure(final Class<? extends RequestValidationException> exceptionType, String statement, String errorMsg)
+    {
+
+        assertThatExceptionOfType(exceptionType)
+                .isThrownBy(() -> createTableMayThrow(statement)) .withMessageContaining(errorMsg);
+    }
+
     protected static ResultMessage schemaChange(String query)
     {
         try
@@ -1541,6 +1590,16 @@ public abstract class CQLTester
                 throw new InvalidRequestException(String.format("Error setting schema for test (query was: %s)", query), e);
             throw new RuntimeException("Error setting schema for test (query was: " + query + ")", e);
         }
+    }
+
+    protected TableMetadata getTableMetadata(String table)
+    {
+        return Schema.instance.getTableMetadata(KEYSPACE, table);
+    }
+
+    protected TableMetadata getTableMetadata(String keyspace, String table)
+    {
+        return Schema.instance.getTableMetadata(keyspace, table);
     }
 
     protected TableMetadata currentTableMetadata()
@@ -1626,6 +1685,12 @@ public abstract class CQLTester
     {
         String currentTable = currentTable();
         return currentTable == null ? query : String.format(query, keyspace + "." + currentTable);
+    }
+
+    protected final String formatQuery(String sourceKeyspace, String sourceTable, String targetKeyspace, String query)
+    {
+        String currentTable = currentTable();
+        return currentTable == null ? query : String.format(query, targetKeyspace + "." + currentTable, sourceKeyspace + "." + sourceTable);
     }
 
     public String formatViewQuery(String query)
@@ -1931,6 +1996,27 @@ public abstract class CQLTester
             return true;
         }
         return false;
+    }
+
+    protected Pair<TableMetadata, TableMetadata> assertTableMetaEquals(String sourceKeyspace, String targetKeyspace, String sourceTable, String targetTable)
+    {
+        TableMetadata sourceTbMeta = getTableMetadata(sourceKeyspace, sourceTable);
+        TableMetadata targetTbMeta = getTableMetadata(targetKeyspace, targetTable);
+        assertNotNull(sourceTbMeta);
+        assertNotNull(targetTbMeta);
+        assertTrue(sourceTbMeta.equalsWithoutTableName(targetTbMeta));
+        targetTbMeta.columns().stream().forEach(columnMetadata -> {
+            assertEquals(columnMetadata.ksName, targetKeyspace);
+            assertEquals(columnMetadata.cfName, targetTable);
+        });
+        targetTbMeta.droppedColumns.entrySet().forEach(droppedColumnEntry -> {
+            assertEquals(droppedColumnEntry.getValue().column.ksName, targetKeyspace);
+            assertEquals(droppedColumnEntry.getValue().column.cfName, targetTable);
+            assertEquals(sourceTbMeta.droppedColumns.get(droppedColumnEntry.getKey()).droppedTime, droppedColumnEntry.getValue().droppedTime);
+        });
+        assertNotEquals(sourceTbMeta.id, targetTbMeta.id);
+        assertNotEquals(sourceTbMeta.name, targetTbMeta.name);
+        return Pair.create(sourceTbMeta, targetTbMeta);
     }
 
     protected void assertRowCountNet(ResultSet r1, int expectedCount)

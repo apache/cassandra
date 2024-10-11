@@ -21,12 +21,9 @@ package org.apache.cassandra.schema;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.utils.BloomCalculations;
 
 import org.junit.Test;
-
-import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
 public class CreateTableValidationTest extends CQLTester
 {
@@ -91,10 +88,4 @@ public class CreateTableValidationTest extends CQLTester
                         "Missing CLUSTERING ORDER for column ck1");
     }
 
-    private void expectedFailure(final Class<? extends RequestValidationException> exceptionType, String statement, String errorMsg)
-    {
-
-        assertThatExceptionOfType(exceptionType)
-        .isThrownBy(() -> createTableMayThrow(statement)) .withMessageContaining(errorMsg);
-    }
 }

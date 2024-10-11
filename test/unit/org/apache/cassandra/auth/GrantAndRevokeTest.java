@@ -386,4 +386,47 @@ public class GrantAndRevokeTest extends CQLTester
         res = executeNet("REVOKE SELECT, MODIFY ON KEYSPACE revoke_yeah FROM " + user);
         assertWarningsContain(res.getExecutionInfo().getWarnings(), "Role '" + user + "' was not granted MODIFY on <keyspace revoke_yeah>");
     }
+
+    @Test
+    public void testCreateTableLikeAuthorize() throws Throwable
+    {
+        useSuperUser();
+
+        // two keyspaces
+        executeNet("CREATE KEYSPACE ks1 WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}");
+        executeNet("CREATE KEYSPACE ks2 WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}");
+        executeNet("CREATE TABLE ks1.sourcetb (id int PRIMARY KEY, val text)");
+        executeNet("CREATE USER '" + user + "' WITH PASSWORD '" + pass + "'");
+
+        // same keyspace
+        // has no select permission on source table
+        ResultSet res = executeNet("REVOKE SELECT ON TABLE ks1.sourcetb FROM " + user);
+        assertWarningsContain(res.getExecutionInfo().getWarnings(), "Role '" + user + "' was not granted SELECT on <table ks1.sourcetb>");
+
+        useUser(user, pass);
+        assertUnauthorizedQuery("User user has no SELECT permission on <table ks1.sourcetb> or any of its parents",
+                          "CREATE TABLE ks1.targetTb like ks1.sourcetb");
+
+        // has select permission on source table no create permission on target keyspace
+        useSuperUser();
+        executeNet("GRANT SELECT ON TABLE ks1.sourcetb TO " + user);
+        res = executeNet("REVOKE CREATE ON KEYSPACE ks1 FROM " + user);
+        assertWarningsContain(res.getExecutionInfo().getWarnings(), "Role '" + user + "' was not granted CREATE on <keyspace ks1>");
+
+        useUser(user, pass);
+        assertUnauthorizedQuery("User user has no CREATE permission on <all tables in ks1> or any of its parents",
+                          "CREATE TABLE ks1.targetTb like ks1.sourcetb");
+
+        // different keyspaces
+        // has select permission on source table no create permission on target keyspace
+        useSuperUser();
+        executeNet("GRANT SELECT ON TABLE ks1.sourcetb TO " + user);
+        res = executeNet("REVOKE CREATE ON KEYSPACE ks2 FROM " + user);
+        assertWarningsContain(res.getExecutionInfo().getWarnings(), "Role '" + user + "' was not granted CREATE on <keyspace ks2>");
+
+        useUser(user, pass);
+        assertUnauthorizedQuery("User user has no CREATE permission on <all tables in ks2> or any of its parents",
+                "CREATE TABLE ks2.targetTb like ks1.sourcetb");
+
+    }
 }
