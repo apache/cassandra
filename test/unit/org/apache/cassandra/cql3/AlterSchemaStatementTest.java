@@ -39,7 +39,8 @@ public class AlterSchemaStatementTest extends CQLTester
                      "CREATE KEYSPACE ks WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}",
                      "CREATE TABLE ks.t1 (k int PRIMARY KEY)",
                      "ALTER MATERIALIZED VIEW ks.v1 WITH compaction = { 'class' : 'LeveledCompactionStrategy' }",
-                     "ALTER TABLE ks.t1 ADD v int"
+                     "ALTER TABLE ks.t1 ADD v int",
+                     "CREATE TABLE ks.tb like ks1.tb"
                      };
     private final ClientState clientState = ClientState.forExternalCalls(InetSocketAddress.createUnresolved("127.0.0.1", 1234));
 

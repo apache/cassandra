@@ -386,4 +386,96 @@ public class GrantAndRevokeTest extends CQLTester
         res = executeNet("REVOKE SELECT, MODIFY ON KEYSPACE revoke_yeah FROM " + user);
         assertWarningsContain(res.getExecutionInfo().getWarnings(), "Role '" + user + "' was not granted MODIFY on <keyspace revoke_yeah>");
     }
+
+    @Test
+    public void testCreateTableLikeAuthorize() throws Throwable
+    {
+        useSuperUser();
+
+        // two keyspaces
+        executeNet("CREATE KEYSPACE ks1 WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}");
+        executeNet("CREATE KEYSPACE ks2 WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}");
+        executeNet("CREATE TABLE ks1.sourcetb (id int PRIMARY KEY, val text)");
+        executeNet("CREATE USER '" + user + "' WITH PASSWORD '" + pass + "'");
+
+        // same keyspace
+        // have no select permission on source table
+        ResultSet res = executeNet("REVOKE SELECT ON TABLE ks1.sourcetb FROM " + user);
+        assertWarningsContain(res.getExecutionInfo().getWarnings(), "Role '" + user + "' was not granted SELECT on <table ks1.sourcetb>");
+
+        useUser(user, pass);
+        // Spin assert for effective auth changes.
+        Util.spinAssertEquals(false, () -> {
+            try
+            {
+                assertUnauthorizedQuery("User user has no SELECT permission on <table ks1.sourcetb> or any of its parents",
+                        formatQuery("SELECT * FROM ks1.sourcetb LIMIT 1"));
+            }
+            catch(Throwable e)
+            {
+                return true;
+            }
+            return false;
+        }, 10);
+
+        assertUnauthorizedQuery("User user has no SELECT permission on <table ks1.sourcetb> or any of its parents",
+                                "CREATE TABLE ks1.targetTb LIKE ks1.sourcetb");
+
+        // have select permission on source table and do not have create permission on target keyspace
+        useSuperUser();
+        executeNet("GRANT SELECT ON TABLE ks1.sourcetb TO " + user);
+        res = executeNet("REVOKE CREATE ON KEYSPACE ks1 FROM " + user);
+        assertWarningsContain(res.getExecutionInfo().getWarnings(), "Role '" + user + "' was not granted CREATE on <keyspace ks1>");
+
+        useUser(user, pass);
+        Util.spinAssertEquals(false, () -> {
+            try
+            {
+                assertUnauthorizedQuery("User user has no CREATE permission on <all tables in ks1> or any of its parents",
+                        formatQuery("CREATE TABLE ks1.targetTb LIKE ks1.sourcetb"));
+            }
+            catch(Throwable e)
+            {
+                return true;
+            }
+            return false;
+        }, 10);
+
+        assertUnauthorizedQuery("User user has no CREATE permission on <all tables in ks1> or any of its parents",
+                                "CREATE TABLE ks1.targetTb LIKE ks1.sourcetb");
+
+        // different keyspaces
+        // have select permission on source table and do not have create permission on target keyspace
+        useSuperUser();
+        executeNet("GRANT SELECT ON TABLE ks1.sourcetb TO " + user);
+        res = executeNet("REVOKE CREATE ON KEYSPACE ks2 FROM " + user);
+        assertWarningsContain(res.getExecutionInfo().getWarnings(), "Role '" + user + "' was not granted CREATE on <keyspace ks2>");
+
+        useUser(user, pass);
+        Util.spinAssertEquals(false, () -> {
+            try
+            {
+                assertUnauthorizedQuery("User user has no CREATE permission on <all tables in ks2> or any of its parents",
+                        formatQuery("CREATE TABLE ks2.targetTb LIKE ks1.sourcetb"));
+            }
+            catch(Throwable e)
+            {
+                return true;
+            }
+            return false;
+        }, 10);
+
+        assertUnauthorizedQuery("User user has no CREATE permission on <all tables in ks2> or any of its parents",
+                                "CREATE TABLE ks2.targetTb LIKE ks1.sourcetb");
+
+        // source keyspace and table do not exist
+        assertUnauthorizedQuery("User user has no SELECT permission on <table ks1.tbnotexist> or any of its parents",
+                                "CREATE TABLE ks2.targetTb LIKE ks1.tbnotexist");
+        assertUnauthorizedQuery("User user has no SELECT permission on <table ksnotexists.sourcetb> or any of its parents",
+                                "CREATE TABLE ks2.targetTb LIKE ksnotexists.sourcetb");
+        // target keyspace does not exist
+        assertUnauthorizedQuery("User user has no CREATE permission on <all tables in ksnotexists> or any of its parents",
+                                "CREATE TABLE ksnotexists.targetTb LIKE ks1.sourcetb");
+
+    }
 }

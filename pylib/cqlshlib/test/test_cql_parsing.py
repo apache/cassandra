@@ -568,6 +568,9 @@ class TestCqlParsing(TestCase):
     def test_parse_create_table(self):
         pass
 
+    def test_parse_create_table_like(self):
+        pass
+
     def test_parse_drop_table(self):
         pass
 

@@ -397,7 +397,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
                             choices=['EXISTS', '<quotedName>', '<identifier>'])
 
         self.trycompletions("UPDATE empty_table SET lonelycol = 'eggs' WHERE TOKEN(lonelykey) <= TOKEN(13) IF EXISTS ",
-                            choices=['>=', '!=', '<=', 'IN','[', ';', '=', '<', '>', '.', 'CONTAINS'])
+                            choices=['>=', '!=', '<=', 'IN', '[', ';', '=', '<', '>', '.', 'CONTAINS'])
 
         self.trycompletions("UPDATE empty_table SET lonelycol = 'eggs' WHERE TOKEN(lonelykey) <= TOKEN(13) IF lonelykey ",
                             choices=['>=', '!=', '<=', 'IN', '=', '<', '>', 'CONTAINS'])
@@ -464,7 +464,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
                             choices=['a', 'b', 'TOKEN('])
 
         self.trycompletions('DELETE FROM twenty_rows_composite_table USING TIMESTAMP 0 WHERE a ',
-                            choices=['<=', '>=', 'BETWEEN', 'CONTAINS', 'IN', 'NOT' , '[', '=', '<', '>', '!='])
+                            choices=['<=', '>=', 'BETWEEN', 'CONTAINS', 'IN', 'NOT', '[', '=', '<', '>', '!='])
 
         self.trycompletions('DELETE FROM twenty_rows_composite_table USING TIMESTAMP 0 WHERE TOKEN(',
                             immediate='a ')
@@ -614,9 +614,9 @@ class TestCqlshCompletion(CqlshCompletionCase):
         self.trycompletions(prefix + 'IF NOT EXISTS ',
                             choices=['<new_table_name>', self.cqlsh.keyspace])
         self.trycompletions(prefix + 'IF NOT EXISTS new_table ',
-                            immediate='( ')
+                            choices=['(', '.', 'LIKE'])
 
-        self.trycompletions(prefix + quoted_keyspace, choices=['.', '('])
+        self.trycompletions(prefix + quoted_keyspace, choices=['.', '(', 'LIKE'])
 
         self.trycompletions(prefix + quoted_keyspace + '( ',
                             choices=['<new_column_name>', '<identifier>',
@@ -625,7 +625,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
         self.trycompletions(prefix + quoted_keyspace + '.',
                             choices=['<new_table_name>'])
         self.trycompletions(prefix + quoted_keyspace + '.new_table ',
-                            immediate='( ')
+                            choices=['(', 'LIKE'])
         self.trycompletions(prefix + quoted_keyspace + '.new_table ( ',
                             choices=['<new_column_name>', '<identifier>',
                                      '<quotedName>'])
@@ -779,6 +779,113 @@ class TestCqlshCompletion(CqlshCompletionCase):
         self.trycompletions('CREATE T', choices=['TRIGGER', 'TABLE', 'TYPE'])
         self.trycompletions('CREATE TA', immediate='BLE ')
         self.create_columnfamily_table_template('TABLE')
+
+    def test_complete_in_create_table_like(self):
+        self.trycompletions('CREATE T', choices=['TRIGGER', 'TABLE', 'TYPE'])
+        self.trycompletions('CREATE TA', immediate='BLE ')
+        quoted_keyspace = '"' + self.cqlsh.keyspace + '"'
+        self.trycompletions('CREATE TABLE ',
+                            choices=['IF', self.cqlsh.keyspace, '<new_table_name>'])
+        self.trycompletions('CREATE TABLE IF ',
+                            immediate='NOT EXISTS ')
+        self.trycompletions('CREATE TABLE IF NOT EXISTS ',
+                            choices=['<new_table_name>', self.cqlsh.keyspace])
+        self.trycompletions('CREATE TABLE IF NOT EXISTS new_table L',
+                            immediate='IKE ')
+        self.trycompletions('CREATE TABLE ' + quoted_keyspace + '.',
+                            choices=['<new_table_name>'])
+        self.trycompletions('CREATE TABLE ' + quoted_keyspace + '.new_table L',
+                            immediate='IKE ')
+        self.trycompletions('CREATE TABLE ' + 'new_table LIKE old_table W',
+                            immediate='ITH ')
+        self.trycompletions('CREATE TABLE ' + 'new_table LIKE old_table WITH ',
+                            choices=['allow_auto_snapshot',
+                                     'bloom_filter_fp_chance', 'compaction',
+                                     'compression',
+                                     'default_time_to_live', 'gc_grace_seconds',
+                                     'incremental_backups',
+                                     'max_index_interval',
+                                     'memtable',
+                                     'memtable_flush_period_in_ms',
+                                     'caching', 'comment',
+                                     'min_index_interval', 'speculative_retry', 'additional_write_policy', 'cdc', 'read_repair'])
+        self.trycompletions('CREATE TABLE ' + 'new_table LIKE old_table WITH ',
+                            choices=['allow_auto_snapshot',
+                                     'bloom_filter_fp_chance', 'compaction',
+                                     'compression',
+                                     'default_time_to_live', 'gc_grace_seconds',
+                                     'incremental_backups',
+                                     'max_index_interval',
+                                     'memtable',
+                                     'memtable_flush_period_in_ms',
+                                     'caching', 'comment',
+                                     'min_index_interval', 'speculative_retry', 'additional_write_policy', 'cdc', 'read_repair'])
+        self.trycompletions('CREATE TABLE ' + 'new_table LIKE old_table WITH bloom_filter_fp_chance ',
+                            immediate='= ')
+        self.trycompletions('CREATE TABLE ' + 'new_table LIKE old_table WITH bloom_filter_fp_chance = ',
+                            choices=['<float_between_0_and_1>'])
+
+        self.trycompletions('CREATE TABLE ' + 'new_table LIKE old_table WITH compaction ',
+                            immediate="= {'class': '")
+        self.trycompletions('CREATE TABLE ' + "new_table LIKE old_table WITH compaction = "
+                            + "{'class': '",
+                            choices=['SizeTieredCompactionStrategy',
+                                     'LeveledCompactionStrategy',
+                                     'TimeWindowCompactionStrategy',
+                                     'UnifiedCompactionStrategy'])
+        self.trycompletions('CREATE TABLE ' + "new_table LIKE old_table WITH compaction = "
+                            + "{'class': 'S",
+                            immediate="izeTieredCompactionStrategy'")
+        self.trycompletions('CREATE TABLE ' + "new_table LIKE old_table WITH compaction = "
+                            + "{'class': 'SizeTieredCompactionStrategy",
+                            immediate="'")
+        self.trycompletions('CREATE TABLE ' + "new_table LIKE old_table WITH compaction = "
+                            + "{'class': 'SizeTieredCompactionStrategy'",
+                            choices=['}', ','])
+        self.trycompletions('CREATE TABLE ' + "new_table LIKE old_table WITH compaction = "
+                            + "{'class': 'SizeTieredCompactionStrategy', ",
+                            immediate="'")
+        self.trycompletions('CREATE TABLE ' + "new_table LIKE old_table WITH compaction = "
+                            + "{'class': 'SizeTieredCompactionStrategy', '",
+                            choices=['bucket_high', 'bucket_low', 'class',
+                                     'enabled', 'max_threshold',
+                                     'min_sstable_size', 'min_threshold',
+                                     'tombstone_compaction_interval',
+                                     'tombstone_threshold',
+                                     'unchecked_tombstone_compaction',
+                                     'only_purge_repaired_tombstones',
+                                     'provide_overlapping_tombstones'])
+        self.trycompletions('CREATE TABLE ' + "new_table LIKE old_table WITH compaction = "
+                            + "{'class': 'SizeTieredCompactionStrategy'}",
+                            choices=[';', 'AND'])
+        self.trycompletions('CREATE TABLE ' + "new_table LIKE old_table WITH compaction = "
+                            + "{'class': 'SizeTieredCompactionStrategy'} AND ",
+                            choices=['allow_auto_snapshot', 'bloom_filter_fp_chance', 'compaction',
+                                     'compression',
+                                     'default_time_to_live', 'gc_grace_seconds',
+                                     'incremental_backups',
+                                     'max_index_interval',
+                                     'memtable',
+                                     'memtable_flush_period_in_ms',
+                                     'caching', 'comment',
+                                     'min_index_interval', 'speculative_retry', 'additional_write_policy', 'cdc', 'read_repair'])
+        self.trycompletions('CREATE TABLE ' + "new_table LIKE old_table WITH compaction = "
+                            + "{'class': 'TimeWindowCompactionStrategy', '",
+                            choices=['compaction_window_unit', 'compaction_window_size',
+                                     'timestamp_resolution', 'min_threshold', 'class', 'max_threshold',
+                                     'tombstone_compaction_interval', 'tombstone_threshold',
+                                     'enabled', 'unchecked_tombstone_compaction',
+                                     'only_purge_repaired_tombstones', 'provide_overlapping_tombstones'])
+        self.trycompletions('CREATE TABLE ' + "new_table LIKE old_table WITH compaction = "
+                            + "{'class': 'UnifiedCompactionStrategy', '",
+                            choices=['scaling_parameters', 'min_sstable_size',
+                                     'flush_size_override', 'base_shard_count', 'class', 'target_sstable_size',
+                                     'sstable_growth', 'max_sstables_to_compact',
+                                     'enabled', 'expired_sstable_check_frequency_seconds',
+                                     'unsafe_aggressive_sstable_expiration', 'overlap_inclusion_method',
+                                     'tombstone_threshold', 'tombstone_compaction_interval',
+                                     'unchecked_tombstone_compaction', 'provide_overlapping_tombstones',
+                                     'max_threshold', 'only_purge_repaired_tombstones'])
 
     def test_complete_in_describe(self):  # Cassandra-10733
         self.trycompletions('DES', immediate='C')

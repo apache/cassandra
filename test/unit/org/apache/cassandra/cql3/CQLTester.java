@@ -163,6 +163,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Schema;
@@ -1080,6 +1081,25 @@ public abstract class CQLTester
         return currentTable;
     }
 
+    protected String createTableLike(String query, String sourceTable, String sourceKeyspace, String targetKeyspace)
+    {
+        return createTableLike(query, sourceTable, sourceKeyspace, null, targetKeyspace);
+    }
+
+    protected String createTableLike(String query, String sourceTable, String sourceKeyspace, String targetTable, String targetKeyspace)
+    {
+        if (!tables.contains(sourceTable))
+        {
+            throw new IllegalArgumentException("Source table " + sourceTable + " does not exist");
+        }
+
+        String currentTable = createTableName(targetTable);
+        String fullQuery = currentTable == null ? query : String.format(query, targetKeyspace + "." + currentTable, sourceKeyspace + "." + sourceTable);;
+        logger.info(fullQuery);
+        schemaChange(fullQuery);
+        return currentTable;
+    }
+
     protected String createTableName()
     {
         return createTableName(null);
@@ -1545,6 +1565,11 @@ public abstract class CQLTester
         }
     }
 
+    protected TableMetadata getTableMetadata(String keyspace, String table)
+    {
+        return Schema.instance.getTableMetadata(keyspace, table);
+    }
+
     protected TableMetadata currentTableMetadata()
     {
         return Schema.instance.getTableMetadata(KEYSPACE, currentTable());
@@ -1933,6 +1958,54 @@ public abstract class CQLTester
             return true;
         }
         return false;
+    }
+
+    /**
+     * Determine whether the source and target TableMetadata is equal without compare the table name and dropped columns.
+     * @param source the source TableMetadata
+     * @param target the target TableMetadata
+     * @param compareParams wether compare table params
+     * @param compareIndexes wether compare table's indexes
+     * @param compareTrigger wether compare table's triggers
+     * */
+    protected boolean equalsWithoutTableNameAndDropCns(TableMetadata source, TableMetadata target, boolean compareParams, boolean compareIndexes, boolean compareTrigger)
+    {
+        return source.partitioner.equals(target.partitioner)
+               && source.kind == target.kind
+               && source.flags.equals(target.flags)
+               && (!compareParams || source.params.equals(target.params))
+               && (!compareIndexes || source.indexes.equals(target.indexes))
+               && (!compareTrigger || source.triggers.equals(target.triggers))
+               && columnsEqualWitoutKsTb(source, target);
+    }
+
+    // only compare columns
+    private boolean columnsEqualWitoutKsTb(TableMetadata source, TableMetadata target)
+    {
+        if (target.columns().size() != source.columns().size())
+            return false;
+
+        Iterator<ColumnMetadata> leftIterator = source.allColumnsInCreateOrder();
+        Iterator<ColumnMetadata> rightIterator = target.allColumnsInCreateOrder();
+
+        while (leftIterator.hasNext() && rightIterator.hasNext())
+        {
+            ColumnMetadata leftCn = leftIterator.next();
+            ColumnMetadata rightCn = rightIterator.next();
+            if (!equalsWithoutKsTb(leftCn, rightCn))
+                return false;
+        }
+
+        return true;
+    }
+
+    private boolean equalsWithoutKsTb(ColumnMetadata left, ColumnMetadata right)
+    {
+        return left.name.equals(right.name)
+               && left.kind == right.kind
+               && left.position() == right.position()
+               && java.util.Objects.equals(left.getMask(), right.getMask())
+               && left.type.equals(right.type);
     }
 
     protected void assertRowCountNet(ResultSet r1, int expectedCount)

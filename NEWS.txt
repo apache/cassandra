@@ -107,6 +107,8 @@ New features
       JMX to JVM parameters. You have to opt-in to use the configuration via cassandra.yaml by uncommenting
       the respective configuration sections and by commenting out `configure_jmx` function call in cassandra-env.sh.
       Enabling both ways of configuring JMX will result in a node failing to start.
+    - CEP-43 - it is possible to create a table by "copying" as `CREATE TABLE ks.tb_copy LIKE ks.tb;`.
+      A newly created table will have no data.
 
 Upgrading
 ---------

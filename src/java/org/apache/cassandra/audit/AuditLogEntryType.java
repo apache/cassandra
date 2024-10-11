@@ -32,6 +32,7 @@ public enum AuditLogEntryType
     ALTER_KEYSPACE(AuditLogEntryCategory.DDL),
     DROP_KEYSPACE(AuditLogEntryCategory.DDL),
     CREATE_TABLE(AuditLogEntryCategory.DDL),
+    CREATE_TABLE_LIKE(AuditLogEntryCategory.DDL),
     DROP_TABLE(AuditLogEntryCategory.DDL),
     PREPARE_STATEMENT(AuditLogEntryCategory.PREPARE),
     DROP_TRIGGER(AuditLogEntryCategory.DDL),

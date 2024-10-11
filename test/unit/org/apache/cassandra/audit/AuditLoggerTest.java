@@ -561,6 +561,29 @@ public class AuditLoggerTest extends CQLTester
     }
 
     @Test
+    public void testCqlCreateTableLikeAuditing() throws Throwable
+    {
+        String cql = "CREATE TABLE " + KEYSPACE + "." + createTableName() + " (id int primary key, v1 text, v2 text)";
+        executeAndAssert(cql, AuditLogEntryType.CREATE_TABLE);
+
+        cql = "CREATE TABLE IF NOT EXISTS " + KEYSPACE + "." + createTableName() + " (id int primary key, v1 text, v2 text)";
+        executeAndAssert(cql, AuditLogEntryType.CREATE_TABLE);
+
+        String sourceTable = currentTable();
+
+        cql = "CREATE TABLE " + KEYSPACE + "." + createTableName() + " LIKE " + KEYSPACE + "." + sourceTable;
+        executeAndAssert(cql, AuditLogEntryType.CREATE_TABLE_LIKE);
+
+        cql = "INSERT INTO " + KEYSPACE + '.' + currentTable() + "  (id, v1, v2) VALUES (?, ?, ?)";
+        executeAndAssertWithPrepare(cql, AuditLogEntryType.UPDATE, 1, "insert_audit", "test");
+
+        cql = "SELECT id, v1, v2 FROM " + KEYSPACE + '.' + currentTable() + " WHERE id = ?";
+        ResultSet rs = executeAndAssertWithPrepare(cql, AuditLogEntryType.SELECT, 1);
+
+        assertEquals(1, rs.all().size());
+    }
+
+    @Test
     public void testCqlAggregateAuditing() throws Throwable
     {
         String aggName = createTableName();

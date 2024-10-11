@@ -279,6 +279,7 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
 
 <schemaChangeStatement> ::= <createKeyspaceStatement>
                           | <createColumnFamilyStatement>
+                          | <copyTableStatement>
                           | <createIndexStatement>
                           | <createMaterializedViewStatement>
                           | <createUserTypeStatement>
@@ -1300,6 +1301,27 @@ def create_cf_composite_primary_key_comma_completer(ctxt, cass):
     if len(pieces_already) >= len(cols_declared) - 1:
         return ()
     return [',']
+
+
+syntax_rules += r'''
+<copyTableStatement> ::= "CREATE" wat=("COLUMNFAMILY" | "TABLE" ) ("IF" "NOT" "EXISTS")?
+                                ( tks=<nonSystemKeyspaceName> dot="." )? tcf=<cfOrKsName>
+                                "LIKE" ( sks=<nonSystemKeyspaceName> dot="." )? scf=<cfOrKsName>
+                                ( "WITH" <property> ( "AND" <property> )* )?
+                            ;
+'''
+
+
+@completer_for('copyTableStatement', 'wat')
+def create_tb_wat_completer(ctxt, cass):
+    # would prefer to get rid of the "schema" nomenclature in cql3
+    if ctxt.get_binding('partial', '') == '':
+        return ['TABLE']
+    return ['COLUMNFAMILY', 'TABLE']
+
+
+explain_completion('copyTableStatement', 'tcf', '<new_table_name>')
+explain_completion('copyTableStatement', 'scf', '<old_table_name>')
 
 
 syntax_rules += r'''

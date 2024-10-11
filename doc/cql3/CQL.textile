@@ -406,6 +406,39 @@ h4. Other considerations:
 
 * When "inserting":#insertStmt / "updating":#updateStmt a given row, not all columns needs to be defined (except for those part of the key), and missing columns occupy no space on disk. Furthermore, adding new columns (see <a href=#alterStmt><tt>ALTER TABLE</tt></a>) is a constant time operation. There is thus no need to try to anticipate future usage (or to cry when you haven't) when creating a table.
 
+h3(#copyStmt). CREATE TABLE LIKE
+
+__Syntax:__
+
+bc(syntax).. 
+<copy-table-stmt> ::= CREATE ( TABLE | COLUMNFAMILY ) ( IF NOT EXISTS )? <newtablename> LIKE <oldtablename>
+                    ( WITH <option> ( AND <option>)* )?
+
+<option> ::= <property>
+
+p. 
+__Sample:__
+
+bc(sample).. 
+CREATE TABLE newtb1 LIKE oldtb;
+
+CREATE TABLE newtb2 LIKE oldtb WITH compaction = { 'class' : 'LeveledCompactionStrategy' };
+p. 
+The @COPY TABLE@ statement creates a new table which is a clone of old table. The new table have the same column numbers, column names, column data types, column data mask with the old table. The new table is defined by a "name":#copyNewTableName, and the name of the old table being cloned is defined by a "name":#copyOldTableName . The table options of the new table can be defined by setting "copyoptions":#copyTableOptions. Note that the @CREATE COLUMNFAMILY LIKE@ syntax is supported as an alias for @CREATE TABLE like@ (for historical reasons).
+
+Attempting to create an already existing table will return an error unless the @IF NOT EXISTS@ option is used. If it is used, the statement will be a no-op if the table already exists.
+
+h4(#copyNewTableName). @<newtablename>@
+
+Valid table names are the same as valid "keyspace names":#createKeyspaceStmt (up to 32 characters long alphanumerical identifiers). If the table name is provided alone, the table is created within the current keyspace (see <a href="#useStmt"><tt>USE</tt></a>), but if it is prefixed by an existing keyspace name (see "@<tablename>@":#statements grammar), it is created in the specified keyspace (but does *not* change the current keyspace).
+
+h4(#copyOldTableName). @<oldtablename>@
+
+The old table name defines the already existed table.   
+
+h4(#copyTableOptions). @<copyoptions>@
+
+The @COPY TABLE@ statement supports a number of options that controls the configuration of a new table. These options can be specified after the @WITH@ keyword, and all options are the same as those options when creating a table except for id .
 
 h3(#alterTableStmt). ALTER TABLE
 

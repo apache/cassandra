@@ -479,12 +479,21 @@ public final class CreateTableStatement extends AlterSchemaStatement
         }
     }
 
+    public static TableMetadata.Builder parse(String cql, String keyspace, String table, Types types, UserFunctions userFunctions)
+    {
+        Raw createTable = CQLFragmentParser.parseAny(CqlParser::createTableStatement, cql, "CREATE TABLE")
+                                           .keyspace(keyspace);
+
+        if (table != null)
+            createTable.table(table);
+
+        return createTable.prepare(null) // works around a messy ClientState/QueryProcessor class init deadlock
+                .builder(types, userFunctions);
+    }
+
     public static TableMetadata.Builder parse(String cql, String keyspace)
     {
-        return CQLFragmentParser.parseAny(CqlParser::createTableStatement, cql, "CREATE TABLE")
-                                .keyspace(keyspace)
-                                .prepare(null) // works around a messy ClientState/QueryProcessor class init deadlock
-                                .builder(Types.none(), UserFunctions.none());
+        return parse(cql, keyspace, null, Types.none(), UserFunctions.none());
     }
 
     public final static class Raw extends CQLStatement.Raw
@@ -535,6 +544,12 @@ public final class CreateTableStatement extends AlterSchemaStatement
         public Raw keyspace(String keyspace)
         {
             name.setKeyspace(keyspace, true);
+            return this;
+        }
+
+        public Raw table(String table)
+        {
+            name.setName(table, true);
             return this;
         }
 

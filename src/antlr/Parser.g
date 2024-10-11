@@ -236,6 +236,7 @@ cqlStatement returns [CQLStatement.Raw stmt]
     | st42=addIdentityStatement            { $stmt = st42; }
     | st43=dropIdentityStatement           { $stmt = st43; }
     | st44=listSuperUsersStatement         { $stmt = st44; }
+    | st45=copyTableStatement              { $stmt = st45; }
     ;
 
 /*
@@ -811,6 +812,17 @@ tableProperty[CreateTableStatement.Raw stmt]
 tableClusteringOrder[CreateTableStatement.Raw stmt]
     @init{ boolean ascending = true; }
     : k=ident (K_ASC | K_DESC { ascending = false; } ) { $stmt.extendClusteringOrder(k, ascending); }
+    ;
+
+/**
+ * CREATE TABLE [IF NOT EXISTS] <NEW_TABLE> LIKE <OLD_TABLE> WITH <property> = <value> AND ...;
+ */
+copyTableStatement returns  [CopyTableStatement.Raw stmt]
+    @init { boolean ifNotExists = false; }
+    : K_CREATE K_COLUMNFAMILY (K_IF K_NOT K_EXISTS { ifNotExists = true; } )?
+      newCf=columnFamilyName K_LIKE oldCf=columnFamilyName
+      { $stmt = new CopyTableStatement.Raw(newCf, oldCf, ifNotExists); }
+      ( K_WITH property[stmt.attrs] ( K_AND property[stmt.attrs] )*)?
     ;
 
 /**
