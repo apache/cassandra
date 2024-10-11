@@ -37,12 +37,23 @@ public class ConfigGenBuilder
     public enum Memtable
     {SkipListMemtable, TrieMemtable, ShardedSkipListMemtable}
 
+    private static boolean validCommitLogDiskAccessMode(Config c)
+    {
+        Config.DiskAccessMode m = c.commitlog_disk_access_mode;
+
+        return null != c.commitlog_compression
+            ? Config.DiskAccessMode.standard == m
+            : Config.DiskAccessMode.mmap == m || Config.DiskAccessMode.direct == m;
+    }
+
     @Nullable
     Gen<IPartitioner> partitionerGen = Generators.toGen(CassandraGenerators.nonLocalPartitioners());
+
     Gen<Config.DiskAccessMode> commitLogDiskAccessModeGen = Gens.enums().all(Config.DiskAccessMode.class)
                                                                 .filter(m -> m != Config.DiskAccessMode.standard
                                                                              && m != Config.DiskAccessMode.mmap_index_only
                                                                              && m != Config.DiskAccessMode.direct); // don't allow direct as not every filesystem supports it, making the config environment specific
+
     Gen<Config.DiskAccessMode> diskAccessModeGen = Gens.enums().all(Config.DiskAccessMode.class).filter(m -> m != Config.DiskAccessMode.direct);
     Gen<String> sstableFormatGen = Generators.toGen(CassandraGenerators.sstableFormatNames());
     Gen<Config.MemtableAllocationType> memtableAllocationTypeGen = Gens.enums().all(Config.MemtableAllocationType.class);
@@ -71,12 +82,24 @@ public class ConfigGenBuilder
     /**
      * When loading the {@link Config} from a yaml its possible that some configs set will conflict with the configs that get generated here, to avoid that set them to a good default
      */
-    public static Config sanitize(Config config)
+    public static Config prepare(Config config)
     {
         Config defaults = new Config();
         config.commitlog_sync = defaults.commitlog_sync;
         config.commitlog_sync_group_window = defaults.commitlog_sync_group_window;
         config.commitlog_sync_period = defaults.commitlog_sync_period;
+        return config;
+    }
+
+    /**
+     * After loading from yaml, sanitize the resulting config to avoid fast-failures on illegal combinations
+     */
+    public static Config sanitize(Config config)
+    {
+        // if commitlog_disk_access_mode has been generated to something other than standard, make sure compression is disabled
+        if (null != config.commitlog_compression && Config.DiskAccessMode.standard != config.commitlog_disk_access_mode)
+            config.commitlog_compression = null;
+
         return config;
     }
 
