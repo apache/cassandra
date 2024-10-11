@@ -48,7 +48,6 @@ import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.AbstractBounds;
-import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.VectorQueryContext;
@@ -437,14 +436,11 @@ public class QueryController
     {
         if (command instanceof SinglePartitionReadCommand)
         {
-            SinglePartitionReadCommand cmd = (SinglePartitionReadCommand) command;
-            DecoratedKey key = cmd.partitionKey();
-            return Lists.newArrayList(new DataRange(new Range<>(key, key), cmd.clusteringIndexFilter()));
+            return Lists.newArrayList(command.dataRange());
         }
         else if (command instanceof PartitionRangeReadCommand)
         {
-            PartitionRangeReadCommand cmd = (PartitionRangeReadCommand) command;
-            return Lists.newArrayList(cmd.dataRange());
+            return Lists.newArrayList(command.dataRange());
         }
         else
         {
