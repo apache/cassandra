@@ -130,6 +130,7 @@ public class BufferPool
     public static final int TINY_CHUNK_SIZE = NORMAL_ALLOCATION_UNIT;
     public static final int TINY_ALLOCATION_UNIT = TINY_CHUNK_SIZE / 64;
     public static final int TINY_ALLOCATION_LIMIT = TINY_CHUNK_SIZE / 2;
+    private static final boolean REF_TRACE_ENABLED = Ref.TRACE_ENABLED;
 
     private static final Logger logger = LoggerFactory.getLogger(BufferPool.class);
     private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 15L, TimeUnit.MINUTES);
@@ -1330,7 +1331,7 @@ public class BufferPool
 
         void setAttachment(ByteBuffer buffer)
         {
-            if (Ref.TRACE_ENABLED)
+            if (REF_TRACE_ENABLED)
                 MemoryUtil.setAttachment(buffer, new DirectBufferRef<>(this, null));
             else
                 MemoryUtil.setAttachment(buffer, this);
@@ -1342,7 +1343,7 @@ public class BufferPool
             if (attachment == null)
                 return false;
 
-            if (Ref.TRACE_ENABLED)
+            if (REF_TRACE_ENABLED)
                 ((DirectBufferRef<Chunk>) attachment).release();
 
             return true;

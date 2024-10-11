@@ -26,36 +26,42 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import accord.impl.RequestCallbacks;
-import accord.messages.*;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
-
-import org.apache.cassandra.config.AccordSpec;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.metrics.ClientRequestsMetricsHolder;
-import org.apache.cassandra.service.TimeoutStrategy;
-import org.apache.cassandra.service.TimeoutStrategy.LatencySourceFactory;
-import org.apache.cassandra.utils.Clock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.api.Agent;
 import accord.api.MessageSink;
+import accord.impl.RequestCallbacks;
 import accord.local.AgentExecutor;
 import accord.local.Node;
+import accord.messages.Callback;
+import accord.messages.Commit;
+import accord.messages.MessageType;
+import accord.messages.Reply;
+import accord.messages.ReplyContext;
+import accord.messages.Request;
+import accord.messages.TxnRequest;
+import org.apache.cassandra.config.AccordSpec;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.metrics.ClientRequestsMetricsHolder;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessageFlag;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.ResponseContext;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.service.TimeoutStrategy;
+import org.apache.cassandra.service.TimeoutStrategy.LatencySourceFactory;
+import org.apache.cassandra.utils.Clock;
 
 import static accord.messages.MessageType.Kind.REMOTE;
+import static accord.primitives.Routable.Domain.Range;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 public class AccordMessageSink implements MessageSink
@@ -249,10 +255,10 @@ public class AccordMessageSink implements MessageSink
             return false;
 
         TxnRequest<?> txnRequest = (TxnRequest<?>) request;
-        if (!txnRequest.txnId.kind().isSyncPoint())
+        if (!txnRequest.txnId.isSyncPoint())
             return false;
 
-        return txnRequest.txnId.domain().isRange();
+        return txnRequest.txnId.is(Range);
     }
 
     // TODO (expected): permit bulk send to save esp. on callback registration (and combine records)
@@ -265,7 +271,7 @@ public class AccordMessageSink implements MessageSink
         long nowNanos = Clock.Global.nanoTime();
         long delayedAtNanos = Long.MAX_VALUE;
         long expiresAtNanos;
-        if (isRangeBarrier(request) || verb == Verb.ACCORD_CALCULATE_DEPS_REQ)
+        if (isRangeBarrier(request))
             expiresAtNanos = nowNanos + DatabaseDescriptor.getAccordRangeBarrierTimeoutNanos();
         else
             expiresAtNanos = nowNanos + verb.expiresAfterNanos();

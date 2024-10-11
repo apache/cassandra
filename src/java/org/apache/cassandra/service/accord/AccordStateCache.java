@@ -28,6 +28,8 @@ import java.util.function.Function;
 import java.util.function.ToLongFunction;
 import java.util.stream.Stream;
 
+import javax.annotation.Nullable;
+
 import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -365,7 +367,7 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
                     listeners.forEach(l -> l.onAdd(finalNode));
                 }
             }
-            AccordCachingState<K, V> acquired = acquireExisting(node, true);
+            AccordCachingState<K, V> acquired = acquireExisting(node, true, null);
             Invariants.checkState(acquired != null, "%s could not be acquired", node);
             return safeRefFactory.apply(acquired);
         }
@@ -378,7 +380,7 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
             if (node == null)
                 return null;
 
-            return safeRefFactory.apply(acquireExisting(node, false));
+            return safeRefFactory.apply(acquireExisting(node, false, null));
         }
 
         public void maybeLoad(K key, V initial)
@@ -401,37 +403,49 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
 
         public S acquire(K key)
         {
-            AccordCachingState<K, V> node = acquire(key, false);
-            return safeRefFactory.apply(node);
+            return acquire(key, null);
         }
 
         public S acquireIfLoaded(K key)
         {
-            AccordCachingState<K, V> node = acquire(key, true);
+            return acquireIfLoaded(key, null);
+        }
+
+        public S acquire(K key, @Nullable ExecutorPlus loadExecutor)
+        {
+            AccordCachingState<K, V> node = acquire(key, false, loadExecutor);
+            return safeRefFactory.apply(node);
+        }
+
+        public S acquireIfLoaded(K key, @Nullable ExecutorPlus loadExecutor)
+        {
+            AccordCachingState<K, V> node = acquire(key, true, loadExecutor);
             if (node == null)
                 return null;
             return safeRefFactory.apply(node);
         }
 
-        private AccordCachingState<K, V> acquire(K key, boolean onlyIfLoaded)
+        private AccordCachingState<K, V> acquire(K key, boolean onlyIfLoaded, @Nullable ExecutorPlus loadExecutor)
         {
             incrementCacheQueries();
             @SuppressWarnings("unchecked")
             AccordCachingState<K, V> node = (AccordCachingState<K, V>) cache.get(key);
             return node == null
-                 ? acquireAbsent(key, onlyIfLoaded)
-                 : acquireExisting(node, onlyIfLoaded);
+                 ? acquireAbsent(key, onlyIfLoaded, loadExecutor)
+                 : acquireExisting(node, onlyIfLoaded, loadExecutor);
         }
 
         /*
          * Can only return a LOADING Node (or null)
          */
-        private AccordCachingState<K, V> acquireAbsent(K key, boolean onlyIfLoaded)
+        private AccordCachingState<K, V> acquireAbsent(K key, boolean onlyIfLoaded, @Nullable ExecutorPlus loadExecutor)
         {
             incrementCacheMisses();
             if (onlyIfLoaded)
                 return null;
             AccordCachingState<K, V> node = nodeFactory.create(key, index);
+            if (loadExecutor == null)
+                loadExecutor = AccordStateCache.this.loadExecutor;
             node.load(loadExecutor, loadFunction);
             node.references++;
 
@@ -448,7 +462,7 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
         /*
          * Can't return EVICTED or INITIALIZED
          */
-        private AccordCachingState<K, V> acquireExisting(AccordCachingState<K, V> node, boolean onlyIfLoaded)
+        private AccordCachingState<K, V> acquireExisting(AccordCachingState<K, V> node, boolean onlyIfLoaded, @Nullable ExecutorPlus loadExecutor)
         {
             Status status = node.status(); // status() completes
 
@@ -462,6 +476,8 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
 
             if (node.references == 0)
             {
+                if (loadExecutor == null)
+                    loadExecutor = AccordStateCache.this.loadExecutor;
                 if (status == FAILED_TO_LOAD || status == EVICTED)
                     node.reset().load(loadExecutor, loadFunction);
 

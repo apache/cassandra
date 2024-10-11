@@ -66,7 +66,8 @@ public class AccordLoadTest extends AccordTestBase
         CassandraRelevantProperties.SIMULATOR_STARTED.setString(Long.toString(MILLISECONDS.toSeconds(currentTimeMillis())));
 //        AccordTestBase.setupCluster(builder -> builder, 3);
         AccordTestBase.setupCluster(builder -> builder.withConfig(config -> config
-                                                                            .set("accord.schedule_durability_frequency", "5s")
+                                                                            .set("accord.shard_durability_target_splits", "64")
+                                                                            .set("accord.shard_durability_cycle", "5m")
                                                                             .set("accord.ephemeral_read_enabled", "true")
                                                                             .set("accord.gc_delay", "5s")), 3);
     }
@@ -105,7 +106,7 @@ public class AccordLoadTest extends AccordTestBase
                      final long batchTime = TimeUnit.SECONDS.toNanos(10);
                      final int concurrency = 100;
                      final int ratePerSecond = 1000;
-                     final int keyCount = 1000000;
+                     final int keyCount = 1_000_000;
                      final float readChance = 0.33f;
                      long nextRepairAt = repairInterval;
                      long nextCompactionAt = compactionInterval;

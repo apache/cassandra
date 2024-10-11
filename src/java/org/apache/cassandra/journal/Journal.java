@@ -130,6 +130,7 @@ public class Journal<K, V> implements Shutdownable
         @Override
         public void onFlush(long segment, int position)
         {
+            // TODO (required): this seems to be a big source of allocations
             waitingFor.drain(drained::add);
             List<WaitingFor> remaining = new ArrayList<>();
             for (WaitingFor wait : drained)

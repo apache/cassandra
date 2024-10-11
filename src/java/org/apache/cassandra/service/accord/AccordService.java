@@ -463,7 +463,7 @@ public class AccordService implements IAccordService, Shutdownable
                     ? tcmLoadRange(optMaxEpoch.getAsLong(), Long.MAX_VALUE)
                     : discoverHistoric(node, cms);
             for (ClusterMetadata m : historic)
-                configService.reportMetadataInternal(m);
+                configService.reportMetadataInternal(m, true);
         }));
         ClusterMetadata current = cms.metadata();
         if (!ref.historic.isEmpty())
@@ -499,10 +499,12 @@ public class AccordService implements IAccordService, Shutdownable
 
         fastPathCoordinator.start();
         cms.log().addListener(fastPathCoordinator);
+        durabilityScheduling.setDefaultRetryDelay(Ints.checkedCast(DatabaseDescriptor.getAccordDefaultDurabilityRetryDelay(SECONDS)), SECONDS);
+        durabilityScheduling.setMaxRetryDelay(Ints.checkedCast(DatabaseDescriptor.getAccordMaxDurabilityRetryDelay(SECONDS)), SECONDS);
+        durabilityScheduling.setTargetShardSplits(Ints.checkedCast(DatabaseDescriptor.getAccordShardDurabilityTargetSplits()));
         durabilityScheduling.setGlobalCycleTime(Ints.checkedCast(DatabaseDescriptor.getAccordGlobalDurabilityCycle(SECONDS)), SECONDS);
         durabilityScheduling.setShardCycleTime(Ints.checkedCast(DatabaseDescriptor.getAccordShardDurabilityCycle(SECONDS)), SECONDS);
         durabilityScheduling.setTxnIdLag(Ints.checkedCast(DatabaseDescriptor.getAccordScheduleDurabilityTxnIdLag(SECONDS)), TimeUnit.SECONDS);
-        durabilityScheduling.setFrequency(Ints.checkedCast(DatabaseDescriptor.getAccordScheduleDurabilityFrequency(SECONDS)), SECONDS);
         durabilityScheduling.start();
         state = State.STARTED;
     }
@@ -1267,6 +1269,7 @@ public class AccordService implements IAccordService, Shutdownable
             @Override
             public boolean awaitTermination(long timeout, TimeUnit units)
             {
+                // TODO (required): expose awaitTermination in Node
                 // node doesn't offer
                 return true;
             }

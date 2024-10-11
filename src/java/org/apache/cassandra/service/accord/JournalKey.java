@@ -23,8 +23,11 @@ import java.nio.ByteBuffer;
 import java.util.Objects;
 import java.util.zip.Checksum;
 
+import accord.local.Node;
 import accord.local.Node.Id;
+import accord.primitives.Routable;
 import accord.primitives.Timestamp;
+import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -277,5 +280,9 @@ public final class JournalKey
         }
     }
 
-
+    public static JournalKey keyForHistoricalTransactions(long epoch, int store)
+    {
+        TxnId txnId = new TxnId(epoch, 0l, Txn.Kind.LocalOnly, Routable.Domain.Range, Node.Id.NONE);
+        return new JournalKey(txnId, JournalKey.Type.HISTORICAL_TRANSACTIONS, store);
+    }
 }

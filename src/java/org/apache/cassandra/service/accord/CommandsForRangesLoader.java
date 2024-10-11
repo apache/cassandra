@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.service.accord;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
@@ -60,6 +59,7 @@ public class CommandsForRangesLoader implements AccordStateCache.Listener<TxnId,
     private final NavigableMap<TxnId, Ranges> historicalTransaction = new TreeMap<>();
     private final AccordCommandStore store;
     private final ObjectHashSet<TxnId> cachedRangeTxns = new ObjectHashSet<>();
+    // TODO (required): make this configurable, or perhaps backed by READ stage with concurrency limit
 
     public CommandsForRangesLoader(AccordCommandStore store)
     {
@@ -91,7 +91,7 @@ public class CommandsForRangesLoader implements AccordStateCache.Listener<TxnId,
         TxnId findAsDep = primaryTxnId != null && keyHistory == KeyHistory.RECOVERY ? primaryTxnId : null;
         Watcher watcher = fromCache(findAsDep, ranges, minTxnId, maxTxnId, redundantBefore);
         ImmutableMap<TxnId, Summary> before = ImmutableMap.copyOf(watcher.get());
-        return AsyncChains.ofCallable(Stage.READ.executor(), () -> get(ranges, before, findAsDep, minTxnId, maxTxnId, redundantBefore))
+        return AsyncChains.ofCallable(Stage.ACCORD_RANGE_LOADER.executor(), () -> get(ranges, before, findAsDep, minTxnId, maxTxnId, redundantBefore))
                           .map(map -> Pair.create(watcher, map), store)
                .beginAsResult();
     }
@@ -229,13 +229,27 @@ public class CommandsForRangesLoader implements AccordStateCache.Listener<TxnId,
         {
             if (cacheHits.containsKey(txnId))
                 continue;
-            Command cmd = store.loadCommand(txnId);
-            if (cmd == null)
-                continue; // unknown command
-            Summary summary = create(cmd, ranges, findAsDep, redundantBefore);
-            if (summary == null)
-                continue;
-            map.put(txnId, summary);
+            if (findAsDep == null)
+            {
+                SavedCommand.MinimalCommand cmd = store.loadMinimal(txnId);
+                if (cmd == null)
+                    continue; // unknown command
+                Summary summary = create(cmd, ranges, redundantBefore);
+                if (summary == null)
+                    continue;
+                map.put(txnId, summary);
+
+            }
+            else
+            {
+                Command cmd = store.loadCommand(txnId);
+                if (cmd == null)
+                    continue; // unknown command
+                Summary summary = create(cmd, ranges, findAsDep, redundantBefore);
+                if (summary == null)
+                    continue;
+                map.put(txnId, summary);
+            }
         }
         return map;
     }
@@ -262,13 +276,11 @@ public class CommandsForRangesLoader implements AccordStateCache.Listener<TxnId,
 
         if (redundantBefore != null)
         {
-            Ranges durableAlready = Ranges.of(redundantBefore.foldlWithBounds(ranges, (e, accum, start, end) -> {
+            Ranges newRanges = redundantBefore.foldlWithBounds(ranges, (e, accum, start, end) -> {
                 if (e.gcBefore.compareTo(cmd.txnId()) < 0)
                     return accum;
-                accum.add(new TokenRange((AccordRoutingKey) start, (AccordRoutingKey) end));
-                return accum;
-            }, new ArrayList<Range>(), ignore -> false).toArray(Range[]::new));
-            Ranges newRanges = ranges.without(durableAlready);
+                return accum.without(Ranges.of(new TokenRange((AccordRoutingKey) start, (AccordRoutingKey) end)));
+            }, ranges, ignore -> false);
 
             if (newRanges.isEmpty())
                 return null;
@@ -277,6 +289,43 @@ public class CommandsForRangesLoader implements AccordStateCache.Listener<TxnId,
         PartialDeps partialDeps = cmd.partialDeps();
         boolean hasAsDep = findAsDep != null && partialDeps != null && partialDeps.rangeDeps.intersects(findAsDep, ranges);
         return new Summary(cmd.txnId(), cmd.executeAt(), saveStatus, ranges, findAsDep, hasAsDep);
+    }
+
+    private static Summary create(SavedCommand.MinimalCommand cmd, Ranges cacheRanges, @Nullable RedundantBefore redundantBefore)
+    {
+        //TODO (required, correctness): C* did Invalidated, accord-core did Erased... what is correct?
+        SaveStatus saveStatus = cmd.saveStatus;
+        if (saveStatus == null
+            || saveStatus == SaveStatus.Invalidated
+            || saveStatus == SaveStatus.Erased
+            || !saveStatus.hasBeen(Status.PreAccepted))
+            return null;
+
+        if (cmd.participants == null)
+            return null;
+
+        Ranges keysOrRanges = cmd.participants.touches().toRanges();
+        if (keysOrRanges.domain() != Domain.Range)
+            throw new AssertionError(String.format("Txn keys are not range for %s", cmd.participants));
+        Ranges ranges = (Ranges) keysOrRanges;
+
+        ranges = ranges.slice(cacheRanges, Routables.Slice.Minimal);
+        if (ranges.isEmpty())
+            return null;
+
+        if (redundantBefore != null)
+        {
+            Ranges newRanges = redundantBefore.foldlWithBounds(ranges, (e, accum, start, end) -> {
+                if (e.gcBefore.compareTo(cmd.txnId) < 0)
+                    return accum;
+                return accum.without(Ranges.of(new TokenRange((AccordRoutingKey) start, (AccordRoutingKey) end)));
+            }, ranges, ignore -> false);
+
+            if (newRanges.isEmpty())
+                return null;
+        }
+
+        return new Summary(cmd.txnId, cmd.executeAt, saveStatus, ranges, null, false);
     }
 
     public void mergeHistoricalTransaction(TxnId txnId, Ranges ranges, BiFunction<? super Ranges, ? super Ranges, ? extends Ranges> remappingFunction)

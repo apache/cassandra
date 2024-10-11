@@ -18,14 +18,14 @@
 
 package org.apache.cassandra.config;
 
-import accord.primitives.Routable;
-import accord.primitives.Txn;
+import java.util.concurrent.TimeUnit;
+
 import accord.primitives.TxnId;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import org.apache.cassandra.journal.Params;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 
-import java.util.concurrent.TimeUnit;
+import static accord.primitives.Routable.Domain.Range;
 
 public class AccordSpec
 {
@@ -39,13 +39,13 @@ public class AccordSpec
 
     // TODO (expected): we should be able to support lower recover delays, at least for txns
     public volatile DurationSpec.IntMillisecondsBound recover_delay = new DurationSpec.IntMillisecondsBound(5000);
-    public volatile DurationSpec.IntMillisecondsBound range_sync_recover_delay = new DurationSpec.IntMillisecondsBound(10000);
+    public volatile DurationSpec.IntMillisecondsBound range_sync_recover_delay = new DurationSpec.IntMillisecondsBound("5m");
     public String slowPreAccept = "30ms <= p50*2 <= 100ms";
     public String slowRead = "30ms <= p50*2 <= 100ms";
 
     public long recoveryDelayFor(TxnId txnId, TimeUnit unit)
     {
-        if (txnId.kind() == Txn.Kind.SyncPoint && txnId.domain() == Routable.Domain.Range)
+        if (txnId.isSyncPoint() && txnId.is(Range))
             return range_sync_recover_delay.to(unit);
         return recover_delay.to(unit);
     }
@@ -65,13 +65,15 @@ public class AccordSpec
 
     public DurationSpec.IntMillisecondsBound range_barrier_timeout = new DurationSpec.IntMillisecondsBound("2m");
 
-    public volatile DurationSpec.IntSecondsBound fast_path_update_delay = new DurationSpec.IntSecondsBound("3600s");
+    public volatile DurationSpec.IntSecondsBound fast_path_update_delay = new DurationSpec.IntSecondsBound("60m");
 
-    public volatile DurationSpec.IntSecondsBound gc_delay = new DurationSpec.IntSecondsBound(300);
-    public volatile DurationSpec.IntSecondsBound schedule_durability_frequency = new DurationSpec.IntSecondsBound(120);
-    public volatile DurationSpec.IntSecondsBound durability_txnid_lag = new DurationSpec.IntSecondsBound(10);
-    public volatile DurationSpec.IntSecondsBound shard_durability_cycle = new DurationSpec.IntSecondsBound(5, TimeUnit.MINUTES);
+    public volatile DurationSpec.IntSecondsBound gc_delay = new DurationSpec.IntSecondsBound("5m");
+    public volatile int shard_durability_target_splits = 128;
+    public volatile DurationSpec.IntSecondsBound durability_txnid_lag = new DurationSpec.IntSecondsBound(5);
+    public volatile DurationSpec.IntSecondsBound shard_durability_cycle = new DurationSpec.IntSecondsBound(15, TimeUnit.MINUTES);
     public volatile DurationSpec.IntSecondsBound global_durability_cycle = new DurationSpec.IntSecondsBound(10, TimeUnit.MINUTES);
+    public volatile DurationSpec.IntSecondsBound default_durability_retry_delay = new DurationSpec.IntSecondsBound(10, TimeUnit.SECONDS);
+    public volatile DurationSpec.IntSecondsBound max_durability_retry_delay = new DurationSpec.IntSecondsBound(10, TimeUnit.MINUTES);
 
     public enum TransactionalRangeMigration
     {

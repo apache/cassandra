@@ -46,7 +46,7 @@ public class NoSpamLogger
      */
     public enum Level
     {
-        INFO, WARN, ERROR
+        DEBUG, INFO, WARN, ERROR
     }
 
     @VisibleForTesting
@@ -99,6 +99,9 @@ public class NoSpamLogger
         {
             switch (l)
             {
+                case DEBUG:
+                    wrapped.debug(statement, objects);
+                    break;
                 case INFO:
                     wrapped.info(statement, objects);
                     break;
@@ -112,6 +115,16 @@ public class NoSpamLogger
                     throw new AssertionError();
             }
             return true;
+        }
+
+        public boolean debug(long nowNanos, Object... objects)
+        {
+            return NoSpamLogStatement.this.log(Level.DEBUG, nowNanos, objects);
+        }
+
+        public boolean debug(Object... objects)
+        {
+            return NoSpamLogStatement.this.debug(CLOCK.nanoTime(), objects);
         }
 
         public boolean info(long nowNanos, Object... objects)

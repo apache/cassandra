@@ -22,10 +22,8 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 
 import accord.api.Agent;
-import accord.api.ConfigurationService.EpochReady;
 import accord.api.DataStore;
 import accord.api.LocalListeners;
 import accord.api.ProgressLog;
@@ -141,22 +139,6 @@ public class AccordCommandStores extends CommandStores implements CacheSize
         // TODO (low priority, safety): we might transiently breach our limit if we increase one store before decreasing another
         for (CommandStoreExecutor executor : executors)
             executor.execute(() -> executor.setCapacity(perExecutor));
-    }
-
-    @Override
-    public synchronized Supplier<EpochReady> updateTopology(Node node, Topology newTopology, boolean startSync)
-    {
-        Supplier<EpochReady> start = super.updateTopology(node, newTopology, startSync);
-        return () -> {
-            EpochReady ready = start.get();
-            ready.metadata.addCallback(() -> {
-                synchronized (this)
-                {
-                    refreshCacheSizes();
-                }
-            });
-            return ready;
-        };
     }
 
     public void waitForQuiescense()

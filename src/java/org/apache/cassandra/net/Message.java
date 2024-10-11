@@ -91,17 +91,17 @@ public class Message<T> implements ResponseContext
         this.payloadSerializer = verb().serializer();
     }
 
+    /** Whether the message has crossed the node boundary, that is whether it originated from another node. */
+    public boolean isCrossNode()
+    {
+        return !from().equals(getBroadcastAddressAndPort());
+    }
+
     /** Sender of the message. */
     @Override
     public InetAddressAndPort from()
     {
         return header.from;
-    }
-
-    /** Whether the message has crossed the node boundary, that is whether it originated from another node. */
-    public boolean isCrossNode()
-    {
-        return !from().equals(getBroadcastAddressAndPort());
     }
 
     /**
@@ -520,7 +520,7 @@ public class Message<T> implements ResponseContext
      * Split into a separate object to allow partial message deserialization without wasting work and allocation
      * afterwards, if the entire message is necessary and available.
      */
-    public static class Header
+    public static class Header implements ResponseContext
     {
         public final long id;
         public final Epoch epoch;
@@ -605,6 +605,31 @@ public class Message<T> implements ResponseContext
             InetAddressAndPort respondTo = (InetAddressAndPort) params.get(ParamType.RESPOND_TO);
             if (respondTo == null) respondTo = from;
             return respondTo;
+        }
+
+        /** Sender of the message. */
+        @Override
+        public InetAddressAndPort from()
+        {
+            return from;
+        }
+
+        @Override
+        public long id()
+        {
+            return id;
+        }
+
+        @Override
+        public Verb verb()
+        {
+            return verb;
+        }
+
+        @Override
+        public long expiresAtNanos()
+        {
+            return expiresAtNanos;
         }
 
         @Nullable

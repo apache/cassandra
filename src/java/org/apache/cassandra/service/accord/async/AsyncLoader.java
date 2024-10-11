@@ -17,33 +17,52 @@
  */
 package org.apache.cassandra.service.accord.async;
 
-import accord.api.RoutingKey;
-import accord.local.cfk.CommandsForKey;
-import accord.local.KeyHistory;
-import accord.local.PreLoadContext;
-import accord.primitives.*;
-import accord.utils.async.AsyncChain;
-import accord.utils.async.AsyncChains;
-import accord.utils.async.AsyncResult;
-import accord.utils.async.Observable;
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Iterables;
-import org.apache.cassandra.service.accord.*;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
-import org.apache.cassandra.utils.NoSpamLogger;
-import org.apache.cassandra.utils.Pair;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.NavigableMap;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Iterables;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import accord.api.RoutingKey;
+import accord.local.KeyHistory;
+import accord.local.PreLoadContext;
+import accord.local.cfk.CommandsForKey;
+import accord.primitives.AbstractKeys;
+import accord.primitives.AbstractRanges;
+import accord.primitives.Range;
+import accord.primitives.Ranges;
+import accord.primitives.TxnId;
+import accord.primitives.Unseekables;
+import accord.utils.async.AsyncChain;
+import accord.utils.async.AsyncChains;
+import accord.utils.async.AsyncResult;
+import accord.utils.async.Observable;
+import org.apache.cassandra.concurrent.ExecutorPlus;
+import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.service.accord.AccordCachingState;
+import org.apache.cassandra.service.accord.AccordCommandStore;
+import org.apache.cassandra.service.accord.AccordKeyspace;
+import org.apache.cassandra.service.accord.AccordSafeCommandsForRanges;
+import org.apache.cassandra.service.accord.AccordSafeState;
+import org.apache.cassandra.service.accord.AccordStateCache;
+import org.apache.cassandra.service.accord.CommandsForRangesLoader;
+import org.apache.cassandra.service.accord.api.AccordRoutingKey;
+import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
+import org.apache.cassandra.utils.NoSpamLogger;
+import org.apache.cassandra.utils.Pair;
 
 public class AsyncLoader
 {
@@ -89,7 +108,16 @@ public class AsyncLoader
                                                                                                 AccordStateCache.Instance<K, V, S> cache,
                                                                                                 List<AsyncChain<?>> listenChains)
     {
-        S safeRef = cache.acquire(key);
+        referenceAndAssembleReadsForKey(key, context, cache, listenChains, null);
+    }
+
+    private static <K, V, S extends AccordSafeState<K, V>> void referenceAndAssembleReadsForKey(K key,
+                                                                                                Map<K, S> context,
+                                                                                                AccordStateCache.Instance<K, V, S> cache,
+                                                                                                List<AsyncChain<?>> listenChains,
+                                                                                                @Nullable ExecutorPlus loadExecutor)
+    {
+        S safeRef = cache.acquire(key, loadExecutor);
         if (context.putIfAbsent(key, safeRef) != null)
         {
             noSpamLogger.warn("Context {} contained key {} more than once", context, key);
@@ -121,15 +149,23 @@ public class AsyncLoader
                                                  AsyncOperation.Context context,
                                                  List<AsyncChain<?>> listenChains)
     {
+        referenceAndAssembleReadsForKey(key, context, listenChains, null);
+    }
+
+    private void referenceAndAssembleReadsForKey(RoutingKey key,
+                                                 AsyncOperation.Context context,
+                                                 List<AsyncChain<?>> listenChains,
+                                                 @Nullable ExecutorPlus loadExecutor)
+    {
         // recovery operations also need the deps data for their preaccept logic
         switch (keyHistory)
         {
             case TIMESTAMPS:
-                referenceAndAssembleReadsForKey(key, context.timestampsForKey, commandStore.timestampsForKeyCache(), listenChains);
+                referenceAndAssembleReadsForKey(key, context.timestampsForKey, commandStore.timestampsForKeyCache(), listenChains, loadExecutor);
                 break;
             case COMMANDS:
             case RECOVERY:
-                referenceAndAssembleReadsForKey(key, context.commandsForKey, commandStore.commandsForKeyCache(), listenChains);
+                referenceAndAssembleReadsForKey(key, context.commandsForKey, commandStore.commandsForKeyCache(), listenChains, loadExecutor);
             case NONE:
                 break;
             default: throw new IllegalArgumentException("Unhandled keyhistory: " + keyHistory);
@@ -168,11 +204,15 @@ public class AsyncLoader
 
     private AsyncChain<?> referenceAndDispatchReadsForRange(@Nullable TxnId primaryTxnId, AsyncOperation.Context context)
     {
+        if (keyHistory == KeyHistory.NONE)
+            return AsyncChains.success(null);
+
         Ranges ranges = ((AbstractRanges) keysOrRanges).toRanges();
 
         List<AsyncChain<?>> root = new ArrayList<>(ranges.size() + 1);
         class Watcher implements AccordStateCache.Listener<RoutingKey, CommandsForKey>
         {
+            // TODO (required): streams prohibited in hot path
             private final Set<TokenKey> cached = commandStore.commandsForKeyCache().stream()
                                                                  .map(n -> (TokenKey) n.key())
                                                                  .filter(ranges::contains)
@@ -196,7 +236,7 @@ public class AsyncLoader
                 return AsyncChains.success(null);
             Set<? extends RoutingKey> set = ImmutableSet.<RoutingKey>builder().addAll(watcher.cached).addAll(keys).build();
             List<AsyncChain<?>> chains = new ArrayList<>();
-            set.forEach(key -> referenceAndAssembleReadsForKey(key, context, chains));
+            set.forEach(key -> referenceAndAssembleReadsForKey(key, context, chains, Stage.ACCORD_RANGE_LOADER.executor()));
             return chains.isEmpty() ? AsyncChains.success(null) : AsyncChains.reduce(chains, (a, b) -> null);
         }, commandStore));
 

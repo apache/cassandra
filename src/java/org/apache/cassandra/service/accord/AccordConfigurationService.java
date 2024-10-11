@@ -234,7 +234,8 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
         AtomicReference<Topology> previousRef = new AtomicReference<>(null);
         diskState = diskStateManager.loadTopologies(((epoch, metadata, topology, syncStatus, pendingSyncNotify, remoteSyncComplete, closed, redundant) -> {
             updateMapping(metadata);
-            reportTopology(topology, syncStatus == SyncStatus.NOT_STARTED);
+            reportTopology(topology, syncStatus == SyncStatus.NOT_STARTED, true);
+
             Topology previous = previousRef.get();
             if (previous != null)
             {
@@ -326,6 +327,11 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
     }
 
     synchronized void reportMetadataInternal(ClusterMetadata metadata)
+    {
+        reportMetadataInternal(metadata, false);
+    }
+
+    synchronized void reportMetadataInternal(ClusterMetadata metadata, boolean isLoad)
     {
         updateMapping(metadata);
         Topology topology = AccordTopology.createAccordTopology(metadata);

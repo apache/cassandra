@@ -22,9 +22,12 @@ import java.io.DataOutput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nullable;
 
+import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.commons.lang3.ArrayUtils;
 
@@ -52,6 +55,8 @@ public class TableId implements Comparable<TableId>
 {
     public static final long MAGIC = 1956074401491665062L;
     public static final long EMPTY_SIZE = ObjectSizes.measureDeep(new UUID(0, 0));
+
+    private static final ConcurrentHashMap<TableId, TableId> internCache = new ConcurrentHashMap<>();
 
     private final UUID id;
 
@@ -200,10 +205,10 @@ public class TableId implements Comparable<TableId>
         return new TableId(new UUID(accessor.getLong(src, offset), accessor.getLong(src, offset + TypeSizes.LONG_SIZE)));
     }
 
-    public TableId tryIntern()
+    public TableId intern()
     {
-        TableMetadata metadata = Schema.instance.getTableMetadata(this);
-        return metadata == null ? this : metadata.id;
+        TableId interned = internCache.putIfAbsent(this, this);
+        return interned == null ? this : interned;
     }
 
     @Override
@@ -253,4 +258,10 @@ public class TableId implements Comparable<TableId>
             return t.serializedSize();
         }
     };
+
+    public static void scheduleCachePruning()
+    {
+        ScheduledExecutors.scheduledFastTasks.scheduleSelfRecurring(internCache::clear, 1, TimeUnit.HOURS);
+    }
+
 }
