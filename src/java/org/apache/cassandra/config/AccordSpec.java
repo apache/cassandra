@@ -65,7 +65,7 @@ public class AccordSpec
 
     public DurationSpec.IntMillisecondsBound range_barrier_timeout = new DurationSpec.IntMillisecondsBound("2m");
 
-    public volatile DurationSpec.IntSecondsBound fast_path_update_delay = new DurationSpec.IntSecondsBound("60s");
+    public volatile DurationSpec.IntSecondsBound fast_path_update_delay = new DurationSpec.IntSecondsBound("3600s");
 
     public volatile DurationSpec.IntSecondsBound gc_delay = new DurationSpec.IntSecondsBound(300);
     public volatile DurationSpec.IntSecondsBound schedule_durability_frequency = new DurationSpec.IntSecondsBound(120);
