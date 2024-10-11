@@ -193,6 +193,21 @@ public class AccordJournal implements IJournal, Shutdownable
         return builder.construct();
     }
 
+    @Override
+    public SavedCommand.MinimalCommand loadMinimal(int commandStoreId, TxnId txnId, SavedCommand.Load load, RedundantBefore redundantBefore, DurableBefore durableBefore)
+    {
+        SavedCommand.Builder builder = loadDiffs(commandStoreId, txnId, load);
+        Cleanup cleanup = builder.shouldCleanup(redundantBefore, durableBefore);
+        switch (cleanup)
+        {
+            case EXPUNGE_PARTIAL:
+            case EXPUNGE:
+            case ERASE:
+                return null;
+        }
+        return builder.asMinimal();
+    }
+
     @VisibleForTesting
     public RedundantBefore loadRedundantBefore(int store)
     {
@@ -299,12 +314,17 @@ public class AccordJournal implements IJournal, Shutdownable
     }
 
     @VisibleForTesting
-    public SavedCommand.Builder loadDiffs(int commandStoreId, TxnId txnId)
+    public SavedCommand.Builder loadDiffs(int commandStoreId, TxnId txnId, SavedCommand.Load load)
     {
         JournalKey key = new JournalKey(txnId, JournalKey.Type.COMMAND_DIFF, commandStoreId);
-        SavedCommand.Builder builder = new SavedCommand.Builder(txnId);
+        SavedCommand.Builder builder = new SavedCommand.Builder(txnId, load);
         journalTable.readAll(key, builder::deserializeNext);
         return builder;
+    }
+
+    public SavedCommand.Builder loadDiffs(int commandStoreId, TxnId txnId)
+    {
+        return loadDiffs(commandStoreId, txnId, SavedCommand.Load.ALL);
     }
 
     private <BUILDER> BUILDER readAll(JournalKey key)

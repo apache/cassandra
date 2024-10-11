@@ -59,7 +59,12 @@ import static accord.primitives.Known.KnownDeps.NoDeps;
 import static accord.primitives.SaveStatus.TruncatedApplyWithOutcome;
 import static accord.primitives.Status.Durability.NotDurable;
 import static accord.utils.Invariants.illegalState;
+import static org.apache.cassandra.service.accord.SavedCommand.Fields.DURABILITY;
+import static org.apache.cassandra.service.accord.SavedCommand.Fields.EXECUTE_AT;
 import static org.apache.cassandra.service.accord.SavedCommand.Fields.PARTICIPANTS;
+import static org.apache.cassandra.service.accord.SavedCommand.Fields.SAVE_STATUS;
+import static org.apache.cassandra.service.accord.SavedCommand.Fields.WRITES;
+import static org.apache.cassandra.service.accord.SavedCommand.Load.ALL;
 
 public class SavedCommand
 {
@@ -231,8 +236,8 @@ public class SavedCommand
 
         flags = collectFlags(before, after, Command::executeAt, true, Fields.EXECUTE_AT, flags);
         flags = collectFlags(before, after, Command::executesAtLeast, true, Fields.EXECUTES_AT_LEAST, flags);
-        flags = collectFlags(before, after, Command::saveStatus, false, Fields.SAVE_STATUS, flags);
-        flags = collectFlags(before, after, Command::durability, false, Fields.DURABILITY, flags);
+        flags = collectFlags(before, after, Command::saveStatus, false, SAVE_STATUS, flags);
+        flags = collectFlags(before, after, Command::durability, false, DURABILITY, flags);
 
         flags = collectFlags(before, after, Command::acceptedOrCommitted, false, Fields.ACCEPTED, flags);
         flags = collectFlags(before, after, Command::promised, false, Fields.PROMISED, flags);
@@ -243,7 +248,7 @@ public class SavedCommand
 
         flags = collectFlags(before, after, SavedCommand::getWaitingOn, false, Fields.WAITING_ON, flags);
 
-        flags = collectFlags(before, after, Command::writes, false, Fields.WRITES, flags);
+        flags = collectFlags(before, after, Command::writes, false, WRITES, flags);
 
         return flags;
     }
@@ -323,8 +328,51 @@ public class SavedCommand
         return oldFlags & ~(1 << field.ordinal());
     }
 
+    public enum Load
+    {
+        ALL(0),
+        PURGEABLE(SAVE_STATUS, PARTICIPANTS, DURABILITY, EXECUTE_AT, WRITES),
+        MINIMAL(SAVE_STATUS, PARTICIPANTS, EXECUTE_AT);
+
+        final int mask;
+
+        Load(int mask)
+        {
+            this.mask = mask;
+        }
+
+        Load(Fields ... fields)
+        {
+            int mask = -1;
+            for (Fields field : fields)
+                mask &= ~(1<< field.ordinal());
+            this.mask = mask;
+        }
+    }
+
+    public static class MinimalCommand
+    {
+        public final TxnId txnId;
+        public final SaveStatus saveStatus;
+        public final StoreParticipants participants;
+        public final Status.Durability durability;
+        public final Timestamp executeAt;
+        public final Writes writes;
+
+        public MinimalCommand(TxnId txnId, SaveStatus saveStatus, StoreParticipants participants, Status.Durability durability, Timestamp executeAt, Writes writes)
+        {
+            this.txnId = txnId;
+            this.saveStatus = saveStatus;
+            this.participants = participants;
+            this.durability = durability;
+            this.executeAt = executeAt;
+            this.writes = writes;
+        }
+    }
+
     public static class Builder
     {
+        final int mask;
         int flags;
 
         TxnId txnId;
@@ -350,13 +398,25 @@ public class SavedCommand
         boolean nextCalled;
         int count;
 
+        public Builder(TxnId txnId, Load load)
+        {
+            this.mask = load.mask;
+            init(txnId);
+        }
+
         public Builder(TxnId txnId)
         {
-            init(txnId);
+            this(txnId, ALL);
+        }
+
+        public Builder(Load load)
+        {
+            this.mask = load.mask;
         }
 
         public Builder()
         {
+            this(ALL);
         }
 
         public TxnId txnId()
@@ -522,13 +582,13 @@ public class SavedCommand
         public Builder expungePartial(Cleanup cleanup, SaveStatus saveStatus, boolean includeOutcome)
         {
             Invariants.checkState(txnId != null);
-            Builder builder = new Builder(txnId);
+            Builder builder = new Builder(txnId, ALL);
 
             builder.count++;
             builder.nextCalled = true;
 
             Invariants.checkState(saveStatus != null);
-            builder.flags = setFieldChanged(Fields.SAVE_STATUS, builder.flags);
+            builder.flags = setFieldChanged(SAVE_STATUS, builder.flags);
             builder.saveStatus = saveStatus;
             builder.flags = setFieldChanged(Fields.CLEANUP, builder.flags);
             builder.cleanup = cleanup;
@@ -539,7 +599,7 @@ public class SavedCommand
             }
             if (durability != null)
             {
-                builder.flags = setFieldChanged(Fields.DURABILITY, builder.flags);
+                builder.flags = setFieldChanged(DURABILITY, builder.flags);
                 builder.durability = durability;
             }
             if (participants != null)
@@ -549,7 +609,7 @@ public class SavedCommand
             }
             if (includeOutcome && builder.writes != null)
             {
-                builder.flags = setFieldChanged(Fields.WRITES, builder.flags);
+                builder.flags = setFieldChanged(WRITES, builder.flags);
                 builder.writes = writes;
             }
 
@@ -559,7 +619,7 @@ public class SavedCommand
         public Builder saveStatusOnly()
         {
             Invariants.checkState(txnId != null);
-            Builder builder = new Builder(txnId);
+            Builder builder = new Builder(txnId, ALL);
 
             builder.count++;
             builder.nextCalled = true;
@@ -567,7 +627,7 @@ public class SavedCommand
             // TODO: these accesses can be abstracted away
             if (saveStatus != null)
             {
-                builder.flags = setFieldChanged(Fields.SAVE_STATUS, builder.flags);
+                builder.flags = setFieldChanged(SAVE_STATUS, builder.flags);
                 builder.saveStatus = saveStatus;
             }
 
@@ -583,6 +643,11 @@ public class SavedCommand
             }
         }
 
+        public MinimalCommand asMinimal()
+        {
+            return new MinimalCommand(txnId, saveStatus, participants, durability, executeAt, writes);
+        }
+
         public static Route<?> deserializeRouteOrNull(DataInputPlus in, int userVersion) throws IOException
         {
             int flags = in.readInt();
@@ -595,6 +660,7 @@ public class SavedCommand
 
         public void serialize(DataOutputPlus out, int userVersion) throws IOException
         {
+            Invariants.checkState(mask == 0);
             out.writeInt(validateFlags(flags));
 
             int iterable = toIterableSetFields(flags);
@@ -665,7 +731,7 @@ public class SavedCommand
             while (iterable != 0)
             {
                 Fields field = nextSetField(iterable);
-                if (getFieldChanged(field, this.flags))
+                if (getFieldChanged(field, this.flags) || getFieldIsNull(field, mask))
                 {
                     if (!getFieldIsNull(field, flags))
                         skip(field, in, userVersion);

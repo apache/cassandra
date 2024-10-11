@@ -40,12 +40,14 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.SavedCommand.Fields;
+import org.apache.cassandra.service.accord.SavedCommand.Load;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.utils.AccordGenerators;
 import org.assertj.core.api.SoftAssertions;
 
 import static accord.utils.Property.qt;
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
+import static org.apache.cassandra.service.accord.SavedCommand.Load.ALL;
 import static org.apache.cassandra.service.accord.SavedCommand.getFlags;
 
 public class SavedCommandTest
@@ -96,7 +98,7 @@ public class SavedCommandTest
                     out.clear();
                     Command orig = cmdBuilder.build(saveStatus);
                     SavedCommand.serialize(null, orig, out, userVersion);
-                    SavedCommand.Builder builder = new SavedCommand.Builder(orig.txnId());
+                    SavedCommand.Builder builder = new SavedCommand.Builder(orig.txnId(), Load.ALL);
                     builder.deserializeNext(new DataInputBuffer(out.unsafeGetBufferAndFlip(), false), userVersion);
                     // We are not persisting the result, so force it for strict equality
                     builder.forceResult(orig.result());

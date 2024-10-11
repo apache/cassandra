@@ -71,6 +71,7 @@ import org.apache.cassandra.concurrent.SequentialExecutorPlus;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.service.accord.SavedCommand.MinimalCommand;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.service.accord.async.AsyncOperation;
 import org.apache.cassandra.service.accord.events.CacheEvents;
@@ -83,6 +84,7 @@ import static accord.primitives.Status.Committed;
 import static accord.primitives.Status.Invalidated;
 import static accord.primitives.Status.Truncated;
 import static accord.utils.Invariants.checkState;
+import static org.apache.cassandra.service.accord.SavedCommand.Load.MINIMAL;
 
 public class AccordCommandStore extends CommandStore
 {
@@ -539,6 +541,11 @@ public class AccordCommandStore extends CommandStore
     public Command loadCommand(TxnId txnId)
     {
         return journal.loadCommand(id, txnId, unsafeGetRedundantBefore(), durableBefore());
+    }
+
+    public MinimalCommand loadMinimal(TxnId txnId)
+    {
+        return journal.loadMinimal(id, txnId, MINIMAL, unsafeGetRedundantBefore(), durableBefore());
     }
 
     public interface Loader

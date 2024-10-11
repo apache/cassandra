@@ -38,6 +38,7 @@ import org.apache.cassandra.service.accord.serializers.CommandStoreSerializers;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
 
 import static accord.local.CommandStores.RangesForEpoch;
+import static org.apache.cassandra.service.accord.SavedCommand.Load.ALL;
 import static org.apache.cassandra.service.accord.serializers.DepsSerializer.deps;
 
 // TODO (required): test with large collection values, and perhaps split out some fields if they have a tendency to grow larger
@@ -63,7 +64,7 @@ public class AccordJournalValueSerializers
         @Override
         public SavedCommand.Builder mergerFor(JournalKey journalKey)
         {
-            return new SavedCommand.Builder(journalKey.id);
+            return new SavedCommand.Builder(journalKey.id, ALL);
         }
 
         @Override

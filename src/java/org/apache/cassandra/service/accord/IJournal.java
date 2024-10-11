@@ -34,6 +34,7 @@ import accord.utils.PersistentField.Persister;
 public interface IJournal
 {
     Command loadCommand(int commandStoreId, TxnId txnId, RedundantBefore redundantBefore, DurableBefore durableBefore);
+    SavedCommand.MinimalCommand loadMinimal(int commandStoreId, TxnId txnId, SavedCommand.Load load, RedundantBefore redundantBefore, DurableBefore durableBefore);
 
     RedundantBefore loadRedundantBefore(int commandStoreId);
     NavigableMap<TxnId, Ranges> loadBootstrapBeganAt(int commandStoreId);
