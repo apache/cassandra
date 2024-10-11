@@ -66,6 +66,17 @@ public class ReconfigureAccordFastPath implements Transformation
         }
     }
 
+    @Override
+    public String toString()
+    {
+        return "ReconfigureAccordFastPath{" +
+               "node=" + node +
+               ", status=" + status +
+               ", updateTimeMillis=" + updateTimeMillis +
+               ", updateDelayMillis=" + updateDelayMillis +
+               '}';
+    }
+
     public static final AsymmetricMetadataSerializer<Transformation, ReconfigureAccordFastPath> serializer = new AsymmetricMetadataSerializer<Transformation, ReconfigureAccordFastPath>()
     {
         public void serialize(Transformation t, DataOutputPlus out, Version version) throws IOException
