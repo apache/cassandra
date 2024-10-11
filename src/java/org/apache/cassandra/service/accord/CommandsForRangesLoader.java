@@ -35,7 +35,6 @@ import accord.local.Command;
 import accord.local.KeyHistory;
 import accord.local.RedundantBefore;
 import accord.primitives.PartialDeps;
-import accord.primitives.Participants;
 import accord.primitives.Routable.Domain;
 import accord.primitives.SaveStatus;
 import accord.primitives.Status;
@@ -252,7 +251,7 @@ public class CommandsForRangesLoader implements AccordStateCache.Listener<TxnId,
         if (cmd.partialTxn() == null)
             return null;
 
-        Participants<?> keysOrRanges = cmd.participants().touches();
+        Ranges keysOrRanges = cmd.participants().touches().toRanges();
         if (keysOrRanges.domain() != Domain.Range)
             throw new AssertionError(String.format("Txn keys are not range for %s", cmd.partialTxn()));
         Ranges ranges = (Ranges) keysOrRanges;
@@ -276,7 +275,7 @@ public class CommandsForRangesLoader implements AccordStateCache.Listener<TxnId,
         }
 
         PartialDeps partialDeps = cmd.partialDeps();
-        boolean hasAsDep = findAsDep != null && partialDeps.rangeDeps.intersects(findAsDep, ranges);
+        boolean hasAsDep = findAsDep != null && partialDeps != null && partialDeps.rangeDeps.intersects(findAsDep, ranges);
         return new Summary(cmd.txnId(), cmd.executeAt(), saveStatus, ranges, findAsDep, hasAsDep);
     }
 
