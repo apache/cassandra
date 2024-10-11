@@ -113,6 +113,8 @@ public abstract class ReadCommand extends AbstractReadQuery
 
     private boolean trackWarnings;
 
+    protected final DataRange dataRange;
+
     @Nullable
     private final Index.QueryPlan indexQueryPlan;
 
@@ -156,7 +158,8 @@ public abstract class ReadCommand extends AbstractReadQuery
                           RowFilter rowFilter,
                           DataLimits limits,
                           Index.QueryPlan indexQueryPlan,
-                          boolean trackWarnings)
+                          boolean trackWarnings,
+                          DataRange dataRange)
     {
         super(metadata, nowInSec, columnFilter, rowFilter, limits);
         if (acceptsTransient && isDigestQuery)
@@ -169,6 +172,7 @@ public abstract class ReadCommand extends AbstractReadQuery
         this.indexQueryPlan = indexQueryPlan;
         this.trackWarnings = trackWarnings;
         this.serializedAtEpoch = serializedAtEpoch;
+        this.dataRange = dataRange;
     }
 
     public static ReadCommand getCommand()
@@ -299,6 +303,12 @@ public abstract class ReadCommand extends AbstractReadQuery
      */
     public abstract ClusteringIndexFilter clusteringIndexFilter(DecoratedKey key);
 
+    @Override
+    public DataRange dataRange()
+    {
+        return dataRange;
+    }
+
     /**
      * Returns a copy of this command.
      *
@@ -403,6 +413,7 @@ public abstract class ReadCommand extends AbstractReadQuery
      * validation method to check that nothing in this command's parameters
      * violates the implementation specific validation rules.
      */
+    @Override
     public void maybeValidateIndex()
     {
         if (null != indexQueryPlan)
