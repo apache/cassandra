@@ -261,11 +261,15 @@ public class AccordMessageSink implements MessageSink
     {
         Verb verb = getVerb(request);
         Preconditions.checkNotNull(verb, "Verb is null for type %s", request.type());
+
         long nowNanos = Clock.Global.nanoTime();
-        long expiresAtNanos;
-        if (isRangeBarrier(request)) expiresAtNanos = nowNanos + DatabaseDescriptor.getAccordRangeBarrierTimeoutNanos();
-        else expiresAtNanos = nowNanos + verb.expiresAfterNanos();
         long delayedAtNanos = Long.MAX_VALUE;
+        long expiresAtNanos;
+        if (isRangeBarrier(request) || verb == Verb.ACCORD_CALCULATE_DEPS_REQ)
+            expiresAtNanos = nowNanos + DatabaseDescriptor.getAccordRangeBarrierTimeoutNanos();
+        else
+            expiresAtNanos = nowNanos + verb.expiresAfterNanos();
+
         switch (verb)
         {
             case ACCORD_COMMIT_REQ:
