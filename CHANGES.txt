@@ -86,6 +86,7 @@
  * Add the ability to disable bulk loading of SSTables (CASSANDRA-18781)
  * Clean up obsolete functions and simplify cql_version handling in cqlsh (CASSANDRA-18787)
 Merged from 5.0:
+ * Enables IAuthenticator's to return own AuthenticateMessage (CASSANDRA-19984)
  * Use ParameterizedClass for all auth-related implementations (CASSANDRA-19946)
  * Correct out-of-date metrics and configuration documentation for SAI (CASSANDRA-19898)
  * Make configuration entries in memtable section order-independent (CASSANDRA-19906)

@@ -40,6 +40,7 @@ import org.apache.cassandra.exceptions.AuthenticationException;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.transport.messages.AuthenticateMessage;
 
 import static org.apache.cassandra.auth.AuthTestUtils.ALL_ROLES;
 import static org.apache.cassandra.auth.CassandraRoleManager.DEFAULT_SUPERUSER_PASSWORD;
@@ -47,6 +48,7 @@ import static org.apache.cassandra.auth.CassandraRoleManager.getGensaltLogRounds
 import static org.apache.cassandra.auth.PasswordAuthenticator.SaslNegotiator;
 import static org.apache.cassandra.auth.PasswordAuthenticator.checkpw;
 import static org.apache.cassandra.config.CassandraRelevantProperties.AUTH_BCRYPT_GENSALT_LOG2_ROUNDS;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -197,5 +199,12 @@ public class PasswordAuthenticatorTest extends CQLTester
     {
         Map<String, String> cacheEntries = authenticator.bulkLoader().get();
         assertTrue(cacheEntries.isEmpty());
+    }
+
+    @Test
+    public void testDefaultAuthenticateMessage()
+    {
+        AuthenticateMessage authenticateMessage = authenticator.getAuthenticateMessage(null);
+        assertThat(authenticateMessage.authenticator).isEqualTo(PasswordAuthenticator.class.getName());
     }
 }
