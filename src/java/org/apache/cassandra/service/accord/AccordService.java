@@ -890,7 +890,7 @@ public class AccordService implements IAccordService, Shutdownable
                 asyncTxnResult.tryFailure(newTimeout(txnId, txn.isWrite(), consistencyLevel));
                 return;
             }
-            if (cause instanceof Preempted)
+            if (cause instanceof Preempted || cause instanceof Invalidated)
             {
                 metrics.preempted.mark();
                 //TODO need to improve

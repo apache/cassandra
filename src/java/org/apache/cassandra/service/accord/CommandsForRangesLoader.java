@@ -35,13 +35,13 @@ import accord.local.Command;
 import accord.local.KeyHistory;
 import accord.local.RedundantBefore;
 import accord.primitives.PartialDeps;
+import accord.primitives.Participants;
 import accord.primitives.Routable.Domain;
 import accord.primitives.SaveStatus;
 import accord.primitives.Status;
 import accord.primitives.Range;
 import accord.primitives.Ranges;
 import accord.primitives.Routables;
-import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.async.AsyncChains;
@@ -252,7 +252,7 @@ public class CommandsForRangesLoader implements AccordStateCache.Listener<TxnId,
         if (cmd.partialTxn() == null)
             return null;
 
-        Seekables<?, ? extends Seekables<?, ?>> keysOrRanges = cmd.partialTxn().keys();
+        Participants<?> keysOrRanges = cmd.participants().touches();
         if (keysOrRanges.domain() != Domain.Range)
             throw new AssertionError(String.format("Txn keys are not range for %s", cmd.partialTxn()));
         Ranges ranges = (Ranges) keysOrRanges;

@@ -185,7 +185,7 @@ public abstract class AccordRoutingKey extends AccordRoutableKey implements Rout
             @Override
             public SentinelKey deserialize(DataInputPlus in, int version) throws IOException
             {
-                TableId table = TableId.deserialize(in).tryIntern();
+                TableId table = TableId.deserialize(in);
                 boolean isMin = in.readBoolean();
                 return new SentinelKey(table, isMin);
             }
@@ -287,14 +287,14 @@ public abstract class AccordRoutingKey extends AccordRoutableKey implements Rout
             @Override
             public TokenKey deserialize(DataInputPlus in, int version) throws IOException
             {
-                TableId table = TableId.deserialize(in).tryIntern();
+                TableId table = TableId.deserialize(in);
                 Token token = Token.compactSerializer.deserialize(in, getPartitioner(), version);
                 return new TokenKey(table, token);
             }
 
             public TokenKey fromBytes(ByteBuffer bytes, IPartitioner partitioner)
             {
-                TableId tableId = TableId.deserialize(bytes, ByteBufferAccessor.instance, 0).tryIntern();
+                TableId tableId = TableId.deserialize(bytes, ByteBufferAccessor.instance, 0);
                 bytes.position(tableId.serializedSize());
                 Token token = Token.compactSerializer.deserialize(bytes, partitioner);
                 return new TokenKey(tableId, token);
