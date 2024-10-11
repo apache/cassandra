@@ -36,11 +36,9 @@ import accord.local.DurableBefore;
 import accord.local.RedundantBefore;
 import accord.local.StoreParticipants;
 import accord.primitives.Known;
-import accord.primitives.Range;
 import accord.primitives.SaveStatus;
 import accord.primitives.Status;
 import accord.primitives.Ballot;
-import accord.primitives.Deps;
 import accord.primitives.PartialDeps;
 import accord.primitives.PartialTxn;
 import accord.primitives.Ranges;
@@ -52,13 +50,11 @@ import accord.utils.PersistentField.Persister;
 import accord.utils.async.AsyncResult;
 import accord.utils.async.AsyncResults;
 import org.apache.cassandra.service.accord.AccordJournalValueSerializers.DurableBeforeAccumulator;
-import org.apache.cassandra.service.accord.AccordJournalValueSerializers.HistoricalTransactionsAccumulator;
 import org.apache.cassandra.service.accord.AccordJournalValueSerializers.IdentityAccumulator;
 import org.apache.cassandra.service.accord.AccordJournalValueSerializers.RedundantBeforeAccumulator;
 import org.apache.cassandra.service.accord.SavedCommand.Load;
 import org.apache.cassandra.service.accord.SavedCommand.MinimalCommand;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
-import org.apache.cassandra.utils.Pair;
 
 public class MockJournal implements IJournal
 {
@@ -70,7 +66,6 @@ public class MockJournal implements IJournal
         final IdentityAccumulator<NavigableMap<TxnId, Ranges>> bootstrapBeganAtAccumulator = new IdentityAccumulator<>(ImmutableSortedMap.of(TxnId.NONE, Ranges.EMPTY));
         final IdentityAccumulator<NavigableMap<Timestamp, Ranges>> safeToReadAccumulator = new IdentityAccumulator<>(ImmutableSortedMap.of(Timestamp.NONE, Ranges.EMPTY));
         final IdentityAccumulator<CommandStores.RangesForEpoch.Snapshot> rangesForEpochAccumulator = new IdentityAccumulator<>(null);
-        final HistoricalTransactionsAccumulator historicalTransactionsAccumulator = new HistoricalTransactionsAccumulator();
     }
 
     final DurableBeforeAccumulator durableBeforeAccumulator = new DurableBeforeAccumulator();
@@ -141,12 +136,6 @@ public class MockJournal implements IJournal
     }
 
     @Override
-    public List<Pair<Range, Deps>> loadHistoricalTransactions(long epoch, int store)
-    {
-        return fieldUpdates(store).historicalTransactionsAccumulator.get();
-    }
-
-    @Override
     public void appendCommand(int store, SavedCommand.DiffWriter diff, Runnable onFlush)
     {
         if (diff != null)
@@ -177,8 +166,6 @@ public class MockJournal implements IJournal
             updates.safeToReadAccumulator.update(fieldUpdates.newSafeToRead);
         if (fieldUpdates.newRangesForEpoch != null)
             updates.rangesForEpochAccumulator.update(fieldUpdates.newRangesForEpoch);
-        if (fieldUpdates.addHistoricalTransactions != null)
-            updates.historicalTransactionsAccumulator.update(Pair.create(fieldUpdates.addHistoricalTransactions.range, fieldUpdates.addHistoricalTransactions.deps));
 
         if (onFlush != null)
             onFlush.run();

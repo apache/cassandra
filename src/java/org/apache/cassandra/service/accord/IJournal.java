@@ -18,20 +18,16 @@
 
 package org.apache.cassandra.service.accord;
 
-import java.util.List;
 import java.util.NavigableMap;
 
 import accord.local.Command;
 import accord.local.CommandStores;
 import accord.local.DurableBefore;
 import accord.local.RedundantBefore;
-import accord.primitives.Deps;
-import accord.primitives.Range;
 import accord.primitives.Ranges;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.PersistentField.Persister;
-import org.apache.cassandra.utils.Pair;
 
 public interface IJournal
 {
@@ -42,7 +38,6 @@ public interface IJournal
     NavigableMap<TxnId, Ranges> loadBootstrapBeganAt(int commandStoreId);
     NavigableMap<Timestamp, Ranges> loadSafeToRead(int commandStoreId);
     CommandStores.RangesForEpoch.Snapshot loadRangesForEpoch(int commandStoreId);
-    List<Pair<Range, Deps>> loadHistoricalTransactions(long epoch, int store);
 
     void appendCommand(int store, SavedCommand.DiffWriter value, Runnable onFlush);
     Persister<DurableBefore, DurableBefore> durableBeforePersister();

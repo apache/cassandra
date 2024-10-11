@@ -66,7 +66,6 @@ import accord.coordinate.TopologyMismatch;
 import accord.coordinate.tracking.AllTracker;
 import accord.coordinate.tracking.RequestStatus;
 import accord.impl.AbstractConfigurationService;
-import accord.impl.CoordinateDurabilityScheduling;
 import accord.impl.DefaultLocalListeners;
 import accord.impl.DefaultRemoteListeners;
 import accord.impl.RequestCallbacks;
@@ -202,7 +201,6 @@ public class AccordService implements IAccordService, Shutdownable
     private final AccordScheduler scheduler;
     private final AccordDataStore dataStore;
     private final AccordJournal journal;
-    private final CoordinateDurabilityScheduling durabilityScheduling;
     private final AccordVerbHandler<? extends Request> requestHandler;
     private final AccordResponseVerbHandler<? extends Reply> responseHandler;
     private final LocalConfig configuration;
@@ -448,7 +446,6 @@ public class AccordService implements IAccordService, Shutdownable
                              journal.durableBeforePersister(),
                              configuration);
         this.nodeShutdown = toShutdownable(node);
-        this.durabilityScheduling = new CoordinateDurabilityScheduling(node);
         this.requestHandler = new AccordVerbHandler<>(node, configService);
         this.responseHandler = new AccordResponseVerbHandler<>(callbacks, configService);
     }
@@ -504,13 +501,13 @@ public class AccordService implements IAccordService, Shutdownable
 
         fastPathCoordinator.start();
         cms.log().addListener(fastPathCoordinator);
-        durabilityScheduling.setDefaultRetryDelay(Ints.checkedCast(DatabaseDescriptor.getAccordDefaultDurabilityRetryDelay(SECONDS)), SECONDS);
-        durabilityScheduling.setMaxRetryDelay(Ints.checkedCast(DatabaseDescriptor.getAccordMaxDurabilityRetryDelay(SECONDS)), SECONDS);
-        durabilityScheduling.setTargetShardSplits(Ints.checkedCast(DatabaseDescriptor.getAccordShardDurabilityTargetSplits()));
-        durabilityScheduling.setGlobalCycleTime(Ints.checkedCast(DatabaseDescriptor.getAccordGlobalDurabilityCycle(SECONDS)), SECONDS);
-        durabilityScheduling.setShardCycleTime(Ints.checkedCast(DatabaseDescriptor.getAccordShardDurabilityCycle(SECONDS)), SECONDS);
-        durabilityScheduling.setTxnIdLag(Ints.checkedCast(DatabaseDescriptor.getAccordScheduleDurabilityTxnIdLag(SECONDS)), TimeUnit.SECONDS);
-        durabilityScheduling.start();
+        node.durabilityScheduling().setDefaultRetryDelay(Ints.checkedCast(DatabaseDescriptor.getAccordDefaultDurabilityRetryDelay(SECONDS)), SECONDS);
+        node.durabilityScheduling().setMaxRetryDelay(Ints.checkedCast(DatabaseDescriptor.getAccordMaxDurabilityRetryDelay(SECONDS)), SECONDS);
+        node.durabilityScheduling().setTargetShardSplits(Ints.checkedCast(DatabaseDescriptor.getAccordShardDurabilityTargetSplits()));
+        node.durabilityScheduling().setGlobalCycleTime(Ints.checkedCast(DatabaseDescriptor.getAccordGlobalDurabilityCycle(SECONDS)), SECONDS);
+        node.durabilityScheduling().setShardCycleTime(Ints.checkedCast(DatabaseDescriptor.getAccordShardDurabilityCycle(SECONDS)), SECONDS);
+        node.durabilityScheduling().setTxnIdLag(Ints.checkedCast(DatabaseDescriptor.getAccordScheduleDurabilityTxnIdLag(SECONDS)), TimeUnit.SECONDS);
+        node.durabilityScheduling().start();
         state = State.STARTED;
     }
 

@@ -47,7 +47,6 @@ import org.assertj.core.api.SoftAssertions;
 
 import static accord.utils.Property.qt;
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
-import static org.apache.cassandra.service.accord.SavedCommand.Load.ALL;
 import static org.apache.cassandra.service.accord.SavedCommand.getFlags;
 
 public class SavedCommandTest

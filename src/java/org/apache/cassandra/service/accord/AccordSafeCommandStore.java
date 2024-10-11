@@ -41,8 +41,6 @@ import accord.local.RedundantBefore;
 import accord.local.cfk.CommandsForKey;
 import accord.primitives.AbstractKeys;
 import accord.primitives.AbstractRanges;
-import accord.primitives.Deps;
-import accord.primitives.Range;
 import accord.primitives.Ranges;
 import accord.primitives.Routables;
 import accord.primitives.Timestamp;
@@ -336,15 +334,6 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
         return super.redundantBefore();
     }
 
-    @Override
-    public void registerHistoricalTransactions(long epoch, Range range, Deps deps)
-    {
-        ensureFieldUpdates().addHistoricalTransactions = new HistoricalTransactions(epoch, range, deps);
-        // TODO (required): it is potentially unsafe to propagate this synchronously, as if we fail to write to the journal we may be in an inconsistent state
-        //     however, we can and should retire the concept of historical transactions in favour of ExclusiveSyncPoints ensuring their deps are known
-        super.registerHistoricalTransactions(epoch, range, deps);
-    }
-
     private FieldUpdates ensureFieldUpdates()
     {
         if (fieldUpdates == null) fieldUpdates = new FieldUpdates();
@@ -380,20 +369,5 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
         public NavigableMap<TxnId, Ranges> newBootstrapBeganAt;
         public NavigableMap<Timestamp, Ranges> newSafeToRead;
         public RangesForEpoch.Snapshot newRangesForEpoch;
-        public HistoricalTransactions addHistoricalTransactions;
-    }
-
-    public static class HistoricalTransactions
-    {
-        public final long epoch;
-        public final Range range;
-        public final Deps deps;
-
-        public HistoricalTransactions(long epoch, Range range, Deps deps)
-        {
-            this.epoch = epoch;
-            this.range = range;
-            this.deps = deps;
-        }
     }
 }

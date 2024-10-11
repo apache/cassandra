@@ -40,8 +40,6 @@ import accord.local.DurableBefore;
 import accord.local.Node;
 import accord.local.RedundantBefore;
 import accord.local.cfk.CommandsForKey;
-import accord.primitives.Deps;
-import accord.primitives.Range;
 import accord.primitives.Ranges;
 import accord.primitives.SaveStatus;
 import accord.primitives.Timestamp;
@@ -62,17 +60,14 @@ import org.apache.cassandra.journal.Params;
 import org.apache.cassandra.journal.RecordPointer;
 import org.apache.cassandra.journal.ValueSerializer;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.service.accord.AccordJournalValueSerializers.HistoricalTransactionsAccumulator;
 import org.apache.cassandra.service.accord.AccordJournalValueSerializers.IdentityAccumulator;
 import org.apache.cassandra.service.accord.JournalKey.JournalKeySupport;
 import org.apache.cassandra.utils.ExecutorUtils;
-import org.apache.cassandra.utils.Pair;
 
 import static accord.primitives.SaveStatus.ErasedOrVestigial;
 import static accord.primitives.Status.Truncated;
 import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.DurableBeforeAccumulator;
 import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.RedundantBeforeAccumulator;
-import static org.apache.cassandra.service.accord.JournalKey.keyForHistoricalTransactions;
 
 public class AccordJournal implements IJournal, Shutdownable
 {
@@ -240,13 +235,6 @@ public class AccordJournal implements IJournal, Shutdownable
     }
 
     @Override
-    public List<Pair<Range, Deps>> loadHistoricalTransactions(long epoch, int store)
-    {
-        HistoricalTransactionsAccumulator accumulator = readAll(keyForHistoricalTransactions(epoch, store));
-        return accumulator.get();
-    }
-
-    @Override
     public void appendCommand(int store, SavedCommand.DiffWriter value, Runnable onFlush)
     {
         if (value == null || status == Status.REPLAY)
@@ -304,8 +292,6 @@ public class AccordJournal implements IJournal, Shutdownable
             pointer = appendInternal(new JournalKey(TxnId.NONE, JournalKey.Type.SAFE_TO_READ, store), fieldUpdates.newSafeToRead);
         if (fieldUpdates.newRangesForEpoch != null)
             pointer = appendInternal(new JournalKey(TxnId.NONE, JournalKey.Type.RANGES_FOR_EPOCH, store), fieldUpdates.newRangesForEpoch);
-        if (fieldUpdates.addHistoricalTransactions != null)
-            pointer = appendInternal(JournalKey.keyForHistoricalTransactions(fieldUpdates.addHistoricalTransactions.epoch, store), Pair.create(fieldUpdates.addHistoricalTransactions.range, fieldUpdates.addHistoricalTransactions.deps));
 
         if (onFlush == null)
             return;
