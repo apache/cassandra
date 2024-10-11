@@ -249,7 +249,7 @@ public class CommandsForRangesLoader implements AccordStateCache.Listener<TxnId,
         if (cmd.partialTxn() == null)
             return null;
 
-        var keysOrRanges = cmd.partialTxn().keys();
+        var keysOrRanges = cmd.participants().touches();
         if (keysOrRanges.domain() != Domain.Range)
             throw new AssertionError(String.format("Txn keys are not range for %s", cmd.partialTxn()));
         Ranges ranges = (Ranges) keysOrRanges;
