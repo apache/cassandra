@@ -23,11 +23,8 @@ import java.nio.ByteBuffer;
 import java.util.Objects;
 import java.util.zip.Checksum;
 
-import accord.local.Node;
 import accord.local.Node.Id;
-import accord.primitives.Routable;
 import accord.primitives.Timestamp;
-import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -37,7 +34,6 @@ import org.apache.cassandra.service.accord.AccordJournalValueSerializers.Bootstr
 import org.apache.cassandra.service.accord.AccordJournalValueSerializers.CommandDiffSerializer;
 import org.apache.cassandra.service.accord.AccordJournalValueSerializers.DurableBeforeSerializer;
 import org.apache.cassandra.service.accord.AccordJournalValueSerializers.FlyweightSerializer;
-import org.apache.cassandra.service.accord.AccordJournalValueSerializers.HistoricalTransactionsSerializer;
 import org.apache.cassandra.service.accord.AccordJournalValueSerializers.RedundantBeforeSerializer;
 import org.apache.cassandra.utils.ByteArrayUtil;
 
@@ -237,7 +233,6 @@ public final class JournalKey
         SAFE_TO_READ                 (3, new SafeToReadSerializer()),
         BOOTSTRAP_BEGAN_AT           (4, new BootstrapBeganAtSerializer()),
         RANGES_FOR_EPOCH             (5, new RangesForEpochSerializer()),
-        HISTORICAL_TRANSACTIONS      (6, new HistoricalTransactionsSerializer())
         ;
 
         public final int id;
@@ -278,11 +273,5 @@ public final class JournalKey
                 throw new IllegalArgumentException("Unknown Type id " + id);
             return type;
         }
-    }
-
-    public static JournalKey keyForHistoricalTransactions(long epoch, int store)
-    {
-        TxnId txnId = new TxnId(epoch, 0l, Txn.Kind.LocalOnly, Routable.Domain.Range, Node.Id.NONE);
-        return new JournalKey(txnId, JournalKey.Type.HISTORICAL_TRANSACTIONS, store);
     }
 }

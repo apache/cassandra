@@ -19,8 +19,6 @@
 package org.apache.cassandra.service.accord;
 
 import java.nio.file.Files;
-import java.util.Collections;
-import java.util.List;
 import java.util.NavigableMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -51,9 +49,7 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.journal.TestParams;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.service.accord.AccordJournalValueSerializers.HistoricalTransactionsAccumulator;
 import org.apache.cassandra.utils.AccordGenerators;
-import org.apache.cassandra.utils.Pair;
 
 import static accord.local.CommandStores.RangesForEpoch;
 import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.DurableBeforeAccumulator;
@@ -94,7 +90,6 @@ public class AccordJournalCompactionTest
         NavigableMap<Timestamp, Ranges> safeToReadAtAccumulator = ImmutableSortedMap.of(Timestamp.NONE, Ranges.EMPTY);
         NavigableMap<TxnId, Ranges> bootstrapBeganAtAccumulator = ImmutableSortedMap.of(TxnId.NONE, Ranges.EMPTY);
         RangesForEpoch.Snapshot rangesForEpochAccumulator = null;
-        HistoricalTransactionsAccumulator historicalTransactionsAccumulator = new HistoricalTransactionsAccumulator();
 
         Gen<RedundantBefore> redundantBeforeGen = AccordGenerators.redundantBefore(DatabaseDescriptor.getPartitioner());
         Gen<DurableBefore> durableBeforeGen = AccordGenerators.durableBeforeGen(DatabaseDescriptor.getPartitioner());
@@ -137,7 +132,6 @@ public class AccordJournalCompactionTest
 //                updates.newRedundantBefore = redundantBefore = RedundantBefore.merge(redundantBefore, updates.addRedundantBefore);
                 updates.newSafeToRead = safeToReadGen.next(rs);
                 updates.newRangesForEpoch = rangesForEpochGen.next(rs);
-                updates.addHistoricalTransactions = new AccordSafeCommandStore.HistoricalTransactions(0l, rangeGen.next(rs), historicalTransactionsGen.next(rs));
 
                 journal.durableBeforePersister().persist(addDurableBefore, null);
                 journal.persistStoreState(1, updates, null);
@@ -150,7 +144,6 @@ public class AccordJournalCompactionTest
                     safeToReadAtAccumulator = updates.newSafeToRead;
                 if (updates.newRangesForEpoch != null)
                     rangesForEpochAccumulator = updates.newRangesForEpoch;
-                historicalTransactionsAccumulator.update(Pair.create(updates.addHistoricalTransactions.range, updates.addHistoricalTransactions.deps));
 
                 if (i % 100 == 0)
                     journal.closeCurrentSegmentForTestingIfNonEmpty();
@@ -163,9 +156,6 @@ public class AccordJournalCompactionTest
             Assert.assertEquals(bootstrapBeganAtAccumulator, journal.loadBootstrapBeganAt(1));
             Assert.assertEquals(safeToReadAtAccumulator, journal.loadSafeToRead(1));
             Assert.assertEquals(rangesForEpochAccumulator, journal.loadRangesForEpoch(1));
-            List<Pair<Range, Deps>> historical = historicalTransactionsAccumulator.get();
-            Collections.reverse(historical);
-            Assert.assertEquals(historical, journal.loadHistoricalTransactions(0l, 1));
         }
         finally
         {

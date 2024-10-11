@@ -69,6 +69,13 @@ public class AccordScheduler implements Scheduler, Shutdownable
     }
 
     @Override
+    public Scheduled selfRecurring(Runnable run, long delay, TimeUnit units)
+    {
+        ScheduledFuture<?> future = scheduledExecutor.scheduleSelfRecurring(run, delay, units);
+        return new ScheduledFutureWrapper(future);
+    }
+
+    @Override
     public void now(Runnable task)
     {
         // called from the mutation stage configured by the verb

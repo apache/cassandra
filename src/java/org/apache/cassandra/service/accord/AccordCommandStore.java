@@ -28,7 +28,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntFunction;
@@ -39,7 +38,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.api.Agent;
-import accord.api.ConfigurationService;
 import accord.api.DataStore;
 import accord.api.LocalListeners;
 import accord.api.ProgressLog;
@@ -51,16 +49,14 @@ import accord.local.CommandStore;
 import accord.local.CommandStores;
 import accord.local.Commands;
 import accord.local.KeyHistory;
-import accord.local.Node;
 import accord.local.NodeCommandStoreService;
 import accord.local.PreLoadContext;
 import accord.local.RedundantBefore;
 import accord.local.SafeCommand;
 import accord.local.SafeCommandStore;
 import accord.local.cfk.CommandsForKey;
-import accord.primitives.Deps;
 import accord.primitives.Participants;
-import accord.primitives.Range;
+import accord.primitives.RangeDeps;
 import accord.primitives.Ranges;
 import accord.primitives.Routable;
 import accord.primitives.RoutableKey;
@@ -82,12 +78,10 @@ import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.service.accord.async.AsyncOperation;
 import org.apache.cassandra.service.accord.events.CacheEvents;
 import org.apache.cassandra.utils.Clock;
-import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Promise;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
-import static accord.api.ConfigurationService.EpochReady.DONE;
 import static accord.local.KeyHistory.COMMANDS;
 import static accord.primitives.SaveStatus.Applying;
 import static accord.primitives.Status.Committed;
@@ -117,7 +111,7 @@ public class AccordCommandStore extends CommandStore
     {
         if (!DatabaseDescriptor.getAccordStateCacheListenerJFREnabled())
             return;
-        instance.register(new AccordStateCache.Listener<K, V>() {
+        instance.register(new AccordStateCache.Listener<>() {
             private final IdentityHashMap<AccordCachingState<?, ?>, CacheEvents.Evict> pendingEvicts = new IdentityHashMap<>();
 
             @Override
@@ -249,6 +243,7 @@ public class AccordCommandStore extends CommandStore
     {
         store.snapshot(ranges, globalSyncId);
         super.markShardDurable(safeStore, globalSyncId, ranges);
+        commandsForRangesLoader.gcBefore(globalSyncId, ranges);
     }
 
     @Override
@@ -506,75 +501,37 @@ public class AccordCommandStore extends CommandStore
     {
     }
 
-    protected ConfigurationService.EpochReady syncInternal(Node node, Ranges ranges, long epoch, boolean isLoad)
+    public void registerTransitive(SafeCommandStore safeStore, RangeDeps rangeDeps)
     {
-        if (!isLoad)
-            return super.syncInternal(node, ranges, epoch, false);
+        if (rangeDeps.isEmpty())
+            return;
 
-        List<Pair<Range, Deps>> loaded = journal.loadHistoricalTransactions(epoch, id);
-        // synchronously load and register historical, so we don't have unlimited numbers of epochs in flight
-        for (Pair<Range, Deps> pair : loaded)
-        {
-            cancelFetch(pair.left, epoch);
-            try
-            {
-                logger.info("Restoring sync'd deps for {} at epoch {}", pair.left, epoch);
-                AsyncChains.getBlocking(submit(PreLoadContext.contextFor(null, pair.right.keyDeps.keys(), COMMANDS), safeStore -> {
-                    registerHistoricalTransactions(pair.left, pair.right, safeStore);
-                    return null;
-                }).beginAsResult(), 5L, TimeUnit.MINUTES);
-            }
-            catch (InterruptedException | TimeoutException | ExecutionException e)
-            {
-                throw new RuntimeException(e);
-            }
-            ranges = ranges.without(Ranges.of(pair.left));
-        }
-
-        if (ranges.isEmpty())
-        {
-            AsyncResult<Void> done = AsyncResults.success(null);
-            return new ConfigurationService.EpochReady(epoch, DONE, done, done, done);
-        }
-
-        return super.syncInternal(node, ranges, epoch, false);
-    }
-
-    public void registerHistoricalTransactions(Range range, Deps deps, SafeCommandStore safeStore)
-    {
-        if (deps.isEmpty()) return;
-
+        RedundantBefore redundantBefore = unsafeGetRedundantBefore();
         CommandStores.RangesForEpoch ranges = safeStore.ranges();
         // used in places such as accord.local.CommandStore.fetchMajorityDeps
         // We find a set of dependencies for a range then update CommandsFor to know about them
         Ranges allRanges = safeStore.ranges().all();
-        deps.keyDeps.keys().forEach(allRanges, key -> {
-            // TODO (desired): batch register to minimise GC
-            deps.keyDeps.forEach(key, (txnId, txnIdx) -> {
-                if (ranges.coordinates(txnId).contains(key))
-                    return; // already coordinates, no need to replicate
-                if (!ranges.allBefore(txnId.epoch()).contains(key))
-                    return;
-
-                safeStore.get(key).registerHistorical(safeStore, txnId);
-            });
-        });
-        for (int i = 0; i < deps.rangeDeps.rangeCount(); i++)
+        Ranges coordinateRanges = Ranges.EMPTY;
+        long coordinateEpoch = -1;
+        for (int i = 0; i < rangeDeps.txnIdCount(); i++)
         {
-            var r = deps.rangeDeps.range(i);
-            if (!allRanges.intersects(r))
+            TxnId txnId = rangeDeps.txnId(i);
+            AccordCachingState<TxnId, Command> state = commandCache.getUnsafe(txnId);
+            if (state != null && state.isLoaded() && state.get() != null && state.get().known().isDefinitionKnown())
                 continue;
-            deps.rangeDeps.forEach(r, txnId -> {
-                // TODO (desired, efficiency): this can be made more efficient by batching by epoch
-                if (ranges.coordinates(txnId).intersects(r))
-                    return; // already coordinates, no need to replicate
-                if (!ranges.allBefore(txnId.epoch()).intersects(r))
-                    return;
 
-                // TODO (required): this is potentially not safe - it should not be persisted until we save in journal
-                //   but, preferable to retire historical transactions as a concept entirely, and rely on ExclusiveSyncPoints instead
-                diskCommandsForRanges().mergeHistoricalTransaction(txnId, Ranges.single(r).slice(allRanges), Ranges::with);
-            });
+            Ranges addRanges = rangeDeps.ranges(i).slice(allRanges);
+            if (addRanges.isEmpty()) continue;
+
+            if (coordinateEpoch != txnId.epoch())
+            {
+                coordinateEpoch = txnId.epoch();
+                coordinateRanges = ranges.allAt(txnId.epoch());
+            }
+            if (addRanges.intersects(coordinateRanges)) continue;
+            addRanges = redundantBefore.removeShardRedundant(txnId, txnId, addRanges);
+            if (addRanges.isEmpty()) continue;
+            diskCommandsForRanges().mergeTransitive(txnId, addRanges, Ranges::with);
         }
     }
 

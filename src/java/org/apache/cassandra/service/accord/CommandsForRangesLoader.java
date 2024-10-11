@@ -20,6 +20,7 @@ package org.apache.cassandra.service.accord;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Set;
@@ -54,9 +55,8 @@ import static accord.primitives.Txn.Kind.ExclusiveSyncPoint;
 public class CommandsForRangesLoader implements AccordStateCache.Listener<TxnId, Command>
 {
     private final RoutesSearcher searcher = new RoutesSearcher();
-    //TODO (now, durability): find solution for this...
-    private final NavigableMap<TxnId, Ranges> historicalTransaction = new TreeMap<>();
     private final AccordCommandStore store;
+    private final NavigableMap<TxnId, Ranges> transitive = new TreeMap<>();
     private final ObjectHashSet<TxnId> cachedRangeTxns = new ObjectHashSet<>();
     // TODO (required): make this configurable, or perhaps backed by READ stage with concurrency limit
 
@@ -85,7 +85,7 @@ public class CommandsForRangesLoader implements AccordStateCache.Listener<TxnId,
     public AsyncResult<Pair<Watcher, NavigableMap<TxnId, Summary>>> get(@Nullable TxnId primaryTxnId, KeyHistory keyHistory, Ranges ranges)
     {
         RedundantBefore redundantBefore = store.unsafeGetRedundantBefore();
-        TxnId minTxnId = redundantBefore.minGcBefore(ranges);
+        TxnId minTxnId = redundantBefore.min(ranges, e -> e.gcBefore);
         Timestamp maxTxnId = primaryTxnId == null || keyHistory == KeyHistory.RECOVERY || !primaryTxnId.is(ExclusiveSyncPoint) ? Timestamp.MAX : primaryTxnId;
         TxnId findAsDep = primaryTxnId != null && keyHistory == KeyHistory.RECOVERY ? primaryTxnId : null;
         var watcher = fromCache(findAsDep, ranges, minTxnId, maxTxnId, redundantBefore);
@@ -109,11 +109,11 @@ public class CommandsForRangesLoader implements AccordStateCache.Listener<TxnId,
     {
         assert range instanceof TokenRange : "Require TokenRange but given " + range.getClass();
         Set<TxnId> intersects = searcher.intersects(store.id(), (TokenRange) range, minTxnId, maxTxnId);
-        if (!historicalTransaction.isEmpty())
+        if (!transitive.isEmpty())
         {
             if (intersects.isEmpty())
                 intersects = new ObjectHashSet<>();
-            for (var e : historicalTransaction.tailMap(minTxnId, true).entrySet())
+            for (var e : transitive.tailMap(minTxnId, true).entrySet())
             {
                 if (e.getValue().intersects(range))
                     intersects.add(e.getKey());
@@ -326,9 +326,22 @@ public class CommandsForRangesLoader implements AccordStateCache.Listener<TxnId,
         return new Summary(cmd.txnId, cmd.executeAt, saveStatus, ranges, null, false);
     }
 
-    public void mergeHistoricalTransaction(TxnId txnId, Ranges ranges, BiFunction<? super Ranges, ? super Ranges, ? extends Ranges> remappingFunction)
+    public void mergeTransitive(TxnId txnId, Ranges ranges, BiFunction<? super Ranges, ? super Ranges, ? extends Ranges> remappingFunction)
     {
-        historicalTransaction.merge(txnId, ranges, remappingFunction);
+        transitive.merge(txnId, ranges, remappingFunction);
+    }
+
+    public void gcBefore(TxnId gcBefore, Ranges ranges)
+    {
+        Iterator<Map.Entry<TxnId, Ranges>> iterator = transitive.headMap(gcBefore).entrySet().iterator();
+        while (iterator.hasNext())
+        {
+            Map.Entry<TxnId, Ranges> e = iterator.next();
+            Ranges newRanges = e.getValue().without(ranges);
+            if (newRanges.isEmpty())
+                iterator.remove();
+            e.setValue(newRanges);
+        }
     }
 
     public static class Summary
