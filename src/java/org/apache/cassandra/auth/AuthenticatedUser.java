@@ -44,8 +44,8 @@ public class AuthenticatedUser
     public static final AuthenticatedUser ANONYMOUS_USER = new AuthenticatedUser(ANONYMOUS_USERNAME);
 
     // User-level permissions cache.
-    public static final PermissionsCache permissionsCache = new PermissionsCache(DatabaseDescriptor.getAuthorizer());
-    public static final NetworkPermissionsCache networkPermissionsCache = new NetworkPermissionsCache(DatabaseDescriptor.getNetworkAuthorizer());
+    public static volatile PermissionsCache permissionsCache = new PermissionsCache(DatabaseDescriptor.getAuthorizer());
+    public static volatile NetworkPermissionsCache networkPermissionsCache = new NetworkPermissionsCache(DatabaseDescriptor.getNetworkAuthorizer());
 
     private static final ICIDRAuthorizer cidrAuthorizer = DatabaseDescriptor.getCIDRAuthorizer();
 
@@ -237,5 +237,17 @@ public class AuthenticatedUser
         // user, where mode and metadata are just additional context about how the user authenticated that
         // should not factor into 'equivalence' of users.
         return Objects.hashCode(name);
+    }
+
+    public static void resetPermissionsCache()
+    {
+        permissionsCache.unregisterMBean();
+        permissionsCache = new PermissionsCache(DatabaseDescriptor.getAuthorizer());
+    }
+
+    public static void resetNetworkPermissionsCache()
+    {
+        networkPermissionsCache.unregisterMBean();
+        networkPermissionsCache = new NetworkPermissionsCache(DatabaseDescriptor.getNetworkAuthorizer());
     }
 }
