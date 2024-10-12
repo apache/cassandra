@@ -287,4 +287,12 @@ public class Utils
                 forEach.accept(descriptor.substring(i + 1, descriptor.length() - 1));
         }
     }
+
+    public static String descriptorToClassName(String desc)
+    {
+        // samples: "Ljdk/internal/misc/Unsafe;", "Lsun/misc/Unsafe;"
+        if (!(desc.startsWith("L") && desc.endsWith(";")))
+            throw new IllegalArgumentException("Unable to parse descriptor: " + desc);
+        return desc.substring(1, desc.length() - 1);
+    }
 }
