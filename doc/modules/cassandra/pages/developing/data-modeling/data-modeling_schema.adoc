@@ -40,7 +40,7 @@ CREATE TABLE hotel.pois_by_hotel (
   hotel_id text,
   description text,
   PRIMARY KEY ((hotel_id), poi_name) )
-  WITH comment = Q3. Find pois near a hotel';
+  WITH comment = 'Q3. Find pois near a hotel';
 
 CREATE TABLE hotel.available_rooms_by_hotel_date (
   hotel_id text,
