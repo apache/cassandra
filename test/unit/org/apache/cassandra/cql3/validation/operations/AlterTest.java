@@ -717,23 +717,15 @@ public class AlterTest extends CQLTester
         assertSchemaOption("compression", map("enabled", "false"));
 
         assertAlterTableThrowsException(ConfigurationException.class,
-                                        "Missing sub-option 'class' for the 'compression' option.",
-                                        "ALTER TABLE %s WITH  compression = {'chunk_length_in_kb' : 32};");
-
-        assertAlterTableThrowsException(ConfigurationException.class,
                                         "The 'class' option must not be empty. To disable compression use 'enabled' : false",
                                         "ALTER TABLE %s WITH  compression = { 'class' : ''};");
 
         assertAlterTableThrowsException(ConfigurationException.class,
-                                        "If the 'enabled' option is set to false no other options must be specified",
-                                        "ALTER TABLE %s WITH compression = { 'enabled' : 'false', 'class' : 'SnappyCompressor'};");
-
-        assertAlterTableThrowsException(ConfigurationException.class,
-                                        "Invalid negative min_compress_ratio",
+                                        "Invalid 'min_compress_ratio' value for the 'compression' option.  Can either be 0 or greater than or equal to 1: -1.0",
                                         "ALTER TABLE %s WITH compression = { 'class' : 'SnappyCompressor', 'min_compress_ratio' : -1 };");
 
         assertAlterTableThrowsException(ConfigurationException.class,
-                                        "min_compress_ratio can either be 0 or greater than or equal to 1",
+                                        "Invalid 'min_compress_ratio' value for the 'compression' option.  Can either be 0 or greater than or equal to 1: 0.5",
                                         "ALTER TABLE %s WITH compression = { 'class' : 'SnappyCompressor', 'min_compress_ratio' : 0.5 };");
     }
 

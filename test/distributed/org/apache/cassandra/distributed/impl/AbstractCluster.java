@@ -1094,6 +1094,11 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
     @Override
     public void close()
     {
+        close(true);
+    }
+
+    public void close(boolean deleteRoot)
+    {
         // Make sure that a nodetool call is not preventing us from stopping the instance
         System.setSecurityManager(null);
 
@@ -1123,7 +1128,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         instanceMap.clear();
         PathUtils.setDeletionListener(ignore -> {});
         // Make sure to only delete directory when threads are stopped
-        if (Files.exists(root) && futures.stream().allMatch(f -> f.isDone()))
+        if (deleteRoot && Files.exists(root) && futures.stream().allMatch(f -> f.isDone()))
             PathUtils.deleteRecursive(root);
         else
             logger.error("Not removing directories, as some instances haven't fully stopped.");
