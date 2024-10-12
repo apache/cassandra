@@ -73,12 +73,12 @@ public class LiteralIndexSegmentTermsReader implements Closeable
         postingsFile = postingLists;
         termDictionaryRoot = root;
 
-        try (final IndexInput indexInput = IndexFileUtils.instance.openInput(termDictionaryFile))
+        try (final IndexInput indexInput = IndexFileUtils.instance().openInput(termDictionaryFile))
         {
             validate(indexInput, termsFooterPointer);
         }
 
-        try (final IndexInput indexInput = IndexFileUtils.instance.openInput(postingsFile))
+        try (final IndexInput indexInput = IndexFileUtils.instance().openInput(postingsFile))
         {
             validate(indexInput);
         }
@@ -110,8 +110,8 @@ public class LiteralIndexSegmentTermsReader implements Closeable
         TermQuery(ByteComparable term, QueryEventListener.TrieIndexEventListener listener, QueryContext context)
         {
             this.listener = listener;
-            postingsInput = IndexFileUtils.instance.openInput(postingsFile);
-            postingsSummaryInput = IndexFileUtils.instance.openInput(postingsFile);
+            postingsInput = IndexFileUtils.instance().openInput(postingsFile);
+            postingsSummaryInput = IndexFileUtils.instance().openInput(postingsFile);
             this.term = term;
             lookupStartTime = Clock.Global.nanoTime();
             this.context = context;

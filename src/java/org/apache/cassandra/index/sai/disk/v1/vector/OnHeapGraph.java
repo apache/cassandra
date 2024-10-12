@@ -292,9 +292,9 @@ public class OnHeapGraph<T>
                                                                                   postingsMap.keySet().size(), vectorValues.size());
         logger.debug("Writing graph with {} rows and {} distinct vectors", postingsMap.values().stream().mapToInt(VectorPostings::size).sum(), vectorValues.size());
 
-        try (var pqOutput = IndexFileUtils.instance.openOutput(indexDescriptor.fileFor(IndexComponent.COMPRESSED_VECTORS, indexIdentifier), true);
-             var postingsOutput = IndexFileUtils.instance.openOutput(indexDescriptor.fileFor(IndexComponent.POSTING_LISTS, indexIdentifier), true);
-             var indexOutput = IndexFileUtils.instance.openOutput(indexDescriptor.fileFor(IndexComponent.TERMS_DATA, indexIdentifier), true))
+        try (var pqOutput = IndexFileUtils.instance().openOutput(indexDescriptor.fileFor(IndexComponent.COMPRESSED_VECTORS, indexIdentifier), true);
+             var postingsOutput = IndexFileUtils.instance().openOutput(indexDescriptor.fileFor(IndexComponent.POSTING_LISTS, indexIdentifier), true);
+             var indexOutput = IndexFileUtils.instance().openOutput(indexDescriptor.fileFor(IndexComponent.TERMS_DATA, indexIdentifier), true))
         {
             SAICodecUtils.writeHeader(pqOutput);
             SAICodecUtils.writeHeader(postingsOutput);
