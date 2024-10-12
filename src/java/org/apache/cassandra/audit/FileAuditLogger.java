@@ -23,9 +23,6 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.apache.cassandra.audit.AuditLogEntry.DEFAULT_FIELD_SEPARATOR;
-import static org.apache.cassandra.audit.AuditLogEntry.DEFAULT_KEY_VALUE_SEPARATOR;
-
 /**
  * Synchronous, file-based audit logger; just uses the standard logging mechansim.
  */

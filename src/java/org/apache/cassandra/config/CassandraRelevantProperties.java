@@ -344,6 +344,11 @@ public enum CassandraRelevantProperties
      * will set it automatically to {@link CassandraRelevantProperties#LOG_DIR} + "/audit".
      */
     LOG_DIR_AUDIT("cassandra.logdir.audit"),
+    /**
+     * Directory where Cassandra persists logs from diagnostic logging. If this property is not set, the diagnostic log
+     * framework will set it automatically to {@link CassandraRelevantProperties#LOG_DIR} + "/diagnostic".
+     */
+    LOG_DIR_DIAGNOSTIC("cassandra.logdir.diagnostic"),
     /** Loosen the definition of "empty" for gossip state, for use during host replacements if things go awry */
     LOOSE_DEF_OF_EMPTY_ENABLED(Config.PROPERTY_PREFIX + "gossiper.loose_empty_enabled"),
     MAX_CONCURRENT_RANGE_REQUESTS("cassandra.max_concurrent_range_requests"),

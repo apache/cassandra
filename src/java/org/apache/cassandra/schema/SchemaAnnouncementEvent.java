@@ -35,7 +35,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 /**
  * Events emitted by {@link MigrationManager} around propagating schema changes to remote nodes.
  */
-final class SchemaAnnouncementEvent extends DiagnosticEvent
+public final class SchemaAnnouncementEvent extends DiagnosticEvent
 {
     private final SchemaAnnouncementEventType type;
     @Nullable
@@ -47,7 +47,7 @@ final class SchemaAnnouncementEvent extends DiagnosticEvent
     @Nullable
     private final InetAddressAndPort sender;
 
-    enum SchemaAnnouncementEventType
+    public enum SchemaAnnouncementEventType
     {
         SCHEMA_MUTATIONS_ANNOUNCED,
         SCHEMA_TRANSFORMATION_ANNOUNCED,

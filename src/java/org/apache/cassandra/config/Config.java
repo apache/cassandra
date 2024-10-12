@@ -38,6 +38,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.audit.AuditLogOptions;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.guardrails.CustomGuardrailConfig;
+import org.apache.cassandra.diag.DiagnosticLogOptions;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.index.internal.CassandraIndex;
 import org.apache.cassandra.io.compress.BufferType;
@@ -696,9 +697,14 @@ public class Config
 
     public volatile AuditLogOptions audit_logging_options = new AuditLogOptions();
     public volatile FullQueryLoggerOptions full_query_logging_options = new FullQueryLoggerOptions();
+    public volatile DiagnosticLogOptions diagnostic_logging_options = new DiagnosticLogOptions();
 
     public CorruptedTombstoneStrategy corrupted_tombstone_strategy = CorruptedTombstoneStrategy.disabled;
 
+    /**
+     * Maximum number of in-memory events per event class
+     */
+    public volatile int diagnostic_event_class_capacity = 200;
     public volatile boolean diagnostic_events_enabled = false;
 
     // Default keyspace replication factors allow validation of newly created keyspaces

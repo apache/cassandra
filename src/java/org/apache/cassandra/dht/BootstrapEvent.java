@@ -33,7 +33,7 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 /**
  * DiagnosticEvent implementation for bootstrap related activities.
  */
-final class BootstrapEvent extends DiagnosticEvent
+public final class BootstrapEvent extends DiagnosticEvent
 {
 
     private final BootstrapEventType type;
@@ -59,7 +59,7 @@ final class BootstrapEvent extends DiagnosticEvent
         this.tokens = tokens;
     }
 
-    enum BootstrapEventType
+    public enum BootstrapEventType
     {
         BOOTSTRAP_USING_SPECIFIED_TOKENS,
         BOOTSTRAP_USING_RANDOM_TOKENS,

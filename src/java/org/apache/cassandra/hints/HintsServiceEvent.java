@@ -26,9 +26,9 @@ import org.apache.cassandra.diag.DiagnosticEvent;
 /**
  * DiagnosticEvent implementation for HintService.
  */
-final class HintsServiceEvent extends DiagnosticEvent
+public final class HintsServiceEvent extends DiagnosticEvent
 {
-    enum HintsServiceEventType
+    public enum HintsServiceEventType
     {
         DISPATCHING_STARTED,
         DISPATCHING_PAUSED,

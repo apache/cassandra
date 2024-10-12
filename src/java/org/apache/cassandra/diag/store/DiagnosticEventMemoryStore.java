@@ -19,15 +19,20 @@
 package org.apache.cassandra.diag.store;
 
 import java.util.Comparator;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.NavigableMap;
+import java.util.Set;
 import java.util.concurrent.ConcurrentNavigableMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.diag.DiagnosticEvent;
+import org.apache.cassandra.diag.LastEventIdBroadcaster;
 
 /**
  * Simple on-heap memory store that allows to buffer and retrieve a fixed number of events.
@@ -36,11 +41,21 @@ public final class DiagnosticEventMemoryStore implements DiagnosticEventStore<Lo
 {
     private final AtomicLong lastKey = new AtomicLong(0);
 
-    private int maxSize = 200;
+    private int maxSize;
 
     // event access will mostly happen based on a recent event offset, so we add new events to the head of the list
     // for optimized search times
     private final ConcurrentSkipListMap<Long, DiagnosticEvent> events = new ConcurrentSkipListMap<>(Comparator.reverseOrder());
+
+    public DiagnosticEventMemoryStore()
+    {
+        this(DatabaseDescriptor.getDiagnosticEventClassCapacity());
+    }
+
+    public DiagnosticEventMemoryStore(int maxSize)
+    {
+        this.maxSize = maxSize;
+    }
 
     public void load()
     {
@@ -80,6 +95,25 @@ public final class DiagnosticEventMemoryStore implements DiagnosticEventStore<Lo
     public Long getLastEventId()
     {
         return lastKey.get();
+    }
+
+    @Override
+    public void reset()
+    {
+        Set<String> eventClasses = new HashSet<>();
+
+        Iterator<DiagnosticEvent> iterator = events.values().iterator();
+        if (iterator.hasNext())
+        {
+            DiagnosticEvent event = iterator.next();
+            eventClasses.add(event.getClass().getName());
+        }
+
+        for (String eventClass : eventClasses)
+            LastEventIdBroadcaster.instance().setLastEventId(eventClass, 0L);
+
+        lastKey.set(0);
+        events.clear();
     }
 
     @VisibleForTesting

@@ -30,6 +30,7 @@ import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.log.ILogger;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.utils.FBUtilities;
@@ -38,8 +39,6 @@ import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 public class AuditLogEntry
 {
-    static final String DEFAULT_KEY_VALUE_SEPARATOR = ":";
-    static final String DEFAULT_FIELD_SEPARATOR = "|";
     private final InetAddressAndPort host = FBUtilities.getBroadcastAddressAndPort();
     private final InetAddressAndPort source;
     private final String user;
@@ -71,7 +70,7 @@ public class AuditLogEntry
     @VisibleForTesting
     public String getLogString()
     {
-        return getLogString(DEFAULT_KEY_VALUE_SEPARATOR, DEFAULT_FIELD_SEPARATOR);
+        return getLogString(ILogger.DEFAULT_KEY_VALUE_SEPARATOR, ILogger.DEFAULT_FIELD_SEPARATOR);
     }
 
     String getLogString(String keyValueSeparator, String fieldSeparator)

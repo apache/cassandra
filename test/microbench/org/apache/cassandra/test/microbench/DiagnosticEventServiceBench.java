@@ -63,7 +63,7 @@ public class DiagnosticEventServiceBench
         });
         DatabaseDescriptor.daemonInitialization();
 
-        service.cleanup();
+        service.unsubscribeAll();
 
         for (int i = 0; i < subscribers; i++)
         {

@@ -374,6 +374,21 @@ public class BinLog implements Runnable
         private int maxArchiveRetries;
         private boolean blocking;
 
+        public Builder()
+        {
+            this(new BinLogOptions());
+        }
+
+        public Builder(BinLogOptions binLogOptions)
+        {
+            this.rollCycle = binLogOptions.roll_cycle;
+            this.maxQueueWeight = binLogOptions.max_queue_weight;
+            this.maxLogSize = binLogOptions.max_log_size;
+            this.archiveCommand = binLogOptions.archive_command;
+            this.maxArchiveRetries = binLogOptions.max_archive_retries;
+            this.blocking = binLogOptions.block;
+        }
+
         public Builder path(Path path)
         {
             Preconditions.checkNotNull(path, "path was null");

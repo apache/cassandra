@@ -37,7 +37,7 @@ import org.apache.cassandra.diag.DiagnosticEvent;
 /**
  * DiagnosticEvent implementation for {@link TokenAllocator} activities.
  */
-final class TokenAllocatorEvent<Unit> extends DiagnosticEvent
+public final class TokenAllocatorEvent<Unit> extends DiagnosticEvent
 {
 
     private final TokenAllocatorEventType type;
@@ -75,7 +75,7 @@ final class TokenAllocatorEvent<Unit> extends DiagnosticEvent
         this.tokenInfo = tokenInfo;
     }
 
-    enum TokenAllocatorEventType
+    public enum TokenAllocatorEventType
     {
         REPLICATION_AWARE_TOKEN_ALLOCATOR_INSTANCIATED,
         NO_REPLICATION_AWARE_TOKEN_ALLOCATOR_INSTANCIATED,

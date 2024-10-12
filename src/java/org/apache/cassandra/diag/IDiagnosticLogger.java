@@ -16,10 +16,16 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.audit;
+package org.apache.cassandra.diag;
+
+import java.util.function.Consumer;
 
 import org.apache.cassandra.log.ILogger;
 
-public interface IAuditLogger extends ILogger<AuditLogEntry>
+public interface IDiagnosticLogger extends ILogger<DiagnosticEvent>, Consumer<DiagnosticEvent>
 {
+    default void log(DiagnosticEvent diagnosticEvent)
+    {
+        accept(diagnosticEvent);
+    }
 }

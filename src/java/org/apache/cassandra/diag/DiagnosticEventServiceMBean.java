@@ -22,11 +22,15 @@ import java.io.Serializable;
 import java.util.Map;
 import java.util.SortedMap;
 
+import javax.management.openmbean.CompositeData;
+
 /**
  * Provides JMX enabled attributes and operations implemented by {@link DiagnosticEventService}.
  */
 public interface DiagnosticEventServiceMBean
 {
+    String MBEAN_NAME = "org.apache.cassandra.diag:type=DiagnosticEventService";
+
     /*
      * Indicates if any events will be published.
      */
@@ -35,15 +39,43 @@ public interface DiagnosticEventServiceMBean
     /**
      * Kill switch for disabling all events immediately, without restarting the node. Please edit cassandra.yaml for
      * making this permanent.
+     * <p>
+     * Calling of this method will disable diagnostic logger, if any is active, and it will stop in-memory
+     * diagnostic logging as well.
+     *
+     * @param clean set to true if in-memory events should be removed, false otherwise.
+     */
+    void disableDiagnostics(boolean clean);
+
+    /**
+     * Kill switch for disabling all events immediately, without restarting the node. Please edit cassandra.yaml for
+     * making this permanent.
+     * <p>
+     * Calling of this method will disable diagnostic logger, if any is active, and it will stop in-memory
+     * diagnostic logging as well.
      */
     void disableDiagnostics();
+
+    /**
+     * Enabling of diagnostic framework without restarting the node.
+     * <p>
+     * Calling of this method will start in-memory diagnostic logger, and it will start persistent diagnostic logger,
+     * if any is enabled.
+     */
+    void enableDiagnostics();
+
+    /**
+     *
+     * @param withPersistentLog
+     */
+    void enableDiagnostics(boolean withPersistentLog);
 
     /**
      * Retrieved all events of specified type starting with provided key. Result will be sorted chronologically.
      *
      * @param eventClazz fqn of event class
-     * @param lastKey ID of first event to retrieve
-     * @param limit number of results to return
+     * @param lastKey    ID of first event to retrieve
+     * @param limit      number of results to return
      */
     SortedMap<Long, Map<String, Serializable>> readEvents(String eventClazz, Long lastKey, int limit);
 
@@ -56,4 +88,25 @@ public interface DiagnosticEventServiceMBean
      * Stop storing events.
      */
     void disableEventPersistence(String eventClazz);
+
+    void enablePersistentDiagnosticLog();
+
+    void enablePersistentDiagnosticLog(String loggerName,
+                                       Map<String, String> parameters,
+                                       Integer maxArchiveRetries,
+                                       Boolean block,
+                                       String rollCycle,
+                                       Long maxLogSize,
+                                       Integer maxQueueWeight,
+                                       String archiveCommand);
+
+    void disablePersistentDiagnosticLog();
+
+    boolean isPersistentDiagnosticLogEnabled();
+
+    boolean isInMemoryDiagnosticLogEnabled();
+
+    int getDiagnosticEventClassCapacity();
+
+    CompositeData getDiagnosticLogOptionsData();
 }
