@@ -2762,7 +2762,7 @@ public class StorageProxy implements StorageProxyMBean
         StorageMetrics.totalHintsInProgress.inc(runnable.targets.size());
         for (Replica target : runnable.targets)
             getHintsInProgressFor(target.endpoint()).incrementAndGet();
-        return (Future<Void>) Stage.MUTATION.submit(runnable);
+        return (Future<Void>) Stage.HINT.submit(runnable);
     }
 
     public Long getRpcTimeout() { return DatabaseDescriptor.getRpcTimeout(MILLISECONDS); }

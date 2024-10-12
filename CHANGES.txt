@@ -1,3 +1,5 @@
+ * Assign a separate queue for Hints which is different from Mutation queue (CASSANDRA-19958)
+
 4.1.8
  * Fix race condition in DecayingEstimatedHistogramReservoir during rescale (CASSANDRA-19365)
 Merged from 4.0:
