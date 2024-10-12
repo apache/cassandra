@@ -29,6 +29,7 @@ import org.apache.cassandra.db.EmptyIterators;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.partitions.AbstractUnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.partitions.SingletonUnfilteredPartitionIterator;
@@ -88,7 +89,7 @@ public abstract class AbstractVirtualTable implements VirtualTable
     }
 
     @Override
-    public final UnfilteredPartitionIterator select(DataRange dataRange, ColumnFilter columnFilter)
+    public final UnfilteredPartitionIterator select(DataRange dataRange, ColumnFilter columnFilter, RowFilter rowFilter)
     {
         DataSet data = data();
 

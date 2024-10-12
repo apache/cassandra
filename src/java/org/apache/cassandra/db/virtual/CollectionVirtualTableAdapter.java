@@ -19,6 +19,7 @@
 package org.apache.cassandra.db.virtual;
 
 import java.nio.ByteBuffer;
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumMap;
@@ -32,7 +33,6 @@ import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListMap;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -51,6 +51,7 @@ import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.EmptyIterators;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BooleanType;
 import org.apache.cassandra.db.marshal.ByteType;
@@ -127,30 +128,18 @@ public class CollectionVirtualTableAdapter<R> implements VirtualTable
      */
     private final ConcurrentHashMap<String, ColumnMetadata> columnMetas = new ConcurrentHashMap<>();
     private final RowWalker<R> walker;
-    private final Iterable<R> data;
-    private final Function<DecoratedKey, R> decorateKeyToRowExtractor;
+    private final Function<List<Map.Entry<String, Object>>, Iterable<R>> data;
     private final TableMetadata metadata;
 
     private CollectionVirtualTableAdapter(String keySpaceName,
                                           String tableName,
                                           String description,
                                           RowWalker<R> walker,
-                                          Iterable<R> data)
-    {
-        this(keySpaceName, tableName, description, walker, data, null);
-    }
-
-    private CollectionVirtualTableAdapter(String keySpaceName,
-                                          String tableName,
-                                          String description,
-                                          RowWalker<R> walker,
-                                          Iterable<R> data,
-                                          Function<DecoratedKey, R> keyToRowExtractor)
+                                          Function<List<Map.Entry<String, Object>>, Iterable<R>> data)
     {
         this.walker = walker;
         this.data = data;
         this.metadata = buildMetadata(keySpaceName, tableName, description, walker);
-        this.decorateKeyToRowExtractor = keyToRowExtractor;
     }
 
     public static <C, R> CollectionVirtualTableAdapter<R> create(String keySpaceName,
@@ -160,12 +149,19 @@ public class CollectionVirtualTableAdapter<R> implements VirtualTable
                                                                  Iterable<C> container,
                                                                  Function<C, R> rowFunc)
     {
-        return new CollectionVirtualTableAdapter<>(keySpaceName,
-                                                   virtualTableNameStyle(rawTableName),
-                                                   description,
-                                                   walker,
-                                                   () -> StreamSupport.stream(container.spliterator(), false)
-                                                                      .map(rowFunc).iterator());
+        return new CollectionVirtualTableAdapter<>(keySpaceName, virtualTableNameStyle(rawTableName), description, walker,
+                                                   filter -> () -> StreamSupport.stream(container.spliterator(), false).map(rowFunc).iterator());
+    }
+
+    public static <C, R> CollectionVirtualTableAdapter<R> createFilterable(String keySpaceName,
+                                                                           String rawTableName,
+                                                                           String description,
+                                                                           RowWalker<R> walker,
+                                                                           Function<List<Map.Entry<String, Object>>, Iterable<C>> filterable,
+                                                                           Function<C, R> rowFunc)
+    {
+        return new CollectionVirtualTableAdapter<>(keySpaceName, virtualTableNameStyle(rawTableName), description, walker,
+                                                   filter -> () -> StreamSupport.stream(filterable.apply(filter).spliterator(), false).map(rowFunc).iterator());
     }
 
     public static <K, C, R> CollectionVirtualTableAdapter<R> createSinglePartitionedKeyFiltered(String keySpaceName,
@@ -203,40 +199,16 @@ public class CollectionVirtualTableAdapter<R> implements VirtualTable
     {
         assert walker.count(Column.Type.PARTITION_KEY) == 1 : "Partition key must be a single column";
         assert walker.count(Column.Type.CLUSTERING) == 0 : "Clustering columns are not supported";
-
-        AtomicReference<Class<?>> partitionKeyClass = new AtomicReference<>();
-        walker.visitMeta(new RowWalker.MetadataVisitor()
-        {
-            @Override
-            public <T> void accept(Column.Type type, String columnName, Class<T> clazz)
-            {
-                if (type == Column.Type.PARTITION_KEY)
-                    partitionKeyClass.set(clazz);
-            }
-        });
-
         return new CollectionVirtualTableAdapter<>(keySpaceName,
                                                    virtualTableNameStyle(rawTableName),
                                                    description,
                                                    walker,
-                                                   () -> map.entrySet()
-                                                            .stream()
-                                                            .filter(e -> mapKeyFilter.test(e.getKey()))
-                                                            .filter(e -> mapValueFilter.test(e.getValue()))
-                                                            .map(e -> rowConverter.apply(e.getKey(), e.getValue()))
-                                                            .iterator(),
-                                                   decoratedKey ->
-                                                   {
-                                                       K partitionKey = compose(converters.get(partitionKeyClass.get()),
-                                                                                decoratedKey.getKey());
-                                                       boolean keyRequired = mapKeyFilter.test(partitionKey);
-                                                       if (!keyRequired)
-                                                           return null;
-
-                                                       C value = map.get(partitionKey);
-                                                       return mapValueFilter.test(value) ? rowConverter.apply(
-                                                           partitionKey, value) : null;
-                                                   });
+                                                   filter -> () -> map.entrySet()
+                                                                      .stream()
+                                                                      .filter(e -> mapKeyFilter.test(e.getKey()))
+                                                                      .filter(e -> mapValueFilter.test(e.getValue()))
+                                                                      .map(e -> rowConverter.apply(e.getKey(), e.getValue()))
+                                                                      .iterator());
     }
 
     public static String virtualTableNameStyle(String camel)
@@ -308,30 +280,32 @@ public class CollectionVirtualTableAdapter<R> implements VirtualTable
                                               ClusteringIndexFilter clusteringFilter,
                                               ColumnFilter columnFilter)
     {
-        if (!data.iterator().hasNext())
+        List<Map.Entry<String, Object>> filter = new ArrayList<>();
+        if (metadata.partitionKeyType instanceof CompositeType)
+        {
+            ByteBuffer[] values = ((CompositeType) metadata.partitionKeyType).split(partitionKey.getKey());
+            for (int i = 0; i < values.length; i++)
+                filter.add(new AbstractMap.SimpleEntry<>(metadata.partitionKeyColumns().get(i).name.toString(),
+                                                         compose(metadata.partitionKeyColumns().get(i).type, values[i])));
+        }
+        else
+            filter.add(new AbstractMap.SimpleEntry<>(metadata.partitionKeyColumns().get(0).name.toString(),
+                                                     compose(metadata.partitionKeyColumns().get(0).type, partitionKey.getKey())));
+
+        Iterable<R> dataIterable = data.apply(filter);
+        if (!dataIterable.iterator().hasNext())
             return EmptyIterators.unfilteredPartition(metadata);
 
         NavigableMap<Clustering<?>, Row> rows = new TreeMap<>(metadata.comparator);
-        Stream<CollectionRow> stream;
-        if (decorateKeyToRowExtractor == null)
-        {
-            // The benchmark shows that if we continuously read the data from the virtual table e.g. by metric name,
-            // then the parallel stream is slightly faster to get the first result, but for continuous reads it gives us
-            // a higher GC pressure. The sequential stream is slightly slower to get the first result, but it has the
-            // same throughput as the parallel stream, and it gives us less GC pressure.
-            // See the details in the benchmark: https://gist.github.com/Mmuzaf/80c73b7f9441ff21f6d22efe5746541a
-            stream = StreamSupport.stream(data.spliterator(), false)
-                                  .map(row -> makeRow(row, columnFilter))
-                                  .filter(cr -> partitionKey.equals(cr.key.get()))
-                                  .filter(cr -> clusteringFilter.selects(cr.clustering));
-        }
-        else
-        {
-            R row = decorateKeyToRowExtractor.apply(partitionKey);
-            if (row == null)
-                return EmptyIterators.unfilteredPartition(metadata);
-            stream = Stream.of(makeRow(row, columnFilter));
-        }
+        // The benchmark shows that if we continuously read the data from the virtual table e.g. by metric name,
+        // then the parallel stream is slightly faster to get the first result, but for continuous reads it gives us
+        // a higher GC pressure. The sequential stream is slightly slower to get the first result, but it has the
+        // same throughput as the parallel stream, and it gives us less GC pressure.
+        // See the details in the benchmark: https://gist.github.com/Mmuzaf/80c73b7f9441ff21f6d22efe5746541a
+        Stream<CollectionRow> stream = StreamSupport.stream(dataIterable.spliterator(), false)
+                              .map(row -> makeRow(row, columnFilter))
+                              .filter(cr -> partitionKey.equals(cr.key.get()))
+                              .filter(cr -> clusteringFilter.selects(cr.clustering));
 
         // If there are no clustering columns, we've found a unique partition that matches the partition key,
         // so we can stop the stream without looping through all the rows.
@@ -347,8 +321,9 @@ public class CollectionVirtualTableAdapter<R> implements VirtualTable
     }
 
     @Override
-    public UnfilteredPartitionIterator select(DataRange dataRange, ColumnFilter columnFilter)
+    public UnfilteredPartitionIterator select(DataRange dataRange, ColumnFilter columnFilter, RowFilter rowFilter)
     {
+        List<Map.Entry<String, Object>> filter = rowFilter.simpleEqExpressionsToMap();
         return createPartitionIterator(metadata, new AbstractIterator<>()
         {
             private final Iterator<? extends UnfilteredRowIterator> partitions = buildDataRangeIterator(dataRange,
@@ -364,9 +339,10 @@ public class CollectionVirtualTableAdapter<R> implements VirtualTable
                                                                                      ColumnFilter columnFilter)
             {
                 NavigableMap<DecoratedKey, NavigableMap<Clustering<?>, Row>> partitionMap = new ConcurrentSkipListMap<>(DecoratedKey.comparator);
-                StreamSupport.stream(data.spliterator(), true)
+                StreamSupport.stream(data.apply(filter).spliterator(), false)
                              .map(row -> makeRow(row, columnFilter))
                              .filter(cr -> dataRange.keyRange().contains(cr.key.get()))
+                             .filter(cr -> rowFilter.isSatisfiedBy(metadata(), cr.key.get(), cr.rowSup.get(), NO_DELETION_TIME))
                              .forEach(cr -> partitionMap.computeIfAbsent(cr.key.get(),
                                                                          key -> new TreeMap<>(metadata.comparator))
                                                         .put(cr.clustering, cr.rowSup.get()));

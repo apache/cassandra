@@ -21,6 +21,7 @@ import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.schema.TableMetadata;
@@ -70,7 +71,7 @@ public interface VirtualTable
      * @param columnFilter the selected columns
      * @return the rows corresponding to the requested data.
      */
-    UnfilteredPartitionIterator select(DataRange dataRange, ColumnFilter columnFilter);
+    UnfilteredPartitionIterator select(DataRange dataRange, ColumnFilter columnFilter, RowFilter rowFilter);
 
     /**
      * Truncates data from the underlying source, if supported.

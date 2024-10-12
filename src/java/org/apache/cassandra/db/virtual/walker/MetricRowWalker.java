@@ -28,6 +28,9 @@ import org.apache.cassandra.db.virtual.model.MetricRow;
  */
 public class MetricRowWalker implements RowWalker<MetricRow>
 {
+    public static final String NAME_COLUMN_FILTER = "name";
+    public static final String SCOPE_COLUMN_FILTER = "scope";
+
     @Override
     public void visitMeta(MetadataVisitor visitor)
     {

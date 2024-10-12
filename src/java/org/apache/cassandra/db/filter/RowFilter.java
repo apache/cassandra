@@ -21,8 +21,10 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -188,6 +190,22 @@ public class RowFilter implements Iterable<RowFilter.Expression>
                 return true;
         }
         return false;
+    }
+
+    public List<Map.Entry<String, Object>> simpleEqExpressionsToMap()
+    {
+        List<Map.Entry<String, Object>> filters = new ArrayList<>();
+        for (Expression expression : expressions)
+        {
+            if (expression instanceof SimpleExpression)
+            {
+                SimpleExpression simpleExpression = (SimpleExpression) expression;
+                if (simpleExpression.operator() == Operator.EQ)
+                    filters.add(new HashMap.SimpleEntry<>(simpleExpression.column.name.toString(),
+                                                          simpleExpression.column.type.compose(simpleExpression.value)));
+            }
+        }
+        return filters;
     }
 
     /**
