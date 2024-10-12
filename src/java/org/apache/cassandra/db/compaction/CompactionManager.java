@@ -18,6 +18,7 @@
 package org.apache.cassandra.db.compaction;
 
 import java.io.IOException;
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -27,14 +28,21 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.NavigableMap;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentNavigableMap;
+import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -48,6 +56,7 @@ import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Collections2;
 import com.google.common.collect.ConcurrentHashMultiset;
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
@@ -57,6 +66,7 @@ import com.google.common.util.concurrent.RateLimiter;
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import com.codahale.metrics.Meter;
 import net.openhft.chronicle.core.util.ThrowingSupplier;
 import org.apache.cassandra.cache.AutoSavingCache;
@@ -108,6 +118,8 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.PreviewKind;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.MBeanWrapper;
@@ -115,8 +127,6 @@ import org.apache.cassandra.utils.OutputHandler;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.WrappedRunnable;
-import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import org.apache.cassandra.utils.concurrent.Refs;
@@ -124,6 +134,7 @@ import org.apache.cassandra.utils.concurrent.Refs;
 import static java.util.Collections.singleton;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.concurrent.FutureTask.callable;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_OPERATIONS_HISTORY_SIZE;
 import static org.apache.cassandra.config.DatabaseDescriptor.getConcurrentCompactors;
 import static org.apache.cassandra.db.compaction.CompactionManager.CompactionExecutor.compactionThreadGroup;
 import static org.apache.cassandra.service.ActiveRepairService.NO_PENDING_REPAIR;
@@ -174,6 +185,8 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
     final Multiset<ColumnFamilyStore> compactingCF = ConcurrentHashMultiset.create();
 
     public final ActiveCompactions active = new ActiveCompactions();
+    private final ConcurrentNavigableMap<TimeUUID, OperationInfo> operations =
+        new BoundedConcurrentSkipListMap(CASSANDRA_OPERATIONS_HISTORY_SIZE.getInt());
 
     // used to temporarily pause non-strategy managed compactions (like index summary redistribution)
     private final AtomicInteger globalCompactionPauseCount = new AtomicInteger(0);
@@ -439,10 +452,18 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
                                                            int jobs,
                                                            OperationType operationType)
     {
-        String operationName = operationType.name();
-        String keyspace = cfs.getKeyspaceName();
-        String table = cfs.getTableName();
-        return cfs.withAllSSTables(operationType, (compacting) -> {
+        return cfs.withAllSSTables(operationType, ssTableOperation(cfs, operation, jobs, operationType));
+    }
+
+    private Function<LifecycleTransaction, AllSSTableOpStatus> ssTableOperation(ColumnFamilyStore cfs,
+                                                                                OneSSTableOperation operation,
+                                                                                int jobs,
+                                                                                OperationType operationType)
+    {
+        return compacting -> {
+            String operationName = operationType.name();
+            String keyspace = cfs.getKeyspaceName();
+            String table = cfs.getTableName();
             logger.info("Starting {} for {}.{}", operationType, cfs.getKeyspaceName(), cfs.getTableName());
             List<LifecycleTransaction> transactions = new ArrayList<>();
             List<Future<?>> futures = new ArrayList<>();
@@ -503,7 +524,7 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
                 if (fail != null)
                     logger.error("Failed to cleanup lifecycle transactions ({} for {}.{})", operationType, keyspace, table, fail);
             }
-        });
+        };
     }
 
     private static interface OneSSTableOperation
@@ -516,7 +537,8 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
     {
         SUCCESSFUL(0),
         ABORTED(1),
-        UNABLE_TO_CANCEL(2);
+        UNABLE_TO_CANCEL(2),
+        INITED(3);
 
         public final int statusCode;
 
@@ -627,7 +649,34 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
         }, jobs, OperationType.UPGRADE_SSTABLES);
     }
 
-    public AllSSTableOpStatus performCleanup(final ColumnFamilyStore cfStore, int jobs) throws InterruptedException, ExecutionException
+    public AllSSTableOpStatus performCleanup(final ColumnFamilyStore cfStore, int jobs)
+    {
+        return performCleanup(Collections.singleton(cfStore), jobs);
+    }
+
+    public AllSSTableOpStatus performCleanup(Iterable<ColumnFamilyStore> cfss, int jobs)
+    {
+        return performInternal(cfss, (info, cfStore) -> performCleanup(info, cfStore, jobs));
+    }
+
+    private AllSSTableOpStatus performInternal(Iterable<ColumnFamilyStore> cfss,
+                                               BiFunction<OperationInfo, ColumnFamilyStore, AllSSTableOpStatus> op)
+    {
+        OperationInfo info = OperationInfo.forType(OperationType.CLEANUP, cfss.iterator().next().getKeyspaceName());
+        operations.put(info.operationId, info);
+
+        CompactionManager.AllSSTableOpStatus status = CompactionManager.AllSSTableOpStatus.SUCCESSFUL;
+        for (ColumnFamilyStore cfStore : cfss)
+        {
+            CompactionManager.AllSSTableOpStatus oneStatus = op.apply(info, cfStore);
+            info.addSSTableOperationStatus(cfStore.getTableName(), oneStatus);
+            if (oneStatus != CompactionManager.AllSSTableOpStatus.SUCCESSFUL)
+                status = oneStatus;
+        }
+        return info.status(status);
+    }
+
+    private AllSSTableOpStatus performCleanup(OperationInfo info, ColumnFamilyStore cfStore, int jobs)
     {
         assert !cfStore.isIndex();
         Keyspace keyspace = cfStore.keyspace;
@@ -694,7 +743,8 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
             public void execute(LifecycleTransaction txn) throws IOException
             {
                 CleanupStrategy cleanupStrategy = CleanupStrategy.get(cfStore, allRanges, transientRanges, txn.onlyOne().isRepaired(), FBUtilities.nowInSeconds());
-                doCleanupOne(cfStore, txn, cleanupStrategy, allRanges, hasIndexes);
+                doCleanupOne(cfStore, txn, cleanupStrategy, allRanges, hasIndexes,
+                             ForwardActiveCompactions.wrapped(active, info, cfStore));
             }
         }, jobs, OperationType.CLEANUP);
     }
@@ -1228,35 +1278,42 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
             return;
         }
 
-        for (Map.Entry<ColumnFamilyStore,Descriptor> entry : descriptors.entrySet())
-        {
-            ColumnFamilyStore cfs = entry.getKey();
-            Keyspace keyspace = cfs.keyspace;
-            final RangesAtEndpoint replicas = StorageService.instance.getLocalReplicas(keyspace.getName());
-            final Set<Range<Token>> allRanges = replicas.ranges();
-            final Set<Range<Token>> transientRanges = replicas.onlyTransient().ranges();
-            boolean hasIndexes = cfs.indexManager.hasIndexes();
-            SSTableReader sstable = lookupSSTable(cfs, entry.getValue());
-
+        performInternal(descriptors.keySet(), (info, cfs) -> {
+            SSTableReader sstable = lookupSSTable(cfs, descriptors.get(cfs));
             if (sstable == null)
             {
-                logger.warn("Will not clean {}, it is not an active sstable", entry.getValue());
+                logger.warn("Will not clean {}, it is not an active sstable", descriptors.get(cfs));
+                return AllSSTableOpStatus.SUCCESSFUL;
             }
-            else
-            {
-                CleanupStrategy cleanupStrategy = CleanupStrategy.get(cfs, allRanges, transientRanges, sstable.isRepaired(), FBUtilities.nowInSeconds());
-                try (LifecycleTransaction txn = cfs.getTracker().tryModify(sstable, OperationType.CLEANUP))
-                {
-                    doCleanupOne(cfs, txn, cleanupStrategy, allRanges, hasIndexes);
-                }
-                catch (IOException e)
-                {
-                    logger.error("forceUserDefinedCleanup failed: {}", e.getLocalizedMessage());
-                }
-            }
-        }
-    }
 
+            try (LifecycleTransaction txn = cfs.getTracker().tryModify(sstable, OperationType.CLEANUP))
+            {
+                return ssTableOperation(cfs, new OneSSTableOperation()
+                {
+                    @Override
+                    public Iterable<SSTableReader> filterSSTables(LifecycleTransaction txn)
+                    {
+                        return Collections.singleton(sstable);
+                    }
+
+                    @Override
+                    public void execute(LifecycleTransaction txn) throws IOException
+                    {
+                        Objects.requireNonNull(sstable, "SSTable not found for cleanup");
+                        RangesAtEndpoint replicas = StorageService.instance.getLocalReplicas(cfs.getKeyspaceName());
+                        Set<Range<Token>> allRanges = replicas.ranges();
+                        Set<Range<Token>> transientRanges = replicas.onlyTransient().ranges();
+                        boolean hasIndexes = cfs.indexManager.hasIndexes();
+                        CleanupStrategy cleanupStrategy = CleanupStrategy.get(cfs, allRanges, transientRanges,
+                                                                              sstable.isRepaired(),
+                                                                              FBUtilities.nowInSeconds());
+                        doCleanupOne(cfs, txn, cleanupStrategy, allRanges, hasIndexes,
+                                     ForwardActiveCompactions.wrapped(active, info, cfs));
+                    }
+                }, 1, OperationType.CLEANUP).apply(txn);
+            }
+        });
+    }
 
     public Future<?> submitUserDefined(final ColumnFamilyStore cfs, final Collection<Descriptor> dataFiles, final long gcBefore)
     {
@@ -1431,7 +1488,8 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
                               LifecycleTransaction txn,
                               CleanupStrategy cleanupStrategy,
                               Collection<Range<Token>> allRanges,
-                              boolean hasIndexes) throws IOException
+                              boolean hasIndexes,
+                              ActiveCompactionsTracker active) throws IOException
     {
         assert !cfs.isIndex();
 
@@ -2092,11 +2150,6 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
             }
         }
 
-        public void execute(Runnable command)
-        {
-            executor.execute(command);
-        }
-
         public <T> Future<T> submit(Callable<T> task)
         {
             return executor.submit(task);
@@ -2516,6 +2569,29 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
                      .collect(Collectors.toList());
     }
 
+    public NavigableMap<TimeUUID, OperationInfo> getOperations()
+    {
+        return Maps.unmodifiableNavigableMap(operations);
+    }
+
+    /**
+     * @return A map of all the operations (active or historical) that match the given keyspace and
+     * the compaction history that has been recorded for the operation.
+     */
+    public Iterable<Map.Entry<OperationInfo, CompactionInfo>> getOperationsWithCompactionInfo()
+    {
+        return () -> Iterators.concat(Iterators.transform(
+            operations.values().iterator(),
+            opInfo -> Iterators.concat(Iterators.transform(
+                opInfo.compactionInfoHolders.values().iterator(),
+                holders -> Iterators.transform(holders.iterator(), compInfo -> new AbstractMap.SimpleEntry<>(opInfo, compInfo.getCompactionInfo()))))));
+    }
+
+    public void clearOperationsHistory()
+    {
+        operations.clear();
+    }
+
     /**
      * Return whether "global" compactions should be paused, used by ColumnFamilyStore#runWithCompactionsDisabled
      *
@@ -2536,5 +2612,145 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
     public interface CompactionPauser extends AutoCloseable
     {
         public void close();
+    }
+
+    public static class OperationInfo
+    {
+        /** The unique id for the operation. */
+        public final TimeUUID operationId = TimeUUID.Generator.nextTimeUUID();
+        /** The type of operation to be carried out. */
+        public final OperationType operationType;
+        /** The name of the keyspace for which this operation is being performed. */
+        public final String keyspaceName;
+        /** Table names for which this operation is being performed and the status of these operations. */
+        public final Map<String, AllSSTableOpStatus> sstableOperationStatus = new ConcurrentHashMap<>();
+        /** The number of sstables that have been processed within the operation. */
+        public final AtomicInteger sstablesEffectivelyProcessed = new AtomicInteger();
+        /** The compaction info holders for each column family. */
+        private final Map<String, List<CompactionInfo.Holder>> compactionInfoHolders = new ConcurrentHashMap<>();
+        /** The final result of the operation. */
+        private volatile AllSSTableOpStatus operationResult = AllSSTableOpStatus.INITED;
+
+        private OperationInfo(OperationType operationType, String keyspaceName)
+        {
+            this.operationType = operationType;
+            this.keyspaceName = keyspaceName;
+        }
+
+        public static OperationInfo forType(OperationType operationType, String keyspaceName)
+        {
+            return new OperationInfo(operationType, keyspaceName);
+        }
+
+        public AllSSTableOpStatus getOperationResult()
+        {
+            return operationResult;
+        }
+
+        private AllSSTableOpStatus status(AllSSTableOpStatus status)
+        {
+            operationResult = status;
+            return status;
+        }
+
+        private void addCompactionInfoHolder(String tableName, CompactionInfo.Holder holder)
+        {
+            compactionInfoHolders.computeIfAbsent(tableName, k -> new ArrayList<>()).add(holder);
+        }
+
+        private void addSSTableOperationStatus(String tableName, AllSSTableOpStatus status)
+        {
+            sstableOperationStatus.put(tableName, status);
+        }
+
+        private void markSSTablesEffectivelyProcessed()
+        {
+            sstablesEffectivelyProcessed.incrementAndGet();
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            OperationInfo that = (OperationInfo) o;
+            return Objects.equals(operationId, that.operationId);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(operationId);
+        }
+    }
+
+    private static class BoundedConcurrentSkipListMap extends ConcurrentSkipListMap<TimeUUID, OperationInfo>
+    {
+        private final int maxSize;
+
+        BoundedConcurrentSkipListMap(int maxSize)
+        {
+            if (maxSize <= 0)
+                throw new IllegalArgumentException("maxSize must be greater than 0");
+            this.maxSize = maxSize;
+        }
+
+        @Override
+        public OperationInfo put(TimeUUID key, OperationInfo value)
+        {
+            // Strict guarantees that the map will not grow beyond maxSize is not required.
+            if (size() >= maxSize)
+            {
+                TimeUUID firstKey = firstKey();
+                remove(firstKey);
+            }
+
+            return super.put(key, value);
+        }
+    }
+
+    private interface Operation
+    {
+        AllSSTableOpStatus execute(OperationInfo operationInfo, ColumnFamilyStore cfs, int jobs);
+    }
+
+    private static class ForwardActiveCompactions implements ActiveCompactionsTracker
+    {
+        private final ActiveCompactionsTracker delegate;
+        private final OperationInfo info;
+        private final String keyspaceName;
+        private final String tableName;
+
+        private ForwardActiveCompactions(ActiveCompactionsTracker delegate, OperationInfo info, ColumnFamilyStore cfs)
+        {
+            this.delegate = delegate;
+            this.info = info;
+            this.keyspaceName = cfs.getKeyspaceName();
+            this.tableName = cfs.getTableName();
+        }
+
+        public static ActiveCompactionsTracker wrapped(ActiveCompactionsTracker delegate, OperationInfo info, ColumnFamilyStore cfs)
+        {
+            return new ForwardActiveCompactions(delegate, info, cfs);
+        }
+
+        @Override
+        public void beginCompaction(Holder ci)
+        {
+            // CompactionInfo already contains all the information we need about the sstables being compacted.
+            assert info.keyspaceName.equals(keyspaceName);
+            info.addSSTableOperationStatus(tableName, AllSSTableOpStatus.INITED);
+            info.addCompactionInfoHolder(tableName, ci);
+            delegate.beginCompaction(ci);
+        }
+
+        @Override
+        public void finishCompaction(Holder ci)
+        {
+            delegate.finishCompaction(ci);
+
+            assert info.keyspaceName.equals(keyspaceName);
+            info.markSSTablesEffectivelyProcessed();
+        }
     }
 }

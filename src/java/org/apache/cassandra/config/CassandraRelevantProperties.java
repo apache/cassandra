@@ -93,6 +93,7 @@ public enum CassandraRelevantProperties
     CASSANDRA_MAX_HINT_TTL("cassandra.maxHintTTL", convertToString(Integer.MAX_VALUE)),
     CASSANDRA_MINIMUM_REPLICATION_FACTOR("cassandra.minimum_replication_factor"),
     CASSANDRA_NETTY_USE_HEAP_ALLOCATOR("cassandra.netty_use_heap_allocator"),
+    CASSANDRA_OPERATIONS_HISTORY_SIZE("cassandra.operations_history_size", "300"),
     /**
      * Number of attempts to generate a valid password before giving up.
      */

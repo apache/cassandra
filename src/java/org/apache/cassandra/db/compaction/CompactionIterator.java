@@ -98,7 +98,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
     private final long nowInSec;
     private final TimeUUID compactionId;
     private final long totalBytes;
-    private long bytesRead;
+    private volatile long bytesRead;
     private long totalSourceCQLRows;
 
     // Keep targetDirectory for compactions, needed for `nodetool compactionstats`
