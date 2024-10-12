@@ -32,13 +32,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -48,6 +49,7 @@ import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.utils.Pair;
 import org.assertj.core.util.Lists;
 
+import static com.github.jknack.handlebars.internal.lang3.ArrayUtils.isEmpty;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -191,6 +193,16 @@ public class ToolRunner
         return invoke(CQLTester.buildNodetoolArgs(args));
     }
 
+    public static ToolResult invokeNodetool(Map<String, String> env, String... args)
+    {
+        return invokeNodetool(env, Arrays.asList(args));
+    }
+
+    public static ToolResult invokeNodetool(Map<String, String> env, List<String> args)
+    {
+        return invoke(env, CQLTester.buildNodetoolArgs(args));
+    }
+
     public static ToolResult invoke(List<String> args)
     {
         return invoke(args.toArray(new String[args.size()]));
@@ -303,6 +315,27 @@ public class ToolRunner
                               res.right.getStdout() + res.left.getStdout(),
                               res.right.getStderr() + res.left.getStderr(),
                               res.right.getException());
+    }
+
+    public static ToolRunner.ToolResult invokeNodetoolInJvm(BiFunction<INodeProbeFactory, Output, Object> factory, String... commands)
+    {
+        LinesOutputStream out = new LinesOutputStream(logger::info);
+        LinesOutputStream err = new LinesOutputStream(logger::error);
+        List<String> args = CQLTester.buildNodetoolArgs(isEmpty(commands) ? new ArrayList<>() : List.of(commands));
+        args.remove("bin/nodetool");
+        try
+        {
+            Object runner = factory.apply(new NodeProbeFactory(), new Output(new PrintStream(out), new PrintStream(err)));
+            Object result = runner.getClass().getMethod("execute", String[].class)
+                                  .invoke(runner, new Object[] { args.toArray(new String[0]) });
+            assertTrue(result instanceof Integer);
+            return new ToolResult(args, (Integer) result, out.getOutput(), err.getOutput(), null);
+        }
+        catch (Exception e)
+        {
+            return new ToolResult(args, -1, out.getOutput(),
+                                  err.getOutput() + '\n' + Throwables.getStackTraceAsString(e), e);
+        }
     }
 
     public static <T> Pair<T, ToolResult> invokeSupplier(Supplier<T> runMe)
@@ -737,6 +770,48 @@ public class ToolRunner
         public ToolResult invoke()
         {
             return ToolRunner.invoke(env, stdin, args);
+        }
+    }
+
+    private static class LinesOutputStream extends OutputStream
+    {
+        private final List<String> outputLines = new ArrayList<>();
+        private final StringBuilder buffer = new StringBuilder();
+        private final Consumer<String> logger;
+
+        public LinesOutputStream(Consumer<String> logger)
+        {
+            this.logger = logger;
+        }
+
+        @Override
+        public void write(int b)
+        {
+            char c = (char) b;
+            if (c == '\n')
+            {
+                // Add the buffer to the list if it's a new line
+                outputLines.add(buffer.toString());
+                logger.accept(buffer.toString());
+                buffer.setLength(0); // Clear the buffer
+            }
+            else
+                buffer.append(c);
+        }
+
+        public void flush()
+        {
+            if (buffer.length() > 0)
+            {
+                outputLines.add(buffer.toString());
+                logger.accept(buffer.toString());
+                buffer.setLength(0);
+            }
+        }
+
+        public String getOutput()
+        {
+            return String.join("\n", outputLines);
         }
     }
 }
