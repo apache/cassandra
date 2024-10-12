@@ -575,12 +575,8 @@ public class AutoRepairUtils
                     }
                 }
 
-                // get the longest unrepaired node from the nodes which are not running repair
-                AutoRepairHistory defaultNodeToBeRepaired = getHostWithLongestUnrepairTime(currentRepairStatus.historiesWithoutOnGoingRepair);
-                //check who is next, which is helpful for debugging
-                logger.info("Next node to be repaired for repair type {} by default: {}", repairType, defaultNodeToBeRepaired);
                 UUID priorityHostId = null;
-                if (currentRepairStatus.priority != null)
+                if (currentRepairStatus != null && currentRepairStatus.priority != null)
                 {
                     for (UUID priorityID : currentRepairStatus.priority)
                     {
@@ -611,8 +607,14 @@ public class AutoRepairUtils
                     return MY_TURN_DUE_TO_PRIORITY;
                 }
 
-                if (defaultNodeToBeRepaired.hostId.equals(myId))
+                // get the longest unrepaired node from the nodes which are not running repair
+                AutoRepairHistory defaultNodeToBeRepaired = getHostWithLongestUnrepairTime(currentRepairStatus.historiesWithoutOnGoingRepair);
+                //check who is next, which is helpful for debugging
+                logger.info("Next node to be repaired for repair type {} by default: {}", repairType, defaultNodeToBeRepaired);
+                if (defaultNodeToBeRepaired != null && defaultNodeToBeRepaired.hostId.equals(myId))
+                {
                     return MY_TURN;
+                }
             }
             else if (currentRepairStatus.hostIdsWithOnGoingForceRepair.contains(myId))
             {
