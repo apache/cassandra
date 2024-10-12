@@ -2697,19 +2697,19 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public boolean isRowCacheEnabled()
     {
 
-        boolean retval = metadata().params.caching.cacheRows() && CacheService.instance.rowCache.getCapacity() > 0;
+        boolean retval = metadata().params.caching.cacheRows() && DatabaseDescriptor.getRowCacheSizeInMB() > 0;
         assert(!retval || !isIndex());
         return retval;
     }
 
     public boolean isCounterCacheEnabled()
     {
-        return metadata().isCounter() && CacheService.instance.counterCache.getCapacity() > 0;
+        return metadata().isCounter() && DatabaseDescriptor.getCounterCacheSizeInMB() > 0;
     }
 
     public boolean isKeyCacheEnabled()
     {
-        return metadata().params.caching.cacheKeys() && CacheService.instance.keyCache.getCapacity() > 0;
+        return metadata().params.caching.cacheKeys() && DatabaseDescriptor.getKeyCacheSizeInMB() > 0;
     }
 
     /**
