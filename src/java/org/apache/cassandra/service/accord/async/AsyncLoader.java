@@ -30,6 +30,8 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
+
+import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.service.accord.*;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
@@ -39,6 +41,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
@@ -88,6 +91,15 @@ public class AsyncLoader
                                                                                                 AccordStateCache.Instance<K, V, S> cache,
                                                                                                 List<AsyncChain<?>> listenChains)
     {
+        referenceAndAssembleReadsForKey(key, context, cache, listenChains, null);
+    }
+
+    private static <K, V, S extends AccordSafeState<K, V>> void referenceAndAssembleReadsForKey(K key,
+                                                                                                Map<K, S> context,
+                                                                                                AccordStateCache.Instance<K, V, S> cache,
+                                                                                                List<AsyncChain<?>> listenChains,
+                                                                                                @Nullable Executor loadExecutor)
+    {
         S safeRef = cache.acquire(key);
         if (context.putIfAbsent(key, safeRef) != null)
         {
@@ -120,15 +132,23 @@ public class AsyncLoader
                                                  AsyncOperation.Context context,
                                                  List<AsyncChain<?>> listenChains)
     {
+        referenceAndAssembleReadsForKey(key, context, listenChains, null);
+    }
+
+    private void referenceAndAssembleReadsForKey(RoutingKey key,
+                                                 AsyncOperation.Context context,
+                                                 List<AsyncChain<?>> listenChains,
+                                                 @Nullable ExecutorPlus loadExecutor)
+    {
         // recovery operations also need the deps data for their preaccept logic
         switch (keyHistory)
         {
             case TIMESTAMPS:
-                referenceAndAssembleReadsForKey(key, context.timestampsForKey, commandStore.timestampsForKeyCache(), listenChains);
+                referenceAndAssembleReadsForKey(key, context.timestampsForKey, commandStore.timestampsForKeyCache(), listenChains, loadExecutor);
                 break;
             case COMMANDS:
             case RECOVERY:
-                referenceAndAssembleReadsForKey(key, context.commandsForKey, commandStore.commandsForKeyCache(), listenChains);
+                referenceAndAssembleReadsForKey(key, context.commandsForKey, commandStore.commandsForKeyCache(), listenChains, loadExecutor);
             case NONE:
                 break;
             default: throw new IllegalArgumentException("Unhandled keyhistory: " + keyHistory);
@@ -167,11 +187,15 @@ public class AsyncLoader
 
     private AsyncChain<?> referenceAndDispatchReadsForRange(@Nullable TxnId primaryTxnId, AsyncOperation.Context context)
     {
+        if (keyHistory == KeyHistory.NONE)
+            return AsyncChains.success(null);
+
         Ranges ranges = ((AbstractRanges) keysOrRanges).toRanges();
 
         List<AsyncChain<?>> root = new ArrayList<>(ranges.size() + 1);
         class Watcher implements AccordStateCache.Listener<RoutingKey, CommandsForKey>
         {
+            // TODO (required): streams prohibited in hot path
             private final Set<TokenKey> cached = commandStore.commandsForKeyCache().stream()
                                                                  .map(n -> (TokenKey) n.key())
                                                                  .filter(ranges::contains)
@@ -195,7 +219,7 @@ public class AsyncLoader
                 return AsyncChains.success(null);
             Set<? extends RoutingKey> set = ImmutableSet.<RoutingKey>builder().addAll(watcher.cached).addAll(keys).build();
             List<AsyncChain<?>> chains = new ArrayList<>();
-            set.forEach(key -> referenceAndAssembleReadsForKey(key, context, chains));
+            set.forEach(key -> referenceAndAssembleReadsForKey(key, context, chains, CommandsForRangesLoader.rangeLoader));
             return chains.isEmpty() ? AsyncChains.success(null) : AsyncChains.reduce(chains, (a, b) -> null);
         }, commandStore));
 

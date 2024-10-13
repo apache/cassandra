@@ -1267,6 +1267,7 @@ public class AccordService implements IAccordService, Shutdownable
             @Override
             public boolean awaitTermination(long timeout, TimeUnit units)
             {
+                // TODO (required): expose awaitTermination in Node
                 // node doesn't offer
                 return true;
             }

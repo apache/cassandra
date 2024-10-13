@@ -33,6 +33,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 
+import accord.primitives.Routable;
 import org.apache.cassandra.config.AccordSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.metrics.ClientRequestsMetricsHolder;
@@ -56,6 +57,7 @@ import org.apache.cassandra.net.ResponseContext;
 import org.apache.cassandra.net.Verb;
 
 import static accord.messages.MessageType.Kind.REMOTE;
+import static accord.primitives.Routable.Domain.Range;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 public class AccordMessageSink implements MessageSink
@@ -249,10 +251,10 @@ public class AccordMessageSink implements MessageSink
             return false;
 
         TxnRequest<?> txnRequest = (TxnRequest<?>) request;
-        if (!txnRequest.txnId.kind().isSyncPoint())
+        if (!txnRequest.txnId.isSyncPoint())
             return false;
 
-        return txnRequest.txnId.domain().isRange();
+        return txnRequest.txnId.is(Range);
     }
 
     // TODO (expected): permit bulk send to save esp. on callback registration (and combine records)
@@ -265,7 +267,7 @@ public class AccordMessageSink implements MessageSink
         long nowNanos = Clock.Global.nanoTime();
         long delayedAtNanos = Long.MAX_VALUE;
         long expiresAtNanos;
-        if (isRangeBarrier(request) || verb == Verb.ACCORD_CALCULATE_DEPS_REQ)
+        if (isRangeBarrier(request))
             expiresAtNanos = nowNanos + DatabaseDescriptor.getAccordRangeBarrierTimeoutNanos();
         else
             expiresAtNanos = nowNanos + verb.expiresAfterNanos();

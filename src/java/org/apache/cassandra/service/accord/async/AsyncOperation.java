@@ -37,6 +37,7 @@ import accord.primitives.TxnId;
 import accord.primitives.Unseekables;
 import accord.utils.Invariants;
 import accord.utils.async.AsyncChains;
+import accord.utils.async.Cancellable;
 import org.agrona.collections.Object2ObjectHashMap;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.service.accord.AccordCommandStore;
@@ -57,7 +58,7 @@ import static org.apache.cassandra.service.accord.async.AsyncOperation.State.LOA
 import static org.apache.cassandra.service.accord.async.AsyncOperation.State.PREPARING;
 import static org.apache.cassandra.service.accord.async.AsyncOperation.State.RUNNING;
 
-public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements Runnable, Function<SafeCommandStore, R>
+public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements Runnable, Function<SafeCommandStore, R>, Cancellable
 {
     private static final Logger logger = LoggerFactory.getLogger(AsyncOperation.class);
 
@@ -360,12 +361,18 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
     }
 
     @Override
-    public void start(BiConsumer<? super R, Throwable> callback)
+    public Cancellable start(BiConsumer<? super R, Throwable> callback)
     {
         Invariants.checkState(this.callback == null);
         this.callback = callback;
         if (!commandStore.inStore() || preRun())
             commandStore.executor().execute(this);
+        return this;
+    }
+
+    @Override
+    public void cancel()
+    {
     }
 
     static class ForFunction<R> extends AsyncOperation<R>

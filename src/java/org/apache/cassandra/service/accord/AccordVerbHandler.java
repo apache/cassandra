@@ -61,12 +61,12 @@ public class AccordVerbHandler<T extends Request> implements IVerbHandler<T>
         long waitForEpoch = request.waitForEpoch();
 
         if (node.topology().hasAtLeastEpoch(waitForEpoch))
-            request.process(node, fromNodeId, message);
+            request.process(node, fromNodeId, message.header);
         else
             node.withEpoch(waitForEpoch, (ignored, withEpochFailure) -> {
                 if (withEpochFailure != null)
                     throw new RuntimeException("Timed out waiting for epoch when processing message from " + fromNodeId + " to " + node + " message " + message, withEpochFailure);
-                request.process(node, fromNodeId, message);
+                request.process(node, fromNodeId, message.header);
             });
     }
 }

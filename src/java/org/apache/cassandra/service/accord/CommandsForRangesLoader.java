@@ -25,6 +25,9 @@ import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.BiFunction;
 import javax.annotation.Nullable;
 
@@ -45,12 +48,16 @@ import accord.primitives.TxnId;
 import accord.utils.async.AsyncChains;
 import accord.utils.async.AsyncResult;
 import org.agrona.collections.ObjectHashSet;
+import org.apache.cassandra.concurrent.ExecutorFactory;
+import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.index.accord.RoutesSearcher;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
+import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.Pair;
 
 import static accord.primitives.Txn.Kind.ExclusiveSyncPoint;
+import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 
 public class CommandsForRangesLoader implements AccordStateCache.Listener<TxnId, Command>
 {
@@ -59,6 +66,8 @@ public class CommandsForRangesLoader implements AccordStateCache.Listener<TxnId,
     private final NavigableMap<TxnId, Ranges> historicalTransaction = new TreeMap<>();
     private final AccordCommandStore store;
     private final ObjectHashSet<TxnId> cachedRangeTxns = new ObjectHashSet<>();
+    // TODO (required): make this configurable, or perhaps backed by READ stage with concurrency limit
+    public static final ExecutorPlus rangeLoader = executorFactory().pooled("AccordRangeLoader", 4);
 
     public CommandsForRangesLoader(AccordCommandStore store)
     {
@@ -90,7 +99,7 @@ public class CommandsForRangesLoader implements AccordStateCache.Listener<TxnId,
         TxnId findAsDep = primaryTxnId != null && keyHistory == KeyHistory.RECOVERY ? primaryTxnId : null;
         var watcher = fromCache(findAsDep, ranges, minTxnId, maxTxnId, redundantBefore);
         var before = ImmutableMap.copyOf(watcher.get());
-        return AsyncChains.ofCallable(Stage.READ.executor(), () -> get(ranges, before, findAsDep, minTxnId, maxTxnId, redundantBefore))
+        return AsyncChains.ofCallable(rangeLoader, () -> get(ranges, before, findAsDep, minTxnId, maxTxnId, redundantBefore))
                           .map(map -> Pair.create(watcher, map), store)
                .beginAsResult();
     }
@@ -370,5 +379,10 @@ public class CommandsForRangesLoader implements AccordStateCache.Listener<TxnId,
                    ", hasAsDep=" + hasAsDep +
                    '}';
         }
+    }
+
+    public static void shutdown()
+    {
+        rangeLoader.shutdown();
     }
 }

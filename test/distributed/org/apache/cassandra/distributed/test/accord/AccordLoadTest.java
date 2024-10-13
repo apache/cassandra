@@ -105,7 +105,7 @@ public class AccordLoadTest extends AccordTestBase
                      final long batchTime = TimeUnit.SECONDS.toNanos(10);
                      final int concurrency = 100;
                      final int ratePerSecond = 1000;
-                     final int keyCount = 1000000;
+                     final int keyCount = 1_000_000;
                      final float readChance = 0.33f;
                      long nextRepairAt = repairInterval;
                      long nextCompactionAt = compactionInterval;

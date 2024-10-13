@@ -287,14 +287,14 @@ public abstract class AccordRoutingKey extends AccordRoutableKey implements Rout
             @Override
             public TokenKey deserialize(DataInputPlus in, int version) throws IOException
             {
-                TableId table = TableId.deserialize(in);
+                TableId table = TableId.deserialize(in).intern();
                 Token token = Token.compactSerializer.deserialize(in, getPartitioner(), version);
                 return new TokenKey(table, token);
             }
 
             public TokenKey fromBytes(ByteBuffer bytes, IPartitioner partitioner)
             {
-                TableId tableId = TableId.deserialize(bytes, ByteBufferAccessor.instance, 0);
+                TableId tableId = TableId.deserialize(bytes, ByteBufferAccessor.instance, 0).intern();
                 bytes.position(tableId.serializedSize());
                 Token token = Token.compactSerializer.deserialize(bytes, partitioner);
                 return new TokenKey(tableId, token);

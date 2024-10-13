@@ -547,7 +547,12 @@ public class AccordCachingState<K, V> extends IntrusiveLinkedListNode
 
         Saving(V current, Runnable saveRunnable)
         {
-            super(() -> { saveRunnable.run(); return null; });
+            this(current, () -> { saveRunnable.run(); return null; });
+        }
+
+        Saving(V current, Callable<Void> saveCallable)
+        {
+            super(saveCallable);
             this.current = current;
         }
 

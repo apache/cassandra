@@ -36,6 +36,7 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.Callable;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
@@ -65,6 +66,7 @@ import accord.utils.RandomSource;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
 import accord.utils.async.AsyncResult;
+import accord.utils.async.Cancellable;
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.concurrent.SimulatedExecutorFactory;
 import org.apache.cassandra.concurrent.Stage;
@@ -629,9 +631,9 @@ public class EpochSyncTest
             return new AsyncChains.Head<>()
             {
                 @Override
-                protected void start(BiConsumer<? super T, Throwable> callback)
+                protected Cancellable start(BiConsumer<? super T, Throwable> callback)
                 {
-                    scheduler.schedule(() -> {
+                    Future<?> future = scheduler.schedule(() -> {
                         T value;
                         try
                         {
@@ -644,6 +646,7 @@ public class EpochSyncTest
                         }
                         callback.accept(value, null);
                     }, time, unit);
+                    return () -> future.cancel(true);
                 }
             };
         }
