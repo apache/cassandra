@@ -86,12 +86,13 @@ public interface Processor
                                                                                               TCMMetrics.instance.commitRetries));
         if (logState.isEmpty()) return Collections.emptyList();
         List<ClusterMetadata> cms = new ArrayList<>(logState.entries.size());
+        Epoch firstEpoch = logState.baseState.epoch;
         ClusterMetadata accum = logState.baseState;
         cms.add(accum);
         for (Entry entry : logState.entries)
         {
             Transformation.Result res = entry.transform.execute(accum);
-            assert res.isSuccess() : res.toString();
+            assert res.isSuccess() : String.format("Unable to process Transformation from epoch %d (requested %d -> %d; first epoch %d): %s", entry.epoch.getEpoch(), lowEpoch.getEpoch(), highEpoch.getEpoch(), firstEpoch.getEpoch(), res);
             accum = res.success().metadata;
             cms.add(accum);
         }
