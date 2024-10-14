@@ -978,6 +978,9 @@ ran on the node in seconds
 |SkippedTokenRangesCount |Gauge<Integer> |Number of token ranges skipped
 on the node
 
+|SkippedTablesCount |Gauge<Integer> |Number of tables skipped
+on the node
+
 |TotalMVTablesConsideredForRepair |Gauge<Integer> |Number of materialized
 views considered on the node
 
