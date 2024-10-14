@@ -93,7 +93,7 @@ public class QueryProcessor implements QueryHandler
         preparedStatements = Caffeine.newBuilder()
                              .executor(MoreExecutors.directExecutor())
                              .maximumWeight(capacityToBytes(DatabaseDescriptor.getPreparedStatementsCacheSizeMB()))
-                             .weigher(QueryProcessor::measure)
+                             .weigher(QueryProcessor::getPrecomputedSizeForCache)
                              .removalListener((key, prepared, cause) -> {
                                  MD5Digest md5Digest = (MD5Digest) key;
                                  if (cause.wasEvicted())
@@ -149,6 +149,7 @@ public class QueryProcessor implements QueryHandler
                     clientState.setKeyspace(keyspace);
 
                 Prepared prepared = parseAndPrepare(query, clientState, false);
+                prepared.cacheEntrySize = measureCacheEntrySize(id, prepared);
                 preparedStatements.put(id, prepared);
 
                 // Preload `null` statement for non-fully qualified statements, since it can't be parsed if loaded from cache and will be dropped
@@ -674,14 +675,16 @@ public class QueryProcessor implements QueryHandler
     {
         // Concatenate the current keyspace so we don't mix prepared statements between keyspace (#5352).
         // (if the keyspace is null, queryString has to have a fully-qualified keyspace so it's fine.
-        long statementSize = ObjectSizes.measureDeep(prepared.statement);
+        MD5Digest statementId = computeId(queryString, keyspace);
+        int statementSize = measureCacheEntrySize(statementId, prepared);
+        prepared.cacheEntrySize = statementSize;
         // don't execute the statement if it's bigger than the allowed threshold
         if (statementSize > capacityToBytes(DatabaseDescriptor.getPreparedStatementsCacheSizeMB()))
             throw new InvalidRequestException(String.format("Prepared statement of size %d bytes is larger than allowed maximum of %d MB: %s...",
                                                             statementSize,
                                                             DatabaseDescriptor.getPreparedStatementsCacheSizeMB(),
                                                             queryString.substring(0, 200)));
-        MD5Digest statementId = computeId(queryString, keyspace);
+
         Prepared previous = preparedStatements.get(statementId, (ignored_) -> prepared);
         if (previous == prepared)
             SystemKeyspace.writePreparedStatement(keyspace, statementId, queryString);
@@ -797,9 +800,17 @@ public class QueryProcessor implements QueryHandler
         }
     }
 
-    private static int measure(Object key, Prepared value)
+    private static int measureCacheEntrySize(Object key, Prepared value)
     {
         return Ints.checkedCast(ObjectSizes.measureDeep(key) + ObjectSizes.measureDeep(value));
+    }
+
+    private static int getPrecomputedSizeForCache(Object key, Prepared value)
+    {
+        if (value.cacheEntrySize < 0)
+            throw new IllegalStateException("Precomputed prepared statement size not available");
+
+        return value.cacheEntrySize;
     }
 
     /**
