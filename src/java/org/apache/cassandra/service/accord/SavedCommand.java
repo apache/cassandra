@@ -544,7 +544,7 @@ public class SavedCommand
             if (saveStatus == null || participants == null)
                 return Cleanup.NO;
 
-            Cleanup cleanup = Cleanup.shouldCleanup(txnId, saveStatus, durability, participants, redundantBefore, durableBefore);
+            Cleanup cleanup = Cleanup.shouldCleanupPartial(txnId, saveStatus, durability, participants, redundantBefore, durableBefore);
             if (this.cleanup != null && this.cleanup.compareTo(cleanup) > 0)
                 cleanup = this.cleanup;
             return cleanup;
