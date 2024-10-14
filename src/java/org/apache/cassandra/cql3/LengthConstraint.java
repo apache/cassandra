@@ -27,7 +27,7 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 
-public class CqlConstraintLength implements CqlConstraintFunctionExecutor
+public class LengthConstraint implements CqlConstraintFunctionExecutor
 {
     @Override
     public String getName()

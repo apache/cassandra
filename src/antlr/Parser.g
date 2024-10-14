@@ -796,7 +796,7 @@ cqlConstraintFunctionCondition[CreateTableStatement.Raw stmt] returns [Constrain
     ;
 
 constraintFunctionName returns [CqlConstraintFunctionExecutor e]
-    : K_LENGTH                       { $e = new CqlConstraintLength(); }
+    : K_LENGTH                       { $e = new LengthConstraint(); }
     ;
 
 constraintFunction returns [ConstraintFunction t]
