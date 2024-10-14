@@ -576,6 +576,19 @@ public class DynamicCompositeType extends AbstractCompositeType
         return getInstance(Maps.transformValues(aliases, v -> v.expandUserTypes()));
     }
 
+    @Override
+    public boolean referencesDuration()
+    {
+        for (AbstractType<?> type : subTypes())
+        {
+            if (type.referencesDuration())
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private class DynamicParsedComparator implements ParsedComparator
     {
         final AbstractType<?> type;
