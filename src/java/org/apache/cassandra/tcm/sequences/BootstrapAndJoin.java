@@ -353,6 +353,8 @@ public class BootstrapAndJoin extends MultiStepOperation<Epoch>
             logger.info("Resetting bootstrap progress to start fresh");
             SystemKeyspace.resetAvailableStreamedRanges();
         }
+
+        StorageService.instance.repairPaxosForTopologyChange("bootstrap");
         Future<StreamState> bootstrapStream = StorageService.instance.startBootstrap(metadata, beingReplaced, movements, strictMovements);
         try
         {

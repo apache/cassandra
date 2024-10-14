@@ -281,8 +281,8 @@ public class KeyspaceActions extends ClusterActions
                     joined.add(join);
                     joined.remove(leave);
                     left.add(leave);
-                    TokenPlacementModel.ReplicatedRanges placementsAfter = placements(joined, currentRf);
                     nodeLookup.setTokenOf(join, nodeLookup.tokenOf(leave));
+                    TokenPlacementModel.ReplicatedRanges placementsAfter = placements(joined, currentRf);
                     Topology during = recomputeTopology(placementsBefore, placementsAfter);
                     updateTopology(during);
                     Topology after = recomputeTopology(placementsAfter, placementsAfter);
