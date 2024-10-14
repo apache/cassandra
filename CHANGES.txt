@@ -1,4 +1,5 @@
 5.1
+ * In simulation tests, correctly set the tokens of replacement nodes (CASSANDRA-19997)
  * During TCM upgrade, retain all properties of existing system tables (CASSANDRA-19992)
  * Properly cancel in-flight futures and reject requests in EpochAwareDebounce during shutdown (CASSANDRA-19848)
  * Provide clearer exception message on failing commitlog_disk_access_mode combinations (CASSANDRA-19812)
