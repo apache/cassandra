@@ -641,6 +641,13 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
 
     public boolean referencesDuration()
     {
+        for (AbstractType<?> type : subTypes())
+        {
+            if (type.referencesDuration())
+            {
+                return true;
+            }
+        }
         return false;
     }
 
