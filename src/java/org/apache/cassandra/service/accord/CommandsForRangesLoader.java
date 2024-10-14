@@ -18,16 +18,12 @@
 
 package org.apache.cassandra.service.accord;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.function.BiFunction;
 import javax.annotation.Nullable;
 
@@ -37,12 +33,12 @@ import com.google.common.collect.ImmutableMap;
 import accord.local.Command;
 import accord.local.KeyHistory;
 import accord.local.RedundantBefore;
-import accord.primitives.Routable.Domain;
-import accord.primitives.SaveStatus;
-import accord.primitives.Status;
 import accord.primitives.Range;
 import accord.primitives.Ranges;
+import accord.primitives.Routable.Domain;
 import accord.primitives.Routables;
+import accord.primitives.SaveStatus;
+import accord.primitives.Status;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.async.AsyncChains;

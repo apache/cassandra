@@ -18,14 +18,12 @@
 
 package org.apache.cassandra.config;
 
-import accord.primitives.Routable;
-import accord.primitives.Txn;
+import java.util.concurrent.TimeUnit;
+
 import accord.primitives.TxnId;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import org.apache.cassandra.journal.Params;
 import org.apache.cassandra.service.consensus.TransactionalMode;
-
-import java.util.concurrent.TimeUnit;
 
 import static accord.primitives.Routable.Domain.Range;
 
