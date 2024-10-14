@@ -31,6 +31,9 @@ import org.apache.cassandra.exceptions.SyntaxException;
 
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.quicktheories.QuickTheory.qt;
+import static org.quicktheories.generators.SourceDSL.doubles;
+import static org.quicktheories.generators.SourceDSL.integers;
 
 public class CreateTableWithTableCqlConstraintValidationTest extends CqlConstraintValidationTester
 {
@@ -110,55 +113,483 @@ public class CreateTableWithTableCqlConstraintValidationTest extends CqlConstrai
 
     // SCALAR
     @Test
-    public void testCreateTableWithColumnWithClusteringColumnLessThanScalarConstraint() throws Throwable
+    public void testCreateTableWithColumnWithClusteringColumnLessThanScalarConstraintDouble() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck1 double, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT cons1 CHECK ck1 < 4) WITH CLUSTERING ORDER BY (ck1 ASC);");
+
+        // Valid
+        qt().forAll(doubles().between(0, 3.99))
+            .checkAssert(d -> execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)"));
+
+        // Invalid
+        qt().forAll(doubles().between(4.01, 100))
+            .checkAssert(d -> {
+                try
+                {
+                    assertInvalidThrow(ConstraintViolationException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
+                }
+                catch (Throwable e)
+                {
+                    // Wrapping throwable, needed by qt
+                    throw new RuntimeException(e);
+                }
+            });
+    }
+
+    @Test
+    public void testCreateTableWithColumnWithClusteringColumnLessThanScalarConstraintFloat() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck1 float, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT cons1 CHECK ck1 < 4) WITH CLUSTERING ORDER BY (ck1 ASC);");
+
+        // Valid
+        qt().forAll(doubles().between(0, 3.99))
+            .checkAssert(d -> execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)"));
+
+        // Invalid
+        qt().forAll(doubles().between(4.01, 100))
+            .checkAssert(d -> {
+                try
+                {
+                    assertInvalidThrow(ConstraintViolationException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
+                }
+                catch (Throwable e)
+                {
+                    // Wrapping throwable, needed by qt
+                    throw new RuntimeException(e);
+                }
+            });
+    }
+
+    @Test
+    public void testCreateTableWithColumnWithClusteringColumnLessThanScalarConstraintDecimal() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck1 decimal, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT cons1 CHECK ck1 < 4) WITH CLUSTERING ORDER BY (ck1 ASC);");
+
+        // Valid
+        qt().forAll(doubles().between(0, 3.99))
+            .checkAssert(d -> execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)"));
+
+        // Invalid
+        qt().forAll(doubles().between(4.01, 100))
+            .checkAssert(d -> {
+                try
+                {
+                    assertInvalidThrow(ConstraintViolationException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
+                }
+                catch (Throwable e)
+                {
+                    // Wrapping throwable, needed by qt
+                    throw new RuntimeException(e);
+                }
+            });
+    }
+
+    @Test
+    public void testCreateTableWithColumnWithClusteringColumnLessThanScalarConstraintInt() throws Throwable
     {
         createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT cons1 CHECK ck1 < 4) WITH CLUSTERING ORDER BY (ck1 ASC);");
 
         // Valid
-        execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 2, 3)");
+        qt().forAll(integers().between(0, 3))
+            .checkAssert(d -> execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)"));
 
         // Invalid
-        assertInvalidThrow(ConstraintViolationException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 4, 2, 3)");
-        assertInvalidThrow(ConstraintViolationException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 5, 2, 3)");
+        qt().forAll(integers().between(4, 100))
+            .checkAssert(d -> {
+                try
+                {
+                    assertInvalidThrow(ConstraintViolationException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
+                }
+                catch (Throwable e)
+                {
+                    // Wrapping throwable, needed by qt
+                    throw new RuntimeException(e);
+                }
+            });
     }
 
     @Test
-    public void testCreateTableWithColumnWithClusteringColumnBiggerThanScalarConstraint() throws Throwable
+    public void testCreateTableWithColumnWithClusteringColumnLessThanScalarConstraintSmallInt() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck1 smallint, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT cons1 CHECK ck1 < 4) WITH CLUSTERING ORDER BY (ck1 ASC);");
+
+        // Valid
+        qt().forAll(integers().between(0, 3))
+            .checkAssert(d -> execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)"));
+
+        // Invalid
+        qt().forAll(integers().between(4, 100))
+            .checkAssert(d -> {
+                try
+                {
+                    assertInvalidThrow(ConstraintViolationException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
+                }
+                catch (Throwable e)
+                {
+                    // Wrapping throwable, needed by qt
+                    throw new RuntimeException(e);
+                }
+            });
+    }
+
+    @Test
+    public void testCreateTableWithColumnWithClusteringColumnBiggerThanScalarConstraintDouble() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck1 double, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT cons1 CHECK ck1 > 4) WITH CLUSTERING ORDER BY (ck1 ASC);");
+
+        // Valid
+        qt().forAll(doubles().between(4.01, 100))
+            .checkAssert(d -> execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)"));
+
+        // Invalid
+        qt().forAll(doubles().between(0, 4))
+            .checkAssert(d -> {
+                try
+                {
+                    assertInvalidThrow(ConstraintViolationException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
+                }
+                catch (Throwable e)
+                {
+                    // Wrapping throwable, needed by qt
+                    throw new RuntimeException(e);
+                }
+            });
+    }
+
+    @Test
+    public void testCreateTableWithColumnWithClusteringColumnBiggerThanScalarConstraintFloat() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck1 float, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT cons1 CHECK ck1 > 4) WITH CLUSTERING ORDER BY (ck1 ASC);");
+
+        // Valid
+        qt().forAll(doubles().between(4.01, 100))
+            .checkAssert(d -> execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)"));
+
+        // Invalid
+        qt().forAll(doubles().between(0, 4))
+            .checkAssert(d -> {
+                try
+                {
+                    assertInvalidThrow(ConstraintViolationException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
+                }
+                catch (Throwable e)
+                {
+                    // Wrapping throwable, needed by qt
+                    throw new RuntimeException(e);
+                }
+            });
+    }
+
+    @Test
+    public void testCreateTableWithColumnWithClusteringColumnBiggerThanScalarConstraintDecimal() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck1 decimal, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT cons1 CHECK ck1 > 4) WITH CLUSTERING ORDER BY (ck1 ASC);");
+
+        // Valid
+        qt().forAll(doubles().between(4.01, 100))
+            .checkAssert(d -> execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)"));
+
+        // Invalid
+        qt().forAll(doubles().between(0, 4))
+            .checkAssert(d -> {
+                try
+                {
+                    assertInvalidThrow(ConstraintViolationException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
+                }
+                catch (Throwable e)
+                {
+                    // Wrapping throwable, needed by qt
+                    throw new RuntimeException(e);
+                }
+            });
+    }
+
+    @Test
+    public void testCreateTableWithColumnWithClusteringColumnBiggerThanScalarConstraintInt() throws Throwable
     {
         createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT cons1 CHECK ck1 > 4) WITH CLUSTERING ORDER BY (ck1 ASC);");
 
         // Valid
-        execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 5, 2, 3)");
+        qt().forAll(integers().between(5, 100))
+            .checkAssert(d -> execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)"));
 
         // Invalid
-        assertInvalidThrow(ConstraintViolationException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 1, 2, 3)");
-        assertInvalidThrow(ConstraintViolationException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 4, 2, 3)");
+        qt().forAll(integers().between(0, 4))
+            .checkAssert(d -> {
+                try
+                {
+                    assertInvalidThrow(ConstraintViolationException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
+                }
+                catch (Throwable e)
+                {
+                    // Wrapping throwable, needed by qt
+                    throw new RuntimeException(e);
+                }
+            });
     }
 
     @Test
-    public void testCreateTableWithColumnWithClusteringColumnBiggerOrEqualThanScalarConstraint() throws Throwable
+    public void testCreateTableWithColumnWithClusteringColumnBiggerThanScalarConstraintSmallInt() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck1 smallint, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT cons1 CHECK ck1 > 4) WITH CLUSTERING ORDER BY (ck1 ASC);");
+
+        // Valid
+        qt().forAll(integers().between(5, 100))
+            .checkAssert(d -> execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)"));
+
+        // Invalid
+        qt().forAll(integers().between(0, 4))
+            .checkAssert(d -> {
+                try
+                {
+                    assertInvalidThrow(ConstraintViolationException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
+                }
+                catch (Throwable e)
+                {
+                    // Wrapping throwable, needed by qt
+                    throw new RuntimeException(e);
+                }
+            });
+    }
+
+    @Test
+    public void testCreateTableWithColumnWithClusteringColumnBiggerOrEqualThanScalarConstraintDouble() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck1 double, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT cons1 CHECK ck1 >= 4) WITH CLUSTERING ORDER BY (ck1 ASC);");
+
+        // Valid
+        qt().forAll(doubles().between(4, 100))
+            .checkAssert(d -> execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)"));
+
+        // Invalid
+        qt().forAll(doubles().between(0, 3.99))
+            .checkAssert(d -> {
+                try
+                {
+                    assertInvalidThrow(ConstraintViolationException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
+                }
+                catch (Throwable e)
+                {
+                    // Wrapping throwable, needed by qt
+                    throw new RuntimeException(e);
+                }
+            });
+    }
+
+    @Test
+    public void testCreateTableWithColumnWithClusteringColumnBiggerOrEqualThanScalarConstraintFloat() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck1 float, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT cons1 CHECK ck1 >= 4) WITH CLUSTERING ORDER BY (ck1 ASC);");
+
+        // Valid
+        qt().forAll(doubles().between(4, 100))
+            .checkAssert(d -> execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)"));
+
+        // Invalid
+        qt().forAll(doubles().between(0, 3.99))
+            .checkAssert(d -> {
+                try
+                {
+                    assertInvalidThrow(ConstraintViolationException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
+                }
+                catch (Throwable e)
+                {
+                    // Wrapping throwable, needed by qt
+                    throw new RuntimeException(e);
+                }
+            });
+    }
+
+    @Test
+    public void testCreateTableWithColumnWithClusteringColumnBiggerOrEqualThanScalarConstraintDecimal() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck1 decimal, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT cons1 CHECK ck1 >= 4) WITH CLUSTERING ORDER BY (ck1 ASC);");
+
+        // Valid
+        qt().forAll(doubles().between(4, 100))
+            .checkAssert(d -> execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)"));
+
+        // Invalid
+        qt().forAll(doubles().between(0, 3.99))
+            .checkAssert(d -> {
+                try
+                {
+                    assertInvalidThrow(ConstraintViolationException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
+                }
+                catch (Throwable e)
+                {
+                    // Wrapping throwable, needed by qt
+                    throw new RuntimeException(e);
+                }
+            });
+    }
+
+    @Test
+    public void testCreateTableWithColumnWithClusteringColumnBiggerOrEqualThanScalarConstraintInt() throws Throwable
     {
         createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT cons1 CHECK ck1 >= 4) WITH CLUSTERING ORDER BY (ck1 ASC);");
 
         // Valid
-        execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 5, 2, 3)");
-        execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 4, 2, 3)");
+        qt().forAll(integers().between(4, 100))
+            .checkAssert(d -> execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)"));
 
         // Invalid
-        assertInvalidThrow(ConstraintViolationException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 1, 2, 3)");
+        qt().forAll(integers().between(0, 3))
+            .checkAssert(d -> {
+                try
+                {
+                    assertInvalidThrow(ConstraintViolationException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
+                }
+                catch (Throwable e)
+                {
+                    // Wrapping throwable, needed by qt
+                    throw new RuntimeException(e);
+                }
+            });
     }
 
     @Test
-    public void testCreateTableWithColumnWithClusteringColumnLessOrEqualThanScalarConstraint() throws Throwable
+    public void testCreateTableWithColumnWithClusteringColumnBiggerOrEqualThanScalarConstraintSmallInt() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck1 smallint, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT cons1 CHECK ck1 >= 4) WITH CLUSTERING ORDER BY (ck1 ASC);");
+
+        // Valid
+        qt().forAll(integers().between(4, 100))
+            .checkAssert(d -> execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)"));
+
+        // Invalid
+        qt().forAll(integers().between(0, 3))
+            .checkAssert(d -> {
+                try
+                {
+                    assertInvalidThrow(ConstraintViolationException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
+                }
+                catch (Throwable e)
+                {
+                    // Wrapping throwable, needed by qt
+                    throw new RuntimeException(e);
+                }
+            });
+    }
+
+    @Test
+    public void testCreateTableWithColumnWithClusteringColumnLessOrEqualThanScalarConstraintDouble() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck1 double, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT cons1 CHECK ck1 <= 4) WITH CLUSTERING ORDER BY (ck1 ASC);");
+
+        // Valid
+        qt().forAll(doubles().between(0, 4))
+            .checkAssert(d -> execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)"));
+
+        // Invalid
+        qt().forAll(doubles().between(4.01, 100))
+            .checkAssert(d -> {
+                try
+                {
+                    assertInvalidThrow(ConstraintViolationException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
+                }
+                catch (Throwable e)
+                {
+                    // Wrapping throwable, needed by qt
+                    throw new RuntimeException(e);
+                }
+            });
+    }
+
+    @Test
+    public void testCreateTableWithColumnWithClusteringColumnLessOrEqualThanScalarConstraintFloat() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck1 float, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT cons1 CHECK ck1 <= 4) WITH CLUSTERING ORDER BY (ck1 ASC);");
+
+        // Valid
+        qt().forAll(doubles().between(0, 4))
+            .checkAssert(d -> execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)"));
+
+        // Invalid
+        qt().forAll(doubles().between(4.01, 100))
+            .checkAssert(d -> {
+                try
+                {
+                    assertInvalidThrow(ConstraintViolationException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
+                }
+                catch (Throwable e)
+                {
+                    // Wrapping throwable, needed by qt
+                    throw new RuntimeException(e);
+                }
+            });
+    }
+
+    @Test
+    public void testCreateTableWithColumnWithClusteringColumnLessOrEqualThanScalarConstraintDecimal() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck1 decimal, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT cons1 CHECK ck1 <= 4) WITH CLUSTERING ORDER BY (ck1 ASC);");
+
+        // Valid
+        qt().forAll(doubles().between(0, 4))
+            .checkAssert(d -> execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)"));
+
+        // Invalid
+        qt().forAll(doubles().between(4.01, 100))
+            .checkAssert(d -> {
+                try
+                {
+                    assertInvalidThrow(ConstraintViolationException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
+                }
+                catch (Throwable e)
+                {
+                    // Wrapping throwable, needed by qt
+                    throw new RuntimeException(e);
+                }
+            });
+    }
+
+    @Test
+    public void testCreateTableWithColumnWithClusteringColumnLessOrEqualThanScalarConstraintInt() throws Throwable
     {
         createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT cons1 CHECK ck1 <= 4) WITH CLUSTERING ORDER BY (ck1 ASC);");
 
         // Valid
-        execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 3, 2, 3)");
-        execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 4, 2, 3)");
+        qt().forAll(integers().between(0, 4))
+            .checkAssert(d -> execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)"));
 
         // Invalid
-        assertInvalidThrow(ConstraintViolationException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 5, 2, 3)");
+        qt().forAll(integers().between(5, 100))
+            .checkAssert(d -> {
+                try
+                {
+                    assertInvalidThrow(ConstraintViolationException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
+                }
+                catch (Throwable e)
+                {
+                    // Wrapping throwable, needed by qt
+                    throw new RuntimeException(e);
+                }
+            });
+    }
+
+    @Test
+    public void testCreateTableWithColumnWithClusteringColumnLessOrEqualThanScalarConstraintSmallInt() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck1 smallint, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2), CONSTRAINT cons1 CHECK ck1 <= 4) WITH CLUSTERING ORDER BY (ck1 ASC);");
+
+        // Valid
+        qt().forAll(integers().between(0, 4))
+            .checkAssert(d -> execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)"));
+
+        // Invalid
+        qt().forAll(integers().between(5, 100))
+            .checkAssert(d -> {
+                try
+                {
+                    assertInvalidThrow(ConstraintViolationException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
+                }
+                catch (Throwable e)
+                {
+                    // Wrapping throwable, needed by qt
+                    throw new RuntimeException(e);
+                }
+            });
     }
 
     @Test
