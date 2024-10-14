@@ -336,7 +336,7 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     }
 
     @Override
-    protected void registerHistoricalTransactions(Deps deps)
+    public void registerHistoricalTransactions(Deps deps)
     {
         ensureFieldUpdates().addHistoricalTransactions = deps;
         // TODO (required): it is potentially unsafe to propagate this synchronously, as if we fail to write to the journal we may be in an inconsistent state

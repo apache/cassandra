@@ -5115,14 +5115,14 @@ public class DatabaseDescriptor
         return conf.accord.gc_delay.to(unit);
     }
 
-    public static long getAccordScheduleDurabilityFrequency(TimeUnit unit)
+    public static int getAccordShardDurabilityTargetSplits()
     {
-        return conf.accord.schedule_durability_frequency.to(unit);
+        return conf.accord.shard_durability_target_splits;
     }
 
-    public static void setAccordScheduleDurabilityFrequencySeconds(long seconds)
+    public static void setAccordShardDurabilityTargetSplits(int number)
     {
-        conf.accord.schedule_durability_frequency = new DurationSpec.IntSecondsBound(seconds);
+        conf.accord.shard_durability_target_splits = number;
     }
 
     public static long getAccordScheduleDurabilityTxnIdLag(TimeUnit unit)
@@ -5143,6 +5143,26 @@ public class DatabaseDescriptor
     public static void setAccordGlobalDurabilityCycleSeconds(long seconds)
     {
         conf.accord.global_durability_cycle = new DurationSpec.IntSecondsBound(seconds);
+    }
+
+    public static long getAccordDefaultDurabilityRetryDelay(TimeUnit unit)
+    {
+        return conf.accord.default_durability_retry_delay.to(unit);
+    }
+
+    public static void setAccordDefaultDurabilityRetryDelaySeconds(long seconds)
+    {
+        conf.accord.default_durability_retry_delay = new DurationSpec.IntSecondsBound(seconds);
+    }
+
+    public static long getAccordMaxDurabilityRetryDelay(TimeUnit unit)
+    {
+        return conf.accord.max_durability_retry_delay.to(unit);
+    }
+
+    public static void setAccordMaxDurabilityRetryDelaySeconds(long seconds)
+    {
+        conf.accord.max_durability_retry_delay = new DurationSpec.IntSecondsBound(seconds);
     }
 
     public static long getAccordShardDurabilityCycle(TimeUnit unit)

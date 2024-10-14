@@ -32,6 +32,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.concurrent.ExecutorPlus;
+import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.service.accord.*;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
@@ -98,9 +99,9 @@ public class AsyncLoader
                                                                                                 Map<K, S> context,
                                                                                                 AccordStateCache.Instance<K, V, S> cache,
                                                                                                 List<AsyncChain<?>> listenChains,
-                                                                                                @Nullable Executor loadExecutor)
+                                                                                                @Nullable ExecutorPlus loadExecutor)
     {
-        S safeRef = cache.acquire(key);
+        S safeRef = cache.acquire(key, loadExecutor);
         if (context.putIfAbsent(key, safeRef) != null)
         {
             noSpamLogger.warn("Context {} contained key {} more than once", context, key);
@@ -219,7 +220,7 @@ public class AsyncLoader
                 return AsyncChains.success(null);
             Set<? extends RoutingKey> set = ImmutableSet.<RoutingKey>builder().addAll(watcher.cached).addAll(keys).build();
             List<AsyncChain<?>> chains = new ArrayList<>();
-            set.forEach(key -> referenceAndAssembleReadsForKey(key, context, chains, CommandsForRangesLoader.rangeLoader));
+            set.forEach(key -> referenceAndAssembleReadsForKey(key, context, chains, Stage.ACCORD_RANGE_LOADER.executor()));
             return chains.isEmpty() ? AsyncChains.success(null) : AsyncChains.reduce(chains, (a, b) -> null);
         }, commandStore));
 
