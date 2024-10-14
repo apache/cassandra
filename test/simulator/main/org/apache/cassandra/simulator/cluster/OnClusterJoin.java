@@ -111,7 +111,7 @@ class OnClusterJoin extends OnClusterChangeTopology
 
                 BootstrapAndJoin bootstrapAndJoin = ((BootstrapAndJoin) sequence);
                 assert bootstrapAndJoin.next.ordinal() == kind : String.format("Expected next step to be %s, but got %s", Transformation.Kind.values()[kind], bootstrapAndJoin.next);
-                boolean res = bootstrapAndJoin.finishJoiningRing().executeNext().isContinuable();
+                boolean res = bootstrapAndJoin.executeNext().isContinuable();
                 assert res;
             });
         }
