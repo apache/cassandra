@@ -336,12 +336,12 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     }
 
     @Override
-    public void registerHistoricalTransactions(Deps deps)
+    public void registerHistoricalTransactions(long epoch, Deps deps)
     {
-        ensureFieldUpdates().addHistoricalTransactions = deps;
+        ensureFieldUpdates().addHistoricalTransactions = new HistoricalTransactions(epoch, deps);
         // TODO (required): it is potentially unsafe to propagate this synchronously, as if we fail to write to the journal we may be in an inconsistent state
         //     however, we can and should retire the concept of historical transactions in favour of ExclusiveSyncPoints ensuring their deps are known
-        super.registerHistoricalTransactions(deps);
+        super.registerHistoricalTransactions(epoch, deps);
     }
 
     private FieldUpdates ensureFieldUpdates()
@@ -379,6 +379,18 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
         public NavigableMap<TxnId, Ranges> newBootstrapBeganAt;
         public NavigableMap<Timestamp, Ranges> newSafeToRead;
         public RangesForEpoch.Snapshot newRangesForEpoch;
-        public Deps addHistoricalTransactions;
+        public HistoricalTransactions addHistoricalTransactions;
+    }
+
+    public static class HistoricalTransactions
+    {
+        public final long epoch;
+        public final Deps deps;
+
+        public HistoricalTransactions(long epoch, Deps deps)
+        {
+            this.epoch = epoch;
+            this.deps = deps;
+        }
     }
 }

@@ -134,7 +134,7 @@ public class AccordJournalCompactionTest
 //                updates.newRedundantBefore = redundantBefore = RedundantBefore.merge(redundantBefore, updates.addRedundantBefore);
                 updates.newSafeToRead = safeToReadGen.next(rs);
                 updates.newRangesForEpoch = rangesForEpochGen.next(rs);
-                updates.addHistoricalTransactions = historicalTransactionsGen.next(rs);
+                updates.addHistoricalTransactions = new AccordSafeCommandStore.HistoricalTransactions(0l, historicalTransactionsGen.next(rs));
 
                 journal.durableBeforePersister().persist(addDurableBefore, null);
                 journal.persistStoreState(1, updates, null);
@@ -147,7 +147,7 @@ public class AccordJournalCompactionTest
                     safeToReadAtAccumulator = updates.newSafeToRead;
                 if (updates.newRangesForEpoch != null)
                     rangesForEpochAccumulator = updates.newRangesForEpoch;
-                historicalTransactionsAccumulator.update(updates.addHistoricalTransactions);
+                historicalTransactionsAccumulator.update(updates.addHistoricalTransactions.deps);
 
                 if (i % 100 == 0)
                     journal.closeCurrentSegmentForTestingIfNonEmpty();
@@ -162,7 +162,7 @@ public class AccordJournalCompactionTest
             Assert.assertEquals(rangesForEpochAccumulator, journal.loadRangesForEpoch(1));
             List<Deps> historical = historicalTransactionsAccumulator.get();
             Collections.reverse(historical);
-            Assert.assertEquals(historical, journal.loadHistoricalTransactions(1));
+            Assert.assertEquals(historical, journal.loadHistoricalTransactions(0l, 1));
         }
         finally
         {

@@ -219,7 +219,6 @@ public class AccordCommandStore extends CommandStore
         loadBootstrapBeganAt(journal.loadBootstrapBeganAt(id()));
         loadSafeToRead(journal.loadSafeToRead(id()));
         loadRangesForEpoch(journal.loadRangesForEpoch(id()));
-        loadHistoricalTransactions(journal.loadHistoricalTransactions(id()));
 
         executor.execute(() -> CommandStore.register(this));
     }

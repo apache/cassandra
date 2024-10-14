@@ -40,7 +40,7 @@ public interface IJournal
     NavigableMap<TxnId, Ranges> loadBootstrapBeganAt(int commandStoreId);
     NavigableMap<Timestamp, Ranges> loadSafeToRead(int commandStoreId);
     CommandStores.RangesForEpoch.Snapshot loadRangesForEpoch(int commandStoreId);
-    List<Deps> loadHistoricalTransactions(int store);
+    List<Deps> loadHistoricalTransactions(long epoch, int store);
 
     void appendCommand(int store, SavedCommand.DiffWriter value, Runnable onFlush);
     Persister<DurableBefore, DurableBefore> durableBeforePersister();

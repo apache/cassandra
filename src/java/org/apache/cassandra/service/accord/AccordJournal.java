@@ -70,6 +70,7 @@ import static accord.primitives.SaveStatus.ErasedOrVestigial;
 import static accord.primitives.Status.Truncated;
 import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.DurableBeforeAccumulator;
 import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.RedundantBeforeAccumulator;
+import static org.apache.cassandra.service.accord.JournalKey.keyForHistoricalTransactions;
 
 public class AccordJournal implements IJournal, Shutdownable
 {
@@ -237,9 +238,9 @@ public class AccordJournal implements IJournal, Shutdownable
     }
 
     @Override
-    public List<Deps> loadHistoricalTransactions(int store)
+    public List<Deps> loadHistoricalTransactions(long epoch, int store)
     {
-        HistoricalTransactionsAccumulator accumulator = readAll(new JournalKey(TxnId.NONE, JournalKey.Type.HISTORICAL_TRANSACTIONS, store));
+        HistoricalTransactionsAccumulator accumulator = readAll(keyForHistoricalTransactions(epoch, store));
         return accumulator.get();
     }
 
@@ -302,7 +303,7 @@ public class AccordJournal implements IJournal, Shutdownable
         if (fieldUpdates.newRangesForEpoch != null)
             pointer = appendInternal(new JournalKey(TxnId.NONE, JournalKey.Type.RANGES_FOR_EPOCH, store), fieldUpdates.newRangesForEpoch);
         if (fieldUpdates.addHistoricalTransactions != null)
-            pointer = appendInternal(new JournalKey(TxnId.NONE, JournalKey.Type.HISTORICAL_TRANSACTIONS, store), fieldUpdates.addHistoricalTransactions);
+            pointer = appendInternal(JournalKey.keyForHistoricalTransactions(fieldUpdates.addHistoricalTransactions.epoch, store), fieldUpdates.addHistoricalTransactions.deps);
 
         if (onFlush == null)
             return;
