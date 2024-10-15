@@ -7,6 +7,7 @@
 Merged from 4.1:
  * Fix race condition in DecayingEstimatedHistogramReservoir during rescale (CASSANDRA-19365)
 Merged from 4.0:
+ * Fix bash-completion for debian distro (CASSANDRA-19999)
  * Ensure thread-safety for CommitLogArchiver in CommitLog (CASSANDRA-19960)
  * Fix text containing "/*" being interpreted as multiline comment in cqlsh (CASSANDRA-17667)
  * Fix indexing of a frozen collection that is the clustering key and reversed (CASSANDRA-19889)
