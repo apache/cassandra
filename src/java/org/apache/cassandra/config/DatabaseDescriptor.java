@@ -3169,6 +3169,22 @@ public class DatabaseDescriptor
         conf.batchlog_replay_throttle = new DataStorageSpec.IntKibibytesBound(throttleInKiB);
     }
 
+    public static boolean isDynamicEndpointSnitch()
+    {
+        // not using config.dynamic_snitch because snitch can be changed via JMX
+        return snitch instanceof DynamicEndpointSnitch;
+    }
+
+    public static Config.BatchlogEndpointStrategy getBatchlogEndpointStrategy()
+    {
+        return conf.batchlog_endpoint_strategy;
+    }
+
+    public static void setBatchlogEndpointStrategy(Config.BatchlogEndpointStrategy batchlogEndpointStrategy)
+    {
+        conf.batchlog_endpoint_strategy = batchlogEndpointStrategy;
+    }
+
     public static int getMaxHintsDeliveryThreads()
     {
         return conf.max_hints_delivery_threads;
