@@ -419,6 +419,10 @@ public enum CassandraRelevantProperties
     REPLACE_NODE("cassandra.replace_node"),
     REPLACE_TOKEN("cassandra.replace_token"),
     /**
+     * Number of replicas required to store batchlog for atomicity, only accepts values of 1 or 2.
+     */
+    REQUIRED_BATCHLOG_REPLICA_COUNT("cassandra.batchlog.required_replica_count", "2"),
+    /**
      * Whether we reset any found data from previously run bootstraps.
      */
     RESET_BOOTSTRAP_PROGRESS("cassandra.reset_bootstrap_progress"),

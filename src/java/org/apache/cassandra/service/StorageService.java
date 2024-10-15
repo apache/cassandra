@@ -4424,6 +4424,16 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
     }
 
+    public String getBatchlogEndpointStrategy()
+    {
+        return DatabaseDescriptor.getBatchlogEndpointStrategy().name();
+    }
+
+    public void setBatchlogEndpointStrategy(String batchlogEndpointStrategy)
+    {
+        DatabaseDescriptor.setBatchlogEndpointStrategy(Config.BatchlogEndpointStrategy.valueOf(batchlogEndpointStrategy));
+    }
+
     public StreamStateStore streamStateStore()
     {
         return streamStateStore;

@@ -653,6 +653,13 @@ public interface StorageServiceMBean extends NotificationEmitter
      */
     public int getDynamicUpdateInterval();
 
+    public String getBatchlogEndpointStrategy();
+
+    /**
+     * See {@link org.apache.cassandra.config.Config.BatchlogEndpointStrategy} for valid values.
+     */
+    public void setBatchlogEndpointStrategy(String batchlogEndpointStrategy);
+
     // allows a user to forcibly 'kill' a sick node
     public void stopGossiping();
 
