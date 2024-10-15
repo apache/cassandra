@@ -6304,6 +6304,16 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         updateTopology();
     }
 
+    public String getBatchlogEndpointStrategy()
+    {
+        return DatabaseDescriptor.getBatchlogEndpointStrategy().name();
+    }
+
+    public void setBatchlogEndpointStrategy(String batchlogEndpointStrategy)
+    {
+        DatabaseDescriptor.setBatchlogEndpointStrategy(Config.BatchlogEndpointStrategy.valueOf(batchlogEndpointStrategy));
+    }
+
     /**
      * Send data to the endpoints that will be responsible for it in the future
      *

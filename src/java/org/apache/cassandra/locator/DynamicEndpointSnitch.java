@@ -29,8 +29,8 @@ import java.util.stream.Collectors;
 import com.google.common.annotations.VisibleForTesting;
 
 import com.codahale.metrics.ExponentiallyDecayingReservoir;
-
 import com.codahale.metrics.Snapshot;
+
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.gms.ApplicationState;
