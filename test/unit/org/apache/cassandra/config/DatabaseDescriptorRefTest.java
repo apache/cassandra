@@ -101,6 +101,15 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.config.ConfigBeanInfo",
     "org.apache.cassandra.config.ConfigCustomizer",
     "org.apache.cassandra.config.ConfigurationLoader",
+    "org.apache.cassandra.repair.autorepair.AutoRepairConfig",
+    "org.apache.cassandra.repair.autorepair.AutoRepairConfig$Options",
+    "org.apache.cassandra.repair.autorepair.DefaultAutoRepairTokenSplitter",
+    "org.apache.cassandra.repair.autorepair.IAutoRepairTokenRangeSplitter",
+    "org.apache.cassandra.repair.autorepair.FullRepairState",
+    "org.apache.cassandra.repair.autorepair.IncrementalRepairState",
+    "org.apache.cassandra.repair.autorepair.AutoRepairConfig$RepairType",
+    "org.apache.cassandra.repair.autorepair.AutoRepairState",
+    "org.apache.cassandra.config.DatabaseDescriptor$ByteUnit",
     "org.apache.cassandra.config.DataRateSpec",
     "org.apache.cassandra.config.DataRateSpec$DataRateUnit",
     "org.apache.cassandra.config.DataRateSpec$DataRateUnit$1",
@@ -285,6 +294,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.utils.concurrent.RefCounted",
     "org.apache.cassandra.utils.concurrent.SelfRefCounted",
     "org.apache.cassandra.utils.concurrent.Transactional",
+    "org.apache.cassandra.utils.progress.ProgressListener",
     "org.apache.cassandra.utils.concurrent.UncheckedInterruptedException",
     "org.apache.cassandra.utils.StorageCompatibilityMode"
     };
