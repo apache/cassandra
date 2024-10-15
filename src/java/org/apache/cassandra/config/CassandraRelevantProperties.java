@@ -346,6 +346,10 @@ public enum CassandraRelevantProperties
      */
     GOSSIP_SETTLE_POLL_SUCCESSES_REQUIRED("cassandra.gossip_settle_poll_success_required", "3"),
 
+    /**
+     * Number of replicas required to store batchlog for atomicity, only accepts values of 1 or 2.
+     */
+    REQUIRED_BATCHLOG_REPLICA_COUNT("cassandra.batchlog.required_replica_count", "2")
     ;
 
     CassandraRelevantProperties(String key, String defaultVal)
