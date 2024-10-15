@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.nio.file.FileStore;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -49,8 +48,6 @@ import java.util.stream.StreamSupport;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
-import com.google.common.collect.Maps;
-import com.google.common.util.concurrent.RateLimiter;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -74,8 +71,6 @@ import org.apache.cassandra.io.util.PathUtils;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.snapshot.SnapshotManifest;
-import org.apache.cassandra.service.snapshot.TableSnapshot;
-import org.apache.cassandra.utils.DirectorySizeCalculator;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Pair;
 
@@ -302,6 +297,11 @@ public class Directories
             }
         }
         canonicalPathToDD = canonicalPathsBuilder.build();
+    }
+
+    public File[] getDataPaths()
+    {
+        return dataPaths;
     }
 
     /**
@@ -669,6 +669,16 @@ public class Directories
         {
             return get(location, SNAPSHOT_SUBDIR, snapshotName);
         }
+    }
+
+    public Set<File> getSnapshotDirs(String tag)
+    {
+        Set<File> snapshotDirs = new HashSet<>();
+
+        for (File cfDir : getCFDirectories())
+            snapshotDirs.add(Directories.getSnapshotDirectory(cfDir, tag).toAbsolute());
+
+        return snapshotDirs;
     }
 
     public File getSnapshotManifestFile(String snapshotName)
@@ -1169,37 +1179,6 @@ public class Directories
         }
     }
 
-    public Map<String, TableSnapshot> listSnapshots()
-    {
-        Map<String, Set<File>> snapshotDirsByTag = listSnapshotDirsByTag();
-
-        Map<String, TableSnapshot> snapshots = Maps.newHashMapWithExpectedSize(snapshotDirsByTag.size());
-
-        for (Map.Entry<String, Set<File>> entry : snapshotDirsByTag.entrySet())
-        {
-            String tag = entry.getKey();
-            Set<File> snapshotDirs = entry.getValue();
-            SnapshotManifest manifest = maybeLoadManifest(metadata.keyspace, metadata.name, tag, snapshotDirs);
-            snapshots.put(tag, buildSnapshot(tag, manifest, snapshotDirs));
-        }
-
-        return snapshots;
-    }
-
-    private TableSnapshot buildSnapshot(String tag, SnapshotManifest manifest, Set<File> snapshotDirs)
-    {
-        boolean ephemeral = manifest != null ? manifest.isEphemeral() : isLegacyEphemeralSnapshot(snapshotDirs);
-        Instant createdAt = manifest == null ? null : manifest.createdAt;
-        Instant expiresAt = manifest == null ? null : manifest.expiresAt;
-        return new TableSnapshot(metadata.keyspace, metadata.name, metadata.id.asUUID(), tag, createdAt, expiresAt,
-                                 snapshotDirs, ephemeral);
-    }
-
-    private static boolean isLegacyEphemeralSnapshot(Set<File> snapshotDirs)
-    {
-        return snapshotDirs.stream().map(d -> new File(d, "ephemeral.snapshot")).anyMatch(File::exists);
-    }
-
     @VisibleForTesting
     protected static SnapshotManifest maybeLoadManifest(String keyspace, String table, String tag, Set<File> snapshotDirs)
     {
@@ -1228,100 +1207,10 @@ public class Directories
         return null;
     }
 
-    @VisibleForTesting
-    protected Map<String, Set<File>> listSnapshotDirsByTag()
-    {
-        Map<String, Set<File>> snapshotDirsByTag = new HashMap<>();
-        for (final File dir : dataPaths)
-        {
-            File snapshotDir = isSecondaryIndexFolder(dir)
-                               ? new File(dir.parentPath(), SNAPSHOT_SUBDIR)
-                               : new File(dir, SNAPSHOT_SUBDIR);
-            if (snapshotDir.exists() && snapshotDir.isDirectory())
-            {
-                final File[] snapshotDirs  = snapshotDir.tryList();
-                if (snapshotDirs != null)
-                {
-                    for (final File snapshot : snapshotDirs)
-                    {
-                        if (snapshot.isDirectory()) {
-                            snapshotDirsByTag.computeIfAbsent(snapshot.name(), k -> new LinkedHashSet<>()).add(snapshot.toAbsolute());
-                        }
-                    }
-                }
-            }
-        }
-        return snapshotDirsByTag;
-    }
-
-    public boolean snapshotExists(String snapshotName)
-    {
-        for (File dir : dataPaths)
-        {
-            File snapshotDir;
-            if (isSecondaryIndexFolder(dir))
-            {
-                snapshotDir = new File(dir.parent(), join(SNAPSHOT_SUBDIR, snapshotName, dir.name()));
-            }
-            else
-            {
-                snapshotDir = new File(dir, join(SNAPSHOT_SUBDIR, snapshotName));
-            }
-            if (snapshotDir.exists())
-                return true;
-        }
-        return false;
-    }
-
-    public static void clearSnapshot(String snapshotName, List<File> tableDirectories, RateLimiter snapshotRateLimiter)
-    {
-        // If snapshotName is empty or null, we will delete the entire snapshot directory
-        String tag = snapshotName == null ? "" : snapshotName;
-        for (File tableDir : tableDirectories)
-        {
-            File snapshotDir = new File(tableDir, join(SNAPSHOT_SUBDIR, tag));
-            removeSnapshotDirectory(snapshotRateLimiter, snapshotDir);
-        }
-    }
-
-    public static void removeSnapshotDirectory(RateLimiter snapshotRateLimiter, File snapshotDir)
-    {
-        if (snapshotDir.exists())
-        {
-            logger.trace("Removing snapshot directory {}", snapshotDir);
-            try
-            {
-                FileUtils.deleteRecursiveWithThrottle(snapshotDir, snapshotRateLimiter);
-            }
-            catch (RuntimeException ex)
-            {
-                if (!snapshotDir.exists())
-                    return; // ignore
-                throw ex;
-            }
-        }
-    }
-
-    /**
-     * @return total snapshot size in byte for all snapshots.
-     */
-    public long trueSnapshotsSize()
-    {
-        long result = 0L;
-        for (File dir : dataPaths)
-        {
-            File snapshotDir = isSecondaryIndexFolder(dir)
-                               ? new File(dir.parentPath(), SNAPSHOT_SUBDIR)
-                               : new File(dir, SNAPSHOT_SUBDIR);
-            result += getTrueAllocatedSizeIn(snapshotDir);
-        }
-        return result;
-    }
-
     /**
      * @return Raw size on disk for all directories
      */
-    public long getRawDiretoriesSize()
+    public long getRawDirectoriesSize()
     {
         long totalAllocatedSize = 0L;
 
@@ -1331,25 +1220,7 @@ public class Directories
         return totalAllocatedSize;
     }
 
-    public long getTrueAllocatedSizeIn(File snapshotDir)
-    {
-        if (!snapshotDir.isDirectory())
-            return 0;
-
-        SSTableSizeSummer visitor = new SSTableSizeSummer(sstableLister(OnTxnErr.THROW).listFiles());
-        try
-        {
-            Files.walkFileTree(snapshotDir.toPath(), visitor);
-        }
-        catch (IOException e)
-        {
-            logger.error("Could not calculate the size of {}. {}", snapshotDir, e.getMessage());
-        }
-
-        return visitor.getAllocatedSize();
-    }
-
-    // Recursively finds all the sub directories in the KS directory.
+    // Recursively finds all the subdirectories in the KS directory.
     public static List<File> getKSChildDirectories(String ksName)
     {
         List<File> result = new ArrayList<>();
@@ -1432,25 +1303,4 @@ public class Directories
     {
         return StringUtils.join(s, File.pathSeparator());
     }
-
-    private class SSTableSizeSummer extends DirectorySizeCalculator
-    {
-        private final Set<String> toSkip;
-        SSTableSizeSummer(List<File> files)
-        {
-            toSkip = files.stream().map(File::name).collect(Collectors.toSet());
-        }
-
-        @Override
-        public boolean isAcceptable(Path path)
-        {
-            File file = new File(path);
-            Descriptor desc = SSTable.tryDescriptorFromFile(file);
-            return desc != null
-                && desc.ksname.equals(metadata.keyspace)
-                && desc.cfname.equals(metadata.name)
-                && !toSkip.contains(file.name());
-        }
-    }
-
 }

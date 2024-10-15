@@ -55,6 +55,7 @@ import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SchemaKeyspaceTables;
 import org.apache.cassandra.schema.SchemaTestUtil;
+import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.membership.Location;
@@ -144,6 +145,7 @@ public class StorageServiceServerTest
     @Before
     public void resetCMS()
     {
+        SnapshotManager.instance.clearAllSnapshots();
         ServerTestUtils.resetCMS();
     }
 
@@ -158,21 +160,27 @@ public class StorageServiceServerTest
     public void testSnapshotWithFlush() throws IOException
     {
         // no need to insert extra data, even an "empty" database will have a little information in the system keyspace
-        StorageService.instance.takeSnapshot(UUID.randomUUID().toString());
+        String snapshotName = UUID.randomUUID().toString();
+        StorageService.instance.takeSnapshot(snapshotName);
+        Assert.assertFalse(SnapshotManager.instance.getSnapshots(p -> p.getTag().equals(snapshotName)).isEmpty());
     }
 
     @Test
     public void testTableSnapshot() throws IOException
     {
         // no need to insert extra data, even an "empty" database will have a little information in the system keyspace
-        StorageService.instance.takeTableSnapshot(SchemaConstants.SCHEMA_KEYSPACE_NAME, SchemaKeyspaceTables.KEYSPACES, UUID.randomUUID().toString());
+        String snapshotName = UUID.randomUUID().toString();
+        StorageService.instance.takeTableSnapshot(SchemaConstants.SCHEMA_KEYSPACE_NAME, SchemaKeyspaceTables.KEYSPACES, snapshotName);
+        Assert.assertFalse(SnapshotManager.instance.getSnapshot(SchemaConstants.SCHEMA_KEYSPACE_NAME, SchemaKeyspaceTables.KEYSPACES, snapshotName).isEmpty());
     }
 
     @Test
     public void testSnapshot() throws IOException
     {
         // no need to insert extra data, even an "empty" database will have a little information in the system keyspace
-        StorageService.instance.takeSnapshot(UUID.randomUUID().toString(), SchemaConstants.SCHEMA_KEYSPACE_NAME);
+        String snapshotName = UUID.randomUUID().toString();
+        StorageService.instance.takeSnapshot(snapshotName, SchemaConstants.SCHEMA_KEYSPACE_NAME);
+        Assert.assertFalse(SnapshotManager.instance.getSnapshots(p -> p.getTag().equals(snapshotName) && p.getKeyspaceName().equals(SchemaConstants.SCHEMA_KEYSPACE_NAME)).isEmpty());
     }
 
     @Test

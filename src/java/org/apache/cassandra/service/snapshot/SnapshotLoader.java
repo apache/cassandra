@@ -29,6 +29,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -153,7 +154,7 @@ public class SnapshotLoader
             String tag = snapshotDirMatcher.group("tag");
             String snapshotId = buildSnapshotId(keyspaceName, tableName, tableId, tag);
             TableSnapshot.Builder builder = snapshots.computeIfAbsent(snapshotId, k -> new TableSnapshot.Builder(keyspaceName, tableName, tableId, tag));
-            builder.addSnapshotDir(new File(snapshotDir));
+            builder.addSnapshotDir(new File(snapshotDir).toAbsolute());
         }
     }
 
@@ -184,7 +185,11 @@ public class SnapshotLoader
             }
         }
 
-        return snapshots.values().stream().map(TableSnapshot.Builder::build).collect(Collectors.toSet());
+        Set<TableSnapshot> tableSnapshots = new HashSet<>();
+        for (TableSnapshot.Builder snapshotBuilder : snapshots.values())
+            tableSnapshots.add(snapshotBuilder.build());
+
+        return tableSnapshots;
     }
 
     public Set<TableSnapshot> loadSnapshots()

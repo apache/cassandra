@@ -36,6 +36,7 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.service.snapshot.TableSnapshot;
 import org.apache.cassandra.utils.concurrent.Refs;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
@@ -126,7 +127,7 @@ public class PreviewRepairSnapshotTest extends TestBaseImpl
             String snapshotTag = await().atMost(1, MINUTES)
                                         .pollInterval(100, MILLISECONDS)
                                         .until(() -> {
-                                            for (String tag : cfs.listSnapshots().keySet())
+                                            for (String tag : Util.listSnapshots(cfs).keySet())
                                             {
                                                 // we create the snapshot schema file last, so when this exists we know the snapshot is complete;
                                                 if (cfs.getDirectories().getSnapshotSchemaFile(tag).exists())
@@ -138,7 +139,7 @@ public class PreviewRepairSnapshotTest extends TestBaseImpl
 
             Set<SSTableReader> inSnapshot = new HashSet<>();
 
-            try (Refs<SSTableReader> sstables = cfs.getSnapshotSSTableReaders(snapshotTag))
+            try (Refs<SSTableReader> sstables = TableSnapshot.getSnapshotSSTableReaders(cfs.getKeyspaceName(), cfs.name, snapshotTag))
             {
                 inSnapshot.addAll(sstables);
             }

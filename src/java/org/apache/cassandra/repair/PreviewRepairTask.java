@@ -32,6 +32,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.RepairMetrics;
 import org.apache.cassandra.repair.consistent.SyncStatSummary;
+import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.DiagnosticSnapshotService;
 import org.apache.cassandra.utils.TimeUUID;
@@ -128,7 +129,7 @@ public class PreviewRepairTask extends AbstractRepairTask
             for (String table : mismatchingTables)
             {
                 // we can just check snapshot existence locally since the repair coordinator is always a replica (unlike in the read case)
-                if (!Keyspace.open(keyspace).getColumnFamilyStore(table).snapshotExists(snapshotName))
+                if (SnapshotManager.instance.getSnapshot(keyspace, table, snapshotName).isEmpty())
                 {
                     List<Range<Token>> normalizedRanges = Range.normalize(ranges);
                     logger.info("{} Snapshotting {}.{} for preview repair mismatch for ranges {} with tag {} on instances {}",
