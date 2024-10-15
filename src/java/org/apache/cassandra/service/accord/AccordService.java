@@ -987,7 +987,7 @@ public class AccordService implements IAccordService, Shutdownable
     {
         if (state != State.STARTED)
             return;
-        ExecutorUtils.shutdownSequentiallyAndWait(shutdownableSubsystems(), 1, TimeUnit.MINUTES);
+        shutdownAndWait(1, TimeUnit.MINUTES);
         state = State.SHUTDOWN;
     }
 
@@ -1019,10 +1019,10 @@ public class AccordService implements IAccordService, Shutdownable
 
     @VisibleForTesting
     @Override
-    public void shutdownAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
+    public void shutdownAndWait(long timeout, TimeUnit unit)
     {
-        shutdown();
-        ExecutorUtils.shutdownAndWait(timeout, unit, this);
+        if (!ExecutorUtils.shutdownSequentiallyAndWait(shutdownableSubsystems(), timeout, unit))
+            logger.error("One or more subsystems did not shut down cleanly.");
     }
 
     @Override

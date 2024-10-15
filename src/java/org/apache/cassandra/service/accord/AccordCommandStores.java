@@ -22,10 +22,8 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 
 import accord.api.Agent;
-import accord.api.ConfigurationService.EpochReady;
 import accord.api.DataStore;
 import accord.api.LocalListeners;
 import accord.api.ProgressLog;
@@ -38,6 +36,7 @@ import accord.primitives.Range;
 import accord.topology.Topology;
 import accord.utils.RandomSource;
 import org.apache.cassandra.cache.CacheSize;
+import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.metrics.AccordStateCacheMetrics;
@@ -48,6 +47,10 @@ import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
+import static org.apache.cassandra.concurrent.Stage.ACCORD_MIGRATION;
+import static org.apache.cassandra.concurrent.Stage.ACCORD_RANGE_LOADER;
+import static org.apache.cassandra.concurrent.Stage.MUTATION;
+import static org.apache.cassandra.concurrent.Stage.READ;
 
 public class AccordCommandStores extends CommandStores implements CacheSize
 {
@@ -148,17 +151,24 @@ public class AccordCommandStores extends CommandStores implements CacheSize
         boolean hadPending;
         try
         {
+            List<ExecutorPlus> executors = new ArrayList<>();
+            for (CommandStoreExecutor executor : this.executors)
+                executors.add(executor.delegate);
+
+            executors.add(READ.executor());
+            executors.add(MUTATION.executor());
+            executors.add(ACCORD_MIGRATION.executor());
+            executors.add(ACCORD_RANGE_LOADER.executor());
+
             do
             {
                 hadPending = false;
                 List<Future<?>> futures = new ArrayList<>();
-                for (CommandStoreExecutor executor : executors)
+                for (ExecutorPlus executor : executors)
                 {
-                    if (executor.hasTasks())
-                    {
-                        futures.add(executor.submit(() -> {}));
+                    if (!hadPending && (executor.getPendingTaskCount() > 0 || executor.getActiveTaskCount() > 0))
                         hadPending = true;
-                    }
+                    futures.add(executor.submit(() -> {}));
                 }
                 for (Future<?> future : futures)
                     future.get();
