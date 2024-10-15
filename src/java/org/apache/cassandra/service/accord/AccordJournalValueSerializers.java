@@ -28,6 +28,7 @@ import com.google.common.collect.ImmutableSortedMap;
 import accord.local.DurableBefore;
 import accord.local.RedundantBefore;
 import accord.primitives.Deps;
+import accord.primitives.Range;
 import accord.primitives.Ranges;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
@@ -36,6 +37,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.accord.serializers.CommandStoreSerializers;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
+import org.apache.cassandra.utils.Pair;
 
 import static accord.local.CommandStores.RangesForEpoch;
 import static org.apache.cassandra.service.accord.SavedCommand.Load.ALL;
@@ -339,7 +341,7 @@ public class AccordJournalValueSerializers
         }
     }
     
-    public static class HistoricalTransactionsAccumulator extends Accumulator<List<Deps>, Deps>
+    public static class HistoricalTransactionsAccumulator extends Accumulator<List<Pair<Range, Deps>>, Pair<Range, Deps>>
     {
         public HistoricalTransactionsAccumulator()
         {
@@ -347,14 +349,14 @@ public class AccordJournalValueSerializers
         }
 
         @Override
-        protected List<Deps> accumulate(List<Deps> oldValue, Deps deps)
+        protected List<Pair<Range, Deps>> accumulate(List<Pair<Range, Deps>> oldValue, Pair<Range, Deps> deps)
         {
             accumulated.add(deps); // we can keep it mutable
             return accumulated;
         }
     }
 
-    public static class HistoricalTransactionsSerializer implements FlyweightSerializer<Deps, HistoricalTransactionsAccumulator>
+    public static class HistoricalTransactionsSerializer implements FlyweightSerializer<Pair<Range, Deps>, HistoricalTransactionsAccumulator>
     {
         @Override
         public HistoricalTransactionsAccumulator mergerFor(JournalKey key)
@@ -363,18 +365,22 @@ public class AccordJournalValueSerializers
         }
 
         @Override
-        public void serialize(JournalKey key, Deps from, DataOutputPlus out, int userVersion) throws IOException
+        public void serialize(JournalKey key, Pair<Range, Deps> from, DataOutputPlus out, int userVersion) throws IOException
         {
             out.writeUnsignedVInt32(1);
-            deps.serialize(from, out, messagingVersion);
+            TokenRange.serializer.serialize((TokenRange) from.left, out, messagingVersion);
+            deps.serialize(from.right, out, messagingVersion);
         }
 
         @Override
         public void reserialize(JournalKey key, HistoricalTransactionsAccumulator from, DataOutputPlus out, int userVersion) throws IOException
         {
             out.writeUnsignedVInt32(from.get().size());
-            for (Deps d : from.get())
-                deps.serialize(d, out, messagingVersion);
+            for (Pair<Range, Deps> d : from.get())
+            {
+                TokenRange.serializer.serialize((TokenRange) d.left, out, messagingVersion);
+                deps.serialize(d.right, out, messagingVersion);
+            }
         }
 
         @Override
@@ -382,7 +388,10 @@ public class AccordJournalValueSerializers
         {
             int count = in.readUnsignedVInt32();
             for (int i = 0; i < count; i++)
-                into.update(deps.deserialize(in, messagingVersion));
+            {
+                Range range = TokenRange.serializer.deserialize(in, messagingVersion);
+                into.update(Pair.create(range, deps.deserialize(in, messagingVersion)));
+            }
         }
     }
 }

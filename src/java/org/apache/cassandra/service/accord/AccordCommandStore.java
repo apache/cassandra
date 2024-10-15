@@ -28,6 +28,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntFunction;
@@ -38,6 +39,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.api.Agent;
+import accord.api.ConfigurationService;
 import accord.api.DataStore;
 import accord.api.LocalListeners;
 import accord.api.ProgressLog;
@@ -49,6 +51,7 @@ import accord.local.CommandStore;
 import accord.local.CommandStores;
 import accord.local.Commands;
 import accord.local.KeyHistory;
+import accord.local.Node;
 import accord.local.NodeCommandStoreService;
 import accord.local.PreLoadContext;
 import accord.local.RedundantBefore;
@@ -57,6 +60,7 @@ import accord.local.SafeCommandStore;
 import accord.local.cfk.CommandsForKey;
 import accord.primitives.Deps;
 import accord.primitives.Participants;
+import accord.primitives.Range;
 import accord.primitives.Ranges;
 import accord.primitives.Routable;
 import accord.primitives.RoutableKey;
@@ -66,6 +70,8 @@ import accord.primitives.TxnId;
 import accord.utils.Invariants;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
+import accord.utils.async.AsyncResult;
+import accord.utils.async.AsyncResults;
 import org.apache.cassandra.cache.CacheSize;
 import org.apache.cassandra.concurrent.SequentialExecutorPlus;
 import org.apache.cassandra.config.CassandraRelevantProperties;
@@ -76,10 +82,13 @@ import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.service.accord.async.AsyncOperation;
 import org.apache.cassandra.service.accord.events.CacheEvents;
 import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Promise;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
+import static accord.api.ConfigurationService.EpochReady.DONE;
+import static accord.local.KeyHistory.COMMANDS;
 import static accord.primitives.Status.Committed;
 import static accord.primitives.Status.Invalidated;
 import static accord.primitives.Status.Truncated;
@@ -488,7 +497,41 @@ public class AccordCommandStore extends CommandStore
     {
     }
 
-    public void registerHistoricalTransactions(Deps deps, SafeCommandStore safeStore)
+    protected ConfigurationService.EpochReady syncInternal(Node node, Ranges ranges, long epoch, boolean isLoad)
+    {
+        if (!isLoad)
+            return super.syncInternal(node, ranges, epoch, false);
+
+        List<Pair<Range, Deps>> loaded = journal.loadHistoricalTransactions(epoch, id);
+        // synchronously load and register historical, so we don't have unlimited numbers of epochs in flight
+        for (Pair<Range, Deps> pair : loaded)
+        {
+            cancelFetch(pair.left, epoch);
+            try
+            {
+                logger.info("Restoring sync'd deps for {} at epoch {}", pair.left, epoch);
+                AsyncChains.getBlocking(submit(PreLoadContext.contextFor(null, pair.right.keyDeps.keys(), COMMANDS), safeStore -> {
+                    registerHistoricalTransactions(pair.left, pair.right, safeStore);
+                    return null;
+                }).beginAsResult(), 5L, TimeUnit.MINUTES);
+            }
+            catch (InterruptedException | TimeoutException | ExecutionException e)
+            {
+                throw new RuntimeException(e);
+            }
+            ranges = ranges.without(Ranges.of(pair.left));
+        }
+
+        if (ranges.isEmpty())
+        {
+            AsyncResult<Void> done = AsyncResults.success(null);
+            return new ConfigurationService.EpochReady(epoch, DONE, done, done, done);
+        }
+
+        return super.syncInternal(node, ranges, epoch, false);
+    }
+
+    public void registerHistoricalTransactions(Range range, Deps deps, SafeCommandStore safeStore)
     {
         if (deps.isEmpty()) return;
 
@@ -509,19 +552,19 @@ public class AccordCommandStore extends CommandStore
         });
         for (int i = 0; i < deps.rangeDeps.rangeCount(); i++)
         {
-            var range = deps.rangeDeps.range(i);
-            if (!allRanges.intersects(range))
+            var r = deps.rangeDeps.range(i);
+            if (!allRanges.intersects(r))
                 continue;
-            deps.rangeDeps.forEach(range, txnId -> {
+            deps.rangeDeps.forEach(r, txnId -> {
                 // TODO (desired, efficiency): this can be made more efficient by batching by epoch
-                if (ranges.coordinates(txnId).intersects(range))
+                if (ranges.coordinates(txnId).intersects(r))
                     return; // already coordinates, no need to replicate
-                if (!ranges.allBefore(txnId.epoch()).intersects(range))
+                if (!ranges.allBefore(txnId.epoch()).intersects(r))
                     return;
 
                 // TODO (required): this is potentially not safe - it should not be persisted until we save in journal
                 //   but, preferable to retire historical transactions as a concept entirely, and rely on ExclusiveSyncPoints instead
-                diskCommandsForRanges().mergeHistoricalTransaction(txnId, Ranges.single(range).slice(allRanges), Ranges::with);
+                diskCommandsForRanges().mergeHistoricalTransaction(txnId, Ranges.single(r).slice(allRanges), Ranges::with);
             });
         }
     }
@@ -586,7 +629,7 @@ public class AccordCommandStore extends CommandStore
                 TxnId txnId = command.txnId();
 
                 AsyncPromise<?> future = new AsyncPromise<>();
-                execute(context(command, KeyHistory.COMMANDS),
+                execute(context(command, COMMANDS),
                         safeStore -> {
                             Command local = command;
                             if (local.status() != Truncated && local.status() != Invalidated)
@@ -666,18 +709,6 @@ public class AccordCommandStore extends CommandStore
     {
         if (rangesForEpoch != null)
             unsafeSetRangesForEpoch(new CommandStores.RangesForEpoch(rangesForEpoch.epochs, rangesForEpoch.ranges, this));
-    }
-
-    void loadHistoricalTransactions(List<Deps> deps)
-    {
-        if (deps != null)
-        {
-            execute(PreLoadContext.empty(),
-                    safeStore -> {
-                        for (Deps dep : deps)
-                            registerHistoricalTransactions(dep, safeStore);
-                    });
-        }
     }
 
     public static class CommandStoreExecutor implements CacheSize

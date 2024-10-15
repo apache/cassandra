@@ -675,7 +675,7 @@ public class EpochSyncTest
                 config.registerListener(new ConfigurationService.Listener()
                 {
                     @Override
-                    public AsyncResult<Void> onTopologyUpdate(Topology topology, boolean startSync)
+                    public AsyncResult<Void> onTopologyUpdate(Topology topology, boolean isLoad, boolean startSync)
                     {
 //                        EpochReady ready = EpochReady.done(topology.epoch());
                         AsyncResult<Void> metadata = schedule(rs.nextInt(1, 10), TimeUnit.SECONDS, (Callable<Void>) () -> null).beginAsResult();

@@ -463,7 +463,7 @@ public class AccordService implements IAccordService, Shutdownable
                     ? tcmLoadRange(optMaxEpoch.getAsLong(), Long.MAX_VALUE)
                     : discoverHistoric(node, cms);
             for (ClusterMetadata m : historic)
-                configService.reportMetadataInternal(m);
+                configService.reportMetadataInternal(m, true);
         }));
         ClusterMetadata current = cms.metadata();
         if (!ref.historic.isEmpty())

@@ -17,6 +17,11 @@
  */
 package org.apache.cassandra.service.accord;
 
+import java.util.concurrent.TimeUnit;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import accord.coordinate.Timeout;
 import accord.impl.RequestCallbacks;
 import accord.local.Node;
@@ -27,12 +32,17 @@ import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.utils.NoSpamLogger;
+import org.apache.cassandra.utils.NoSpamLogger.NoSpamLogStatement;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 
 class AccordResponseVerbHandler<T extends Reply> implements IVerbHandler<T>
 {
+    private static final Logger logger = LoggerFactory.getLogger(AccordResponseVerbHandler.class);
+    private static final NoSpamLogStatement dropping = NoSpamLogger.getStatement(logger, "Dropping response {} from {}", 1L, TimeUnit.SECONDS);
+
     private final RequestCallbacks callbacks;
     private final AccordEndpointMapper endpointMapper;
 
@@ -45,6 +55,12 @@ class AccordResponseVerbHandler<T extends Reply> implements IVerbHandler<T>
     @Override
     public void doVerb(Message message)
     {
+        if (!((AccordService)AccordService.instance()).shouldAcceptMessages())
+        {
+            dropping.debug(message.verb(), message.from());
+            return;
+        }
+
         Node.Id from = endpointMapper.mappedId(message.from());
         if (message.isFailureResponse())
         {

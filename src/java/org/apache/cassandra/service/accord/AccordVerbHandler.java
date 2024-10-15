@@ -18,6 +18,7 @@
 package org.apache.cassandra.service.accord;
 
 import java.io.IOException;
+import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,10 +27,12 @@ import accord.local.Node;
 import accord.messages.Request;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.utils.NoSpamLogger;
 
 public class AccordVerbHandler<T extends Request> implements IVerbHandler<T>
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordVerbHandler.class);
+    private static final NoSpamLogger.NoSpamLogStatement dropping = NoSpamLogger.getStatement(logger, "Dropping message {} from {}", 1L, TimeUnit.SECONDS);
 
     private final Node node;
     private final AccordEndpointMapper endpointMapper;
@@ -45,7 +48,7 @@ public class AccordVerbHandler<T extends Request> implements IVerbHandler<T>
     {
         if (!((AccordService)AccordService.instance()).shouldAcceptMessages())
         {
-            logger.debug("Dropping message {} from {}", message.verb(), message.from());
+            dropping.debug(message.verb(), message.from());
             return;
         }
 

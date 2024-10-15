@@ -143,22 +143,6 @@ public class AccordCommandStores extends CommandStores implements CacheSize
             executor.execute(() -> executor.setCapacity(perExecutor));
     }
 
-    @Override
-    public synchronized Supplier<EpochReady> updateTopology(Node node, Topology newTopology, boolean startSync)
-    {
-        Supplier<EpochReady> start = super.updateTopology(node, newTopology, startSync);
-        return () -> {
-            EpochReady ready = start.get();
-            ready.metadata.addCallback(() -> {
-                synchronized (this)
-                {
-                    refreshCacheSizes();
-                }
-            });
-            return ready;
-        };
-    }
-
     public void waitForQuiescense()
     {
         boolean hadPending;
