@@ -18,16 +18,37 @@
 
 package org.apache.cassandra.locator;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Predicate;
+
+import javax.annotation.Nullable;
+
 import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.HashMultimap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
+import com.google.common.collect.Sets;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
@@ -44,23 +65,8 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.reads.AlwaysSpeculativeRetryPolicy;
 import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
-
 import org.apache.cassandra.utils.FBUtilities;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ThreadLocalRandom;
-import java.util.function.Consumer;
-import java.util.function.Function;
-import java.util.function.Predicate;
-
-import javax.annotation.Nullable;
 
 import static com.google.common.collect.Iterables.any;
 import static com.google.common.collect.Iterables.filter;
@@ -78,6 +84,16 @@ public class ReplicaPlans
     private static final Logger logger = LoggerFactory.getLogger(ReplicaPlans.class);
 
     private static final Range<Token> FULL_TOKEN_RANGE = new Range<>(DatabaseDescriptor.getPartitioner().getMinimumToken(), DatabaseDescriptor.getPartitioner().getMinimumToken());
+
+    private static final int REQUIRED_BATCHLOG_REPLICA_COUNT
+            = Math.max(1, Math.min(2, CassandraRelevantProperties.REQUIRED_BATCHLOG_REPLICA_COUNT.getInt()));
+
+    static
+    {
+        int batchlogReplicaCount = CassandraRelevantProperties.REQUIRED_BATCHLOG_REPLICA_COUNT.getInt();
+        if (batchlogReplicaCount < 1 || 2 < batchlogReplicaCount)
+            logger.warn("System property {} was set to {} but must be 1 or 2. Running with {}", CassandraRelevantProperties.REQUIRED_BATCHLOG_REPLICA_COUNT.getKey(), batchlogReplicaCount, REQUIRED_BATCHLOG_REPLICA_COUNT);
+    }
 
     public static boolean isSufficientLiveReplicasForRead(AbstractReplicationStrategy replicationStrategy, ConsistencyLevel consistencyLevel, Endpoints<?> liveReplicas)
     {
@@ -233,10 +249,22 @@ public class ReplicaPlans
         //  - replicas should be in the local datacenter
         //  - choose min(2, number of qualifying candiates above)
         //  - allow the local node to be the only replica only if it's a single-node DC
-        Collection<InetAddressAndPort> chosenEndpoints = filterBatchlogEndpoints(snitch.getLocalRack(), localEndpoints);
+        Collection<InetAddressAndPort> chosenEndpoints = filterBatchlogEndpoints(false, snitch.getLocalRack(), localEndpoints);
 
-        if (chosenEndpoints.isEmpty() && isAny)
-            chosenEndpoints = Collections.singleton(FBUtilities.getBroadcastAddressAndPort());
+        // Batchlog is hosted by either one node or two nodes from different racks.
+        ConsistencyLevel consistencyLevel = chosenEndpoints.size() == 1 ? ConsistencyLevel.ONE : ConsistencyLevel.TWO;
+
+        if (chosenEndpoints.isEmpty())
+        {
+            if (isAny)
+                chosenEndpoints = Collections.singleton(FBUtilities.getBroadcastAddressAndPort());
+            else
+                // UnavailableException instead of letting the batchlog write unnecessarily timeout
+                throw new UnavailableException("Cannot achieve consistency level " + consistencyLevel
+                        + " for batchlog in local DC, required:" + REQUIRED_BATCHLOG_REPLICA_COUNT
+                        + ", available:" + 0,
+                        consistencyLevel, REQUIRED_BATCHLOG_REPLICA_COUNT, 0);
+        }
 
         Keyspace systemKeypsace = Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME);
         ReplicaLayout.ForTokenWrite liveAndDown = ReplicaLayout.forTokenWrite(
@@ -244,36 +272,34 @@ public class ReplicaPlans
                 SystemReplicas.getSystemReplicas(chosenEndpoints).forToken(token),
                 EndpointsForToken.empty(token)
         );
-        // Batchlog is hosted by either one node or two nodes from different racks.
-        ConsistencyLevel consistencyLevel = liveAndDown.all().size() == 1 ? ConsistencyLevel.ONE : ConsistencyLevel.TWO;
         // assume that we have already been given live endpoints, and skip applying the failure detector
         return forWrite(systemKeypsace, consistencyLevel, liveAndDown, liveAndDown, writeAll);
     }
 
-    private static Collection<InetAddressAndPort> filterBatchlogEndpoints(String localRack,
-                                                                          Multimap<String, InetAddressAndPort> endpoints)
+    @VisibleForTesting
+    public static Collection<InetAddressAndPort> filterBatchlogEndpoints(boolean preferLocalRack, String localRack,
+                                                                         Multimap<String, InetAddressAndPort> endpoints)
     {
-        return filterBatchlogEndpoints(localRack,
-                                       endpoints,
-                                       Collections::shuffle,
-                                       FailureDetector.isEndpointAlive,
-                                       ThreadLocalRandom.current()::nextInt);
+        return DatabaseDescriptor.getBatchlogEndpointStrategy().useDynamicSnitchScores && DatabaseDescriptor.isDynamicEndpointSnitch()
+                ? filterBatchlogEndpointsDynamic(preferLocalRack,localRack, endpoints, FailureDetector.isEndpointAlive)
+                : filterBatchlogEndpointsRandom(preferLocalRack, localRack, endpoints,
+                                                Collections::shuffle,
+                                                FailureDetector.isEndpointAlive,
+                                                ThreadLocalRandom.current()::nextInt);
     }
 
-    // Collect a list of candidates for batchlog hosting. If possible these will be two nodes from different racks.
-    @VisibleForTesting
-    public static Collection<InetAddressAndPort> filterBatchlogEndpoints(String localRack,
-                                                                         Multimap<String, InetAddressAndPort> endpoints,
-                                                                         Consumer<List<?>> shuffle,
-                                                                         Predicate<InetAddressAndPort> isAlive,
-                                                                         Function<Integer, Integer> indexPicker)
+    private static ListMultimap<String, InetAddressAndPort> validate(boolean preferLocalRack, String localRack,
+                                                                     Multimap<String, InetAddressAndPort> endpoints,
+                                                                     Predicate<InetAddressAndPort> isAlive)
     {
+        int endpointCount = endpoints.values().size();
         // special case for single-node data centers
-        if (endpoints.values().size() == 1)
-            return endpoints.values();
+        if (endpointCount <= REQUIRED_BATCHLOG_REPLICA_COUNT)
+            return ArrayListMultimap.create(endpoints);
 
         // strip out dead endpoints and localhost
-        ListMultimap<String, InetAddressAndPort> validated = ArrayListMultimap.create();
+        int rackCount = endpoints.keySet().size();
+        ListMultimap<String, InetAddressAndPort> validated = ArrayListMultimap.create(rackCount, endpointCount / rackCount);
         for (Map.Entry<String, InetAddressAndPort> entry : endpoints.entries())
         {
             InetAddressAndPort addr = entry.getValue();
@@ -281,15 +307,45 @@ public class ReplicaPlans
                 validated.put(entry.getKey(), entry.getValue());
         }
 
-        if (validated.size() <= 2)
-            return validated.values();
+        // return early if no more than 2 nodes:
+        if (validated.size() <= REQUIRED_BATCHLOG_REPLICA_COUNT)
+            return validated;
 
-        if (validated.size() - validated.get(localRack).size() >= 2)
+        // if the local rack is not preferred and there are enough nodes in other racks, remove it:
+        if (!(DatabaseDescriptor.getBatchlogEndpointStrategy().preferLocalRack || preferLocalRack)
+                && validated.size() - validated.get(localRack).size() >= REQUIRED_BATCHLOG_REPLICA_COUNT)
         {
             // we have enough endpoints in other racks
             validated.removeAll(localRack);
         }
 
+        return validated;
+    }
+
+    // Collect a list of candidates for batchlog hosting. If possible these will be two nodes from different racks.
+    // Replicas are picked manually:
+    //  - replicas should be alive according to the failure detector
+    //  - replicas should be in the local datacenter
+    //  - choose min(2, number of qualifying candiates above)
+    //  - allow the local node to be the only replica only if it's a single-node DC
+    @VisibleForTesting
+    public static Collection<InetAddressAndPort> filterBatchlogEndpointsRandom(boolean preferLocalRack, String localRack,
+                                                                               Multimap<String, InetAddressAndPort> endpoints,
+                                                                               Consumer<List<?>> shuffle,
+                                                                               Predicate<InetAddressAndPort> isAlive,
+                                                                               Function<Integer, Integer> indexPicker)
+    {
+        ListMultimap<String, InetAddressAndPort> validated = validate(preferLocalRack, localRack, endpoints, isAlive);
+
+        // return early if no more than 2 nodes:
+        if (validated.size() <= REQUIRED_BATCHLOG_REPLICA_COUNT)
+            return validated.values();
+
+        /*
+         * if we have only 1 `other` rack to select replicas from (whether it be the local rack or a single non-local rack),
+         * pick two random nodes from there and return early;
+         * we are guaranteed to have at least two nodes in the single remaining rack because of the above if block.
+         */
         if (validated.keySet().size() == 1)
         {
             /*
@@ -299,14 +355,21 @@ public class ReplicaPlans
              */
             List<InetAddressAndPort> otherRack = Lists.newArrayList(validated.values());
             shuffle.accept(otherRack);
-            return otherRack.subList(0, 2);
+            return otherRack.subList(0, REQUIRED_BATCHLOG_REPLICA_COUNT);
         }
 
         // randomize which racks we pick from if more than 2 remaining
         Collection<String> racks;
-        if (validated.keySet().size() == 2)
+        if (validated.keySet().size() == REQUIRED_BATCHLOG_REPLICA_COUNT)
         {
             racks = validated.keySet();
+        }
+        else if (preferLocalRack || DatabaseDescriptor.getBatchlogEndpointStrategy().preferLocalRack)
+        {
+            List<String> nonLocalRacks = Lists.newArrayList(Sets.difference(validated.keySet(), ImmutableSet.of(localRack)));
+            racks = new LinkedHashSet<>();
+            racks.add(localRack);
+            racks.add(nonLocalRacks.get(indexPicker.apply(nonLocalRacks.size())));
         }
         else
         {
@@ -314,9 +377,10 @@ public class ReplicaPlans
             shuffle.accept((List<?>) racks);
         }
 
-        // grab a random member of up to two racks
-        List<InetAddressAndPort> result = new ArrayList<>(2);
-        for (String rack : Iterables.limit(racks, 2))
+        // grab two random nodes from two different racks
+
+        List<InetAddressAndPort> result = new ArrayList<>(REQUIRED_BATCHLOG_REPLICA_COUNT);
+        for (String rack : Iterables.limit(racks, REQUIRED_BATCHLOG_REPLICA_COUNT))
         {
             List<InetAddressAndPort> rackMembers = validated.get(rack);
             result.add(rackMembers.get(indexPicker.apply(rackMembers.size())));
@@ -324,6 +388,56 @@ public class ReplicaPlans
 
         return result;
     }
+
+    @VisibleForTesting
+    public static Collection<InetAddressAndPort> filterBatchlogEndpointsDynamic(boolean preferLocalRack, String localRack,
+                                                                                Multimap<String, InetAddressAndPort> endpoints,
+                                                                                Predicate<InetAddressAndPort> isAlive)
+    {
+        ListMultimap<String, InetAddressAndPort> validated = validate(preferLocalRack, localRack, endpoints, isAlive);
+
+        // return early if no more than 2 nodes:
+        if (validated.size() <= REQUIRED_BATCHLOG_REPLICA_COUNT)
+            return validated.values();
+
+        // sort _all_ nodes to pick the best racks
+        List<InetAddressAndPort> sorted = sortByProximity(validated.values());
+
+        List<InetAddressAndPort> result = new ArrayList<>(REQUIRED_BATCHLOG_REPLICA_COUNT);
+        Set<String> racks = new HashSet<>();
+
+        while (result.size() < REQUIRED_BATCHLOG_REPLICA_COUNT)
+        {
+            for (InetAddressAndPort endpoint : sorted)
+            {
+                if (result.size() == REQUIRED_BATCHLOG_REPLICA_COUNT)
+                    break;
+
+                if (racks.isEmpty())
+                    racks.addAll(validated.keySet());
+
+                String rack = DatabaseDescriptor.getEndpointSnitch().getRack(endpoint);
+                if (!racks.remove(rack))
+                    continue;
+                if (result.contains(endpoint))
+                    continue;
+
+                result.add(endpoint);
+            }
+        }
+
+        return result;
+    }
+
+    @VisibleForTesting
+    public static List<InetAddressAndPort> sortByProximity(Collection<InetAddressAndPort> endpoints)
+    {
+        EndpointsForRange endpointsForRange = SystemReplicas.getSystemReplicas(endpoints);
+        return DatabaseDescriptor.getEndpointSnitch()
+                .sortedByProximity(FBUtilities.getBroadcastAddressAndPort(), endpointsForRange)
+                .endpointList();
+    }
+
 
     public static ReplicaPlan.ForWrite forReadRepair(Token token, ReplicaPlan<?, ?> readPlan) throws UnavailableException
     {
