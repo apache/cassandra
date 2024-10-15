@@ -186,7 +186,7 @@ public class AccordService implements IAccordService, Shutdownable
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordService.class);
 
-    private enum State {INIT, STARTED, SHUTDOWN}
+    private enum State {INIT, STARTED, SHUTTING_DOWN, SHUTDOWN}
 
     private static final Future<Void> BOOTSTRAP_SUCCESS = ImmediateFuture.success(null);
 
@@ -399,6 +399,7 @@ public class AccordService implements IAccordService, Shutdownable
     {
         return state == State.STARTED && journal.started();
     }
+
     public static IAccordService instance()
     {
         if (!DatabaseDescriptor.getAccordTransactionsEnabled())
@@ -987,6 +988,7 @@ public class AccordService implements IAccordService, Shutdownable
     {
         if (state != State.STARTED)
             return;
+        state = State.SHUTTING_DOWN;
         shutdownAndWait(1, TimeUnit.MINUTES);
         state = State.SHUTDOWN;
     }
