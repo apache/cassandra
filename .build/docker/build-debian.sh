@@ -15,6 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+[ $DEBUG ] && set -x
 
 if [ "$1" == "-h" ]; then
    echo "$0 [-h] [<java_version>]"

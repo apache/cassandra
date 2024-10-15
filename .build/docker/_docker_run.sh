@@ -116,6 +116,8 @@ random_string="$(LC_ALL=C tr -dc A-Za-z0-9 </dev/urandom | head -c 6 ; echo '')"
 run_script_name=$(echo ${run_script} | sed  's/.sh//' | sed 's/_//')
 container_name="cassandra_${dockerfile/.docker/}_${un_script_name}_jdk${java_version}__${random_string}"
 
+[ $DEBUG ] && docker_envs="${docker_envs} --env DEBUG=1"
+
 # Docker commands:
 #  change ant's build directory to $DIST_DIR
 #  set java to java_version
@@ -128,7 +130,7 @@ docker_command="export ANT_OPTS=\"-Dbuild.dir=\${DIST_DIR} ${CASSANDRA_DOCKER_AN
 # re-use the host's maven repository
 container_id=$(docker run --name ${container_name} -d --security-opt seccomp=unconfined --rm \
     -v "${cassandra_dir}":/home/build/cassandra -v ${m2_dir}:/home/build/.m2/repository/ -v "${build_dir}":/dist \
-    ${docker_volume_opt} \
+    ${docker_envs} ${docker_volume_opt} \
     ${image_name} sleep 1h)
 
 echo "Running container ${container_name} ${container_id} using image ${image_name}"
