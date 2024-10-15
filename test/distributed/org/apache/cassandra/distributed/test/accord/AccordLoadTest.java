@@ -43,6 +43,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.IMessage;
 import org.apache.cassandra.distributed.api.IMessageFilters;
@@ -67,6 +68,7 @@ public class AccordLoadTest extends AccordTestBase
         CassandraRelevantProperties.SIMULATOR_STARTED.setString(Long.toString(MILLISECONDS.toSeconds(currentTimeMillis())));
 //        AccordTestBase.setupCluster(builder -> builder, 3);
         AccordTestBase.setupCluster(builder -> builder.withConfig(config -> config
+                                                                            .with(Feature.NETWORK, Feature.GOSSIP)
                                                                             .set("accord.shard_durability_target_splits", "64")
                                                                             .set("accord.shard_durability_cycle", "5m")
                                                                             .set("accord.ephemeral_read_enabled", "true")
