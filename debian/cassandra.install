@@ -10,6 +10,7 @@ conf/hotspot_compiler etc/cassandra
 conf/cqlshrc.sample etc/cassandra
 conf/credentials.sample etc/cassandra
 conf/triggers/* etc/cassandra/triggers
+conf/cassandra-jaas.config etc/cassandra
 debian/cassandra.conf etc/security/limits.d
 debian/cassandra-sysctl.conf etc/sysctl.d
 bin/cassandra.in.sh usr/share/cassandra
