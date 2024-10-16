@@ -171,7 +171,7 @@ public class TupleTypeTest extends CQLTester
 
         createIndex("CREATE INDEX tuple_index ON %s (t)");
         // select using unset
-        assertInvalidMessage("Invalid unset value for tuple field number 0", "SELECT * FROM %s WHERE k = ? and t = (?,?,?)", unset(), unset(), unset(), unset());
+        assertInvalidMessage("Invalid unset value for tuple field number 0", "SELECT * FROM %s WHERE k = ? and t = (?,?,?)", 42, unset(), unset(), unset());
     }
 
     /**

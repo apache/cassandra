@@ -36,13 +36,7 @@ public enum ConsensusMigrationTarget
 
     public boolean isMigratedBy(ConsensusMigrationRepairType repairType)
     {
-        switch (repairType)
-        {
-            case either: return true;
-            case paxos: return this == accord;
-            case accord: return this == paxos;
-            default: return false;
-        }
+        return this == accord ? repairType.migrationToAccordEligible() : repairType.migrationToPaxosEligible();
     }
 
     public static ConsensusMigrationTarget fromString(String targetProtocol)

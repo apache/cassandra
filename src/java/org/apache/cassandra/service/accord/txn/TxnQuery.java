@@ -22,7 +22,6 @@ import java.io.IOException;
 import javax.annotation.Nullable;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableMap;
 
 import accord.api.Data;
 import accord.api.Query;
@@ -33,9 +32,9 @@ import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import org.apache.cassandra.db.EmptyIterators;
+import org.apache.cassandra.db.PartitionRangeReadCommand;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -46,7 +45,7 @@ import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.ObjectSizes;
 
 import static com.google.common.base.Preconditions.checkNotNull;
-import static org.apache.cassandra.service.accord.txn.TxnRead.CAS_READ;
+import static org.apache.cassandra.service.accord.txn.TxnKeyRead.CAS_READ;
 
 public abstract class TxnQuery implements Query
 {
@@ -115,10 +114,10 @@ public abstract class TxnQuery implements Query
                 return new TxnData();
             else if (txnData.isEmpty())
             {
-                TxnRead txnRead = (TxnRead)read;
-                SinglePartitionReadCommand command = (SinglePartitionReadCommand)txnRead.iterator().next().get();
+                TxnKeyRead txnKeyRead = (TxnKeyRead)read;
+                SinglePartitionReadCommand command = (SinglePartitionReadCommand) txnKeyRead.iterator().next().get();
                 // For CAS must return a non-empty result to indicate error even if there was no partition found
-                return new TxnData(ImmutableMap.of(CAS_READ, FilteredPartition.create(EmptyIterators.row(command.metadata(), command.partitionKey(), command.isReversed()))));
+                return TxnData.of(CAS_READ, new TxnDataKeyValue(EmptyIterators.row(command.metadata(), command.partitionKey(), command.isReversed())));
             }
             else
                 // If it failed to apply the partition contents are returned and it indicates failure
@@ -156,6 +155,29 @@ public abstract class TxnQuery implements Query
         }
     };
 
+    public static final TxnQuery RANGE_QUERY = new TxnQuery()
+    {
+        @Override
+        protected byte type()
+        {
+            return 5;
+        }
+
+        @Override
+        public Result doCompute(TxnId txnId, Timestamp executeAt, Seekables<?, ?> keys, @Nullable Data data, @Nullable Read read, @Nullable Update update)
+        {
+            return data != null ? concat((TxnData) data, read) : new TxnData();
+        }
+
+        private Result concat(TxnData data, Read read)
+        {
+            TxnRangeRead txnRead = (TxnRangeRead)read;
+            PartitionRangeReadCommand command = (PartitionRangeReadCommand) txnRead.get();
+            TxnDataRangeValue value = (TxnDataRangeValue)data.get(TxnRangeRead.RANGE_READ);
+            return new TxnRangeReadResult(value.toPartitionIterator(command.isReversed()));
+        }
+    };
+
     private static final long SIZE = ObjectSizes.measure(ALL);
 
     private TxnQuery() {}
@@ -189,7 +211,7 @@ public abstract class TxnQuery implements Query
         @Override
         public void serialize(TxnQuery query, DataOutputPlus out, int version) throws IOException
         {
-            Preconditions.checkArgument(query == null | query == ALL | query == NONE | query == CONDITION | query == UNSAFE_EMPTY);
+            Preconditions.checkArgument(query == null | query == ALL | query == NONE | query == CONDITION | query == UNSAFE_EMPTY | query == RANGE_QUERY);
             out.writeByte(query == null ? 0 : query.type());
         }
 
@@ -204,31 +226,31 @@ public abstract class TxnQuery implements Query
                 case 2: return NONE;
                 case 3: return CONDITION;
                 case 4: return UNSAFE_EMPTY;
+                case 5: return RANGE_QUERY;
             }
         }
 
         @Override
         public long serializedSize(TxnQuery query, int version)
         {
-            Preconditions.checkArgument(query == null | query == ALL | query == NONE | query == CONDITION | query == UNSAFE_EMPTY);
+            Preconditions.checkArgument(query == null | query == ALL | query == NONE | query == CONDITION | query == UNSAFE_EMPTY | query == RANGE_QUERY);
             return TypeSizes.sizeof((byte)2);
         }
     };
 
     private static boolean transactionIsInMigratingOrMigratedRange(Epoch epoch, Seekables<?, ?> keys)
     {
+        // TODO (required): This is going to be problematic when we presumably support range reads and don't validate them
         // Whatever this transaction might be it isn't one supported for migration anyways
         if (!keys.domain().isKey())
             return false;
 
-        if (keys.size() > 1)
-            // It has to be a transaction statement and we don't support migration with those
-            return false;
-        // Could be a transaction statement, but this check does no additional harm
-        // and transaction statement will generate an error when it sees
-        // the RetryOnNewProtocolResult
-        PartitionKey partitionKey = (PartitionKey)keys.get(0);
-        // TODO (required): This is looking at ClusterMetadata, but not the ClusterMetadata for the specified epoch, just that epoch or later. Need to store ConsensusMigrationState in the global Topologies Accord stores for itself.
-        return ConsensusRequestRouter.instance.isKeyInMigratingOrMigratedRangeFromAccord(epoch, partitionKey.table(), partitionKey.partitionKey());
+        for (PartitionKey partitionKey : (Seekables<PartitionKey, ?>)keys)
+        {
+            // TODO (required): This is looking at ClusterMetadata, but not the ClusterMetadata for the specified epoch, just that epoch or later. Need to store ConsensusMigrationState in the global Topologies Accord stores for itself.
+            if (ConsensusRequestRouter.instance.isKeyInMigratingOrMigratedRangeFromAccord(epoch, partitionKey.table(), partitionKey.partitionKey()))
+                return true;
+        }
+        return false;
     }
 }

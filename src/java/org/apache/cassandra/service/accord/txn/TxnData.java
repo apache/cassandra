@@ -20,69 +20,49 @@ package org.apache.cassandra.service.accord.txn;
 
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
-import java.util.Set;
-
-import com.google.common.collect.Maps;
 
 import accord.api.Data;
 import org.apache.cassandra.db.EmptyIterators;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
-import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.db.filter.ColumnFilter;
-import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.db.partitions.PartitionIterators;
-import org.apache.cassandra.db.rows.DeserializationHelper;
-import org.apache.cassandra.db.rows.Row;
-import org.apache.cassandra.db.rows.UnfilteredRowIterator;
-import org.apache.cassandra.db.rows.UnfilteredRowIteratorSerializer;
-import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.utils.CollectionSerializers;
 import org.apache.cassandra.utils.NullableSerializer;
 import org.apache.cassandra.utils.ObjectSizes;
 
+import static accord.utils.Invariants.checkArgument;
 import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.txn_data;
 
-public class TxnData extends TxnResult implements Data, Iterable<FilteredPartition>
+/**
+ * Fairly generic holder for result values for Accord txns as well as data exchange during Accord txn execution
+ * when read results are returned to the coordinator to compute query results and writes.
+ */
+public class TxnData extends HashMap<TxnDataName, TxnDataValue> implements TxnResult, Data
 {
     private static final long EMPTY_SIZE = ObjectSizes.measure(new TxnData());
 
-    private final Map<TxnDataName, FilteredPartition> data;
+    public TxnData() {}
 
-    public TxnData(Map<TxnDataName, FilteredPartition> data)
+    private TxnData(int size)
     {
-        this.data = data;
+        super(size);
     }
 
-    public TxnData()
+    public static TxnData of(TxnDataName key, TxnDataValue value)
     {
-        this(new HashMap<>());
+        TxnData result = newWithExpectedSize(1);
+        result.put(key, value);
+        return result;
     }
 
-    public void put(TxnDataName name, FilteredPartition partition)
+    public static TxnData newWithExpectedSize(int size)
     {
-        data.put(name, partition);
-    }
-
-    public FilteredPartition get(TxnDataName name)
-    {
-        return data.get(name);
-    }
-
-    public Set<Map.Entry<TxnDataName, FilteredPartition>> entrySet()
-    {
-        return data.entrySet();
-    }
-
-    public boolean isEmpty()
-    {
-        return data.isEmpty();
+        checkArgument(size >= 0, "size can't be negative");
+        size = Math.max(4, size);
+        return new TxnData(size < 1073741824 ? (int)((float)size / 0.75F + 1.0F) : Integer.MAX_VALUE);
     }
 
     @Override
@@ -90,8 +70,9 @@ public class TxnData extends TxnResult implements Data, Iterable<FilteredPartiti
     {
         TxnData that = (TxnData) data;
         TxnData merged = new TxnData();
-        this.data.forEach(merged::put);
-        that.data.forEach(merged::put);
+        this.forEach(merged::put);
+        for (Map.Entry<TxnDataName, TxnDataValue> e : that.entrySet())
+            merged.merge(e.getKey(), e.getValue(), TxnDataValue::merge);
         return merged;
     }
 
@@ -105,78 +86,13 @@ public class TxnData extends TxnResult implements Data, Iterable<FilteredPartiti
         return left.merge(right);
     }
 
-    @Override
-    public long estimatedSizeOnHeap()
-    {
-        long size = EMPTY_SIZE;
-        for (Map.Entry<TxnDataName, FilteredPartition> entry : data.entrySet())
-        {
-            size += entry.getKey().estimatedSizeOnHeap();
-            
-            for (Row row : entry.getValue())
-                size += row.unsharedHeapSize();
-            
-            // TODO: Include the other parts of FilteredPartition after we rebase to pull in BTreePartitionData?
-        }
-        return size;
-    }
-
-    @Override
-    public Iterator<FilteredPartition> iterator()
-    {
-        return data.values().iterator();
-    }
-
-    @Override
-    public boolean equals(Object o)
-    {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        TxnData that = (TxnData) o;
-        return data.equals(that.data);
-    }
-
     public static TxnData emptyPartition(TxnDataName name, SinglePartitionReadCommand command)
     {
         TxnData result = new TxnData();
-        FilteredPartition empty = FilteredPartition.create(PartitionIterators.getOnlyElement(EmptyIterators.partition(), command));
+        TxnDataKeyValue empty = new TxnDataKeyValue(PartitionIterators.getOnlyElement(EmptyIterators.partition(), command));
         result.put(name, empty);
         return result;
     }
-
-    private static final IVersionedSerializer<FilteredPartition> partitionSerializer = new IVersionedSerializer<FilteredPartition>()
-    {
-        @Override
-        public void serialize(FilteredPartition partition, DataOutputPlus out, int version) throws IOException
-        {
-            partition.metadata().id.serialize(out);
-            try (UnfilteredRowIterator iterator = partition.unfilteredIterator())
-            {
-                UnfilteredRowIteratorSerializer.serializer.serialize(iterator, ColumnFilter.all(partition.metadata()), out, version, partition.rowCount());
-            }
-        }
-
-        @Override
-        public FilteredPartition deserialize(DataInputPlus in, int version) throws IOException
-        {
-            TableMetadata metadata = Schema.instance.getExistingTableMetadata(TableId.deserialize(in));
-            try (UnfilteredRowIterator partition = UnfilteredRowIteratorSerializer.serializer.deserialize(in, version, metadata, ColumnFilter.all(metadata), DeserializationHelper.Flag.FROM_REMOTE))
-            {
-                return new FilteredPartition(UnfilteredRowIterators.filter(partition, 0));
-            }
-        }
-
-        @Override
-        public long serializedSize(FilteredPartition partition, int version)
-        {
-            TableId tableId = partition.metadata().id;
-            long size = tableId.serializedSize();
-            try (UnfilteredRowIterator iterator = partition.unfilteredIterator())
-            {
-                return size + UnfilteredRowIteratorSerializer.serializer.serializedSize(iterator, ColumnFilter.all(partition.metadata()), version, partition.rowCount());
-            }
-        }
-    };
 
     @Override
     public Kind kind()
@@ -184,43 +100,24 @@ public class TxnData extends TxnResult implements Data, Iterable<FilteredPartiti
         return txn_data;
     }
 
-    public static final TxnResultSerializer<TxnData> serializer = new TxnResultSerializer<TxnData>()
+    public static final IVersionedSerializer<TxnData> serializer = new IVersionedSerializer<TxnData>()
     {
         @Override
         public void serialize(TxnData data, DataOutputPlus out, int version) throws IOException
         {
-            out.writeUnsignedVInt32(data.data.size());
-            for (Map.Entry<TxnDataName, FilteredPartition> entry : data.data.entrySet())
-            {
-                TxnDataName.serializer.serialize(entry.getKey(), out, version);
-                partitionSerializer.serialize(entry.getValue(), out, version);
-            }
+            CollectionSerializers.serializeMap(data, out, version, TxnDataName.serializer, TxnDataValue.serializer);
         }
 
         @Override
         public TxnData deserialize(DataInputPlus in, int version) throws IOException
         {
-            int size = in.readUnsignedVInt32();
-            Map<TxnDataName, FilteredPartition> data = Maps.newHashMapWithExpectedSize(size);
-            for (int i=0; i<size; i++)
-            {
-                TxnDataName name = TxnDataName.serializer.deserialize(in, version);
-                FilteredPartition partition = partitionSerializer.deserialize(in, version);
-                data.put(name, partition);
-            }
-            return new TxnData(data);
+            return CollectionSerializers.deserializeMap(in, version, TxnDataName.serializer, TxnDataValue.serializer, TxnData::newWithExpectedSize);
         }
 
         @Override
         public long serializedSize(TxnData data, int version)
         {
-            long size = TypeSizes.sizeofUnsignedVInt(data.data.size());
-            for (Map.Entry<TxnDataName, FilteredPartition> entry : data.data.entrySet())
-            {
-                size += TxnDataName.serializer.serializedSize(entry.getKey(), version);
-                size += partitionSerializer.serializedSize(entry.getValue(), version);
-            }
-            return size;
+            return CollectionSerializers.serializedMapSize(data, version, TxnDataName.serializer, TxnDataValue.serializer);
         }
     };
 

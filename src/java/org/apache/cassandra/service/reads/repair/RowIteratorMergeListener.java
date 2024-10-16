@@ -52,6 +52,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.service.reads.repair.ReadRepair.ReadRepairSource;
 
 public class RowIteratorMergeListener<E extends Endpoints<E>>
         implements UnfilteredRowIterators.MergeListener
@@ -397,6 +398,6 @@ public class RowIteratorMergeListener<E extends Endpoints<E>>
             mutations.put(replica, mutation);
         }
 
-        readRepair.repairPartition(partitionKey, mutations, repairPlan);
+        readRepair.repairPartition(partitionKey, mutations, repairPlan, ReadRepairSource.OTHER);
     }
 }

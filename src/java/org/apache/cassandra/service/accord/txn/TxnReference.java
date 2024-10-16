@@ -135,9 +135,9 @@ public class TxnReference
         return row.clustering().bufferAt(column.position());
     }
 
-    public FilteredPartition getPartition(TxnData data)
+    public TxnDataKeyValue getPartition(TxnData data)
     {
-        return data.get(tuple);
+        return (TxnDataKeyValue)data.get(tuple);
     }
     
     public Row getRow(TxnData data)

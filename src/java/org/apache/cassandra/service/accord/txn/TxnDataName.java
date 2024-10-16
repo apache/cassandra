@@ -44,6 +44,15 @@ import static org.apache.cassandra.utils.NullableSerializer.deserializeNullable;
 import static org.apache.cassandra.utils.NullableSerializer.serializeNullable;
 import static org.apache.cassandra.utils.NullableSerializer.serializedNullableSize;
 
+/**
+ * Key used in TxnData's map to describe a result value from an Accord transaction as well as the intermediate data
+ * exchange during Accord txn execution when nodes are reading data and then passing it to the coordinator to compute
+ * txn result and writes to be applied.
+ *
+ * This doesn't have a consistent usage pattern with different kinds of transactions populating parts in different ways,
+ * and many not including a clustering. Some uses cases are things like transaction statements, CAS update,
+ * serial and non-serial key reads, and non-serial range reads.
+ */
 public class TxnDataName implements Comparable<TxnDataName>
 {
     private static final TxnDataName RETURNING = new TxnDataName(Kind.RETURNING);
@@ -142,6 +151,11 @@ public class TxnDataName implements Comparable<TxnDataName>
     public List<String> getParts()
     {
         return Collections.unmodifiableList(Arrays.asList(parts));
+    }
+
+    public String part(int index)
+    {
+        return parts[index];
     }
 
     public DecoratedKey getDecoratedKey(TableMetadata metadata)

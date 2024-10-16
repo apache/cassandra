@@ -30,6 +30,24 @@ public class ReadRepairMetrics
     private static final MetricNameFactory factory = new DefaultNameFactory(TYPE_NAME);
 
     public static final Meter repairedBlocking = Metrics.meter(factory.createMetricName("RepairedBlocking"));
+
+    /**
+     * Non-transactional read did a blocking read repair via an Accord transaction. This is expected/normal if non-transactional
+     * reads are interoperating with Accord.
+     */
+    public static final Meter repairedBlockingViaAccord = Metrics.meter(factory.createMetricName("RepairedBlockingViaAccord"));
+
+    /**
+     * This should be zero if you are trying to run Accord in a 100% correct way and interoperating with non-transactional writes.
+     *
+     * An Accord transaction read at QUORUM and ended up having to do BRR to make something it read monotonic. While it
+     * will be monotonic this is not 100% deterministic for transaction recovery because different Accord coordinators could
+     * read different things when computing a transaction's writes.
+     *
+     * If Accord is operating in TransactionalMode.full and the range is migrated then this metric will be zero just
+     * because Accord is reading at ONE not QUORUM and there are should be no non-transactional writes anywyas.
+     */
+    public static final Meter repairedBlockingFromAccord = Metrics.meter(factory.createMetricName("RepairedBlockingFromAccord"));
     public static final Meter reconcileRead = Metrics.meter(factory.createMetricName("ReconcileRead"));
 
     /** @deprecated See CASSANDRA-13910 */

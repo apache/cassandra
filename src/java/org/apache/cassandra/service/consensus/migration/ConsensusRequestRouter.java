@@ -26,7 +26,7 @@ import com.google.common.annotations.VisibleForTesting;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.ReplicaLayout;
@@ -115,9 +115,8 @@ public class ConsensusRequestRouter
         return tbm;
     }
 
-    public ConsensusRoutingDecision routeAndMaybeMigrate(@Nonnull DecoratedKey key, @Nonnull String keyspace, @Nonnull String table, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime, long timeoutNanos, boolean isForWrite)
+    public ConsensusRoutingDecision routeAndMaybeMigrate(@Nonnull ClusterMetadata cm, @Nonnull DecoratedKey key, @Nonnull String keyspace, @Nonnull String table, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime, long timeoutNanos, boolean isForWrite)
     {
-        ClusterMetadata cm = ClusterMetadata.current();
         TableMetadata metadata = metadata(cm, keyspace, table);
 
         // Non-distributed tables always take the Paxos path
@@ -126,9 +125,8 @@ public class ConsensusRequestRouter
         return routeAndMaybeMigrate(cm, metadata, key, consistencyLevel, requestTime, timeoutNanos, isForWrite);
     }
 
-    public ConsensusRoutingDecision routeAndMaybeMigrate(@Nonnull DecoratedKey key, @Nonnull TableId tableId, ConsistencyLevel consistencyLevel,  Dispatcher.RequestTime requestTime, long timeoutNanos, boolean isForWrite)
+    public ConsensusRoutingDecision routeAndMaybeMigrate(@Nonnull ClusterMetadata cm, @Nonnull DecoratedKey key, @Nonnull TableId tableId, ConsistencyLevel consistencyLevel,  Dispatcher.RequestTime requestTime, long timeoutNanos, boolean isForWrite)
     {
-        ClusterMetadata cm = ClusterMetadata.current();
         TableMetadata metadata = getTableMetadata(cm, tableId);
         // Non-distributed tables always take the Paxos path
         if (metadata == null)
@@ -152,35 +150,6 @@ public class ConsensusRequestRouter
         return tm;
     }
 
-    protected static boolean mayWriteThroughAccord(TableMetadata metadata)
-    {
-        return metadata.params.transactionalMode.writesThroughAccord || metadata.params.transactionalMigrationFrom.writesThroughAccord();
-    }
-
-    public boolean shouldWriteThroughAccordAndMaybeMigrate(@Nonnull DecoratedKey key, @Nonnull TableId tableId, ConsistencyLevel consistencyLevel,  Dispatcher.RequestTime requestTime, long timeoutNanos, boolean isForWrite)
-    {
-        ClusterMetadata cm = ClusterMetadata.current();
-        TableMetadata metadata = cm.schema.getTableMetadata(tableId);
-        if (metadata == null)
-            throw new IllegalStateException(String.format("Can't route consensus request for nonexistent table %s", tableId));
-
-        if (!mayWriteThroughAccord(metadata))
-            return false;
-
-        consistencyLevel = consistencyLevel.isDatacenterLocal() ? ConsistencyLevel.LOCAL_SERIAL : ConsistencyLevel.SERIAL;
-        ConsensusRoutingDecision decision = routeAndMaybeMigrate(cm, metadata, key, consistencyLevel, requestTime, timeoutNanos, isForWrite);
-        switch (decision)
-        {
-            case paxosV1:
-            case paxosV2:
-                return false;
-            case accord:
-                return true;
-            default:
-                throw new IllegalStateException("Unsupported consensus " + decision);
-        }
-    }
-
     protected ConsensusRoutingDecision routeAndMaybeMigrate(ClusterMetadata cm, @Nonnull TableMetadata tmd, @Nonnull DecoratedKey key, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime, long timeoutNanos, boolean isForWrite)
     {
 
@@ -191,10 +160,11 @@ public class ConsensusRequestRouter
         if (tms == null)
             return decisionFor(tmd.params.transactionalMigrationFrom.from);
 
-        if (Range.isInNormalizedRanges(key.getToken(), tms.migratedRanges))
+        Token token = key.getToken();
+        if (tms.migratedRanges.intersects(token))
             return pickMigrated(tms.targetProtocol);
 
-        if (Range.isInNormalizedRanges(key.getToken(), tms.migratingRanges))
+        if (tms.migratingRanges.intersects(token))
             return pickBasedOnKeyMigrationStatus(cm, tmd, tms, key, consistencyLevel, requestTime, timeoutNanos, isForWrite);
 
         // It's not migrated so infer the protocol from the target
@@ -212,8 +182,16 @@ public class ConsensusRequestRouter
         ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(tmd.id);
         if (cfs == null)
             throw new InvalidRequestException("Can't route consensus request to nonexistent CFS %s.%s".format(tmd.keyspace, tmd.name));
+
+        // Migration to accord has two phases for each range, in the first phase we can't do key migration because Accord
+        // can't safely read until the range has had its data repaired so Paxos continues to be used for all reads
+        // and writes
+        Token token = key.getToken();
+        if (tms.targetProtocol == ConsensusMigrationTarget.accord && tms.repairPendingRanges.intersects(token))
+            return pickPaxos();
+
         // If it is locally replicated we can check our local migration state to see if it was already migrated
-        EndpointsForToken naturalReplicas = ReplicaLayout.forNonLocalStrategyTokenRead(cm, cfs.keyspace.getMetadata(), key.getToken());
+        EndpointsForToken naturalReplicas = ReplicaLayout.forNonLocalStrategyTokenRead(cm, cfs.keyspace.getMetadata(), token);
         boolean isLocallyReplicated = naturalReplicas.lookup(FBUtilities.getBroadcastAddressAndPort()) != null;
         if (isLocallyReplicated)
         {
@@ -232,7 +210,7 @@ public class ConsensusRequestRouter
                 // barrier transactions to accomplish the migration
                 // They still might need to go through the fast local path for barrier txns
                 // at each replica, but they won't create their own txn since we created it here
-                ConsensusKeyMigrationState.repairKeyAccord(key, tms.tableId, tms.minMigrationEpoch(key.getToken()).getEpoch(), requestTime, true, isForWrite);
+                ConsensusKeyMigrationState.repairKeyAccord(key, tms.tableId, tms.minMigrationEpoch(token).getEpoch(), requestTime, true, isForWrite);
                 return paxosV2;
             }
             // Fall through for repairKeyPaxos
@@ -264,7 +242,7 @@ public class ConsensusRequestRouter
 
     /*
      * A lightweight check against cluster metadata that doesn't check if the key has already been migrated
-     * using local system table state
+     * using local system table state.
      */
     public boolean isKeyInMigratingOrMigratedRangeFromPaxos(TableId tableId, DecoratedKey key)
     {
@@ -273,12 +251,18 @@ public class ConsensusRequestRouter
         if (tms == null)
             return false;
 
+        // We assume that key migration was already performed and it's safe to execute this on Paxos
         if (tms.targetProtocol == ConsensusMigrationTarget.paxos)
             return false;
 
+        Token token = key.getToken();
+        // Migration from Paxos to Accord has two phases and in the first phase we continue to run Paxos
+        // until the data has been repaired for the range so that Accord can safely read it after Paxos key migration
+        if (tms.repairPendingRanges.intersects(token))
+            return false;
         // The coordinator will need to retry either on Accord if they are trying
         // to propose their own value, or by setting the consensus migration epoch to recover an incomplete transaction
-        if (Range.isInNormalizedRanges(key.getToken(), tms.migratingAndMigratedRanges))
+        if (tms.migratingAndMigratedRanges.intersects(token))
             return true;
 
         return false;
@@ -288,7 +272,7 @@ public class ConsensusRequestRouter
     {
         ClusterMetadata cm = ClusterMetadataService.instance().fetchLogFromCMS(epoch);
         TableMigrationState tms = cm.consensusMigrationState.tableStates.get(tableId);
-        return isKeyInMigratingOrMigratedRangeFromAccord(cm.schema.getTableMetadata(tableId), tms, key);
+        return isKeyInMigratingOrMigratedRangeFromAccord(getTableMetadata(cm, tableId), tms, key);
     }
 
     /*
@@ -307,7 +291,7 @@ public class ConsensusRequestRouter
         if (tms.targetProtocol == ConsensusMigrationTarget.accord)
             return false;
 
-        if (Range.isInNormalizedRanges(key.getToken(), tms.migratingAndMigratedRanges))
+        if (tms.migratingAndMigratedRanges.intersects(key.getToken()))
             return true;
 
         return false;

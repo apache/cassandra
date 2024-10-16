@@ -60,7 +60,6 @@ import org.apache.cassandra.cql3.transactions.SelectReferenceSource;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.SinglePartitionReadQuery;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.ClientState;
@@ -70,16 +69,17 @@ import org.apache.cassandra.service.accord.api.AccordRoutableKey;
 import org.apache.cassandra.service.accord.txn.AccordUpdate;
 import org.apache.cassandra.service.accord.txn.TxnCondition;
 import org.apache.cassandra.service.accord.txn.TxnData;
+import org.apache.cassandra.service.accord.txn.TxnDataKeyValue;
 import org.apache.cassandra.service.accord.txn.TxnDataName;
+import org.apache.cassandra.service.accord.txn.TxnKeyRead;
 import org.apache.cassandra.service.accord.txn.TxnNamedRead;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
-import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.service.accord.txn.TxnReference;
 import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.service.accord.txn.TxnUpdate;
 import org.apache.cassandra.service.accord.txn.TxnWrite;
-import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.service.consensus.TransactionalMode;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -89,7 +89,7 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNull;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
-import static org.apache.cassandra.service.accord.txn.TxnRead.createTxnRead;
+import static org.apache.cassandra.service.accord.txn.TxnKeyRead.createTxnRead;
 import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.retry_new_protocol;
 
 public class TransactionStatement implements CQLStatement.CompositeCQLStatement, CQLStatement.ReturningCQLStatement
@@ -97,6 +97,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
     private static final Logger logger = LoggerFactory.getLogger(TransactionStatement.class);
 
     public static final String DUPLICATE_TUPLE_NAME_MESSAGE = "The name '%s' has already been used by a LET assignment.";
+    public static final String INCOMPLETE_PARTITION_KEY_SELECT_MESSAGE = "SELECT must specify either all partition key elements. Partition key elements must be always specified with equality operators; %s %s";
     public static final String INCOMPLETE_PRIMARY_KEY_SELECT_MESSAGE = "SELECT must specify either all primary key elements or all partition key elements and LIMIT 1. In both cases partition key elements must be always specified with equality operators; %s %s";
     public static final String NO_CONDITIONS_IN_UPDATES_MESSAGE = "Updates within transactions may not specify their own conditions; %s statement %s";
     public static final String NO_TIMESTAMPS_IN_UPDATES_MESSAGE = "Updates within transactions may not specify custom timestamps; %s statement %s";
@@ -334,7 +335,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
             Preconditions.checkState(conditions.isEmpty(), "No condition should exist without updates present");
             List<TxnNamedRead> reads = createNamedReads(options, state, ImmutableMap.of(), keySet::add);
             Keys txnKeys = toKeys(keySet);
-            TxnRead read = createTxnRead(reads, txnKeys, null);
+            TxnKeyRead read = createTxnRead(reads, txnKeys, null);
             Txn.Kind kind = txnKeys.size() == 1
                     && transactionalModeForSingleKey(txnKeys) == TransactionalMode.full
                     && DatabaseDescriptor.getAccordEphemeralReadEnabledEnabled()
@@ -347,7 +348,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
             AccordUpdate update = createUpdate(state, options, autoReads, keySet::add);
             List<TxnNamedRead> reads = createNamedReads(options, state, autoReads, keySet::add);
             Keys txnKeys = toKeys(keySet);
-            TxnRead read = createTxnRead(reads, txnKeys, null);
+            TxnKeyRead read = createTxnRead(reads, txnKeys, null);
             return new Txn.InMemory(txnKeys, read, TxnQuery.ALL, update);
         }
     }
@@ -383,9 +384,6 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
             for (NamedSelect assignment : assignments)
                 checkFalse(isSelectingMultipleClusterings(assignment.select, options), INCOMPLETE_PRIMARY_KEY_SELECT_MESSAGE, "LET assignment", assignment.select.source);
 
-            if (returningSelect != null)
-                checkFalse(isSelectingMultipleClusterings(returningSelect.select, options), INCOMPLETE_PRIMARY_KEY_SELECT_MESSAGE, "returning SELECT", returningSelect.select.source);
-
             Txn txn = createTxn(state.getClientState(), options);
 
             TxnResult txnResult = AccordService.instance().coordinate(txn, options.getConsistency(), requestTime);
@@ -401,7 +399,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
                 ResultSetBuilder result = new ResultSetBuilder(resultMetadata, selectors, false);
                 if (selectQuery.queries.size() == 1)
                 {
-                    FilteredPartition partition = data.get(TxnDataName.returning());
+                    TxnDataKeyValue partition = (TxnDataKeyValue)data.get(TxnDataName.returning());
                     boolean reversed = selectQuery.queries.get(0).isReversed();
                     if (partition != null)
                         returningSelect.select.processPartition(partition.rowIterator(reversed), options, result, FBUtilities.nowInSeconds());
@@ -411,7 +409,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
                     long nowInSec = FBUtilities.nowInSeconds();
                     for (int i = 0; i < selectQuery.queries.size(); i++)
                     {
-                        FilteredPartition partition = data.get(TxnDataName.returning(i));
+                        TxnDataKeyValue partition = (TxnDataKeyValue)data.get(TxnDataName.returning(i));
                         boolean reversed = selectQuery.queries.get(i).isReversed();
                         if (partition != null)
                             returningSelect.select.processPartition(partition.rowIterator(reversed), options, result, nowInSec);
@@ -560,7 +558,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
                     throw invalidRequest(NO_COUNTERS_IN_TXNS_MESSAGE, "SELECT", prepared.source);
 
                 returningSelect = new NamedSelect(TxnDataName.returning(), prepared);
-                checkAtMostOneRowSpecified(returningSelect.select, "returning select");
+                checkAtMostOnePartitionSpecified(returningSelect.select, "returning select");
             }
 
             List<RowDataReference> returningReferences = null;
@@ -598,6 +596,15 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
                 preparedConditions.add(condition.prepare("[txn]", bindVariables));
 
             return new TransactionStatement(preparedAssignments, returningSelect, returningReferences, preparedUpdates, preparedConditions, bindVariables);
+        }
+
+        /**
+         * Do not use this method in execution!!! It is only allowed during prepare because it outputs a query raw text.
+         * We don't want it print it for a user who provided an identifier of someone's else prepared statement.
+         */
+        private static void checkAtMostOnePartitionSpecified(SelectStatement select, String name)
+        {
+            checkTrue(select.getRestrictions().hasPartitionKeyRestrictions(), INCOMPLETE_PARTITION_KEY_SELECT_MESSAGE, name, select.source);
         }
 
         /**
