@@ -44,7 +44,6 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.WriteType;
-import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.exceptions.CasWriteTimeoutException;
 import org.apache.cassandra.exceptions.RetryOnDifferentSystemException;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -245,7 +244,7 @@ public abstract class ConsensusKeyMigrationState
         if (tms == null)
             return KeyMigrationState.MIGRATION_NOT_NEEDED;
 
-        if (Range.isInNormalizedRanges(key.getToken(), tms.migratingRanges))
+        if (tms.migratingRanges.intersects(key.getToken()))
         {
             ConsensusMigratedAt consensusMigratedAt = getConsensusMigratedAt(tableId, key);
             if (consensusMigratedAt == null)

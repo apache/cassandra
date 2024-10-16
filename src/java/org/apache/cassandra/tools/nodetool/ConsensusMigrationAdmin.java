@@ -130,9 +130,32 @@ public abstract class ConsensusMigrationAdmin extends NodeTool.NodeToolCmd
             List<String> keyspaceNames = parseOptionalKeyspace(schemaArgs, probe, KeyspaceSet.ACCORD_MANAGED);
             List<String> maybeTableNames = schemaArgs.size() > 1 ? schemaArgs.subList(1, schemaArgs.size()) : null;
             List<RepairCmd> repairCmds = new ArrayList<>(keyspaceNames.size() * 2);
+            // Finish can't actually finish with one set of repairs when migrating from Paxos -> Accord
+            // and it's async when the next invocation will see TCM updates from the repair that will correctly determine
+            // the next set of repairs needed. If we spin we will issue redundant repairs.
+            // It's also pretty involved not to return handles on the repairs since there is already a lot of plumbing
+            // leveraging monitoring in progress repairs.
+            output.out.println("Starting first round of repairs");
             for (String keyspace : keyspaceNames)
             {
                 repairCmds.add(new FinishMigrationRepairCommand(probe, keyspace, maybeTableNames, maybeRangesStr, ConsensusMigrationTarget.paxos));
+                repairCmds.add(new FinishMigrationRepairCommand(probe, keyspace, maybeTableNames, maybeRangesStr, ConsensusMigrationTarget.accord));
+            }
+            try
+            {
+                probe.startAndBlockOnAsyncRepairs(probe.output().out, repairCmds);
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException("Error occurred attempting to finish migration for keyspace(s) " + keyspaceNames + " tables " + maybeTableNames + " and ranges " + maybeRangesStr, e);
+            }
+            // The repair should have at least committed the TCM change to the node we asked to coordinate the repair
+            // so calling finishedConsensusMigration a second time should trigger any needed 2nd phase repairs
+            // or does nothing if none are needed
+            output.out.println("Starting second round of repairs (may do nothing if migrating from Accord to Paxos)");
+            repairCmds.clear();
+            for (String keyspace : keyspaceNames)
+            {
                 repairCmds.add(new FinishMigrationRepairCommand(probe, keyspace, maybeTableNames, maybeRangesStr, ConsensusMigrationTarget.accord));
             }
             try

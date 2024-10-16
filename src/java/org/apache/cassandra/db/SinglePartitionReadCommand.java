@@ -1266,6 +1266,32 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         return false;
     }
 
+    /*
+     * The execution method does not need to perform reconciliation so the read command
+     * should execute in a mannager suited to not needing reconciliation. Such as when
+     * executing transactionally at a single replica and doing an index scan where the index
+     * scan should not return extra rows and expect post filtering at the coordinator.
+     */
+    public SinglePartitionReadCommand withoutReconciliation()
+    {
+        if (indexQueryPlan() == null)
+            return this;
+        return create(serializedAtEpoch(),
+                      isDigestQuery(),
+                      digestVersion(),
+                      acceptsTransient(),
+                      allowsOutOfRangeReads(),
+                      metadata(),
+                      nowInSec(),
+                      columnFilter(),
+                      rowFilter().withoutReconciliation(),
+                      limits(),
+                      partitionKey(),
+                      clusteringIndexFilter(),
+                      indexQueryPlan(),
+                      isTrackingWarnings());
+    }
+
     /**
      * Groups multiple single partition read commands.
      */

@@ -66,6 +66,7 @@ import org.apache.cassandra.schema.UserFunctions;
 import org.apache.cassandra.schema.ViewMetadata;
 import org.apache.cassandra.schema.Views;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.service.consensus.migration.TransactionalMigrationFromMode;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -578,7 +579,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             validateDefaultTimeToLive(attrs.asNewTableParams());
         }
 
-        private TableParams validateAndUpdateTransactionalMigration(TableParams prev, TableParams next)
+        private TableParams validateAndUpdateTransactionalMigration(boolean isCounter, TableParams prev, TableParams next)
         {
             if (next.transactionalMode.accordIsEnabled && SchemaConstants.isSystemKeyspace(keyspaceName))
                 throw ire("Cannot enable accord on system tables (%s.%s)", keyspaceName, tableName);
@@ -588,6 +589,10 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             boolean explicitlySetMigrationFrom = attrs.hasOption(Option.TRANSACTIONAL_MIGRATION_FROM);
             // set table to migrating
             TransactionalMigrationFromMode newMigrateFrom = TransactionalMigrationFromMode.fromMode(prev.transactionalMode, next.transactionalMode);
+
+            if (isCounter && (next.transactionalMode != TransactionalMode.off || newMigrateFrom != TransactionalMigrationFromMode.none))
+                throw ire(format("Counters are not supported with Accord for %s.%s", keyspaceName, tableName));
+
             boolean forceMigrationChange = modeChange && explicitlySetMigrationFrom && next.transactionalMigrationFrom != newMigrateFrom;
 
             if (modeChange && next.transactionalMode.accordIsEnabled && !DatabaseDescriptor.getAccordTransactionsEnabled())
@@ -642,7 +647,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             if (!params.compression.isEnabled())
                 Guardrails.uncompressedTablesEnabled.ensureEnabled(state);
 
-            params = validateAndUpdateTransactionalMigration(table.params, params);
+            params = validateAndUpdateTransactionalMigration(table.isCounter(), table.params, params);
 
             return keyspace.withSwapped(keyspace.tables.withSwapped(table.withSwapped(params)));
         }

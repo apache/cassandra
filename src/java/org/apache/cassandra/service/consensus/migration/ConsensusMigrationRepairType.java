@@ -18,47 +18,49 @@
 
 package org.apache.cassandra.service.consensus.migration;
 
-import com.google.common.primitives.SignedBytes;
-
-public enum ConsensusMigrationRepairType
+public class ConsensusMigrationRepairType
 {
-    ineligible(0, false, false),
-    paxos(1, false, true),
-    accord(2, true, false),
-    either(3, true, true);
+    public static final ConsensusMigrationRepairType INELIGIBLE = new ConsensusMigrationRepairType(false, false ,false);
 
-    public final byte value;
+    public final boolean repairedData;
+    public final boolean repairedPaxos;
+    public final boolean repairedAccord;
 
-    public final boolean accordMigrationEligible;
-
-    public final boolean paxosMigrationEligible;
-
-    ConsensusMigrationRepairType(int value, boolean accordMigrationEligible, boolean paxosMigrationEligible)
+    public ConsensusMigrationRepairType(boolean repairedData, boolean repairedPaxos, boolean repairedAccord)
     {
-        this.value = SignedBytes.checkedCast(value);
-        this.accordMigrationEligible = accordMigrationEligible;
-        this.paxosMigrationEligible = paxosMigrationEligible;
+        this.repairedData = repairedData;
+        this.repairedPaxos = repairedPaxos;
+        this.repairedAccord = repairedAccord;
     }
 
-    public static ConsensusMigrationRepairType fromString(String repairType)
+    public boolean migrationToAccordEligible()
     {
-        return ConsensusMigrationRepairType.valueOf(repairType.toLowerCase());
+        return repairedData;
     }
 
-    public static ConsensusMigrationRepairType fromValue(byte value)
+    public boolean migrationToPaxosEligible()
     {
-        switch (value)
-        {
-            default:
-                throw new IllegalArgumentException(value + " is not recognized");
-            case 0:
-                return ConsensusMigrationRepairType.ineligible;
-            case 1:
-                return ConsensusMigrationRepairType.paxos;
-            case 2:
-                return ConsensusMigrationRepairType.accord;
-            case 3:
-                return ConsensusMigrationRepairType.either;
-        }
+        return repairedAccord;
+    }
+
+    // Require both data and Paxos repair since Paxos only repairs to QUORUM and Accord needs ALL
+    public boolean repairsPaxos()
+    {
+        return repairedData && repairedPaxos;
+    }
+
+    public boolean ineligibleForMigration()
+    {
+        return !migrationToAccordEligible() && !migrationToPaxosEligible();
+    }
+
+    @Override
+    public String toString()
+    {
+        return "ConsensusMigrationRepairType{" +
+               "repairedData=" + repairedData +
+               ", repairedPaxos=" + repairedPaxos +
+               ", repairedAccord=" + repairedAccord +
+               '}';
     }
 }

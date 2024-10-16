@@ -50,6 +50,8 @@ import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.PojoToString;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.base.Preconditions.checkState;
+import static org.apache.cassandra.service.consensus.migration.TableMigrationState.initialRepairPendingRanges;
 import static org.apache.cassandra.utils.CollectionSerializers.deserializeMap;
 import static org.apache.cassandra.utils.CollectionSerializers.newHashMap;
 import static org.apache.cassandra.utils.CollectionSerializers.serializeMap;
@@ -59,6 +61,7 @@ import static org.apache.cassandra.utils.CollectionSerializers.serializedMapSize
 public class ConsensusMigrationState implements MetadataValue<ConsensusMigrationState>
 {
     public static ConsensusMigrationState EMPTY = new ConsensusMigrationState(Epoch.EMPTY, ImmutableMap.of());
+
     @Nonnull
     public final Map<TableId, TableMigrationState> tableStates;
 
@@ -136,16 +139,20 @@ public class ConsensusMigrationState implements MetadataValue<ConsensusMigration
 
     private static void withRangesMigrating(Map<TableId, TableMigrationState> current, ImmutableMap.Builder<TableId, TableMigrationState> next, TableMetadata metadata, List<Range<Token>> ranges, boolean overwrite)
     {
-        TableMigrationState tableState;
+        TableMigrationState tableState = current.get(metadata.id);
+        checkState(tableState != null || overwrite, "Can't begin migrating a table without first altering the schema to set transactional mode");
+        TransactionalMigrationFromMode migrationFromMode = metadata.params.transactionalMigrationFrom;
         ConsensusMigrationTarget target = ConsensusMigrationTarget.fromTransactionalMode(metadata.params.transactionalMode);
-        if (!overwrite && current.containsKey(metadata.id))
-        {
-            tableState = current.get(metadata.id).withRangesMigrating(ranges, target);
-        }
+        checkState(migrationFromMode != null && migrationFromMode != TransactionalMigrationFromMode.none, "Table transactional migration from can't be null or none");
+
+        Map<Epoch, List<Range<Token>>> migratingRangesByEpoch = ImmutableMap.of();
+        if (!ranges.isEmpty())
+            ImmutableMap.of(Epoch.EMPTY, ranges);
+
+        if (overwrite)
+            tableState = new TableMigrationState(metadata.keyspace, metadata.name, metadata.id, target, ImmutableSet.of(), initialRepairPendingRanges(target, ranges), migratingRangesByEpoch);
         else
-        {
-            tableState = new TableMigrationState(metadata.keyspace, metadata.name, metadata.id, target, ImmutableSet.of(), ImmutableMap.of(Epoch.EMPTY, ranges));
-        }
+            tableState = tableState.withRangesMigrating(ranges, target);
         next.put(metadata.id, tableState);
     }
 
@@ -184,10 +191,10 @@ public class ConsensusMigrationState implements MetadataValue<ConsensusMigration
         return new ConsensusMigrationState(lastModified, updated.build());
     }
 
-    public ConsensusMigrationState withRangesRepairedAtEpoch(TableMetadata metadata, List<Range<Token>> ranges, Epoch minEpoch)
+    public ConsensusMigrationState withRangesRepairedAtEpoch(TableMetadata metadata, List<Range<Token>> ranges, Epoch minEpoch, ConsensusMigrationRepairType repairType)
     {
         TableMigrationState state = Preconditions.checkNotNull(tableStates.get(metadata.id));
-        state = state.withRangesRepairedAtEpoch(ranges, minEpoch);
+        state = state.withRangesRepairedAtEpoch(ranges, minEpoch, repairType);
 
         if (state.hasMigratedFullTokenRange(metadata.partitioner))
         {
@@ -238,7 +245,7 @@ public class ConsensusMigrationState implements MetadataValue<ConsensusMigration
     {
         tableStates.forEach((id, migrationState) -> {
             TableMetadata metadata = schema.getTableMetadata(id);
-            Preconditions.checkState(ConsensusMigrationTarget.fromTransactionalMode(metadata.params.transactionalMode).equals(migrationState.targetProtocol));
+            checkState(ConsensusMigrationTarget.fromTransactionalMode(metadata.params.transactionalMode).equals(migrationState.targetProtocol));
         });
     }
 
@@ -266,4 +273,13 @@ public class ConsensusMigrationState implements MetadataValue<ConsensusMigration
                    + serializedMapSize(t.tableStates, version, TableId.metadataSerializer, TableMigrationState.serializer);
         }
     };
+
+    @Override
+    public String toString()
+    {
+        return "ConsensusMigrationState{" +
+               "tableStates=" + tableStates +
+               ", lastModified=" + lastModified +
+               '}';
+    }
 }

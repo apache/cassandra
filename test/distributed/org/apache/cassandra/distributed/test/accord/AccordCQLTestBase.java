@@ -55,6 +55,8 @@ import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.QueryResults;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.shared.AssertUtils;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.AccordTestUtils;
 import org.apache.cassandra.service.consensus.TransactionalMode;
@@ -68,6 +70,8 @@ import static org.apache.cassandra.distributed.util.QueryResultUtil.assertThat;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public abstract class AccordCQLTestBase extends AccordTestBase
 {
@@ -92,10 +96,169 @@ public abstract class AccordCQLTestBase extends AccordTestBase
         SHARED_CLUSTER.schemaChange("CREATE TYPE " + KEYSPACE + ".person (height int, age int)");
     }
 
+    @Test
+    public void testCounterCreateTableTransactionalModeFails() throws Exception
+    {
+        try
+        {
+            test("CREATE TABLE " + qualifiedAccordTableName + " (k int, c int, v counter, primary key (k, c)) WITH " + transactionalMode.asCqlParam(), cluster -> {});
+            fail("Expected exception");
+        }
+        catch (Throwable t)
+        {
+            assertEquals(IllegalStateException.class.getName(), t.getClass().getName());
+            assertTrue(t.getMessage().matches("Counters are not supported with Accord for table distributed_test_keyspace.accordtbl\\d+"));
+        }
+    }
+
+    @Test
+    public void testCounterCreateTableTransactionalMigrationFromModeFails() throws Exception
+    {
+        try
+        {
+            test("CREATE TABLE " + qualifiedAccordTableName + " (k int, c int, v counter, primary key (k, c)) WITH transactional_migration_from = '" + transactionalMode.name() + "'", cluster -> {});
+            fail("Expected exception");
+        }
+        catch (Throwable t)
+        {
+            assertEquals(IllegalStateException.class.getName(), t.getClass().getName());
+            assertTrue(t.getMessage().matches("Counters are not supported with Accord for table distributed_test_keyspace.accordtbl\\d+"));
+        }
+    }
+
+    @Test
+    public void testCounterAlterTableTransactionalModeFails() throws Exception
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int, c int, v counter, primary key (k, c))", cluster -> {
+            try
+            {
+                cluster.coordinator(1).execute("ALTER TABLE " + qualifiedAccordTableName + " WITH transactional_mode = '" + transactionalMode.name() + "';", ConsistencyLevel.ALL);
+                fail("Expected exception");
+            }
+            catch (Throwable t)
+            {
+                assertEquals(InvalidRequestException.class.getName(), t.getClass().getName());
+                assertTrue(t.getMessage().matches("Counters are not supported with Accord for distributed_test_keyspace.accordtbl\\d+"));
+            }
+        });
+    }
+
+    @Test
+    public void testCounterAlterTableTransactionalMigrationFromModeFails() throws Exception
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int, c int, v counter, primary key (k, c))", cluster -> {
+            try
+            {
+                cluster.coordinator(1).execute("ALTER TABLE " + qualifiedAccordTableName + " WITH transactional_migration_from = '" + transactionalMode.name() + "';", ConsistencyLevel.ALL);
+                fail("Expected exception");
+            }
+            catch (Throwable t)
+            {
+                assertEquals(InvalidRequestException.class.getName(), t.getClass().getName());
+                assertTrue(t.getMessage().matches("Cannot change transactionalMigrationFrom to requested " + transactionalMode.name() + " for distributed_test_keyspace.accordtbl\\d+"));
+            }
+        });
+    }
+
+    @Test
+    public void testCounterAddColumnFails() throws Exception
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int, c int, s int static, v int, primary key (k, c)) WITH " + transactionalMode.asCqlParam(), cluster -> {
+            try
+            {
+                cluster.coordinator(1).execute("ALTER TABLE " + qualifiedAccordTableName + " ADD (v2 counter);", ConsistencyLevel.ALL);
+                fail("Expected exception");
+            }
+            catch (Throwable t)
+            {
+                assertEquals(ConfigurationException.class.getName(), t.getClass().getName());
+                assertTrue(t.getMessage().matches("distributed_test_keyspace.accordtbl\\d+: Cannot have a counter column \\(\"v2\"\\) in a non counter table"));
+            }
+        });
+    }
+
     @Override
     protected void test(FailingConsumer<Cluster> fn) throws Exception
     {
         test("CREATE TABLE " + qualifiedAccordTableName + " (k int, c int, v int, primary key (k, c)) WITH " + transactionalMode.asCqlParam(), fn);
+    }
+
+    @Test
+    public void testPartitionMultiRowReturn() throws Exception
+    {
+        test(cluster -> {
+            for (int i = 0; i < 3; i++)
+                cluster.coordinator(1).execute(wrapInTxn("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (?, ?, ?)"), ConsistencyLevel.ALL, 42, 43 + i, 44 + i);
+
+            String txn = "BEGIN TRANSACTION " +
+                             "SELECT * " +
+                             "FROM " + qualifiedAccordTableName + " " +
+                             "WHERE k = 42;" +
+                         "COMMIT TRANSACTION;";
+            SimpleQueryResult result = cluster.coordinator(1).executeWithResult(txn, ConsistencyLevel.SERIAL);
+            assertThat(result).hasSize(3)
+                              .contains(42, 43, 44)
+                              .contains(42, 44, 45)
+                              .contains(42, 45, 46);
+        });
+    }
+
+    @Test
+    public void testSaiMultiRowReturn() throws Exception
+    {
+        test(cluster -> {
+            cluster.schemaChange("CREATE INDEX ON " + qualifiedAccordTableName + "(v) USING 'sai';");
+            for (int i = 0; i < 3; i++)
+                cluster.coordinator(1).execute(wrapInTxn("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (?, ?, ?)"), ConsistencyLevel.ALL, 42, 43 + i, 44 + i);
+
+            String txn = "BEGIN TRANSACTION " +
+                         "SELECT * " +
+                         "FROM " + qualifiedAccordTableName + " " +
+                         "WHERE k = 42 AND v = 45;" +
+                         "COMMIT TRANSACTION;";
+            SimpleQueryResult result = cluster.coordinator(1).executeWithResult(txn, ConsistencyLevel.SERIAL);
+            assertThat(result).hasSize(1)
+                              .contains(42, 44, 45);
+        });
+    }
+
+    // This fails and it is expected
+    @Test
+    public void testSasiMultiRowReturn() throws Exception
+    {
+        test(cluster -> {
+            cluster.schemaChange("CREATE INDEX ON " + qualifiedAccordTableName + "(v) USING 'org.apache.cassandra.index.sasi.SASIIndex';");
+            for (int i = 0; i < 3; i++)
+                cluster.coordinator(1).execute(wrapInTxn("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (?, ?, ?)"), ConsistencyLevel.ALL, 42, 43 + i, 44 + i);
+
+            String txn = "BEGIN TRANSACTION " +
+                         "SELECT * " +
+                         "FROM " + qualifiedAccordTableName + " " +
+                         "WHERE k = 42 AND v = 45;" +
+                         "COMMIT TRANSACTION;";
+            SimpleQueryResult result = cluster.coordinator(1).executeWithResult(txn, ConsistencyLevel.SERIAL);
+            assertThat(result).hasSize(1)
+                              .contains(42, 44, 45);
+        });
+    }
+
+    @Test
+    public void testLegacy2iMultiRowReturn() throws Exception
+    {
+        test(cluster -> {
+            cluster.schemaChange("CREATE INDEX ON " + qualifiedAccordTableName + "(v);");
+            for (int i = 0; i < 3; i++)
+                cluster.coordinator(1).execute(wrapInTxn("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (?, ?, ?)"), ConsistencyLevel.ALL, 42, 43 + i, 44 + i);
+
+            String txn = "BEGIN TRANSACTION " +
+                         "SELECT * " +
+                         "FROM " + qualifiedAccordTableName + " " +
+                         "WHERE k = 42 AND v = 45;" +
+                         "COMMIT TRANSACTION;";
+            SimpleQueryResult result = cluster.coordinator(1).executeWithResult(txn, ConsistencyLevel.SERIAL);
+            assertThat(result).hasSize(1)
+                              .contains(42, 44, 45);
+        });
     }
 
     @Test
@@ -391,7 +554,7 @@ public abstract class AccordCQLTestBase extends AccordTestBase
     {
         accordRead = wrapInTxn(accordRead);
         Object[][] simpleReadResult;
-        if (transactionalMode.ignoresSuppliedConsistencyLevel)
+        if (transactionalMode.ignoresSuppliedCommitCL)
             // With accord non-SERIAL write strategy the commit CL is effectively ANY so we need to read at SERIAL
             simpleReadResult = cluster.coordinator(1).execute(simpleRead, ConsistencyLevel.SERIAL, key);
         else

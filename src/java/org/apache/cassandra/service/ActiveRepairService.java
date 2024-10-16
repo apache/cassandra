@@ -35,12 +35,12 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import javax.management.openmbean.CompositeData;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import javax.management.openmbean.CompositeData;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
@@ -50,7 +50,6 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -130,7 +129,14 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.PAXOS_REPA
 import static org.apache.cassandra.config.CassandraRelevantProperties.SKIP_PAXOS_REPAIR_ON_TOPOLOGY_CHANGE;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SKIP_PAXOS_REPAIR_ON_TOPOLOGY_CHANGE_KEYSPACES;
 import static org.apache.cassandra.config.Config.RepairCommandPoolFullStrategy.reject;
-import static org.apache.cassandra.config.DatabaseDescriptor.*;
+import static org.apache.cassandra.config.DatabaseDescriptor.getRepairCommandPoolFullStrategy;
+import static org.apache.cassandra.config.DatabaseDescriptor.getRepairCommandPoolSize;
+import static org.apache.cassandra.config.DatabaseDescriptor.getRepairRetrySpec;
+import static org.apache.cassandra.config.DatabaseDescriptor.getRepairRpcTimeout;
+import static org.apache.cassandra.config.DatabaseDescriptor.getRepairStateExpires;
+import static org.apache.cassandra.config.DatabaseDescriptor.getRepairStateSize;
+import static org.apache.cassandra.config.DatabaseDescriptor.getRpcTimeout;
+import static org.apache.cassandra.config.DatabaseDescriptor.paxosRepairEnabled;
 import static org.apache.cassandra.net.Verb.PREPARE_MSG;
 import static org.apache.cassandra.repair.messages.RepairMessage.notDone;
 import static org.apache.cassandra.utils.Simulate.With.MONITORS;
@@ -454,9 +460,9 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                                              boolean pullRepair,
                                              PreviewKind previewKind,
                                              boolean optimiseStreams,
+                                             boolean repairData,
                                              boolean repairPaxos,
-                                             boolean paxosOnly,
-                                             boolean accordOnly,
+                                             boolean repairAccord,
                                              boolean isConsensusMigration,
                                              ExecutorPlus executor,
                                              Scheduler validationScheduler,
@@ -474,8 +480,8 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         final RepairSession session = new RepairSession(ctx, validationScheduler, parentRepairSession,
                                                         range, excludedDeadNodes, keyspace,
                                                         parallelismDegree, isIncremental, pullRepair,
-                                                        previewKind, optimiseStreams, repairPaxos, paxosOnly,
-                                                        accordOnly, isConsensusMigration, cfnames);
+                                                        previewKind, optimiseStreams, repairData, repairPaxos, repairAccord,
+                                                        isConsensusMigration, cfnames);
         repairs.getIfPresent(parentRepairSession).register(session.state);
 
         sessions.put(session.getId(), session);

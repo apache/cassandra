@@ -48,11 +48,8 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.Util.range;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_RANGE_EXPENSIVE_CHECKS;
 import static org.apache.cassandra.dht.Range.fromString;
-import static org.apache.cassandra.dht.Range.intersectionOfNormalizedRanges;
-import static org.apache.cassandra.dht.Range.invertNormalizedRanges;
-import static org.apache.cassandra.dht.Range.isInNormalizedRanges;
 import static org.apache.cassandra.dht.Range.normalize;
-import static org.apache.cassandra.dht.Range.subtractNormalizedRanges;
+import static org.apache.cassandra.dht.NormalizedRanges.normalizedRanges;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotSame;
@@ -782,10 +779,10 @@ public class RangeTest extends CassandraTestBase
     @UseMurmur3Partitioner
     public void testIsInNormalizedRanges()
     {
-        List<Range<Token>> ranges = ImmutableList.of(fromString("(1,10]"), fromString("(10,20]"), fromString("(30,40]"), fromString("(50,60]"), fromString("(60,70]"), fromString("(80,90]"), fromString("(" + Long.MAX_VALUE + ",-9223372036854775808]"));
+        NormalizedRanges<Token> ranges = normalizedRanges(ImmutableList.of(fromString("(1,10]"), fromString("(10,20]"), fromString("(30,40]"), fromString("(50,60]"), fromString("(60,70]"), fromString("(80,90]"), fromString("(" + Long.MAX_VALUE + ",-9223372036854775808]")));
         for (int ii = 0; ii < 100; ii++)
         {
-            boolean isIn = isInNormalizedRanges(new LongToken(ii), ranges);
+            boolean isIn = ranges.intersects(new LongToken(ii));
             if (ii > 1 && ii <= 20)
                 assertTrue("Index " + ii, isIn);
             else if (ii > 30 && ii <= 40)
@@ -797,28 +794,28 @@ public class RangeTest extends CassandraTestBase
             else
                 assertFalse("Index " + ii, isIn);
         }
-        assertFalse(isInNormalizedRanges(new LongToken(Long.MAX_VALUE), ranges));
-        assertTrue(isInNormalizedRanges(new LongToken(Long.MIN_VALUE), ranges));
-        ranges = ImmutableList.of(fromString("(-9223372036854775808,-9223372036854775807]"));
-        assertFalse(isInNormalizedRanges(new LongToken(Long.MIN_VALUE), ranges));
-        assertTrue(isInNormalizedRanges(new LongToken(Long.MIN_VALUE + 1), ranges));
-        ranges = ImmutableList.of(fromString("(" + (Long.MAX_VALUE - 1) + ",-9223372036854775808]"));
-        assertFalse(isInNormalizedRanges(new LongToken(Long.MAX_VALUE - 1), ranges));
-        assertTrue(isInNormalizedRanges(new LongToken(Long.MAX_VALUE), ranges));
-        assertTrue(isInNormalizedRanges(new LongToken(Long.MIN_VALUE), ranges));
-        assertFalse(isInNormalizedRanges(new LongToken(Long.MAX_VALUE - 1), normalize(ranges)));
-        assertTrue(isInNormalizedRanges(new LongToken(Long.MAX_VALUE), normalize(ranges)));
-        assertTrue(isInNormalizedRanges(new LongToken(Long.MIN_VALUE), normalize(ranges)));
+        assertFalse(ranges.intersects(new LongToken(Long.MAX_VALUE)));
+        assertTrue(ranges.intersects(new LongToken(Long.MIN_VALUE)));
+        ranges = normalizedRanges(ImmutableList.of(fromString("(-9223372036854775808,-9223372036854775807]")));
+        assertFalse(ranges.intersects(new LongToken(Long.MIN_VALUE)));
+        assertTrue(ranges.intersects(new LongToken(Long.MIN_VALUE + 1)));
+        ranges = normalizedRanges(ImmutableList.of(fromString("(" + (Long.MAX_VALUE - 1) + ",-9223372036854775808]")));
+        assertFalse(ranges.intersects(new LongToken(Long.MAX_VALUE - 1)));
+        assertTrue(ranges.intersects(new LongToken(Long.MAX_VALUE)));
+        assertTrue(ranges.intersects(new LongToken(Long.MIN_VALUE)));
+        assertFalse(ranges.intersects(new LongToken(Long.MAX_VALUE - 1)));
+        assertTrue(ranges.intersects(new LongToken(Long.MAX_VALUE)));
+        assertTrue(ranges.intersects(new LongToken(Long.MIN_VALUE)));
     }
 
     @Test
     @UseMurmur3Partitioner
     public void testSubtractNormalizedRanges()
     {
-        List<Range<Token>> ranges = ImmutableList.of(fromString("(1,10]"), fromString("(10,20]"), fromString("(30,40]"), fromString("(50,60]"), fromString("(60,70]"), fromString("(80,90]"), fromString("(" + Long.MAX_VALUE + ",-9223372036854775808]"));
+        NormalizedRanges<Token> ranges = normalizedRanges(ImmutableList.of(fromString("(1,10]"), fromString("(10,20]"), fromString("(30,40]"), fromString("(50,60]"), fromString("(60,70]"), fromString("(80,90]"), fromString("(" + Long.MAX_VALUE + ",-9223372036854775808]")));
         for (int ii = 0; ii < 100; ii++)
         {
-            boolean isIn = isInNormalizedRanges(new LongToken(ii), ranges);
+            boolean isIn = ranges.intersects(new LongToken(ii));
             if (ii > 1 && ii <= 20)
                 assertTrue("Index " + ii, isIn);
             else if (ii > 30 && ii <= 40)
@@ -830,20 +827,20 @@ public class RangeTest extends CassandraTestBase
             else
                 assertFalse("Index " + ii, isIn);
         }
-        List<Range<Token>> rightMostRange = ImmutableList.of(r(Long.MAX_VALUE, Long.MIN_VALUE));
-        List<Range<Token>> maxLongRange = ImmutableList.of(r(Long.MAX_VALUE - 1, Long.MAX_VALUE));
+        NormalizedRanges<Token> rightMostRange = normalizedRanges(ImmutableList.of(r(Long.MAX_VALUE, Long.MIN_VALUE)));
+        NormalizedRanges<Token> maxLongRange = normalizedRanges(ImmutableList.of(r(Long.MAX_VALUE - 1, Long.MAX_VALUE)));
 
-        assertEquals(emptyList(),  subtractNormalizedRanges(ranges, ranges));
-        assertEquals(emptyList(), subtractNormalizedRanges(rightMostRange, ranges));
-        assertEquals(maxLongRange, subtractNormalizedRanges(maxLongRange, ranges));
+        assertEquals(emptyList(),  ranges.subtract(ranges));
+        assertEquals(emptyList(), rightMostRange.subtract(ranges));
+        assertEquals(maxLongRange, maxLongRange.subtract(ranges));
         ranges = maxLongRange;
-        assertEquals(emptyList(), subtractNormalizedRanges(ranges, ranges));
-        assertEquals(rightMostRange, subtractNormalizedRanges(rightMostRange, ranges));
-        assertEquals(emptyList(), subtractNormalizedRanges(maxLongRange, ranges));
-        ranges = ImmutableList.of(fromString("(" + (Long.MAX_VALUE - 1) + ",-9223372036854775808]"));
-        assertEquals(emptyList(), subtractNormalizedRanges(ranges, ranges));
-        assertEquals(emptyList(), subtractNormalizedRanges(rightMostRange, ranges));
-        assertEquals(emptyList(), subtractNormalizedRanges(maxLongRange, ranges));
+        assertEquals(emptyList(), ranges.subtract(ranges));
+        assertEquals(rightMostRange, rightMostRange.subtract(ranges));
+        assertEquals(emptyList(), maxLongRange.subtract(ranges));
+        ranges = normalizedRanges(ImmutableList.of(fromString("(" + (Long.MAX_VALUE - 1) + ",-9223372036854775808]")));
+        assertEquals(emptyList(), ranges.subtract(ranges));
+        assertEquals(emptyList(), rightMostRange.subtract(ranges));
+        assertEquals(emptyList(), maxLongRange.subtract(ranges));
     }
 
     @Test
@@ -857,32 +854,38 @@ public class RangeTest extends CassandraTestBase
         while (elapsed.elapsed(SECONDS) != 10)
         {
             int numRanges = 3;
-            List<Range<Token>> a = new ArrayList();
+            List<Range<Token>> aList = new ArrayList();
             for (int ii = 0; ii < numRanges; ii++)
             {
-                a.add(new Range<>(new LongToken(r.nextLong()), new LongToken(r.nextLong())));
+                aList.add(new Range<>(new LongToken(r.nextLong()), new LongToken(r.nextLong())));
             }
-            a = ImmutableList.copyOf(normalize(a));
-            List<Range<Token>> b = new ArrayList();
+            NormalizedRanges<Token> a = normalizedRanges(aList);
+            List<Range<Token>> bList = new ArrayList();
             for (int ii = 0; ii < numRanges; ii++)
             {
-                b.add(new Range<>(new LongToken(r.nextLong()), new LongToken(r.nextLong())));
+                bList.add(new Range<>(new LongToken(r.nextLong()), new LongToken(r.nextLong())));
             }
-            b = ImmutableList.copyOf(normalize(b));
+            NormalizedRanges<Token> b = normalizedRanges(bList);
 
             for (int ii = 0; ii < 1000; ii++)
             {
                 Token t = new LongToken(r.nextLong());
-                isInNormalizedRanges(t, a);
-                isInNormalizedRanges(t, b);
+                a.intersects(t);
+                b.intersects(t);
             }
 
-            intersectionOfNormalizedRanges(a, b);
-            intersectionOfNormalizedRanges(b, a);
-            subtractNormalizedRanges(a, b);
-            subtractNormalizedRanges(b, a);
-            invertNormalizedRanges(a);
-            invertNormalizedRanges(b);
+            a.intersection(b);
+            a.intersection(a);
+            b.intersection(a);
+            b.intersection(b);
+
+            a.subtract(b);
+            a.subtract(a);
+            b.subtract(a);
+            b.subtract(b);
+
+            a.invert();
+            b.invert();
         }
     }
 }

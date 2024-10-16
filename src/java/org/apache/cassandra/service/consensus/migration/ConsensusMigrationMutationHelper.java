@@ -42,6 +42,7 @@ import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RetryOnDifferentSystemException;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
@@ -64,7 +65,6 @@ import org.apache.cassandra.transport.Dispatcher;
 
 import static com.google.common.base.Preconditions.checkState;
 import static java.util.function.Predicate.not;
-import static org.apache.cassandra.dht.Range.isInNormalizedRanges;
 import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.getTableMetadata;
 
 /**
@@ -114,7 +114,7 @@ public class ConsensusMigrationMutationHelper
                 // commitCLForStrategy should return either null or the supplied consistency level
                 // in which case we will commit everything at that CL since Accord doesn't support per table
                 // commit consistency
-                ConsistencyLevel commitCL = mode.commitCLForStrategy(consistencyLevel);
+                ConsistencyLevel commitCL = mode.commitCLForStrategy(consistencyLevel, tableId, mutation.key().getToken());
                 if (commitCL != null)
                     return commitCL;
             }
@@ -235,6 +235,8 @@ public class ConsensusMigrationMutationHelper
 
     public static AsyncTxnResult mutateWithAccordAsync(ClusterMetadata cm, Collection<? extends IMutation> mutations, @Nullable ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
     {
+        if (consistencyLevel != null && !IAccordService.SUPPORTED_COMMIT_CONSISTENCY_LEVELS.contains(consistencyLevel))
+            throw new InvalidRequestException(consistencyLevel + " is not supported by Accord");
         int fragmentIndex = 0;
         List<TxnWrite.Fragment> fragments = new ArrayList<>(mutations.size());
         List<PartitionKey> partitionKeys = new ArrayList<>(mutations.size());
@@ -341,7 +343,7 @@ public class ConsensusMigrationMutationHelper
             // Accord needs to do synchronous commit and respect the consistency level so that Accord will later be able to
             // read its own writes
             if (transactionalModeWritesThroughAccord)
-                return isInNormalizedRanges(token, tms.migratingAndMigratedRanges);
+                return tms.migratingAndMigratedRanges.intersects(token);
 
             // If we are migrating from a mode that used to write to Accord then any range that isn't migrating/migrated
             // should continue to write through Accord.
@@ -352,7 +354,7 @@ public class ConsensusMigrationMutationHelper
             // reading through Accord so that repair + Accord metadata is sufficient for Accord to be able to read
             // safely and deterministically from any coordinator
             if (migrationFromWritesThroughAccord)
-                return !isInNormalizedRanges(token, tms.migratingAndMigratedRanges);
+                return !tms.migratingAndMigratedRanges.intersects(token);
         }
         return false;
     }
