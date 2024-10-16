@@ -55,6 +55,7 @@ public final class AuthKeyspace
 
     public static final String ROLES = "roles";
     public static final String ROLE_MEMBERS = "role_members";
+    public static final String ROLE_OPTIONS = "role_options";
     public static final String ROLE_PERMISSIONS = "role_permissions";
     public static final String RESOURCE_ROLE_INDEX = "resource_role_permissons_index";
     public static final String NETWORK_PERMISSIONS = "network_permissions";
@@ -95,6 +96,14 @@ public final class AuthKeyspace
               + "role text,"
               + "member text,"
               + "PRIMARY KEY(role, member))");
+
+    private static final TableMetadata RoleOptions =
+        parse(ROLE_OPTIONS,
+              "role options lookup table",
+              "CREATE TABLE %s ("
+              + "role text,"
+              + "options map<text, text>,"
+              + "PRIMARY KEY(role))");
 
     private static final TableMetadata RolePermissions =
         parse(ROLE_PERMISSIONS,
@@ -156,7 +165,7 @@ public final class AuthKeyspace
     {
         return KeyspaceMetadata.create(SchemaConstants.AUTH_KEYSPACE_NAME,
                                        KeyspaceParams.simple(Math.max(DEFAULT_RF, DatabaseDescriptor.getDefaultKeyspaceRF())),
-                                       Tables.of(Roles, RoleMembers, RolePermissions,
+                                       Tables.of(Roles, RoleMembers, RoleOptions, RolePermissions,
                                                  ResourceRoleIndex, NetworkPermissions,
                                                  CIDRPermissions, CIDRGroups,
                                                  IdentityToRoles));
