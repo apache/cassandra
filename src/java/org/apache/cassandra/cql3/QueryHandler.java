@@ -58,6 +58,9 @@ public interface QueryHandler
 
     public static class Prepared
     {
+        // CASSANDRA-19986 Precomputed cache entry size might be available
+        public int cacheEntrySize = -1;
+
         public final CQLStatement statement;
 
         public final MD5Digest resultMetadataId;
