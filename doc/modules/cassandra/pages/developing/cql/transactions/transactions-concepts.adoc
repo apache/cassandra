@@ -1,0 +1,17 @@
+= Transactions concepts
+:navtitle: Concepts
+:description: Use transactions to ensure that a set of operations are performed atomically.
+
+{product} now supports ACID transactions.
+ACID stands for:
+
+* Atomicity: All of the operations are performed together.
+* Consistency: The database is in a consistent state before and after the transaction.
+* Isolation: The transaction is isolated from other transactions.
+* Durability: The changes made by the transaction are permanent. 
+ 
+This is useful when you need to update multiple rows in a table and want to ensure that all of the updates are performed together, You also cannot have a failure will not leave behind inconsistent data, but can be rolled back to the state before the transaction.
+
+Behind the scenes is a serialized set of database commands that execute atomically. 
+Across one or more data centers, the transaction only requires one round trip to gain consensus.
+If any nodes are offline, the action would still occur if at least a quorum of replicas are available.

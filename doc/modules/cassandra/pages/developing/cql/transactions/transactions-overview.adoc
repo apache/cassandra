@@ -1,0 +1,17 @@
+= Transactions overview
+:description: Transactions.
+
+// LLP: This is a placeholder for now. We need to add more content here.
+Transactions allow you to execute one or CQL operations with atomicity.
+
+xref:transactions-concepts.adoc[Concepts]::
+How transactions work and when to use this type of operation.
+
+// LLP: Should add a quickstart for transactions here?
+// xref:getting-started/transactions-quickstart.adoc[Quick start]::
+// Quickstart for creating and using transactions.
+
+xref:transactions-working-with.adoc[Working with transactions]::
+Create and use transactions.
+
+*Reference:* xref:cassandra:reference/cql-commands/transaction.adoc[TRANSACTION]
