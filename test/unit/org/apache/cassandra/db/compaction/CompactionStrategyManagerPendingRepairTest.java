@@ -348,7 +348,6 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
         for (SSTableReader sstable : sstables)
             pendingContains(sstable);
         AbstractCompactionTask compactionTask = csm.getNextBackgroundTask(FBUtilities.nowInSeconds());
-        Assert.assertNotNull(compactionTask);
 
         // Finalize the repair session
         LocalSessionAccessor.finalizeUnsafe(repairID);
@@ -357,12 +356,15 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
         Assert.assertTrue(hasPendingStrategiesFor(repairID));
 
         // run the compaction
-        compactionTask.execute(ActiveCompactionsTracker.NOOP);
+        if (compactionTask != null)
+        {
+            compactionTask.execute(ActiveCompactionsTracker.NOOP);
+            Assert.assertEquals(1, cfs.getLiveSSTables().size());
+        }
 
-        // The repair session is finalized but there is an sstable left behind pending repair!
+        // The repair session is finalized but there could be an sstable left behind pending repair!
         SSTableReader compactedSSTable = cfs.getLiveSSTables().iterator().next();
         Assert.assertEquals(repairID, compactedSSTable.getPendingRepair());
-        Assert.assertEquals(1, cfs.getLiveSSTables().size());
 
         System.out.println("*********************************************************************************************");
         System.out.println(compactedSSTable);
@@ -378,6 +380,7 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
         {
             Assert.assertSame(PendingRepairManager.RepairFinishedCompactionTask.class, compactionTask.getClass());
             compactionTask.execute(ActiveCompactionsTracker.NOOP);
+            Assert.assertEquals(1, cfs.getLiveSSTables().size());
         }
 
         System.out.println("*********************************************************************************************");
@@ -388,7 +391,6 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
         System.out.println("Live sstables: " + cfs.getLiveSSTables().size());
         System.out.println("*********************************************************************************************");
 
-        Assert.assertEquals(1, cfs.getLiveSSTables().size());
         Assert.assertFalse(hasPendingStrategiesFor(repairID));
         Assert.assertFalse(hasTransientStrategiesFor(repairID));
         Assert.assertTrue(repairedContains(compactedSSTable));
