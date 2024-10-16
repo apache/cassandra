@@ -123,6 +123,14 @@ public class InstanceConfig implements IInstanceConfig
                 "configurations", Map.of(
                     "default", Map.of(
                         "class_name", "TrieMemtable"))))
+
+                .set("batchlog_endpoint_strategy", "dynamic_remote")
+
+                .set("authenticator", Map.of("class_name", "AllowAllAuthenticator"))
+                .set("authorizer", Map.of("class_name", "AllowAllAuthorizer"))
+                .set("role_manager", Map.of("class_name", "CassandraRoleManager"))
+                .set("network_authorizer", Map.of("class_name", "AllowAllNetworkAuthorizer"))
+
                 .set("key_cache_size", "0MiB")
 
                 .set("memtable_allocation_type", "offheap_objects")
