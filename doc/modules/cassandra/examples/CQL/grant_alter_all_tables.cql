@@ -1,0 +1,1 @@
+GRANT ALTER ON ALL TABLES IN KEYSPACE keyspace_name TO user_name;
