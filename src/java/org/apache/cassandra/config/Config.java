@@ -177,6 +177,7 @@ public class Config
     public volatile DurationSpec.LongMillisecondsBound cms_await_timeout = new DurationSpec.LongMillisecondsBound("120000ms");
     public volatile int cms_default_max_retries = 10;
     public volatile DurationSpec.IntMillisecondsBound cms_default_retry_backoff = new DurationSpec.IntMillisecondsBound("50ms");
+    public volatile int epoch_aware_debounce_inflight_tracker_max_size = 100;
     /**
      * How often we should snapshot the cluster metadata.
      */

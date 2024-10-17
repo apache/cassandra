@@ -5261,6 +5261,11 @@ public class DatabaseDescriptor
         return conf.cms_await_timeout;
     }
 
+    public static int getEpochAwareDebounceInFlightTrackerMaxSize()
+    {
+        return conf.epoch_aware_debounce_inflight_tracker_max_size;
+    }
+
     public static int getMetadataSnapshotFrequency()
     {
         return conf.metadata_snapshot_frequency;

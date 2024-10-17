@@ -27,6 +27,7 @@ import com.codahale.metrics.Timer;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.EpochAwareDebounce;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
@@ -64,6 +65,7 @@ public class TCMMetrics
     public final Meter progressBarrierCLRelax;
     public final Meter coordinatorBehindSchema;
     public final Meter coordinatorBehindPlacements;
+    public final Gauge<Long> epochAwareDebounceTrackerSize;
 
     private TCMMetrics()
     {
@@ -96,6 +98,11 @@ public class TCMMetrics
         needsCMSReconfiguration = Metrics.register(factory.createMetricName("NeedsCMSReconfiguration"), () -> {
             ClusterMetadata metadata =  ClusterMetadata.currentNullable();
             return metadata != null && needsReconfiguration(metadata) ? 1 : 0;
+        });
+
+        epochAwareDebounceTrackerSize = Metrics.register(factory.createMetricName("EpochAwareDebounceTrackerEntries"), () -> {
+            // don't replace with a method reference because tests may access metrics before EAD is initialized
+            return EpochAwareDebounce.instance.inflightTrackerSize();
         });
 
         fetchedPeerLogEntries = Metrics.histogram(factory.createMetricName("FetchedPeerLogEntries"), false);
