@@ -18,15 +18,14 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.util.Collection;
+import java.util.EnumSet;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-
-import com.google.common.collect.ImmutableSet;
 
 import accord.api.BarrierType;
 import accord.local.CommandStores.RangesForEpoch;
@@ -59,15 +58,13 @@ import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 
-import java.util.Collection;
-
 import static com.google.common.base.Preconditions.checkNotNull;
 
 
 public interface IAccordService
 {
-    Set<ConsistencyLevel> SUPPORTED_COMMIT_CONSISTENCY_LEVELS = ImmutableSet.of(ConsistencyLevel.ANY, ConsistencyLevel.ONE, ConsistencyLevel.LOCAL_ONE, ConsistencyLevel.QUORUM, ConsistencyLevel.SERIAL, ConsistencyLevel.ALL);
-    Set<ConsistencyLevel> SUPPORTED_READ_CONSISTENCY_LEVELS = ImmutableSet.of(ConsistencyLevel.ONE, ConsistencyLevel.QUORUM, ConsistencyLevel.SERIAL);
+    EnumSet<ConsistencyLevel> SUPPORTED_COMMIT_CONSISTENCY_LEVELS = EnumSet.of(ConsistencyLevel.ANY, ConsistencyLevel.ONE, ConsistencyLevel.QUORUM, ConsistencyLevel.SERIAL, ConsistencyLevel.ALL);
+    EnumSet<ConsistencyLevel> SUPPORTED_READ_CONSISTENCY_LEVELS = EnumSet.of(ConsistencyLevel.ONE, ConsistencyLevel.QUORUM, ConsistencyLevel.SERIAL);
 
     IVerbHandler<? extends Request> requestHandler();
     IVerbHandler<? extends Reply> responseHandler();

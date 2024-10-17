@@ -186,6 +186,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.db.guardrails.Values$Config",
     "org.apache.cassandra.db.rows.UnfilteredSource",
     "org.apache.cassandra.dht.IPartitioner",
+    "org.apache.cassandra.dht.RingPosition",
     "org.apache.cassandra.distributed.api.IInstance",
     "org.apache.cassandra.distributed.api.IInvokableInstance",
     "org.apache.cassandra.distributed.api.IIsolatedExecutor",

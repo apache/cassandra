@@ -144,6 +144,11 @@ public class TxnDataName implements Comparable<TxnDataName>
         return Collections.unmodifiableList(Arrays.asList(parts));
     }
 
+    public String part(int index)
+    {
+        return parts[index];
+    }
+
     public DecoratedKey getDecoratedKey(TableMetadata metadata)
     {
         checkKind(Kind.AUTO_READ);

@@ -19,6 +19,7 @@
 package org.apache.cassandra.service.accord.txn;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -78,6 +79,16 @@ public class TxnData extends TxnResult implements Data, Iterable<FilteredPartiti
     public Set<Map.Entry<TxnDataName, FilteredPartition>> entrySet()
     {
         return data.entrySet();
+    }
+
+    public Collection<FilteredPartition> values()
+    {
+        return data.values();
+    }
+
+    public int size()
+    {
+        return data.size();
     }
 
     public boolean isEmpty()
