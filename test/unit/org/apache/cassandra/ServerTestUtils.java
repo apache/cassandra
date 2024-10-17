@@ -32,6 +32,7 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.impl.basic.SimulatedFault;
 import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -198,7 +199,8 @@ public final class ServerTestUtils
         {
             public void uncaughtException(Thread t, Throwable e)
             {
-                logger.error("Fatal exception in thread " + t, e);
+                if (e instanceof SimulatedFault) logger.error("SimulatedFault {} in thread {}", e.getMessage(), t);
+                else logger.error("Fatal exception in thread " + t, e);
             }
         });
 

@@ -57,7 +57,9 @@ public class AccordHostReplacementTest extends TestBaseImpl
         // start 3 node cluster, then do a host replacement of one of the nodes
         Cluster.Builder clusterBuilder = Cluster.build(3)
                                                 .withConfig(c -> c.with(Feature.values())
-                                                                  .set("accord.shard_count", "1"));
+                                                                  .set("accord.command_store_shard_count", "1")
+                                                                  .set("accord.queue_shard_count", "1")
+                                                );
         TokenSupplier tokenRing = TokenSupplier.evenlyDistributedTokens(3, clusterBuilder.getTokenCount());
         int nodeToReplace = 2;
         clusterBuilder = clusterBuilder.withTokenSupplier((TokenSupplier) node -> tokenRing.tokens(node == 4 ? nodeToReplace : node));

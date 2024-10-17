@@ -63,7 +63,7 @@ public class AccordMessageSinkTest
     private static final Topologies topologies = new Topologies.Single((TopologySorter) (StaticSorter)(a, b, ignore) -> 0, topology);
 
     private static final MessageDelivery messaging = Mockito.mock(MessageDelivery.class);
-    private static final AccordMessageSink sink = new AccordMessageSink(Mockito.mock(Agent.class), messaging, mapping, new RequestCallbacks(new AccordTimeService()));
+    private static AccordMessageSink sink;
 
     @BeforeClass
     public static void setup()
@@ -71,6 +71,7 @@ public class AccordMessageSinkTest
         DatabaseDescriptor.clientInitialization();
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
         ClusterMetadataService.initializeForClients();
+        sink = new AccordMessageSink(Mockito.mock(Agent.class), messaging, mapping, new RequestCallbacks(new AccordTimeService()));
     }
 
     @Test

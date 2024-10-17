@@ -17,21 +17,23 @@
  */
 package org.apache.cassandra.service.accord;
 
-import java.util.concurrent.Callable;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.ToLongFunction;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
 
+import accord.utils.ArrayBuffers.BufferList;
 import accord.utils.IntrusiveLinkedListNode;
 import accord.utils.Invariants;
-import accord.utils.async.AsyncChain;
-import accord.utils.async.AsyncResults.RunnableResult;
-import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.utils.ObjectSizes;
+import org.apache.cassandra.utils.concurrent.Future;
 
-import static java.lang.String.format;
 import static org.apache.cassandra.service.accord.AccordCachingState.Status.EVICTED;
 import static org.apache.cassandra.service.accord.AccordCachingState.Status.FAILED_TO_LOAD;
 import static org.apache.cassandra.service.accord.AccordCachingState.Status.FAILED_TO_SAVE;
@@ -40,17 +42,18 @@ import static org.apache.cassandra.service.accord.AccordCachingState.Status.LOAD
 import static org.apache.cassandra.service.accord.AccordCachingState.Status.MODIFIED;
 import static org.apache.cassandra.service.accord.AccordCachingState.Status.SAVING;
 import static org.apache.cassandra.service.accord.AccordCachingState.Status.UNINITIALIZED;
+import static org.apache.cassandra.service.accord.AccordCachingState.Status.WAITING_TO_LOAD;
 
 /**
  * Global (per CommandStore) state of a cached entity (Command or CommandsForKey).
  */
 public class AccordCachingState<K, V> extends IntrusiveLinkedListNode
 {
-    static final long EMPTY_SIZE = ObjectSizes.measure(new AccordCachingState<>(null, 0, null));
+    static final long EMPTY_SIZE = ObjectSizes.measure(new AccordCachingState<>(null, null, null));
 
     public interface Factory<K, V>
     {
-        AccordCachingState<K, V> create(K key, int index);
+        AccordCachingState<K, V> create(K key, AccordStateCache.Type<K, V, ?>.Instance owner);
     }
 
     static <K, V> Factory<K, V> defaultFactory()
@@ -59,37 +62,37 @@ public class AccordCachingState<K, V> extends IntrusiveLinkedListNode
     }
 
     private final K key;
+    final AccordStateCache.Type<K, V, ?>.Instance owner;
+
     private State<K, V> state;
 
-    int references = 0;
-    int lastQueriedEstimatedSizeOnHeap = 0;
-    final int index;
-    private boolean shouldUpdateSize;
+    int references;
+    int lastQueriedEstimatedSizeOnHeap;
 
-    AccordCachingState(K key, int index)
+    AccordCachingState(K key, AccordStateCache.Type<K, V, ?>.Instance owner)
     {
         this.key = key;
-        Invariants.checkArgument(index >= 0);
-        this.index = index;
+        this.owner = owner;
         //noinspection unchecked
         this.state = (State<K, V>) Uninitialized.instance;
     }
 
-    private AccordCachingState(K key, int index, State<K, V> state)
+    private AccordCachingState(K key, AccordStateCache.Type<K, V, ?>.Instance owner, State<K, V> state)
     {
         this.key = key;
-        this.index = index;
+        this.owner = owner;
         this.state = state;
     }
 
     void unlink()
     {
+        Invariants.checkState(references == 0);
         remove();
     }
 
-    boolean isLinked()
+    boolean isUnqueued()
     {
-        return !isFree();
+        return isFree();
     }
 
     public K key()
@@ -107,6 +110,11 @@ public class AccordCachingState<K, V> extends IntrusiveLinkedListNode
         return status().isLoaded();
     }
 
+    boolean isLoadingOrWaiting()
+    {
+        return status().isLoadingOrWaiting();
+    }
+
     public boolean isComplete()
     {
         return status().isComplete();
@@ -114,24 +122,28 @@ public class AccordCachingState<K, V> extends IntrusiveLinkedListNode
 
     int lastQueriedEstimatedSizeOnHeap()
     {
-        return lastQueriedEstimatedSizeOnHeap;
+        return lastQueriedEstimatedSizeOnHeap & 0x7fffffff;
     }
 
     int estimatedSizeOnHeap(ToLongFunction<V> estimator)
     {
-        shouldUpdateSize = false;   // TODO (expected): probably not the safest place to clear need to compute size
         return lastQueriedEstimatedSizeOnHeap = Ints.checkedCast(EMPTY_SIZE + estimateStateOnHeapSize(estimator));
     }
 
     long estimatedSizeOnHeapDelta(ToLongFunction<V> estimator)
     {
-        long prevSize = lastQueriedEstimatedSizeOnHeap;
+        long prevSize = lastQueriedEstimatedSizeOnHeap();
         return estimatedSizeOnHeap(estimator) - prevSize;
+    }
+
+    void setShouldUpdateSize()
+    {
+        lastQueriedEstimatedSizeOnHeap |= 0x80000000;
     }
 
     boolean shouldUpdateSize()
     {
-        return shouldUpdateSize;
+        return lastQueriedEstimatedSizeOnHeap < 0;
     }
 
     @Override
@@ -145,24 +157,7 @@ public class AccordCachingState<K, V> extends IntrusiveLinkedListNode
 
     public Status status()
     {
-        return complete().status();
-    }
-
-    State<K, V> complete()
-    {
-        return state.isCompleteable() ? state(state.complete()) : state;
-    }
-
-    /**
-     * Submits a load runnable to the specified executor. When the runnable
-     * has completed, the state load will have either completed or failed.
-     */
-    public AsyncChain<V> load(ExecutorPlus executor, Function<K, V> loadFunction)
-    {
-        Loading<K, V> loading = state.load(key, loadFunction);
-        executor.submit(loading);
-        state(loading);
-        return loading;
+        return state.status();
     }
 
     public void initialize(V value)
@@ -172,9 +167,6 @@ public class AccordCachingState<K, V> extends IntrusiveLinkedListNode
 
     protected State<K, V> state(State<K, V> next)
     {
-        State<K, V> prev = state;
-        if (prev != next)   // TODO (expected): we change state to transition the cache state machine but often keep payload the same - so shouldn't recompute
-            shouldUpdateSize = true;
         return state = next;
     }
 
@@ -184,22 +176,100 @@ public class AccordCachingState<K, V> extends IntrusiveLinkedListNode
         return state;
     }
 
-    public AsyncChain<V> loading()
+    public void readyToLoad()
     {
-        // do *not* attempt to complete, to prevent races where the caller found a pending load, attempts
-        // to register a callback, but gets an exception because the load completed in the meantime
+        state(state.readyToLoad());
+    }
+
+    public LoadingOrWaiting<K, V> loadingOrWaiting()
+    {
+        return state.loadingOrWaiting();
+    }
+
+    void notifyListeners(BiConsumer<AccordStateCache.Listener<K, V>, AccordCachingState<K, V>> notify)
+    {
+        owner.notifyListeners(notify, this);
+    }
+
+    public interface OnLoaded
+    {
+        <K, V> void onLoaded(AccordCachingState<K, V> state, V value, Throwable fail);
+
+        static OnLoaded immediate()
+        {
+            return new OnLoaded()
+            {
+                @Override
+                public <K, V> void onLoaded(AccordCachingState<K, V> state, V value, Throwable fail)
+                {
+                    if (fail == null) state.state(state.state().loaded(value));
+                    else state.state(state.state().failedToLoad());
+                }
+            };
+        }
+    }
+
+    public interface OnSaved
+    {
+        <K, V> void onSaved(AccordCachingState<K, V> state, Object identity, Throwable fail);
+
+        static OnSaved immediate()
+        {
+            return new OnSaved()
+            {
+                @Override
+                public <K, V> void onSaved(AccordCachingState<K, V> state, Object identity, Throwable fail)
+                {
+                    state.saved(identity, fail);
+                }
+            };
+        }
+    }
+
+    public Loading<K, V> load(Function<Runnable, Future<?>> loadExecutor, BiFunction<AccordCommandStore, K, V> load, OnLoaded onLoaded)
+    {
+        Loading<K, V> loading = state.load(loadExecutor.apply(() -> {
+            V result;
+            try
+            {
+                result = load.apply(owner.commandStore, key);
+            }
+            catch (Throwable t)
+            {
+                onLoaded.onLoaded(this, null, t);
+                throw t;
+            }
+            onLoaded.onLoaded(this, result, null);
+        }));
+        state(loading);
+        return loading;
+    }
+
+    public Loading<K, V> loading()
+    {
         return state.loading();
     }
 
     public V get()
     {
-        return complete().get();
+        return state.get();
     }
 
     public void set(V value)
     {
-        shouldUpdateSize = true;
-        state(complete().set(value));
+        setShouldUpdateSize();
+        state(state.set(value));
+    }
+
+    public void loaded(V value)
+    {
+        setShouldUpdateSize();
+        state(state.loaded(value));
+    }
+
+    public void failedToLoad()
+    {
+        state(state.failedToLoad());
     }
 
     /**
@@ -207,38 +277,63 @@ public class AccordCachingState<K, V> extends IntrusiveLinkedListNode
      * has completed, the state save will have either completed or failed.
      */
     @VisibleForTesting
-    public void save(ExecutorPlus executor, Function<?, Runnable> saveFunction)
+    void save(Function<Runnable, Future<?>> saveExecutor, BiFunction<AccordCommandStore, V, Runnable> saveFunction, OnSaved onSaved)
     {
-        @SuppressWarnings("unchecked")
-        State<K, V> savingOrLoaded = state.save((Function<V, Runnable>) saveFunction);
-        if (savingOrLoaded.status() == SAVING)
-            executor.submit(savingOrLoaded.saving());
-        state(savingOrLoaded);
+        State<K, V> current = state;
+        Runnable save = saveFunction.apply(owner.commandStore, current.get());
+        if (null == save) // null mutation -> null Runnable -> no change on disk
+        {
+            state(current.saved());
+        }
+        else
+        {
+            Object identity = new Object();
+            state(state.save(saveExecutor.apply(() -> {
+                try
+                {
+                    save.run();
+                }
+                catch (Throwable t)
+                {
+                    onSaved.onSaved(this, identity, t);
+                    throw t;
+                }
+                onSaved.onSaved(this, identity, null);
+            }), identity));
+        }
     }
 
-    public AsyncChain<Void> saving()
+    boolean saved(Object identity, Throwable fail)
     {
-        // do *not* attempt to complete, to prevent races where the caller found a pending save, attempts
-        // to register a callback, but gets an exception because the save completed in the meantime
-        return state.saving();
+        if (state.status() != SAVING || state.saving().identity != identity)
+            return false;
+
+        if (fail != null)
+        {
+            state(state.failedToSave(fail));
+            return false;
+        }
+        else
+        {
+            state(state.saved());
+            return true;
+        }
     }
 
-    public AccordCachingState<K, V> reset()
+    public Future<?> saving()
     {
-        state(state.reset());
+        return state.saving().saving;
+    }
+
+    public AccordCachingState<K, V> evicted()
+    {
+        state(state.evicted());
         return this;
     }
 
     public Throwable failure()
     {
-        return complete().failure();
-    }
-
-    public void markEvicted()
-    {
-        state(complete().evict());
-        lastQueriedEstimatedSizeOnHeap = 0;
-        shouldUpdateSize = false;
+        return state.failure();
     }
 
     long estimateStateOnHeapSize(ToLongFunction<V> estimateFunction)
@@ -249,11 +344,16 @@ public class AccordCachingState<K, V> extends IntrusiveLinkedListNode
     public enum Status
     {
         UNINITIALIZED,
+        WAITING_TO_LOAD,
         LOADING,
         LOADED,
-        FAILED_TO_LOAD,
         MODIFIED,
         SAVING,
+
+        /**
+         * Consumers should never see this state
+         */
+        FAILED_TO_LOAD,
 
         /**
          * Attempted to save but failed. Shouldn't normally happen unless we have a bug in serialization,
@@ -261,16 +361,17 @@ public class AccordCachingState<K, V> extends IntrusiveLinkedListNode
          */
         FAILED_TO_SAVE,
 
-        /**
-         * Entry has been successfully evicted, but there were transient listeners present, so we kept the
-         * Node around (transient listeners must survive cache eviction).
-         */
-        EVICTED,
+        EVICTED
         ;
 
         boolean isLoaded()
         {
-            return this == LOADED || this == MODIFIED || this == FAILED_TO_SAVE;
+            return this == LOADED || this == MODIFIED || this == SAVING || this == FAILED_TO_SAVE;
+        }
+
+        boolean isLoadingOrWaiting()
+        {
+            return this == LOADING || this == WAITING_TO_LOAD;
         }
 
         boolean isComplete()
@@ -283,64 +384,99 @@ public class AccordCachingState<K, V> extends IntrusiveLinkedListNode
     {
         Status status();
 
-        default boolean isCompleteable()
-        {
-            return false;
-        }
-
-        default State<K, V> complete()
-        {
-            throw illegalState(this, "complete()");
-        }
-
-        default Loading<K, V> load(K key, Function<K, V> loadFunction)
-        {
-            throw illegalState(this, "load(key, loadFunction)");
-        }
-
-        default Loaded<K, V> initialize(V value)
-        {
-            throw illegalState(this, "initialize(value)");
-        }
-
-        default RunnableResult<V> loading()
-        {
-            throw illegalState(this, "loading()");
-        }
-
-        default V get()
-        {
-            throw illegalState(this, "get()");
-        }
-
-        default State<K, V> set(V value)
-        {
-            throw illegalState(this, "set(value)");
-        }
-
-        default State<K, V> save(Function<V, Runnable> saveFunction)
-        {
-            throw illegalState(this, "save(saveFunction)");
-        }
-
-        default RunnableResult<Void> saving()
-        {
-            throw illegalState(this, "saving()");
-        }
-
-        default Throwable failure()
-        {
-            throw illegalState(this, "failure()");
-        }
-
+        // transition to Uninitialized
         default Uninitialized<K, V> reset()
         {
             throw illegalState(this, "reset()");
         }
 
-        default Evicted<K, V> evict()
+        // transition to Loaded from Uninitialized
+        default Loaded<K, V> initialize(V value)
         {
-            throw illegalState(this, "evict()");
+            throw illegalState(this, "initialize(value)");
+        }
+
+        // transition to WaitingToLoad
+        default WaitingToLoad<K, V> readyToLoad()
+        {
+            throw illegalState(this, "waitToLoad()");
+        }
+
+        // transition to Loading
+        default Loading<K, V> load(Future<?> loading)
+        {
+            throw illegalState(this, "load()");
+        }
+
+        // transition to Loaded
+        default Loaded<K, V> loaded(V value)
+        {
+            throw illegalState(this, "loaded(value)");
+        }
+
+        // transition to Uninitialized (should be removed from cache immediately, and all referents notified of failure)
+        default FailedToLoad<K, V> failedToLoad()
+        {
+            throw illegalState(this, "failedToLoad()");
+        }
+
+        // transition to Modified
+        default State<K, V> set(V value)
+        {
+            throw illegalState(this, "set(value)");
+        }
+
+        // transition to Saving
+        default State<K, V> save(Future<?> saving, Object identity)
+        {
+            throw illegalState(this, "save(saveFunction, executor)");
+        }
+
+        // transition to Saved
+        default State<K, V> saved()
+        {
+            throw illegalState(this, "saved()");
+        }
+
+        // transition to Evicted
+        default Evicted<K, V> evicted()
+        {
+            return (Evicted<K, V>) Evicted.instance;
+        }
+
+        default State<K, V> failedToSave(Throwable cause)
+        {
+            throw illegalState(this, "failedToSave(cause)");
+        }
+
+        // get current LoadingOrWaiting
+        default LoadingOrWaiting<K, V> loadingOrWaiting()
+        {
+            throw illegalState(this, "loadingOrWaiting()");
+        }
+
+        // get current Loading
+        default Loading<K, V> loading()
+        {
+            throw illegalState(this, "loading()");
+        }
+
+        // get any save future
+        default Saving<K, V> saving()
+        {
+            throw illegalState(this, "saving()");
+        }
+
+        // get current value
+        default V get()
+        {
+            throw illegalState(this, "get()");
+        }
+
+        // get current failure
+        default Throwable failure()
+        {
+            throw illegalState(this, "failure()");
         }
 
         default long estimateOnHeapSize(ToLongFunction<V> estimateFunction)
@@ -351,18 +487,12 @@ public class AccordCachingState<K, V> extends IntrusiveLinkedListNode
 
     private static IllegalStateException illegalState(State<?, ?> state, String method)
     {
-        return new IllegalStateException(format("%s invoked on %s", method, state.status()));
+        throw Invariants.illegalState("%s invoked on %s", method, state.status());
     }
 
     static class Uninitialized<K, V> implements State<K, V>
     {
         static final Uninitialized<?, ?> instance = new Uninitialized<>();
-
-        @SuppressWarnings("unchecked")
-        static <K, V> Uninitialized<K, V> instance()
-        {
-            return (Uninitialized<K, V>) instance;
-        }
 
         @Override
         public Status status()
@@ -371,28 +501,105 @@ public class AccordCachingState<K, V> extends IntrusiveLinkedListNode
         }
 
         @Override
-        public Loading<K, V> load(K key, Function<K, V> loadFunction)
+        public WaitingToLoad<K, V> readyToLoad()
         {
-            return new Loading<>(() -> loadFunction.apply(key));
+            return new WaitingToLoad<>();
         }
 
         public Loaded<K, V> initialize(V value)
         {
             return new Loaded<>(value);
         }
+    }
+
+    static class FailedToLoad<K, V> implements State<K, V>
+    {
+        static final FailedToLoad<?, ?> instance = new FailedToLoad<>();
 
         @Override
-        public Evicted<K, V> evict()
+        public Status status()
         {
-            return Evicted.instance();
+            return FAILED_TO_LOAD;
         }
     }
 
-    static class Loading<K, V> extends RunnableResult<V> implements State<K, V>
+    public static abstract class LoadingOrWaiting<K, V> implements State<K, V>
     {
-        Loading(Callable<V> callable)
+        Collection<AccordTask<?>> waiters;
+
+        public LoadingOrWaiting()
         {
-            super(callable);
+        }
+
+        public LoadingOrWaiting(Collection<AccordTask<?>> waiters)
+        {
+            this.waiters = waiters;
+        }
+
+        public Collection<AccordTask<?>> waiters()
+        {
+            return waiters != null ? waiters : Collections.emptyList();
+        }
+
+        public BufferList<AccordTask<?>> copyWaiters()
+        {
+            BufferList<AccordTask<?>> list = new BufferList<>();
+            if (waiters != null)
+                list.addAll(waiters);
+            return list;
+        }
+
+        public void add(AccordTask<?> waiter)
+        {
+            if (waiters == null)
+                waiters = new ArrayList<>();
+            waiters.add(waiter);
+        }
+
+        public void remove(AccordTask<?> waiter)
+        {
+            if (waiters != null)
+            {
+                waiters.remove(waiter);
+                if (waiters.isEmpty())
+                    waiters = null;
+            }
+        }
+
+        @Override
+        public LoadingOrWaiting<K, V> loadingOrWaiting()
+        {
+            return this;
+        }
+    }
+
+    static class WaitingToLoad<K, V> extends LoadingOrWaiting<K, V>
+    {
+        @Override
+        public Status status()
+        {
+            return WAITING_TO_LOAD;
+        }
+
+        @Override
+        public Loading<K, V> load(Future<?> loading)
+        {
+            Invariants.checkState(waiters == null || !waiters.isEmpty());
+            Loading<K, V> result = new Loading<>(waiters, loading);
+            waiters = Collections.emptyList();
+            return result;
+        }
+    }
+
+    static class Loading<K, V> extends LoadingOrWaiting<K, V>
+    {
+        // TODO (expected): support cancellation
+        public final Future<?> loading;
+
+        public Loading(Collection<AccordTask<?>> waiters, Future<?> loading)
+        {
+            super(waiters);
+            this.loading = loading;
         }
 
         @Override
@@ -402,23 +609,21 @@ public class AccordCachingState<K, V> extends IntrusiveLinkedListNode
         }
 
         @Override
-        public boolean isCompleteable()
-        {
-            return isDone();
-        }
-
-        @Override
-        public State<K, V> complete()
-        {
-            if      (!isDone())   return this;
-            else if (isSuccess()) return new Loaded<>(result());
-            else                  return new FailedToLoad<>(failure());
-        }
-
-        @Override
-        public RunnableResult<V> loading()
+        public Loading<K, V> loading()
         {
             return this;
+        }
+
+        @Override
+        public Loaded<K, V> loaded(V value)
+        {
+            return new Loaded<>(value);
+        }
+
+        @Override
+        public FailedToLoad<K, V> failedToLoad()
+        {
+            return (FailedToLoad<K, V>) FailedToLoad.instance;
         }
     }
 
@@ -450,49 +655,9 @@ public class AccordCachingState<K, V> extends IntrusiveLinkedListNode
         }
 
         @Override
-        public Evicted<K, V> evict()
-        {
-            return Evicted.instance();
-        }
-
-        @Override
         public long estimateOnHeapSize(ToLongFunction<V> estimateFunction)
         {
             return null == original ? 0 : estimateFunction.applyAsLong(original);
-        }
-    }
-
-    static class FailedToLoad<K, V> implements State<K, V>
-    {
-        final Throwable cause;
-
-        FailedToLoad(Throwable cause)
-        {
-            this.cause = cause;
-        }
-
-        @Override
-        public Status status()
-        {
-            return FAILED_TO_LOAD;
-        }
-
-        @Override
-        public Throwable failure()
-        {
-            return cause;
-        }
-
-        @Override
-        public Uninitialized<K, V> reset()
-        {
-            return Uninitialized.instance();
-        }
-
-        @Override
-        public Evicted<K, V> evict()
-        {
-            return Evicted.instance();
         }
     }
 
@@ -525,13 +690,15 @@ public class AccordCachingState<K, V> extends IntrusiveLinkedListNode
         }
 
         @Override
-        public State<K, V> save(Function<V, Runnable> saveFunction)
+        public State<K, V> saved()
         {
-            Runnable runnable = saveFunction.apply(current);
-            if (null == runnable) // null mutation -> null Runnable -> no change on disk
-                return new Loaded<>(current);
-            else
-                return new Saving<>(current, runnable);
+            return new Loaded<>(current);
+        }
+
+        @Override
+        public Saving<K, V> save(Future<?> saving, Object identity)
+        {
+            return new Saving<>(saving, identity, current);
         }
 
         @Override
@@ -541,19 +708,17 @@ public class AccordCachingState<K, V> extends IntrusiveLinkedListNode
         }
     }
 
-    static class Saving<K, V> extends RunnableResult<Void> implements State<K, V>
+    static class Saving<K, V> implements State<K, V>
     {
-        V current;
+        final Future<?> saving;
+        final Object identity;
+        final V value;
 
-        Saving(V current, Runnable saveRunnable)
+        Saving(Future<?> saving, Object identity, V current)
         {
-            this(current, () -> { saveRunnable.run(); return null; });
-        }
-
-        Saving(V current, Callable<Void> saveCallable)
-        {
-            super(saveCallable);
-            this.current = current;
+            this.saving = saving;
+            this.identity = identity;
+            this.value = current;
         }
 
         @Override
@@ -563,27 +728,32 @@ public class AccordCachingState<K, V> extends IntrusiveLinkedListNode
         }
 
         @Override
-        public boolean isCompleteable()
-        {
-            return isDone();
-        }
-
-        @Override
         public V get()
         {
-            return current;
+            return value;
         }
 
         @Override
-        public State<K, V> complete()
+        public State<K, V> set(V value)
         {
-            if      (!isDone())   return this;
-            else if (isSuccess()) return new Loaded<>(current);
-            else                  return new FailedToSave<>(current, failure());
+            saving.cancel(false);
+            return new Modified<>(value);
         }
 
         @Override
-        public RunnableResult<Void> saving()
+        public State<K, V> saved()
+        {
+            return new Loaded<>(value);
+        }
+
+        @Override
+        public State<K, V> failedToSave(Throwable cause)
+        {
+            return new FailedToSave<>(value, cause);
+        }
+
+        @Override
+        public Saving<K, V> saving()
         {
             return this;
         }
@@ -591,7 +761,7 @@ public class AccordCachingState<K, V> extends IntrusiveLinkedListNode
 
     static class FailedToSave<K, V> implements State<K, V>
     {
-        V current;
+        final V current;
         final Throwable cause;
 
         FailedToSave(V current, Throwable cause)
@@ -615,8 +785,7 @@ public class AccordCachingState<K, V> extends IntrusiveLinkedListNode
         @Override
         public State<K, V> set(V value)
         {
-            current = value;
-            return this;
+            return new Modified<>(value);
         }
 
         @Override
@@ -630,10 +799,8 @@ public class AccordCachingState<K, V> extends IntrusiveLinkedListNode
     {
         static final Evicted<?, ?> instance = new Evicted<>();
 
-        @SuppressWarnings("unchecked")
-        static <K, V> Evicted<K, V> instance()
+        private Evicted()
         {
-            return (Evicted<K, V>) instance;
         }
 
         @Override
@@ -641,11 +808,6 @@ public class AccordCachingState<K, V> extends IntrusiveLinkedListNode
         {
             return EVICTED;
         }
-
-        @Override
-        public Uninitialized<K, V> reset()
-        {
-            return Uninitialized.instance();
-        }
     }
+
 }

@@ -128,7 +128,7 @@ public class AccordDropTableBase extends TestBaseImpl
             inst.runOnInstance(() -> {
                 TableId tableId = TableId.fromUUID(UUID.fromString(s));
                 AccordService accord = (AccordService) AccordService.instance();
-                PreLoadContext ctx = PreLoadContext.contextFor(Ranges.single(TokenRange.fullRange(tableId)), KeyHistory.COMMANDS);
+                PreLoadContext ctx = PreLoadContext.contextFor(Ranges.single(TokenRange.fullRange(tableId)), KeyHistory.SYNC);
                 CommandStores stores = accord.node().commandStores();
                 for (int storeId : stores.ids())
                 {

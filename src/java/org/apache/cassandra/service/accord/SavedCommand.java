@@ -25,6 +25,7 @@ import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import accord.api.Agent;
 import accord.api.Result;
 import accord.local.Cleanup;
 import accord.local.Command;
@@ -536,7 +537,7 @@ public class SavedCommand
             return count;
         }
 
-        public Cleanup shouldCleanup(RedundantBefore redundantBefore, DurableBefore durableBefore)
+        public Cleanup shouldCleanup(Agent agent, RedundantBefore redundantBefore, DurableBefore durableBefore)
         {
             if (!nextCalled)
                 return NO;
@@ -544,7 +545,7 @@ public class SavedCommand
             if (saveStatus == null || participants == null)
                 return Cleanup.NO;
 
-            Cleanup cleanup = Cleanup.shouldCleanupPartial(txnId, saveStatus, durability, participants, redundantBefore, durableBefore);
+            Cleanup cleanup = Cleanup.shouldCleanupPartial(agent, txnId, saveStatus, durability, participants, redundantBefore, durableBefore);
             if (this.cleanup != null && this.cleanup.compareTo(cleanup) > 0)
                 cleanup = this.cleanup;
             return cleanup;

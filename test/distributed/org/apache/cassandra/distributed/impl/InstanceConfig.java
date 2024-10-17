@@ -98,7 +98,8 @@ public class InstanceConfig implements IInstanceConfig
                 .set("cdc_raw_directory", cdc_raw_directory)
                 .set("accord.enabled", accord.enabled)
                 .set("accord.journal_directory", accord.journal_directory)
-                .set("accord.shard_count", accord.shard_count.toString())
+                .set("accord.queue_shard_count", accord.queue_shard_count.toString())
+                .set("accord.command_store_shard_count", accord.command_store_shard_count.toString())
                 .set("accord.recover_delay", accord.recover_delay.toString())
                 .set("partitioner", "org.apache.cassandra.dht.Murmur3Partitioner")
                 .set("start_native_transport", true)
@@ -317,7 +318,8 @@ public class InstanceConfig implements IInstanceConfig
         AccordSpec accordSpec = new AccordSpec();
         accordSpec.enabled = DTEST_ACCORD_ENABLED.getBoolean();
         accordSpec.journal_directory = String.format("%s/node%d/accord_journal", root, nodeNum);
-        accordSpec.shard_count = new OptionaldPositiveInt(4);
+        accordSpec.queue_shard_count = new OptionaldPositiveInt(2);
+        accordSpec.command_store_shard_count = new OptionaldPositiveInt(4);
         return new InstanceConfig(nodeNum,
                                   networkTopology,
                                   provisionStrategy.ipAddress(nodeNum),

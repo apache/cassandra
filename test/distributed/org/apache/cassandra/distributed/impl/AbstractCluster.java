@@ -61,6 +61,7 @@ import org.junit.Assume;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.concurrent.ExecutorFactory;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
@@ -193,6 +194,11 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
             CassandraRelevantProperties.TEST_FLUSH_LOCAL_SCHEMA_CHANGES.reset();
             CassandraRelevantProperties.NON_GRACEFUL_SHUTDOWN.reset();
             CassandraRelevantProperties.IO_NETTY_TRANSPORT_NONATIVE.setBoolean(false);
+            withInstanceInitializer((classLoader, threadGroup, i, i1) -> {
+                IsolatedExecutor.transferAdhoc((IIsolatedExecutor.SerializableBiConsumer<ClassLoader, ThreadGroup>) (cl, tg) -> {
+                    ExecutorFactory.Global.tryUnsafeSet(new ExecutorFactory.Default(cl, tg, Thread.getDefaultUncaughtExceptionHandler()));
+                }, classLoader).accept(classLoader, threadGroup);
+            });
         }
 
         public AbstractBuilder(Factory<I, C, B> factory)
@@ -762,11 +768,6 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         }
     }
 
-    public void forEach(IIsolatedExecutor.SerializableRunnable runnable)
-    {
-        forEach(i -> i.sync(runnable));
-    }
-
     public void forEach(Consumer<? super I> consumer)
     {
         forEach(instances, consumer);
@@ -1025,6 +1026,8 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
     public void startup()
     {
+        // start the JNA cleaner on the system class loader to avoid pinning an instance
+        com.sun.jna.internal.Cleaner.getCleaner();
         previousHandler = Thread.getDefaultUncaughtExceptionHandler();
         Thread.setDefaultUncaughtExceptionHandler(this::uncaughtExceptions);
         try (AllMembersAliveMonitor monitor = new AllMembersAliveMonitor())

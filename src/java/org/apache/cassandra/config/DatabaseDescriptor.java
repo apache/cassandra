@@ -216,6 +216,7 @@ public class DatabaseDescriptor
     private static long keyCacheSizeInMiB;
     private static long paxosCacheSizeInMiB;
     private static long accordCacheSizeInMiB;
+    private static long accordWorkingSetSizeInMiB;
     private static long consensusMigrationCacheSizeInMiB;
     private static long counterCacheSizeInMiB;
     private static long indexSummaryCapacityInMiB;
@@ -948,18 +949,32 @@ public class DatabaseDescriptor
 
         try
         {
-            // if paxosCacheSizeInMiB option was set to "auto" then size of the cache should be "max(10% of Heap (in MB), 1MB)
-            accordCacheSizeInMiB = (conf.accord_cache_size == null)
+            // if accordCacheSizeInMiB option was set to "auto" then size of the cache should be "max(10% of Heap (in MB), 1MB)
+            accordCacheSizeInMiB = (conf.accord.cache_size == null)
                                   ? Math.max(1, (int) ((Runtime.getRuntime().totalMemory() * 0.10) / 1024 / 1024))
-                                  : conf.accord_cache_size.toMebibytes();
+                                  : conf.accord.cache_size.toMebibytes();
 
             if (accordCacheSizeInMiB < 0)
                 throw new NumberFormatException(); // to escape duplicating error message
         }
         catch (NumberFormatException e)
         {
-            throw new ConfigurationException("paxos_cache_size option was set incorrectly to '"
-                                             + conf.paxos_cache_size + "', supported values are <integer> >= 0.", false);
+            throw new ConfigurationException("accord.cache_size option was set incorrectly to '"
+                                             + conf.accord.cache_size + "', supported values are <integer> >= 0.", false);
+        }
+
+        try
+        {
+            // if accordWorkingSetSizeInMiB option was set to "auto" then size of the working set should be "max(5% of Heap (in MB), 1MB)
+            // if negative, there is no limit
+            accordWorkingSetSizeInMiB = (conf.accord.working_set_size == null)
+                                  ? Math.max(1, (int) ((Runtime.getRuntime().totalMemory() * 0.05) / 1024 / 1024))
+                                  : conf.accord.working_set_size.toMebibytes();
+        }
+        catch (NumberFormatException e)
+        {
+            throw new ConfigurationException("accord.working_set_size option was set incorrectly to '"
+                                             + conf.accord.working_set_size + "', supported values are <integer> >= 0.", false);
         }
 
         try
@@ -2586,7 +2601,7 @@ public class DatabaseDescriptor
         conf.concurrent_materialized_view_writes = concurrent_materialized_view_writes;
     }
 
-    public static int getConcurrentAccordOps()
+    public static int getAccordConcurrentOps()
     {
         return conf.concurrent_accord_operations;
     }
@@ -3474,41 +3489,6 @@ public class DatabaseDescriptor
         return conf.paxos_topology_repair_strict_each_quorum;
     }
 
-    public static AccordSpec getAccord()
-    {
-        return conf == null ? null : conf.accord;
-    }
-
-    public static AccordSpec.TransactionalRangeMigration getTransactionalRangeMigration()
-    {
-        return conf.accord.range_migration;
-    }
-
-    public static void setTransactionalRangeMigration(AccordSpec.TransactionalRangeMigration val)
-    {
-        conf.accord.range_migration = Preconditions.checkNotNull(val);
-    }
-
-    public static int getAccordBarrierRetryAttempts()
-    {
-        return conf.accord.barrier_retry_attempts;
-    }
-
-    public static long getAccordBarrierRetryInitialBackoffMillis()
-    {
-        return conf.accord.barrier_retry_inital_backoff_millis.toMilliseconds();
-    }
-
-    public static long getAccordBarrierRetryMaxBackoffMillis()
-    {
-        return conf.accord.barrier_max_backoff.toMilliseconds();
-    }
-
-    public static long getAccordRangeBarrierTimeoutNanos()
-    {
-        return conf.accord.range_barrier_timeout.to(TimeUnit.NANOSECONDS);
-    }
-
     public static TransactionalMode defaultTransactionalMode()
     {
         return conf.accord.default_transactional_mode;
@@ -4060,6 +4040,11 @@ public class DatabaseDescriptor
     public static long getAccordCacheSizeInMiB()
     {
         return accordCacheSizeInMiB;
+    }
+
+    public static long getAccordWorkingSetSizeInMiB()
+    {
+        return accordWorkingSetSizeInMiB;
     }
 
     public static long getConsensusMigrationCacheSizeInMiB()
@@ -5085,6 +5070,42 @@ public class DatabaseDescriptor
         }
     }
 
+
+    public static AccordSpec getAccord()
+    {
+        return conf.accord;
+    }
+
+    public static AccordSpec.TransactionalRangeMigration getTransactionalRangeMigration()
+    {
+        return conf.accord.range_migration;
+    }
+
+    public static void setTransactionalRangeMigration(AccordSpec.TransactionalRangeMigration val)
+    {
+        conf.accord.range_migration = Preconditions.checkNotNull(val);
+    }
+
+    public static int getAccordBarrierRetryAttempts()
+    {
+        return conf.accord.barrier_retry_attempts;
+    }
+
+    public static long getAccordBarrierRetryInitialBackoffMillis()
+    {
+        return conf.accord.barrier_retry_inital_backoff_millis.toMilliseconds();
+    }
+
+    public static long getAccordBarrierRetryMaxBackoffMillis()
+    {
+        return conf.accord.barrier_max_backoff.toMilliseconds();
+    }
+
+    public static long getAccordRangeSyncPointTimeoutNanos()
+    {
+        return conf.accord.range_syncpoint_timeout.to(TimeUnit.NANOSECONDS);
+    }
+
     public static boolean getAccordTransactionsEnabled()
     {
         return conf.accord.enabled;
@@ -5095,9 +5116,54 @@ public class DatabaseDescriptor
         conf.accord.enabled = b;
     }
 
-    public static int getAccordShardCount()
+    public static AccordSpec.QueueShardModel getAccordQueueShardModel()
     {
-        return conf.accord.shard_count.or(DatabaseDescriptor::getAvailableProcessors);
+        return conf.accord.queue_shard_model;
+    }
+
+    public static AccordSpec.QueueSubmissionModel getAccordQueueSubmissionModel()
+    {
+        return conf.accord.queue_submission_model;
+    }
+
+    public static int getAccordQueueShardCount()
+    {
+        switch (getAccordQueueShardModel())
+        {
+            default: throw new AssertionError("Unhandled queue_shard_model: " + conf.accord.queue_shard_model);
+            case THREAD_PER_SHARD:
+            case THREAD_PER_SHARD_SYNC_QUEUE:
+                return conf.accord.queue_shard_count.or(DatabaseDescriptor::getAvailableProcessors);
+            case THREAD_POOL_PER_SHARD:
+            case THREAD_POOL_PER_SHARD_EXCLUDES_IO:
+                int defaultMax = getAccordQueueSubmissionModel() == AccordSpec.QueueSubmissionModel.SYNC ? 8 : 4;
+                return conf.accord.queue_shard_count.or(Math.min(defaultMax, DatabaseDescriptor.getAvailableProcessors()));
+        }
+    }
+
+    public static int getAccordCommandStoreShardCount()
+    {
+        return conf.accord.command_store_shard_count.or(DatabaseDescriptor::getAvailableProcessors);
+    }
+
+    public static long getAccordRecoverDelay(TimeUnit units)
+    {
+        return conf.accord.recover_delay.to(units);
+    }
+
+    public static void setAccordRecoverDelay(long time, TimeUnit units)
+    {
+        conf.accord.recover_delay = new IntMillisecondsBound(time, units);
+    }
+
+    public static long getAccordRangeSyncPointRecoverDelay(TimeUnit units)
+    {
+        return conf.accord.range_syncpoint_recover_delay.to(units);
+    }
+
+    public static void setAccordRangeSyncPointRecoverDelay(long time, TimeUnit units)
+    {
+        conf.accord.range_syncpoint_recover_delay = new IntMillisecondsBound(time, units);
     }
 
     public static long getAccordFastPathUpdateDelayMillis()

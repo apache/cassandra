@@ -57,7 +57,6 @@ import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.auth.AuthCache;
 import org.apache.cassandra.batchlog.Batch;
 import org.apache.cassandra.batchlog.BatchlogManager;
-import org.apache.cassandra.concurrent.ExecutorFactory;
 import org.apache.cassandra.concurrent.ExecutorLocals;
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.concurrent.ImmediateExecutor;
@@ -200,6 +199,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     private volatile boolean internodeMessagingStarted = false;
     private final AtomicLong startedAt = new AtomicLong();
     private IsolatedJmx isolatedJmx;
+    private static boolean RECEIVE_MESSAGES_ASYNC = false;
+    public static void setReceiveMessagesAsync(boolean v) {RECEIVE_MESSAGES_ASYNC = v; }
 
     /** @deprecated See CASSANDRA-17013 */
     @Deprecated(since = "4.1")
@@ -509,8 +510,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     @Override
     public void receiveMessage(IMessage message)
     {
-        sync(receiveMessageRunnable(message)).accept(false);
-//        async(receiveMessageRunnable(message)).apply(false);
+        if (RECEIVE_MESSAGES_ASYNC) async(receiveMessageRunnable(message)).apply(false);
+        else sync(receiveMessageRunnable(message)).accept(false);
     }
 
     @Override
@@ -562,7 +563,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 }
                 // This can cause deadlocks when sending messages to self so use Stage.MISC.executor() just to have a
                 // place for it to run
-                if ( executor == ImmediateExecutor.INSTANCE)
+                if (executor == ImmediateExecutor.INSTANCE)
                     executor = Stage.MISC.executor();
                 executor.execute(ExecutorLocals.create(state), () -> MessagingService.instance().inboundSink.accept(messageIn));
             }
@@ -647,7 +648,6 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                                                                                         config.networkTopology(), config.broadcastAddress());
                     // org.apache.cassandra.distributed.impl.AbstractCluster.startup sets the exception handler for the thread
                     // so extract it to populate ExecutorFactory.Global
-                    ExecutorFactory.Global.tryUnsafeSet(new ExecutorFactory.Default(Thread.currentThread().getContextClassLoader(), null, Thread.getDefaultUncaughtExceptionHandler()));
                     DistributedTestSnitch.assign(config.networkTopology());
                     CassandraDaemon.getInstanceForTesting().activate(false);
                     // TODO: filters won't work for the messages dispatched during startup
@@ -738,7 +738,6 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     {
         // org.apache.cassandra.distributed.impl.AbstractCluster.startup sets the exception handler for the thread
         // so extract it to populate ExecutorFactory.Global
-        ExecutorFactory.Global.tryUnsafeSet(new ExecutorFactory.Default(Thread.currentThread().getContextClassLoader(), null, Thread.getDefaultUncaughtExceptionHandler()));
         if (config.has(GOSSIP))
         {
             // TODO: hacky

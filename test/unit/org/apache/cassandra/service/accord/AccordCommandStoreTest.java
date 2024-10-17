@@ -190,7 +190,7 @@ public class AccordCommandStoreTest
 
         AccordKeyspace.getTimestampsForKeyMutation(commandStore, tfk, commandStore.nextSystemTimestampMicros()).apply();
         logger.info("E: {}", tfk);
-        TimestampsForKey actual = AccordKeyspace.loadTimestampsForKey(commandStore, key);
+        TimestampsForKey actual = AccordKeyspace.loadTimestampsForKey(commandStore.id(), key);
         logger.info("A: {}", actual);
 
         Assert.assertEquals(tfk.current(), actual);
@@ -221,7 +221,7 @@ public class AccordCommandStoreTest
 
         AccordKeyspace.getCommandsForKeyMutation(commandStore.id(), cfk.current(), commandStore.nextSystemTimestampMicros()).apply();
         logger.info("E: {}", cfk);
-        CommandsForKey actual = AccordKeyspace.loadCommandsForKey(commandStore, key);
+        CommandsForKey actual = AccordKeyspace.loadCommandsForKey(commandStore.id(), key);
         logger.info("A: {}", actual);
 
         Assert.assertEquals(cfk.current(), actual);

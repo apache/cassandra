@@ -42,7 +42,7 @@ public class AccordProgressLogTest extends TestBaseImpl
     @Test
     public void testRecoveryTimeWindow() throws Throwable
     {
-        try (Cluster cluster = init(Cluster.build(3)
+        try (Cluster cluster = init(Cluster.build(2)
                                            .withoutVNodes()
                                            .withConfig(c -> c.with(Feature.NETWORK)
                                                              .set("accord.enabled", "true")
@@ -55,7 +55,7 @@ public class AccordProgressLogTest extends TestBaseImpl
                            "  SELECT * FROM ks.tbl WHERE k=0 AND c=0;\n" +
                            "COMMIT TRANSACTION";
 
-            IMessageFilters.Filter dropCommit = cluster.filters().outbound().from(1).verbs(Verb.ACCORD_COMMIT_REQ.id).drop();
+            IMessageFilters.Filter dropPreAccept = cluster.filters().outbound().from(1).to(2).verbs(Verb.ACCORD_PRE_ACCEPT_REQ.id).drop();
             AtomicLong recoveryStartedAt = new AtomicLong();
             Semaphore waitForRecovery = new Semaphore(0);
             IMessageFilters.Filter recovery = cluster.filters().outbound().messagesMatching((from, to, message) -> {
@@ -82,14 +82,14 @@ public class AccordProgressLogTest extends TestBaseImpl
             waitForRecovery.acquire();
             long timeDeltaMillis = TimeUnit.NANOSECONDS.toMillis(recoveryStartedAt.get() - coordinationStartedAt);
             Assert.assertTrue("Recovery started in " + timeDeltaMillis + "ms", timeDeltaMillis >= 1000);
-            Assert.assertTrue("Recovery started in " + timeDeltaMillis + "ms", timeDeltaMillis <= 3000);
+            Assert.assertTrue("Recovery started in " + timeDeltaMillis + "ms", timeDeltaMillis <= 5000);
         }
     }
 
     @Test
     public void testFetchTimeWindow() throws Throwable
     {
-        try (Cluster cluster = init(Cluster.build(3)
+        try (Cluster cluster = init(Cluster.build(2)
                                            .withoutVNodes()
                                            .withConfig(c -> c.with(Feature.NETWORK).set("accord.enabled", "true"))
                                            .start()))

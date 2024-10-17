@@ -30,7 +30,7 @@ import jdk.jfr.StackTrace;
 @StackTrace(false)
 public abstract class CacheEvents extends Event
 {
-    public int store;
+    public int shard;
     public String instance;
     public String key;
     public String status;

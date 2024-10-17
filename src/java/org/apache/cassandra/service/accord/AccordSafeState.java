@@ -18,8 +18,7 @@
 package org.apache.cassandra.service.accord;
 
 import accord.impl.SafeState;
-import accord.utils.async.AsyncChain;
-import org.apache.cassandra.service.accord.AccordCachingState.Status;
+import org.apache.cassandra.utils.concurrent.Future;
 
 public interface AccordSafeState<K, V> extends SafeState<V>
 {
@@ -46,17 +45,7 @@ public interface AccordSafeState<K, V> extends SafeState<V>
         return global().key();
     }
 
-    default Status globalStatus()
-    {
-        return global().status();
-    }
-
-    default AsyncChain<?> loading()
-    {
-        return global().loading();
-    }
-
-    default AsyncChain<?> saving()
+    default Future<?> saving()
     {
         return global().saving();
     }

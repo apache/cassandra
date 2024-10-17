@@ -26,6 +26,8 @@ import org.apache.cassandra.journal.Params;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 
 import static accord.primitives.Routable.Domain.Range;
+import static org.apache.cassandra.config.AccordSpec.QueueShardModel.THREAD_POOL_PER_SHARD;
+import static org.apache.cassandra.config.AccordSpec.QueueSubmissionModel.SYNC;
 
 public class AccordSpec
 {
@@ -35,18 +37,71 @@ public class AccordSpec
 
     public volatile boolean enable_journal_compaction = true;
 
-    public volatile OptionaldPositiveInt shard_count = OptionaldPositiveInt.UNDEFINED;
+    public enum QueueShardModel
+    {
+        /**
+         * Same number of threads as queue shards, but the shard lock is held only while managing the queue,
+         * so that submitting threads may queue load/save work.
+         *
+         * The global READ and WRITE stages are used for IO.
+         */
+        THREAD_PER_SHARD,
+
+        /**
+         * Same number of threads as shards, and the shard lock is held for the duration of serving requests.
+         * The global READ and WRITE stages are used for IO.
+         */
+        THREAD_PER_SHARD_SYNC_QUEUE,
+
+        /**
+         * More threads than shards. Threads update transaction state as well as performing IO, minimising context switching.
+         * Fewer shards is generally better, until queue-contention is encountered.
+         */
+        THREAD_POOL_PER_SHARD,
+
+        /**
+         * More threads than shards. Threads update transaction state only, relying on READ and WRITE stages for IO.
+         * Fewer shards is generally better, until queue-contention is encountered.
+         */
+        THREAD_POOL_PER_SHARD_EXCLUDES_IO,
+    }
+
+    public enum QueueSubmissionModel
+    {
+        SYNC, SEMI_SYNC, ASYNC
+    }
+
+    public QueueShardModel queue_shard_model = THREAD_POOL_PER_SHARD;
+    public QueueSubmissionModel queue_submission_model = SYNC;
+
+    /**
+     * The number of queue (and cache) shards.
+     */
+    public volatile OptionaldPositiveInt queue_shard_count = OptionaldPositiveInt.UNDEFINED;
+
+    /**
+     * The target number of command stores to create per topology shard.
+     * This determines the amount of execution parallelism possible for a given table/shard on the host.
+     * More shards means more parallelism, but more state.
+     *
+     * TODO (expected): make this a table property
+     * TODO (expected): adjust this by proportion of ring
+     */
+    public volatile OptionaldPositiveInt command_store_shard_count = OptionaldPositiveInt.UNDEFINED;
+
+    public DataStorageSpec.LongMebibytesBound cache_size = null;
+    public DataStorageSpec.LongMebibytesBound working_set_size = null;
 
     // TODO (expected): we should be able to support lower recover delays, at least for txns
     public volatile DurationSpec.IntMillisecondsBound recover_delay = new DurationSpec.IntMillisecondsBound(5000);
-    public volatile DurationSpec.IntMillisecondsBound range_sync_recover_delay = new DurationSpec.IntMillisecondsBound("5m");
+    public volatile DurationSpec.IntMillisecondsBound range_syncpoint_recover_delay = new DurationSpec.IntMillisecondsBound("5m");
     public String slowPreAccept = "30ms <= p50*2 <= 100ms";
     public String slowRead = "30ms <= p50*2 <= 100ms";
 
     public long recoveryDelayFor(TxnId txnId, TimeUnit unit)
     {
         if (txnId.isSyncPoint() && txnId.is(Range))
-            return range_sync_recover_delay.to(unit);
+            return range_syncpoint_recover_delay.to(unit);
         return recover_delay.to(unit);
     }
 
@@ -63,7 +118,7 @@ public class AccordSpec
 
     public DurationSpec.IntMillisecondsBound barrier_max_backoff = new DurationSpec.IntMillisecondsBound("10m");
 
-    public DurationSpec.IntMillisecondsBound range_barrier_timeout = new DurationSpec.IntMillisecondsBound("2m");
+    public DurationSpec.IntMillisecondsBound range_syncpoint_timeout = new DurationSpec.IntMillisecondsBound("2m");
 
     public volatile DurationSpec.IntSecondsBound fast_path_update_delay = new DurationSpec.IntSecondsBound("60m");
 

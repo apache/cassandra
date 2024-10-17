@@ -180,7 +180,7 @@ public class AccordJournal implements IJournal, Shutdownable
     public Command loadCommand(int commandStoreId, TxnId txnId, RedundantBefore redundantBefore, DurableBefore durableBefore)
     {
         SavedCommand.Builder builder = loadDiffs(commandStoreId, txnId);
-        Cleanup cleanup = builder.shouldCleanup(redundantBefore, durableBefore);
+        Cleanup cleanup = builder.shouldCleanup(node.agent(), redundantBefore, durableBefore);
         switch (cleanup)
         {
             case EXPUNGE_PARTIAL:
@@ -195,7 +195,7 @@ public class AccordJournal implements IJournal, Shutdownable
     public SavedCommand.MinimalCommand loadMinimal(int commandStoreId, TxnId txnId, SavedCommand.Load load, RedundantBefore redundantBefore, DurableBefore durableBefore)
     {
         SavedCommand.Builder builder = loadDiffs(commandStoreId, txnId, load);
-        Cleanup cleanup = builder.shouldCleanup(redundantBefore, durableBefore);
+        Cleanup cleanup = builder.shouldCleanup(node.agent(), redundantBefore, durableBefore);
         switch (cleanup)
         {
             case EXPUNGE_PARTIAL:
@@ -459,7 +459,7 @@ public class AccordJournal implements IJournal, Shutdownable
                         }
                     });
 
-                    Cleanup cleanup = builder.shouldCleanup(compactionInfo.redundantBefores.get(key.commandStoreId), compactionInfo.durableBefores.get(key.commandStoreId));
+                    Cleanup cleanup = builder.shouldCleanup(node.agent(), compactionInfo.redundantBefores.get(key.commandStoreId), compactionInfo.durableBefores.get(key.commandStoreId));
                     switch (cleanup)
                     {
                         case ERASE:

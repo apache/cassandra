@@ -29,6 +29,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
@@ -57,8 +58,6 @@ import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.topology.Topology;
 import accord.utils.Invariants;
-import accord.utils.async.Observable;
-import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
@@ -983,7 +982,7 @@ public class AccordKeyspace
     public static void findAllKeysBetween(int commandStore,
                                           AccordRoutingKey start, boolean startInclusive,
                                           AccordRoutingKey end, boolean endInclusive,
-                                          Observable<TokenKey> callback)
+                                          Consumer<TokenKey> consumer)
     {
 
         Token startToken = CommandsForKeysAccessor.getPrefixToken(commandStore, start);
@@ -1006,41 +1005,23 @@ public class AccordKeyspace
         else
             bounds = new ExcludingBounds<>(startPosition, endPosition);
 
-        Stage.READ.executor().submit(() -> {
-            ColumnFamilyStore baseCfs = Keyspace.openAndGetStore(CommandsForKeys);
-            try (OpOrder.Group baseOp = baseCfs.readOrdering.start();
-                 WriteContext writeContext = baseCfs.keyspace.getWriteHandler().createContextForRead();
-                 CloseableIterator<DecoratedKey> iter = LocalCompositePrefixPartitioner.keyIterator(CommandsForKeys, bounds))
+        ColumnFamilyStore baseCfs = Keyspace.openAndGetStore(CommandsForKeys);
+        try (OpOrder.Group baseOp = baseCfs.readOrdering.start();
+             WriteContext writeContext = baseCfs.keyspace.getWriteHandler().createContextForRead();
+             CloseableIterator<DecoratedKey> iter = LocalCompositePrefixPartitioner.keyIterator(CommandsForKeys, bounds))
+        {
+            // Need the second try to handle callback errors vs read errors.
+            // Callback will see the read errors, but if the callback fails the outer try will see those errors
+            while (iter.hasNext())
             {
-                // Need the second try to handle callback errors vs read errors.
-                // Callback will see the read errors, but if the callback fails the outer try will see those errors
-                try
-                {
-                    while (iter.hasNext())
-                    {
-                        TokenKey pk = CommandsForKeysAccessor.getKey(iter.next());
-                        callback.onNext(pk);
-                    }
-                    callback.onCompleted();
-                }
-                catch (Exception e)
-                {
-                    callback.onError(e);
-                }
+                TokenKey pk = CommandsForKeysAccessor.getKey(iter.next());
+                consumer.accept(pk);
             }
-            catch (IOException e)
-            {
-                try
-                {
-                    callback.onError(e);
-                }
-                catch (Throwable t)
-                {
-                    e.addSuppressed(t);
-                }
-                throw new RuntimeException(e);
-            }
-        });
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
     public static TxnId deserializeTxnId(UntypedResultSet.Row row)
@@ -1132,24 +1113,23 @@ public class AccordKeyspace
         return getTimestampsForKeyMutation(commandStore.id(), liveTimestamps.current(), timestampMicros);
     }
 
-    public static UntypedResultSet loadTimestampsForKeyRow(CommandStore commandStore, TokenKey key)
+    public static UntypedResultSet loadTimestampsForKeyRow(int commandStoreId, TokenKey key)
     {
         String cql = "SELECT * FROM " + ACCORD_KEYSPACE_NAME + '.' + TIMESTAMPS_FOR_KEY + ' ' +
                      "WHERE store_id = ? " +
                      "AND routing_key = ?";
 
-        return executeInternal(cql, commandStore.id(), serializeRoutingKey(key));
+        return executeInternal(cql, commandStoreId, serializeRoutingKey(key));
     }
 
-    public static TimestampsForKey loadTimestampsForKey(AccordCommandStore commandStore, TokenKey key)
+    public static TimestampsForKey loadTimestampsForKey(int commandStoreId, TokenKey key)
     {
-        commandStore.checkNotInStoreThread();
-        return unsafeLoadTimestampsForKey(commandStore, key);
+        return unsafeLoadTimestampsForKey(commandStoreId, key);
     }
 
-    public static TimestampsForKey unsafeLoadTimestampsForKey(AccordCommandStore commandStore, TokenKey key)
+    public static TimestampsForKey unsafeLoadTimestampsForKey(int commandStoreId, TokenKey key)
     {
-        UntypedResultSet rows = loadTimestampsForKeyRow(commandStore, key);
+        UntypedResultSet rows = loadTimestampsForKeyRow(commandStoreId, key);
 
         if (rows.isEmpty())
         {
@@ -1168,9 +1148,9 @@ public class AccordKeyspace
         return TimestampsForKey.SerializerSupport.create(key, lastExecutedTimestamp, lastExecutedMicros, lastWriteId, lastWriteTimestamp);
     }
 
-    private static DecoratedKey makeKeySeparateTable(CommandsForKeyAccessor accessor, int storeId, TokenKey key)
+    private static DecoratedKey makeKeySeparateTable(CommandsForKeyAccessor accessor, int commandStoreId, TokenKey key)
     {
-        ByteBuffer pk = accessor.keyComparator.make(storeId,
+        ByteBuffer pk = accessor.keyComparator.make(commandStoreId,
                                                     UUIDSerializer.instance.serialize(key.table().asUUID()),
                                                     serializeRoutingKeyNoTable(key)).serializeAsPartitionKey();
         return accessor.table.partitioner.decorateKey(pk);
@@ -1260,12 +1240,12 @@ public class AccordKeyspace
         return getCommandsForKeyRead(CommandsForKeysAccessor, storeId, key, nowInSeconds);
     }
 
-    static CommandsForKey unsafeLoadCommandsForKey(CommandsForKeyAccessor accessor, AccordCommandStore commandStore, TokenKey key)
+    static CommandsForKey unsafeLoadCommandsForKey(CommandsForKeyAccessor accessor, int commandStoreId, TokenKey key)
     {
         long timestampMicros = TimeUnit.MILLISECONDS.toMicros(Global.currentTimeMillis());
         int nowInSeconds = (int) TimeUnit.MICROSECONDS.toSeconds(timestampMicros);
 
-        SinglePartitionReadCommand command = getCommandsForKeyRead(accessor, commandStore.id(), key, nowInSeconds);
+        SinglePartitionReadCommand command = getCommandsForKeyRead(accessor, commandStoreId, key, nowInSeconds);
 
         try (ReadExecutionController controller = command.executionController();
              FilteredPartitions partitions = FilteredPartitions.filter(command.executeLocally(controller), nowInSeconds))
@@ -1288,15 +1268,14 @@ public class AccordKeyspace
         }
     }
 
-    public static CommandsForKey unsafeLoadCommandsForKey(AccordCommandStore commandStore, TokenKey key)
+    public static CommandsForKey unsafeLoadCommandsForKey(int commandStoreId, TokenKey key)
     {
-        return unsafeLoadCommandsForKey(CommandsForKeysAccessor, commandStore, key);
+        return unsafeLoadCommandsForKey(CommandsForKeysAccessor, commandStoreId, key);
     }
 
-    public static CommandsForKey loadCommandsForKey(AccordCommandStore commandStore, TokenKey key)
+    public static CommandsForKey loadCommandsForKey(int commandStoreId, TokenKey key)
     {
-        commandStore.checkNotInStoreThread();
-        return unsafeLoadCommandsForKey(CommandsForKeysAccessor, commandStore, key);
+        return unsafeLoadCommandsForKey(CommandsForKeysAccessor, commandStoreId, key);
     }
 
     public static class EpochDiskState

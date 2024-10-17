@@ -46,7 +46,7 @@ public enum Stage
     MUTATION           (true,  "MutationStage",         "request",  DatabaseDescriptor::getConcurrentWriters,        DatabaseDescriptor::setConcurrentWriters,        Stage::multiThreadedLowSignalStage),
     COUNTER_MUTATION   (true,  "CounterMutationStage",  "request",  DatabaseDescriptor::getConcurrentCounterWriters, DatabaseDescriptor::setConcurrentCounterWriters, Stage::multiThreadedLowSignalStage),
     VIEW_MUTATION      (true,  "ViewMutationStage",     "request",  DatabaseDescriptor::getConcurrentViewWriters,    DatabaseDescriptor::setConcurrentViewWriters,    Stage::multiThreadedLowSignalStage),
-    ACCORD_MIGRATION   (false, "AccordMigrationStage",  "request",  DatabaseDescriptor::getConcurrentAccordOps,      DatabaseDescriptor::setConcurrentAccordOps,      Stage::multiThreadedLowSignalStage),
+    ACCORD_MIGRATION   (false, "AccordMigrationStage", "request", DatabaseDescriptor::getAccordConcurrentOps, DatabaseDescriptor::setConcurrentAccordOps, Stage::multiThreadedLowSignalStage),
     GOSSIP             (true,  "GossipStage",           "internal", () -> 1,                                         null,                                            Stage::singleThreadedStage),
     REQUEST_RESPONSE   (false, "RequestResponseStage",  "request",  FBUtilities::getAvailableProcessors,             null,                                            Stage::multiThreadedLowSignalStage),
     ANTI_ENTROPY       (false, "AntiEntropyStage",      "internal", () -> 1,                                         null,                                            Stage::singleThreadedStage),
@@ -58,7 +58,6 @@ public enum Stage
     PAXOS_REPAIR       (false, "PaxosRepairStage",      "internal", FBUtilities::getAvailableProcessors,             null,                                            Stage::multiThreadedStage),
     INTERNAL_METADATA  (false, "InternalMetadataStage", "internal", FBUtilities::getAvailableProcessors,             null,                                            Stage::multiThreadedStage),
     FETCH_LOG          (false, "MetadataFetchLogStage", "internal", () -> 1,                                         null,                                            Stage::singleThreadedStage),
-    ACCORD_RANGE_LOADER(false, "AccordRangeLoader",     "internal", () -> 4,                                         null,                                            Stage::multiThreadedStage),
     ;
     public final String jmxName;
     private final Supplier<ExecutorPlus> executorSupplier;

@@ -93,7 +93,7 @@ import org.apache.cassandra.utils.Pair;
 import org.assertj.core.api.Assertions;
 
 import static accord.impl.TimestampsForKey.NO_LAST_EXECUTED_HLC;
-import static accord.local.KeyHistory.COMMANDS;
+import static accord.local.KeyHistory.SYNC;
 import static accord.local.PreLoadContext.contextFor;
 import static accord.primitives.Routable.Domain.Range;
 import static accord.utils.async.AsyncChains.getUninterruptibly;
@@ -439,10 +439,13 @@ public class CompactionAccordIteratorsTest
     {
         commandStore.executeBlocking(() -> {
             // clear cache and wait for post-eviction writes to complete
-            long cacheSize = commandStore.cache().capacity();
-            commandStore.cache().setCapacity(0);
-            commandStore.cache().setCapacity(cacheSize);
-            commandStore.cache().awaitSaveResults();
+            try (AccordExecutor.ExclusiveGlobalCaches cache = commandStore.executor().lockCaches();)
+            {
+                long cacheSize = cache.global.capacity();
+                cache.global.setCapacity(0);
+                cache.global.setCapacity(cacheSize);
+                cache.global.awaitSaveResults();
+            }
         });
         commands.forceBlockingFlush(FlushReason.UNIT_TESTS);
         timestampsForKey.forceBlockingFlush(FlushReason.UNIT_TESTS);
@@ -473,19 +476,19 @@ public class CompactionAccordIteratorsTest
             PartialDeps partialDeps = Deps.NONE.intersecting(AccordTestUtils.fullRange(txn));
             PartialTxn partialTxn = txn.slice(commandStore.unsafeRangesForEpoch().currentRanges(), true);
             Route<?> partialRoute = route.slice(commandStore.unsafeRangesForEpoch().currentRanges());
-            getUninterruptibly(commandStore.execute(contextFor(txnId, route, COMMANDS), safe -> {
+            getUninterruptibly(commandStore.execute(contextFor(txnId, route, SYNC), safe -> {
                 CheckedCommands.preaccept(safe, txnId, partialTxn, route, appendDiffToKeyspace(commandStore));
             }).beginAsResult());
             flush(commandStore);
-            getUninterruptibly(commandStore.execute(contextFor(txnId, route, COMMANDS), safe -> {
+            getUninterruptibly(commandStore.execute(contextFor(txnId, route, SYNC), safe -> {
                 CheckedCommands.accept(safe, txnId, Ballot.ZERO, partialRoute, txnId, partialDeps, appendDiffToKeyspace(commandStore));
             }).beginAsResult());
             flush(commandStore);
-            getUninterruptibly(commandStore.execute(contextFor(txnId, route, COMMANDS), safe -> {
+            getUninterruptibly(commandStore.execute(contextFor(txnId, route, SYNC), safe -> {
                 CheckedCommands.commit(safe, SaveStatus.Stable, Ballot.ZERO, txnId, route, partialTxn, txnId, partialDeps, appendDiffToKeyspace(commandStore));
             }).beginAsResult());
             flush(commandStore);
-            getUninterruptibly(commandStore.execute(contextFor(txnId, route, COMMANDS), safe -> {
+            getUninterruptibly(commandStore.execute(contextFor(txnId, route, SYNC), safe -> {
                 Pair<Writes, Result> result = AccordTestUtils.processTxnResultDirect(safe, txnId, partialTxn, txnId);
                 CheckedCommands.apply(safe, txnId, route, txnId, partialDeps, partialTxn, result.left, result.right, appendDiffToKeyspace(commandStore));
             }).beginAsResult());
@@ -493,7 +496,7 @@ public class CompactionAccordIteratorsTest
             // The apply chain is asychronous, so it is easiest to just spin until it is applied
             // in order to have the updated state in the system table
             spinAssertEquals(true, 5, () -> {
-                return getUninterruptibly(commandStore.submit(contextFor(txnId, route, COMMANDS), safe -> {
+                return getUninterruptibly(commandStore.submit(contextFor(txnId, route, SYNC), safe -> {
                     StoreParticipants participants = StoreParticipants.all(route);
                     Command command = safe.get(txnId, participants).current();
                     appendDiffToKeyspace(commandStore).accept(null, command);

@@ -60,9 +60,9 @@ public class CommandsForRanges implements CommandsSummary
         this.map = map;
     }
 
-    public static CommandsForRanges create(Ranges ranges, NavigableMap<TxnId, CommandsForRangesLoader.Summary> map)
+    public static CommandsForRanges create(Ranges ranges, NavigableMap<Timestamp, CommandsForRangesLoader.Summary> map)
     {
-        return new CommandsForRanges(ranges, (NavigableMap<Timestamp, CommandsForRangesLoader.Summary>) (NavigableMap<?, ?>) map);
+        return new CommandsForRanges(ranges, map);
     }
 
     @VisibleForTesting
