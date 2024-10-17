@@ -26,11 +26,10 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.GuardedBy;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Sets;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import accord.impl.AbstractConfigurationService;
 import accord.local.Node;
@@ -67,15 +66,15 @@ import static org.apache.cassandra.utils.Simulate.With.MONITORS;
 @Simulate(with=MONITORS)
 public class AccordConfigurationService extends AbstractConfigurationService<AccordConfigurationService.EpochState, AccordConfigurationService.EpochHistory> implements ChangeListener, AccordEndpointMapper, AccordSyncPropagator.Listener, Shutdownable
 {
-    private static final Logger logger = LoggerFactory.getLogger(AccordConfigurationService.class);
-
     private final AccordSyncPropagator syncPropagator;
     private final DiskStateManager diskStateManager;
 
+    @GuardedBy("this")
     private EpochDiskState diskState = EpochDiskState.EMPTY;
 
     private enum State { INITIALIZED, LOADING, STARTED, SHUTDOWN }
 
+    @GuardedBy("this")
     private State state = State.INITIALIZED;
     private volatile EndpointMapping mapping = EndpointMapping.EMPTY;
 
@@ -83,7 +82,7 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
 
     static class EpochState extends AbstractConfigurationService.AbstractEpochState
     {
-        SyncStatus syncStatus = SyncStatus.NOT_STARTED;
+        private volatile SyncStatus syncStatus = SyncStatus.NOT_STARTED;
         protected final AsyncResult.Settable<Void> localSyncNotified = AsyncResults.settable();
 
         public EpochState(long epoch)
@@ -303,7 +302,7 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
     }
 
     @VisibleForTesting
-    EpochDiskState diskState()
+    synchronized EpochDiskState diskState()
     {
         return diskState;
     }
@@ -325,12 +324,12 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
         Stage.MISC.submit(() -> reportMetadataInternal(metadata));
     }
 
-    synchronized void reportMetadataInternal(ClusterMetadata metadata)
+    void reportMetadataInternal(ClusterMetadata metadata)
     {
         reportMetadataInternal(metadata, false);
     }
 
-    synchronized void reportMetadataInternal(ClusterMetadata metadata, boolean isLoad)
+    void reportMetadataInternal(ClusterMetadata metadata, boolean isLoad)
     {
         updateMapping(metadata);
         Topology topology = AccordTopology.createAccordTopology(metadata);
@@ -342,12 +341,19 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
                     throw new IllegalStateException("Epoch " + topology.epoch() + " has node " + node + " but mapping does not!");
             }
         }
-        Topology current = isEmpty() ? Topology.EMPTY : currentTopology();
         reportTopology(topology);
+        if (epochs.lastAcknowledged() >= topology.epoch()) checkIfNodesRemoved(topology);
+        else epochs.acknowledgeFuture(topology.epoch()).addCallback(() -> checkIfNodesRemoved(topology));
+    }
+
+    private void checkIfNodesRemoved(Topology topology)
+    {
+        if (epochs.minEpoch() == topology.epoch()) return;
+        Topology previous = getTopologyForEpoch(topology.epoch() - 1);
         // for all nodes removed, or pending removal, mark them as removed so we don't wait on their replies
-        Sets.SetView<Node.Id> removedNodes = Sets.difference(current.nodes(), topology.nodes());
+        Sets.SetView<Node.Id> removedNodes = Sets.difference(previous.nodes(), topology.nodes());
         if (!removedNodes.isEmpty())
-            onNodesRemoved(topology.epoch(), current, removedNodes);
+            onNodesRemoved(topology.epoch(), previous, removedNodes);
     }
 
     private static boolean shareShard(Topology current, Node.Id target, Node.Id self)
@@ -360,7 +366,7 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
         return false;
     }
 
-    public synchronized void onNodesRemoved(long epoch, Topology current, Set<Node.Id> removed)
+    public void onNodesRemoved(long epoch, Topology current, Set<Node.Id> removed)
     {
         if (removed.isEmpty()) return;
         syncPropagator.onNodesRemoved(removed);
@@ -381,11 +387,14 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
     private long[] nonCompletedEpochsBefore(long max)
     {
         LongArrayList notComplete = new LongArrayList();
-        for (long epoch = epochs.minEpoch(); epoch <= max && epoch <= epochs.maxEpoch(); epoch++)
+        synchronized (epochs)
         {
-            EpochSnapshot snapshot = getEpochSnapshot(epoch);
-            if (snapshot.syncStatus != SyncStatus.COMPLETED)
-                notComplete.add(epoch);
+            for (long epoch = epochs.minEpoch(), maxKnown = epochs.maxEpoch(); epoch <= max && epoch <= maxKnown; epoch++)
+            {
+                EpochSnapshot snapshot = getEpochSnapshot(epoch);
+                if (snapshot.syncStatus != SyncStatus.COMPLETED)
+                    notComplete.add(epoch);
+            }
         }
         return notComplete.toLongArray();
     }
@@ -394,17 +403,17 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
     void maybeReportMetadata(ClusterMetadata metadata)
     {
         // don't report metadata until the previous one has been acknowledged
-        synchronized (this)
+        long epoch = metadata.epoch.getEpoch();
+        synchronized (epochs)
         {
-            long epoch = metadata.epoch.getEpoch();
             if (epochs.maxEpoch() == 0)
             {
                 getOrCreateEpochState(epoch);  // touch epoch state so subsequent calls see it
                 reportMetadata(metadata);
                 return;
             }
-            getOrCreateEpochState(epoch - 1).acknowledged().addCallback(() -> reportMetadata(metadata));
         }
+        getOrCreateEpochState(epoch - 1).acknowledged().addCallback(() -> reportMetadata(metadata));
     }
 
     @Override
@@ -439,16 +448,21 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
     }
 
     @Override
-    protected synchronized void localSyncComplete(Topology topology, boolean startSync)
+    protected void localSyncComplete(Topology topology, boolean startSync)
     {
         long epoch = topology.epoch();
         EpochState epochState = getOrCreateEpochState(epoch);
-        if (!startSync ||epochState.syncStatus != SyncStatus.NOT_STARTED)
+        if (!startSync || epochState.syncStatus != SyncStatus.NOT_STARTED)
             return;
 
         Set<Node.Id> notify = topology.nodes().stream().filter(i -> !localId.equals(i)).collect(Collectors.toSet());
-        diskState = diskStateManager.setNotifyingLocalSync(epoch, notify, diskState);
-        epochState.setSyncStatus(SyncStatus.NOTIFYING);
+        synchronized (this)
+        {
+            if (epochState.syncStatus != SyncStatus.NOT_STARTED)
+                return;
+            diskState = diskStateManager.setNotifyingLocalSync(epoch, notify, diskState);
+            epochState.setSyncStatus(SyncStatus.NOTIFYING);
+        }
         syncPropagator.reportSyncComplete(epoch, notify, localId);
     }
 
@@ -462,11 +476,14 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
     }
 
     @Override
-    public synchronized void onComplete(long epoch)
+    public void onComplete(long epoch)
     {
         EpochState epochState = getOrCreateEpochState(epoch);
-        epochState.setSyncStatus(SyncStatus.COMPLETED);
-        diskState = diskStateManager.setCompletedLocalSync(epoch, diskState);
+        synchronized (this)
+        {
+            epochState.setSyncStatus(SyncStatus.COMPLETED);
+            diskState = diskStateManager.setCompletedLocalSync(epoch, diskState);
+        }
     }
 
     @Override
@@ -484,20 +501,21 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
     }
 
     @Override
-    public synchronized void reportEpochClosed(Ranges ranges, long epoch)
+    public void reportEpochClosed(Ranges ranges, long epoch)
     {
         checkStarted();
         Topology topology = getTopologyForEpoch(epoch);
         syncPropagator.reportClosed(epoch, topology.nodes(), ranges);
     }
 
+    @VisibleForTesting
     public AccordSyncPropagator syncPropagator()
     {
         return syncPropagator;
     }
 
     @Override
-    public synchronized void reportEpochRedundant(Ranges ranges, long epoch)
+    public void reportEpochRedundant(Ranges ranges, long epoch)
     {
         checkStarted();
         // TODO (expected): ensure we aren't fetching a truncated epoch; otherwise this should be non-null
@@ -506,21 +524,27 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
     }
 
     @Override
-    public synchronized void receiveClosed(Ranges ranges, long epoch)
+    public void receiveClosed(Ranges ranges, long epoch)
     {
-        diskState = diskStateManager.markClosed(ranges, epoch, diskState);
+        synchronized (this)
+        {
+            diskState = diskStateManager.markClosed(ranges, epoch, diskState);
+        }
         super.receiveClosed(ranges, epoch);
     }
 
     @Override
-    public synchronized void receiveRedundant(Ranges ranges, long epoch)
+    public void receiveRedundant(Ranges ranges, long epoch)
     {
-        diskState = diskStateManager.markClosed(ranges, epoch, diskState);
+        synchronized (this)
+        {
+            diskState = diskStateManager.markClosed(ranges, epoch, diskState);
+        }
         super.receiveRedundant(ranges, epoch);
     }
 
     @Override
-    protected synchronized void truncateTopologiesPreListenerNotify(long epoch)
+    protected void truncateTopologiesPreListenerNotify(long epoch)
     {
         checkStarted();
     }
@@ -532,7 +556,7 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
             diskState = diskStateManager.truncateTopologyUntil(epoch, diskState);
     }
 
-    private void checkStarted()
+    private synchronized void checkStarted()
     {
         State state = this.state;
         Invariants.checkState(state == State.STARTED, "Expected state to be STARTED but was %s", state);
@@ -614,28 +638,39 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
     }
 
     @VisibleForTesting
-    public synchronized EpochSnapshot getEpochSnapshot(long epoch)
+    public EpochSnapshot getEpochSnapshot(long epoch)
     {
-        if (epoch < epochs.minEpoch() || epoch > epochs.maxEpoch())
-            return null;
+        EpochState state;
+        // If epoch truncate happens then getting the epoch again will recreate an empty one
+        synchronized (epochs)
+        {
+            if (epoch < epochs.minEpoch() || epoch > epochs.maxEpoch())
+                return null;
 
-        return new EpochSnapshot(getOrCreateEpochState(epoch));
+            state = getOrCreateEpochState(epoch);
+        }
+        return new EpochSnapshot(state);
     }
 
     @VisibleForTesting
-    public synchronized long minEpoch()
+    public long minEpoch()
     {
         return epochs.minEpoch();
     }
 
     @VisibleForTesting
-    public synchronized long maxEpoch()
+    public long maxEpoch()
     {
         return epochs.maxEpoch();
     }
 
+    /**
+     * The callback is resolved while holding the object lock, which can cause the future chain to resolve while also
+     * holding the lock!  This behavior is exposed for tests and is unsafe due to the lock behind held while resolving
+     * the callback
+     */
     @VisibleForTesting
-    public synchronized Future<Void> localSyncNotified(long epoch)
+    public Future<Void> unsafeLocalSyncNotified(long epoch)
     {
         AsyncPromise<Void> promise = new AsyncPromise<>();
         getOrCreateEpochState(epoch).localSyncNotified().addCallback((result, failure) -> {

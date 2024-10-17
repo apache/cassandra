@@ -123,7 +123,7 @@ public class AccordBootstrapTest extends TestBaseImpl
         try
         {
             AccordConfigurationService configService = service().configurationService();
-            boolean completed = configService.localSyncNotified(epoch).await(30, TimeUnit.SECONDS);
+            boolean completed = configService.unsafeLocalSyncNotified(epoch).await(30, TimeUnit.SECONDS);
             Assert.assertTrue(String.format("Local sync notification for epoch %s did not become ready within timeout on %s",
                                             epoch, FBUtilities.getBroadcastAddressAndPort()), completed);
         }
