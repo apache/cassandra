@@ -30,10 +30,12 @@ import accord.impl.IntKey;
 import accord.primitives.SaveStatus;
 import accord.primitives.Range;
 import accord.primitives.Ranges;
+import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.AccordGens;
 import accord.utils.Gen;
 import accord.utils.Gens;
+import org.apache.cassandra.service.accord.CommandsForRangesLoader.Summary;
 
 import static accord.utils.Property.qt;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -47,13 +49,13 @@ public class CommandsForRangesTest
     private static final Gen<CommandsForRanges> CFK_GEN = rs -> {
         Ranges ranges = RANGES_GEN.next(rs);
         int numTxn = 10;
-        TreeMap<TxnId, CommandsForRangesLoader.Summary> map = new TreeMap<>();
+        TreeMap<TxnId, Summary> map = new TreeMap<>();
         for (int i = 0; i < numTxn; i++)
         {
             TxnId id = TXN_ID_GEN.next(rs);
-            map.put(id, new CommandsForRangesLoader.Summary(id, id, SaveStatus.ReadyToExecute, ranges, null, false));
+            map.put(id, new Summary(id, id, SaveStatus.ReadyToExecute, ranges, null, false));
         }
-        return CommandsForRanges.create(ranges, map);
+        return CommandsForRanges.create(ranges, new TreeMap<Timestamp, Summary>(map));
     };
     private static final IntKey.Routing MIN = IntKey.routing(Integer.MIN_VALUE);
     private static final IntKey.Routing MAX = IntKey.routing(Integer.MAX_VALUE);

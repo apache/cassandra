@@ -31,11 +31,13 @@ public abstract class AbstractBTreeMap<K, V> extends AbstractMap<K, V>
 {
     protected final Object[] tree;
     protected final KeyComparator<K, V> comparator;
+    protected final AsymmetricKeyComparator<K> asymmetricComparator;
 
-    protected AbstractBTreeMap(Object[] tree, KeyComparator<K, V> comparator)
+    protected AbstractBTreeMap(Object[] tree, KeyComparator<K, V> comparator, AsymmetricKeyComparator<K> asymmetricComparator)
     {
         this.tree = tree;
         this.comparator = comparator;
+        this.asymmetricComparator = asymmetricComparator;
     }
 
     /**
@@ -91,7 +93,7 @@ public abstract class AbstractBTreeMap<K, V> extends AbstractMap<K, V>
     {
         if (key == null)
             throw new NullPointerException();
-        Entry<K, V> entry = BTree.find(tree, comparator, new Entry<>((K)key, null));
+        Entry<K, V> entry = (Entry<K, V>) BTree.find(tree, asymmetricComparator, key);
         if (entry != null)
             return entry.getValue();
         return null;
@@ -142,6 +144,22 @@ public abstract class AbstractBTreeMap<K, V> extends AbstractMap<K, V>
         public int compare(Map.Entry<K, V> o1, Map.Entry<K, V> o2)
         {
             return keyComparator.compare(o1.getKey(), o2.getKey());
+        }
+    }
+
+    protected static class AsymmetricKeyComparator<K> implements Comparator<Object>
+    {
+        protected final Comparator<K> keyComparator;
+
+        protected AsymmetricKeyComparator(Comparator<K> keyComparator)
+        {
+            this.keyComparator = keyComparator;
+        }
+
+        @Override
+        public int compare(Object o1, Object o2)
+        {
+            return keyComparator.compare(((Map.Entry<K, ?>)o1).getKey(), (K)o2);
         }
     }
 

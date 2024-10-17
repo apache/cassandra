@@ -179,7 +179,19 @@ final class HintsBuffer
         return new Allocation(offset, totalSize, opGroup);
     }
 
-    // allocate bytes in the slab, or return negative if not enough space
+    /**
+     * Allocate bytes in the segment, or return -1 if not enough space. Method ensures that marker bytes
+     * for each allocation (i.e. offset of its end) is written as a 32 bit integer at its beginning, and
+     * that these marker bytes are always written sequentially. In other words, if allocation A has a lower
+     * starting offset than allocation B, A's marker will always be written before the offset for B is returned.
+     *
+     * `allocateOffset` consists of two integers:
+     *    64                 32                0
+     *    | (i32) inProgress | (i32) writtenTo |
+     *
+     *  If inProgress bytes are not zeroes, they contain an unwritten offset. Before allocating any bytes,
+     *  inProgresss bytes need to be written at the writtenTo location in the target buffer.
+     */
     private int allocateBytes(int totalSize)
     {
         long prev = position.getAndAdd(totalSize);

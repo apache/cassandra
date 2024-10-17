@@ -111,6 +111,7 @@ public class AccordJournalIntegrationTest extends TestBaseImpl
             cluster.get(1).startup();
 
             Object[][] after = cluster.coordinator(1).execute("SELECT * FROM " + TABLE + " WHERE k = ?;", ConsistencyLevel.SERIAL, 1);
+            Assert.assertEquals(before.length, after.length);
             for (int i = 0; i < before.length; i++)
             {
                 Assert.assertTrue(Arrays.equals(before[i], after[i]));

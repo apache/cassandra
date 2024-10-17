@@ -85,9 +85,10 @@ public class BootWithMetadataTest extends TestBaseImpl
                 assertEquals(1, ClusterMetadata.current().fullCMSMembers().size());
                 assertTrue(ClusterMetadata.current().fullCMSMembers().contains(InetAddressAndPort.getByNameUnchecked("127.0.0.1")));
                 Keyspace ks = Keyspace.open(KEYSPACE);
-                assertEquals(6, ks.getColumnFamilyStores().size());
+                assertEquals(7, ks.getColumnFamilyStores().size());
                 for (int i = 0; i < 6; i++)
                     assertTrue(ks.getColumnFamilyStore("x"+i) != null); // getColumnFamilyStore throws
+                assertTrue(ks.getColumnFamilyStore("yy") != null);
             });
         }
     }

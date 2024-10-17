@@ -19,55 +19,56 @@
 package org.apache.cassandra.service.accord;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.NavigableMap;
-import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableMap;
 
 import accord.local.Command;
 import accord.local.KeyHistory;
 import accord.local.RedundantBefore;
+import accord.local.StoreParticipants;
+import accord.primitives.PartialDeps;
 import accord.primitives.Range;
 import accord.primitives.Ranges;
 import accord.primitives.Routable.Domain;
-import accord.primitives.Routables;
 import accord.primitives.SaveStatus;
 import accord.primitives.Status;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
-import accord.utils.async.AsyncChains;
-import accord.utils.async.AsyncResult;
+import accord.utils.Invariants;
 import org.agrona.collections.ObjectHashSet;
-import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.index.accord.RoutesSearcher;
+import org.apache.cassandra.service.accord.AccordCommandStore.Caches;
+import org.apache.cassandra.service.accord.AccordCommandStore.ExclusiveCaches;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
-import org.apache.cassandra.utils.Pair;
 
+import static accord.primitives.Routables.Slice.Minimal;
 import static accord.primitives.Txn.Kind.ExclusiveSyncPoint;
 
-public class CommandsForRangesLoader implements AccordStateCache.Listener<TxnId, Command>
+public class CommandsForRangesLoader implements AccordCache.Listener<TxnId, Command>
 {
+    private final AccordCommandStore commandStore;
     private final RoutesSearcher searcher = new RoutesSearcher();
-    private final AccordCommandStore store;
     private final NavigableMap<TxnId, Ranges> transitive = new TreeMap<>();
     private final ObjectHashSet<TxnId> cachedRangeTxns = new ObjectHashSet<>();
-    // TODO (required): make this configurable, or perhaps backed by READ stage with concurrency limit
 
-    public CommandsForRangesLoader(AccordCommandStore store)
+    public CommandsForRangesLoader(AccordCommandStore commandStore)
     {
-        this.store = store;
-        store.commandCache().register(this);
+        this.commandStore = commandStore;
+        try (ExclusiveCaches caches = commandStore.lockCaches())
+        {
+            caches.commands().register(this);
+        }
     }
 
     @Override
-    public void onAdd(AccordCachingState<TxnId, Command> state)
+    public void onAdd(AccordCacheEntry<TxnId, Command> state)
     {
         TxnId txnId = state.key();
         if (txnId.is(Domain.Range))
@@ -75,255 +76,20 @@ public class CommandsForRangesLoader implements AccordStateCache.Listener<TxnId,
     }
 
     @Override
-    public void onEvict(AccordCachingState<TxnId, Command> state)
+    public void onEvict(AccordCacheEntry<TxnId, Command> state)
     {
         TxnId txnId = state.key();
         if (txnId.is(Domain.Range))
             cachedRangeTxns.remove(txnId);
     }
 
-    public AsyncResult<Pair<Watcher, NavigableMap<TxnId, Summary>>> get(@Nullable TxnId primaryTxnId, KeyHistory keyHistory, Ranges ranges)
+    public Loader loader(@Nullable TxnId primaryTxnId, KeyHistory keyHistory, Ranges ranges)
     {
-        RedundantBefore redundantBefore = store.unsafeGetRedundantBefore();
+        RedundantBefore redundantBefore = commandStore.unsafeGetRedundantBefore();
         TxnId minTxnId = redundantBefore.min(ranges, e -> e.gcBefore);
-        Timestamp maxTxnId = primaryTxnId == null || keyHistory == KeyHistory.RECOVERY || !primaryTxnId.is(ExclusiveSyncPoint) ? Timestamp.MAX : primaryTxnId;
-        TxnId findAsDep = primaryTxnId != null && keyHistory == KeyHistory.RECOVERY ? primaryTxnId : null;
-        var watcher = fromCache(findAsDep, ranges, minTxnId, maxTxnId, redundantBefore);
-        var before = ImmutableMap.copyOf(watcher.get());
-        return AsyncChains.ofCallable(Stage.ACCORD_RANGE_LOADER.executor(), () -> get(ranges, before, findAsDep, minTxnId, maxTxnId, redundantBefore))
-                          .map(map -> Pair.create(watcher, map), store)
-               .beginAsResult();
-    }
-
-    private NavigableMap<TxnId, Summary> get(Ranges ranges, Map<TxnId, Summary> cacheHits, @Nullable TxnId findAsDep, TxnId minTxnId, Timestamp maxTxnId, RedundantBefore redundantBefore)
-    {
-        Set<TxnId> matches = new ObjectHashSet<>();
-        for (Range range : ranges)
-            matches.addAll(intersects(range, minTxnId, maxTxnId));
-        if (matches.isEmpty())
-            return new TreeMap<>();
-        return load(ranges, cacheHits, matches, findAsDep, redundantBefore);
-    }
-
-    private Collection<TxnId> intersects(Range range, TxnId minTxnId, Timestamp maxTxnId)
-    {
-        assert range instanceof TokenRange : "Require TokenRange but given " + range.getClass();
-        Set<TxnId> intersects = searcher.intersects(store.id(), (TokenRange) range, minTxnId, maxTxnId);
-        if (!transitive.isEmpty())
-        {
-            if (intersects.isEmpty())
-                intersects = new ObjectHashSet<>();
-            for (var e : transitive.tailMap(minTxnId, true).entrySet())
-            {
-                if (e.getValue().intersects(range))
-                    intersects.add(e.getKey());
-            }
-            if (intersects.isEmpty())
-                intersects = Collections.emptySet();
-        }
-        return intersects;
-    }
-
-    public class Watcher implements AccordStateCache.Listener<TxnId, Command>, AutoCloseable
-    {
-        private final Ranges ranges;
-        private final @Nullable TxnId findAsDep;
-        private final TxnId minTxnId;
-        private final Timestamp maxTxnId;
-        private final RedundantBefore redundantBefore;
-
-        private NavigableMap<TxnId, Summary> summaries = null;
-        private Set<AccordCachingState<TxnId, Command>> needToDoubleCheck = null;
-
-        public Watcher(Ranges ranges, @Nullable TxnId findAsDep, TxnId minTxnId, Timestamp maxTxnId, RedundantBefore redundantBefore)
-        {
-            this.ranges = ranges;
-            this.findAsDep = findAsDep;
-            this.minTxnId = minTxnId;
-            this.maxTxnId = maxTxnId;
-            this.redundantBefore = redundantBefore;
-        }
-
-        public NavigableMap<TxnId, Summary> get()
-        {
-            return summaries == null ? Collections.emptyNavigableMap() : summaries;
-        }
-
-        @Override
-        public void onAdd(AccordCachingState<TxnId, Command> n)
-        {
-            if (n.key().domain() != Domain.Range)
-                return;
-            if (n.key().compareTo(minTxnId) < 0 || n.key().compareTo(maxTxnId) >= 0)
-                return;
-
-            var state = n.state();
-            if (state instanceof AccordCachingState.Loading)
-            {
-                if (needToDoubleCheck == null)
-                    needToDoubleCheck = new ObjectHashSet<>();
-                needToDoubleCheck.add(n);
-                return;
-            }
-            //TODO (required): include FailedToSave?  Most likely need to, but need to improve test coverage to have failed writes
-            if (!(state instanceof AccordCachingState.Loaded
-                  || state instanceof AccordCachingState.Modified
-                  || state instanceof AccordCachingState.Saving))
-                return;
-
-            var cmd = state.get();
-            if (cmd == null)
-                return;
-            Summary summary = create(cmd, ranges, findAsDep, redundantBefore);
-            if (summary != null)
-            {
-                if (summaries == null)
-                    summaries = new TreeMap<>();
-                summaries.put(summary.txnId, summary);
-            }
-        }
-
-        @Override
-        public void onEvict(AccordCachingState<TxnId, Command> state)
-        {
-            if (needToDoubleCheck == null)
-                return;
-            if (!needToDoubleCheck.remove(state))
-                return;
-            if (state.state() instanceof AccordCachingState.Loading)
-                return; // can't double check
-            onAdd(state);
-        }
-
-        @Override
-        public void close()
-        {
-            store.commandCache().unregister(this);
-            if (needToDoubleCheck != null)
-            {
-                var copy = needToDoubleCheck;
-                needToDoubleCheck = null;
-                copy.forEach(this::onAdd);
-            }
-            needToDoubleCheck = null;
-        }
-    }
-
-    private Watcher fromCache(@Nullable TxnId findAsDep, Ranges ranges, TxnId minTxnId, Timestamp maxTxnId, RedundantBefore redundantBefore)
-    {
-        Watcher watcher = new Watcher(ranges, findAsDep, minTxnId, maxTxnId, redundantBefore);
-        for (TxnId rangeTxnId : cachedRangeTxns)
-            watcher.onAdd(store.commandCache().getUnsafe(rangeTxnId));
-        store.commandCache().register(watcher);
-        return watcher;
-    }
-
-    private NavigableMap<TxnId, Summary> load(Ranges ranges, Map<TxnId, Summary> cacheHits, Collection<TxnId> possibleTxns, @Nullable TxnId findAsDep, RedundantBefore redundantBefore)
-    {
-        //TODO (required): this logic is kinda duplicate of org.apache.cassandra.service.accord.CommandsForRange.mapReduce
-        // should figure out if this can be improved... also what is correct?
-        NavigableMap<TxnId, Summary> map = new TreeMap<>();
-        for (TxnId txnId : possibleTxns)
-        {
-            if (cacheHits.containsKey(txnId))
-                continue;
-            if (findAsDep == null)
-            {
-                var cmd = store.loadMinimal(txnId);
-                if (cmd == null)
-                    continue; // unknown command
-                var summary = create(cmd, ranges, redundantBefore);
-                if (summary == null)
-                    continue;
-                map.put(txnId, summary);
-
-            }
-            else
-            {
-                var cmd = store.loadCommand(txnId);
-                if (cmd == null)
-                    continue; // unknown command
-                var summary = create(cmd, ranges, findAsDep, redundantBefore);
-                if (summary == null)
-                    continue;
-                map.put(txnId, summary);
-            }
-        }
-        return map;
-    }
-
-    private static Summary create(Command cmd, Ranges cacheRanges, @Nullable TxnId findAsDep, @Nullable RedundantBefore redundantBefore)
-    {
-        //TODO (required, correctness): C* did Invalidated, accord-core did Erased... what is correct?
-        SaveStatus saveStatus = cmd.saveStatus();
-        if (saveStatus == SaveStatus.Invalidated
-            || saveStatus == SaveStatus.Erased
-            || !saveStatus.hasBeen(Status.PreAccepted))
-            return null;
-        if (cmd.partialTxn() == null)
-            return null;
-
-        var keysOrRanges = cmd.participants().touches().toRanges();
-        if (keysOrRanges.domain() != Domain.Range)
-            throw new AssertionError(String.format("Txn keys are not range for %s", cmd.partialTxn()));
-        Ranges ranges = (Ranges) keysOrRanges;
-
-        ranges = ranges.slice(cacheRanges, Routables.Slice.Minimal);
-        if (ranges.isEmpty())
-            return null;
-
-        if (redundantBefore != null)
-        {
-            Ranges newRanges = redundantBefore.foldlWithBounds(ranges, (e, accum, start, end) -> {
-                if (e.gcBefore.compareTo(cmd.txnId()) < 0)
-                    return accum;
-                return accum.without(Ranges.of(new TokenRange((AccordRoutingKey) start, (AccordRoutingKey) end)));
-            }, ranges, ignore -> false);
-
-            if (newRanges.isEmpty())
-                return null;
-        }
-
-        var partialDeps = cmd.partialDeps();
-        boolean hasAsDep = findAsDep != null && partialDeps != null && partialDeps.rangeDeps.intersects(findAsDep, ranges);
-        return new Summary(cmd.txnId(), cmd.executeAt(), saveStatus, ranges, findAsDep, hasAsDep);
-    }
-
-    private static Summary create(SavedCommand.MinimalCommand cmd, Ranges cacheRanges, @Nullable RedundantBefore redundantBefore)
-    {
-        //TODO (required, correctness): C* did Invalidated, accord-core did Erased... what is correct?
-        SaveStatus saveStatus = cmd.saveStatus;
-        if (saveStatus == null
-            || saveStatus == SaveStatus.Invalidated
-            || saveStatus == SaveStatus.Erased
-            || !saveStatus.hasBeen(Status.PreAccepted))
-            return null;
-
-        if (cmd.participants == null)
-            return null;
-
-        var keysOrRanges = cmd.participants.touches().toRanges();
-        if (keysOrRanges.domain() != Domain.Range)
-            throw new AssertionError(String.format("Txn keys are not range for %s", cmd.participants));
-        Ranges ranges = (Ranges) keysOrRanges;
-
-        ranges = ranges.slice(cacheRanges, Routables.Slice.Minimal);
-        if (ranges.isEmpty())
-            return null;
-
-        if (redundantBefore != null)
-        {
-            Ranges newRanges = redundantBefore.foldlWithBounds(ranges, (e, accum, start, end) -> {
-                if (e.gcBefore.compareTo(cmd.txnId) < 0)
-                    return accum;
-                return accum.without(Ranges.of(new TokenRange((AccordRoutingKey) start, (AccordRoutingKey) end)));
-            }, ranges, ignore -> false);
-
-            if (newRanges.isEmpty())
-                return null;
-        }
-
-        return new Summary(cmd.txnId, cmd.executeAt, saveStatus, ranges, null, false);
+        Timestamp maxTxnId = primaryTxnId == null || keyHistory == KeyHistory.RECOVER || !primaryTxnId.is(ExclusiveSyncPoint) ? Timestamp.MAX : primaryTxnId;
+        TxnId findAsDep = primaryTxnId != null && keyHistory == KeyHistory.RECOVER ? primaryTxnId : null;
+        return new Loader(ranges, redundantBefore, minTxnId, maxTxnId, findAsDep);
     }
 
     public void mergeTransitive(TxnId txnId, Ranges ranges, BiFunction<? super Ranges, ? super Ranges, ? extends Ranges> remappingFunction)
@@ -368,7 +134,7 @@ public class CommandsForRangesLoader implements AccordStateCache.Listener<TxnId,
 
         public Summary slice(Ranges slice)
         {
-            return new Summary(txnId, executeAt, saveStatus, ranges.slice(slice, Routables.Slice.Minimal), findAsDep, hasAsDep);
+            return new Summary(txnId, executeAt, saveStatus, ranges == null ? null : ranges.slice(slice, Minimal), findAsDep, hasAsDep);
         }
 
         @Override
@@ -382,6 +148,152 @@ public class CommandsForRangesLoader implements AccordStateCache.Listener<TxnId,
                    ", findAsDep=" + findAsDep +
                    ", hasAsDep=" + hasAsDep +
                    '}';
+        }
+    }
+
+    public class Loader
+    {
+        final Ranges searchRanges;
+        final RedundantBefore redundantBefore;
+        final TxnId minTxnId;
+        final Timestamp maxTxnId;
+        @Nullable final TxnId findAsDep;
+
+        public Loader(Ranges searchRanges, RedundantBefore redundantBefore, TxnId minTxnId, Timestamp maxTxnId, @Nullable TxnId findAsDep)
+        {
+            this.searchRanges = searchRanges;
+            this.redundantBefore = redundantBefore;
+            this.minTxnId = minTxnId;
+            this.maxTxnId = maxTxnId;
+            this.findAsDep = findAsDep;
+        }
+
+        public Collection<TxnId> intersects()
+        {
+            ObjectHashSet<TxnId> txnIds = new ObjectHashSet<>();
+            for (Range range : searchRanges)
+            {
+                searcher.intersects(commandStore.id(), (TokenRange) range, minTxnId, maxTxnId, txnIds::add);
+            }
+            if (!transitive.isEmpty())
+            {
+                for (var e : transitive.tailMap(minTxnId, true).entrySet())
+                {
+                    if (e.getValue().intersects(searchRanges))
+                        txnIds.add(e.getKey());
+                }
+            }
+            return txnIds;
+        }
+
+        public void forEachInCache(Consumer<Summary> forEach, Caches caches)
+        {
+            for (TxnId txnId : cachedRangeTxns)
+            {
+                AccordCacheEntry<TxnId, Command> state = caches.commands().getUnsafe(txnId);
+                Summary summary = from(state);
+                if (summary != null)
+                    forEach.accept(summary);
+            }
+        }
+
+        public Summary load(TxnId txnId)
+        {
+            if (findAsDep == null)
+            {
+                SavedCommand.MinimalCommand cmd = commandStore.loadMinimal(txnId);
+                return cmd == null ? null : from(cmd);
+            }
+            else
+            {
+                Command cmd = commandStore.loadCommand(txnId);
+                return cmd == null ? null : from(cmd);
+            }
+        }
+
+        public Summary from(AccordCacheEntry<TxnId, Command> state)
+        {
+            if (state.key().domain() != Domain.Range)
+                return null;
+
+            switch (state.status())
+            {
+                default: throw new AssertionError("Unhandled status: " + state.status());
+                case LOADING:
+                case WAITING_TO_LOAD:
+                case UNINITIALIZED:
+                    return null;
+
+                case LOADED:
+                case MODIFIED:
+                case SAVING:
+                case FAILED_TO_SAVE:
+            }
+
+            TxnId txnId = state.key();
+            if (!txnId.isVisible() || txnId.compareTo(minTxnId) < 0 || txnId.compareTo(maxTxnId) >= 0)
+                return null;
+
+            Command command = state.getExclusive();
+            if (command == null)
+                return null;
+            return from(command);
+        }
+
+        public Summary from(Command cmd)
+        {
+            return from(cmd.txnId(), cmd.executeAt(), cmd.saveStatus(), cmd.participants(), cmd.partialDeps());
+        }
+
+        public Summary from(SavedCommand.MinimalCommand cmd)
+        {
+            Invariants.checkState(findAsDep == null);
+            return from(cmd.txnId, cmd.executeAt, cmd.saveStatus, cmd.participants, null);
+        }
+
+        private Summary from(TxnId txnId, Timestamp executeAt, SaveStatus saveStatus, StoreParticipants participants, @Nullable PartialDeps partialDeps)
+        {
+            if (saveStatus == SaveStatus.Invalidated
+                || saveStatus == SaveStatus.Erased
+                || !saveStatus.hasBeen(Status.PreAccepted))
+                return null;
+
+            if (participants == null)
+                return null;
+
+            Ranges keysOrRanges = participants.touches().toRanges();
+            if (keysOrRanges.domain() != Domain.Range)
+                throw new AssertionError(String.format("Txn keys are not range for %s", participants));
+            Ranges ranges = keysOrRanges;
+
+            ranges = ranges.slice(searchRanges, Minimal);
+            if (ranges.isEmpty())
+                return null;
+
+            if (redundantBefore != null)
+            {
+                Ranges newRanges = redundantBefore.foldlWithBounds(ranges, (e, accum, start, end) -> {
+                    if (e.gcBefore.compareTo(txnId) < 0)
+                        return accum;
+                    return accum.without(Ranges.of(new TokenRange((AccordRoutingKey) start, (AccordRoutingKey) end)));
+                }, ranges, ignore -> false);
+
+                if (newRanges.isEmpty())
+                    return null;
+
+                ranges = newRanges;
+            }
+
+            Invariants.checkState(partialDeps != null || findAsDep == null || !saveStatus.known.deps.hasProposedOrDecidedDeps());
+            boolean hasAsDep = false;
+            if (partialDeps != null)
+            {
+                Ranges depRanges = partialDeps.rangeDeps.ranges(txnId);
+                if (depRanges != null && depRanges.containsAll(ranges))
+                    hasAsDep = true;
+            }
+
+            return new Summary(txnId, executeAt, saveStatus, ranges, findAsDep, hasAsDep);
         }
     }
 }

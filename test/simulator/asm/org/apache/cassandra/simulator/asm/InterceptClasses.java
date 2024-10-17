@@ -70,7 +70,9 @@ public class InterceptClasses implements BiFunction<String, byte[], byte[]>
     private static final Pattern GLOBAL_METHODS = Pattern.compile("org[/.]apache[/.]cassandra[/.](?!simulator[/.]).*" +
                                                                   "|org[/.]apache[/.]cassandra[/.]simulator[/.]test[/.].*" +
                                                                   "|org[/.]apache[/.]cassandra[/.]simulator[/.]cluster[/.].*" +
-                                                                  "|io[/.]netty[/.]util[/.]concurrent[/.]FastThreadLocal"); // intercept IdentityHashMap for execution consistency
+                                                                  "|io[/.]netty[/.]util[/.]concurrent[/.]FastThreadLocal" +
+                                                                  "|accord[/.].*"
+    ); // intercept IdentityHashMap for execution consistency
     private static final Pattern NEMESIS = GLOBAL_METHODS;
     private static final Set<String> WARNED = Collections.newSetFromMap(new ConcurrentHashMap<>());
 

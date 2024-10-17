@@ -1028,6 +1028,32 @@
       </checksum>
     </target>
 
+    <target name="bintar" depends="_artifacts-init,check"
+            description="Create Cassandra tarball and maven artifacts">
+      <tar compression="gzip" longfile="gnu"
+        destfile="${build.dir}/${final.name}-bin.tar.gz">
+
+        <!-- Everything but bin/ (default mode) -->
+        <tarfileset dir="${dist.dir}" prefix="${final.name}">
+          <include name="**"/>
+          <exclude name="bin/*" />
+          <exclude name="tools/bin/*"/>
+        </tarfileset>
+        <!-- Shell includes in bin/ (default mode) -->
+        <tarfileset dir="${dist.dir}" prefix="${final.name}">
+          <include name="bin/*.in.sh" />
+          <include name="tools/bin/*.in.sh" />
+        </tarfileset>
+        <!-- Executable scripts in bin/ -->
+        <tarfileset dir="${dist.dir}" prefix="${final.name}" mode="755">
+          <include name="bin/*"/>
+          <include name="tools/bin/*"/>
+          <exclude name="bin/*.in.sh" />
+          <exclude name="tools/bin/*.in.sh" />
+        </tarfileset>
+      </tar>
+    </target>
+
   <!-- Wrapper of build-test without dependencies, so both that target and its dependencies are skipped if the property
     no-build-test is true. This is meant to be used to run tests without actually building them, provided that they have
     been built before. All test targets depend on this, so one can run them using the no-build-test property.

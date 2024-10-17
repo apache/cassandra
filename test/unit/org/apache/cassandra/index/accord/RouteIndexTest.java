@@ -54,6 +54,7 @@ import accord.utils.Property.UnitCommand;
 import accord.utils.RandomSource;
 import org.agrona.collections.Int2ObjectHashMap;
 import org.agrona.collections.Long2ObjectHashMap;
+import org.agrona.collections.ObjectHashSet;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
@@ -346,7 +347,9 @@ public class RouteIndexTest extends CQLTester.InMemory
         @Override
         public Set<TxnId> run(ColumnFamilyStore sut) throws Throwable
         {
-            return ROUTES_SEARCHER.intersects(storeId, range, TxnId.NONE, Timestamp.MAX);
+            Set<TxnId> out = new ObjectHashSet<>();
+            ROUTES_SEARCHER.intersects(storeId, range, TxnId.NONE, Timestamp.MAX, out::add);
+            return out;
         }
 
         @Override

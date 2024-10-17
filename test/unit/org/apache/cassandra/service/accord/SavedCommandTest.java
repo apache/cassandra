@@ -97,7 +97,7 @@ public class SavedCommandTest
                     if (saveStatus == SaveStatus.TruncatedApplyWithDeps) continue;
                     out.clear();
                     Command orig = cmdBuilder.build(saveStatus);
-                    SavedCommand.serialize(null, orig, out, userVersion);
+                    SavedCommand.serialize(orig, getFlags(null, orig), out, userVersion);
                     SavedCommand.Builder builder = new SavedCommand.Builder(orig.txnId(), Load.ALL);
                     builder.deserializeNext(new DataInputBuffer(out.unsafeGetBufferAndFlip(), false), userVersion);
                     // We are not persisting the result, so force it for strict equality

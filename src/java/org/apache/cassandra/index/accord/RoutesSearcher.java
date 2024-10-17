@@ -18,12 +18,10 @@
 
 package org.apache.cassandra.index.accord;
 
-import java.util.Collections;
-import java.util.Set;
+import java.util.function.Consumer;
 
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
-import org.agrona.collections.ObjectHashSet;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DataRange;
@@ -99,14 +97,13 @@ public class RoutesSearcher
         }
     }
 
-    public Set<TxnId> intersects(int store, TokenRange range, TxnId minTxnId, Timestamp maxTxnId)
+    public void intersects(int store, TokenRange range, TxnId minTxnId, Timestamp maxTxnId, Consumer<TxnId> forEach)
     {
-        return intersects(store, range.start(), range.end(), minTxnId, maxTxnId);
+        intersects(store, range.start(), range.end(), minTxnId, maxTxnId, forEach);
     }
 
-    public Set<TxnId> intersects(int store, AccordRoutingKey start, AccordRoutingKey end, TxnId minTxnId, Timestamp maxTxnId)
+    void intersects(int store, AccordRoutingKey start, AccordRoutingKey end, TxnId minTxnId, Timestamp maxTxnId, Consumer<TxnId> forEach)
     {
-        var set = new ObjectHashSet<TxnId>();
         try (var it = searchKeysAccord(store, start, end))
         {
             while (it.hasNext())
@@ -114,10 +111,9 @@ public class RoutesSearcher
                 Entry next = it.next();
                 if (next.store_id != store) continue; // the index should filter out, but just in case...
                 if (next.txnId.compareTo(minTxnId) >= 0 && next.txnId.compareTo(maxTxnId) < 0)
-                    set.add(next.txnId);
+                    forEach.accept(next.txnId);
             }
         }
-        return set.isEmpty() ? Collections.emptySet() : set;
     }
 
     private static final class Entry

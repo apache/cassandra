@@ -55,7 +55,7 @@ public class AccordJournalValueSerializers
     }
 
     public static class CommandDiffSerializer
-    implements FlyweightSerializer<SavedCommand.DiffWriter, SavedCommand.Builder>
+    implements FlyweightSerializer<SavedCommand.Writer, SavedCommand.Builder>
     {
         @Override
         public SavedCommand.Builder mergerFor(JournalKey journalKey)
@@ -64,7 +64,7 @@ public class AccordJournalValueSerializers
         }
 
         @Override
-        public void serialize(JournalKey key, SavedCommand.DiffWriter writer, DataOutputPlus out, int userVersion)
+        public void serialize(JournalKey key, SavedCommand.Writer writer, DataOutputPlus out, int userVersion)
         {
             try
             {

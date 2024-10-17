@@ -71,7 +71,7 @@ public class SimulatedMultiKeyAndRangeTest extends SimulatedAccordCommandStoreTe
                 Gen.IntGen keyCountGen = keyDistribution.next(rs);
                 Gen.IntGen rangeCountGen = rangeDistribution.next(rs);
 
-                DepsModel model = new DepsModel(instance.store.unsafeRangesForEpoch().currentRanges());
+                DepsModel model = new DepsModel(instance.commandStore.unsafeRangesForEpoch().currentRanges());
 
                 for (int i = 0; i < numSamples; i++)
                 {

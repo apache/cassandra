@@ -33,7 +33,7 @@ import org.apache.cassandra.utils.WithResources;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 
-public class ForwardingExecutorPlus implements ExecutorPlus, SequentialExecutorPlus
+public class ForwardingExecutorPlus implements ExecutorPlus, SequentialExecutorPlus, LocalAwareExecutorPlus
 {
     private final ExecutorService delegate;
 

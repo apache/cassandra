@@ -60,7 +60,7 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
      * Scratch buffers used mostly for serializing in memory. It's important to call #close() when finished
      * to keep the memory overhead from being too large in the system.
      */
-    public static final FastThreadLocal<DataOutputBuffer> scratchBuffer = new FastThreadLocal<DataOutputBuffer>()
+    public static final FastThreadLocal<DataOutputBuffer> scratchBuffer = new FastThreadLocal<>()
     {
         @Override
         protected DataOutputBuffer initialValue()

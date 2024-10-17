@@ -92,6 +92,14 @@ public final class JournalKey
             serializeTxnId(key.id, out);
         }
 
+        @Override
+        public void serialize(JournalKey key, ByteBuffer out, int userVersion) throws IOException
+        {
+            out.putInt(key.commandStoreId);
+            out.put((byte) key.type.id);
+            serializeTxnId(key.id, out);
+        }
+
         private void serialize(JournalKey key, byte[] out)
         {
             ByteArrayUtil.putInt(out, CS_ID_OFFSET, key.commandStoreId);
@@ -117,6 +125,15 @@ public final class JournalKey
             return new JournalKey(txnId, Type.fromId(type), commandStoreId);
         }
 
+        @Override
+        public JournalKey deserialize(ByteBuffer buffer, int userVersion)
+        {
+            int commandStoreId = buffer.getInt();
+            int type = buffer.get();
+            TxnId txnId = deserializeTxnId(buffer);
+            return new JournalKey(txnId, Type.fromId(type), commandStoreId);
+        }
+
         private void serializeTxnId(TxnId txnId, DataOutputPlus out) throws IOException
         {
             out.writeLong(txnId.msb);
@@ -132,11 +149,26 @@ public final class JournalKey
             return TxnId.fromBits(msb, lsb, new Id(nodeId));
         }
 
+        private TxnId deserializeTxnId(ByteBuffer in)
+        {
+            long msb = in.getLong();
+            long lsb = in.getLong();
+            int nodeId = in.getInt();
+            return TxnId.fromBits(msb, lsb, new Id(nodeId));
+        }
+
         private void serializeTxnId(TxnId txnId, byte[] out)
         {
             ByteArrayUtil.putLong(out, MSB_OFFSET, txnId.msb);
             ByteArrayUtil.putLong(out, LSB_OFFSET, txnId.lsb);
             ByteArrayUtil.putInt(out, NODE_OFFSET, txnId.node.id);
+        }
+
+        private void serializeTxnId(TxnId txnId, ByteBuffer out)
+        {
+            out.putLong(txnId.msb);
+            out.putLong(txnId.lsb);
+            out.putInt(txnId.node.id);
         }
 
         private TxnId deserializeTxnId(ByteBuffer buffer, int position)

@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.journal;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
@@ -45,6 +46,7 @@ final class Metadata
     private final Set<Integer> unmodifiableHosts;
     private final Map<Integer, Integer> recordsPerHost;
 
+    private int fsyncLimit;
     private volatile int recordsCount;
     private static final AtomicIntegerFieldUpdater<Metadata> recordsCountUpdater =
         AtomicIntegerFieldUpdater.newUpdater(Metadata.class, "recordsCount");
@@ -71,6 +73,11 @@ final class Metadata
     {
         for (int host : hosts)
             recordsPerHost.compute(host, (k, v) -> null == v ? 1 : v + 1);
+    }
+
+    int fsyncLimit()
+    {
+        return fsyncLimit;
     }
 
     private void incrementRecordsCount()
@@ -186,12 +193,12 @@ final class Metadata
         }
     }
 
-    static <K> Metadata rebuild(Descriptor descriptor, KeySupport<K> keySupport, int fsyncedLimit)
+    static <K> Metadata rebuild(Descriptor descriptor, KeySupport<K> keySupport)
     {
         Int2IntHashMap recordsPerHost = new Int2IntHashMap(Integer.MIN_VALUE);
         int recordsCount = 0;
 
-        try (StaticSegment.SequentialReader<K> reader = StaticSegment.sequentialReader(descriptor, keySupport, fsyncedLimit))
+        try (StaticSegment.SequentialReader<K> reader = StaticSegment.sequentialReader(descriptor, keySupport, Integer.MAX_VALUE))
         {
             while (reader.advance())
             {
@@ -203,13 +210,19 @@ final class Metadata
                 ++recordsCount;
             }
         }
+        catch (JournalReadError e)
+        {
+            // we expect EOF when rebuilding
+            if (!(e.getCause() instanceof EOFException))
+                throw e;
+        }
 
         return new Metadata(recordsPerHost, recordsCount);
     }
 
-    static <K> Metadata rebuildAndPersist(Descriptor descriptor, KeySupport<K> keySupport, int fsyncedLimit)
+    static <K> Metadata rebuildAndPersist(Descriptor descriptor, KeySupport<K> keySupport)
     {
-        Metadata metadata = rebuild(descriptor, keySupport, fsyncedLimit);
+        Metadata metadata = rebuild(descriptor, keySupport);
         metadata.persist(descriptor);
         return metadata;
     }

@@ -40,6 +40,8 @@ import org.github.jamm.Unmetered;
 
 public abstract class AbstractMemtable implements Memtable
 {
+    private static final AtomicLong nextId = new AtomicLong();
+
     private final AtomicReference<LifecycleTransaction> flushTransaction = new AtomicReference<>(null);
     protected final AtomicLong currentOperations = new AtomicLong(0);
     protected final ColumnsCollector columnsCollector;
@@ -48,6 +50,7 @@ public abstract class AbstractMemtable implements Memtable
     protected AtomicLong minTimestamp = new AtomicLong(Long.MAX_VALUE);
     // The smallest local deletion time for all partitions in this memtable
     protected AtomicLong minLocalDeletionTime = new AtomicLong(Long.MAX_VALUE);
+    private final long id = nextId.incrementAndGet();
     // Note: statsCollector has corresponding statistics to the two above, but starts with an epoch value which is not
     // correct for their usage.
 
@@ -78,6 +81,12 @@ public abstract class AbstractMemtable implements Memtable
     public long operationCount()
     {
         return currentOperations.get();
+    }
+
+    @Override
+    public long getMemtableId()
+    {
+        return id;
     }
 
     @Override

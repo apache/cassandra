@@ -29,6 +29,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 
+import accord.utils.Invariants;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.serializers.BytesSerializer;
@@ -39,8 +40,15 @@ import org.apache.cassandra.utils.bytecomparable.ByteComparable.Version;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
 
+import static accord.utils.Invariants.Paranoia.CONSTANT;
+import static accord.utils.Invariants.Paranoia.LINEAR;
+import static accord.utils.Invariants.ParanoiaCostFactor.LOW;
 import static com.google.common.collect.Iterables.any;
 import static com.google.common.collect.Iterables.transform;
+import static org.apache.cassandra.utils.bytecomparable.ByteSource.END_OF_STREAM;
+import static org.apache.cassandra.utils.bytecomparable.ByteSource.NEXT_COMPONENT;
+import static org.apache.cassandra.utils.bytecomparable.ByteSource.NEXT_COMPONENT_NULL;
+import static org.apache.cassandra.utils.bytecomparable.ByteSource.TERMINATOR;
 
 /*
  * The encoding of a CompositeType column name should be:
@@ -250,7 +258,64 @@ public class CompositeType extends AbstractCompositeType
         if (i * 2 + 1 < srcs.length)
             srcs = Arrays.copyOfRange(srcs, 0, i * 2 + 1);
 
-        return ByteSource.withTerminatorMaybeLegacy(version, ByteSource.END_OF_STREAM, srcs);
+        return ByteSource.withTerminatorMaybeLegacy(version, END_OF_STREAM, srcs);
+    }
+
+    @Override
+    public <V> byte[] asFlatComparableBytes(ValueAccessor<V> accessor, V data, Version version)
+    {
+        if (data == null || accessor.isEmpty(data))
+            return null;
+
+        byte[] tmpBytes = tmpFlattenBuffer.get();
+        byte[] bytes = tmpBytes;
+        if (bytes == null) bytes = new byte[16];
+
+        int c = 0;
+        int length = accessor.size(data);
+
+        // statics go first
+        boolean isStatic = readIsStaticInternal(data, accessor);
+        int offset = startingOffsetInternal(isStatic);
+        bytes[c++] = (byte) (isStatic ? NEXT_COMPONENT_NULL : NEXT_COMPONENT);
+        bytes[c++] = (byte) (NEXT_COMPONENT);
+
+        int i = 0;
+        byte lastEoc = 0;
+        while (offset < length)
+        {
+            // Only the end-of-component byte of the last component of this composite can be non-zero, so the
+            // component before can't have a non-zero end-of-component byte.
+            assert lastEoc == 0 : lastEoc;
+
+            int componentLength = accessor.getUnsignedShort(data, offset);
+            offset += 2;
+            ByteSource tmp = types.get(i).asComparableBytes(accessor, accessor.slice(data, offset, componentLength), version);
+            while (true)
+            {
+                int b = tmp.next();
+                if (b == END_OF_STREAM) break;
+
+                if (c == bytes.length) bytes = Arrays.copyOf(bytes, c * 2);
+                bytes[c++] = (byte)b;
+            }
+            offset += componentLength;
+            lastEoc = accessor.getByte(data, offset);
+            offset += 1;
+            if (c == bytes.length) bytes = Arrays.copyOf(bytes, c * 2);
+            bytes[c++] = (byte) NEXT_COMPONENT;
+            bytes[c++] = (byte) (lastEoc & 0xFF ^ 0x80); // end-of-component also takes part in comparison as signed byte
+            bytes[c++] = (byte) (offset < length ? NEXT_COMPONENT : version == Version.LEGACY ? END_OF_STREAM : TERMINATOR);
+            ++i;
+        }
+
+        byte[] result = Arrays.copyOf(bytes, c);
+        if (bytes != tmpBytes) tmpFlattenBuffer.set(bytes);
+        byte[] test = super.asFlatComparableBytes(accessor, data, version);
+        if (Invariants.isParanoid() && Invariants.testParanoia(LINEAR, CONSTANT, LOW)) Invariants.checkState(Arrays.equals(test, result));
+        V roundtrip = fromComparableBytes(accessor, ByteSource.peekable(ByteSource.of(result, version)), version);
+        Invariants.checkState(accessor.compare(data, roundtrip, accessor) == 0);
+        return result;
     }
 
     @Override

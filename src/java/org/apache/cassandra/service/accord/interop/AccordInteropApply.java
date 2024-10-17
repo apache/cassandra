@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.service.accord.interop;
 
-import java.util.BitSet;
 import javax.annotation.Nullable;
 
 import accord.api.LocalListeners;
@@ -42,12 +41,12 @@ import accord.primitives.TxnId;
 import accord.primitives.Unseekables;
 import accord.primitives.Writes;
 import accord.topology.Topologies;
+import org.agrona.collections.Int2ObjectHashMap;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.service.accord.AccordMessageSink.AccordMessageType;
 import org.apache.cassandra.service.accord.serializers.ApplySerializers.ApplySerializer;
 import org.apache.cassandra.service.accord.txn.AccordUpdate;
-import org.jctools.queues.MpscChunkedArrayQueue;
 
 import static accord.utils.Invariants.checkState;
 import static com.google.common.base.Preconditions.checkArgument;
@@ -83,9 +82,9 @@ public class AccordInteropApply extends Apply implements LocalListeners.ComplexL
         }
     };
 
-    transient BitSet waitingOn;
     transient int waitingOnCount;
-    final MpscChunkedArrayQueue<LocalListeners.Registered> listeners = new MpscChunkedArrayQueue<>(4, 1 << 30);
+    transient Int2ObjectHashMap<LocalListeners.Registered> listeners;
+    boolean failed;
 
     private AccordInteropApply(Kind kind, TxnId txnId, Route<?> route, long waitForEpoch, Timestamp executeAt, PartialDeps deps, @Nullable PartialTxn txn, @Nullable FullRoute<?> fullRoute, Writes writes, Result result)
     {
@@ -96,14 +95,6 @@ public class AccordInteropApply extends Apply implements LocalListeners.ComplexL
     {
         super(kind, to, participates, txnId, route, txn, executeAt, deps, writes, result);
     }
-
-    @Override
-    public void process()
-    {
-        waitingOn = new BitSet();
-        super.process();
-    }
-
 
     @Override
     public ApplyReply apply(SafeCommandStore safeStore, StoreParticipants participants)
@@ -133,12 +124,20 @@ public class AccordInteropApply extends Apply implements LocalListeners.ComplexL
             case PreCommitted:
             case Committed:
             case PreApplied:
+                LocalListeners.Registered listener = safeStore.register(txnId, this);
                 synchronized (this)
                 {
-                    waitingOn.set(safeStore.commandStore().id());
-                    ++waitingOnCount;
+                    if (!failed)
+                    {
+                        if (listeners == null)
+                            listeners = new Int2ObjectHashMap<>();
+                        listeners.put(safeStore.commandStore().id(), listener);
+                        ++waitingOnCount;
+                        listener = null;
+                    }
                 }
-                listeners.add(safeStore.register(txnId, this));
+                if (listener != null)
+                    listener.cancel();
                 break;
 
             case Applied:
@@ -155,9 +154,7 @@ public class AccordInteropApply extends Apply implements LocalListeners.ComplexL
         // and prevents races where we respond before dispatching all the required reads (if the reads are
         // completing faster than the reads can be setup on all required shards)
         if (-1 == --waitingOnCount)
-        {
             node.reply(replyTo, replyContext, ApplyReply.Applied, null);
-        }
     }
 
     @Override
@@ -169,7 +166,7 @@ public class AccordInteropApply extends Apply implements LocalListeners.ComplexL
     }
 
     @Override
-    public void accept(ApplyReply reply, Throwable failure)
+    protected void acceptInternal(ApplyReply reply, Throwable failure)
     {
         if (reply == ApplyReply.Insufficient)
         {
@@ -181,7 +178,7 @@ public class AccordInteropApply extends Apply implements LocalListeners.ComplexL
         {
             node.reply(replyTo, replyContext, null, failure);
             node.agent().onUncaughtException(failure);
-            cancel();
+            fail();
         }
 
         // Unless failed always ack to indicate setup has completed otherwise the counter never gets to -1
@@ -189,11 +186,18 @@ public class AccordInteropApply extends Apply implements LocalListeners.ComplexL
             ack();
     }
 
-    private void cancel()
+    private void fail()
     {
-        listeners.drain(LocalListeners.Registered::cancel);
+        Int2ObjectHashMap<LocalListeners.Registered> listeners;
+        synchronized (this)
+        {
+            failed = true;
+            listeners = this.listeners;
+            this.listeners = null;
+        }
+        listeners.forEach((i, v) -> v.cancel());
     }
-    
+
     @Override
     public TxnId primaryTxnId()
     {
@@ -233,7 +237,6 @@ public class AccordInteropApply extends Apply implements LocalListeners.ComplexL
     public boolean notify(SafeCommandStore safeStore, SafeCommand safeCommand)
     {
         Command command = safeCommand.current();
-
         switch (command.status())
         {
             default: throw new AssertionError();
@@ -251,7 +254,14 @@ public class AccordInteropApply extends Apply implements LocalListeners.ComplexL
             case Truncated:
         }
 
-        ack();
+        synchronized (this)
+        {
+            if (failed)
+                return false;
+
+            listeners.remove(safeStore.commandStore().id());
+            ack();
+        }
         return false;
     }
 }

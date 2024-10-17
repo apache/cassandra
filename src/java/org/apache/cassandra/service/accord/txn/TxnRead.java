@@ -148,6 +148,12 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
         return new TxnNamedRead[size];
     }
 
+    public void unmemoize()
+    {
+        for (int i = 0 ; i < size() ; ++i)
+            items[i].unmemoize();
+    }
+
     @Override
     public Keys keys()
     {

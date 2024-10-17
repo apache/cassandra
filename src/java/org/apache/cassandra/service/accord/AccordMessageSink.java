@@ -272,7 +272,7 @@ public class AccordMessageSink implements MessageSink
         long delayedAtNanos = Long.MAX_VALUE;
         long expiresAtNanos;
         if (isRangeBarrier(request))
-            expiresAtNanos = nowNanos + DatabaseDescriptor.getAccordRangeBarrierTimeoutNanos();
+            expiresAtNanos = nowNanos + DatabaseDescriptor.getAccordRangeSyncPointTimeoutNanos();
         else
             expiresAtNanos = nowNanos + verb.expiresAfterNanos();
 

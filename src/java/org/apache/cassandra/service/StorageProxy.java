@@ -179,6 +179,7 @@ import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.collect.Iterables.concat;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static org.apache.cassandra.config.DatabaseDescriptor.getAccordEphemeralReadEnabledEnabled;
 import static org.apache.cassandra.db.ConsistencyLevel.SERIAL;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.casReadMetrics;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.casWriteMetrics;
@@ -205,6 +206,7 @@ import static org.apache.cassandra.service.consensus.migration.ConsensusMigratio
 import static org.apache.cassandra.service.consensus.migration.ConsensusMigrationMutationHelper.splitMutationsIntoAccordAndNormal;
 import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.ConsensusRoutingDecision;
 import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.getTableMetadata;
+import static org.apache.cassandra.service.consensus.migration.TransactionalMigrationFromMode.none;
 import static org.apache.cassandra.service.paxos.Ballot.Flag.GLOBAL;
 import static org.apache.cassandra.service.paxos.Ballot.Flag.LOCAL;
 import static org.apache.cassandra.service.paxos.BallotGenerator.Global.nextBallot;
@@ -2182,7 +2184,7 @@ public class StorageProxy implements StorageProxyMBean
         consistencyLevel = consistencyLevelForAccordRead(cm, group, consistencyLevel);
         TxnRead read = TxnRead.createSerialRead(group.queries, consistencyLevel);
         Txn.Kind kind = Read;
-        if (transactionalMode == TransactionalMode.full && DatabaseDescriptor.getAccordEphemeralReadEnabledEnabled() && group.queries.size() == 1)
+        if (transactionalMode == TransactionalMode.full && getAccordEphemeralReadEnabledEnabled() && group.queries.size() == 1 && group.metadata().params.transactionalMigrationFrom == none)
             kind = EphemeralRead;
         Txn txn = new Txn.InMemory(kind, read.keys(), read, TxnQuery.ALL, null);
         AsyncTxnResult asyncTxnResult = AccordService.instance().coordinateAsync(txn, consistencyLevel, requestTime);

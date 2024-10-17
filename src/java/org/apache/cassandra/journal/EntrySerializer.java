@@ -23,17 +23,13 @@ import java.nio.ByteBuffer;
 import java.util.Set;
 import java.util.zip.CRC32;
 
+import accord.utils.Invariants;
 import org.agrona.collections.IntHashSet;
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.io.util.DataInputBuffer;
-import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Crc;
 
 import static org.apache.cassandra.journal.Journal.validateCRC;
-import static org.apache.cassandra.utils.FBUtilities.updateChecksum;
-import static org.apache.cassandra.utils.FBUtilities.updateChecksumInt;
-import static org.apache.cassandra.utils.FBUtilities.updateChecksumShort;
 
 public final class EntrySerializer
 {
@@ -41,175 +37,172 @@ public final class EntrySerializer
                           ByteBuffer record,
                           Set<Integer> hosts,
                           KeySupport<K> keySupport,
-                          DataOutputPlus out,
+                          ByteBuffer out,
                           int userVersion)
     throws IOException
     {
-        CRC32 crc = Crc.crc32();
+        int start = out.position();
+        int totalSize = out.getInt() - start;
+        Invariants.checkState(totalSize == out.remaining() + TypeSizes.INT_SIZE);
+        Invariants.checkState(totalSize == record.remaining() + fixedEntrySize(keySupport, userVersion) + variableEntrySize(hosts.size()));
 
         keySupport.serialize(key, out, userVersion);
-        keySupport.updateChecksum(crc, key, userVersion);
+        out.putShort((short)hosts.size());
 
-        out.writeShort(hosts.size());
-        updateChecksumShort(crc, (short) hosts.size());
-
-        int recordSize = record.remaining();
-        out.writeInt(recordSize);
-        updateChecksumInt(crc, recordSize);
-
-        out.writeInt((int) crc.getValue());
+        int fixedCrcPosition = out.position();
+        out.position(fixedCrcPosition + TypeSizes.INT_SIZE);
 
         for (int host : hosts)
-        {
-            out.writeInt(host);
-            updateChecksumInt(crc, host);
-        }
+            out.putInt(host);
 
-        out.write(record);
-        Crc.updateCrc32(crc, record, record.position(), record.limit());
+        int recordSize = record.remaining();
+        int recordEnd = out.position() + recordSize;
+        Invariants.checkState(out.limit() == recordEnd + TypeSizes.INT_SIZE);
+        ByteBufferUtil.copyBytes(record, record.position(), out, out.position(), recordSize);
 
-        out.writeInt((int) crc.getValue());
+        // update and write crcs
+        CRC32 crc = Crc.crc32();
+        out.position(start);
+        out.limit(fixedCrcPosition);
+        crc.update(out);
+        out.limit(recordEnd);
+        out.putInt((int) crc.getValue());
+        crc.update(out);
+        out.limit(recordEnd + 4);
+        out.putInt((int) crc.getValue());
     }
 
+    // we reuse record as the value we return
     static <K> void read(EntryHolder<K> into,
                          KeySupport<K> keySupport,
                          ByteBuffer from,
                          int userVersion)
     throws IOException
     {
-        CRC32 crc = Crc.crc32();
         into.clear();
 
-        try (DataInputBuffer in = new DataInputBuffer(from, false))
+        int start = from.position();
         {
-            K key = keySupport.deserialize(in, userVersion);
-            keySupport.updateChecksum(crc, key, userVersion);
-            into.key = key;
+            int totalSize = from.getInt(start) - start;
+            Invariants.checkState(totalSize == from.remaining());
 
-            int hostCount = in.readShort();
-            updateChecksumShort(crc, (short) hostCount);
+            CRC32 crc = Crc.crc32();
+            int fixedSize = EntrySerializer.fixedEntrySize(keySupport, userVersion);
+            int fixedCrc = readAndUpdateFixedCrc(crc, from, fixedSize);
+            validateCRC(crc, fixedCrc);
 
-            int entrySize = in.readInt();
-            updateChecksumInt(crc, entrySize);
-
-            validateCRC(crc, in.readInt());
-
-            for (int i = 0; i < hostCount; i++)
-            {
-                int hostId = in.readInt();
-                updateChecksumInt(crc, hostId);
-                into.hosts.add(hostId);
-            }
-
-            // TODO: try to avoid allocating another buffer here
-            ByteBuffer entry = ByteBufferUtil.read(in, entrySize);
-            updateChecksum(crc, entry);
-            into.value = entry;
-            into.userVersion = userVersion;
-
-            validateCRC(crc, in.readInt());
+            int recordCrc = readAndUpdateRecordCrc(crc, from, start + totalSize);
+            validateCRC(crc, recordCrc);
         }
+
+        readValidated(into, from, start, keySupport, userVersion);
     }
 
-    static <K> boolean tryRead(EntryHolder<K> into,
-                               KeySupport<K> keySupport,
-                               ByteBuffer from,
-                               DataInputBuffer in,
-                               int syncedOffset,
-                               int userVersion)
+    // slices the provided buffer to assign to into.value
+    static <K> int tryRead(EntryHolder<K> into,
+                           KeySupport<K> keySupport,
+                           ByteBuffer from,
+                           int syncedOffset,
+                           int userVersion)
     throws IOException
     {
         CRC32 crc = Crc.crc32();
         into.clear();
 
-        int fixedSize = EntrySerializer.fixedEntrySize(keySupport, userVersion);
-        if (from.remaining() < fixedSize)
+        int start = from.position();
+        if (from.remaining() < TypeSizes.INT_SIZE)
+            return -1;
+
+        int totalSize = from.getInt(start) - start;
+        if (totalSize == 0)
+            return -1;
+
+        if (from.remaining() < totalSize)
             return handleReadException(new EOFException(), from.limit(), syncedOffset);
 
-        updateChecksum(crc, from, from.position(), fixedSize - TypeSizes.INT_SIZE);
-        int fixedCrc = from.getInt(from.position() + fixedSize - TypeSizes.INT_SIZE);
+        {
+            int fixedSize = EntrySerializer.fixedEntrySize(keySupport, userVersion);
+            int fixedCrc = readAndUpdateFixedCrc(crc, from, fixedSize);
+            try
+            {
+                validateCRC(crc, fixedCrc);
+            }
+            catch (IOException e)
+            {
+                return handleReadException(e, from.position() + fixedSize, syncedOffset);
+            }
 
-        try
-        {
-            validateCRC(crc, fixedCrc);
-        }
-        catch (IOException e)
-        {
-            return handleReadException(e, from.position() + fixedSize, syncedOffset);
-        }
-
-        int hostCount, recordSize;
-        try
-        {
-            into.key = keySupport.deserialize(in, userVersion);
-            hostCount = in.readShort();
-            recordSize = in.readInt();
-            in.skipBytesFully(TypeSizes.INT_SIZE);
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(); // can't happen unless deserializer is buggy
+            int recordCrc = readAndUpdateRecordCrc(crc, from, start + totalSize);
+            try
+            {
+                validateCRC(crc, recordCrc);
+            }
+            catch (IOException e)
+            {
+                return handleReadException(e, from.position(), syncedOffset);
+            }
         }
 
-        int variableSize = EntrySerializer.variableEntrySize(hostCount, recordSize);
-        if (from.remaining() < variableSize)
-            return handleReadException(new EOFException(), from.limit(), syncedOffset);
-
-        updateChecksum(crc, from, from.position(), variableSize - TypeSizes.INT_SIZE);
-        int variableCrc = from.getInt(from.position() + variableSize - TypeSizes.INT_SIZE);
-
-        try
-        {
-            validateCRC(crc, variableCrc);
-        }
-        catch (IOException e)
-        {
-            return handleReadException(e, from.position() + variableSize, syncedOffset);
-        }
-
-        for (int i = 0; i < hostCount; i++)
-        {
-            into.hosts.add(in.readInt());
-        }
-
-        try
-        {
-            in.skipBytesFully(recordSize);
-        }
-        catch (IOException e)
-        {
-            throw new AssertionError(); // can't happen
-        }
-
-        into.value = from.duplicate()
-                         .position(from.position() - recordSize)
-                         .limit(from.position());
-        into.userVersion = userVersion;
-
-        in.skipBytesFully(TypeSizes.INT_SIZE);
-        return true;
+        readValidated(into, from, start, keySupport, userVersion);
+        return totalSize;
     }
 
-    private static boolean handleReadException(IOException e, int bufferPosition, int fsyncedLimit) throws IOException
+    private static <K> void readValidated(EntryHolder<K> into, ByteBuffer from, int start, KeySupport<K> keySupport, int userVersion)
+    {
+        from.position(start + TypeSizes.INT_SIZE);
+        into.key = keySupport.deserialize(from, userVersion);
+        int hostCount = from.getShort();
+
+        from.position(from.position() + 4);
+        for (int i = 0; i < hostCount; i++)
+        {
+            int hostId = from.getInt();
+            into.hosts.add(hostId);
+        }
+
+        into.value = from;
+        into.userVersion = userVersion;
+    }
+
+    private static int readAndUpdateFixedCrc(CRC32 crc, ByteBuffer from, int fixedSize)
+    {
+        int fixedEnd = from.position() + fixedSize - TypeSizes.INT_SIZE;
+        int fixedCrc = from.getInt(fixedEnd);
+        from.limit(fixedEnd);
+        crc.update(from);
+        return fixedCrc;
+    }
+
+    private static int readAndUpdateRecordCrc(CRC32 crc, ByteBuffer from, int limit)
+    {
+        int recordEnd = limit - TypeSizes.INT_SIZE;
+        from.limit(limit);
+        int recordCrc = from.getInt(recordEnd);
+        from.position(from.position() + 4);
+        from.limit(recordEnd);
+        crc.update(from);
+        return recordCrc;
+    }
+
+    private static int handleReadException(IOException e, int bufferPosition, int fsyncedLimit) throws IOException
     {
         if (bufferPosition <= fsyncedLimit)
             throw e;
         else
-            return false;
+            return -1;
     }
 
     static <K> int fixedEntrySize(KeySupport<K> keySupport, int userVersion)
     {
         return keySupport.serializedSize(userVersion) // key/id
              + TypeSizes.SHORT_SIZE                   // host count
-             + TypeSizes.INT_SIZE                     // record size
+             + TypeSizes.INT_SIZE                     // total size
              + TypeSizes.INT_SIZE;                    // CRC
     }
 
-    static int variableEntrySize(int hostCount, int recordSize)
+    static int variableEntrySize(int hostCount)
     {
         return TypeSizes.INT_SIZE * hostCount // hosts
-             + recordSize                     // record
              + TypeSizes.INT_SIZE;            // CRC
     }
 

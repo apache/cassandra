@@ -57,6 +57,7 @@ import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
 import static accord.primitives.Routable.Domain.Key;
+import static accord.utils.Invariants.illegalState;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
@@ -186,15 +187,9 @@ public class AccordAgent implements Agent
     }
 
     @Override
-    public long replyTimeout(ReplyContext replyContext, TimeUnit units)
-    {
-        return Math.max(1, units.convert(((ResponseContext)replyContext).expiresAtNanos() - Clock.Global.nanoTime(), NANOSECONDS));
-    }
-
-    @Override
     public long attemptCoordinationDelay(Node node, SafeCommandStore safeStore, TxnId txnId, TimeUnit units, int retryCount)
     {
-        SafeCommand safeCommand = safeStore.ifInitialised(txnId);
+        SafeCommand safeCommand = safeStore.unsafeGetNoCleanup(txnId);
         Invariants.nonNull(safeCommand);
 
         Command command = safeCommand.current();
@@ -249,5 +244,18 @@ public class AccordAgent implements Agent
     {
         // TODO (expected): integrate with contention backoff
         return units.convert((1L << Math.min(retryCount, 4)), SECONDS);
+    }
+
+    @Override
+    public long expiresAt(ReplyContext replyContext, TimeUnit unit)
+    {
+        return unit.convert(((ResponseContext)replyContext).expiresAtNanos(), NANOSECONDS);
+    }
+
+    @Override
+    public void onViolation(String message)
+    {
+        try { throw illegalState(message); }
+        catch (Throwable t) { logger.error("Consistency violation", t); }
     }
 }

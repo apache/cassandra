@@ -118,4 +118,5 @@ memtable:
 accord:
     enabled: true
     journal_directory: build/test/cassandra/accord_journal
-    shard_count: 4
+    queue_shard_count: 2
+    command_store_shard_count: 4

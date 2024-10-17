@@ -203,7 +203,7 @@ public class AccordFetchCoordinator extends AbstractFetchCoordinator implements 
             future.addCallback((state, fail) -> {
                 if (fail == null) success(from, Ranges.of(range));
                 else fail(from, Ranges.of(range), fail);
-            }, ((AccordCommandStore) commandStore()).executor());
+            }, ((AccordCommandStore) commandStore()).taskExecutor());
         }
     }
 

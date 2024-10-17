@@ -108,7 +108,6 @@ public class InfiniteLoopExecutor implements Interruptible
         };
     }
 
-
     private void loop()
     {
         boolean interrupted = false;
@@ -192,6 +191,11 @@ public class InfiniteLoopExecutor implements Interruptible
         long deadlineNanos = nanoTime() + unit.toNanos(time);
         isTerminated.awaitUntil(deadlineNanos);
         return isTerminated();
+    }
+
+    public long threadId()
+    {
+        return thread.getId();
     }
 
     @VisibleForTesting

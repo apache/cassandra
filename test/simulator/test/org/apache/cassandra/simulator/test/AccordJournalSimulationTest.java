@@ -96,7 +96,7 @@ public class AccordJournalSimulationTest extends SimulationTestBase
                 int finalI = i;
                 State.executor.submit(() -> {
                     RecordPointer ptr = State.journal.asyncWrite("test" + finalI, "test" + finalI, Collections.singleton(1));
-                    State.journal.onFlush(ptr, State.latch::decrement);
+                    State.journal.onDurable(ptr, State.latch::decrement);
                 });
             }
 
@@ -185,6 +185,37 @@ public class AccordJournalSimulationTest extends SimulationTestBase
             int remaining = maxSize - size;
             for (int i = 0; i < remaining; i++)
                 Assert.assertEquals(aByte + i, in.readByte());
+
+            return new String(key);
+        }
+
+        @Override
+        public void serialize(String key, ByteBuffer out, int userVersion) throws IOException
+        {
+            int maxSize = 16 - TypeSizes.INT_SIZE;
+            if (key.length() > maxSize)
+                throw new IllegalStateException();
+
+            out.putInt(key.length());
+            for (int i = 0 ; i < key.length() ; ++i)
+                out.put((byte)key.charAt(i));
+            int remaining = maxSize - key.length();
+            for (int i = 0; i < remaining; i++)
+                out.put((byte) (aByte + i));
+        }
+
+        @Override
+        public String deserialize(ByteBuffer in, int userVersion)
+        {
+            int size = in.getInt();
+            byte[] key = new byte[size];
+            for (int i = 0; i < size; i++)
+                key[i] = in.get();
+
+            int maxSize = 16 - TypeSizes.INT_SIZE;
+            int remaining = maxSize - size;
+            for (int i = 0; i < remaining; i++)
+                Assert.assertEquals(aByte + i, in.get());
 
             return new String(key);
         }

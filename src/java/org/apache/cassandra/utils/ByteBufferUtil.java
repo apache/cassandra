@@ -751,7 +751,7 @@ public class ByteBufferUtil
 
     public static ByteBuffer bytes(TimeUUID uuid)
     {
-        return bytes(uuid.asUUID());
+        return ByteBuffer.wrap(UUIDGen.decompose(uuid.msb(), uuid.lsb()));
     }
 
     // Returns whether {@code prefix} is a prefix of {@code value}.

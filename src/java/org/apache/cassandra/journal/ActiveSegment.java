@@ -24,6 +24,7 @@ import java.nio.channels.FileChannel;
 import java.nio.file.StandardOpenOption;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
+import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import java.util.concurrent.locks.LockSupport;
 
 import com.codahale.metrics.Timer;
@@ -44,16 +45,18 @@ final class ActiveSegment<K, V> extends Segment<K, V>
     private final OpOrder appendOrder = new OpOrder();
 
     // position in the buffer we are allocating from
-    private volatile int allocateOffset = 0;
-    private static final AtomicIntegerFieldUpdater<ActiveSegment> allocateOffsetUpdater = AtomicIntegerFieldUpdater.newUpdater(ActiveSegment.class, "allocateOffset");
+    private volatile long allocateOffset = 0;
+    private static final AtomicLongFieldUpdater<ActiveSegment> allocateOffsetUpdater = AtomicLongFieldUpdater.newUpdater(ActiveSegment.class, "allocateOffset");
 
     /*
      * Everything before this offset has been written and flushed.
      */
-    private volatile int lastFlushedOffset = 0;
-    private volatile int lastFsyncOffset = 0;
+    private volatile int writtenTo = 0;
+    private volatile int fsyncedTo = 0;
     @SuppressWarnings("rawtypes")
-    private static final AtomicIntegerFieldUpdater<ActiveSegment> lastFsyncOffsetUpdater = AtomicIntegerFieldUpdater.newUpdater(ActiveSegment.class, "lastFsyncOffset");
+    private static final AtomicIntegerFieldUpdater<ActiveSegment> writtenToUpdater = AtomicIntegerFieldUpdater.newUpdater(ActiveSegment.class, "writtenTo");
+    @SuppressWarnings("rawtypes")
+    private static final AtomicIntegerFieldUpdater<ActiveSegment> fsyncedToUpdater = AtomicIntegerFieldUpdater.newUpdater(ActiveSegment.class, "fsyncedTo");
 
     /*
      * End position of the buffer; initially set to its capacity and
@@ -70,16 +73,16 @@ final class ActiveSegment<K, V> extends Segment<K, V>
     final InMemoryIndex<K> index;
 
     private ActiveSegment(
-        Descriptor descriptor, Params params, SyncedOffsets syncedOffsets, InMemoryIndex<K> index, Metadata metadata, KeySupport<K> keySupport)
+        Descriptor descriptor, Params params, InMemoryIndex<K> index, Metadata metadata, KeySupport<K> keySupport)
     {
-        super(descriptor, syncedOffsets, metadata, keySupport);
+        super(descriptor, metadata, keySupport);
         this.index = index;
         try
         {
             channel = FileChannel.open(file.toPath(), StandardOpenOption.WRITE, StandardOpenOption.READ, StandardOpenOption.CREATE);
             buffer = channel.map(FileChannel.MapMode.READ_WRITE, 0, params.segmentSize());
             endOfBuffer = buffer.capacity();
-            selfRef = new Ref<>(this, new Tidier(descriptor, channel, buffer, syncedOffsets));
+            selfRef = new Ref<>(this, new Tidier(descriptor, channel, buffer));
         }
         catch (IOException e)
         {
@@ -87,13 +90,11 @@ final class ActiveSegment<K, V> extends Segment<K, V>
         }
     }
 
-    @SuppressWarnings("resource")
     static <K, V> ActiveSegment<K, V> create(Descriptor descriptor, Params params, KeySupport<K> keySupport)
     {
-        SyncedOffsets syncedOffsets = SyncedOffsets.active(descriptor);
         InMemoryIndex<K> index = InMemoryIndex.create(keySupport);
         Metadata metadata = Metadata.create();
-        return new ActiveSegment<>(descriptor, params, syncedOffsets, index, metadata, keySupport);
+        return new ActiveSegment<>(descriptor, params, index, metadata, keySupport);
     }
 
     @Override
@@ -147,40 +148,40 @@ final class ActiveSegment<K, V> extends Segment<K, V>
     /**
      * Stop writing to this file, flush and close it. Does nothing if the file is already closed.
      */
-    @Override
-    public synchronized void close()
+    public synchronized void close(Journal<K, V> journal)
     {
-        close(true);
+        close(journal, true);
     }
 
     /**
      * @return true if the closed segment was definitely empty, false otherwise
      */
-    private synchronized boolean close(boolean persistComponents)
+    private synchronized boolean close(Journal<K, V> journal, boolean persistComponents)
     {
         boolean isEmpty = discardUnusedTail();
         if (!isEmpty)
         {
-            flush(true);
+            updateWrittenTo();
+            fsync();
             if (persistComponents) persistComponents();
         }
-        release();
+        release(journal);
         return isEmpty;
     }
 
     /**
      * Close and discard a pre-allocated, available segment, that's never been exposed
      */
-    void closeAndDiscard()
+    void closeAndDiscard(Journal<K, V> journal)
     {
-        boolean isEmpty = close(false);
+        boolean isEmpty = close(journal, false);
         if (!isEmpty) throw new IllegalStateException();
         discard();
     }
 
-    void closeAndIfEmptyDiscard()
+    void closeAndIfEmptyDiscard(Journal<K, V> journal)
     {
-        boolean isEmpty = close(true);
+        boolean isEmpty = close(journal, true);
         if (isEmpty) discard();
     }
 
@@ -188,7 +189,6 @@ final class ActiveSegment<K, V> extends Segment<K, V>
     {
         index.persist(descriptor);
         metadata.persist(descriptor);
-        syncedOffsets.fsync();
         SyncUtil.trySyncDir(descriptor.directory);
     }
 
@@ -199,13 +199,6 @@ final class ActiveSegment<K, V> extends Segment<K, V>
         descriptor.fileFor(Component.DATA).deleteIfExists();
         descriptor.fileFor(Component.INDEX).deleteIfExists();
         descriptor.fileFor(Component.METADATA).deleteIfExists();
-        descriptor.fileFor(Component.SYNCED_OFFSETS).deleteIfExists();
-    }
-
-    @Override
-    void release()
-    {
-        selfRef.release();
     }
 
     @Override
@@ -220,23 +213,27 @@ final class ActiveSegment<K, V> extends Segment<K, V>
         return selfRef.ref();
     }
 
-    private static final class Tidier implements Tidy
+    @Override
+    public Ref<Segment<K, V>> selfRef()
+    {
+        return selfRef;
+    }
+
+    private static final class Tidier extends Segment.Tidier implements Tidy
     {
         private final Descriptor descriptor;
         private final FileChannel channel;
         private final ByteBuffer buffer;
-        private final SyncedOffsets syncedOffsets;
 
-        Tidier(Descriptor descriptor, FileChannel channel, ByteBuffer buffer, SyncedOffsets syncedOffsets)
+        Tidier(Descriptor descriptor, FileChannel channel, ByteBuffer buffer)
         {
             this.descriptor = descriptor;
             this.channel = channel;
             this.buffer = buffer;
-            this.syncedOffsets = syncedOffsets;
         }
 
         @Override
-        public void tidy()
+        void onUnreferenced()
         {
             FileUtils.clean(buffer);
             try
@@ -247,7 +244,6 @@ final class ActiveSegment<K, V> extends Segment<K, V>
             {
                 throw new JournalWriteError(descriptor, Component.DATA, e);
             }
-            syncedOffsets.close();
         }
 
         @Override
@@ -257,68 +253,49 @@ final class ActiveSegment<K, V> extends Segment<K, V>
         }
     }
 
-    /*
-     * Flush logic; closing and component flushing
-     */
-
-    boolean shouldFlush()
-    {
-        int allocateOffset = this.allocateOffset;
-        return lastFlushedOffset < allocateOffset;
-    }
-
     public boolean isFlushed(long position)
     {
-        return lastFlushedOffset >= position;
+        return writtenTo >= position;
     }
 
-    public long lastFlushedOffset()
+    public int writtenToAtLeast()
     {
-        return lastFlushedOffset;
+        return writtenTo;
     }
 
-    /**
-     * Possibly force a disk flush for this segment file.
-     * TODO FIXME: calls from outside Flusher + callbacks
-     * @return last synced offset
-     */
-    synchronized int flush(boolean fsync)
+    public int fsyncedTo()
     {
-        int allocateOffset = this.allocateOffset;
-        if (lastFlushedOffset >= allocateOffset)
-            return lastFlushedOffset;
+        return fsyncedTo;
+    }
+
+    public int updateWrittenTo()
+    {
+        int allocatedTo = (int)allocateOffset;
+        if (writtenTo >= allocatedTo)
+            return writtenTo;
 
         waitForModifications();
-        if (fsync)
-        {
-            fsyncInternal();
-            lastFsyncOffsetUpdater.accumulateAndGet(this, allocateOffset, Math::max);
-        }
-        lastFlushedOffset = allocateOffset;
-        int syncedOffset = Math.min(allocateOffset, endOfBuffer);
-        syncedOffsets.mark(syncedOffset, fsync);
-        flushComplete.signalAll();
-        return syncedOffset;
+        return writtenToUpdater.accumulateAndGet(this, allocatedTo, Math::max);
     }
 
     // provides no ordering guarantees
     void fsync()
     {
-        int lastFlushed = lastFlushedOffset;
-        if (lastFsyncOffset >= lastFlushed)
+        int writtenTo = this.writtenTo;
+        if (fsyncedTo >= writtenTo)
             return;
 
         fsyncInternal();
-        syncedOffsets.fsync();
-        lastFsyncOffsetUpdater.accumulateAndGet(this, lastFlushed, Math::max);
+        fsyncedToUpdater.accumulateAndGet(this, writtenTo, Math::max);
+        flushComplete.signalAll();
     }
 
     private void waitForFlush(int position)
     {
-        while (lastFlushedOffset < position)
+        while (fsyncedTo < position)
         {
             WaitQueue.Signal signal = flushComplete.register();
-            if (lastFlushedOffset < position)
+            if (fsyncedTo < position)
                 signal.awaitThrowUncheckedOnInterrupt();
             else
                 signal.cancel();
@@ -346,12 +323,6 @@ final class ActiveSegment<K, V> extends Segment<K, V>
         }
     }
 
-    boolean isFullyFlushed()
-    {
-        int allocateOffset = this.allocateOffset;
-        return lastFsyncOffset >= allocateOffset;
-    }
-
     /**
      * Ensures no more of this segment is writeable, by allocating any unused section at the end
      * and marking it discarded void discartUnusedTail()
@@ -364,10 +335,10 @@ final class ActiveSegment<K, V> extends Segment<K, V>
         {
             while (true)
             {
-                int prev = allocateOffset;
+                long prev = completeInProgress();
                 int next = endOfBuffer + 1;
 
-                if (prev >= next)
+                if ((int)prev >= next)
                 {
                     // already stopped allocating, might also be closed
                     assert buffer == null || prev == buffer.capacity() + 1;
@@ -377,10 +348,11 @@ final class ActiveSegment<K, V> extends Segment<K, V>
                 if (allocateOffsetUpdater.compareAndSet(this, prev, next))
                 {
                     // stopped allocating now; can only succeed once, no further allocation or discardUnusedTail can succeed
-                    endOfBuffer = prev;
+                    endOfBuffer = (int)prev;
                     assert buffer != null && next == buffer.capacity() + 1;
                     return prev == 0;
                 }
+                LockSupport.parkNanos(1);
             }
         }
     }
@@ -414,7 +386,8 @@ final class ActiveSegment<K, V> extends Segment<K, V>
     private int totalEntrySize(Set<Integer> hosts, int recordSize)
     {
         return EntrySerializer.fixedEntrySize(keySupport, descriptor.userVersion)
-             + EntrySerializer.variableEntrySize(hosts.size(), recordSize);
+             + EntrySerializer.variableEntrySize(hosts.size())
+               + recordSize;
     }
 
     // allocate bytes in the segment, or return -1 if not enough space
@@ -422,16 +395,30 @@ final class ActiveSegment<K, V> extends Segment<K, V>
     {
         while (true)
         {
-            int prev = allocateOffset;
-            int next = prev + size;
+            long prev = maybeCompleteInProgress();
+            if (prev < 0)
+            {
+                LockSupport.parkNanos(1); // ConstantBackoffCAS Algorithm from https://arxiv.org/pdf/1305.5800.pdf
+                continue;
+            }
+
+            long next = prev + size;
             if (next >= endOfBuffer)
                 return -1;
-            if (allocateOffsetUpdater.compareAndSet(this, prev, next))
+
+            // TODO (expected): if we write a "safe shutdown" marker we don't need this,
+            //  but this provides safe restart in the event the process terminates abruptly but the host remains stable
+            long inProgress = prev | (next << 32);
+            if (!allocateOffsetUpdater.compareAndSet(this, prev, inProgress))
             {
-                assert buffer != null;
-                return prev;
+                LockSupport.parkNanos(1); // ConstantBackoffCAS Algorithm from https://arxiv.org/pdf/1305.5800.pdf
+                continue;
             }
-            LockSupport.parkNanos(1); // ConstantBackoffCAS Algorithm from https://arxiv.org/pdf/1305.5800.pdf
+
+            assert buffer != null;
+            buffer.putInt((int)prev, (int)next);
+            allocateOffsetUpdater.compareAndSet(this, inProgress, next);
+            return (int) prev;
         }
     }
 
@@ -450,14 +437,13 @@ final class ActiveSegment<K, V> extends Segment<K, V>
             this.length = length;
         }
 
-        RecordPointer write(K id, ByteBuffer record, Set<Integer> hosts)
+        void write(K id, ByteBuffer record, Set<Integer> hosts)
         {
-            try (BufferedDataOutputStreamPlus out = new DataOutputBufferFixed(buffer))
+            try
             {
-                EntrySerializer.write(id, record, hosts, keySupport, out, descriptor.userVersion);
-                index.update(id, start, length);
+                EntrySerializer.write(id, record, hosts, keySupport, buffer, descriptor.userVersion);
                 metadata.update(hosts);
-                return new RecordPointer(descriptor.timestamp, start);
+                index.update(id, start, length);
             }
             catch (IOException e)
             {
@@ -472,9 +458,9 @@ final class ActiveSegment<K, V> extends Segment<K, V>
         // Variant of write that does not allocate/return a record pointer
         void writeInternal(K id, ByteBuffer record, Set<Integer> hosts)
         {
-            try (BufferedDataOutputStreamPlus out = new DataOutputBufferFixed(buffer))
+            try
             {
-                EntrySerializer.write(id, record, hosts, keySupport, out, descriptor.userVersion);
+                EntrySerializer.write(id, record, hosts, keySupport, buffer, descriptor.userVersion);
                 index.update(id, start, length);
                 metadata.update(hosts);
             }
@@ -488,12 +474,48 @@ final class ActiveSegment<K, V> extends Segment<K, V>
             }
         }
 
-        void awaitFlush(Timer waitingOnFlush)
+        void awaitDurable(Timer waitingOnFlush)
         {
             try (Timer.Context ignored = waitingOnFlush.time())
             {
                 waitForFlush(start);
             }
         }
+
+        boolean isFsynced()
+        {
+            return fsyncedTo >= start + length;
+        }
+
+        Descriptor descriptor()
+        {
+            return descriptor;
+        }
+
+        int start()
+        {
+            return start;
+        }
+    }
+
+    private int maybeCompleteInProgress()
+    {
+        long cur = allocateOffset;
+        int inProgress = (int) (cur >>> 32);
+        if (inProgress == 0) return (int) cur;
+        // finish up the in-progress allocation
+        buffer.putInt((int)cur, inProgress);
+        if (!allocateOffsetUpdater.compareAndSet(this, cur, inProgress))
+            return -1;
+
+        return inProgress;
+    }
+
+    private int completeInProgress()
+    {
+        int result = maybeCompleteInProgress();
+        while (result < 0)
+            result = maybeCompleteInProgress();
+        return result;
     }
 }

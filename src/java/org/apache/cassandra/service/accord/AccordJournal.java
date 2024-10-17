@@ -62,6 +62,7 @@ import org.apache.cassandra.journal.ValueSerializer;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.accord.AccordJournalValueSerializers.IdentityAccumulator;
 import org.apache.cassandra.service.accord.JournalKey.JournalKeySupport;
+import org.apache.cassandra.service.accord.api.AccordAgent;
 import org.apache.cassandra.utils.ExecutorUtils;
 
 import static accord.primitives.SaveStatus.ErasedOrVestigial;
@@ -86,14 +87,16 @@ public class AccordJournal implements IJournal, Shutdownable
     private final Journal<JournalKey, Object> journal;
     private final AccordJournalTable<JournalKey, Object> journalTable;
     private final Params params;
+    private final AccordAgent agent;
     Node node;
 
     enum Status { INITIALIZED, STARTING, REPLAY, STARTED, TERMINATING, TERMINATED }
     private volatile Status status = Status.INITIALIZED;
 
     @VisibleForTesting
-    public AccordJournal(Params params)
+    public AccordJournal(Params params, AccordAgent agent)
     {
+        this.agent = agent;
         File directory = new File(DatabaseDescriptor.getAccordJournalDirectory());
         this.journal = new Journal<>("AccordJournal", directory, params, JournalKey.SUPPORT,
                                      // In Accord, we are using streaming serialization, i.e. Reader/Writer interfaces instead of materializing objects
@@ -180,7 +183,7 @@ public class AccordJournal implements IJournal, Shutdownable
     public Command loadCommand(int commandStoreId, TxnId txnId, RedundantBefore redundantBefore, DurableBefore durableBefore)
     {
         SavedCommand.Builder builder = loadDiffs(commandStoreId, txnId);
-        Cleanup cleanup = builder.shouldCleanup(redundantBefore, durableBefore);
+        Cleanup cleanup = builder.shouldCleanup(agent, redundantBefore, durableBefore);
         switch (cleanup)
         {
             case EXPUNGE_PARTIAL:
@@ -195,7 +198,10 @@ public class AccordJournal implements IJournal, Shutdownable
     public SavedCommand.MinimalCommand loadMinimal(int commandStoreId, TxnId txnId, SavedCommand.Load load, RedundantBefore redundantBefore, DurableBefore durableBefore)
     {
         SavedCommand.Builder builder = loadDiffs(commandStoreId, txnId, load);
-        Cleanup cleanup = builder.shouldCleanup(redundantBefore, durableBefore);
+        if (!builder.nextCalled)
+            return null;
+
+        Cleanup cleanup = builder.shouldCleanup(node.agent(), redundantBefore, durableBefore);
         switch (cleanup)
         {
             case EXPUNGE_PARTIAL:
@@ -203,6 +209,7 @@ public class AccordJournal implements IJournal, Shutdownable
             case ERASE:
                 return null;
         }
+        Invariants.checkState(builder.saveStatus != null, "No saveSatus loaded, but next was called and cleanup was not: %s", builder);
         return builder.asMinimal();
     }
 
@@ -235,7 +242,7 @@ public class AccordJournal implements IJournal, Shutdownable
     }
 
     @Override
-    public void appendCommand(int store, SavedCommand.DiffWriter value, Runnable onFlush)
+    public void appendCommand(int store, SavedCommand.Writer value, Runnable onFlush)
     {
         if (value == null || status == Status.REPLAY)
         {
@@ -248,7 +255,7 @@ public class AccordJournal implements IJournal, Shutdownable
         JournalKey key = new JournalKey(value.key(), JournalKey.Type.COMMAND_DIFF, store);
         RecordPointer pointer = journal.asyncWrite(key, value, SENTINEL_HOSTS);
         if (onFlush != null)
-            journal.onFlush(pointer, onFlush);
+            journal.onDurable(pointer, onFlush);
     }
 
     @Override
@@ -266,7 +273,7 @@ public class AccordJournal implements IJournal, Shutdownable
                 JournalKey key = new JournalKey(TxnId.NONE, JournalKey.Type.DURABLE_BEFORE, 0);
                 RecordPointer pointer = appendInternal(key, addDurableBefore);
                 // TODO (required): what happens on failure?
-                journal.onFlush(pointer, () -> result.setSuccess(null));
+                journal.onDurable(pointer, () -> result.setSuccess(null));
                 return result;
             }
 
@@ -297,7 +304,7 @@ public class AccordJournal implements IJournal, Shutdownable
             return;
 
         if (pointer != null)
-            journal.onFlush(pointer, onFlush);
+            journal.onDurable(pointer, onFlush);
         else
             onFlush.run();
     }
@@ -459,7 +466,7 @@ public class AccordJournal implements IJournal, Shutdownable
                         }
                     });
 
-                    Cleanup cleanup = builder.shouldCleanup(compactionInfo.redundantBefores.get(key.commandStoreId), compactionInfo.durableBefores.get(key.commandStoreId));
+                    Cleanup cleanup = builder.shouldCleanup(node.agent(), compactionInfo.redundantBefores.get(key.commandStoreId), compactionInfo.durableBefores.get(key.commandStoreId));
                     switch (cleanup)
                     {
                         case ERASE:

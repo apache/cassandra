@@ -71,9 +71,15 @@ public abstract class AbstractSerialized<T>
 
     protected T get()
     {
-        if (memoized == null)
-            memoized = AccordSerializers.deserialize(bytes, serializer());
-        return memoized;
+        T result = memoized;
+        if (result == null)
+            memoized = result = AccordSerializers.deserialize(bytes, serializer());
+        return result;
+    }
+
+    public void unmemoize()
+    {
+        memoized = null;
     }
 
     protected ByteBuffer bytes()

@@ -20,11 +20,13 @@ package org.apache.cassandra.service.accord;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.EnumSet;
 import java.util.function.Function;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import accord.api.Agent;
 import accord.api.Result;
 import accord.local.Cleanup;
 import accord.local.Command;
@@ -89,31 +91,24 @@ public class SavedCommand
     }
 
     // TODO: maybe rename this and enclosing classes?
-    public static class DiffWriter implements Journal.Writer
+    public static class Writer implements Journal.Writer
     {
-        private final Command before;
         private final Command after;
         private final TxnId txnId;
+        private final int flags;
 
-        // TODO: improve encapsulationd
         @VisibleForTesting
-        public DiffWriter(Command before, Command after)
+        public Writer(Command after, int flags)
         {
-            this(after.txnId(), before, after);
+            this(after.txnId(), after, flags);
         }
 
         @VisibleForTesting
-        public DiffWriter(TxnId txnId, Command before, Command after)
+        public Writer(TxnId txnId, Command after, int flags)
         {
             this.txnId = txnId;
-            this.before = before;
             this.after = after;
-        }
-
-        @VisibleForTesting
-        public Command before()
-        {
-            return before;
+            this.flags = flags;
         }
 
         @VisibleForTesting
@@ -124,7 +119,7 @@ public class SavedCommand
 
         public void write(DataOutputPlus out, int userVersion) throws IOException
         {
-            serialize(before, after, out, userVersion);
+            serialize(after, flags, out, userVersion);
         }
 
         public TxnId key()
@@ -133,30 +128,37 @@ public class SavedCommand
         }
     }
 
-    public static ByteBuffer asSerializedDiff(Command after, int userVersion) throws IOException
+    public static @Nullable ByteBuffer asSerializedDiff(Command before, Command after, int userVersion) throws IOException
     {
         try (DataOutputBuffer out = new DataOutputBuffer())
         {
-            diff(null, after).write(out, userVersion);
+            Writer writer = diff(before, after);
+            if (writer == null)
+                return null;
+
+            writer.write(out, userVersion);
             return out.asNewBuffer();
         }
     }
 
     @Nullable
-    public static DiffWriter diff(Command original, Command current)
+    public static Writer diff(Command original, Command current)
     {
         if (original == current
             || current == null
-            || current.saveStatus() == SaveStatus.Uninitialised
-            || !anyFieldChanged(original, current))
+            || current.saveStatus() == SaveStatus.Uninitialised)
             return null;
-        return new SavedCommand.DiffWriter(original, current);
+
+        int flags = validateFlags(getFlags(original, current));
+        if (!anyFieldChanged(flags))
+            return null;
+
+        return new Writer(current, flags);
     }
 
     // TODO (required): calculate flags once
-    private static boolean anyFieldChanged(Command before, Command after)
+    private static boolean anyFieldChanged(int flags)
     {
-        int flags = validateFlags(getFlags(before, after));
         return (flags >>> 16) != 0;
     }
 
@@ -166,9 +168,9 @@ public class SavedCommand
         return flags;
     }
     
-    public static void serialize(Command before, Command after, DataOutputPlus out, int userVersion) throws IOException
+    public static void serialize(Command after, int flags, DataOutputPlus out, int userVersion) throws IOException
     {
-        int flags = validateFlags(getFlags(before, after));
+        Invariants.checkState(flags != 0);
         out.writeInt(flags);
 
         int iterable = toIterableSetFields(flags);
@@ -230,7 +232,7 @@ public class SavedCommand
     }
 
     @VisibleForTesting
-    static int getFlags(Command before, Command after)
+    public static int getFlags(Command before, Command after)
     {
         int flags = 0;
 
@@ -294,6 +296,17 @@ public class SavedCommand
     static boolean getFieldChanged(Fields field, int oldFlags)
     {
         return (oldFlags & (0x10000 << field.ordinal())) != 0;
+    }
+
+    static EnumSet<Fields> getFieldsChanged(int flags)
+    {
+        EnumSet<Fields> fields = EnumSet.noneOf(Fields.class);
+        for (Fields field : Fields.FIELDS)
+        {
+            if ((flags & (0x10000 << field.ordinal())) != 0)
+                fields.add(field);
+        }
+        return fields;
     }
 
     static int toIterableSetFields(int flags)
@@ -536,7 +549,7 @@ public class SavedCommand
             return count;
         }
 
-        public Cleanup shouldCleanup(RedundantBefore redundantBefore, DurableBefore durableBefore)
+        public Cleanup shouldCleanup(Agent agent, RedundantBefore redundantBefore, DurableBefore durableBefore)
         {
             if (!nextCalled)
                 return NO;
@@ -544,7 +557,7 @@ public class SavedCommand
             if (saveStatus == null || participants == null)
                 return Cleanup.NO;
 
-            Cleanup cleanup = Cleanup.shouldCleanupPartial(txnId, saveStatus, durability, participants, redundantBefore, durableBefore);
+            Cleanup cleanup = Cleanup.shouldCleanupPartial(agent, txnId, saveStatus, durability, participants, redundantBefore, durableBefore);
             if (this.cleanup != null && this.cleanup.compareTo(cleanup) > 0)
                 cleanup = this.cleanup;
             return cleanup;
@@ -661,6 +674,7 @@ public class SavedCommand
         public void serialize(DataOutputPlus out, int userVersion) throws IOException
         {
             Invariants.checkState(mask == 0);
+            Invariants.checkState(flags != 0);
             out.writeInt(validateFlags(flags));
 
             int iterable = toIterableSetFields(flags);
@@ -718,12 +732,11 @@ public class SavedCommand
             }
         }
 
-        // TODO: we seem to be writing some form of empty transaction
-        @SuppressWarnings({ "rawtypes", "unchecked" })
         public void deserializeNext(DataInputPlus in, int userVersion) throws IOException
         {
             Invariants.checkState(txnId != null);
-            final int flags = in.readInt();
+            int flags = in.readInt();
+            Invariants.checkState(flags != 0);
             nextCalled = true;
             count++;
 

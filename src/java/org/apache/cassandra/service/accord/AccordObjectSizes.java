@@ -379,6 +379,7 @@ public class AccordObjectSizes
         for (int i = 0 ; i < cfk.size() ; ++i)
         {
             TxnInfo info = cfk.get(i);
+            if (info.executeAt != info) size += TIMESTAMP_SIZE;
             if (info.getClass() != TxnInfoExtra.class) continue;
             TxnInfoExtra infoExtra = (TxnInfoExtra) info;
             if (infoExtra.missing.length > 0)

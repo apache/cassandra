@@ -82,8 +82,10 @@ import accord.local.Node;
 import accord.local.Node.Id;
 import accord.local.PreLoadContext;
 import accord.local.RedundantBefore;
+import accord.local.SafeCommand;
 import accord.local.ShardDistributor.EvenSplit;
 import accord.local.cfk.CommandsForKey;
+import accord.local.cfk.SafeCommandsForKey;
 import accord.messages.Callback;
 import accord.messages.ReadData;
 import accord.messages.Reply;
@@ -181,6 +183,7 @@ import static accord.utils.Invariants.checkState;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.apache.cassandra.config.DatabaseDescriptor.getAccordCommandStoreShardCount;
 import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordReadMetrics;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordWriteMetrics;
@@ -270,6 +273,9 @@ public class AccordService implements IAccordService, Shutdownable
         public void setCacheSize(long kb) { }
 
         @Override
+        public void setWorkingSetSize(long kb) { }
+
+        @Override
         public TopologyManager topology()
         {
             throw new UnsupportedOperationException("Cannot return topology when accord.enabled = false in cassandra.yaml");
@@ -310,6 +316,12 @@ public class AccordService implements IAccordService, Shutdownable
         public CompactionInfo getCompactionInfo()
         {
             return new CompactionInfo(new Int2ObjectHashMap<>(), new Int2ObjectHashMap<>(), new Int2ObjectHashMap<>());
+        }
+
+        @Override
+        public AccordAgent agent()
+        {
+            return null;
         }
 
         @Override
@@ -427,13 +439,13 @@ public class AccordService implements IAccordService, Shutdownable
         this.scheduler = new AccordScheduler();
         this.dataStore = new AccordDataStore();
         this.configuration = new AccordConfiguration(DatabaseDescriptor.getRawConfig());
-        this.journal = new AccordJournal(DatabaseDescriptor.getAccord().journal);
+        this.journal = new AccordJournal(DatabaseDescriptor.getAccord().journal, agent);
         this.node = new Node(localId,
                              messageSink,
                              configService,
                              time,
                              () -> dataStore,
-                             new KeyspaceSplitter(new EvenSplit<>(DatabaseDescriptor.getAccordShardCount(), getPartitioner().accordSplitter())),
+                             new KeyspaceSplitter(new EvenSplit<>(getAccordCommandStoreShardCount(), getPartitioner().accordSplitter())),
                              agent,
                              new DefaultRandom(),
                              scheduler,
@@ -838,7 +850,7 @@ public class AccordService implements IAccordService, Shutdownable
     @Override
     public Seekables barrierWithRetries(Seekables keysOrRanges, long minEpoch, BarrierType barrierType, boolean isForWrite) throws InterruptedException
     {
-        return doWithRetries(Blocking.Default.instance, () -> AccordService.instance().barrier(keysOrRanges, minEpoch, Dispatcher.RequestTime.forImmediateExecution(), DatabaseDescriptor.getAccordRangeBarrierTimeoutNanos(), barrierType, isForWrite),
+        return doWithRetries(Blocking.Default.instance, () -> AccordService.instance().barrier(keysOrRanges, minEpoch, Dispatcher.RequestTime.forImmediateExecution(), DatabaseDescriptor.getAccordRangeSyncPointTimeoutNanos(), barrierType, isForWrite),
                              DatabaseDescriptor.getAccordBarrierRetryAttempts(),
                              DatabaseDescriptor.getAccordBarrierRetryInitialBackoffMillis(),
                              DatabaseDescriptor.getAccordBarrierRetryMaxBackoffMillis());
@@ -847,7 +859,7 @@ public class AccordService implements IAccordService, Shutdownable
     @Override
     public Seekables<?, ?> repairWithRetries(Seekables<?, ?> keysOrRanges, long minEpoch, BarrierType barrierType, boolean isForWrite, List<InetAddressAndPort> allEndpoints) throws InterruptedException
     {
-        return doWithRetries(Blocking.Default.instance, () -> AccordService.instance().repair(keysOrRanges, minEpoch, Dispatcher.RequestTime.forImmediateExecution(), DatabaseDescriptor.getAccordRangeBarrierTimeoutNanos(), barrierType, isForWrite, allEndpoints),
+        return doWithRetries(Blocking.Default.instance, () -> AccordService.instance().repair(keysOrRanges, minEpoch, Dispatcher.RequestTime.forImmediateExecution(), DatabaseDescriptor.getAccordRangeSyncPointTimeoutNanos(), barrierType, isForWrite, allEndpoints),
                              DatabaseDescriptor.getAccordBarrierRetryAttempts(),
                              DatabaseDescriptor.getAccordBarrierRetryInitialBackoffMillis(),
                              DatabaseDescriptor.getAccordBarrierRetryMaxBackoffMillis());
@@ -1019,6 +1031,14 @@ public class AccordService implements IAccordService, Shutdownable
     }
 
     @Override
+    public void setWorkingSetSize(long kb)
+    {
+        long bytes = kb << 10;
+        AccordCommandStores commandStores = (AccordCommandStores) node.commandStores();
+        commandStores.setWorkingSetSize(bytes);
+    }
+
+    @Override
     public boolean isTerminated()
     {
         return scheduler.isTerminated();
@@ -1126,7 +1146,7 @@ public class AccordService implements IAccordService, Shutdownable
 
     private static AsyncChain<Void> populate(CommandStoreTxnBlockedGraph.Builder state, CommandStore commandStore, TokenKey blockedBy, TxnId txnId, Timestamp executeAt)
     {
-        AsyncChain<AsyncChain<Void>> submit = commandStore.submit(PreLoadContext.contextFor(txnId, RoutingKeys.of(blockedBy.toUnseekable()), KeyHistory.COMMANDS), in -> {
+        AsyncChain<AsyncChain<Void>> submit = commandStore.submit(PreLoadContext.contextFor(txnId, RoutingKeys.of(blockedBy.toUnseekable()), KeyHistory.SYNC), in -> {
             AsyncChain<Void> chain = populate(state, (AccordSafeCommandStore) in, blockedBy, txnId, executeAt);
             return chain == null ? AsyncChains.success(null) : chain;
         });
@@ -1136,7 +1156,7 @@ public class AccordService implements IAccordService, Shutdownable
     @Nullable
     private static AsyncChain<Void> populate(CommandStoreTxnBlockedGraph.Builder state, AccordSafeCommandStore safeStore, TxnId txnId)
     {
-        AccordSafeCommand safeCommand = safeStore.getIfLoaded(txnId);
+        SafeCommand safeCommand = safeStore.unsafeGet(txnId);
         Invariants.nonNull(safeCommand, "Txn %s is not in the cache", txnId);
         if (safeCommand.current() == null || safeCommand.current().saveStatus() == SaveStatus.Uninitialised)
             return null;
@@ -1149,7 +1169,7 @@ public class AccordService implements IAccordService, Shutdownable
         {
             if (state.knows(blockedBy)) continue;
             // need to fetch the state
-            if (safeStore.getIfLoaded(blockedBy) != null)
+            if (safeStore.ifLoadedAndInitialised(blockedBy) != null)
             {
                 AsyncChain<Void> chain = populate(state, safeStore, blockedBy);
                 if (chain != null)
@@ -1164,7 +1184,7 @@ public class AccordService implements IAccordService, Shutdownable
         for (TokenKey blockedBy : cmdTxnState.blockedByKey)
         {
             if (state.keys.containsKey(blockedBy)) continue;
-            if (safeStore.getCommandsForKeyIfLoaded(blockedBy) != null)
+            if (safeStore.ifLoadedAndInitialised(blockedBy) != null)
             {
                 AsyncChain<Void> chain = populate(state, safeStore, blockedBy, txnId, safeCommand.current().executeAt());
                 if (chain != null)
@@ -1183,13 +1203,13 @@ public class AccordService implements IAccordService, Shutdownable
 
     private static AsyncChain<Void> populate(CommandStoreTxnBlockedGraph.Builder state, AccordSafeCommandStore safeStore, TokenKey pk, TxnId txnId, Timestamp executeAt)
     {
-        AccordSafeCommandsForKey commandsForKey = safeStore.getCommandsForKeyIfLoaded(pk);
+        SafeCommandsForKey commandsForKey = safeStore.ifLoadedAndInitialised(pk);
         TxnId blocking = commandsForKey.current().blockedOnTxnId(txnId, executeAt);
         if (blocking instanceof CommandsForKey.TxnInfo)
             blocking = ((CommandsForKey.TxnInfo) blocking).plainTxnId();
         state.keys.put(pk, blocking);
         if (state.txns.containsKey(blocking)) return null;
-        if (safeStore.getIfLoaded(blocking) != null) return populate(state, safeStore, blocking);
+        if (safeStore.ifLoadedAndInitialised(blocking) != null) return populate(state, safeStore, blocking);
         return populate(state, safeStore.commandStore(), blocking);
     }
 
@@ -1352,6 +1372,12 @@ public class AccordService implements IAccordService, Shutdownable
             }
         }));
         return new CompactionInfo(redundantBefores, ranges, durableBefores);
+    }
+
+    @Override
+    public AccordAgent agent()
+    {
+        return (AccordAgent) node.agent();
     }
 
     @Override

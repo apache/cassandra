@@ -45,13 +45,16 @@ public class UUIDGen
     /** decomposes a uuid into raw bytes. */
     public static byte[] decompose(UUID uuid)
     {
-        long most = uuid.getMostSignificantBits();
-        long least = uuid.getLeastSignificantBits();
+        return decompose(uuid.getMostSignificantBits(), uuid.getLeastSignificantBits());
+    }
+
+    public static byte[] decompose(long msb, long lsb)
+    {
         byte[] b = new byte[16];
         for (int i = 0; i < 8; i++)
         {
-            b[i] = (byte)(most >>> ((7-i) * 8));
-            b[8+i] = (byte)(least >>> ((7-i) * 8));
+            b[i] = (byte)(msb >>> ((7-i) * 8));
+            b[8+i] = (byte)(lsb >>> ((7-i) * 8));
         }
         return b;
     }

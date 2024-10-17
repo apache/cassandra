@@ -36,10 +36,12 @@ public interface KeySupport<K> extends Comparator<K>
     int serializedSize(int userVersion);
 
     void serialize(K key, DataOutputPlus out, int userVersion) throws IOException;
+    void serialize(K key, ByteBuffer out, int userVersion) throws IOException;
 
     K deserialize(DataInputPlus in, int userVersion) throws IOException;
 
     K deserialize(ByteBuffer buffer, int position, int userVersion);
+    K deserialize(ByteBuffer buffer, int userVersion);
 
     void updateChecksum(Checksum crc, K key, int userVersion);
 

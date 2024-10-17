@@ -18,8 +18,8 @@
 package org.apache.cassandra.service.accord;
 
 import accord.impl.SafeState;
-import accord.utils.async.AsyncChain;
-import org.apache.cassandra.service.accord.AccordCachingState.Status;
+import accord.utils.async.Cancellable;
+import org.apache.cassandra.utils.concurrent.Future;
 
 public interface AccordSafeState<K, V> extends SafeState<V>
 {
@@ -29,7 +29,7 @@ public interface AccordSafeState<K, V> extends SafeState<V>
     boolean invalidated();
     void preExecute();
 
-    AccordCachingState<K, V> global();
+    AccordCacheEntry<K, V> global();
 
     default boolean hasUpdate()
     {
@@ -46,17 +46,7 @@ public interface AccordSafeState<K, V> extends SafeState<V>
         return global().key();
     }
 
-    default Status globalStatus()
-    {
-        return global().status();
-    }
-
-    default AsyncChain<?> loading()
-    {
-        return global().loading();
-    }
-
-    default AsyncChain<?> saving()
+    default Cancellable saving()
     {
         return global().saving();
     }

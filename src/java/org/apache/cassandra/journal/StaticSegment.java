@@ -26,14 +26,12 @@ import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.concurrent.locks.LockSupport;
 
-import accord.utils.Invariants;
 import org.agrona.collections.IntHashSet;
-import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.Closeable;
+import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.Ref;
 
 /**
@@ -45,6 +43,7 @@ import org.apache.cassandra.utils.concurrent.Ref;
 public final class StaticSegment<K, V> extends Segment<K, V>
 {
     final FileChannel channel;
+    final int fsyncLimit;
 
     private final Ref<Segment<K, V>> selfRef;
 
@@ -53,15 +52,15 @@ public final class StaticSegment<K, V> extends Segment<K, V>
     private StaticSegment(Descriptor descriptor,
                           FileChannel channel,
                           MappedByteBuffer buffer,
-                          SyncedOffsets syncedOffsets,
                           OnDiskIndex<K> index,
                           Metadata metadata,
                           KeySupport<K> keySupport)
     {
-        super(descriptor, syncedOffsets, metadata, keySupport);
+        super(descriptor, metadata, keySupport);
         this.index = index;
 
         this.channel = channel;
+        this.fsyncLimit = metadata.fsyncLimit();
         this.buffer = buffer;
 
         selfRef = new Ref<>(this, new Tidier<>(descriptor, channel, buffer, index));
@@ -93,21 +92,17 @@ public final class StaticSegment<K, V> extends Segment<K, V>
         if (!Component.DATA.existsFor(descriptor))
             throw new IllegalArgumentException("Data file for segment " + descriptor + " doesn't exist");
 
-        SyncedOffsets syncedOffsets = Component.SYNCED_OFFSETS.existsFor(descriptor)
-                                    ? SyncedOffsets.load(descriptor)
-                                    : SyncedOffsets.absent();
-
         Metadata metadata = Component.METADATA.existsFor(descriptor)
                           ? Metadata.load(descriptor)
-                          : Metadata.rebuildAndPersist(descriptor, keySupport, syncedOffsets.syncedOffset());
+                          : Metadata.rebuildAndPersist(descriptor, keySupport);
 
         OnDiskIndex<K> index = Component.INDEX.existsFor(descriptor)
                              ? OnDiskIndex.open(descriptor, keySupport)
-                             : OnDiskIndex.rebuildAndPersist(descriptor, keySupport, syncedOffsets.syncedOffset());
+                             : OnDiskIndex.rebuildAndPersist(descriptor, keySupport, metadata.fsyncLimit());
 
         try
         {
-            return internalOpen(descriptor, syncedOffsets, index, metadata, keySupport);
+            return internalOpen(descriptor, index, metadata, keySupport);
         }
         catch (IOException e)
         {
@@ -116,55 +111,27 @@ public final class StaticSegment<K, V> extends Segment<K, V>
     }
 
     private static <K, V> StaticSegment<K, V> internalOpen(
-        Descriptor descriptor, SyncedOffsets syncedOffsets, OnDiskIndex<K> index, Metadata metadata, KeySupport<K> keySupport)
+        Descriptor descriptor, OnDiskIndex<K> index, Metadata metadata, KeySupport<K> keySupport)
     throws IOException
     {
         File file = descriptor.fileFor(Component.DATA);
         FileChannel channel = FileChannel.open(file.toPath(), StandardOpenOption.READ);
         MappedByteBuffer buffer = channel.map(FileChannel.MapMode.READ_ONLY, 0, channel.size());
-        return new StaticSegment<>(descriptor, channel, buffer, syncedOffsets, index, metadata, keySupport);
+        return new StaticSegment<>(descriptor, channel, buffer, index, metadata, keySupport);
     }
 
-    @Override
-    public void close()
+    public void close(Journal<K, V> journal)
     {
-        try
-        {
-            channel.close();
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException("Could not close static segment " + descriptor, e);
-        }
-
-        release();
+        release(journal);
     }
 
     /**
      * Waits until this segment is unreferenced, closes it, and deltes all files associated with it.
      */
-    void discard()
+    void discard(Journal<K, V> journal)
     {
-        // TODO: consider moving deletion logic to Tidier instead of busy-looping here
-        waitUntilUnreferenced();
-        close();
-        for (Component component : Component.values())
-        {
-            File file = descriptor.fileFor(component);
-            if (file.exists())
-                file.delete();
-        }
-    }
-
-    public void waitUntilUnreferenced()
-    {
-        while (true)
-        {
-            if (selfRef.globalCount() == 1)
-                return;
-
-            LockSupport.parkNanos(100);
-        }
+        ((Tidier)selfRef.tidier()).discard = true;
+        close(journal);
     }
 
     @Override
@@ -180,23 +147,24 @@ public final class StaticSegment<K, V> extends Segment<K, V>
     }
 
     @Override
-    void release()
-    {
-        selfRef.release();
-    }
-
-    @Override
     public String toString()
     {
         return "StaticSegment{" + descriptor + '}';
     }
 
-    private static final class Tidier<K> implements Tidy
+    @Override
+    public Ref<Segment<K, V>> selfRef()
+    {
+        return selfRef;
+    }
+
+    private static final class Tidier<K> extends Segment.Tidier implements Tidy
     {
         private final Descriptor descriptor;
         private final FileChannel channel;
         private final ByteBuffer buffer;
         private final Index<K> index;
+        boolean discard;
 
         Tidier(Descriptor descriptor, FileChannel channel, ByteBuffer buffer, Index<K> index)
         {
@@ -207,11 +175,21 @@ public final class StaticSegment<K, V> extends Segment<K, V>
         }
 
         @Override
-        public void tidy()
+        void onUnreferenced()
         {
             FileUtils.clean(buffer);
             FileUtils.closeQuietly(channel);
             index.close();
+            if (discard)
+            {
+                Throwable fail = null;
+                for (Component component : Component.VALUES)
+                {
+                    try { descriptor.fileFor(component).deleteIfExists(); }
+                    catch (Throwable t) { fail = Throwables.merge(fail, t); }
+                }
+                Throwables.maybeFail(fail);
+            }
         }
 
         @Override
@@ -259,13 +237,9 @@ public final class StaticSegment<K, V> extends Segment<K, V>
     boolean read(int offset, int size, EntrySerializer.EntryHolder<K> into)
     {
         ByteBuffer duplicate = buffer.duplicate().position(offset).limit(offset + size);
-        try (DataInputBuffer in = new DataInputBuffer(duplicate, false))
+        try
         {
-            if (!EntrySerializer.tryRead(into, keySupport, duplicate, in, syncedOffsets.syncedOffset(), descriptor.userVersion))
-                return false;
-
-            Invariants.checkState(in.available() == 0);
-            return true;
+            return 0 <= EntrySerializer.tryRead(into, keySupport, duplicate, fsyncLimit, descriptor.userVersion);
         }
         catch (IOException e)
         {
@@ -278,7 +252,7 @@ public final class StaticSegment<K, V> extends Segment<K, V>
      */
     void forEachRecord(RecordConsumer<K> consumer)
     {
-        try (SequentialReader<K> reader = sequentialReader(descriptor, keySupport, syncedOffsets.syncedOffset()))
+        try (SequentialReader<K> reader = sequentialReader(descriptor, keySupport, fsyncLimit))
         {
             while (reader.advance())
             {
@@ -389,13 +363,11 @@ public final class StaticSegment<K, V> extends Segment<K, V>
     static final class SequentialReader<K> extends Reader<K>
     {
         private final int fsyncedLimit; // exclusive
-        private final DataInputBuffer in;
 
         SequentialReader(Descriptor descriptor, KeySupport<K> keySupport, int fsyncedLimit)
         {
             super(descriptor, keySupport);
             this.fsyncedLimit = fsyncedLimit;
-            in = new DataInputBuffer(buffer, false);
         }
 
         @Override
@@ -413,8 +385,10 @@ public final class StaticSegment<K, V> extends Segment<K, V>
             offset = buffer.position();
             try
             {
-                if (!EntrySerializer.tryRead(holder, keySupport, buffer, in, fsyncedLimit, descriptor.userVersion))
+                int length = EntrySerializer.tryRead(holder, keySupport, buffer.duplicate(), fsyncedLimit, descriptor.userVersion);
+                if (length < 0)
                     return eof();
+                buffer.position(offset + length);
             }
             catch (IOException e)
             {

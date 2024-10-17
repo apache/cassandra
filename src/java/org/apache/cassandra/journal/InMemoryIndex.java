@@ -102,7 +102,10 @@ final class InMemoryIndex<K> extends Index<K>
     @Override
     public long[] lookUp(K id)
     {
-        return mayContainId(id) ? index.getOrDefault(id, EMPTY) : EMPTY;
+        K lastId = lastId();
+        if (lastId == null || keySupport.compare(id, lastId) <= 0)
+            return index.getOrDefault(id, EMPTY);
+        return EMPTY;
     }
 
     @Override

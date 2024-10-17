@@ -138,11 +138,11 @@ public class ShardedSkipListMemtable extends AbstractShardedMemtable
      *
      * commitLogSegmentPosition should only be null if this is a secondary index, in which case it is *expected* to be null
      */
-    public long put(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup)
+    public long put(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, boolean assumeMissing)
     {
         DecoratedKey key = update.partitionKey();
         MemtableShard shard = shards[boundaries.getShardForKey(key)];
-        return shard.put(key, update, indexer, opGroup);
+        return shard.put(key, update, indexer, opGroup, assumeMissing);
     }
 
     /**
@@ -366,10 +366,10 @@ public class ShardedSkipListMemtable extends AbstractShardedMemtable
             this.metadata = metadata;
         }
 
-        public long put(DecoratedKey key, PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup)
+        public long put(DecoratedKey key, PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, boolean assumeMissing)
         {
             Cloner cloner = allocator.cloner(opGroup);
-            AtomicBTreePartition previous = partitions.get(key);
+            AtomicBTreePartition previous = assumeMissing ? null : partitions.get(key);
 
             long initialSize = 0;
             if (previous == null)
@@ -504,13 +504,13 @@ public class ShardedSkipListMemtable extends AbstractShardedMemtable
          *
          * commitLogSegmentPosition should only be null if this is a secondary index, in which case it is *expected* to be null
          */
-        public long put(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup)
+        public long put(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, boolean assumeMissing)
         {
             DecoratedKey key = update.partitionKey();
             MemtableShard shard = shards[boundaries.getShardForKey(key)];
             synchronized (shard)
             {
-                return shard.put(key, update, indexer, opGroup);
+                return shard.put(key, update, indexer, opGroup, assumeMissing);
             }
         }
 

@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -28,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.cql3.AssignmentTestable;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.ColumnSpecification;
@@ -696,6 +698,39 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
         else
             // default is only good for byte-comparables
             throw new UnsupportedOperationException(getClass().getSimpleName() + " does not implement asComparableBytes");
+    }
+
+    protected static final FastThreadLocal<byte[]> tmpFlattenBuffer = new FastThreadLocal<>();
+    public static byte[] flattenByteSource(ByteSource source)
+    {
+        byte[] tmpBytes = tmpFlattenBuffer.get();
+        byte[] bytes = tmpBytes;
+        if (bytes == null) bytes = new byte[16];
+        int c = 0;
+        while (true)
+        {
+            int b = source.next();
+            if (b == ByteSource.END_OF_STREAM)
+                break;
+
+            if (c == bytes.length)
+                bytes = Arrays.copyOf(bytes, c * 2);
+
+            bytes[c++] = (byte)b;
+        }
+
+        byte[] result = Arrays.copyOf(bytes, c);
+        if (bytes != tmpBytes) tmpFlattenBuffer.set(bytes);
+        return result;
+    }
+
+    public <V> byte[] asFlatComparableBytes(ValueAccessor<V> accessor, V value, ByteComparable.Version version)
+    {
+        ByteSource source = asComparableBytes(accessor, value, version);
+        if (source == null)
+            return null;
+
+        return flattenByteSource(source);
     }
 
     public final ByteSource asComparableBytes(ByteBuffer byteBuffer, ByteComparable.Version version)

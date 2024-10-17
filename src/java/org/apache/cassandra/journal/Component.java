@@ -17,15 +17,19 @@
  */
 package org.apache.cassandra.journal;
 
+import java.util.List;
+
+import static accord.utils.SortedArrays.SortedArrayList.ofSorted;
+
 enum Component
 {
     DATA           ("data"),
     INDEX          ("indx"),
-    METADATA       ("meta"),
-    SYNCED_OFFSETS ("sync");
+    METADATA       ("meta");
     //OFFSET_MAP     (".offs"),
     //INVLALIDATIONS (".invl");
 
+    public static final List<Component> VALUES = ofSorted(values());
     final String extension;
 
     Component(String extension)

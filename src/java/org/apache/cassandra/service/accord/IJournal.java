@@ -39,7 +39,7 @@ public interface IJournal
     NavigableMap<Timestamp, Ranges> loadSafeToRead(int commandStoreId);
     CommandStores.RangesForEpoch.Snapshot loadRangesForEpoch(int commandStoreId);
 
-    void appendCommand(int store, SavedCommand.DiffWriter value, Runnable onFlush);
+    void appendCommand(int store, SavedCommand.Writer value, Runnable onFlush);
     Persister<DurableBefore, DurableBefore> durableBeforePersister();
     void persistStoreState(int store,
                            // TODO: this class should not live under ASCS

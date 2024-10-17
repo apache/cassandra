@@ -36,12 +36,9 @@ import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import accord.local.CommandStores;
 import accord.primitives.Status;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
-import accord.utils.async.AsyncChain;
-import accord.utils.async.AsyncChains;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.FieldIdentifier;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
@@ -57,10 +54,11 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.accord.AccordCommandStore;
+import org.apache.cassandra.service.accord.AccordCache;
+import org.apache.cassandra.service.accord.AccordCommandStores;
+import org.apache.cassandra.service.accord.AccordExecutor;
 import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.service.accord.AccordService;
-import org.apache.cassandra.service.accord.AccordStateCache;
 import org.apache.cassandra.service.accord.CommandStoreTxnBlockedGraph;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
@@ -81,20 +79,20 @@ public class AccordVirtualTables
             return Collections.emptyList();
 
         return List.of(
-            new CommandStoreCache(keyspace),
+            new ExecutorCache(keyspace),
             new MigrationState(keyspace),
             new CoordinationStatus(keyspace),
             new TxnBlockedByTable(keyspace)
         );
     }
 
-    public static final class CommandStoreCache extends AbstractVirtualTable
+    public static final class ExecutorCache extends AbstractVirtualTable
     {
-        private CommandStoreCache(String keyspace)
+        private ExecutorCache(String keyspace)
         {
             super(parse(keyspace,
-                        "Accord Command Store Cache Metrics",
-                        "CREATE TABLE accord_command_store_cache(\n" +
+                        "Accord Executor Cache Metrics",
+                        "CREATE TABLE accord_executor_cache(\n" +
                         "  id int,\n" +
                         "  scope text,\n" +
                         "  queries bigint,\n" +
@@ -107,32 +105,22 @@ public class AccordVirtualTables
         @Override
         public DataSet data()
         {
-            CommandStores stores = ((AccordService) AccordService.instance()).node().commandStores();
-
-            AsyncChain<List<Map<String, AccordStateCache.ImmutableStats>>> statsByStoreChain = stores.map(store -> {
-                Map<String, AccordStateCache.ImmutableStats> snapshots = new HashMap<>(3);
-                AccordCommandStore accordStore = (AccordCommandStore) store.commandStore();
-                snapshots.put(AccordKeyspace.COMMANDS, accordStore.commandCache().statsSnapshot());
-                snapshots.put(AccordKeyspace.COMMANDS_FOR_KEY, accordStore.commandsForKeyCache().statsSnapshot());
-                snapshots.put(AccordKeyspace.TIMESTAMPS_FOR_KEY, accordStore.timestampsForKeyCache().statsSnapshot());
-                return snapshots;
-            });
-
-            List<Map<String, AccordStateCache.ImmutableStats>> statsByStore = AsyncChains.getBlockingAndRethrow(statsByStoreChain);
+            AccordCommandStores stores = (AccordCommandStores) ((AccordService) AccordService.instance()).node().commandStores();
             SimpleDataSet result = new SimpleDataSet(metadata());
-
-            for (int storeID : stores.ids())
+            for (AccordExecutor executor : stores.executors())
             {
-                Map<String, AccordStateCache.ImmutableStats> storeStats = statsByStore.get(storeID);
-                addRow(storeStats.get(AccordKeyspace.COMMANDS), result, storeID, AccordKeyspace.COMMANDS);
-                addRow(storeStats.get(AccordKeyspace.COMMANDS_FOR_KEY), result, storeID, AccordKeyspace.COMMANDS_FOR_KEY);
-                addRow(storeStats.get(AccordKeyspace.TIMESTAMPS_FOR_KEY), result, storeID, AccordKeyspace.TIMESTAMPS_FOR_KEY);
+                Map<String, AccordCache.ImmutableStats> snapshots = new HashMap<>(3);
+                try (AccordExecutor.ExclusiveGlobalCaches cache = executor.lockCaches())
+                {
+                    addRow(cache.commands.statsSnapshot(), result, executor.executorId(), AccordKeyspace.COMMANDS);
+                    addRow(cache.commandsForKey.statsSnapshot(), result, executor.executorId(), AccordKeyspace.COMMANDS_FOR_KEY);
+                    addRow(cache.timestampsForKey.statsSnapshot(), result, executor.executorId(), AccordKeyspace.TIMESTAMPS_FOR_KEY);
+                }
             }
-
             return result;
         }
 
-        private static void addRow(AccordStateCache.ImmutableStats stats, SimpleDataSet result, int storeID, String scope)
+        private static void addRow(AccordCache.ImmutableStats stats, SimpleDataSet result, int storeID, String scope)
         {
             result.row(storeID, scope);
             result.column("queries", stats.queries);

@@ -66,7 +66,7 @@ import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.shared.DistributedTestBase;
-import org.apache.cassandra.service.accord.AccordStateCache;
+import org.apache.cassandra.service.accord.AccordCache;
 
 import static java.lang.System.currentTimeMillis;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
@@ -93,7 +93,7 @@ public class TestBaseImpl extends DistributedTestBase
         CassandraRelevantProperties.SIMULATOR_STARTED.setString(Long.toString(MILLISECONDS.toSeconds(currentTimeMillis())));
         ICluster.setup();
         SKIP_GC_INSPECTOR.setBoolean(true);
-        AccordStateCache.validateLoadOnEvict(true);
+        AccordCache.validateLoadOnEvict(true);
     }
 
     @Override

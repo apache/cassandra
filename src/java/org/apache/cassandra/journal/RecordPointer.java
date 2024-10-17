@@ -26,11 +26,23 @@ public class RecordPointer implements Comparable<RecordPointer>
 {
     public final long segment; // unique segment id
     public final int position; // record start position within the segment
+    public final long writtenAt; // only set for periodic mode
 
     public RecordPointer(long segment, int position)
     {
+        this(segment, position, 0);
+    }
+
+    public RecordPointer(long segment, int position, long writtenAt)
+    {
         this.segment = segment;
         this.position = position;
+        this.writtenAt = writtenAt;
+    }
+
+    public RecordPointer(RecordPointer pointer)
+    {
+        this(pointer.segment, pointer.position, pointer.writtenAt);
     }
 
     @Override

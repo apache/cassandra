@@ -46,7 +46,7 @@ public final class Compactor<K, V> implements Runnable, Shutdownable
     synchronized void start()
     {
         if (journal.params.enableCompaction())
-            schedule(journal.params.compactionPeriodMillis(), TimeUnit.MILLISECONDS);
+            schedule(journal.params.compactionPeriod(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
     }
 
     private synchronized void schedule(long period, TimeUnit units)
@@ -85,7 +85,7 @@ public final class Compactor<K, V> implements Runnable, Shutdownable
 
             journal.replaceCompactedSegments(toCompact, newSegments);
             for (StaticSegment<K, V> segment : toCompact)
-                segment.discard();
+                segment.discard(journal);
         }
         catch (IOException e)
         {

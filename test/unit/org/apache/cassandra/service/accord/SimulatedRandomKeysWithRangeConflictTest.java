@@ -87,7 +87,8 @@ public class SimulatedRandomKeysWithRangeConflictTest extends SimulatedAccordCom
         {
             AccordKeyspace.unsafeClear();
             this.instance = new SimulatedAccordCommandStore(rs);
-            this.model = new DepsModel(instance.store.unsafeRangesForEpoch().currentRanges());
+            this.instance.commandStore.executor().cacheUnsafe().setShrinkingOn(false);
+            this.model = new DepsModel(instance.commandStore.unsafeRangesForEpoch().currentRanges());
         }
 
         @Override

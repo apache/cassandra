@@ -78,6 +78,7 @@ import org.apache.cassandra.cql3.ast.TableReference;
 import org.apache.cassandra.cql3.ast.Where;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.virtual.SystemViewsKeyspace;
+import org.apache.cassandra.service.accord.AccordCache;
 import org.apache.cassandra.utils.ASTGenerators;
 import org.apache.cassandra.utils.CassandraGenerators;
 import org.apache.cassandra.utils.Generators;
@@ -188,7 +189,6 @@ import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.service.accord.AccordStateCache;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.transport.Event;
 import org.apache.cassandra.transport.Message;
@@ -395,7 +395,7 @@ public abstract class CQLTester
     public static void prepareServer()
     {
         ServerTestUtils.prepareServer();
-        AccordStateCache.validateLoadOnEvict(true);
+        AccordCache.validateLoadOnEvict(true);
     }
 
     public static void cleanup()
