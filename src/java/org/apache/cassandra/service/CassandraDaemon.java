@@ -856,7 +856,10 @@ public class CassandraDaemon
     public void stopNativeTransport(boolean force)
     {
         if (nativeTransportService != null)
+        {
+            StorageService.instance.setRpcReady(false);
             nativeTransportService.stop(force);
+        }
     }
 
     public boolean isNativeTransportRunning()
