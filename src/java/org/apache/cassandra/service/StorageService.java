@@ -3547,12 +3547,19 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         long totalRowCountEstimate = cfs.estimatedKeysForRange(range);
 
         // splitCount should be much smaller than number of key samples, to avoid huge sampling error
-        int minSamplesPerSplit = 4;
-        int maxSplitCount = keys.size() / minSamplesPerSplit + 1;
-        int splitCount = Math.max(1, Math.min(maxSplitCount, (int)(totalRowCountEstimate / keysPerSplit)));
+        int splitCount = calculateSplitCount(keysPerSplit, totalRowCountEstimate, keys.size());
 
         List<Token> tokens = keysToTokens(range, keys);
         return getSplits(tokens, splitCount, cfs);
+    }
+
+    static int calculateSplitCount(int keysPerSplit, long totalRowCountEstimate, int numberOfKeys)
+    {
+        int minSamplesPerSplit = 4;
+        long maxSplitCount = numberOfKeys / minSamplesPerSplit + 1;
+        long splitCount = totalRowCountEstimate / keysPerSplit;
+        int splitCountWithLimit = (int) Math.min(maxSplitCount, splitCount);
+        return Math.max(1, splitCountWithLimit);
     }
 
     private List<Pair<Range<Token>, Long>> getSplits(List<Token> tokens, int splitCount, ColumnFamilyStore cfs)

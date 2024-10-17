@@ -316,4 +316,46 @@ public class StorageServiceTest extends TestBaseImpl
             assertEquals("Cannot specify tokens without keyspace.", ex.getMessage());
         }
     }
+
+    @Test
+    public void calculateSplitCount_SmallRowCount_NotLimited()
+    {
+        int result = StorageService.calculateSplitCount(2, 8, 40);
+        assertEquals(4, result);
+    }
+
+    @Test
+    public void calculateSplitCount_ZeroRowCount_ReturnsMinimumOfOne()
+    {
+        int result = StorageService.calculateSplitCount(1, 0, 40);
+        assertEquals(1, result);
+    }
+
+    @Test
+    public void calculateSplitCount_ForLargeRowCount_LimitsResult()
+    {
+        int result = StorageService.calculateSplitCount(2, 100, 40);
+        assertEquals(11, result);
+    }
+
+    @Test
+    public void calculateSplitCount_ForMaxIntegerRowCount_LimitsResult()
+    {
+        int result = StorageService.calculateSplitCount(1, Integer.MAX_VALUE, 4);
+        assertEquals(2, result);
+    }
+
+    @Test
+    public void calculateSplitCount_ForOverflowingRowCount_LimitsResult()
+    {
+        int result = StorageService.calculateSplitCount(1, Integer.MAX_VALUE + 1L, 4);
+        assertEquals(2, result);
+    }
+
+    @Test
+    public void calculateSplitCount_ForMaxLongRowCount_LimitsResult()
+    {
+        int result = StorageService.calculateSplitCount(1, Long.MAX_VALUE, 4);
+        assertEquals(2, result);
+    }
 }
