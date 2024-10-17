@@ -1,4 +1,5 @@
 5.1
+ * Properly cancel in-flight futures and reject requests in EpochAwareDebounce during shutdown (CASSANDRA-19848)
  * Provide clearer exception message on failing commitlog_disk_access_mode combinations (CASSANDRA-19812)
  * Add total space used for a keyspace to nodetool tablestats (CASSANDRA-19671)
  * Ensure Relation#toRestriction() handles ReversedType properly (CASSANDRA-19950)
