@@ -47,35 +47,35 @@ public class UFPureScriptTupleCollectionTest extends CQLTester
         String tupleTypeDef = "tuple<double, list<double>, set<text>, map<int, boolean>>";
         createTable("CREATE TABLE %s (key int primary key, tup frozen<" + tupleTypeDef + ">)");
 
-        String fTup1 = createFunction(KEYSPACE_PER_TEST, tupleTypeDef,
+        String fTup1 = createFunction(KEYSPACE, tupleTypeDef,
                                       "CREATE FUNCTION %s( tup " + tupleTypeDef + " ) " +
                                       "RETURNS NULL ON NULL INPUT " +
                                       "RETURNS tuple<double, list<double>, set<text>, map<int, boolean>> " +
                                       "LANGUAGE javascript\n" +
                                       "AS $$" +
                                       "       tup;$$;");
-        String fTup2 = createFunction(KEYSPACE_PER_TEST, tupleTypeDef,
+        String fTup2 = createFunction(KEYSPACE, tupleTypeDef,
                                       "CREATE FUNCTION %s( tup " + tupleTypeDef + " ) " +
                                       "RETURNS NULL ON NULL INPUT " +
                                       "RETURNS double " +
                                       "LANGUAGE javascript\n" +
                                       "AS $$" +
                                       "       tup.getDouble(0);$$;");
-        String fTup3 = createFunction(KEYSPACE_PER_TEST, tupleTypeDef,
+        String fTup3 = createFunction(KEYSPACE, tupleTypeDef,
                                       "CREATE FUNCTION %s( tup " + tupleTypeDef + " ) " +
                                       "RETURNS NULL ON NULL INPUT " +
                                       "RETURNS list<double> " +
                                       "LANGUAGE javascript\n" +
                                       "AS $$" +
                                       "       tup.getList(1, java.lang.Double.class);$$;");
-        String fTup4 = createFunction(KEYSPACE_PER_TEST, tupleTypeDef,
+        String fTup4 = createFunction(KEYSPACE, tupleTypeDef,
                                       "CREATE FUNCTION %s( tup " + tupleTypeDef + " ) " +
                                       "RETURNS NULL ON NULL INPUT " +
                                       "RETURNS set<text> " +
                                       "LANGUAGE javascript\n" +
                                       "AS $$" +
                                       "       tup.getSet(2, java.lang.String.class);$$;");
-        String fTup5 = createFunction(KEYSPACE_PER_TEST, tupleTypeDef,
+        String fTup5 = createFunction(KEYSPACE, tupleTypeDef,
                                       "CREATE FUNCTION %s( tup " + tupleTypeDef + " ) " +
                                       "RETURNS NULL ON NULL INPUT " +
                                       "RETURNS map<int, boolean> " +

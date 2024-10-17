@@ -167,7 +167,7 @@ public final class ServerTestUtils
     {
         if (directory.exists())
         {
-            FileUtils.deleteChildrenRecursive(directory);
+            FileUtils.deleteChildrenRecursive(directory, true);
         }
     }
 

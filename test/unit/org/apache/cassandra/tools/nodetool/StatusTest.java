@@ -20,17 +20,22 @@ package org.apache.cassandra.tools.nodetool;
 
 import java.util.regex.Pattern;
 
+import com.google.common.util.concurrent.Futures;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.locator.SimpleSnitch;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tools.ToolRunner;
 import org.apache.cassandra.utils.FBUtilities;
 
-import static org.hamcrest.CoreMatchers.*;
+import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.endsWith;
+import static org.hamcrest.CoreMatchers.not;
+import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.junit.Assert.assertThat;
 
@@ -47,6 +52,9 @@ public class StatusTest extends CQLTester
         localHostId = StorageService.instance.getLocalHostId();
         token = StorageService.instance.getTokens().get(0);
         startJMXServer();
+
+        // flushing is needed if we want some non-zero data size reported in the status output
+        Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).flush().stream().forEach(Futures::getUnchecked);
     }
 
     /**
@@ -76,7 +84,6 @@ public class StatusTest extends CQLTester
         // Deleting these tables will simulate we're bootstrapping
         schemaChange("DROP KEYSPACE " + SchemaConstants.TRACE_KEYSPACE_NAME);
         schemaChange("DROP KEYSPACE " + CQLTester.KEYSPACE);
-        schemaChange("DROP KEYSPACE " + CQLTester.KEYSPACE_PER_TEST);
 
         ToolRunner.ToolResult nodetool = ToolRunner.invokeNodetool("status");
         nodetool.assertOnCleanExit();

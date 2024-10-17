@@ -43,7 +43,7 @@ public class UFSecurityTest extends CQLTester
 
         try
         {
-            String fName = createFunction(KEYSPACE_PER_TEST, "double",
+            String fName = createFunction(KEYSPACE, "double",
                                           "CREATE OR REPLACE FUNCTION %s(val double) " +
                                           "RETURNS NULL ON NULL INPUT " +
                                           "RETURNS double " +
@@ -135,7 +135,7 @@ public class UFSecurityTest extends CQLTester
 
         try
         {
-            String fName = createFunction(KEYSPACE_PER_TEST, "double",
+            String fName = createFunction(KEYSPACE, "double",
                                           "CREATE OR REPLACE FUNCTION %s(val double) " +
                                           "RETURNS NULL ON NULL INPUT " +
                                           "RETURNS double " +
@@ -173,7 +173,7 @@ public class UFSecurityTest extends CQLTester
         {
             try
             {
-                String fName = createFunction(KEYSPACE_PER_TEST, "double",
+                String fName = createFunction(KEYSPACE, "double",
                                               "CREATE OR REPLACE FUNCTION %s(val double) " +
                                               "RETURNS NULL ON NULL INPUT " +
                                               "RETURNS double " +
@@ -189,7 +189,7 @@ public class UFSecurityTest extends CQLTester
         }
 
         String script = "java.lang.Class.forName(\"java.lang.System\"); 0;";
-        String fName = createFunction(KEYSPACE_PER_TEST, "double",
+        String fName = createFunction(KEYSPACE, "double",
                                       "CREATE OR REPLACE FUNCTION %s(val double) " +
                                       "RETURNS NULL ON NULL INPUT " +
                                       "RETURNS double " +
@@ -228,7 +228,7 @@ public class UFSecurityTest extends CQLTester
                 DatabaseDescriptor.setUserFunctionTimeoutPolicy(Config.UserFunctionTimeoutPolicy.ignore);
 
                 ClientWarn.instance.captureWarnings();
-                String fName = createFunction(KEYSPACE_PER_TEST, "double",
+                String fName = createFunction(KEYSPACE, "double",
                                               "CREATE OR REPLACE FUNCTION %s(val double) " +
                                               "RETURNS NULL ON NULL INPUT " +
                                               "RETURNS double " +
@@ -242,7 +242,7 @@ public class UFSecurityTest extends CQLTester
 
                 // Java UDF
 
-                fName = createFunction(KEYSPACE_PER_TEST, "double",
+                fName = createFunction(KEYSPACE, "double",
                                        "CREATE OR REPLACE FUNCTION %s(val double) " +
                                        "RETURNS NULL ON NULL INPUT " +
                                        "RETURNS double " +
@@ -252,7 +252,7 @@ public class UFSecurityTest extends CQLTester
 
                 // Javascript UDF
 
-                fName = createFunction(KEYSPACE_PER_TEST, "double",
+                fName = createFunction(KEYSPACE, "double",
                                        "CREATE OR REPLACE FUNCTION %s(val double) " +
                                        "RETURNS NULL ON NULL INPUT " +
                                        "RETURNS double " +

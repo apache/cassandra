@@ -112,7 +112,6 @@ public class SelectOrderByTest extends CQLTester
             assertRows(execute("SELECT blobAsInt(intAsBlob(c.a)) FROM %s WHERE a=? ORDER BY b DESC", 0),
                        row(2), row(1), row(0));
         });
-        dropTable("DROP TABLE %s");
     }
 
     @Test

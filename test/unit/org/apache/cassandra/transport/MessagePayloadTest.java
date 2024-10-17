@@ -98,19 +98,6 @@ public class MessagePayloadTest extends CQLTester
         }
     }
 
-    @After
-    public void dropCreatedTable()
-    {
-        try
-        {
-            QueryProcessor.executeOnceInternal("DROP TABLE " + KEYSPACE + ".atable");
-        }
-        catch (Throwable t)
-        {
-            // ignore
-        }
-    }
-
     @Test
     public void testMessagePayloadBeta() throws Throwable
     {
