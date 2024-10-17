@@ -120,12 +120,7 @@ public class ShortReadProtectionTest extends TestBaseImpl
     @Before
     public void setupTester()
     {
-        tester = new Tester(readConsistencyLevel, flush, paging);
-    }
-
-    private String transactionalModeCQL()
-    {
-        return " WITH transactional_mode='" + transactionalMode + '\'';
+        tester = new Tester(readConsistencyLevel, flush, paging, transactionalMode);
     }
 
     @After
@@ -144,7 +139,7 @@ public class ShortReadProtectionTest extends TestBaseImpl
     @Test
     public void testSkinnyTableWithoutLiveRows()
     {
-        tester.createTable("CREATE TABLE %s (id int PRIMARY KEY)" + transactionalModeCQL())
+        tester.createTable("CREATE TABLE %s (id int PRIMARY KEY)")
               .allNodes("INSERT INTO %s (id) VALUES (0) USING TIMESTAMP 0")
               .toNode1("DELETE FROM %s WHERE id = 0")
               .assertRows("SELECT DISTINCT id FROM %s WHERE id = 0")
@@ -161,7 +156,7 @@ public class ShortReadProtectionTest extends TestBaseImpl
     @Test
     public void testSkinnyTableWithLiveRows()
     {
-        tester.createTable("CREATE TABLE %s (id int PRIMARY KEY)" + transactionalModeCQL())
+        tester.createTable("CREATE TABLE %s (id int PRIMARY KEY)")
               .allNodes(0, 10, i -> format("INSERT INTO %%s (id) VALUES (%d) USING TIMESTAMP 0", i)) // order is 5,1,8,0,2,4,7,6,9,3
               .toNode1("DELETE FROM %s WHERE id IN (1, 0, 4, 6, 3)") // delete every other row
               .assertRows("SELECT DISTINCT token(id), id FROM %s",
@@ -178,7 +173,7 @@ public class ShortReadProtectionTest extends TestBaseImpl
     @Test
     public void testSkinnyTableWithComplementaryDeletions()
     {
-        tester.createTable("CREATE TABLE %s (id int PRIMARY KEY)" + transactionalModeCQL())
+        tester.createTable("CREATE TABLE %s (id int PRIMARY KEY)")
               .allNodes(0, 10, i -> format("INSERT INTO %%s (id) VALUES (%d) USING TIMESTAMP 0", i)) // order is 5,1,8,0,2,4,7,6,9,3
               .toNode1("DELETE FROM %s WHERE id IN (5, 8, 2, 7, 9)") // delete every other row
               .toNode2("DELETE FROM %s WHERE id IN (1, 0, 4, 6)") // delete every other row but the last one
@@ -196,7 +191,7 @@ public class ShortReadProtectionTest extends TestBaseImpl
     @Test
     public void testMultipleMissedRows()
     {
-        tester.createTable("CREATE TABLE %s (pk int, ck int, PRIMARY KEY (pk, ck))" + transactionalModeCQL())
+        tester.createTable("CREATE TABLE %s (pk int, ck int, PRIMARY KEY (pk, ck))")
               .allNodes(0, 4, i -> format("INSERT INTO %%s (pk, ck) VALUES (0, %d) USING TIMESTAMP 0", i))
               .toNode1("DELETE FROM %s WHERE pk = 0 AND ck IN (1, 2, 3)",
                        "INSERT INTO %s (pk, ck) VALUES (0, 5)")
@@ -215,7 +210,7 @@ public class ShortReadProtectionTest extends TestBaseImpl
     @Test
     public void testAscendingOrder()
     {
-        tester.createTable("CREATE TABLE %s (k int, c int, v int, PRIMARY KEY(k, c))" + transactionalModeCQL())
+        tester.createTable("CREATE TABLE %s (k int, c int, v int, PRIMARY KEY(k, c))")
               .allNodes(1, 10, i -> format("INSERT INTO %%s (k, c, v) VALUES (0, %d, %d) USING TIMESTAMP 0", i, i * 10))
               .toNode1("DELETE FROM %s WHERE k=0 AND c=1")
               .toNode2("DELETE FROM %s WHERE k=0 AND c=2")
@@ -237,7 +232,7 @@ public class ShortReadProtectionTest extends TestBaseImpl
     @Test
     public void testDescendingOrder()
     {
-        tester.createTable("CREATE TABLE %s (k int, c int, v int, PRIMARY KEY(k, c))" + transactionalModeCQL())
+        tester.createTable("CREATE TABLE %s (k int, c int, v int, PRIMARY KEY(k, c))")
               .allNodes(1, 10, i -> format("INSERT INTO %%s (k, c, v) VALUES (0, %d, %d) USING TIMESTAMP 0", i, i * 10))
               .toNode1("DELETE FROM %s WHERE k=0 AND c=7")
               .toNode2("DELETE FROM %s WHERE k=0 AND c=8")
@@ -260,7 +255,7 @@ public class ShortReadProtectionTest extends TestBaseImpl
     @Test
     public void testDeletePartition()
     {
-        tester.createTable("CREATE TABLE %s (k int, c int, v int, PRIMARY KEY(k, c))" + transactionalModeCQL())
+        tester.createTable("CREATE TABLE %s (k int, c int, v int, PRIMARY KEY(k, c))")
               .allNodes("INSERT INTO %s (k, c, v) VALUES (0, 1, 10) USING TIMESTAMP 0",
                         "INSERT INTO %s (k, c, v) VALUES (0, 2, 20) USING TIMESTAMP 0")
               .toNode2("DELETE FROM %s WHERE k=0")
@@ -273,7 +268,7 @@ public class ShortReadProtectionTest extends TestBaseImpl
     @Test
     public void testDeletePartitionWithStatic()
     {
-        tester.createTable("CREATE TABLE %s (k int, c int, v int, s int STATIC, PRIMARY KEY(k, c))" + transactionalModeCQL())
+        tester.createTable("CREATE TABLE %s (k int, c int, v int, s int STATIC, PRIMARY KEY(k, c))")
               .allNodes("INSERT INTO %s (k, c, v, s) VALUES (0, 1, 10, 100) USING TIMESTAMP 0",
                         "INSERT INTO %s (k, c, v) VALUES (0, 2, 20) USING TIMESTAMP 0")
               .toNode2("DELETE FROM %s WHERE k=0")
@@ -286,7 +281,7 @@ public class ShortReadProtectionTest extends TestBaseImpl
     @Test
     public void testDeleteClustering()
     {
-        tester.createTable("CREATE TABLE %s (k int, c int, v int, PRIMARY KEY(k, c))" + transactionalModeCQL())
+        tester.createTable("CREATE TABLE %s (k int, c int, v int, PRIMARY KEY(k, c))")
               .allNodes("INSERT INTO %s (k, c, v) VALUES (0, 1, 10) USING TIMESTAMP 0",
                         "INSERT INTO %s (k, c, v) VALUES (0, 2, 20) USING TIMESTAMP 0")
               .toNode2("DELETE FROM %s WHERE k=0 AND c=1")
@@ -301,7 +296,7 @@ public class ShortReadProtectionTest extends TestBaseImpl
     @Test
     public void testDeleteClusteringWithStatic()
     {
-        tester.createTable("CREATE TABLE %s (k int, c int, v int, s int STATIC, PRIMARY KEY(k, c))" + transactionalModeCQL())
+        tester.createTable("CREATE TABLE %s (k int, c int, v int, s int STATIC, PRIMARY KEY(k, c))")
               .allNodes("INSERT INTO %s (k, c, v, s) VALUES (0, 1, 10, 100) USING TIMESTAMP 0",
                         "INSERT INTO %s (k, c, v) VALUES (0, 2, 20) USING TIMESTAMP 0")
               .toNode2("DELETE FROM %s WHERE k=0 AND c=1")
@@ -318,7 +313,7 @@ public class ShortReadProtectionTest extends TestBaseImpl
     @Test
     public void testGroupByRegularRow()
     {
-        tester.createTable("CREATE TABLE %s (pk int, ck int, PRIMARY KEY (pk, ck))" + transactionalModeCQL())
+        tester.createTable("CREATE TABLE %s (pk int, ck int, PRIMARY KEY (pk, ck))")
               .toNode1("INSERT INTO %s (pk, ck) VALUES (1, 1) USING TIMESTAMP 0",
                        "DELETE FROM %s WHERE pk=0 AND ck=0",
                        "INSERT INTO %s (pk, ck) VALUES (2, 2) USING TIMESTAMP 0")
@@ -341,7 +336,7 @@ public class ShortReadProtectionTest extends TestBaseImpl
     @Test
     public void testGroupByStaticRow()
     {
-        tester.createTable("CREATE TABLE %s (pk int, ck int, s int static, PRIMARY KEY (pk, ck))" + transactionalModeCQL())
+        tester.createTable("CREATE TABLE %s (pk int, ck int, s int static, PRIMARY KEY (pk, ck))")
               .toNode1("INSERT INTO %s (pk, s) VALUES (1, 1) USING TIMESTAMP 0",
                        "INSERT INTO %s (pk, s) VALUES (0, null)",
                        "INSERT INTO %s (pk, s) VALUES (2, 2) USING TIMESTAMP 0")
@@ -364,7 +359,7 @@ public class ShortReadProtectionTest extends TestBaseImpl
     @Test
     public void testSkipEarlyTermination()
     {
-        tester.createTable("CREATE TABLE %s (pk int, ck int, PRIMARY KEY (pk, ck))" + transactionalModeCQL())
+        tester.createTable("CREATE TABLE %s (pk int, ck int, PRIMARY KEY (pk, ck))")
               .toNode1("INSERT INTO %s (pk, ck) VALUES (0, 0)")
               .toNode2("DELETE FROM %s WHERE pk = 0 AND ck IN (1, 2)")
               .assertRows("SELECT DISTINCT pk FROM %s", row(0));
@@ -381,7 +376,7 @@ public class ShortReadProtectionTest extends TestBaseImpl
     @Test
     public void testSkipEarlyTerminationRows()
     {
-        tester.createTable("CREATE TABLE %s (pk int, ck int, PRIMARY KEY (pk, ck))" + transactionalModeCQL())
+        tester.createTable("CREATE TABLE %s (pk int, ck int, PRIMARY KEY (pk, ck))")
               .toNode1("INSERT INTO %s (pk, ck) VALUES (0, 0) USING TIMESTAMP 0",
                        "INSERT INTO %s (pk, ck) VALUES (0, 1) USING TIMESTAMP 0",
                        "INSERT INTO %s (pk, ck) VALUES (2, 0) USING TIMESTAMP 0",
@@ -405,7 +400,7 @@ public class ShortReadProtectionTest extends TestBaseImpl
     @Test
     public void testSkipEarlyTerminationPartitions()
     {
-        tester.createTable("CREATE TABLE %s (pk int, ck int, PRIMARY KEY (pk, ck))" + transactionalModeCQL())
+        tester.createTable("CREATE TABLE %s (pk int, ck int, PRIMARY KEY (pk, ck))")
               .toNode1("INSERT INTO %s (pk, ck) VALUES (0, 0) USING TIMESTAMP 0",
                        "INSERT INTO %s (pk, ck) VALUES (0, 1) USING TIMESTAMP 0",
                        "DELETE FROM %s USING TIMESTAMP 42 WHERE pk = 2 AND ck IN  (0, 1)")
@@ -432,16 +427,18 @@ public class ShortReadProtectionTest extends TestBaseImpl
         private final boolean flush, paging;
         private final String table;
         private final String qualifiedTableName;
+        private final TransactionalMode transactionalMode;
 
         private boolean flushed = false;
 
-        private Tester(ConsistencyLevel readConsistencyLevel, boolean flush, boolean paging)
+        private Tester(ConsistencyLevel readConsistencyLevel, boolean flush, boolean paging, TransactionalMode transactionalMode)
         {
             this.readConsistencyLevel = readConsistencyLevel;
             this.flush = flush;
             this.paging = paging;
             this.table = "t_" + seqNumber.getAndIncrement();
             qualifiedTableName = KEYSPACE + '.' + table;
+            this.transactionalMode = transactionalMode;
 
             assert readConsistencyLevel == ALL || readConsistencyLevel == QUORUM || readConsistencyLevel == SERIAL
             : "Only ALL and QUORUM consistency levels are supported";
@@ -449,7 +446,13 @@ public class ShortReadProtectionTest extends TestBaseImpl
 
         private Tester createTable(String query)
         {
-            cluster.schemaChange(format(query) + " AND read_repair='NONE'");
+            cluster.schemaChange(format(query) + " WITH read_repair='NONE'");
+            if (transactionalMode != TransactionalMode.off)
+            {
+                // For test purposes we create the table and require migration otherwise Accord
+                // won't bother to do interop reads with short read protection
+                cluster.schemaChange(format("ALTER TABLE %s WITH transactional_mode='" + transactionalMode + "\' AND transactional_migration_from = \'off\'"));
+            }
             return this;
         }
 

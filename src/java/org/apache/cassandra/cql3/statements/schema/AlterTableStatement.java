@@ -66,6 +66,7 @@ import org.apache.cassandra.schema.UserFunctions;
 import org.apache.cassandra.schema.ViewMetadata;
 import org.apache.cassandra.schema.Views;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.service.consensus.migration.TransactionalMigrationFromMode;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -86,6 +87,9 @@ import static org.apache.cassandra.schema.TableMetadata.Flag;
 public abstract class AlterTableStatement extends AlterSchemaStatement
 {
     private static final Logger logger = LoggerFactory.getLogger(AlterTableStatement.class);
+
+    public static final String ACCORD_COUNTER_TABLES_UNSUPPORTED = "Counters are not supported with Accord for table %s.%s";
+    public static final String ACCORD_COUNTER_COLUMN_UNSUPPORTED = "Cannot add a counter column to Accord table %s.%s with transactional mode %s and transactional migration from %s";
 
     protected final String tableName;
     private final boolean ifExists;
@@ -324,6 +328,9 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
                     throw ire("Column with name '%s' already exists", name);
                 return;
             }
+
+            if (type.isCounter() && (table.params.transactionalMode.accordIsEnabled || table.params.transactionalMigrationFrom.migratingFromAccord()))
+                throw ire(format(ACCORD_COUNTER_COLUMN_UNSUPPORTED, keyspaceName, tableName, table.params.transactionalMode, table.params.transactionalMigrationFrom));
 
             if (table.isCompactTable())
                 throw ire("Cannot add new column to a COMPACT STORAGE table");
@@ -578,7 +585,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             validateDefaultTimeToLive(attrs.asNewTableParams());
         }
 
-        private TableParams validateAndUpdateTransactionalMigration(TableParams prev, TableParams next)
+        private TableParams validateAndUpdateTransactionalMigration(boolean isCounter, TableParams prev, TableParams next)
         {
             if (next.transactionalMode.accordIsEnabled && SchemaConstants.isSystemKeyspace(keyspaceName))
                 throw ire("Cannot enable accord on system tables (%s.%s)", keyspaceName, tableName);
@@ -588,6 +595,10 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             boolean explicitlySetMigrationFrom = attrs.hasOption(Option.TRANSACTIONAL_MIGRATION_FROM);
             // set table to migrating
             TransactionalMigrationFromMode newMigrateFrom = TransactionalMigrationFromMode.fromMode(prev.transactionalMode, next.transactionalMode);
+
+            if (isCounter && (next.transactionalMode != TransactionalMode.off || newMigrateFrom != TransactionalMigrationFromMode.none || next.transactionalMigrationFrom != TransactionalMigrationFromMode.none))
+                throw ire(format(ACCORD_COUNTER_TABLES_UNSUPPORTED, keyspaceName, tableName));
+
             boolean forceMigrationChange = modeChange && explicitlySetMigrationFrom && next.transactionalMigrationFrom != newMigrateFrom;
 
             if (modeChange && next.transactionalMode.accordIsEnabled && !DatabaseDescriptor.getAccordTransactionsEnabled())
@@ -642,7 +653,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             if (!params.compression.isEnabled())
                 Guardrails.uncompressedTablesEnabled.ensureEnabled(state);
 
-            params = validateAndUpdateTransactionalMigration(table.params, params);
+            params = validateAndUpdateTransactionalMigration(table.isCounter(), table.params, params);
 
             return keyspace.withSwapped(keyspace.tables.withSwapped(table.withSwapped(params)));
         }

@@ -250,7 +250,7 @@ public class ReadExecutorTest
 
         MockSinglePartitionReadCommand(long timeout)
         {
-            super(cfs.metadata().epoch, false, 0, false, false, cfs.metadata(), 0, null, null, null, Util.dk("ry@n_luvs_teh_y@nk33z"), null, null, false);
+            super(cfs.metadata().epoch, false, 0, false, false, cfs.metadata(), 0, null, null, null, Util.dk("ry@n_luvs_teh_y@nk33z"), null, null, false, null);
             this.timeout = timeout;
         }
 
