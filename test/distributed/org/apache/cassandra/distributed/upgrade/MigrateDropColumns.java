@@ -67,7 +67,7 @@ public abstract class MigrateDropColumns extends UpgradeTestBase
             testcase = testcase.singleUpgrade(initial, upgrade);
         
 				testcase
-			    .withConfig(c -> c.with(Feature.NATIVE_PROTOCOL))
+			    .withConfig(c -> c.with(Feature.NATIVE_PROTOCOL, Feature.JMX))
           .setup(cluster -> {
             cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl(pk int, tables map<int, int>, PRIMARY KEY (pk))"));
 

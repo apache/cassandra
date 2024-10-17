@@ -40,7 +40,6 @@ import static com.google.common.base.Throwables.getStackTraceAsString;
 import static com.google.common.collect.Iterables.toArray;
 import static com.google.common.collect.Lists.newArrayList;
 import static java.lang.Integer.parseInt;
-import static java.lang.String.format;
 import static org.apache.commons.lang3.ArrayUtils.EMPTY_STRING_ARRAY;
 import static org.apache.commons.lang3.StringUtils.*;
 
@@ -182,7 +181,7 @@ public class NodeTool
         {
             NodeToolCmdRunnable parse = parser.parse(args);
             printHistory(args);
-            parse.run(nodeProbeFactory, output);
+            parse.run(this, nodeProbeFactory, output);
         } catch (IllegalArgumentException |
                 IllegalStateException |
                 ParseArgumentsMissingException |
@@ -202,6 +201,11 @@ public class NodeTool
         }
 
         return status;
+    }
+
+    public void executeWithProbe(NodeProbe probe, Runnable r)
+    {
+        r.run();
     }
 
     private static void printHistory(String... args)
@@ -239,7 +243,7 @@ public class NodeTool
 
     public static class CassHelp extends Help implements NodeToolCmdRunnable
     {
-        public void run(INodeProbeFactory nodeProbeFactory, Output output)
+        public void run(NodeTool nodeTool, INodeProbeFactory nodeProbeFactory, Output output)
         {
             run();
         }
@@ -247,7 +251,7 @@ public class NodeTool
 
     interface NodeToolCmdRunnable
     {
-        void run(INodeProbeFactory nodeProbeFactory, Output output);
+        void run(NodeTool nodeTool, INodeProbeFactory nodeProbeFactory, Output output);
     }
 
     public static abstract class NodeToolCmd implements NodeToolCmdRunnable
@@ -269,11 +273,13 @@ public class NodeTool
         private String passwordFilePath = EMPTY;
 
         private INodeProbeFactory nodeProbeFactory;
+        private NodeTool nodeTool;
         protected Output output;
 
         @Override
-        public void run(INodeProbeFactory nodeProbeFactory, Output output)
+        public void run(NodeTool nodeTool, INodeProbeFactory nodeProbeFactory, Output output)
         {
+            this.nodeTool = nodeTool;
             this.nodeProbeFactory = nodeProbeFactory;
             this.output = output;
             runInternal();
@@ -291,7 +297,11 @@ public class NodeTool
 
             try (NodeProbe probe = connect())
             {
-                execute(probe);
+                if (nodeTool != null)
+                    nodeTool.executeWithProbe(probe, () -> execute(probe));
+                else
+                    execute(probe);
+
                 if (probe.isFailed())
                     throw new RuntimeException("nodetool failed, check server logs");
             }
@@ -356,7 +366,7 @@ public class NodeTool
             } catch (IOException | SecurityException e)
             {
                 Throwable rootCause = Throwables.getRootCause(e);
-                output.err.println(format("nodetool: Failed to connect to '%s:%s' - %s: '%s'.", host, port, rootCause.getClass().getSimpleName(), rootCause.getMessage()));
+                output.err.printf("nodetool: Failed to connect to '%s:%s' - %s: '%s'.%n", host, port, rootCause.getClass().getSimpleName(), rootCause.getMessage());
                 System.exit(1);
             }
 

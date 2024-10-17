@@ -52,7 +52,7 @@ public class ClientNetworkStopStartTest extends TestBaseImpl
     public void stopStartThrift() throws IOException, TException
     {
         // GOSSIP is needed in order to initServer correctly.
-        try (Cluster cluster = init(Cluster.build(1).withConfig(c -> c.with(Feature.NATIVE_PROTOCOL)).start()))
+        try (Cluster cluster = init(Cluster.build(1).withConfig(c -> c.with(Feature.NATIVE_PROTOCOL, Feature.JMX)).start()))
         {
             IInvokableInstance node = cluster.get(1);
             assertTransportStatus(node, "binary", true);
@@ -94,7 +94,7 @@ public class ClientNetworkStopStartTest extends TestBaseImpl
     @Test
     public void stopStartNative() throws IOException
     {
-        try (Cluster cluster = init(Cluster.build(1).withConfig(c -> c.with(Feature.NATIVE_PROTOCOL)).start()))
+        try (Cluster cluster = init(Cluster.build(1).withConfig(c -> c.with(Feature.NATIVE_PROTOCOL, Feature.JMX)).start()))
         {
             IInvokableInstance node = cluster.get(1);
             assertTransportStatus(node, "binary", true);

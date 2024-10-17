@@ -21,6 +21,7 @@ package org.apache.cassandra.distributed.test;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.NodeToolResult;
 
@@ -31,7 +32,7 @@ public class NodeToolTest extends TestBaseImpl
     @Test
     public void testCommands() throws Throwable
     {
-        try (Cluster cluster = init(Cluster.create(1)))
+        try (Cluster cluster = init(Cluster.build(1).withConfig(c -> c.with(Feature.JMX)).start()))
         {
             assertEquals(0, cluster.get(1).nodetool("help"));
             assertEquals(0, cluster.get(1).nodetool("flush"));
@@ -42,7 +43,7 @@ public class NodeToolTest extends TestBaseImpl
     @Test
     public void testCaptureConsoleOutput() throws Throwable
     {
-        try (ICluster cluster = init(builder().withNodes(1).start()))
+        try (ICluster cluster = init(builder().withNodes(1).withConfig(c -> c.with(Feature.JMX)).start()))
         {
             NodeToolResult ringResult = cluster.get(1).nodetoolResult("ring");
             ringResult.asserts().stdoutContains("Datacenter: datacenter0");
@@ -54,7 +55,7 @@ public class NodeToolTest extends TestBaseImpl
     @Test
     public void testSetCacheCapacityWhenDisabled() throws Throwable
     {
-        try (ICluster cluster = init(builder().withNodes(1).withConfig(c->c.set("row_cache_size_in_mb", "0")).start()))
+        try (ICluster cluster = init(builder().withNodes(1).withConfig(c->c.set("row_cache_size_in_mb", "0").with(Feature.JMX)).start()))
         {
             NodeToolResult ringResult = cluster.get(1).nodetoolResult("setcachecapacity", "1", "1", "1");
             ringResult.asserts().stderrContains("is not permitted as this cache is disabled");

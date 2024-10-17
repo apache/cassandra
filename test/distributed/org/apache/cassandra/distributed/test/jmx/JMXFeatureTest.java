@@ -34,6 +34,7 @@ import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.shared.JMXUtil;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.distributed.test.jmx.JMXGetterCheckTest.testAllValidGetters;
 import static org.hamcrest.Matchers.blankOrNullString;
@@ -112,6 +113,18 @@ public class JMXFeatureTest extends TestBaseImpl
             Assert.assertThat(statusResult.getStdout(), containsString("UN  127.0.0.1"));
             testInstance(instances, cluster.get(1));
             testAllValidGetters(cluster);
+        }
+    }
+
+    @Test
+    public void testCallingNodetoolWithoutJMXFeature() throws Exception
+    {
+        try (Cluster c = Cluster.build(1).start())
+        {
+            Assertions.assertThatExceptionOfType(RuntimeException.class)
+                      .isThrownBy(() -> c.get(1).nodetool("info"))
+                      .withCauseInstanceOf(IllegalStateException.class)
+                      .withMessage("java.lang.IllegalStateException: Please enable JMX feature.");
         }
     }
 
