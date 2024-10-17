@@ -816,7 +816,7 @@ alterTableStatement returns [AlterTableStatement expr]
     @init {
         AlterTableStatement.Type type = null;
         TableAttributes attrs = new TableAttributes();
-        Map<ColumnIdentifier.Raw, ColumnIdentifier> renames = new HashMap<ColumnIdentifier.Raw, ColumnIdentifier>();
+        Map<ColumnIdentifier.Raw, ColumnIdentifier.Raw> renames = new HashMap<ColumnIdentifier.Raw, ColumnIdentifier.Raw>();
         boolean isStatic = false;
         Long dropTimestamp = null;
     }
@@ -829,8 +829,8 @@ alterTableStatement returns [AlterTableStatement expr]
           | K_DROP  K_COMPACT K_STORAGE                     { type = AlterTableStatement.Type.DROP_COMPACT_STORAGE; }
           | K_WITH  properties[attrs]                       { type = AlterTableStatement.Type.OPTS; }
           | K_RENAME                                        { type = AlterTableStatement.Type.RENAME; }
-               id1=cident K_TO toId1=ident { renames.put(id1, toId1); }
-               ( K_AND idn=cident K_TO toIdn=ident { renames.put(idn, toIdn); } )*
+               id1=schema_cident K_TO toId1=schema_cident { renames.put(id1, toId1); }
+               ( K_AND idn=schema_cident K_TO toIdn=schema_cident { renames.put(idn, toIdn); } )*
           )
     {
         $expr = new AlterTableStatement(cf, type, id, v, attrs, renames, isStatic, dropTimestamp);
@@ -1178,6 +1178,12 @@ cident returns [ColumnIdentifier.Raw id]
     | t=QUOTED_NAME        { $id = new ColumnIdentifier.Literal($t.text, true); }
     | k=unreserved_keyword { $id = new ColumnIdentifier.Literal(k, false); }
     | EMPTY_QUOTED_NAME    { $id = new ColumnIdentifier.Literal("", false); }
+    ;
+
+schema_cident returns [ColumnIdentifier.Raw id]
+    : t=IDENT              { $id = new ColumnIdentifier.Literal($t.text, false); }
+    | t=QUOTED_NAME        { $id = new ColumnIdentifier.Literal($t.text, true); }
+    | k=unreserved_keyword { $id = new ColumnIdentifier.Literal(k, false); }
     ;
 
 // Column identifiers where the comparator is known to be text
