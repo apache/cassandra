@@ -59,6 +59,9 @@ public class EpochAwareDebounce implements Closeable
             if (running == SENTINEL)
                 continue;
 
+            if (running == CLOSED)
+                throwOnAlreadyClosed();
+
             if (running != null && !running.future.isDone() && running.epoch.isEqualOrAfter(epoch))
                 return running.future;
 
@@ -66,19 +69,29 @@ public class EpochAwareDebounce implements Closeable
             {
                 EpochAwareFuture promise = new EpochAwareFuture(epoch, fetchFunction.get());
                 boolean res = currentFuture.compareAndSet(SENTINEL, promise);
+
+                if (currentFuture.get() == CLOSED)
+                    throwOnAlreadyClosed();
+
                 assert res : "Should not have happened";
                 return promise.future;
             }
         }
     }
 
+    private static void throwOnAlreadyClosed()
+    {
+        throw new IllegalStateException("Cannot fetch cluster metadata after EpochAwareDebounce is closed");
+    }
+
     private static final EpochAwareFuture SENTINEL = new EpochAwareFuture(Epoch.EMPTY, null);
+    private static final EpochAwareFuture CLOSED = new EpochAwareFuture(Epoch.EMPTY, null);
 
     @Override
     public void close()
     {
-        EpochAwareFuture future = currentFuture.get();
-        if (future != null && future != SENTINEL)
+        EpochAwareFuture future = currentFuture.getAndSet(CLOSED);
+        if (future != null && future != SENTINEL && future != CLOSED)
             future.future.cancel(true);
     }
 
