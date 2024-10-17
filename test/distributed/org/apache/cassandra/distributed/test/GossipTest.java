@@ -21,7 +21,9 @@ package org.apache.cassandra.distributed.test;
 import java.io.Closeable;
 import java.net.InetSocketAddress;
 import java.util.Collection;
+import java.util.Set;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.LockSupport;
 import java.util.stream.Collectors;
 
@@ -30,18 +32,24 @@ import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.Assert;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
+import net.bytebuddy.implementation.bind.annotation.SuperCall;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.*;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
+import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.EndpointState;
+import org.apache.cassandra.gms.GossipDigestSyn;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.PendingRangeCalculatorService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.StreamPlan;
@@ -64,6 +72,8 @@ import static org.junit.Assert.assertTrue;
 
 public class GossipTest extends TestBaseImpl
 {
+    private static final Logger logger = LoggerFactory.getLogger(GossipTest.class);
+
     @Test
     public void nodeDownDuringMove() throws Throwable
     {
@@ -138,6 +148,129 @@ public class GossipTest extends TestBaseImpl
                        .apply(failAddress);
 
             Assert.assertEquals(expectTokens, tokens);
+        }
+    }
+
+    public static class BBGossiper
+    {
+        public static final AtomicBoolean disableSendGossip = new AtomicBoolean();
+        public static final AtomicBoolean blockGossipStageQueue = new AtomicBoolean();
+        public static void install(ClassLoader cl, Integer i)
+        {
+            new ByteBuddy().rebase(Gossiper.class)
+                           .method(named("sendGossip"))
+                           .intercept(MethodDelegation.to(BBGossiper.class))
+                           .make()
+                           .load(cl, ClassLoadingStrategy.Default.INJECTION);
+        }
+
+        public static boolean sendGossip(Message<GossipDigestSyn> message, Set<InetAddressAndPort> epSet, @SuperCall Callable<Boolean> zuper) throws Exception
+        {
+            if (disableSendGossip.get())
+            {
+                logger.info("Send gossip disabled");
+                return true;
+            }
+            return zuper.call();
+        }
+    }
+
+    @Test
+    public void testBusyGossipBusyShouldNotCreateParitialGossipInfoOnOtherNodes() throws Exception
+    {
+        int originalNodeCount = 2;
+        int expandedNodeCount = originalNodeCount + 1;
+        ExecutorService es = Executors.newFixedThreadPool(1);
+        // set 5s as ring delay so fatclient will be removed soon
+        System.setProperty("cassandra.ring_delay_ms", "5000");
+        try (Cluster cluster = builder().withNodes(originalNodeCount)
+                                        .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(expandedNodeCount))
+                                        .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(expandedNodeCount, "dc0", "rack0"))
+                                        .withConfig(config -> config.with(NETWORK, GOSSIP))
+                                        .withInstanceInitializer(BBGossiper::install)
+                                        .start())
+        {
+            IInstanceConfig config = cluster.newInstanceConfig();
+            config.set("auto_bootstrap", true);
+            IInvokableInstance newInstance = cluster.bootstrap(config);
+            withProperty("cassandra.join_ring", false, () -> newInstance.startup(cluster));
+
+            // wait for the new node to show in existings gossip map, HOST_ID should be there
+            InetSocketAddress newNodeAddress = newInstance.broadcastAddress();
+            for (int i = 1 ; i <= originalNodeCount ; ++i)
+            {
+                cluster.get(i).acceptsOnInstance((InetSocketAddress address) -> {
+                    EndpointState ep;
+                    InetAddressAndPort endpoint = toCassandraInetAddressAndPort(address);
+                    while (null == (ep = Gossiper.instance.getEndpointStateForEndpoint(endpoint))
+                           || ep.getApplicationState(ApplicationState.HOST_ID) == null)
+                        LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(10L));
+                }).accept(newNodeAddress);
+            }
+
+            Runnable busyNewNode = newInstance.runsOnInstance(
+            ()-> {
+                // below code will trigger the simulation for large C* cluster, this new node may only send gossip to some nodes
+                // here we disable sned gossip so that no other nodes will be contacted
+                BBGossiper.disableSendGossip.set(true);
+                // below code will simulate the Gossip stage queue for the new node is flooded, it is busy processing tasks
+                BBGossiper.blockGossipStageQueue.set(true);
+                Gossiper.runInGossipStageBlocking(
+                () -> {
+                    logger.info("Gossip stage tasks block started");
+                    while (BBGossiper.blockGossipStageQueue.get())
+                    {
+                        try
+                        {
+                            Thread.sleep(1000);
+                        }
+                        catch (InterruptedException e)
+                        {
+                            e.printStackTrace();
+                        }
+                    }
+                    logger.info("Gossip stage tasks block removed");
+                }
+                );
+            }
+            );
+
+            Future<?> nodeRecovered = es.submit(busyNewNode);
+
+            // wait the node to be removed as a fatclient && removed from getJustRemovedEndpoints
+            for (int i = 1 ; i <= originalNodeCount ; ++i)
+            {
+                cluster.get(i).acceptsOnInstance((InetSocketAddress address) -> {
+                    InetAddressAndPort endpoint = toCassandraInetAddressAndPort(address);
+                    while (null != Gossiper.instance.getEndpointStateForEndpoint(endpoint) || Gossiper.instance.inJustRemovedEndpoints(endpoint))
+                    {
+                        LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(10L));
+                    }
+
+                }).accept(newNodeAddress);
+            }
+
+            // remove block for syn verb handler
+            newInstance.runOnInstance(
+            ()-> {
+                BBGossiper.blockGossipStageQueue.set(false);
+            }
+            );
+
+            // wait the two old node to get the gossip for the new node
+            for (int i = 1 ; i <= originalNodeCount ; ++i)
+            {
+                cluster.get(i).acceptsOnInstance((InetSocketAddress address) -> {
+                    InetAddressAndPort endpoint = toCassandraInetAddressAndPort(address);
+                    while (null == Gossiper.instance.getEndpointStateForEndpoint(endpoint))
+                    {
+                        LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(10L));
+                    }
+                    // HOST_ID should be there in the gossip state
+                    Assert.assertNotNull(Gossiper.instance.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.HOST_ID));
+                }).accept(newNodeAddress);
+            }
+            nodeRecovered.get();
         }
     }
 
