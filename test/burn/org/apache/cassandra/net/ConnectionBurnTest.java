@@ -18,6 +18,36 @@
 
 package org.apache.cassandra.net;
 
+import com.beust.jcommander.internal.Lists;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Queues;
+import com.google.common.util.concurrent.Uninterruptibles;
+import io.netty.channel.Channel;
+import io.netty.util.concurrent.Future;
+import net.openhft.chronicle.core.util.ThrowingBiConsumer;
+import net.openhft.chronicle.core.util.ThrowingRunnable;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.metrics.ClientMetrics;
+import org.apache.cassandra.net.MessageGenerator.UniformPayloadGenerator;
+import org.apache.cassandra.utils.ExecutorUtils;
+import org.apache.cassandra.utils.MonotonicClock;
+import org.apache.cassandra.utils.concurrent.BlockingQueues;
+import org.apache.cassandra.utils.concurrent.FutureCombiner;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
+import org.apache.cassandra.utils.memory.BufferPools;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
+import org.junit.runner.JUnitCore;
+import org.junit.runner.Result;
+import org.junit.runner.notification.Failure;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.IOException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
@@ -27,47 +57,26 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.util.concurrent.Uninterruptibles;
-
-import org.apache.cassandra.utils.concurrent.FutureCombiner;
-import org.junit.BeforeClass;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import io.netty.channel.Channel;
-import net.openhft.chronicle.core.util.ThrowingBiConsumer;
-import net.openhft.chronicle.core.util.ThrowingRunnable;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.commitlog.CommitLog;
-import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.io.util.DataInputPlus;
-import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.MessageGenerator.UniformPayloadGenerator;
-import org.apache.cassandra.utils.ExecutorUtils;
-import org.apache.cassandra.utils.MonotonicClock;
-import org.apache.cassandra.utils.memory.BufferPools;
-
 import static java.lang.Math.min;
-import static org.apache.cassandra.net.MessagingService.current_version;
 import static org.apache.cassandra.net.ConnectionType.LARGE_MESSAGES;
+import static org.apache.cassandra.net.MessagingService.current_version;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 import static org.apache.cassandra.utils.MonotonicClock.Global.preciseTime;
+import static org.apache.cassandra.utils.Throwables.maybeFail;
 
 public class ConnectionBurnTest
 {
@@ -147,16 +156,21 @@ public class ConnectionBurnTest
 
     private static class Test implements InboundMessageHandlers.HandlerProvider, InboundMessageHandlers.MessageConsumer
     {
+        volatile boolean cancelled;
         private final IVersionedSerializer<byte[]> serializer = new IVersionedSerializer<byte[]>()
         {
             public void serialize(byte[] payload, DataOutputPlus out, int version) throws IOException
             {
+                if (cancelled)
+                    return;
                 long id = MessageGenerator.getId(payload);
                 forId(id).serialize(id, payload, out, version);
             }
 
             public byte[] deserialize(DataInputPlus in, int version) throws IOException
             {
+                if (cancelled)
+                    return null;
                 MessageGenerator.Header header = MessageGenerator.readHeader(in, version);
                 return forId(header.id).deserialize(header, in, version);
             }
@@ -185,8 +199,11 @@ public class ConnectionBurnTest
 
         static Builder builder() { return new Builder(); }
 
+        private static final int awaitTerminationTimeoutMs = 30_000;
         private static final int messageIdsPerConnection = 1 << 20;
+        private static final int exceptionBufferCapacity = 1;
 
+        final BlockingQueue<Exception> unexpectedExceptions = BlockingQueues.newBlockingQueue();
         final long runForNanos;
         final int version;
         final List<InetAddressAndPort> endpoints;
@@ -256,9 +273,10 @@ public class ConnectionBurnTest
         /**
          * Test connections with broken messages, live in-flight bytes updates, reconnect
          */
-        public void run() throws ExecutionException, InterruptedException, NoSuchFieldException, IllegalAccessException, TimeoutException
+        public void run() throws Exception
         {
             Reporters reporters = new Reporters(endpoints, connections);
+            List<Exception> exceptionsBuffer = Lists.newArrayList(exceptionBufferCapacity);
             try
             {
                 long deadline = nanoTime() + runForNanos;
@@ -266,9 +284,8 @@ public class ConnectionBurnTest
                 Verb._TEST_2.unsafeSetSerializer(() -> serializer);
                 inbound.sockets.open().get();
 
-                CountDownLatch failed = new CountDownLatch(1);
                 for (Connection connection : connections)
-                    connection.startVerifier(failed::countDown, executor, deadline);
+                    connection.startVerifier(t -> unexpectedExceptions.add(new Exception("Unexpected verification error: ", t)), executor, deadline);
 
                 for (int i = 0 ; i < 2 * connections.length ; ++i)
                 {
@@ -304,6 +321,18 @@ public class ConnectionBurnTest
                                            && !Thread.currentThread().isInterrupted())
                                         connection.sendOne();
                                 }
+                                catch (InterruptedException | UncheckedInterruptedException e)
+                                {
+                                    break;
+                                }
+                                catch (Connection.IntentionalRuntimeException e)
+                                {
+                                    // Ignore.
+                                }
+                                catch (Throwable t)
+                                {
+                                    throw new Exception("Unable to send message [threadName=" + "Generate-" + connection.linkId + ']', t);
+                                }
                                 finally
                                 {
                                     Thread.currentThread().setName(threadName);
@@ -313,10 +342,7 @@ public class ConnectionBurnTest
                         }
                         catch (Throwable t)
                         {
-                            if (t instanceof InterruptedException)
-                                return;
-                            logger.error("Unexpected exception", t);
-                            failed.countDown();
+                            unexpectedExceptions.add(new Exception(t));
                         }
                     });
                 }
@@ -467,26 +493,43 @@ public class ConnectionBurnTest
                     }
                 });
 
-                while (deadline > nanoTime() && failed.getCount() > 0)
+                while (deadline > nanoTime() &&
+                        0 == Queues.drainUninterruptibly(unexpectedExceptions,
+                                exceptionsBuffer, exceptionBufferCapacity, awaitTerminationTimeoutMs, TimeUnit.MILLISECONDS))
                 {
                     reporters.update();
                     reporters.print();
-                    Uninterruptibles.awaitUninterruptibly(failed, 30L, TimeUnit.SECONDS);
                 }
 
                 executor.shutdownNow();
                 ExecutorUtils.awaitTermination(5L, TimeUnit.MINUTES, executor);
+
+                if (exceptionsBuffer.isEmpty())
+                    return;
+
+                Exception resultException = exceptionsBuffer.get(0);
+                for (int i = 1; i < exceptionsBuffer.size(); i++)
+                    resultException.addSuppressed(exceptionsBuffer.get(i));
+                throw resultException;
             }
             finally
             {
+                cancelled = true;
+
+                List<Future<Void>> closing = new ArrayList<>();
+                List<ExecutorService> inboundExecutors = new CopyOnWriteArrayList<>();
+                closing.add(inbound.sockets.close(inboundExecutors::add));
+
+                for (Connection connection : connections)
+                    closing.add(connection.close());
+
+                maybeFail(() -> inboundExecutors.forEach(ExecutorUtils::shutdownNow),
+                        () -> ExecutorUtils.awaitTermination(awaitTerminationTimeoutMs, TimeUnit.MILLISECONDS, inboundExecutors));
+
+                FutureCombiner.allOf(closing).get(awaitTerminationTimeoutMs, TimeUnit.MILLISECONDS);
+
                 reporters.update();
                 reporters.print();
-
-                inbound.sockets.close().get();
-                FutureCombiner.allOf(Arrays.stream(connections)
-                                         .map(c -> c.outbound.close(false))
-                                         .collect(Collectors.toList()))
-                .get();
             }
         }
 
@@ -606,6 +649,13 @@ public class ConnectionBurnTest
                 {
                     forId(header.id).controller.process(bytes, releaseCapacity);
                 }
+
+                @Override
+                protected void fatalExceptionCaught(Throwable cause)
+                {
+                    super.fatalExceptionCaught(cause);
+                    unexpectedExceptions.add(new Exception("Unexpected exception caught while processing inbound messages", cause));
+                }
             };
         }
     }
@@ -629,7 +679,7 @@ public class ConnectionBurnTest
         }
     }
 
-    private void test(GlobalInboundSettings inbound, OutboundConnectionSettings outbound) throws ExecutionException, InterruptedException, NoSuchFieldException, IllegalAccessException, TimeoutException
+    private void test(GlobalInboundSettings inbound, OutboundConnectionSettings outbound) throws Exception
     {
         MessageGenerator small = new UniformPayloadGenerator(0, 1, (1 << 15));
         MessageGenerator large = new UniformPayloadGenerator(0, 1, (1 << 16) + (1 << 15));
@@ -643,25 +693,39 @@ public class ConnectionBurnTest
             .inbound(inbound)
             .outbound(outbound)
             // change the following for a longer burn
-            .time(2L, TimeUnit.MINUTES)
+            .time(1L, TimeUnit.MINUTES)
             .build().run();
     }
 
-    public static void main(String[] args) throws ExecutionException, InterruptedException, NoSuchFieldException, IllegalAccessException, TimeoutException
+    public static void main(String[] args) throws Exception
     {
-        setup();
-        new ConnectionBurnTest().test();
+        Result result = JUnitCore.runClasses(ConnectionBurnTest.class);
+
+        for (Failure failure : result.getFailures())
+            logger.error(failure.getTrace());
+
+        if (result.wasSuccessful())
+            System.exit(0);
+        else
+            System.exit(1);
     }
 
     @BeforeClass
     public static void setup()
     {
+        ClientMetrics.instance.init(Collections.emptyList());
         // since CASSANDRA-15295, commitlog needs to be manually started.
         CommitLog.instance.start();
     }
 
+    @AfterClass
+    public static void tearDown() throws InterruptedException
+    {
+        MessagingService.instance().socketFactory.shutdownNow();
+    }
+
     @org.junit.Test
-    public void test() throws ExecutionException, InterruptedException, NoSuchFieldException, IllegalAccessException, TimeoutException
+    public void test() throws Exception
     {
         GlobalInboundSettings inboundSettings = new GlobalInboundSettings()
                                                 .withQueueCapacity(1 << 18)
@@ -672,6 +736,5 @@ public class ConnectionBurnTest
 
         test(inboundSettings, new OutboundConnectionSettings(null)
                               .withTcpUserTimeoutInMS(0));
-        MessagingService.instance().socketFactory.shutdownNow();
     }
 }
