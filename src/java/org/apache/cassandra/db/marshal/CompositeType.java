@@ -455,19 +455,6 @@ public class CompositeType extends AbstractCompositeType
         return getInstance(transform(types, AbstractType::expandUserTypes));
     }
 
-    @Override
-    public boolean referencesDuration()
-    {
-        for (AbstractType<?> type : subTypes())
-        {
-            if (type.referencesDuration())
-            {
-                return true;
-            }
-        }
-        return false;
-    }
-
     private static class StaticParsedComparator implements ParsedComparator
     {
         final AbstractType<?> type;

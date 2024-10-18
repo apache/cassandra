@@ -464,8 +464,24 @@ public class AbstractTypeTest
     @SuppressWarnings("rawtypes")
     public void nestedDuration()
     {
-        qt().withShrinkCycles(0).forAll(AbstractTypeGenerators.builder().withoutTypeKinds(PRIMITIVE, COUNTER).withPrimitives(DurationType.instance).build()).checkAssert(type -> {
-            assertThat(type.referencesDuration());
+        qt().forAll(AbstractTypeGenerators.builder().withoutTypeKinds(PRIMITIVE, COUNTER).withPrimitives(DurationType.instance).build()).checkAssert(type -> {
+            assertThat(type.referencesDuration()).isTrue();
+        });
+    }
+
+    @Test
+    public void nestedWithoutDuration()
+    {
+        qt().forAll(AbstractTypeGenerators.builder().withoutTypeKinds(PRIMITIVE, COUNTER).withoutPrimitive(DurationType.instance).build()).checkAssert(type -> {
+            assertThat(type.referencesDuration()).isFalse();
+        });
+    }
+
+    @Test
+    public void nonDurationPrimitives()
+    {
+        qt().forAll(AbstractTypeGenerators.builder().withTypeKinds(PRIMITIVE, COUNTER).withoutPrimitive(DurationType.instance).build()).checkAssert(type -> {
+            assertThat(type.referencesDuration()).isFalse();
         });
     }
 
