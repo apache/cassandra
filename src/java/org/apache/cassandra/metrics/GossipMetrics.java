@@ -28,6 +28,5 @@ public class GossipMetrics
     private static final MetricNameFactory factory = new DefaultNameFactory("Gossip");
     public static final Counter gossipAndStorageServiceCacheCompare = Metrics.counter(factory.createMetricName("GossipAndStorageServiceCacheCompare"));
     public static final Counter gossipAndStorageServiceCacheMismatch = Metrics.counter(factory.createMetricName("GossipAndStorageServiceCacheMismatch"));
-    public static final Counter gossipAndStorageServiceCacheRepair = Metrics.counter(factory.createMetricName("GossipAndStorageServiceCacheRepair"));
     public static final Counter gossipAndStorageServiceCacheError = Metrics.counter(factory.createMetricName("GossipAndStorageServiceCacheError"));
 }

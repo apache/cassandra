@@ -20,9 +20,6 @@ package org.apache.cassandra.gms;
 import java.net.UnknownHostException;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
-
-import org.apache.cassandra.config.DurationSpec;
 
 public interface GossiperMBean
 {
@@ -41,19 +38,5 @@ public interface GossiperMBean
     /** Returns each node's database release version */
     public Map<String, List<String>> getReleaseVersionsWithPort();
 
-    public boolean getCompareGossipAndStorageServiceCache();
-
-    public void setCompareGossipAndStorageServiceCache(boolean enabled);
-
-    public int getGossipAndStorageServiceCacheComparisonInterval();
-
-    public void setGossipAndStorageServiceCacheComparisonInterval(long interval, TimeUnit timeUnit);
-
-    public boolean getSyncGossipAndStorageServiceCacheIfMismatched();
-
-    public void setSyncGossipAndStorageServiceCacheIfMismatched(boolean enabled);
-
-    public int getGossipAndStorageServiceCacheMismatchConvictionThreshold();
-
-    public void setGossipAndStorageServiceCacheMismatchConvictionThreshold(int convictionThreshold);
+    public boolean anyMismatchBetweenGossipAndStorageCache();
 }
