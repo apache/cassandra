@@ -19,6 +19,9 @@
 package org.apache.cassandra.distributed.test;
 
 import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Pattern;
@@ -29,19 +32,29 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.api.IIsolatedExecutor;
+import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableCallable;
 import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.shared.WithProperties;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.utils.Clock;
 
 import static java.lang.String.format;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static java.util.stream.Collectors.toList;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.stopUnchecked;
+import static org.apache.cassandra.schema.SchemaConstants.LOCAL_SYSTEM_KEYSPACE_NAMES;
+import static org.apache.cassandra.schema.SchemaConstants.REPLICATED_SYSTEM_KEYSPACE_NAMES;
 import static org.awaitility.Awaitility.await;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class SnapshotsTest extends TestBaseImpl
 {
@@ -51,9 +64,9 @@ public class SnapshotsTest extends TestBaseImpl
     private static final WithProperties properties = new WithProperties();
     private static Cluster cluster;
 
-    private final String[] exoticSnapshotNames = new String[] { "snapshot", "snapshots", "backup", "backups",
-                                                                "Snapshot", "Snapshots", "Backups", "Backup",
-                                                                "snapshot.with.dots-and-dashes"};
+    private final String[] exoticSnapshotNames = new String[]{ "snapshot", "snapshots", "backup", "backups",
+                                                               "Snapshot", "Snapshots", "Backups", "Backup",
+                                                               "snapshot.with.dots-and-dashes" };
 
     @BeforeClass
     public static void before() throws IOException
@@ -61,7 +74,9 @@ public class SnapshotsTest extends TestBaseImpl
         properties.set(CassandraRelevantProperties.SNAPSHOT_CLEANUP_INITIAL_DELAY_SECONDS, 0);
         properties.set(CassandraRelevantProperties.SNAPSHOT_CLEANUP_PERIOD_SECONDS, SNAPSHOT_CLEANUP_PERIOD_SECONDS);
         properties.set(CassandraRelevantProperties.SNAPSHOT_MIN_ALLOWED_TTL_SECONDS, FIVE_SECONDS);
-        cluster = init(Cluster.build(1).start());
+        cluster = init(Cluster.build(1)
+                              .withDataDirCount(3)
+                              .start());
     }
 
     @After
@@ -69,7 +84,7 @@ public class SnapshotsTest extends TestBaseImpl
     {
         cluster.schemaChange(withKeyspace("DROP TABLE IF EXISTS %s.tbl;"));
         cluster.get(1).nodetoolResult("clearsnapshot", "--all").asserts().success();
-        for (String tag : new String[] {"basic", "first", "second", "tag1"})
+        for (String tag : new String[]{ "basic", "first", "second", "tag1" })
             waitForSnapshotCleared(tag);
         for (String tag : exoticSnapshotNames)
             waitForSnapshot(tag, false, true);
@@ -81,6 +96,150 @@ public class SnapshotsTest extends TestBaseImpl
         properties.close();
         if (cluster != null)
             cluster.close();
+    }
+
+    @Test
+    public void testEverySnapshotDirHasManifestAndSchema()
+    {
+        cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (key int, value text, PRIMARY KEY (key))"));
+        String[] dataDirs = (String[]) cluster.get(1).config().get("data_file_directories");
+        String tableId = cluster.get(1).callOnInstance((SerializableCallable<String>) () -> {
+            return ColumnFamilyStore.getIfExists("distributed_test_keyspace", "tbl").metadata().id.toHexString();
+        });
+
+        cluster.get(1)
+               .nodetoolResult("snapshot", "-t", "mysnapshot", "-kt", format("%s.tbl", KEYSPACE))
+               .asserts()
+               .success();
+
+        for (String dataDir : dataDirs)
+        {
+            Path snapshotDir = Paths.get(dataDir)
+                                    .resolve(KEYSPACE)
+                                    .resolve("tbl-" + tableId)
+                                    .resolve("snapshots")
+                                    .resolve("mysnapshot");
+
+            assertTrue(snapshotDir.toFile().exists());
+            assertTrue(snapshotDir.resolve("manifest.json").toFile().exists());
+            assertTrue(snapshotDir.resolve("schema.cql").toFile().exists());
+        }
+    }
+
+    @Test
+    public void testLocalOrReplicatedSystemTablesSnapshotsDoNotHaveSchema()
+    {
+        cluster.get(1)
+               .nodetoolResult("snapshot", "-t", "snapshot_with_local_or_replicated")
+               .asserts()
+               .success();
+
+        String[] dataDirs = (String[]) cluster.get(1).config().get("data_file_directories");
+        String[] paths = getSnapshotPaths(true);
+
+        for (String dataDir : dataDirs)
+        {
+            for (String path : paths)
+            {
+                Path snapshotDir = Paths.get(dataDir)
+                                        .resolve(path)
+                                        .resolve("snapshots")
+                                        .resolve("snapshot_with_local_or_replicated");
+
+                if (snapshotDir.toFile().exists())
+                    assertFalse(new File(snapshotDir, "schema.cql").exists());
+            }
+        }
+    }
+
+    @Test
+    public void testMissingManifestIsCreatedOnStartup()
+    {
+        cluster.get(1)
+               .nodetoolResult("snapshot", "-t", "snapshot_with_local_or_replicated")
+               .asserts()
+               .success();
+
+        String[] dataDirs = (String[]) cluster.get(1).config().get("data_file_directories");
+        String[] paths = getSnapshotPaths(false);
+
+        assertManifestsPresence(dataDirs, paths, true);
+
+        // remove all manifest files
+        removeAllManifests(dataDirs, paths);
+        assertManifestsPresence(dataDirs, paths, false);
+
+        // restart which should add them back
+        cluster.get(1).shutdown(true);
+        cluster.get(1).startup();
+
+        assertManifestsPresence(dataDirs, paths, true);
+
+        // remove them again and reload by mbean, that should create them too
+        removeAllManifests(dataDirs, paths);
+        assertManifestsPresence(dataDirs, paths, false);
+        cluster.get(1).runOnInstance((IIsolatedExecutor.SerializableRunnable) () -> SnapshotManager.instance.restart(true));
+        assertManifestsPresence(dataDirs, paths, true);
+    }
+
+    private void assertManifestsPresence(String[] dataDirs, String[] paths, boolean shouldExist)
+    {
+        for (String dataDir : dataDirs)
+        {
+            for (String path : paths)
+            {
+                Path snapshotDir = Paths.get(dataDir).resolve(path).resolve("snapshots").resolve("snapshot_with_local_or_replicated");
+                assertEquals(shouldExist, new File(snapshotDir, "manifest.json").exists());
+            }
+        }
+    }
+
+    private void removeAllManifests(String[] dataDirs, String[] paths)
+    {
+        for (String dataDir : dataDirs)
+        {
+            for (String path : paths)
+            {
+                Path snapshotDir = Paths.get(dataDir).resolve(path).resolve("snapshots").resolve("snapshot_with_local_or_replicated");
+
+                File manifest = new File(snapshotDir, "manifest.json");
+                assertTrue(manifest.exists());
+                manifest.delete();
+                assertFalse(manifest.exists());
+            }
+        }
+    }
+
+    private String[] getSnapshotPaths(boolean forSystemKeyspaces)
+    {
+        return cluster.get(1).applyOnInstance((IIsolatedExecutor.SerializableFunction<Boolean, String[]>) forSystem -> {
+            List<String> result = new ArrayList<>();
+
+            for (Keyspace keyspace : Keyspace.all())
+            {
+                if (forSystem)
+                {
+                    if (!LOCAL_SYSTEM_KEYSPACE_NAMES.contains(keyspace.getName())
+                        && !REPLICATED_SYSTEM_KEYSPACE_NAMES.contains(keyspace.getName()))
+                    {
+                        continue;
+                    }
+                }
+                else
+                {
+                    if (LOCAL_SYSTEM_KEYSPACE_NAMES.contains(keyspace.getName())
+                        || REPLICATED_SYSTEM_KEYSPACE_NAMES.contains(keyspace.getName()))
+                    {
+                        continue;
+                    }
+                }
+
+                for (ColumnFamilyStore cfs : keyspace.getColumnFamilyStores())
+                    result.add(format("%s/%s-%s", keyspace, cfs.name, cfs.metadata().id.toHexString()));
+            }
+
+            return result.toArray(new String[0]);
+        }, forSystemKeyspaces);
     }
 
     @Test
@@ -161,7 +320,8 @@ public class SnapshotsTest extends TestBaseImpl
     }
 
     @Test
-    public void testManualSnapshotCleanup() {
+    public void testManualSnapshotCleanup()
+    {
         // take snapshots with ttl
         cluster.get(1).nodetoolResult("snapshot", "--ttl",
                                       format("%ds", TEN_SECONDS),
@@ -210,8 +370,8 @@ public class SnapshotsTest extends TestBaseImpl
         populate(cluster);
 
         instance.nodetoolResult("snapshot",
-                                      "-t", "tag1",
-                                      "-kt", withKeyspace("%s.tbl")).asserts().success();
+                                "-t", "tag1",
+                                "-kt", withKeyspace("%s.tbl")).asserts().success();
 
         // Check snapshot is listed when table is not dropped
         waitForSnapshotPresent("tag1");
@@ -314,19 +474,68 @@ public class SnapshotsTest extends TestBaseImpl
 
         Pattern COMPILE = Pattern.compile(" +");
         long distinctTimestamps = Arrays.stream(result.getStdout().split("\n"))
-                                   .filter(line -> line.startsWith("sametimestamp"))
-                                   .map(line -> COMPILE.matcher(line).replaceAll(" ").split(" ")[7])
-                                   .distinct()
-                                   .count();
+                                        .filter(line -> line.startsWith("sametimestamp"))
+                                        .map(line -> COMPILE.matcher(line).replaceAll(" ").split(" ")[7])
+                                        .distinct()
+                                        .count();
 
         // assert all dates are same so there is just one value accross all individual tables
         assertEquals(1, distinctTimestamps);
+    }
+
+    @Test
+    public void testListingOfSnapshotsByKeyspaceAndTable()
+    {
+        IInvokableInstance instance = cluster.get(1);
+        cluster.schemaChange("CREATE KEYSPACE IF NOT EXISTS ks1 WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};");
+        cluster.schemaChange("CREATE KEYSPACE IF NOT EXISTS ks2 WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};");
+        cluster.schemaChange("CREATE TABLE IF NOT EXISTS ks1.tbl (key int, value text, PRIMARY KEY (key))");
+        cluster.schemaChange("CREATE TABLE IF NOT EXISTS ks1.tbl2 (key int, value text, PRIMARY KEY (key))");
+        cluster.schemaChange("CREATE TABLE IF NOT EXISTS ks2.tbl (key int, value text, PRIMARY KEY (key))");
+        cluster.schemaChange("CREATE TABLE IF NOT EXISTS ks2.tbl2 (key int, value text, PRIMARY KEY (key))");
+
+        populate(cluster, "ks1", "tbl");
+        populate(cluster, "ks1", "tbl2");
+        populate(cluster, "ks2", "tbl");
+        populate(cluster, "ks2", "tbl2");
+
+        instance.nodetoolResult("snapshot", "-t", "tagks1tbl", "-kt", "ks1.tbl").asserts().success();
+        instance.nodetoolResult("snapshot", "-t", "tagks1tbl2", "-kt", "ks1.tbl2").asserts().success();
+        instance.nodetoolResult("snapshot", "-t", "tagks2tbl", "-kt", "ks2.tbl").asserts().success();
+        instance.nodetoolResult("snapshot", "-t", "tagks2tbl2", "-kt", "ks2.tbl2").asserts().success();
+
+        waitForSnapshot("ks1", null, "tagks1tbl", true, false);
+        waitForSnapshot("ks1", null, "tagks1tbl2", true, false);
+        waitForSnapshot("ks1", null, "tagks2tbl", false, false);
+        waitForSnapshot("ks1", null, "tagks2tbl2", false, false);
+
+        waitForSnapshot("ks1", "tbl", "tagks1tbl", true, false);
+        waitForSnapshot("ks1", "tbl", "tagks1tbl2", false, false);
+        waitForSnapshot("ks1", "tbl", "tagks2tbl", false, false);
+        waitForSnapshot("ks1", "tbl", "tagks2tbl2", false, false);
+
+        waitForSnapshot(null, "tbl", "tagks1tbl", true, false);
+        waitForSnapshot(null, "tbl", "tagks1tbl2", false, false);
+        waitForSnapshot(null, "tbl", "tagks2tbl", true, false);
+        waitForSnapshot(null, "tbl", "tagks2tbl2", false, false);
+
+        NodeToolResult nodeToolResult = instance.nodetoolResult("listsnapshots", "-s", "tagks1tbl");
+        nodeToolResult.asserts().success();
+        List<String> snapshots = extractSnapshots(nodeToolResult.getStdout());
+        assertEquals(1, snapshots.size());
+        assertTrue(snapshots.get(0).contains("tagks1tbl"));
     }
 
     private void populate(Cluster cluster)
     {
         for (int i = 0; i < 100; i++)
             cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.tbl (key, value) VALUES (?, 'txt')"), ConsistencyLevel.ONE, i);
+    }
+
+    private void populate(Cluster cluster, String keyspace, String table)
+    {
+        for (int i = 0; i < 100; i++)
+            cluster.coordinator(1).execute(format("INSERT INTO %s.%s (key, value) VALUES (?, 'txt')", keyspace, table), ConsistencyLevel.ONE, i);
     }
 
     private void waitForSnapshotPresent(String snapshotName)
@@ -339,27 +548,58 @@ public class SnapshotsTest extends TestBaseImpl
         waitForSnapshot(snapshotName, false, false);
     }
 
-    private void waitForSnapshot(String snapshotName, boolean expectPresent, boolean noTTL)
+    private void waitForSnapshot(String keyspaceName, String tableName, String snapshotName, boolean expectPresent, boolean noTTL)
     {
         await().timeout(20, SECONDS)
                .pollDelay(0, SECONDS)
                .pollInterval(1, SECONDS)
-               .until(() -> waitForSnapshotInternal(snapshotName, expectPresent, noTTL));
+               .until(() -> waitForSnapshotInternal(keyspaceName, tableName, snapshotName, expectPresent, noTTL));
     }
 
-    private boolean waitForSnapshotInternal(String snapshotName, boolean expectPresent, boolean noTTL) {
+    private void waitForSnapshot(String snapshotName, boolean expectPresent, boolean noTTL)
+    {
+        waitForSnapshot(null, null, snapshotName, expectPresent, noTTL);
+    }
+
+    private boolean waitForSnapshotInternal(String keyspaceName, String tableName, String snapshotName, boolean expectPresent, boolean noTTL)
+    {
+        List<String> args = new ArrayList<>();
+        args.add("listsnapshots");
         NodeToolResult listsnapshots;
         if (noTTL)
-            listsnapshots = cluster.get(1).nodetoolResult("listsnapshots", "-nt");
-        else
-            listsnapshots = cluster.get(1).nodetoolResult("listsnapshots");
+            args.add("-nt");
 
-        List<String> lines = Arrays.stream(listsnapshots.getStdout().split("\n"))
-                                   .filter(line -> !line.isEmpty())
-                                   .filter(line -> !line.startsWith("Snapshot Details:") && !line.startsWith("There are no snapshots"))
-                                   .filter(line -> !line.startsWith("Snapshot name") && !line.startsWith("Total TrueDiskSpaceUsed"))
-                                   .collect(toList());
+        if (keyspaceName != null)
+        {
+            args.add("-k");
+            args.add(keyspaceName);
+        }
+
+        if (tableName != null)
+        {
+            args.add("-t");
+            args.add(tableName);
+        }
+
+        if (snapshotName != null)
+        {
+            args.add("-s");
+            args.add(snapshotName);
+        }
+
+        listsnapshots = cluster.get(1).nodetoolResult(args.toArray(new String[0]));
+
+        List<String> lines = extractSnapshots(listsnapshots.getStdout());
 
         return expectPresent == lines.stream().anyMatch(line -> line.startsWith(snapshotName));
+    }
+
+    private List<String> extractSnapshots(String listSnapshotsStdOut)
+    {
+        return Arrays.stream(listSnapshotsStdOut.split("\n"))
+                     .filter(line -> !line.isEmpty())
+                     .filter(line -> !line.startsWith("Snapshot Details:") && !line.startsWith("There are no snapshots"))
+                     .filter(line -> !line.startsWith("Snapshot name") && !line.startsWith("Total TrueDiskSpaceUsed"))
+                     .collect(toList());
     }
 }

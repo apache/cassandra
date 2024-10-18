@@ -42,7 +42,7 @@ public class DirectorySizeCalculator extends SimpleFileVisitor<Path>
     }
 
     @Override
-    public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException
+    public FileVisitResult visitFile(Path file, BasicFileAttributes attrs)
     {
         if (isAcceptable(file))
             size += attrs.size();
@@ -63,7 +63,7 @@ public class DirectorySizeCalculator extends SimpleFileVisitor<Path>
     /**
      * Reset the size to 0 in case that the size calculator is used multiple times
      */
-    protected void resetSize()
+    public void resetSize()
     {
         size = 0;
     }

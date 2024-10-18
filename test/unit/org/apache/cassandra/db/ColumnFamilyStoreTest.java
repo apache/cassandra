@@ -1,21 +1,21 @@
 /*
-* Licensed to the Apache Software Foundation (ASF) under one
-* or more contributor license agreements.  See the NOTICE file
-* distributed with this work for additional information
-* regarding copyright ownership.  The ASF licenses this file
-* to you under the Apache License, Version 2.0 (the
-* "License"); you may not use this file except in compliance
-* with the License.  You may obtain a copy of the License at
-*
-*    http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing,
-* software distributed under the License is distributed on an
-* "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-* KIND, either express or implied.  See the License for the
-* specific language governing permissions and limitations
-* under the License.
-*/
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 package org.apache.cassandra.db;
 
 import java.io.IOException;
@@ -28,7 +28,6 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -44,7 +43,9 @@ import com.googlecode.concurrenttrees.common.Iterables;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.UpdateBuilder;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Operator;
+import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.ColumnFamilyStore.FlushReason;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.filter.ColumnFilter;
@@ -59,7 +60,9 @@ import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.transactions.UpdateTransaction;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -71,18 +74,27 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.metrics.ClearableHistogram;
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.IndexMetadata;
+import org.apache.cassandra.schema.Indexes;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.SchemaTestUtil;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
+import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.service.snapshot.SnapshotManifest;
 import org.apache.cassandra.service.snapshot.TableSnapshot;
+import org.apache.cassandra.service.snapshot.TakeSnapshotTask;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.WrappedRunnable;
 import org.apache.cassandra.utils.concurrent.OpOrder.Barrier;
 import org.apache.cassandra.utils.concurrent.OpOrder.Group;
 
+import static org.apache.cassandra.cql3.statements.schema.IndexTarget.Type.VALUES;
+import static org.apache.cassandra.schema.IndexMetadata.Kind.COMPOSITES;
+import static org.apache.cassandra.schema.IndexMetadata.Kind.CUSTOM;
+import static org.apache.cassandra.schema.IndexMetadata.fromIndexTargets;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -121,14 +133,21 @@ public class ColumnFamilyStoreTest
     @Before
     public void truncateCFS()
     {
-        Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1).truncateBlocking();
-        Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD2).truncateBlocking();
-        Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_INDEX1).truncateBlocking();
-        Keyspace.open(KEYSPACE2).getColumnFamilyStore(CF_STANDARD1).truncateBlocking();
+        Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1).truncateBlockingWithoutSnapshot();
+        Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD2).truncateBlockingWithoutSnapshot();
+        Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_INDEX1).truncateBlockingWithoutSnapshot();
+        Keyspace.open(KEYSPACE2).getColumnFamilyStore(CF_STANDARD1).truncateBlockingWithoutSnapshot();
+        Keyspace.open(KEYSPACE3).getColumnFamilyStore(CF_SPEC_RETRY1).truncateBlockingWithoutSnapshot();
+
+        SnapshotManager.instance.clearAllSnapshots(KEYSPACE1, CF_STANDARD1);
+        SnapshotManager.instance.clearAllSnapshots(KEYSPACE1, CF_STANDARD2);
+        SnapshotManager.instance.clearAllSnapshots(KEYSPACE1, CF_INDEX1);
+        SnapshotManager.instance.clearAllSnapshots(KEYSPACE2, CF_STANDARD1);
+        SnapshotManager.instance.clearAllSnapshots(KEYSPACE3, CF_SPEC_RETRY1);
     }
 
     @Test
-    public void testMemtableTimestamp() throws Throwable
+    public void testMemtableTimestamp()
     {
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1);
         assertEquals(Memtable.NO_MIN_TIMESTAMP, fakeMemTableWithMinTS(cfs, EncodingStats.NO_STATS.minTimestamp).getMinTimestamp());
@@ -142,20 +161,20 @@ public class ColumnFamilyStoreTest
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_STANDARD1);
 
         new RowUpdateBuilder(cfs.metadata(), 0, "key1")
-                .clustering("Column1")
-                .add("val", "asdf")
-                .build()
-                .applyUnsafe();
+        .clustering("Column1")
+        .add("val", "asdf")
+        .build()
+        .applyUnsafe();
         Util.flush(cfs);
 
         new RowUpdateBuilder(cfs.metadata(), 1, "key1")
-                .clustering("Column1")
-                .add("val", "asdf")
-                .build()
-                .applyUnsafe();
+        .clustering("Column1")
+        .add("val", "asdf")
+        .build()
+        .applyUnsafe();
         Util.flush(cfs);
 
-        ((ClearableHistogram)cfs.metric.sstablesPerReadHistogram.cf).clear(); // resets counts
+        ((ClearableHistogram) cfs.metric.sstablesPerReadHistogram.cf).clear(); // resets counts
         Util.getAll(Util.cmd(cfs, "key1").includeRow("c1").build());
         assertEquals(1, cfs.metric.sstablesPerReadHistogram.cf.getCount());
     }
@@ -165,7 +184,7 @@ public class ColumnFamilyStoreTest
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_STANDARD1);
-        keyspace.getColumnFamilyStores().forEach(ColumnFamilyStore::truncateBlocking);
+        keyspace.getColumnFamilyStores().forEach(ColumnFamilyStore::truncateBlockingWithoutSnapshot);
 
         List<Mutation> rms = new LinkedList<>();
         rms.add(new RowUpdateBuilder(cfs.metadata(), 0, "key1")
@@ -195,7 +214,7 @@ public class ColumnFamilyStoreTest
             {
                 Row toCheck = Util.getOnlyRowUnfiltered(Util.cmd(cfs, "key1").build());
                 Iterator<Cell<?>> iter = toCheck.cells().iterator();
-                assert(Iterators.size(iter) == 0);
+                assert (Iterators.size(iter) == 0);
             }
         };
 
@@ -265,42 +284,37 @@ public class ColumnFamilyStoreTest
     {
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_INDEX1);
 
-        //cleanup any previous test gargbage
-        cfs.clearSnapshot("");
-
         int numRows = 1000;
-        long[] colValues = new long [numRows * 2]; // each row has two columns
-        for (int i = 0; i < colValues.length; i+=2)
+        long[] colValues = new long[numRows * 2]; // each row has two columns
+        for (int i = 0; i < colValues.length; i += 2)
         {
             colValues[i] = (i % 4 == 0 ? 1L : 2L); // index column
-            colValues[i+1] = 3L; //other column
+            colValues[i + 1] = 3L; //other column
         }
         ScrubTest.fillIndexCF(cfs, false, colValues);
 
-        cfs.snapshot("nonEphemeralSnapshot", null, false, false);
-        cfs.snapshot("ephemeralSnapshot", null, true, false);
+        SnapshotManager.instance.takeSnapshot("nonEphemeralSnapshot", cfs.getKeyspaceTableName());
+        SnapshotManager.instance.takeSnapshot(new TakeSnapshotTask.Builder("ephemeralSnapshot", cfs.getKeyspaceTableName()).ephemeral().build());
 
-        Map<String, TableSnapshot> snapshotDetails = cfs.listSnapshots();
+        Map<String, TableSnapshot> snapshotDetails = Util.listSnapshots(cfs);
         assertEquals(2, snapshotDetails.size());
         assertTrue(snapshotDetails.containsKey("ephemeralSnapshot"));
         assertTrue(snapshotDetails.containsKey("nonEphemeralSnapshot"));
 
-        ColumnFamilyStore.clearEphemeralSnapshots(cfs.getDirectories());
+        SnapshotManager.instance.clearEphemeralSnapshots();
 
-        snapshotDetails = cfs.listSnapshots();
+        snapshotDetails = Util.listSnapshots(cfs);
         assertEquals(1, snapshotDetails.size());
         assertTrue(snapshotDetails.containsKey("nonEphemeralSnapshot"));
 
         //test cleanup
-        cfs.clearSnapshot("");
+        SnapshotManager.instance.clearAllSnapshots(cfs.getKeyspaceName(), cfs.getTableName());
     }
 
     @Test
     public void testSnapshotSize() throws IOException
     {
-        // cleanup any previous test gargbage
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1);
-        cfs.clearSnapshot("");
 
         // Add row
         new RowUpdateBuilder(cfs.metadata(), 0, "key1")
@@ -311,10 +325,10 @@ public class ColumnFamilyStoreTest
         Util.flush(cfs);
 
         // snapshot
-        cfs.snapshot("basic", null, false, false);
+        SnapshotManager.instance.takeSnapshot("basic", cfs.getKeyspaceTableName());
 
         // check snapshot was created
-        Map<String, TableSnapshot> snapshotDetails = cfs.listSnapshots();
+        Map<String, TableSnapshot> snapshotDetails = Util.listSnapshots(cfs);
         assertThat(snapshotDetails).hasSize(1);
         assertThat(snapshotDetails).containsKey("basic");
 
@@ -329,13 +343,122 @@ public class ColumnFamilyStoreTest
 
         // sizeOnDisk > trueSize because trueSize does not include manifest.json
         // Check that truesize now is > 0
-        snapshotDetails = cfs.listSnapshots();
+        snapshotDetails = Util.listSnapshots(cfs);
         details = snapshotDetails.get("basic");
         assertThat(details.computeSizeOnDiskBytes()).isEqualTo(details.computeTrueSizeBytes());
     }
 
     @Test
-    public void testBackupAfterFlush() throws Throwable
+    public void testTrueSnapshotSizeWithLegacyIndex()
+    {
+        testTrueSnapshotSizeInternal("snapshot_sizes_legacy", "true_snapshot_size_with_legacy_index", false);
+    }
+
+    @Test
+    public void testTrueSnapshotSizeWithSaiIndex()
+    {
+        testTrueSnapshotSizeInternal("snapshot_sizes_sai","true_snapshot_size_with_sai_index", true);
+    }
+
+    private void testTrueSnapshotSizeInternal(String keyspace, String table, boolean forSai)
+    {
+        TableMetadata tableMetadata = SchemaLoader.standardCFMD(keyspace, table).partitioner(Murmur3Partitioner.instance).build();
+        SchemaLoader.createKeyspace(keyspace, KeyspaceParams.simple(1), tableMetadata);
+
+        ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
+
+        new RowUpdateBuilder(cfs.metadata(), 0, "key1")
+        .clustering("Column1")
+        .add("val", "value1")
+        .build()
+        .applyUnsafe();
+        Util.flush(cfs);
+
+        assertThat(cfs.trueSnapshotsSize()).isZero();
+
+        SnapshotManager.instance.takeSnapshot("snapshot_without_index", cfs.getKeyspaceTableName());
+
+        long firstSnapshotsSize = cfs.trueSnapshotsSize();
+        Map<String, TableSnapshot> listedSnapshots = Util.listSnapshots(cfs);
+        assertThat(firstSnapshotsSize).isPositive();
+        assertThat(listedSnapshots.size()).isEqualTo(1);
+        assertThat(listedSnapshots.get("snapshot_without_index")).isNotNull();
+        long withoutIndexSize = listedSnapshots.get("snapshot_without_index").computeSizeOnDiskBytes();
+        long withoutIndexTrueSize = listedSnapshots.get("snapshot_without_index").computeTrueSizeBytes();
+
+        assertThat(withoutIndexSize).isGreaterThan(withoutIndexTrueSize);
+        assertEquals(firstSnapshotsSize, withoutIndexTrueSize);
+
+        // add index, trueSnapshotSize should reflect that
+        ColumnIdentifier col = ColumnIdentifier.getInterned("val", true);
+
+        IndexMetadata indexMetadata;
+        if (forSai)
+            indexMetadata = fromIndexTargets(List.of(new IndexTarget(col, VALUES)), "idx", CUSTOM, Map.of("class_name", "sai"));
+        else
+            indexMetadata = fromIndexTargets(List.of(new IndexTarget(col, VALUES)), "idx", COMPOSITES, Map.of());
+
+        TableMetadata tableMetadataWithIndex = SchemaLoader.standardCFMD(keyspace, table)
+                                                           .partitioner(Murmur3Partitioner.instance)
+                                                           .id(tableMetadata.id)
+                                                           .indexes(Indexes.of(indexMetadata))
+                                                           .build();
+
+        SchemaTestUtil.announceTableUpdate(tableMetadataWithIndex);
+
+        rebuildIndices(cfs);
+
+        SnapshotManager.instance.takeSnapshot("snapshot_with_index", cfs.getKeyspaceTableName());
+
+        long secondSnapshotSize = cfs.trueSnapshotsSize();
+        Map<String, TableSnapshot> secondListedSnapshots = Util.listSnapshots(cfs);
+        assertThat(secondSnapshotSize).isPositive();
+        assertThat(secondSnapshotSize).isGreaterThan(firstSnapshotsSize);
+
+        assertThat(secondListedSnapshots.size()).isEqualTo(2);
+        assertThat(secondListedSnapshots.get("snapshot_with_index")).isNotNull();
+        assertThat(secondListedSnapshots.get("snapshot_without_index")).isNotNull();
+
+        long withIndexSize = secondListedSnapshots.get("snapshot_with_index").computeSizeOnDiskBytes();
+        long withIndexTrueSize = secondListedSnapshots.get("snapshot_with_index").computeTrueSizeBytes();
+
+        assertThat(withIndexSize).isGreaterThan(withIndexTrueSize);
+        assertEquals(secondSnapshotSize, withIndexTrueSize + withoutIndexTrueSize);
+
+        // taking another one is basically a copy of the previous
+
+        SnapshotManager.instance.takeSnapshot("another_snapshot_with_index", cfs.getKeyspaceTableName());
+
+        long thirdSnapshotSize = cfs.trueSnapshotsSize();
+        Map<String, TableSnapshot> thirdListedSnapshots = Util.listSnapshots(cfs);
+        assertThat(thirdSnapshotSize).isPositive();
+        assertThat(thirdSnapshotSize).isGreaterThan(secondSnapshotSize);
+
+        long anotherWithIndexSize = thirdListedSnapshots.get("another_snapshot_with_index").computeSizeOnDiskBytes();
+        long anotherWithIndexTrueSize = thirdListedSnapshots.get("another_snapshot_with_index").computeTrueSizeBytes();
+
+        assertEquals(withIndexSize, anotherWithIndexSize);
+        assertEquals(withIndexTrueSize, anotherWithIndexTrueSize);
+    }
+
+    private void rebuildIndices(ColumnFamilyStore cfs)
+    {
+        // be sure we build that index
+        for (Index index : cfs.indexManager.listIndexes())
+        {
+            try
+            {
+                cfs.indexManager.buildIndex(index).get();
+            }
+            catch (Throwable t)
+            {
+                throw new RuntimeException("Unable to build index", t);
+            }
+        }
+    }
+
+    @Test
+    public void testBackupAfterFlush()
     {
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE2).getColumnFamilyStore(CF_STANDARD1);
         new RowUpdateBuilder(cfs.metadata(), 0, ByteBufferUtil.bytes("key1")).clustering("Column1").add("val", "asdf").build().applyUnsafe();
@@ -381,8 +504,8 @@ public class ColumnFamilyStoreTest
         // remember, latencies are only an estimate - off by up to 20% by the 1.2 factor between buckets.
         assertThat(cfs.metric.coordinatorReadLatency.getCount()).isEqualTo(count);
         assertThat(cfs.metric.coordinatorReadLatency.getSnapshot().getValue(0.5))
-            .isBetween((double) TimeUnit.MILLISECONDS.toMicros(5839),
-                       (double) TimeUnit.MILLISECONDS.toMicros(5840));
+        .isBetween((double) TimeUnit.MILLISECONDS.toMicros(5839),
+                   (double) TimeUnit.MILLISECONDS.toMicros(5840));
         // Sanity check the metrics - 75th percentileof linear 0-10000ms
         assertThat(cfs.metric.coordinatorWriteLatency.getCount()).isEqualTo(count);
         assertThat(cfs.metric.coordinatorWriteLatency.getSnapshot().getValue(0.75))
@@ -555,7 +678,7 @@ public class ColumnFamilyStoreTest
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_INDEX1);
-        cfs.truncateBlocking();
+        cfs.truncateBlockingWithoutSnapshot();
 
         UpdateBuilder builder = UpdateBuilder.create(cfs.metadata.get(), "key")
                                              .newRow()
@@ -565,7 +688,7 @@ public class ColumnFamilyStoreTest
         Util.flush(cfs);
 
         String snapshotName = "newSnapshot";
-        cfs.snapshotWithoutMemtable(snapshotName);
+        SnapshotManager.instance.takeSnapshot(new TakeSnapshotTask.Builder(snapshotName, cfs.getKeyspaceTableName()).skipFlush().build());
 
         File snapshotManifestFile = cfs.getDirectories().getSnapshotManifestFile(snapshotName);
         SnapshotManifest manifest = SnapshotManifest.deserializeFromJsonFile(snapshotManifestFile);
@@ -595,17 +718,16 @@ public class ColumnFamilyStoreTest
             writeData(cfs);
         }
 
-        TableSnapshot snapshot = cfs.snapshot("basic");
-
+        TableSnapshot snapshot = SnapshotManager.instance.takeSnapshot("basic", cfs.getKeyspaceTableName());
 
         assertThat(snapshot.exists()).isTrue();
-        assertThat(cfs.listSnapshots().containsKey("basic")).isTrue();
-        assertThat(cfs.listSnapshots().get("basic")).isEqualTo(snapshot);
+        assertThat(Util.listSnapshots(cfs).containsKey("basic")).isTrue();
+        assertThat(Util.listSnapshots(cfs).get("basic")).isEqualTo(snapshot);
 
         snapshot.getDirectories().forEach(FileUtils::deleteRecursive);
 
         assertThat(snapshot.exists()).isFalse();
-        assertFalse(cfs.listSnapshots().containsKey("basic"));
+        assertFalse(Util.listSnapshots(cfs).containsKey("basic"));
     }
 
     private void writeData(ColumnFamilyStore cfs)
@@ -623,7 +745,8 @@ public class ColumnFamilyStoreTest
     }
 
     @Test
-    public void testSnapshotCreationAndDeleteEmptyTable() {
+    public void testSnapshotCreationAndDeleteEmptyTable()
+    {
         createSnapshotAndDelete(KEYSPACE1, CF_INDEX1, false);
         createSnapshotAndDelete(KEYSPACE1, CF_STANDARD1, false);
         createSnapshotAndDelete(KEYSPACE1, CF_STANDARD2, false);
@@ -632,7 +755,8 @@ public class ColumnFamilyStoreTest
     }
 
     @Test
-    public void testSnapshotCreationAndDeletePopulatedTable() {
+    public void testSnapshotCreationAndDeletePopulatedTable()
+    {
         createSnapshotAndDelete(KEYSPACE1, CF_INDEX1, true);
         createSnapshotAndDelete(KEYSPACE1, CF_STANDARD1, true);
         createSnapshotAndDelete(KEYSPACE1, CF_STANDARD2, true);
@@ -651,8 +775,8 @@ public class ColumnFamilyStoreTest
         String keyspace = path.getParent().getFileName().toString();
         String table = path.getFileName().toString().split("-")[0];
 
-        Assert.assertEquals(cfs.getTableName(), table);
-        Assert.assertEquals(KEYSPACE1, keyspace);
+        assertEquals(cfs.getTableName(), table);
+        assertEquals(KEYSPACE1, keyspace);
     }
 
     @Test
@@ -685,15 +809,15 @@ public class ColumnFamilyStoreTest
     }
 
     @VisibleForTesting
-    public static long getSnapshotManifestAndSchemaFileSizes(TableSnapshot snapshot) throws IOException
+    public static long getSnapshotManifestAndSchemaFileSizes(TableSnapshot snapshot)
     {
-        Optional<File> schemaFile = snapshot.getSchemaFile();
-        Optional<File> manifestFile = snapshot.getManifestFile();
-
         long schemaAndManifestFileSizes = 0;
 
-        schemaAndManifestFileSizes += schemaFile.isPresent() ? schemaFile.get().length() : 0;
-        schemaAndManifestFileSizes += manifestFile.isPresent() ? manifestFile.get().length() : 0;
+        for (File schemaFile : snapshot.getSchemaFiles())
+            schemaAndManifestFileSizes += schemaFile.length();
+
+        for (File manifestFile : snapshot.getManifestFiles())
+            schemaAndManifestFileSizes += manifestFile.length();
 
         return schemaAndManifestFileSizes;
     }
@@ -827,7 +951,7 @@ public class ColumnFamilyStoreTest
 
             @Override
             public UnfilteredPartitionIterator
-                   partitionIterator(ColumnFilter columnFilter, DataRange dataRange, SSTableReadsListener listener)
+            partitionIterator(ColumnFilter columnFilter, DataRange dataRange, SSTableReadsListener listener)
             {
                 return null;
             }

@@ -31,6 +31,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -129,7 +130,7 @@ public class SchemaKeyspaceTest
 
         SchemaTestUtil.announceTableDrop(keyspaceName, tableName);
 
-        assertFalse(cfs.listSnapshots().isEmpty());
+        assertFalse(Util.listSnapshots(cfs).isEmpty());
     }
 
     @Test
@@ -147,7 +148,7 @@ public class SchemaKeyspaceTest
 
         SchemaTestUtil.announceTableDrop(keyspaceName, tableName);
 
-        assertTrue(cfs.listSnapshots().isEmpty());
+        assertTrue(Util.listSnapshots(cfs).isEmpty());
     }
 
     private static void updateTable(String keyspace, TableMetadata oldTable, TableMetadata newTable)

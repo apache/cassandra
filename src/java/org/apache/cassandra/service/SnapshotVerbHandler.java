@@ -20,11 +20,11 @@ package org.apache.cassandra.service;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SnapshotCommand;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.utils.DiagnosticSnapshotService;
 
 
@@ -38,7 +38,7 @@ public class SnapshotVerbHandler implements IVerbHandler<SnapshotCommand>
         SnapshotCommand command = message.payload;
         if (command.clear_snapshot)
         {
-            StorageService.instance.clearSnapshot(command.snapshot_name, command.keyspace);
+            SnapshotManager.instance.clearSnapshots(command.snapshot_name, command.keyspace);
         }
         else if (DiagnosticSnapshotService.isDiagnosticSnapshotRequest(command))
         {
@@ -46,7 +46,14 @@ public class SnapshotVerbHandler implements IVerbHandler<SnapshotCommand>
         }
         else
         {
-            Keyspace.open(command.keyspace).getColumnFamilyStore(command.column_family).snapshot(command.snapshot_name);
+            try
+            {
+                SnapshotManager.instance.takeSnapshot(command.snapshot_name, command.keyspace, command.column_family);
+            }
+            catch (Exception ex)
+            {
+                throw new RuntimeException(ex);
+            }
         }
 
         logger.debug("Enqueuing response to snapshot request {} to {}", command.snapshot_name, message.from());

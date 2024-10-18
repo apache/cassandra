@@ -402,6 +402,18 @@ public final class PathUtils
     }
 
     /**
+     * Empties everything in directory of "path" but keeps the directory itself.
+     *
+     * @param path directory to be emptied
+     * @throws FSWriteError if any part of the tree cannot be deleted
+     */
+    public static void clearDirectory(Path path)
+    {
+        if (isDirectory(path))
+            forEach(path, PathUtils::deleteRecursive);
+    }
+
+    /**
      * Deletes all files and subdirectories under "path".
      * @param path file to be deleted
      * @throws FSWriteError if any part of the tree cannot be deleted

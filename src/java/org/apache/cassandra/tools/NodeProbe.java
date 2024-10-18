@@ -102,6 +102,7 @@ import org.apache.cassandra.net.MessagingServiceMBean;
 import org.apache.cassandra.service.ActiveRepairServiceMBean;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.CacheServiceMBean;
+import org.apache.cassandra.service.snapshot.SnapshotManagerMBean;
 import org.apache.cassandra.tcm.CMSOperationsMBean;
 import org.apache.cassandra.service.GCInspector;
 import org.apache.cassandra.service.GCInspectorMXBean;
@@ -150,6 +151,7 @@ public class NodeProbe implements AutoCloseable
     protected MBeanServerConnection mbeanServerConn;
     protected CompactionManagerMBean compactionProxy;
     protected StorageServiceMBean ssProxy;
+    protected SnapshotManagerMBean snapshotProxy;
     protected CMSOperationsMBean cmsProxy;
     protected GossiperMBean gossProxy;
     protected MemoryMXBean memProxy;
@@ -263,6 +265,8 @@ public class NodeProbe implements AutoCloseable
         {
             ObjectName name = new ObjectName(ssObjName);
             ssProxy = JMX.newMBeanProxy(mbeanServerConn, name, StorageServiceMBean.class);
+            name = new ObjectName(SnapshotManagerMBean.MBEAN_NAME);
+            snapshotProxy = JMX.newMBeanProxy(mbeanServerConn, name, SnapshotManagerMBean.class);
             name = new ObjectName(CMSOperations.MBEAN_OBJECT_NAME);
             cmsProxy = JMX.newMBeanProxy(mbeanServerConn, name, CMSOperationsMBean.class);
             name = new ObjectName(MessagingService.MBEAN_NAME);
@@ -875,12 +879,12 @@ public class NodeProbe implements AutoCloseable
 
     public long getSnapshotLinksPerSecond()
     {
-        return ssProxy.getSnapshotLinksPerSecond();
+        return snapshotProxy.getSnapshotLinksPerSecond();
     }
 
     public void setSnapshotLinksPerSecond(long throttle)
     {
-        ssProxy.setSnapshotLinksPerSecond(throttle);
+        snapshotProxy.setSnapshotLinksPerSecond(throttle);
     }
 
     /**
@@ -900,10 +904,10 @@ public class NodeProbe implements AutoCloseable
                 throw new IOException("When specifying the table for a snapshot, you must specify one and only one keyspace");
             }
 
-            ssProxy.takeSnapshot(snapshotName, options, keyspaces[0] + "." + table);
+            snapshotProxy.takeSnapshot(snapshotName, options, keyspaces[0] + "." + table);
         }
         else
-            ssProxy.takeSnapshot(snapshotName, options, keyspaces);
+            snapshotProxy.takeSnapshot(snapshotName, options, keyspaces);
     }
 
     /**
@@ -921,11 +925,11 @@ public class NodeProbe implements AutoCloseable
     {
         if (null != tableList && tableList.length != 0)
         {
-            ssProxy.takeSnapshot(snapshotName, options, tableList);
+            snapshotProxy.takeSnapshot(snapshotName, options, tableList);
         }
         else
         {
-            throw new IOException("The column family List  for a snapshot should not be empty or null");
+            throw new IOException("The column family list for a snapshot should not be empty or null");
         }
     }
 
@@ -955,12 +959,18 @@ public class NodeProbe implements AutoCloseable
      */
     public void clearSnapshot(Map<String, Object> options, String tag, String... keyspaces) throws IOException
     {
-        ssProxy.clearSnapshot(options, tag, keyspaces);
+        snapshotProxy.clearSnapshot(tag, options, keyspaces);
     }
 
+    /**
+     * Gets all snapshots' details.
+     *
+     * @param options options to use upon listing of snapshots
+     * @return details of snapshots
+     */
     public Map<String, TabularData> getSnapshotDetails(Map<String, String> options)
     {
-        return ssProxy.getSnapshotDetails(options);
+        return snapshotProxy.listSnapshots(options);
     }
 
     /** @deprecated See CASSANDRA-16789 */
@@ -972,7 +982,7 @@ public class NodeProbe implements AutoCloseable
 
     public long trueSnapshotsSize()
     {
-        return ssProxy.trueSnapshotsSize();
+        return snapshotProxy.getTrueSnapshotSize();
     }
 
     public boolean isJoined()
