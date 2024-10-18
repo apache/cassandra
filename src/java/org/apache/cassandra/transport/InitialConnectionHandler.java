@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.metrics.ClientSessionMetricsManager;
 import org.apache.cassandra.transport.ClientResourceLimits.Overload;
@@ -41,6 +42,7 @@ import org.apache.cassandra.net.AsyncChannelPromise;
 import org.apache.cassandra.transport.messages.ErrorMessage;
 import org.apache.cassandra.transport.messages.StartupMessage;
 import org.apache.cassandra.transport.messages.SupportedMessage;
+import org.apache.cassandra.utils.NoSpamLogger;
 
 /**
  * Added to the Netty pipeline whenever a new Channel is initialized. This handler only processes
@@ -150,8 +152,9 @@ public class InitialConnectionHandler extends ByteToMessageDecoder
                         promise = new VoidChannelPromise(ctx.channel(), false);
                     }
 
-                    // Logging the client context data
-                    logger.info("Client context data: {}", startup.options);
+                    String key = startup.options.getOrDefault("SERVICE", "") + "," + startup.options.getOrDefault("HOST_NAME", "");
+                    // Logging the client context data with NoSpamLogger
+                    NoSpamLogger.log(logger, NoSpamLogger.Level.INFO, key, 15, TimeUnit.MINUTES, "Client context data: {}", startup.options);
                     // Send the client session metric
                     ClientSessionMetricsManager.getMetrics(
                         startup.options.getOrDefault("SERVICE", ""),

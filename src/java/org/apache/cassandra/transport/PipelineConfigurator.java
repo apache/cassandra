@@ -248,7 +248,7 @@ public class PipelineConfigurator
                 @Override
                 protected void channelIdle(ChannelHandlerContext ctx, IdleStateEvent evt)
                 {
-                    logger.info("Closing client connection {} after timeout of {}ms", channel.remoteAddress(), idleTimeout);
+                    logger.debug("Closing client connection {} after timeout of {}ms", channel.remoteAddress(), idleTimeout);
                     ctx.close();
                 }
             });
