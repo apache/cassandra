@@ -1189,21 +1189,4 @@ public class Config
     // 3.0 Cassandra Driver has its "read" timeout set to 12 seconds. Our recommendation is match this.
     public DurationSpec.LongMillisecondsBound native_transport_timeout = new DurationSpec.LongMillisecondsBound("12000ms");
     public boolean enforce_native_deadline_for_hints = false;
-
-    /** Cassandra maintains the Gossip info (Token, Status, etc.) in two caches 1) Gossip cache 2) Storage Service cache
-     * The source of truth is the Gossip cache, which then updates the Storage service cache - but there exists no guarantee.
-     * As a result, a wide variety of problems could occur, and one of the problems is a node could see different token ownership
-     * than its peers.
-     * If this config is enabled, then it will compare these two caches at a gossip_and_storage_service_cache_comparison_interval_in_sec frequency
-     */
-    public volatile Boolean compare_gossip_and_storage_service_cache = true;
-
-    // The frequency at which the Gossip and the Storage Service caches are validated
-    public volatile DurationSpec.IntSecondsBound gossip_and_storage_service_cache_comparison_interval = new DurationSpec.IntSecondsBound("5m");
-
-    // Should we sync the StorageService cache from GossipCache in case of a mismatch. By default, do not fix
-    public volatile Boolean sync_gossip_and_storage_service_cache_if_mismatched = false;
-
-    // Number of consecutive mismatch occurrences after which we declare caches are not in sync */
-    public volatile Integer gossip_and_storage_service_cache_mismatch_conviction_threshold = 3;
 }

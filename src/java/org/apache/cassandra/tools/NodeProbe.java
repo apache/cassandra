@@ -1579,44 +1579,9 @@ public class NodeProbe implements AutoCloseable
         return spProxy.getReadRepairRepairedBackground();
     }
 
-    public boolean getCompareGossipAndStorageServiceCache()
+    public boolean compareGossipAndStorageServiceCache()
     {
-        return gossProxy.getCompareGossipAndStorageServiceCache();
-    }
-
-    public void setCompareGossipAndStorageServiceCache(boolean enabled)
-    {
-        gossProxy.setCompareGossipAndStorageServiceCache(enabled);
-    }
-
-    public int getGossipAndStorageServiceCacheComparisonIntervalInSec()
-    {
-        return gossProxy.getGossipAndStorageServiceCacheComparisonInterval();
-    }
-
-    public void setGossipAndStorageServiceCacheComparisonInterval(long interval, TimeUnit timeUnit)
-    {
-        gossProxy.setGossipAndStorageServiceCacheComparisonInterval(interval, timeUnit);
-    }
-
-    public boolean getSyncGossipAndStorageServiceCacheIfMismatched()
-    {
-        return gossProxy.getSyncGossipAndStorageServiceCacheIfMismatched();
-    }
-
-    public void setSyncGossipAndStorageServiceCacheIfMismatched(boolean enabled)
-    {
-        gossProxy.setSyncGossipAndStorageServiceCacheIfMismatched(enabled);
-    }
-
-    public int getGossipAndStorageServiceCacheMismatchConvictionThreshold()
-    {
-        return gossProxy.getGossipAndStorageServiceCacheMismatchConvictionThreshold();
-    }
-
-    public void setGossipAndStorageServiceCacheMismatchConvictionThreshold(int convictionThreshold)
-    {
-        gossProxy.setGossipAndStorageServiceCacheMismatchConvictionThreshold(convictionThreshold);
+        return gossProxy.anyMismatchBetweenGossipAndStorageCache();
     }
 
     // JMX getters for the o.a.c.metrics API below.

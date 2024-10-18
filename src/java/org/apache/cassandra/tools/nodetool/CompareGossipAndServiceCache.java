@@ -21,17 +21,19 @@ import io.airlift.airline.Command;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
-@Command(name = "getgossipmismatchfixerconfig", description = "gets gossip mismatch fixer configurations")
-public class GetGossipServiceCacheMismatchConfig extends NodeToolCmd
+@Command(name = "comparegossipandservicecache", description = "compares the Gossip and Storage service cache; returns true if they are in sync, false otherwise")
+public class CompareGossipAndServiceCache extends NodeToolCmd
 {
     @Override
     public void execute(NodeProbe probe)
     {
+        /** Cassandra maintains the Gossip info (Token, Status, etc.) in two caches 1) Gossip cache 2) Storage Service cache
+         * The source of truth is the Gossip cache, which then updates the Storage service cache - but there exists no guarantee.
+         * As a result, a wide variety of problems could occur, and one of the problems is a node could see different token ownership
+         * than its peers.
+         */
         StringBuilder sb = new StringBuilder();
-        sb.append("compare_gossip_and_storage_service_cache: " + probe.getCompareGossipAndStorageServiceCache());
-        sb.append("\ngossip_and_storage_service_cache_comparison_interval (in sec): " + probe.getGossipAndStorageServiceCacheComparisonIntervalInSec());
-        sb.append("\nsync_gossip_and_storage_service_cache_if_mismatch: " + probe.getSyncGossipAndStorageServiceCacheIfMismatched());
-        sb.append("\ngossip_and_storage_service_cache_mismatch_conviction_threshold: " + probe.getGossipAndStorageServiceCacheMismatchConvictionThreshold());
+        sb.append("Mismatch: " + probe.compareGossipAndStorageServiceCache());
         System.out.println(sb);
     }
 }
