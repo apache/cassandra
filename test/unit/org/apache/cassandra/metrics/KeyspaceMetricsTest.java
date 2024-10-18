@@ -24,6 +24,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -46,6 +47,7 @@ public class KeyspaceMetricsTest
     private static Session session;
     private static Cluster cluster;
     private static EmbeddedCassandraService cassandra;
+    private String keyspace;
 
     @BeforeClass
     public static void setup() throws ConfigurationException, IOException
@@ -56,10 +58,17 @@ public class KeyspaceMetricsTest
         session = cluster.connect();
     }
 
+    @Before
+    public void cleanupKeyspace()
+    {
+        if (keyspace != null)
+            session.execute(String.format("DROP KEYSPACE %s;", keyspace));
+    }
+
     @Test
     public void testMetricsCleanupOnDrop()
     {
-        String keyspace = "keyspacemetricstest_metrics_cleanup";
+        keyspace = "keyspacemetricstest_metrics_cleanup";
         CassandraMetricsRegistry registry = CassandraMetricsRegistry.Metrics;
         Supplier<Stream<String>> metrics = () -> registry.getNames().stream().filter(m -> m.contains(keyspace));
 
@@ -76,9 +85,9 @@ public class KeyspaceMetricsTest
     }
 
     @Test
-    public void testKeyspaceVirtualTable()
+    public void testKeyspaceVirtualTableScope()
     {
-        String keyspace = "uniquemetricskeyspace1";
+        keyspace = "uniquemetricskeyspace1";
         session.execute(String.format(
             "CREATE KEYSPACE %s WITH replication = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 };",
             keyspace));
@@ -103,6 +112,28 @@ public class KeyspaceMetricsTest
 
         session.execute(String.format("DROP KEYSPACE %s;", keyspace));
         assertFalse(CassandraMetricsRegistry.Metrics.getNames().stream().anyMatch(m -> m.endsWith(keyspace)));
+    }
+
+    @Test
+    public void testKeyspaceVirtualTableSingleMetric()
+    {
+        keyspace = "keyspacetofetchsinglemetric";
+        String fullName = "org.apache.cassandra.metrics.keyspace.AdditionalWrites.keyspacetofetchsinglemetric";
+        session.execute(String.format(
+            "CREATE KEYSPACE %s WITH replication = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 };", keyspace));
+        assertTrue(CassandraMetricsRegistry.Metrics.getNames().stream().anyMatch(m -> m.endsWith(keyspace)));
+        ResultSet resultSet = session.execute("SELECT * FROM system_metrics.keyspace_group WHERE name = '" + fullName + "';");
+
+        int count = 0;
+        for (Row row : resultSet)
+        {
+            assertEquals(fullName, row.getString("name"));
+            assertEquals(CassandraMetricsRegistry.getValueAsString(CassandraMetricsRegistry.Metrics.getMetrics().get(fullName)),
+                         row.getString("value"));
+            count++;
+        }
+
+        assertTrue("Keyspace " + keyspace + " metrics was not found", count > 0);
     }
 
     @AfterClass

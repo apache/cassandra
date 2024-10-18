@@ -393,7 +393,7 @@ public class KeyspaceMetrics
 
     static class KeyspaceMetricNameFactory implements MetricNameFactory
     {
-        public static final String GROUP_NAME = TableMetrics.class.getPackage().getName();
+        public static final String GROUP_NAME = DefaultNameFactory.GROUP_NAME;
         private final String keyspaceName;
 
         KeyspaceMetricNameFactory(Keyspace ks)
