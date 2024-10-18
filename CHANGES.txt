@@ -1,4 +1,5 @@
 4.0.16
+ * Fix gossip issue with gossip-only and bootstrapping nodes missing DC/Rack/Host ID endpoint state (CASSANDRA-19983)
 
 
 4.0.15
