@@ -460,6 +460,15 @@ public class AbstractTypeTest
         });
     }
 
+    @Test
+    @SuppressWarnings("rawtypes")
+    public void nestedDuration()
+    {
+        qt().withShrinkCycles(0).forAll(AbstractTypeGenerators.builder().withoutTypeKinds(PRIMITIVE, COUNTER).withPrimitives(DurationType.instance).build()).checkAssert(type -> {
+            assertThat(type.referencesDuration());
+        });
+    }
+
     /**
      * @see <pre>CASSANDRA-18526: TupleType getString and fromString are not safe with string types</pre>
      */
