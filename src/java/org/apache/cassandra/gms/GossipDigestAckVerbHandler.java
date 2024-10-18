@@ -87,7 +87,7 @@ public class GossipDigestAckVerbHandler extends GossipVerbHandler<GossipDigestAc
         for (GossipDigest gDigest : gDigestList)
         {
             InetAddressAndPort addr = gDigest.getEndpoint();
-            // reply everything regardless of heartbeat if remote is asking about me, adding the flag check so we have the ability to rollback to OSS behavior
+            // reply everything regardless of heartbeat if remote is asking about me
             int maxVersion = FBUtilities.getBroadcastAddressAndPort().equals(addr) ? HeartBeatState.EMPTY_VERSION : gDigest.getMaxVersion();
             EndpointState localEpStatePtr = Gossiper.instance.getStateForVersionBiggerThan(addr, maxVersion);
             if (localEpStatePtr != null)
