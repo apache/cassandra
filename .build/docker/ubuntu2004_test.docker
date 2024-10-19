@@ -139,7 +139,7 @@ RUN rm -fr ${BUILD_HOME}/.ccm/repository/_git_cache_apache
 RUN /bin/bash -c 'source ${BUILD_HOME}/env3.8/bin/activate && \
     ccm create --quiet -n 1 -v git:cassandra-5.0 test && ccm remove test && \
     ccm create --quiet -n 1 -v git:trunk test && ccm remove test && \
-    for i in {1..1}  ; do echo $i ; ccm create --quiet -n 1 -v binary:5.0.$i test && ccm remove test ; done'
+    for i in {1..2}  ; do echo $i ; ccm create --quiet -n 1 -v binary:5.0.$i test && ccm remove test ; done'
 
 # the .git subdirectories to pip installed cassandra-driver breaks virtualenv-clone, so just remove them
 #  and other directories we don't need in image
