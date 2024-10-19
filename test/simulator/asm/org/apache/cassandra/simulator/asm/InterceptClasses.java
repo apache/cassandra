@@ -246,6 +246,7 @@ public class InterceptClasses implements BiFunction<String, byte[], byte[]>
         }
 
         ClassTransformer transformer = new ClassTransformer(api, internalName, flags, monitorDelayChance, new NemesisGenerator(api, internalName, nemesisChance), nemesisFieldSelector, hashcode, dependentTypes);
+        transformer.setUpdateVisibility(true);
         transformer.readAndTransform(input);
 
         if (!transformer.isTransformed())
