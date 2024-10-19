@@ -581,6 +581,42 @@ include::cassandra:example$CQL/grant_describe.cql[]
 This grants any user with the `role_admin` role permission to view any
 and all roles in the system with a `LIST ROLES` statement.
 
+==== GRANT PERMISSION FOR ALL TABLES IN A KEYSPACE
+
+Granting permission to all tables and user types in a keyspace uses 
+`GRANT <permission-name>` statement:
+
+[source,bnf]
+----
+include::example$BNF/grant_permission_all_tables_statement.bnf[]
+----
+
+For example:
+
+[source,cql]
+----
+include::example$CQL/grant_drop_all_tables.cql[]
+----
+
+This command grants any user with the `user_name` role permission to execute
+`DROP` statements on all the tables across the keyspace `keyspace_name`
+
+[source,cql]
+----
+include::example$CQL/grant_alter_all_tables.cql[]
+----
+
+This command grants any user with the `user_name` role permission to execute
+`ALTER` statements on all the tables across the keyspace `keyspace_name`
+
+[source,cql]
+----
+include::example$CQL/grant_modify_all_tables.cql[]
+----
+
+This command grants any user with the `user_name` role permission to execute
+`MODIFY` statements on all the tables across the keyspace `keyspace_name`
+
 ==== GRANT ALL
 
 When the `GRANT ALL` form is used, the appropriate set of permissions is
