@@ -71,7 +71,7 @@ public class DiagEventsBlockingReadRepairTest extends AbstractReadRepairTest
     @After
     public void unsubscribeAll()
     {
-        DiagnosticEventService.instance().cleanup();
+        DiagnosticEventService.instance().unsubscribeAll();
     }
 
     @Test

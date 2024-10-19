@@ -19,37 +19,33 @@
 package org.apache.cassandra.tools.nodetool;
 
 import io.airlift.airline.Command;
-import org.apache.cassandra.audit.AuditLogOptions;
+import org.apache.cassandra.diag.DiagnosticLogOptions;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
 
-@Command(name = "getauditlog", description = "Print configuration of audit log if enabled, otherwise the configuration reflected in cassandra.yaml")
-public class GetAuditLog extends NodeTool.NodeToolCmd
+@Command(name = "getdiagnosticlog", description = "Print configuration of diagnostic log if enabled, otherwise the configuration reflected in cassandra.yaml")
+public class GetDiagnosticLog extends NodeTool.NodeToolCmd
 {
     @Override
     protected void execute(NodeProbe probe)
     {
         final TableBuilder tableBuilder = new TableBuilder();
 
-        tableBuilder.add("enabled", Boolean.toString(probe.getStorageService().isAuditLogEnabled()));
+        tableBuilder.add("enabled", Boolean.toString(probe.isDiagnosticLogEnabled()));
+        tableBuilder.add("memory_enabled", Boolean.toString(probe.isInMemoryDiagnosticLogEnabled()));
+        tableBuilder.add("persistent_enabled", Boolean.toString(probe.isPersistentDiagnosticLogEnabled()));
+        tableBuilder.add("event_class_capacity", Integer.toString(probe.getDiagnosticEventServiceProxy().getDiagnosticEventClassCapacity()));
 
-        final AuditLogOptions options = probe.getAuditLogOptions();
-
+        final DiagnosticLogOptions options = probe.getDiagnosticLogOptions();
         tableBuilder.add("logger", options.logger.class_name);
-        tableBuilder.add("audit_logs_dir", options.audit_logs_dir);
+        tableBuilder.add("diagnostic_logs_dir", options.diagnostic_log_dir);
         tableBuilder.add("archive_command", options.archive_command);
         tableBuilder.add("roll_cycle", options.roll_cycle);
         tableBuilder.add("block", Boolean.toString(options.block));
         tableBuilder.add("max_log_size", Long.toString(options.max_log_size));
         tableBuilder.add("max_queue_weight", Integer.toString(options.max_queue_weight));
         tableBuilder.add("max_archive_retries", Long.toString(options.max_archive_retries));
-        tableBuilder.add("included_keyspaces", options.included_keyspaces);
-        tableBuilder.add("excluded_keyspaces", options.excluded_keyspaces);
-        tableBuilder.add("included_categories", options.included_categories);
-        tableBuilder.add("excluded_categories", options.excluded_categories);
-        tableBuilder.add("included_users", options.included_users);
-        tableBuilder.add("excluded_users", options.excluded_users);
         tableBuilder.add("key_value_separator", options.key_value_separator);
         tableBuilder.add("field_separator", options.field_separator);
 

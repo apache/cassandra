@@ -59,7 +59,7 @@ public class DiagnosticEventPersistenceBench
         });
         DatabaseDescriptor.daemonInitialization();
 
-        service.cleanup();
+        service.unsubscribeAll();
 
         // make persistence subscribe to and store events
         persistence.enableEventPersistence(DummyEvent.class.getName());
