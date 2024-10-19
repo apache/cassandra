@@ -4552,4 +4552,18 @@ public class DatabaseDescriptor
     {
         conf.reject_out_of_token_range_requests = enabled;
     }
+
+    public static int getConcurrentHints()
+    {
+        return conf.concurrent_hints;
+    }
+
+    public static void setConcurrentHints(int concurrent_hints)
+    {
+        if (concurrent_hints < 0)
+        {
+            throw new IllegalArgumentException("Concurrent hints must be non-negative");
+        }
+        conf.concurrent_hints = concurrent_hints;
+    }
 }
