@@ -16,30 +16,24 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.tools;
+package org.apache.cassandra.tools.nodetool;
 
-import java.io.PrintStream;
+import org.junit.Test;
 
-public class Output
+import org.apache.cassandra.service.StorageServiceMBean;
+import org.mockito.Mockito;
+
+public class AbortBootstrapMockTest extends NodetoolMockTester
 {
-    public final static Output CONSOLE = new Output(System.out, System.err);
-
-    public final PrintStream out;
-    public final PrintStream err;
-
-    public Output(PrintStream out, PrintStream err)
+    @Test
+    public void testAbortBootstrap()
     {
-        this.out = out;
-        this.err = err;
-    }
-
-    public void info(String msg, Object... args)
-    {
-        out.printf(msg, args);
-    }
-
-    public void error(String msg, Object... args)
-    {
-        err.printf(msg, args);
+        String nodeId = "1";
+        String ip = "10.20.113.11";
+        StorageServiceMBean mock = getMock(STORAGE_SERVICE_MBEAN);
+        invokeNodetool("abortbootstrap", "--node", nodeId).assertOnCleanExit();
+        Mockito.verify(mock).abortBootstrap(nodeId, "");
+        invokeNodetool("abortbootstrap", "--ip", ip).assertOnCleanExit();
+        Mockito.verify(mock).abortBootstrap("", ip);
     }
 }

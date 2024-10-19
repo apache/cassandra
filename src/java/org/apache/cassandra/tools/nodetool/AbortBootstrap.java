@@ -17,24 +17,21 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
 
 import static org.apache.commons.lang3.StringUtils.EMPTY;
 import static org.apache.commons.lang3.StringUtils.isEmpty;
 
 @Command(name = "abortbootstrap", description = "Abort a failed bootstrap")
-public class AbortBootstrap extends NodeToolCmd
+public class AbortBootstrap extends AbstractCommand
 {
-    @Option(title = "node id", name = "--node", description = "Node ID of the node that failed bootstrap", required = false)
-    private String nodeId = EMPTY;
+    @Option(paramLabel = "node_id", names = "--node", description = "Node ID of the node that failed bootstrap")
+    public String nodeId = EMPTY;
 
-    @Option(title = "ip", name = "--ip", description = "IP of the node that failed bootstrap", required = false)
-    private String endpoint = EMPTY;
-
+    @Option(paramLabel = "ip", names = "--ip", description = "IP of the node that failed bootstrap")
+    public String endpoint = EMPTY;
 
     @Override
     public void execute(NodeProbe probe)
