@@ -199,7 +199,7 @@ public class IndexDescriptor
                          file,
                          FBUtilities.prettyPrintMemory(file.length()));
 
-        return IndexFileUtils.instance.openBlockingInput(file);
+        return IndexFileUtils.instance().openBlockingInput(file);
     }
 
     public IndexInput openPerIndexInput(IndexComponent indexComponent, IndexIdentifier indexIdentifier)
@@ -210,7 +210,7 @@ public class IndexDescriptor
                          file,
                          FBUtilities.prettyPrintMemory(file.length()));
 
-        return IndexFileUtils.instance.openBlockingInput(file);
+        return IndexFileUtils.instance().openBlockingInput(file);
     }
 
     public IndexOutputWriter openPerSSTableOutput(IndexComponent component) throws IOException
@@ -227,7 +227,7 @@ public class IndexDescriptor
                          component,
                          file);
 
-        IndexOutputWriter writer = IndexFileUtils.instance.openOutput(file);
+        IndexOutputWriter writer = IndexFileUtils.instance().openOutput(file);
 
         if (append)
         {
@@ -249,7 +249,7 @@ public class IndexDescriptor
         if (logger.isTraceEnabled())
             logger.trace(logMessage("Creating sstable attached index output for component {} on file {}..."), component, file);
 
-        IndexOutputWriter writer = IndexFileUtils.instance.openOutput(file);
+        IndexOutputWriter writer = IndexFileUtils.instance().openOutput(file);
 
         if (append)
         {
