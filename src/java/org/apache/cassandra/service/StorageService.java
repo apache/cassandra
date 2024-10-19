@@ -22,8 +22,6 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
-import java.time.Instant;
-import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -59,7 +57,6 @@ import javax.management.NotificationListener;
 import javax.management.openmbean.CompositeData;
 import javax.management.openmbean.OpenDataException;
 import javax.management.openmbean.TabularData;
-import javax.management.openmbean.TabularDataSupport;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
@@ -72,7 +69,6 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Ordering;
 import com.google.common.collect.Sets;
-import com.google.common.util.concurrent.RateLimiter;
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -96,21 +92,18 @@ import org.apache.cassandra.config.Config.PaxosStatePurging;
 import org.apache.cassandra.config.Converters;
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SizeEstimatesRecorder;
-import org.apache.cassandra.db.SnapshotDetailsTabularData;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
-import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.dht.BootStrapper;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.OwnedRanges;
@@ -179,7 +172,6 @@ import org.apache.cassandra.service.paxos.PaxosState;
 import org.apache.cassandra.service.paxos.cleanup.PaxosCleanupLocalCoordinator;
 import org.apache.cassandra.service.paxos.cleanup.PaxosRepairState;
 import org.apache.cassandra.service.snapshot.SnapshotManager;
-import org.apache.cassandra.service.snapshot.TableSnapshot;
 import org.apache.cassandra.streaming.StreamManager;
 import org.apache.cassandra.streaming.StreamResultFuture;
 import org.apache.cassandra.streaming.StreamState;
@@ -208,7 +200,6 @@ import org.apache.cassandra.tcm.transformations.Startup;
 import org.apache.cassandra.tcm.transformations.Unregister;
 import org.apache.cassandra.transport.ClientResourceLimits;
 import org.apache.cassandra.transport.ProtocolVersion;
-import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
@@ -261,7 +252,6 @@ import static org.apache.cassandra.tcm.membership.NodeState.MOVING;
 import static org.apache.cassandra.tcm.membership.NodeState.REGISTERED;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
-import static org.apache.cassandra.utils.FBUtilities.now;
 
 /**
  * This abstraction contains the token/identifier of this node
@@ -309,8 +299,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     private volatile boolean isShutdown = false;
     private final List<Runnable> preShutdownHooks = new ArrayList<>();
     private final List<Runnable> postShutdownHooks = new ArrayList<>();
-
-    public final SnapshotManager snapshotManager = new SnapshotManager();
 
     public static final StorageService instance = new StorageService();
 
@@ -874,7 +862,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         DiskUsageBroadcaster.instance.startBroadcasting();
         HintsService.instance.startDispatch();
         BatchlogManager.instance.start();
-        startSnapshotManager();
         servicesInitialized = true;
     }
 
@@ -913,12 +900,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public static boolean isSeed()
     {
         return DatabaseDescriptor.getSeeds().contains(getBroadcastAddressAndPort());
-    }
-
-    @VisibleForTesting
-    public void startSnapshotManager()
-    {
-        snapshotManager.start();
     }
 
     public static boolean isReplacingSameAddress()
@@ -2732,55 +2713,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return status.statusCode;
     }
 
-    /**
-     * Takes the snapshot of a multiple column family from different keyspaces. A snapshot name must be specified.
-     *
-     * @param tag
-     *            the tag given to the snapshot; may not be null or empty
-     * @param options
-     *            Map of options (skipFlush is the only supported option for now)
-     * @param entities
-     *            list of keyspaces / tables in the form of empty | ks1 ks2 ... | ks1.cf1,ks2.cf2,...
-     */
-    @Override
-    public void takeSnapshot(String tag, Map<String, String> options, String... entities) throws IOException
-    {
-        DurationSpec.IntSecondsBound ttl = options.containsKey("ttl") ? new DurationSpec.IntSecondsBound(options.get("ttl")) : null;
-        if (ttl != null)
-        {
-            int minAllowedTtlSecs = CassandraRelevantProperties.SNAPSHOT_MIN_ALLOWED_TTL_SECONDS.getInt();
-            if (ttl.toSeconds() < minAllowedTtlSecs)
-                throw new IllegalArgumentException(String.format("ttl for snapshot must be at least %d seconds", minAllowedTtlSecs));
-        }
-
-        boolean skipFlush = Boolean.parseBoolean(options.getOrDefault("skipFlush", "false"));
-        if (entities != null && entities.length > 0 && entities[0].contains("."))
-        {
-            takeMultipleTableSnapshot(tag, skipFlush, ttl, entities);
-        }
-        else
-        {
-            takeSnapshot(tag, skipFlush, ttl, entities);
-        }
-    }
-
-    /**
-     * Takes the snapshot of a specific table. A snapshot name must be
-     * specified.
-     *
-     * @param keyspaceName
-     *            the keyspace which holds the specified table
-     * @param tableName
-     *            the table to snapshot
-     * @param tag
-     *            the tag given to the snapshot; may not be null or empty
-     */
-    public void takeTableSnapshot(String keyspaceName, String tableName, String tag)
-            throws IOException
-    {
-        takeMultipleTableSnapshot(tag, false, null, keyspaceName + "." + tableName);
-    }
-
     @Override
     public void forceKeyspaceCompactionForTokenRange(String keyspaceName, String startToken, String endToken, String... tableNames) throws IOException, ExecutionException, InterruptedException
     {
@@ -2830,296 +2762,126 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void forceCompactionKeysIgnoringGcGrace(String keyspaceName,
                                                    String tableName, String... partitionKeysIgnoreGcGrace) throws IOException, ExecutionException, InterruptedException
     {
-        ColumnFamilyStore cfStore = getValidKeyspace(keyspaceName).getColumnFamilyStore(tableName);
+        ColumnFamilyStore cfStore = Keyspace.getValidKeyspace(keyspaceName).getColumnFamilyStore(tableName);
         cfStore.forceCompactionKeysIgnoringGcGrace(partitionKeysIgnoreGcGrace);
     }
 
     /**
+     * Takes the snapshot of a multiple column family from different keyspaces. A snapshot name must be specified.
+     *
+     * @param tag      the tag given to the snapshot; may not be null or empty
+     * @param options  Map of options (skipFlush is the only supported option for now)
+     * @param entities list of keyspaces / tables in the form of empty | ks1 ks2 ... | ks1.cf1,ks2.cf2,...
+     *
+     * @deprecated See CASSANDRA-18111
+     */
+    @Override
+    @Deprecated(since = "5.1")
+    public void takeSnapshot(String tag, Map<String, String> options, String... entities) throws IOException
+    {
+        SnapshotManager.instance.takeSnapshot(tag, options, entities);
+    }
+
+    /**
+     * Takes the snapshot of a specific table. A snapshot name must be
+     * specified.
+     *
+     * @param keyspaceName the keyspace which holds the specified table
+     * @param tableName    the table to snapshot
+     * @param tag          the tag given to the snapshot; may not be null or empty
+     *
+     * @deprecated use {@link #takeSnapshot(String tag, Map options, String... entities)} instead. See CASSANDRA-10907
+     */
+    @Override
+    @Deprecated(since = "3.4")
+    public void takeTableSnapshot(String keyspaceName, String tableName, String tag) throws IOException
+    {
+        SnapshotManager.instance.takeSnapshot(tag, Collections.emptyMap(), keyspaceName + '.' + tableName);
+    }
+
+    /**
      * Takes the snapshot for the given keyspaces. A snapshot name must be specified.
      *
      * @param tag the tag given to the snapshot; may not be null or empty
      * @param keyspaceNames the names of the keyspaces to snapshot; empty means "all."
+     *
+     * @deprecated use {@link #takeSnapshot(String tag, Map options, String... entities)} instead. See CASSANDRA-10907
      */
+    @Override
+    @Deprecated(since = "3.4")
     public void takeSnapshot(String tag, String... keyspaceNames) throws IOException
     {
-        takeSnapshot(tag, false, null, keyspaceNames);
+        SnapshotManager.instance.takeSnapshot(tag, Collections.emptyMap(), keyspaceNames);
     }
 
     /**
      * Takes the snapshot of a multiple column family from different keyspaces. A snapshot name must be specified.
-     *
-     * @param tag
-     *            the tag given to the snapshot; may not be null or empty
-     * @param tableList
-     *            list of tables from different keyspace in the form of ks1.cf1 ks2.cf2
-     */
-    public void takeMultipleTableSnapshot(String tag, String... tableList)
-            throws IOException
-    {
-        takeMultipleTableSnapshot(tag, false, null, tableList);
-    }
-
-    /**
-     * Takes the snapshot for the given keyspaces. A snapshot name must be specified.
      *
      * @param tag the tag given to the snapshot; may not be null or empty
-     * @param skipFlush Skip blocking flush of memtable
-     * @param keyspaceNames the names of the keyspaces to snapshot; empty means "all."
-     */
-    private void takeSnapshot(String tag, boolean skipFlush, DurationSpec.IntSecondsBound ttl, String... keyspaceNames) throws IOException
-    {
-        if (operationMode() == Mode.JOINING)
-            throw new IOException("Cannot snapshot until bootstrap completes");
-        if (tag == null || tag.equals(""))
-            throw new IOException("You must supply a snapshot name.");
-
-        Iterable<Keyspace> keyspaces;
-        if (keyspaceNames.length == 0)
-        {
-            keyspaces = Keyspace.all();
-        }
-        else
-        {
-            ArrayList<Keyspace> t = new ArrayList<>(keyspaceNames.length);
-            for (String keyspaceName : keyspaceNames)
-                t.add(getValidKeyspace(keyspaceName));
-            keyspaces = t;
-        }
-
-        // Do a check to see if this snapshot exists before we actually snapshot
-        for (Keyspace keyspace : keyspaces)
-            if (keyspace.snapshotExists(tag))
-                throw new IOException("Snapshot " + tag + " already exists.");
-
-
-        RateLimiter snapshotRateLimiter = DatabaseDescriptor.getSnapshotRateLimiter();
-        Instant creationTime = now();
-
-        for (Keyspace keyspace : keyspaces)
-        {
-            keyspace.snapshot(tag, null, skipFlush, ttl, snapshotRateLimiter, creationTime);
-        }
-    }
-
-    /**
-     * Takes the snapshot of a multiple column family from different keyspaces. A snapshot name must be specified.
+     * @param tableList list of tables from different keyspace in the form of ks1.cf1 ks2.cf2
      *
-     *
-     * @param tag
-     *            the tag given to the snapshot; may not be null or empty
-     * @param skipFlush
-     *            Skip blocking flush of memtable
-     * @param tableList
-     *            list of tables from different keyspace in the form of ks1.cf1 ks2.cf2
+     * @deprecated See CASSANDRA-10907
      */
-    private void takeMultipleTableSnapshot(String tag, boolean skipFlush, DurationSpec.IntSecondsBound ttl, String... tableList)
-            throws IOException
+    @Override
+    @Deprecated(since = "3.4")
+    public void takeMultipleTableSnapshot(String tag, String... tableList)  throws IOException
     {
-        Map<Keyspace, List<String>> keyspaceColumnfamily = new HashMap<Keyspace, List<String>>();
-        for (String table : tableList)
-        {
-            String splittedString[] = StringUtils.split(table, '.');
-            if (splittedString.length == 2)
-            {
-                String keyspaceName = splittedString[0];
-                String tableName = splittedString[1];
-
-                if (keyspaceName == null)
-                    throw new IOException("You must supply a keyspace name");
-                if (operationMode() == Mode.JOINING)
-                    throw new IOException("Cannot snapshot until bootstrap completes");
-
-                if (tableName == null)
-                    throw new IOException("You must supply a table name");
-                if (tag == null || tag.equals(""))
-                    throw new IOException("You must supply a snapshot name.");
-
-                Keyspace keyspace = getValidKeyspace(keyspaceName);
-                ColumnFamilyStore columnFamilyStore = keyspace.getColumnFamilyStore(tableName);
-                // As there can be multiple column family from same keyspace check if snapshot exist for that specific
-                // columnfamily and not for whole keyspace
-
-                if (columnFamilyStore.snapshotExists(tag))
-                    throw new IOException("Snapshot " + tag + " already exists.");
-                if (!keyspaceColumnfamily.containsKey(keyspace))
-                {
-                    keyspaceColumnfamily.put(keyspace, new ArrayList<String>());
-                }
-
-                // Add Keyspace columnfamily to map in order to support atomicity for snapshot process.
-                // So no snapshot should happen if any one of the above conditions fail for any keyspace or columnfamily
-                keyspaceColumnfamily.get(keyspace).add(tableName);
-
-            }
-            else
-            {
-                throw new IllegalArgumentException(
-                        "Cannot take a snapshot on secondary index or invalid column family name. You must supply a column family name in the form of keyspace.columnfamily");
-            }
-        }
-
-        RateLimiter snapshotRateLimiter = DatabaseDescriptor.getSnapshotRateLimiter();
-        Instant creationTime = now();
-
-        for (Entry<Keyspace, List<String>> entry : keyspaceColumnfamily.entrySet())
-        {
-            for (String table : entry.getValue())
-                entry.getKey().snapshot(tag, table, skipFlush, ttl, snapshotRateLimiter, creationTime);
-        }
-    }
-
-    private void verifyKeyspaceIsValid(String keyspaceName)
-    {
-        if (null != VirtualKeyspaceRegistry.instance.getKeyspaceNullable(keyspaceName))
-            throw new IllegalArgumentException("Cannot perform any operations against virtual keyspace " + keyspaceName);
-
-        if (!Schema.instance.getKeyspaces().contains(keyspaceName))
-            throw new IllegalArgumentException("Keyspace " + keyspaceName + " does not exist");
-    }
-
-    private Keyspace getValidKeyspace(String keyspaceName)
-    {
-        verifyKeyspaceIsValid(keyspaceName);
-        return Keyspace.open(keyspaceName);
+        SnapshotManager.instance.takeSnapshot(tag, Collections.emptyMap(), tableList);
     }
 
     /**
      * Remove the snapshot with the given name from the given keyspaces.
      * If no tag is specified we will remove all snapshots.
+     *
+     * @deprecated See CASSANDRA-16860
      */
-    public void clearSnapshot(String tag, String... keyspaceNames)
+    @Override
+    @Deprecated(since = "5.0")
+    public void clearSnapshot(String tag, String... keyspaceNames) throws IOException
     {
-        clearSnapshot(Collections.emptyMap(), tag, keyspaceNames);
+        SnapshotManager.instance.clearSnapshot(tag, Collections.emptyMap(), keyspaceNames);
     }
 
+    @Override
+    @Deprecated(since = "5.1")
     public void clearSnapshot(Map<String, Object> options, String tag, String... keyspaceNames)
     {
-        if (tag == null)
-            tag = "";
-
-        if (options == null)
-            options = Collections.emptyMap();
-
-        Set<String> keyspaces = new HashSet<>();
-        for (String dataDir : DatabaseDescriptor.getAllDataFileLocations())
-        {
-            for (String keyspaceDir : new File(dataDir).tryListNames())
-            {
-                // Only add a ks if it has been specified as a param, assuming params were actually provided.
-                if (keyspaceNames.length > 0 && !Arrays.asList(keyspaceNames).contains(keyspaceDir))
-                    continue;
-                keyspaces.add(keyspaceDir);
-            }
-        }
-
-        Object olderThan = options.get("older_than");
-        Object olderThanTimestamp = options.get("older_than_timestamp");
-
-        final long clearOlderThanTimestamp;
-        if (olderThan != null)
-        {
-            assert olderThan instanceof String : "it is expected that older_than is an instance of java.lang.String";
-            clearOlderThanTimestamp = Clock.Global.currentTimeMillis() - new DurationSpec.LongSecondsBound((String) olderThan).toMilliseconds();
-        }
-        else if (olderThanTimestamp != null)
-        {
-            assert olderThanTimestamp instanceof String : "it is expected that older_than_timestamp is an instance of java.lang.String";
-            try
-            {
-                clearOlderThanTimestamp = Instant.parse((String) olderThanTimestamp).toEpochMilli();
-            }
-            catch (DateTimeParseException ex)
-            {
-                throw new RuntimeException("Parameter older_than_timestamp has to be a valid instant in ISO format.");
-            }
-        }
-        else
-            clearOlderThanTimestamp = 0L;
-
-        for (String keyspace : keyspaces)
-            clearKeyspaceSnapshot(keyspace, tag, clearOlderThanTimestamp);
-
-        if (logger.isDebugEnabled())
-            logger.debug("Cleared out snapshot directories");
+        SnapshotManager.instance.clearSnapshot(tag, options, keyspaceNames);
     }
 
-    /**
-     * Clear snapshots for a given keyspace.
-     * @param keyspace keyspace to remove snapshots for
-     * @param tag the user supplied snapshot name. If empty or null, all the snapshots will be cleaned
-     * @param olderThanTimestamp if a snapshot was created before this timestamp, it will be cleared,
-     *                           if its value is 0, this parameter is effectively ignored.
-     */
-    private void clearKeyspaceSnapshot(String keyspace, String tag, long olderThanTimestamp)
-    {
-        Set<TableSnapshot> snapshotsToClear = snapshotManager.loadSnapshots(keyspace)
-                                                             .stream()
-                                                             .filter(TableSnapshot.shouldClearSnapshot(tag, olderThanTimestamp))
-                                                             .collect(Collectors.toSet());
-        for (TableSnapshot snapshot : snapshotsToClear)
-            snapshotManager.clearSnapshot(snapshot);
-    }
-
+    @Override
+    @Deprecated(since = "5.1")
     public Map<String, TabularData> getSnapshotDetails(Map<String, String> options)
     {
-        boolean skipExpiring = options != null && Boolean.parseBoolean(options.getOrDefault("no_ttl", "false"));
-        boolean includeEphemeral = options != null && Boolean.parseBoolean(options.getOrDefault("include_ephemeral", "false"));
-
-        Map<String, TabularData> snapshotMap = new HashMap<>();
-
-        for (TableSnapshot snapshot : snapshotManager.loadSnapshots())
-        {
-            if (skipExpiring && snapshot.isExpiring())
-                continue;
-            if (!includeEphemeral && snapshot.isEphemeral())
-                continue;
-
-            TabularDataSupport data = (TabularDataSupport) snapshotMap.get(snapshot.getTag());
-            if (data == null)
-            {
-                data = new TabularDataSupport(SnapshotDetailsTabularData.TABULAR_TYPE);
-                snapshotMap.put(snapshot.getTag(), data);
-            }
-
-            SnapshotDetailsTabularData.from(snapshot, data);
-        }
-
-        return snapshotMap;
+        return SnapshotManager.instance.listSnapshots(options);
     }
 
-    /** @deprecated See CASSANDRA-16789 */
+    @Override
     @Deprecated(since = "4.1")
     public Map<String, TabularData> getSnapshotDetails()
     {
-        return getSnapshotDetails(ImmutableMap.of());
+        return SnapshotManager.instance.listSnapshots(ImmutableMap.of());
     }
 
+    @Override
+    @Deprecated(since = "5.1")
     public long trueSnapshotsSize()
     {
-        long total = 0;
-        for (Keyspace keyspace : Keyspace.all())
-        {
-            if (isLocalSystemKeyspace(keyspace.getName()))
-                continue;
-
-            for (ColumnFamilyStore cfStore : keyspace.getColumnFamilyStores())
-            {
-                total += cfStore.trueSnapshotsSize();
-            }
-        }
-
-        return total;
+        return SnapshotManager.instance.getTrueSnapshotSize();
     }
 
+    @Override
+    @Deprecated(since = "5.1")
     public void setSnapshotLinksPerSecond(long throttle)
     {
-        logger.info("Setting snapshot throttle to {}", throttle);
-        DatabaseDescriptor.setSnapshotLinksPerSecond(throttle);
+        SnapshotManager.instance.setSnapshotLinksPerSecond(throttle);
     }
 
+    @Override
+    @Deprecated(since = "5.1")
     public long getSnapshotLinksPerSecond()
     {
-        return DatabaseDescriptor.getSnapshotLinksPerSecond();
+        return SnapshotManager.instance.getSnapshotLinksPerSecond();
     }
 
     public void refreshSizeEstimates() throws ExecutionException
@@ -3142,7 +2904,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      */
     public Iterable<ColumnFamilyStore> getValidColumnFamilies(boolean allowIndexes, boolean autoAddIndexes, String keyspaceName, String... cfNames)
     {
-        Keyspace keyspace = getValidKeyspace(keyspaceName);
+        Keyspace keyspace = Keyspace.getValidKeyspace(keyspaceName);
         return keyspace.getValidColumnFamilies(allowIndexes, autoAddIndexes, cfNames);
     }
 
@@ -3916,7 +3678,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 logger.error("Batchlog manager timed out shutting down", t);
             }
 
-            snapshotManager.stop();
+            SnapshotManager.instance.close();
             HintsService.instance.pauseDispatch();
 
             if (daemon != null)
@@ -4139,7 +3901,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void truncate(String keyspace, String table) throws TimeoutException, IOException
     {
-        verifyKeyspaceIsValid(keyspace);
+        Keyspace.verifyKeyspaceIsValid(keyspace);
 
         try
         {
@@ -4509,7 +4271,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         if (!isInitialized())
             throw new RuntimeException("Not yet initialized, can't load new sstables");
-        verifyKeyspaceIsValid(ksName);
+        Keyspace.verifyKeyspaceIsValid(ksName);
         ColumnFamilyStore.loadNewSSTables(ksName, cfName);
     }
 
@@ -5210,10 +4972,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public int getCompactionTombstoneWarningThreshold()
     {
         return Math.toIntExact(Guardrails.instance.getPartitionTombstonesWarnThreshold());
-    }
-
-    public void addSnapshot(TableSnapshot snapshot) {
-        snapshotManager.addSnapshot(snapshot);
     }
 
     @Override

@@ -30,6 +30,7 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.service.snapshot.SnapshotManifest;
 import org.apache.cassandra.utils.Pair;
 
@@ -61,6 +62,8 @@ public class EphemeralSnapshotTest extends TestBaseImpl
 
             rewriteManifestToEphemeral(initialisationData.left, initialisationData.right);
 
+            c.get(1).runOnInstance((IIsolatedExecutor.SerializableRunnable) () -> SnapshotManager.instance.restart(true));
+
             verify(c.get(1));
         }
     }
@@ -88,6 +91,8 @@ public class EphemeralSnapshotTest extends TestBaseImpl
 
             Files.createFile(ephemeralMarkerFile);
 
+            c.get(1).runOnInstance((IIsolatedExecutor.SerializableRunnable) () -> SnapshotManager.instance.restart(true));
+
             verify(c.get(1));
         }
     }
@@ -103,6 +108,8 @@ public class EphemeralSnapshotTest extends TestBaseImpl
 
             Pair<String, String[]> initialisationData = initialise(c);
             rewriteManifestToEphemeral(initialisationData.left, initialisationData.right);
+
+            c.get(1).runOnInstance((IIsolatedExecutor.SerializableRunnable) () -> SnapshotManager.instance.restart(true));
 
             assertTrue(instance.nodetoolResult("listsnapshots", "-e").getStdout().contains(snapshotName));
             instance.nodetoolResult("clearsnapshot", "-t", snapshotName).asserts().success();
@@ -126,6 +133,8 @@ public class EphemeralSnapshotTest extends TestBaseImpl
             Pair<String, String[]> initialisationData = initialise(c);
 
             rewriteManifestToEphemeral(initialisationData.left, initialisationData.right);
+
+            c.get(1).runOnInstance((IIsolatedExecutor.SerializableRunnable) () -> SnapshotManager.instance.restart(true));
 
             instance.nodetoolResult("clearsnapshot", "--all").asserts().success();
             assertTrue(instance.nodetoolResult("listsnapshots", "-e").getStdout().contains(snapshotName));

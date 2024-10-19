@@ -36,6 +36,8 @@ import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.repair.TableRepairManager;
 import org.apache.cassandra.repair.ValidationPartitionIterator;
 import org.apache.cassandra.repair.NoSuchRepairSessionException;
+import org.apache.cassandra.service.snapshot.SnapshotManager;
+import org.apache.cassandra.service.snapshot.TakeSnapshotTask;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.service.ActiveRepairService;
 
@@ -79,9 +81,9 @@ public class CassandraTableRepairManager implements TableRepairManager
         try
         {
             ActiveRepairService.instance().snapshotExecutor.submit(() -> {
-                if (force || !cfs.snapshotExists(name))
+                if (force || SnapshotManager.instance.getSnapshot(cfs.getKeyspaceName(), cfs.getTableName(), name).isEmpty())
                 {
-                    cfs.snapshot(name, new Predicate<SSTableReader>()
+                    Predicate<SSTableReader> predicate = new Predicate<>()
                     {
                         public boolean apply(SSTableReader sstable)
                         {
@@ -89,7 +91,13 @@ public class CassandraTableRepairManager implements TableRepairManager
                                    !sstable.metadata().isIndex() && // exclude SSTables from 2i
                                    new Bounds<>(sstable.getFirst().getToken(), sstable.getLast().getToken()).intersects(ranges);
                         }
-                    }, true, false); //ephemeral snapshot, if repair fails, it will be cleaned next startup
+                    };
+
+                    // ephemeral snapshot, if repair fails, it will be cleaned next startup
+                    SnapshotManager.instance.takeSnapshot(new TakeSnapshotTask.Builder(name, cfs.getKeyspaceTableName())
+                                                          .predicate(predicate)
+                                                          .ephemeral()
+                                                          .build());
                 }
             }).get();
         }

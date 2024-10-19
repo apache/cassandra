@@ -18,7 +18,6 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
-import java.io.PrintStream;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.ByteBuffer;
@@ -32,7 +31,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -68,7 +66,6 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-import com.google.common.util.concurrent.RateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -79,7 +76,6 @@ import org.apache.cassandra.cache.RowCacheSentinel;
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.concurrent.FutureTask;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.commitlog.IntervalSet;
@@ -116,8 +112,6 @@ import org.apache.cassandra.exceptions.StartupException;
 import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.index.internal.CassandraIndex;
 import org.apache.cassandra.index.transactions.UpdateTransaction;
-import org.apache.cassandra.io.FSReadError;
-import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.IScrubber;
@@ -131,7 +125,6 @@ import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.metrics.Sampler;
 import org.apache.cassandra.metrics.Sampler.Sample;
 import org.apache.cassandra.metrics.Sampler.SamplerType;
@@ -157,9 +150,9 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.paxos.Ballot;
 import org.apache.cassandra.service.paxos.PaxosRepairHistory;
 import org.apache.cassandra.service.paxos.TablePaxosRepairHistory;
-import org.apache.cassandra.service.snapshot.SnapshotLoader;
-import org.apache.cassandra.service.snapshot.SnapshotManifest;
-import org.apache.cassandra.service.snapshot.TableSnapshot;
+import org.apache.cassandra.service.snapshot.SnapshotManager;
+import org.apache.cassandra.service.snapshot.TakeSnapshotTask;
+import org.apache.cassandra.service.snapshot.TakeSnapshotTask.Builder;
 import org.apache.cassandra.streaming.TableStreamManager;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
@@ -183,6 +176,7 @@ import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.config.DatabaseDescriptor.getFlushWriters;
 import static org.apache.cassandra.db.commitlog.CommitLogPosition.NONE;
+import static org.apache.cassandra.service.snapshot.TableSnapshot.getTimestampedSnapshotNameWithPrefix;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.FBUtilities.now;
@@ -785,13 +779,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
      * Removes unnecessary files from the cf directory at startup: these include temp files, orphans, zero-length files
      * and compacted sstables. Files that cannot be recognized will be ignored.
      */
-    public static void  scrubDataDirectories(TableMetadata metadata) throws StartupException
+    public static void scrubDataDirectories(TableMetadata metadata) throws StartupException
     {
         Directories directories = new Directories(metadata);
         Set<File> cleanedDirectories = new HashSet<>();
-
-        // clear ephemeral snapshots that were not properly cleared last session (CASSANDRA-7357)
-        clearEphemeralSnapshots(directories);
 
         directories.removeTemporaryDirectories();
 
@@ -975,6 +966,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     public String getKeyspaceName()
     {
         return keyspace.getName();
+    }
+
+    public String getKeyspaceTableName()
+    {
+        return getKeyspaceName() + '.' + getTableName();
     }
 
     public Descriptor newSSTableDescriptor(File directory)
@@ -1761,7 +1757,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         {
             Instant creationTime = now();
             String snapshotName = "pre-scrub-" + creationTime.toEpochMilli();
-            snapshotWithoutMemtable(snapshotName, creationTime);
+
+            SnapshotManager.instance.takeSnapshot(new Builder(snapshotName, getKeyspaceTableName())
+                                                  .skipFlush()
+                                                  .creationTime(creationTime)
+                                                  .build());
         }
 
         try
@@ -2125,262 +2125,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     public ClusteringComparator getComparator()
     {
         return metadata().comparator;
-    }
-
-    public TableSnapshot snapshotWithoutMemtable(String snapshotName)
-    {
-        return snapshotWithoutMemtable(snapshotName, now());
-    }
-
-    public TableSnapshot snapshotWithoutMemtable(String snapshotName, Instant creationTime)
-    {
-        return snapshotWithoutMemtable(snapshotName, null, false, null, null, creationTime);
-    }
-
-    /**
-     * @param ephemeral If this flag is set to true, the snapshot will be cleaned during next startup
-     */
-    public TableSnapshot snapshotWithoutMemtable(String snapshotName, Predicate<SSTableReader> predicate, boolean ephemeral, DurationSpec.IntSecondsBound ttl, RateLimiter rateLimiter, Instant creationTime)
-    {
-        if (ephemeral && ttl != null)
-        {
-            throw new IllegalStateException(String.format("can not take ephemeral snapshot (%s) while ttl is specified too", snapshotName));
-        }
-
-        if (rateLimiter == null)
-            rateLimiter = DatabaseDescriptor.getSnapshotRateLimiter();
-
-        Set<SSTableReader> snapshottedSSTables = new LinkedHashSet<>();
-        for (ColumnFamilyStore cfs : concatWithIndexes())
-        {
-            try (RefViewFragment currentView = cfs.selectAndReference(View.select(SSTableSet.CANONICAL, (x) -> predicate == null || predicate.apply(x))))
-            {
-                for (SSTableReader ssTable : currentView.sstables)
-                {
-                    File snapshotDirectory = Directories.getSnapshotDirectory(ssTable.descriptor, snapshotName);
-                    ssTable.createLinks(snapshotDirectory.path(), rateLimiter); // hard links
-                    if (logger.isTraceEnabled())
-                        logger.trace("Snapshot for {} keyspace data file {} created in {}", keyspace, ssTable.getFilename(), snapshotDirectory);
-                    snapshottedSSTables.add(ssTable);
-                }
-            }
-        }
-
-        return createSnapshot(snapshotName, ephemeral, ttl, snapshottedSSTables, creationTime);
-    }
-
-    protected TableSnapshot createSnapshot(String tag, boolean ephemeral, DurationSpec.IntSecondsBound ttl, Set<SSTableReader> sstables, Instant creationTime) {
-        Set<File> snapshotDirs = sstables.stream()
-                                         .map(s -> Directories.getSnapshotDirectory(s.descriptor, tag).toAbsolute())
-                                         .filter(dir -> !Directories.isSecondaryIndexFolder(dir)) // Remove secondary index subdirectory
-                                         .collect(Collectors.toCollection(HashSet::new));
-
-        // Create and write snapshot manifest
-        SnapshotManifest manifest = new SnapshotManifest(mapToDataFilenames(sstables), ttl, creationTime, ephemeral);
-        File manifestFile = getDirectories().getSnapshotManifestFile(tag);
-        writeSnapshotManifest(manifest, manifestFile);
-        snapshotDirs.add(manifestFile.parent().toAbsolute()); // manifest may create empty snapshot dir
-
-        // Write snapshot schema
-        if (!SchemaConstants.isLocalSystemKeyspace(metadata.keyspace) && !SchemaConstants.isReplicatedSystemKeyspace(metadata.keyspace))
-        {
-            File schemaFile = getDirectories().getSnapshotSchemaFile(tag);
-            writeSnapshotSchema(schemaFile);
-            snapshotDirs.add(schemaFile.parent().toAbsolute()); // schema may create empty snapshot dir
-        }
-
-        TableSnapshot snapshot = new TableSnapshot(metadata.keyspace, metadata.name, metadata.id.asUUID(),
-                                                   tag, manifest.createdAt, manifest.expiresAt, snapshotDirs,
-                                                   manifest.ephemeral);
-
-        StorageService.instance.addSnapshot(snapshot);
-        return snapshot;
-    }
-
-    private SnapshotManifest writeSnapshotManifest(SnapshotManifest manifest, File manifestFile)
-    {
-        try
-        {
-            manifestFile.parent().tryCreateDirectories();
-            manifest.serializeToJsonFile(manifestFile);
-            return manifest;
-        }
-        catch (IOException e)
-        {
-            throw new FSWriteError(e, manifestFile);
-        }
-    }
-
-    private List<String> mapToDataFilenames(Collection<SSTableReader> sstables)
-    {
-        return sstables.stream().map(s -> s.descriptor.relativeFilenameFor(Components.DATA)).collect(Collectors.toList());
-    }
-
-    private void writeSnapshotSchema(File schemaFile)
-    {
-        try
-        {
-            if (!schemaFile.parent().exists())
-                schemaFile.parent().tryCreateDirectories();
-
-            try (PrintStream out = new PrintStream(new FileOutputStreamPlus(schemaFile)))
-            {
-                SchemaCQLHelper.reCreateStatementsForSchemaCql(metadata(),
-                                                               keyspace.getMetadata())
-                               .forEach(out::println);
-            }
-        }
-        catch (IOException e)
-        {
-            throw new FSWriteError(e, schemaFile);
-        }
-    }
-
-    protected static void clearEphemeralSnapshots(Directories directories)
-    {
-        RateLimiter clearSnapshotRateLimiter = DatabaseDescriptor.getSnapshotRateLimiter();
-
-        List<TableSnapshot> ephemeralSnapshots = new SnapshotLoader(directories).loadSnapshots()
-                                                                                .stream()
-                                                                                .filter(TableSnapshot::isEphemeral)
-                                                                                .collect(Collectors.toList());
-
-        for (TableSnapshot ephemeralSnapshot : ephemeralSnapshots)
-        {
-            logger.trace("Clearing ephemeral snapshot {} leftover from previous session.", ephemeralSnapshot.getId());
-            Directories.clearSnapshot(ephemeralSnapshot.getTag(), directories.getCFDirectories(), clearSnapshotRateLimiter);
-        }
-    }
-
-    public Refs<SSTableReader> getSnapshotSSTableReaders(String tag) throws IOException
-    {
-        Map<SSTableId, SSTableReader> active = new HashMap<>();
-        for (SSTableReader sstable : getSSTables(SSTableSet.CANONICAL))
-            active.put(sstable.descriptor.id, sstable);
-        Map<Descriptor, Set<Component>> snapshots = getDirectories().sstableLister(Directories.OnTxnErr.IGNORE).snapshots(tag).list();
-        Refs<SSTableReader> refs = new Refs<>();
-        try
-        {
-            for (Map.Entry<Descriptor, Set<Component>> entries : snapshots.entrySet())
-            {
-                // Try acquire reference to an active sstable instead of snapshot if it exists,
-                // to avoid opening new sstables. If it fails, use the snapshot reference instead.
-                SSTableReader sstable = active.get(entries.getKey().id);
-                if (sstable == null || !refs.tryRef(sstable))
-                {
-                    if (logger.isTraceEnabled())
-                        logger.trace("using snapshot sstable {}", entries.getKey());
-                    // open offline so we don't modify components or track hotness.
-                    sstable = SSTableReader.open(this, entries.getKey(), entries.getValue(), metadata, true, true);
-                    refs.tryRef(sstable);
-                    // release the self ref as we never add the snapshot sstable to DataTracker where it is otherwise released
-                    sstable.selfRef().release();
-                }
-                else if (logger.isTraceEnabled())
-                {
-                    logger.trace("using active sstable {}", entries.getKey());
-                }
-            }
-        }
-        catch (FSReadError | RuntimeException e)
-        {
-            // In case one of the snapshot sstables fails to open,
-            // we must release the references to the ones we opened so far
-            refs.release();
-            throw e;
-        }
-        return refs;
-    }
-
-    /**
-     * Take a snap shot of this columnfamily store.
-     *
-     * @param snapshotName the name of the associated with the snapshot
-     */
-    public TableSnapshot snapshot(String snapshotName)
-    {
-        return snapshot(snapshotName, null);
-    }
-
-    public TableSnapshot snapshot(String snapshotName, DurationSpec.IntSecondsBound ttl)
-    {
-        return snapshot(snapshotName, false, ttl, null, now());
-    }
-
-    /**
-     * Take a snap shot of this columnfamily store.
-     *
-     * @param snapshotName the name of the associated with the snapshot
-     * @param skipMemtable Skip flushing the memtable
-     * @param ttl duration after which the taken snapshot is removed automatically, if supplied with null, it will never be automatically removed
-     * @param rateLimiter Rate limiter for hardlinks-per-second
-     * @param creationTime time when this snapshot was taken
-     */
-    public TableSnapshot snapshot(String snapshotName, boolean skipMemtable, DurationSpec.IntSecondsBound ttl, RateLimiter rateLimiter, Instant creationTime)
-    {
-        return snapshot(snapshotName, null, false, skipMemtable, ttl, rateLimiter, creationTime);
-    }
-
-
-    /**
-     * @param ephemeral If this flag is set to true, the snapshot will be cleaned up during next startup
-     * @param skipMemtable Skip flushing the memtable
-     */
-    public TableSnapshot snapshot(String snapshotName, Predicate<SSTableReader> predicate, boolean ephemeral, boolean skipMemtable)
-    {
-        return snapshot(snapshotName, predicate, ephemeral, skipMemtable, null, null, now());
-    }
-
-    /**
-     * @param ephemeral If this flag is set to true, the snapshot will be cleaned up during next startup
-     * @param skipMemtable Skip flushing the memtable
-     * @param ttl duration after which the taken snapshot is removed automatically, if supplied with null, it will never be automatically removed
-     * @param rateLimiter Rate limiter for hardlinks-per-second
-     * @param creationTime time when this snapshot was taken
-     */
-    public TableSnapshot snapshot(String snapshotName, Predicate<SSTableReader> predicate, boolean ephemeral, boolean skipMemtable, DurationSpec.IntSecondsBound ttl, RateLimiter rateLimiter, Instant creationTime)
-    {
-        if (!skipMemtable)
-        {
-            Memtable current = getTracker().getView().getCurrentMemtable();
-            if (!current.isClean())
-            {
-                if (current.shouldSwitch(FlushReason.SNAPSHOT))
-                    FBUtilities.waitOnFuture(switchMemtableIfCurrent(current, FlushReason.SNAPSHOT));
-                else
-                    current.performSnapshot(snapshotName);
-            }
-        }
-        return snapshotWithoutMemtable(snapshotName, predicate, ephemeral, ttl, rateLimiter, creationTime);
-    }
-
-    public boolean snapshotExists(String snapshotName)
-    {
-        return getDirectories().snapshotExists(snapshotName);
-    }
-
-
-    /**
-     * Clear all the snapshots for a given column family.
-     *
-     * @param snapshotName the user supplied snapshot name. If left empty,
-     *                     all the snapshots will be cleaned.
-     */
-    public void clearSnapshot(String snapshotName)
-    {
-        RateLimiter clearSnapshotRateLimiter = DatabaseDescriptor.getSnapshotRateLimiter();
-
-        List<File> snapshotDirs = getDirectories().getCFDirectories();
-        Directories.clearSnapshot(snapshotName, snapshotDirs, clearSnapshotRateLimiter);
-    }
-    /**
-     *
-     * @return  Return a map of all snapshots to space being used
-     * The pair for a snapshot has true size and size on disk.
-     */
-    public Map<String, TableSnapshot> listSnapshots()
-    {
-        return getDirectories().listSnapshots();
     }
 
     /**
@@ -2774,7 +2518,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                 data.notifyTruncated(truncatedAt);
 
             if (!noSnapshot && isAutoSnapshotEnabled())
-                snapshot(Keyspace.getTimestampedSnapshotNameWithPrefix(name, SNAPSHOT_TRUNCATE_PREFIX), DatabaseDescriptor.getAutoSnapshotTtl());
+            {
+                String tag = getTimestampedSnapshotNameWithPrefix(name, SNAPSHOT_TRUNCATE_PREFIX);
+                TakeSnapshotTask task = new Builder(tag, getKeyspaceTableName()).ttl(DatabaseDescriptor.getAutoSnapshotTtl()).build();
+                SnapshotManager.instance.takeSnapshot(task);
+            }
 
             discardSSTables(truncatedAt);
 
@@ -3303,10 +3051,20 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         return allColumns > 0 ? allDroppable / allColumns : 0;
     }
 
+    public Set<String> getFilesOfCfs()
+    {
+        Set<String> files = new HashSet<>();
+
+        for (ColumnFamilyStore cfs : concatWithIndexes())
+            cfs.getTracker().getView().liveSSTables().forEach(s -> files.addAll(s.getAllFilePaths()));
+
+        return files;
+    }
+
     @Override
     public long trueSnapshotsSize()
     {
-        return getDirectories().trueSnapshotsSize();
+        return SnapshotManager.instance.trueSnapshotsSize(getKeyspaceName(), getTableName(), getFilesOfCfs());
     }
 
     /**
@@ -3427,7 +3185,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         CompactionManager.instance.interruptCompactionForCFs(concatWithIndexes(), (sstable) -> true, true);
 
         if (isAutoSnapshotEnabled())
-            snapshot(Keyspace.getTimestampedSnapshotNameWithPrefix(name, ColumnFamilyStore.SNAPSHOT_DROP_PREFIX), DatabaseDescriptor.getAutoSnapshotTtl());
+        {
+            String tag = getTimestampedSnapshotNameWithPrefix(name, ColumnFamilyStore.SNAPSHOT_DROP_PREFIX);
+            TakeSnapshotTask task = new Builder(tag, getKeyspaceTableName())
+                                    .cfs(this)
+                                    .ttl(DatabaseDescriptor.getAutoSnapshotTtl())
+                                    .build();
+            SnapshotManager.instance.takeSnapshot(task);
+        }
 
         CommitLog.instance.forceRecycleAllSegments(Collections.singleton(metadata.id));
 

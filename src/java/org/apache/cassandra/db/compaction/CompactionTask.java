@@ -46,6 +46,8 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.service.snapshot.SnapshotManager;
+import org.apache.cassandra.service.snapshot.TakeSnapshotTask;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Refs;
@@ -127,7 +129,11 @@ public class CompactionTask extends AbstractCompactionTask
         if (DatabaseDescriptor.isSnapshotBeforeCompaction())
         {
             Instant creationTime = now();
-            cfs.snapshotWithoutMemtable(creationTime.toEpochMilli() + "-compact-" + cfs.name, creationTime);
+            SnapshotManager.instance.takeSnapshot(new TakeSnapshotTask.Builder(creationTime.toEpochMilli() + "-compact-" + cfs.name,
+                                                                               cfs.getKeyspaceTableName())
+                                                  .skipFlush()
+                                                  .creationTime(creationTime)
+                                                  .build());
         }
 
         try (CompactionController controller = getCompactionController(transaction.originals()))

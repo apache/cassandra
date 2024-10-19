@@ -32,6 +32,8 @@ import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.snapshot.SnapshotManager;
+import org.apache.cassandra.service.snapshot.TakeSnapshotTask;
 import org.apache.cassandra.utils.Clock;
 
 public class SnapshotsTableTest extends CQLTester
@@ -65,14 +67,14 @@ public class SnapshotsTableTest extends CQLTester
     }
 
     @Test
-    public void testSnapshots() throws Throwable
+    public void testSnapshots()
     {
         Instant now = Instant.ofEpochMilli(Clock.Global.currentTimeMillis()).truncatedTo(ChronoUnit.MILLIS);
         Date createdAt = new Date(now.toEpochMilli());
         Date expiresAt = new Date(now.plusSeconds(ttl.toSeconds()).toEpochMilli());
 
-        getCurrentColumnFamilyStore(KEYSPACE).snapshot(SNAPSHOT_NO_TTL, null, false, false, null, null, now);
-        getCurrentColumnFamilyStore(KEYSPACE).snapshot(SNAPSHOT_TTL, null, false, false, ttl, null, now);
+        SnapshotManager.instance.takeSnapshot(new TakeSnapshotTask.Builder(SNAPSHOT_NO_TTL, getCurrentColumnFamilyStore(KEYSPACE).getKeyspaceTableName()).creationTime(now).build());
+        SnapshotManager.instance.takeSnapshot(new TakeSnapshotTask.Builder(SNAPSHOT_TTL, getCurrentColumnFamilyStore(KEYSPACE).getKeyspaceTableName()).ttl(ttl).creationTime(now).build());
 
         // query all from snapshots virtual table
         UntypedResultSet result = execute("SELECT name, keyspace_name, table_name, created_at, expires_at, ephemeral FROM vts.snapshots");

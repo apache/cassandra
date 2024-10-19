@@ -39,7 +39,7 @@ import static org.apache.cassandra.distributed.Cluster.build;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.stopUnchecked;
 import static org.awaitility.Awaitility.await;
 
-public class AutoSnapshotTtlTest extends TestBaseImpl
+public class AutoSnapshotTTLTest extends TestBaseImpl
 {
     public static final Integer SNAPSHOT_CLEANUP_PERIOD_SECONDS = 1;
     public static final Integer FIVE_SECONDS = 5;
@@ -64,7 +64,7 @@ public class AutoSnapshotTtlTest extends TestBaseImpl
      * Check that when auto_snapshot_ttl=5s, snapshots created from TRUNCATE are expired after 10s
      */
     @Test
-    public void testAutoSnapshotTTlOnTruncate() throws IOException
+    public void testAutoSnapshotTTLOnTruncate() throws IOException
     {
         try (Cluster cluster = init(build().withNodes(1)
                                       .withConfig(c -> c.with(Feature.GOSSIP)
@@ -94,7 +94,7 @@ public class AutoSnapshotTtlTest extends TestBaseImpl
      * Check that when auto_snapshot_ttl=5s, snapshots created from TRUNCATE are expired after 10s
      */
     @Test
-    public void testAutoSnapshotTTlOnDrop() throws IOException
+    public void testAutoSnapshotTTLOnDrop() throws IOException
     {
         try (Cluster cluster = init(build().withNodes(1)
                                       .withConfig(c -> c.with(Feature.GOSSIP)
@@ -124,7 +124,7 @@ public class AutoSnapshotTtlTest extends TestBaseImpl
      * Check that when auto_snapshot_ttl=60s, snapshots created from DROP TABLE are expired after a node restart
      */
     @Test
-    public void testAutoSnapshotTTlOnDropAfterRestart() throws IOException
+    public void testAutoSnapshotTTLOnDropAfterRestart() throws IOException
     {
         int ONE_MINUTE = 60; // longer TTL to allow snapshot to survive node restart
         try (Cluster cluster = init(build().withNodes(1)
@@ -159,7 +159,7 @@ public class AutoSnapshotTtlTest extends TestBaseImpl
      * Check that when auto_snapshot_ttl is unset, snapshots created from DROP or TRUNCATE do not expire
      */
     @Test
-    public void testAutoSnapshotTtlDisabled() throws IOException, InterruptedException
+    public void testAutoSnapshotTTLDisabled() throws IOException, InterruptedException
     {
         try (Cluster cluster = init(build().withNodes(1)
                                       .withConfig(c -> c.with(Feature.GOSSIP))

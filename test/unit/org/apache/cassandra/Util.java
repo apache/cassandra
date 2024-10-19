@@ -35,8 +35,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
@@ -133,6 +135,8 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.pager.PagingState;
+import org.apache.cassandra.service.snapshot.SnapshotLoader;
+import org.apache.cassandra.service.snapshot.TableSnapshot;
 import org.apache.cassandra.streaming.StreamResultFuture;
 import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -147,7 +151,6 @@ import org.apache.cassandra.utils.CounterId;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.FilterFactory;
 import org.apache.cassandra.utils.OutputHandler;
-import org.apache.cassandra.utils.Throwables;
 import org.awaitility.Awaitility;
 import org.hamcrest.Matcher;
 import org.mockito.Mockito;
@@ -1170,23 +1173,6 @@ public class Util
                        .collect(Collectors.toSet());
     }
 
-    public static Set<Descriptor> getSnapshots(String ks, String tableName, String snapshotTag)
-    {
-        try
-        {
-            return Keyspace.open(ks)
-                           .getColumnFamilyStore(tableName)
-                           .getSnapshotSSTableReaders(snapshotTag)
-                           .stream()
-                           .map(sstr -> sstr.descriptor)
-                           .collect(Collectors.toSet());
-        }
-        catch (IOException e)
-        {
-            throw Throwables.unchecked(e);
-        }
-    }
-
     public static Set<Descriptor> getBackups(String ks, String tableName)
     {
         return Keyspace.open(ks)
@@ -1283,4 +1269,16 @@ public class Util
     {
         return new UnsupportedOperationException("Test must be implemented for sstable format " + DatabaseDescriptor.getSelectedSSTableFormat().getClass().getName());
     }
+
+    public static Map<String, TableSnapshot> listSnapshots(ColumnFamilyStore cfs)
+    {
+        Set<TableSnapshot> snapshots = new SnapshotLoader(cfs.getDirectories()).loadSnapshots();
+        Map<String, TableSnapshot> tagSnapshotsMap = new HashMap<>();
+
+        for (TableSnapshot snapshot : snapshots)
+            tagSnapshotsMap.put(snapshot.getTag(), snapshot);
+
+        return tagSnapshotsMap;
+    }
+
 }

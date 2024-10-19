@@ -109,6 +109,8 @@ import org.apache.cassandra.service.paxos.PaxosRepairHistory;
 import org.apache.cassandra.service.paxos.PaxosState;
 import org.apache.cassandra.service.paxos.uncommitted.PaxosRows;
 import org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedIndex;
+import org.apache.cassandra.service.snapshot.SnapshotManager;
+import org.apache.cassandra.service.snapshot.TableSnapshot;
 import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
@@ -144,7 +146,6 @@ import static org.apache.cassandra.service.paxos.Commit.latest;
 import static org.apache.cassandra.utils.CassandraVersion.NULL_VERSION;
 import static org.apache.cassandra.utils.CassandraVersion.UNREADABLE_VERSION;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
-import static org.apache.cassandra.utils.FBUtilities.now;
 
 public final class SystemKeyspace
 {
@@ -1823,13 +1824,18 @@ public final class SystemKeyspace
 
         {
             logger.info("Detected version upgrade from {} to {}, snapshotting system keyspaces", previous, next);
-            String snapshotName = Keyspace.getTimestampedSnapshotName(format("upgrade-%s-%s",
-                                                                             previous,
-                                                                             next));
+            String snapshotName = TableSnapshot.getTimestampedSnapshotName(format("upgrade-%s-%s",
+                                                                                  previous,
+                                                                                  next));
 
-            Instant creationTime = now();
+            List<String> entities = new ArrayList<>();
             for (String keyspace : SchemaConstants.LOCAL_SYSTEM_KEYSPACE_NAMES)
-                Keyspace.open(keyspace).snapshot(snapshotName, null, false, null, null, creationTime);
+            {
+                for (ColumnFamilyStore cfs : Keyspace.open(keyspace).getColumnFamilyStores())
+                    entities.add(keyspace + '.' + cfs.name);
+            }
+
+            SnapshotManager.instance.takeSnapshot(snapshotName, Map.of(), entities.toArray(new String[0]));
         }
     }
 
