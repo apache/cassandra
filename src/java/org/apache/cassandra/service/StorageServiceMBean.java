@@ -821,6 +821,10 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     public int getConcurrentCompactors();
     public void setConcurrentCompactors(int value);
+    public String getAuthenticator();
+    public void setAuthenticator(String value);
+    public String getAuthorizer();
+    public void setAuthorizer(String value);
 
     public void bypassConcurrentValidatorsLimit();
     public void enforceConcurrentValidatorsLimit();
