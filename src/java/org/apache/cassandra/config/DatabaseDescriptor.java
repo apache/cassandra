@@ -2520,6 +2520,11 @@ public class DatabaseDescriptor
         conf.concurrent_materialized_view_builders = value;
     }
 
+    public static int getCompressedReadAheadBufferSize()
+    {
+        return conf.compressed_read_ahead_buffer_size.toBytes();
+    }
+
     public static long getMinFreeSpacePerDriveInMebibytes()
     {
         return conf.min_free_space_per_drive.toMebibytes();
