@@ -1593,20 +1593,27 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return SystemKeyspace.getBootstrapState().name();
     }
 
-    public boolean resumeBootstrap()
-    {
-        if (isBootstrapMode() && SystemKeyspace.bootstrapInProgress())
-        {
-            logger.info("Resuming bootstrap...");
-            resumeBootstrapSequence();
-            return true;
-        }
-        else
-        {
+    public boolean resumeBootstrap() {
+        if (!isBootstrapFailed()) {
+            if (isBootstrapMode()) {
+                logger.warn("Resume bootstrap is requested but node is not in bootstrap mode.");
+                return false;
+            }
+
+            if (SystemKeyspace.bootstrapInProgress()) {
+                logger.warn("Bootstrap is already in progress.");
+                return false;
+            }
+
             logger.info("Resuming bootstrap is requested, but the node is already bootstrapped.");
             return false;
         }
+
+        logger.info("Resuming bootstrap");
+        resumeBootstrapSequence();
+        return true;
     }
+
 
     public void abortBootstrap(String nodeStr, String endpointStr)
     {
