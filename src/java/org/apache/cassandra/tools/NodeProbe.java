@@ -1579,9 +1579,9 @@ public class NodeProbe implements AutoCloseable
         return spProxy.getReadRepairRepairedBackground();
     }
 
-    public boolean compareGossipAndStorageServiceCache()
+    public String compareGossipAndTokenMetadataCache()
     {
-        return gossProxy.anyMismatchBetweenGossipAndStorageCache();
+        return gossProxy.compareGossipAndTokenMetadataCache();
     }
 
     // JMX getters for the o.a.c.metrics API below.

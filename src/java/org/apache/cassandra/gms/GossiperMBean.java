@@ -38,5 +38,5 @@ public interface GossiperMBean
     /** Returns each node's database release version */
     public Map<String, List<String>> getReleaseVersionsWithPort();
 
-    public boolean anyMismatchBetweenGossipAndStorageCache();
+    public String compareGossipAndTokenMetadataCache();
 }

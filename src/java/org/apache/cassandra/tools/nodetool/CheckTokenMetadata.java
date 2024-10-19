@@ -21,19 +21,24 @@ import io.airlift.airline.Command;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
-@Command(name = "comparegossipandservicecache", description = "compares the Gossip and Storage service cache; returns true if they are in sync, false otherwise")
-public class CompareGossipAndServiceCache extends NodeToolCmd
+@Command(name = "checktokenmetadata", description = "compares the Gossip endpointState and TokenMetadata cache; returns true if they are in sync, false otherwise")
+public class CheckTokenMetadata extends NodeToolCmd
 {
     @Override
     public void execute(NodeProbe probe)
     {
-        /** Cassandra maintains the Gossip info (Token, Status, etc.) in two caches 1) Gossip cache 2) Storage Service cache
-         * The source of truth is the Gossip cache, which then updates the Storage service cache - but there exists no guarantee.
+        /** Cassandra maintains the token information in two caches 1) Gossip endpointState 2) TokenMetadata cache
+         * The source of truth is the Gossip endpointState, which then updates the TokenMetadata cache - but there exists no guarantee.
          * As a result, a wide variety of problems could occur, and one of the problems is a node could see different token ownership
-         * than its peers.
+         * than its peers. This command compares the Gossip endpointState and TokenMetadata cache and returns empty result if they are in sync, mismatche(s) otherwise.
          */
         StringBuilder sb = new StringBuilder();
-        sb.append("Mismatch: " + probe.compareGossipAndStorageServiceCache());
+        String mismatches = probe.compareGossipAndTokenMetadataCache();
+        if (!mismatches.isEmpty())
+        {
+            sb.append("Mismatch details:");
+            sb.append(mismatches);
+        }
         System.out.println(sb);
     }
 }
