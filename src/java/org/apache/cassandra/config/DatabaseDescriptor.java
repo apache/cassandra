@@ -62,6 +62,7 @@ import com.google.common.collect.Sets;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.RateLimiter;
+
 import org.apache.cassandra.utils.Pair;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -107,6 +108,7 @@ import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.SeedProvider;
+import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.security.AbstractCryptoProvider;
 import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.security.JREProvider;
@@ -252,6 +254,8 @@ public class DatabaseDescriptor
                                                                                                            ? new CommitLogSegmentManagerCDC(c, DatabaseDescriptor.getCommitLogLocation())
                                                                                                            : new CommitLogSegmentManagerStandard(c, DatabaseDescriptor.getCommitLogLocation());
 
+    private static Map<String, ParameterizedClass> defaultSSTableCompressionConfigs = new HashMap<>();
+
     public static void daemonInitialization() throws ConfigurationException
     {
         daemonInitialization(DatabaseDescriptor::loadConfig);
@@ -342,7 +346,7 @@ public class DatabaseDescriptor
 
         applyCompatibilityMode();
 
-        applySSTableFormats();
+        applySSTableConfig();
 
         applySimpleConfig();
 
@@ -397,7 +401,7 @@ public class DatabaseDescriptor
         conf = configSupplier.get();
         applyCompatibilityMode();
         diskOptimizationStrategy = new SpinningDiskOptimizationStrategy();
-        applySSTableFormats();
+        applySSTableConfig();
     }
 
     private static void assertNotDaemonInitialized()
@@ -504,7 +508,7 @@ public class DatabaseDescriptor
     {
         applyCompatibilityMode();
 
-        applySSTableFormats();
+        applySSTableConfig();
 
         applyCryptoProvider();
 
@@ -1637,22 +1641,44 @@ public class DatabaseDescriptor
             storageCompatibilityMode = conf.storage_compatibility_mode;
     }
 
-    private static void applySSTableFormats()
+    private static void applySSTableConfig()
     {
         ServiceLoader<SSTableFormat.Factory> loader = ServiceLoader.load(SSTableFormat.Factory.class, DatabaseDescriptor.class.getClassLoader());
         List<SSTableFormat.Factory> factories = Iterables.toList(loader);
         if (factories.isEmpty())
             factories = ImmutableList.of(new BigFormat.BigFormatFactory());
-        applySSTableFormats(factories, conf.sstable);
+        applySSTableConfig(factories, conf.sstable);
     }
 
-    private static void applySSTableFormats(Iterable<SSTableFormat.Factory> factories, Config.SSTableConfig sstableFormatsConfig)
+    private static void applySSTableConfig(Iterable<SSTableFormat.Factory> factories, Config.SSTableConfig sstableConfig)
     {
+        InheritingClass defaultParameterizedClass = new InheritingClass(null, CompressionParams.DEFAULT.klass().getName(), CompressionParams.DEFAULT.getOtherOptions());
+
+        if (sstableConfig.compression == null || sstableConfig.compression.configurations == null)
+            setDefaultSSTableCompressionConfigs(ImmutableMap.of(InheritingClass.DEFAULT_CONFIGURATION_KEY, defaultParameterizedClass));
+        else
+            setDefaultSSTableCompressionConfigs(InheritingClass.expandDefinitions(conf.sstable.compression.configurations, defaultParameterizedClass));
+
+        // validate in advance and fail as fast as possible by ensuring that all compression configurations are correct
+        for (Map.Entry<String, ParameterizedClass> defaultCompression : DatabaseDescriptor.getDefaultSSTableCompressionConfigs().entrySet())
+        {
+            try
+            {
+                CompressionParams.fromParameterizedClass(defaultCompression.getValue());
+            }
+            catch (Exception ex)
+            {
+                throw new ConfigurationException(String.format("Invalid configuration of a default compressor under name %s: %s",
+                                                               defaultCompression.getKey(),
+                                                               ex.getMessage()));
+            }
+        }
+
         if (sstableFormats != null)
             return;
 
         validateSSTableFormatFactories(factories);
-        ImmutableMap<String, Supplier<SSTableFormat<?, ?>>> providers = validateAndMatchSSTableFormatOptions(factories, sstableFormatsConfig.format);
+        ImmutableMap<String, Supplier<SSTableFormat<?, ?>>> providers = validateAndMatchSSTableFormatOptions(factories, sstableConfig.format);
 
         ImmutableMap.Builder<String, SSTableFormat<?, ?>> sstableFormatsBuilder = ImmutableMap.builder();
         providers.forEach((name, provider) -> {
@@ -1667,7 +1693,7 @@ public class DatabaseDescriptor
         });
         sstableFormats = sstableFormatsBuilder.build();
 
-        selectedSSTableFormat = getAndValidateWriteFormat(sstableFormats, sstableFormatsConfig.selected_format);
+        selectedSSTableFormat = getAndValidateWriteFormat(sstableFormats, sstableConfig.selected_format);
 
         sstableFormats.values().forEach(SSTableFormat::allComponents); // make sure to reach all supported components for a type so that we know all of them are registered
         logger.info("Supported sstable formats are: {}", sstableFormats.values().stream().map(f -> f.name() + " -> " + f.getClass().getName() + " with singleton components: " + f.allComponents()).collect(Collectors.joining(", ")));
@@ -2846,11 +2872,21 @@ public class DatabaseDescriptor
         conf.flush_compression = compression;
     }
 
-    /**
-     * Maximum number of buffers in the compression pool. The default value is 3, it should not be set lower than that
-     * (one segment in compression, one written to, one in reserve); delays in compression may cause the log to use
-     * more, depending on how soon the sync policy stops all writing threads.
-     */
+    public static Map<String, ParameterizedClass> getDefaultSSTableCompressionConfigs()
+    {
+        return defaultSSTableCompressionConfigs;
+    }
+
+    public static void setDefaultSSTableCompressionConfigs(Map<String, ParameterizedClass> configs)
+    {
+        defaultSSTableCompressionConfigs = configs;
+    }
+
+   /**
+    * Maximum number of buffers in the compression pool. The default value is 3, it should not be set lower than that
+    * (one segment in compression, one written to, one in reserve); delays in compression may cause the log to use
+    * more, depending on how soon the sync policy stops all writing threads.
+    */
     public static int getCommitLogMaxCompressionBuffersInPool()
     {
         return conf.commitlog_max_compression_buffers_in_pool;
@@ -5181,7 +5217,7 @@ public class DatabaseDescriptor
     {
         sstableFormats = null;
         selectedSSTableFormat = null;
-        applySSTableFormats(factories, config);
+        applySSTableConfig(factories, config);
     }
 
     public static ImmutableMap<String, SSTableFormat<?, ?>> getSSTableFormats()

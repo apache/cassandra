@@ -678,17 +678,17 @@ to the risk the jvm must also be started with
 
 For the `compression` property, the following sub-options are available:
 
-[cols=",,,,,",options="header",]
+[cols=",,",options="header",]
 |===
-|option |default |description | | |
+|option |default |description
 |`class` |LZ4Compressor |The compression algorithm to use. Default
 compressor are: LZ4Compressor, SnappyCompressor and DeflateCompressor.
 Use `'enabled' : false` to disable compression. Custom compressor can be
 provided by specifying the full class name as a link:#constants[string
-constant]. | | |
-
+constant].
 |`enabled` |true |By default compression is enabled. To disable it, set
-`enabled` to `false` |`chunk_length_in_kb` |64KB |On disk SSTables are
+`enabled` to `false`
+|`chunk_length_in_kb` |16 |On disk SSTables are
 compressed by block (to allow random reads). This defines the size (in
 KB) of said block. Bigger values may improve the compression rate, but
 increases the minimum size of data to be read from disk for a read

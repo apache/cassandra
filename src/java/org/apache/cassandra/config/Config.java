@@ -374,6 +374,17 @@ public class Config
     {
         public String selected_format = BigFormat.NAME;
         public Map<String, Map<String, String>> format = new HashMap<>();
+
+        public SSTableCompressionConfig compression;
+    }
+
+    public static class SSTableCompressionConfig
+    {
+        public LinkedHashMap<String, InheritingClass> configurations;
+
+        public SSTableCompressionConfig()
+        {
+        }
     }
 
     public final SSTableConfig sstable = new SSTableConfig();
