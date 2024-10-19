@@ -19,15 +19,25 @@ package org.apache.cassandra.db.virtual;
 
 import com.google.common.collect.ImmutableList;
 
+import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.db.virtual.model.CompactionOperationsLinkedTasksRow;
+import org.apache.cassandra.db.virtual.model.CompactionOperationsRow;
 import org.apache.cassandra.db.virtual.model.ThreadPoolRow;
+import org.apache.cassandra.db.virtual.walker.CompactionOperationsLinkedTasksWalker;
+import org.apache.cassandra.db.virtual.walker.CompactionOperationsWalker;
 import org.apache.cassandra.db.virtual.walker.ThreadPoolRowWalker;
 import org.apache.cassandra.index.sai.virtual.StorageAttachedIndexTables;
 
+import static org.apache.cassandra.db.virtual.CollectionVirtualTableAdapter.create;
+import static org.apache.cassandra.db.virtual.CollectionVirtualTableAdapter.createVt;
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 import static org.apache.cassandra.schema.SchemaConstants.VIRTUAL_VIEWS;
 
 public final class SystemViewsKeyspace extends VirtualKeyspace
 {
+    public static final String COMPACTION_OPERATIONS_STATUS = "compaction_operations_status";
+    public static final String COMPACTION_OPERATIONS_LINKED_TASKS = "compaction_operations_linked_tasks";
+
     public static SystemViewsKeyspace instance = new SystemViewsKeyspace();
 
     private SystemViewsKeyspace()
@@ -39,12 +49,29 @@ public final class SystemViewsKeyspace extends VirtualKeyspace
                     .add(new SystemPropertiesTable(VIRTUAL_VIEWS))
                     .add(new SSTableTasksTable(VIRTUAL_VIEWS))
                     // Fully backward/forward compatible with the legace ThreadPoolsTable under the same "system_views.thread_pools" name.
-                    .add(CollectionVirtualTableAdapter.create(VIRTUAL_VIEWS,
-                                                              "thread_pools",
-                                                              "Thread pool metrics for all thread pools",
-                                                              new ThreadPoolRowWalker(),
-                                                              Metrics.allThreadPoolMetrics(),
-                                                              ThreadPoolRow::new))
+                    .add(create(VIRTUAL_VIEWS,
+                                "thread_pools",
+                                "Thread pool metrics for all thread pools",
+                                new ThreadPoolRowWalker(),
+                                Metrics.allThreadPoolMetrics(),
+                                ThreadPoolRow::new))
+                    .add(createVt(VIRTUAL_VIEWS,
+                                  COMPACTION_OPERATIONS_STATUS,
+                                  "Management compaction operations that are currently " +
+                                  "running or have been completed since the node started.",
+                                  new CompactionOperationsWalker(),
+                                  CompactionManager.instance.getOperations().entrySet(),
+                                  CompactionOperationsRow::new,
+                                  m -> CompactionManager.instance.clearOperationsHistory()))
+                    .add(createVt(VIRTUAL_VIEWS,
+                                  COMPACTION_OPERATIONS_LINKED_TASKS,
+                                  "Compaction operations that are currently running " +
+                                  "or have been completed since the node started, enriched " +
+                                  "with compaction tasks statics if a compaction was involved.",
+                                  new CompactionOperationsLinkedTasksWalker(),
+                                  () -> CompactionManager.instance.getOperationsWithCompactionInfo().iterator(),
+                                  CompactionOperationsLinkedTasksRow::new,
+                                  m -> CompactionManager.instance.clearOperationsHistory()))
                     .add(new InternodeOutboundTable(VIRTUAL_VIEWS))
                     .add(new InternodeInboundTable(VIRTUAL_VIEWS))
                     .add(new PendingHintsTable(VIRTUAL_VIEWS))
