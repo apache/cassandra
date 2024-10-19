@@ -29,6 +29,17 @@
         default:
             inherits: trie
 
+batchlog_endpoint_strategy: dynamic_remote
+
+authenticator:
+  class_name : AllowAllAuthenticator
+authorizer:
+  class_name: AllowAllAuthorizer
+role_manager:
+  class_name: CassandraRoleManager
+network_authorizer:
+  class_name: AllowAllNetworkAuthorizer
+
 key_cache_size: 0MiB
 
 memtable_allocation_type: offheap_objects
