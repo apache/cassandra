@@ -61,6 +61,15 @@ public enum CassandraRelevantProperties
     AUTO_REPAIR_FREQUENCY_SECONDS("cassandra.auto_repair_frequency_seconds", convertToString(TimeUnit.MINUTES.toSeconds(5))),
     BATCHLOG_REPLAY_TIMEOUT_IN_MS("cassandra.batchlog.replay_timeout_in_ms"),
     BATCH_COMMIT_LOG_SYNC_INTERVAL("cassandra.batch_commitlog_sync_interval_millis", "1000"),
+    /** The system property to specify the sources to exclude in specific dc and rack. */
+    BOOTSTRAP_EXCLUDE_DCS("cassandra.bootstrap.exclude_dcs"),
+    /** The system property to specify the sources in specific dc and rack. */
+    BOOTSTRAP_INCLUDE_DCS("cassandra.bootstrap.include_dcs"),
+    /**
+     * The system property to specify the sources using their IP addresses.
+     * Can be used with {@code cassandra.bootstrap.include_dcs} to further restrict the sources.
+     */
+    BOOTSTRAP_INCLUDE_SOURCES( "cassandra.bootstrap.include_sources"),
     /**
      * When bootstraping how long to wait for schema versions to be seen.
      */
