@@ -89,8 +89,9 @@ public class SavedCommandTest
         Gen<AccordGenerators.CommandBuilder> gen = AccordGenerators.commandsBuilder();
         try (DataOutputBuffer out = new DataOutputBuffer())
         {
-            qt().forAll(gen).withSeed(3447978952908153749L).check(cmdBuilder -> {
-                int userVersion = 1; //TODO (maintance): where can we fetch all supported versions?
+            qt().forAll(gen)
+                .check(cmdBuilder -> {
+                int userVersion = 1; //TODO (maintenance): where can we fetch all supported versions?
                 SoftAssertions checks = new SoftAssertions();
                 for (SaveStatus saveStatus : SaveStatus.values())
                 {
@@ -138,9 +139,10 @@ public class SavedCommandTest
             checks.assertThat(SavedCommand.getFieldChanged(field, flags))
                   .describedAs("field %s changed", field)
                   .isFalse();
+            // Is null flag can not be set on a field that has not changed
             checks.assertThat(SavedCommand.getFieldIsNull(field, flags))
                   .describedAs("field %s not null", field)
-                  .isTrue();
+                  .isFalse();
         }
         checks.assertAll();
     }
