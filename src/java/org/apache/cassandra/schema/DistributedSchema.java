@@ -123,7 +123,7 @@ public class DistributedSchema implements MetadataValue<DistributedSchema>
                                          AuthKeyspace.metadata());
             for (KeyspaceMetadata ksm : keyspaces) // on disk keyspaces
                 kss = kss.withAddedOrUpdated(kss.get(ksm.name)
-                                                .map(k -> merged(k, ksm))
+                                                .map(k -> merged(ksm, k))
                                                 .orElse(ksm));
             keyspaces = kss;
         }
@@ -134,11 +134,14 @@ public class DistributedSchema implements MetadataValue<DistributedSchema>
      * merges any tables in `mergeFrom` to `mergeTo` unless they already exist there.
      *
      * This method is only called when creating the initial cluster metadata on upgrade
+     *
+     * mergeTo is the on disk schema, mergeFrom is the hard coded KSM
+     * if a table exists in the on disk schema, keep it as-is, otherwise add the hard coded one
      */
     private static KeyspaceMetadata merged(KeyspaceMetadata mergeTo, KeyspaceMetadata mergeFrom)
     {
         KeyspaceMetadata newKsm = KeyspaceMetadata.create(mergeTo.name,
-                                                          mergeFrom.params,
+                                                          mergeTo.params,
                                                           mergeTo.tables,
                                                           mergeTo.views,
                                                           mergeTo.types,
