@@ -120,7 +120,7 @@ public interface LogReader
         }
     }
 
-    default LogState getLogState(Epoch start, Epoch end)
+    default LogState getLogState(Epoch start, Epoch end, boolean includeSnapshot)
     {
         try
         {
@@ -136,7 +136,7 @@ public interface LogReader
                 {
                     if (entry.epoch.isAfter(start))
                         entries.add(entry);
-                    else
+                    else if (includeSnapshot)
                         closestSnapshot = entry.transform.execute(closestSnapshot).success().metadata;
                 }
                 return new LogState(closestSnapshot, entries.build());

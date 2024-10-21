@@ -19,7 +19,11 @@
 package org.apache.cassandra.tcm;
 
 import java.io.IOException;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -27,7 +31,6 @@ import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.schema.DistributedMetadataLogKeyspace;
 import org.apache.cassandra.tcm.log.LogState;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -37,11 +40,13 @@ public class ReconstructLogState
 
     public final Epoch lowerBound;
     public final Epoch higherBound;
+    public final boolean includeSnapshot;
 
-    public ReconstructLogState(Epoch lowerBound, Epoch higherBound)
+    public ReconstructLogState(Epoch lowerBound, Epoch higherBound, boolean includeSnapshot)
     {
         this.lowerBound = lowerBound;
         this.higherBound = higherBound;
+        this.includeSnapshot = includeSnapshot;
     }
 
     static class Serializer implements IVersionedSerializer<ReconstructLogState>
@@ -51,19 +56,21 @@ public class ReconstructLogState
         {
             Epoch.serializer.serialize(t.lowerBound, out);
             Epoch.serializer.serialize(t.higherBound, out);
+            out.writeBoolean(t.includeSnapshot);
         }
 
         public ReconstructLogState deserialize(DataInputPlus in, int version) throws IOException
         {
             Epoch lowerBound = Epoch.serializer.deserialize(in);
             Epoch higherBound = Epoch.serializer.deserialize(in);
-            return new ReconstructLogState(lowerBound, higherBound);
+            return new ReconstructLogState(lowerBound, higherBound, in.readBoolean());
         }
 
         public long serializedSize(ReconstructLogState t, int version)
         {
             return Epoch.serializer.serializedSize(t.lowerBound) +
-                   Epoch.serializer.serializedSize(t.higherBound);
+                   Epoch.serializer.serializedSize(t.higherBound) +
+                   TypeSizes.BOOL_SIZE;
         }
     }
 
@@ -71,6 +78,16 @@ public class ReconstructLogState
     {
         public static final Handler instance = new Handler();
 
+        private final Supplier<Processor> processor;
+
+        public Handler()
+        {
+            this(() -> ClusterMetadataService.instance().processor());
+        }
+        public Handler(Supplier<Processor> processor)
+        {
+            this.processor = processor;
+        }
         public void doVerb(Message<ReconstructLogState> message) throws IOException
         {
             TCMMetrics.instance.reconstructLogStateCall.mark();
@@ -79,7 +96,10 @@ public class ReconstructLogState
             if (!ClusterMetadataService.instance().isCurrentMember(FBUtilities.getBroadcastAddressAndPort()))
                 throw new NotCMSException("This node is not in the CMS, can't generate a consistent log fetch response to " + message.from());
 
-            LogState result = DistributedMetadataLogKeyspace.getLogState(request.lowerBound, request.higherBound);
+            LogState result = processor.get().getLogState(request.lowerBound, request.higherBound, request.includeSnapshot,
+                                                          Retry.Deadline.retryIndefinitely(DatabaseDescriptor.getCmsAwaitTimeout().to(TimeUnit.NANOSECONDS),
+                                                                                           TCMMetrics.instance.fetchLogRetries));
+
             MessagingService.instance().send(message.responseWith(result), message.from());
         }
     }

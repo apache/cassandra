@@ -41,7 +41,14 @@ public class GossipProcessor implements Processor
         return ClusterMetadata.current();
     }
 
-    public LogState reconstruct(Epoch lowEpoch, Epoch highEpoch, Retry.Deadline retryPolicy)
+    @Override
+    public LogState getLocalState(Epoch start, Epoch end, boolean includeSnapshot, Retry.Deadline retryPolicy)
+    {
+        throw new IllegalStateException("Can't reconstruct log state when running in gossip mode. Enable the ClusterMetadataService with `nodetool addtocms`.");
+    }
+
+    @Override
+    public LogState getLogState(Epoch start, Epoch end, boolean includeSnapshot, Retry.Deadline retryPolicy)
     {
         throw new IllegalStateException("Can't reconstruct log state when running in gossip mode. Enable the ClusterMetadataService with `nodetool addtocms`.");
     }

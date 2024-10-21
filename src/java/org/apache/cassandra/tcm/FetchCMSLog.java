@@ -19,11 +19,13 @@
 package org.apache.cassandra.tcm;
 
 import java.io.IOException;
-import java.util.function.BiFunction;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -32,7 +34,6 @@ import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.schema.DistributedMetadataLogKeyspace;
 import org.apache.cassandra.tcm.log.LogState;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -89,16 +90,16 @@ public class FetchCMSLog
          * to node-local (which only relevant in cases of CMS expansions/shrinks, and can only be requested by the
          * CMS node that collects the highest epoch from the quorum of peers).
          */
-        private final BiFunction<Epoch, Boolean, LogState> logStateSupplier;
+        private final Supplier<Processor> processor;
 
         public Handler()
         {
-            this(DistributedMetadataLogKeyspace::getLogState);
+            this(() -> ClusterMetadataService.instance().processor());
         }
 
-        public Handler(BiFunction<Epoch, Boolean, LogState> logStateSupplier)
+        public Handler(Supplier<Processor> processor)
         {
-            this.logStateSupplier = logStateSupplier;
+            this.processor = processor;
         }
 
         public void doVerb(Message<FetchCMSLog> message) throws IOException
@@ -114,7 +115,14 @@ public class FetchCMSLog
             // If both we and the other node believe it should be caught up with a linearizable read
             boolean consistentFetch = request.consistentFetch && !ClusterMetadataService.instance().isCurrentMember(message.from());
 
-            LogState delta = logStateSupplier.apply(message.payload.lowerBound, consistentFetch);
+            Retry.Deadline retry = Retry.Deadline.retryIndefinitely(DatabaseDescriptor.getCmsAwaitTimeout().to(TimeUnit.NANOSECONDS),
+                                                                    TCMMetrics.instance.fetchLogRetries);
+            LogState delta;
+            if (consistentFetch)
+                delta = processor.get().getLogState(message.payload.lowerBound, Epoch.MAX, false, retry);
+            else
+                delta = processor.get().getLocalState(message.payload.lowerBound, Epoch.MAX, false, retry);
+
             TCMMetrics.instance.cmsLogEntriesServed(message.payload.lowerBound, delta.latestEpoch());
             logger.info("Responding to {}({}) with log delta: {}", message.from(), request, delta);
             MessagingService.instance().send(message.responseWith(delta), message.from());

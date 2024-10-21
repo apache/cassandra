@@ -86,7 +86,11 @@ public class AccordScheduler implements Scheduler, Shutdownable
     @Override
     public void shutdown()
     {
-        scheduledExecutor.shutdown();
+        for (Runnable c : shutdownNow())
+        {
+            if (c instanceof java.util.concurrent.Future<?>)
+                ((java.util.concurrent.Future<?>) c).cancel(false);
+        }
     }
 
     @Override

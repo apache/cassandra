@@ -57,7 +57,7 @@ public interface LogStorage extends LogReader
         }
 
         @Override
-        public LogState getLogState(Epoch start, Epoch end)
+        public LogState getLogState(Epoch start, Epoch end, boolean includeSnapshot)
         {
             return LogState.EMPTY;
         }

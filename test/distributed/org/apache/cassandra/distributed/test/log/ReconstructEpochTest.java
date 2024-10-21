@@ -56,11 +56,11 @@ public class ReconstructEpochTest extends TestBaseImpl
                 for (int[] cfg : new int[][]{ new int[]{ 6, 9 },
                                               new int[]{ 2, 20 },
                                               new int[]{ 5, 5 },
-                                              new int[]{ 15, 20 }})
+                                              new int[]{ 15, 20 } })
                 {
                     int start = cfg[0];
                     int end = cfg[1];
-                    LogState logState = DistributedMetadataLogKeyspace.getLogState(Epoch.create(start), Epoch.create(end));
+                    LogState logState = DistributedMetadataLogKeyspace.getLogState(Epoch.create(start), Epoch.create(end), true);
                     Assert.assertEquals(start, logState.baseState.epoch.getEpoch());
                     Iterator<Entry> iter = logState.entries.iterator();
                     for (int i = start + 1; i <= end; i++)
@@ -73,14 +73,15 @@ public class ReconstructEpochTest extends TestBaseImpl
                 for (int[] cfg : new int[][]{ new int[]{ 6, 9 },
                                               new int[]{ 2, 20 },
                                               new int[]{ 5, 5 },
-                                              new int[]{ 15, 20 }})
+                                              new int[]{ 15, 20 } })
                 {
                     int start = cfg[0];
                     int end = cfg[1];
                     LogState logState = ClusterMetadataService.instance()
                                                               .processor()
-                                                              .reconstruct(Epoch.create(start),
+                                                              .getLogState(Epoch.create(start),
                                                                            Epoch.create(end),
+                                                                           true,
                                                                            unsafeRetryIndefinitely());
 
                     Assert.assertEquals(start, logState.baseState.epoch.getEpoch());

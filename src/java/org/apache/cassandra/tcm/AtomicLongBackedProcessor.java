@@ -81,7 +81,13 @@ public class AtomicLongBackedProcessor extends AbstractLocalProcessor
     }
 
     @Override
-    public LogState reconstruct(Epoch lowEpoch, Epoch highEpoch, Retry.Deadline retryPolicy)
+    public LogState getLocalState(Epoch start, Epoch end, boolean includeSnapshot, Retry.Deadline retryPolicy)
+    {
+        return getLogState(start, end, includeSnapshot, retryPolicy);
+    }
+
+    @Override
+    public LogState getLogState(Epoch lowEpoch, Epoch highEpoch, boolean includeSnapshot, Retry.Deadline retryPolicy)
     {
         try
         {
@@ -130,11 +136,7 @@ public class AtomicLongBackedProcessor extends AbstractLocalProcessor
         @Override
         public synchronized LogState getLogState(Epoch startEpoch)
         {
-            ImmutableList.Builder<Entry> builder = ImmutableList.builder();
-            ClusterMetadata latest = metadataSnapshots.getLatestSnapshot();
-            Epoch actualSince = latest != null && latest.epoch.isAfter(startEpoch) ? latest.epoch : startEpoch;
-            entries.stream().filter(e -> e.epoch.isAfter(actualSince)).forEach(builder::add);
-            return new LogState(latest, builder.build());
+            return getLogState(startEpoch, Epoch.MAX);
         }
 
         @Override
