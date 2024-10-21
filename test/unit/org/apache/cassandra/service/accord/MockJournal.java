@@ -180,7 +180,8 @@ public class MockJournal implements IJournal
         if (fieldUpdates.addHistoricalTransactions != null)
             updates.historicalTransactionsAccumulator.update(Pair.create(fieldUpdates.addHistoricalTransactions.range, fieldUpdates.addHistoricalTransactions.deps));
 
-        onFlush.run();
+        if (onFlush != null)
+            onFlush.run();
     }
 
     /**
