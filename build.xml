@@ -490,13 +490,24 @@
     </target>
 
     <!-- create properties file with C version -->
-    <target name="_createVersionPropFile" depends="_get-git-sha,set-cqlsh-version">
+    <target name="_createVersionPropFile" depends="_get-git-sha,set-cqlsh-version,_set-build-date">
       <taskdef name="propertyfile" classname="org.apache.tools.ant.taskdefs.optional.PropertyFile"/>
       <mkdir dir="${version.properties.dir}"/>
       <propertyfile file="${version.properties.dir}/version.properties">
         <entry key="CassandraVersion" value="${version}"/>
         <entry key="GitSHA" value="${git.sha}"/>
+        <entry key="BuildDate" value="${build.date}"/>
       </propertyfile>
+    </target>
+
+    <!-- set ant build date -->
+    <target name="_set-build-date">
+        <tstamp>
+            <format property="build.date" pattern="yyyy-MM-dd HH:mm:ss z"/>
+        </tstamp>
+        <!-- Include timezone information -->
+        <property environment="env"/>
+        <property name="build.date" value="${build.date} ${env.TZ}"/>
     </target>
 
     <target name="test-run" depends="jar"
@@ -735,7 +746,7 @@
         The jar target makes cassandra.jar output.
     -->
     <target name="_main-jar"
-            depends="build"
+            depends="build,_get-git-sha,_set-build-date"
             description="Assemble Cassandra JAR files">
       <mkdir dir="${build.classes.main}/META-INF" />
       <copy file="LICENSE.txt"
@@ -754,6 +765,7 @@
           <attribute name="Implementation-Version" value="${version}"/>
           <attribute name="Implementation-Vendor" value="Apache"/>
           <attribute name="Implementation-Git-SHA" value="${git.sha}"/>
+          <attribute name="Implementation-Build-Date" value="${build.date}"/>
         <!-- </section> -->
         </manifest>
       </jar>

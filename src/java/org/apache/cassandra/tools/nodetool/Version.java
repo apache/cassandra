@@ -22,6 +22,9 @@ import io.airlift.airline.Option;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_VERSION;
+import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_VM_NAME;
+
 @Command(name = "version", description = "Print cassandra version")
 public class Version extends NodeToolCmd
 {
@@ -35,6 +38,10 @@ public class Version extends NodeToolCmd
     {
         probe.output().out.println("ReleaseVersion: " + probe.getReleaseVersion());
         if (verbose)
+        {
+            probe.output().out.println("BuildDate: " + probe.getBuildDate());
             probe.output().out.println("GitSHA: " + probe.getGitSHA());
+            probe.output().out.printf("JVM vendor/version: %s/%s%n", JAVA_VM_NAME.getString(), JAVA_VERSION.getString());
+        }
     }
 }
