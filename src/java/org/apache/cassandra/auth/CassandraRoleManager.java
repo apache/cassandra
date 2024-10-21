@@ -129,8 +129,8 @@ public class CassandraRoleManager implements IRoleManager
     }
 
     private SelectStatement loadRoleStatement;
-    private SelectStatement loadIdentityStatement;
     private SelectStatement loadRoleOptionsStatement;
+    private SelectStatement loadIdentityStatement;
 
     private final Set<Option> supportedOptions;
     private final Set<Option> alterableOptions;
@@ -275,12 +275,13 @@ public class CassandraRoleManager implements IRoleManager
         Optional<Map<String, String>> customOptions = options.getCustomOptions();
         if (customOptions.isPresent())
         {
-            ByteBuffer decompose = MapType.getInstance(UTF8Type.instance, UTF8Type.instance, true).decompose(customOptions.get());
             String insertOptionsCql = String.format("INSERT INTO %s.%s (role, options) VALUES ('%s', ?)",
                                                     SchemaConstants.AUTH_KEYSPACE_NAME,
                                                     AuthKeyspace.ROLE_OPTIONS,
                                                     escape(role.getRoleName()));
-            process(insertOptionsCql, consistencyForRoleWrite(role.getRoleName()), decompose);
+            process(insertOptionsCql,
+                    consistencyForRoleWrite(role.getRoleName()),
+                    MapType.getInstance(UTF8Type.instance, UTF8Type.instance, true).decompose(customOptions.get()));
         }
     }
 
@@ -291,8 +292,15 @@ public class CassandraRoleManager implements IRoleManager
                               AuthKeyspace.ROLES,
                               escape(role.getRoleName())),
                 consistencyForRoleWrite(role.getRoleName()));
+
         removeAllMembers(role.getRoleName());
         removeAllIdentitiesOfRole(role.getRoleName());
+
+        process(String.format("DELETE FROM %s.%s WHERE role = '%s'",
+                              SchemaConstants.AUTH_KEYSPACE_NAME,
+                              AuthKeyspace.ROLE_OPTIONS,
+                              escape(role.getRoleName())),
+                consistencyForRoleWrite(role.getRoleName()));
     }
 
     public void alterRole(AuthenticatedUser performer, RoleResource role, RoleOptions options)
@@ -300,12 +308,34 @@ public class CassandraRoleManager implements IRoleManager
         // Unlike most of the other data access methods here, this does not use a
         // prepared statement in order to allow the set of assignments to be variable.
         String assignments = optionsToAssignments(options.getOptions());
-        if (!Strings.isNullOrEmpty(assignments))
+        if (Strings.isNullOrEmpty(assignments))
+            return;
+
+        process(String.format("UPDATE %s.%s SET %s WHERE role = '%s'",
+                              SchemaConstants.AUTH_KEYSPACE_NAME,
+                              AuthKeyspace.ROLES,
+                              assignments,
+                              escape(role.getRoleName())),
+                consistencyForRoleWrite(role.getRoleName()));
+
+        if (!options.getOptions().containsKey(Option.OPTIONS))
+            return;
+
+        Optional<Map<String, String>> customOptions = options.getCustomOptions();
+        if (customOptions.isPresent() && !customOptions.get().isEmpty())
         {
-            process(String.format("UPDATE %s.%s SET %s WHERE role = '%s'",
+            process(String.format("UPDATE %s.%s SET options = ? WHERE role = '%s'",
                                   SchemaConstants.AUTH_KEYSPACE_NAME,
-                                  AuthKeyspace.ROLES,
-                                  assignments,
+                                  AuthKeyspace.ROLE_OPTIONS,
+                                  escape(role.getRoleName())),
+                    consistencyForRoleWrite(role.getRoleName()),
+                    MapType.getInstance(UTF8Type.instance, UTF8Type.instance, true).decompose(customOptions.get()));
+        }
+        else
+        {
+            process(String.format("DELETE FROM %s.%s WHERE role = '%s'",
+                                  SchemaConstants.AUTH_KEYSPACE_NAME,
+                                  AuthKeyspace.ROLE_OPTIONS,
                                   escape(role.getRoleName())),
                     consistencyForRoleWrite(role.getRoleName()));
         }
