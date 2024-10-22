@@ -58,8 +58,8 @@ public interface QueryHandler
 
     public static class Prepared
     {
-        // CASSANDRA-19986 Precomputed cache entry size might be available
-        public volatile int cacheEntrySize = -1;
+        // CASSANDRA-19986 Precomputed size might be available
+        public volatile int pstmntSize = -1;
 
         public final CQLStatement statement;
 
