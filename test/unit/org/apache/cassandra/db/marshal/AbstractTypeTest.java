@@ -483,6 +483,7 @@ public class AbstractTypeTest
                                           .build())
             .checkAssert(type -> {
                 assertThat(type.referencesDuration()).isFalse();
+                assertThat(ReversedType.getInstance(type).referencesDuration()).isFalse();
             });
     }
 
