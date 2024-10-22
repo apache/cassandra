@@ -25,6 +25,7 @@ import java.util.regex.Pattern;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.ReservedKeywords;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.schema.ColumnMetadata;
 
 public class Symbol implements ReferenceExpression, Comparable<Symbol>
@@ -46,6 +47,11 @@ public class Symbol implements ReferenceExpression, Comparable<Symbol>
     public static Symbol from(ColumnMetadata metadata)
     {
         return new Symbol(metadata.name.toString(), metadata.type.unwrap());
+    }
+
+    public static Symbol unknownType(String name)
+    {
+        return new Symbol(name, BytesType.instance);
     }
 
     @Override

@@ -67,6 +67,11 @@ public class Txn implements Statement
         return new Txn(Collections.emptyList(), Optional.empty(), Optional.empty(), Collections.singletonList(mutation));
     }
 
+    public static Builder builder()
+    {
+        return new Builder();
+    }
+
     @Override
     public void toCQL(StringBuilder sb, int indent)
     {
@@ -171,12 +176,12 @@ public class Txn implements Statement
             return !output.isPresent() && !ifBlock.isPresent() && mutations.isEmpty();
         }
 
-        public void addLet(String name, Select.Builder select)
+        public Builder addLet(String name, Select.Builder select)
         {
-            addLet(name, select.build());
+            return addLet(name, select.build());
         }
 
-        public void addLet(String name, Select select)
+        public Builder addLet(String name, Select select)
         {
             if (lets.containsKey(name))
                 throw new IllegalArgumentException("Let name " + name + " already exists");
@@ -185,6 +190,7 @@ public class Txn implements Statement
             Reference ref = Reference.of(new Symbol.UnquotedSymbol(name, toNamedTuple(select)));
             for (Expression e : select.selections)
                 addAllowedReference(ref.add(e));
+            return this;
         }
 
         private AbstractType<?> toNamedTuple(Select select)
@@ -200,23 +206,26 @@ public class Txn implements Statement
             return new UserType(null, null, fieldNames, fieldTypes, false);
         }
 
-        private void addAllowedReference(Reference ref)
+        private Builder addAllowedReference(Reference ref)
         {
             allowedReferences.add(ref);
             recursiveReferences(allowedReferences, ref);
+            return this;
         }
 
-        public void addReturn(Select select)
+        public Builder addReturn(Select select)
         {
             output = Optional.of(select);
+            return this;
         }
 
-        public void addReturnReferences(String... names)
+        public Builder addReturnReferences(String... names)
         {
             Select.Builder builder = new Select.Builder();
             for (String name : names)
                 builder.withSelection(ref(name));
             addReturn(builder.build());
+            return this;
         }
 
         private Reference ref(String name)
@@ -229,14 +238,16 @@ public class Txn implements Statement
             return builder.build();
         }
 
-        public void addIf(If block)
+        public Builder addIf(If block)
         {
             ifBlock = Optional.of(block);
+            return this;
         }
 
-        public void addUpdate(Mutation mutation)
+        public Builder addUpdate(Mutation mutation)
         {
             this.mutations.add(Objects.requireNonNull(mutation));
+            return this;
         }
 
         public Txn build()

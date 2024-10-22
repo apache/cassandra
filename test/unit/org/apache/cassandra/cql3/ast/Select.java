@@ -31,6 +31,7 @@ import com.google.common.collect.ImmutableList;
 
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.schema.TableMetadata;
 
@@ -87,6 +88,11 @@ FROM [keyspace_name.] table_name
             if (allowFiltering)
                 throw new IllegalArgumentException("Can not have a ALLOW FILTERING clause when there isn't a FROM");
         }
+    }
+
+    public static Builder builder()
+    {
+        return new Builder();
     }
 
     public Select withAllowFiltering()
@@ -309,10 +315,20 @@ FROM [keyspace_name.] table_name
             return this;
         }
 
-        public Builder withWhere(Where.Inequalities kind, ReferenceExpression ref, Expression expression)
+        public Builder withWhere(ReferenceExpression ref, Where.Inequalities kind, Expression expression)
         {
             where.where(kind, ref, expression);
             return this;
+        }
+
+        public Builder withWhere(String name, Where.Inequalities kind, int value)
+        {
+            return withWhere(kind, name, value, Int32Type.instance);
+        }
+
+        public <T> Builder withWhere(Where.Inequalities kind, String name, T value, AbstractType<T> type)
+        {
+            return withWhere(Reference.of(new Symbol(name, type)), kind, new Literal(value, type));
         }
 
         public Builder withIn(ReferenceExpression symbol, Expression... expressions)
@@ -333,12 +349,12 @@ FROM [keyspace_name.] table_name
         public Builder withColumnEquals(String column, ByteBuffer value)
         {
             BytesType type = BytesType.instance;
-            return withWhere(Where.Inequalities.EQUAL, Reference.of(new Symbol(column, type)), new Bind(value, type));
+            return withWhere(Reference.of(new Symbol(column, type)), Where.Inequalities.EQUAL, new Bind(value, type));
         }
 
         public Builder withColumnEquals(Symbol column, Expression value)
         {
-            return withWhere(Where.Inequalities.EQUAL, Reference.of(column), value);
+            return withWhere(Reference.of(column), Where.Inequalities.EQUAL, value);
         }
 
         public Builder withOrderByColumn(String name, AbstractType<?> type, OrderBy.Ordering ordering)
