@@ -64,62 +64,31 @@ public class DecommissionTest extends TestBaseImpl
                                            .start()))
         {
             IInvokableInstance instance = cluster.get(2);
-
+            assertBootstrapState(instance, COMPLETED);
+            instance.nodetoolResult("decommission", "--force")
+                    .asserts()
+                    .failure()
+                    .stderrContains("simulated error in prepareUnbootstrapStreaming");
             instance.runOnInstance(() -> {
+                                       assertFalse(StorageService.instance.isDecommissioning());
+                                       assertTrue(StorageService.instance.isDecommissionFailed());
+                                   });
 
-                assertEquals(COMPLETED.name(), StorageService.instance.getBootstrapState());
-
-                // pretend that decommissioning has failed in the middle
-
-                try
-                {
-                    StorageService.instance.decommission(true);
-                    fail("the first attempt to decommission should fail");
-                }
-                catch (Throwable t)
-                {
-                    assertTrue(t.getMessage().contains("simulated error in prepareUnbootstrapStreaming"));
-                }
-
-                assertFalse(StorageService.instance.isDecommissioning());
-                assertTrue(StorageService.instance.isDecommissionFailed());
-
-                // still COMPLETED, nothing has changed
-                assertEquals(COMPLETED.name(), StorageService.instance.getBootstrapState());
-
-                String operationMode = StorageService.instance.getOperationMode();
-                assertEquals(DECOMMISSION_FAILED.name(), operationMode);
-
-                // try to decommission again, now successfully
-
-                try
-                {
-                    StorageService.instance.decommission(true);
-
-                    // decommission was successful, so we reset failed decommission mode
-                    assertFalse(StorageService.instance.isDecommissionFailed());
-
-                    assertEquals(DECOMMISSIONED.name(), StorageService.instance.getBootstrapState());
-                    assertFalse(StorageService.instance.isDecommissioning());
-                }
-                catch (Throwable t)
-                {
-                    fail("the second decommission attempt should pass but it failed on: " + t.getMessage());
-                }
-
-                assertEquals(DECOMMISSIONED.name(), StorageService.instance.getBootstrapState());
-                assertFalse(StorageService.instance.isDecommissionFailed());
-
-                try
-                {
-                    StorageService.instance.decommission(true);
-                    fail("Should have failed since the node is in decomissioned state");
-                }
-                catch (UnsupportedOperationException e)
-                {
-                    // ignore
-                }
-                assertEquals(DECOMMISSIONED.name(), StorageService.instance.getBootstrapState());
+            // still COMPLETED, nothing has changed
+            assertBootstrapState(instance, COMPLETED);
+            assertOperationMode(instance, DECOMMISSION_FAILED);
+            instance.nodetoolResult("decommission", "--force").asserts().success();
+            instance.runOnInstance(() -> {
+                                       assertFalse(StorageService.instance.isDecommissionFailed());
+                                       assertFalse(StorageService.instance.isDecommissioning());
+                                   });
+            assertBootstrapState(instance, DECOMMISSIONED);
+            instance.nodetoolResult("decommission", "--force")
+                    .asserts()
+                    .success()
+                    .stdoutContains("Node was already decommissioned");
+            assertBootstrapState(instance, DECOMMISSIONED);
+            instance.runOnInstance(() -> {
                 assertFalse(StorageService.instance.isDecommissionFailed());
                 assertFalse(StorageService.instance.isDecommissioning());
             });
@@ -142,45 +111,26 @@ public class DecommissionTest extends TestBaseImpl
                                            .start()))
         {
             IInvokableInstance instance = cluster.get(2);
-
-            instance.runOnInstance(() -> {
-                assertEquals(COMPLETED.name(), StorageService.instance.getBootstrapState());
-
-                // pretend that decommissioning has failed in the middle
-
-                try
-                {
-                    StorageService.instance.decommission(true);
-                    fail("the first attempt to decommission should fail");
-                }
-                catch (Throwable t)
-                {
-                    assertTrue(t.getMessage().contains("simulated error in prepareUnbootstrapStreaming"));
-                }
-
-                // node is in DECOMMISSION_FAILED mode
-                String operationMode = StorageService.instance.getOperationMode();
-                assertEquals(DECOMMISSION_FAILED.name(), operationMode);
-            });
-
+            assertBootstrapState(instance, COMPLETED);
+            // pretend that decommissioning has failed in the middle
+            instance.nodetoolResult("decommission", "--force")
+                    .asserts()
+                    .failure()
+                    .stderrContains("simulated error in prepareUnbootstrapStreaming");
+            assertOperationMode(instance, DECOMMISSION_FAILED);
             // restart the node which we failed to decommission
             stopUnchecked(instance);
             instance.startup();
-
             // it is back to normal so let's decommission again
-
-            String oprationMode = instance.callOnInstance(() -> StorageService.instance.getOperationMode());
-            assertEquals(NORMAL.name(), oprationMode);
-
+            assertOperationMode(instance, NORMAL);
+            instance.nodetoolResult("decommission", "--force").asserts().success();
+            assertBootstrapState(instance, DECOMMISSIONED);
             instance.runOnInstance(() -> {
-                StorageService.instance.decommission(true);
-                assertEquals(DECOMMISSIONED.name(), StorageService.instance.getBootstrapState());
                 assertFalse(StorageService.instance.isDecommissionFailed());
                 assertFalse(StorageService.instance.isDecommissioning());
             });
         }
     }
-
 
     public static class BB
     {
@@ -235,12 +185,21 @@ public class DecommissionTest extends TestBaseImpl
                 assertTrue(e.getMessage().contains("This node was decommissioned and will not rejoin the ring unless cassandra.override_decommission=true"));
             }
 
-            GossipHelper.withProperty(CassandraRelevantProperties.OVERRIDE_DECOMMISSION, true, () -> {
-                cluster.get(2).startup();
-            });
-            cluster.get(2).runOnInstance(() -> {
-                assertEquals(COMPLETED, SystemKeyspace.getBootstrapState());
-            });
+            GossipHelper.withProperty(CassandraRelevantProperties.OVERRIDE_DECOMMISSION, true, () -> cluster.get(2).startup());
+            assertBootstrapState(cluster.get(2), COMPLETED);
         }
     }
+
+    private static void assertBootstrapState(IInvokableInstance i, SystemKeyspace.BootstrapState expectedState)
+    {
+        String bootstrapState = expectedState.name();
+        i.runOnInstance(() -> assertEquals(bootstrapState, SystemKeyspace.getBootstrapState().name()));
+    }
+
+    private static void assertOperationMode(IInvokableInstance i, StorageService.Mode mode)
+    {
+        String operationMode = mode.name();
+        i.runOnInstance(() -> assertEquals(operationMode, StorageService.instance.operationMode().name()));
+    }
+
 }
