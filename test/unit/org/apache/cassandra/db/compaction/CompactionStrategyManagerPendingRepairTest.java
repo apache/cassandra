@@ -24,6 +24,7 @@ import java.util.List;
 
 import com.google.common.collect.Iterables;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.repair.consistent.LocalSession;
 
 import org.junit.Assert;
@@ -374,14 +375,28 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
         System.out.println("Live sstables: " + cfs.getLiveSSTables().size());
         System.out.println("*********************************************************************************************");
 
+        
         // Run compaction again. It should pick up the pending repair sstable
         compactionTask = csm.getNextBackgroundTask(FBUtilities.nowInSeconds());
         if (compactionTask != null)
         {
             Assert.assertSame(PendingRepairManager.RepairFinishedCompactionTask.class, compactionTask.getClass());
             compactionTask.execute(ActiveCompactionsTracker.NOOP);
-            Assert.assertEquals(1, cfs.getLiveSSTables().size());
+
+            while ((compactionTask = csm.getNextBackgroundTask(FBUtilities.nowInSeconds())) != null)
+                compactionTask.execute(ActiveCompactionsTracker.NOOP);
         }
+
+        // Make sure you consume all pending compactions
+        Util.spinAssertEquals(Boolean.FALSE,
+                              () -> {
+                                  AbstractCompactionTask ctask;
+                                  while ((ctask = csm.getNextBackgroundTask(FBUtilities.nowInSeconds())) != null)
+                                      ctask.execute(ActiveCompactionsTracker.NOOP);
+
+                                  return hasPendingStrategiesFor(repairID);
+                              },
+                              30);
 
         System.out.println("*********************************************************************************************");
         System.out.println(compactedSSTable);
