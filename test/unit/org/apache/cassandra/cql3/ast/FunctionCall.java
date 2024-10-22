@@ -79,4 +79,14 @@ public class FunctionCall implements Expression
     {
         return new FunctionCall("count(*)", Collections.emptyList(), LongType.instance);
     }
+
+    public static FunctionCall count(String symbol)
+    {
+        return count(Symbol.unknownType(symbol));
+    }
+
+    public static FunctionCall count(Symbol symbol)
+    {
+        return new FunctionCall("count", Collections.singletonList(Reference.of(symbol)), LongType.instance);
+    }
 }

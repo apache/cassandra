@@ -128,6 +128,8 @@ import org.apache.cassandra.journal.Params;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.AccordClientRequestMetrics;
 import org.apache.cassandra.metrics.TCMMetrics;
+import org.apache.cassandra.metrics.ClientRequestMetrics;
+import org.apache.cassandra.metrics.ClientRequestsMetricsHolder;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageDelivery;
@@ -874,12 +876,24 @@ public class AccordService implements IAccordService, Shutdownable
     public @Nonnull AsyncTxnResult coordinateAsync(Txn txn, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
     {
         TxnId txnId = node.nextTxnId(txn.kind(), txn.keys().domain());
-        AccordClientRequestMetrics metrics = txn.isWrite() ? accordWriteMetrics : accordReadMetrics;
+        ClientRequestMetrics sharedMetrics;
+        AccordClientRequestMetrics metrics;
+        if (txn.isWrite())
+        {
+            sharedMetrics = ClientRequestsMetricsHolder.writeMetrics;
+            metrics = accordWriteMetrics;
+        }
+        else
+        {
+            sharedMetrics = ClientRequestsMetricsHolder.readMetrics;
+            metrics = accordReadMetrics;
+        }
         metrics.keySize.update(txn.keys().size());
         AsyncResult<Result> asyncResult = node.coordinate(txnId, txn);
         AsyncTxnResult asyncTxnResult = new AsyncTxnResult(txnId);
         asyncResult.addCallback((success, failure) -> {
             long durationNanos = nanoTime() - requestTime.startedAtNanos();
+            sharedMetrics.addNano(durationNanos);
             metrics.addNano(durationNanos);
             Throwable cause = failure != null ? Throwables.getRootCause(failure) : null;
             if (success != null)
@@ -902,6 +916,7 @@ public class AccordService implements IAccordService, Shutdownable
             }
             if (cause instanceof Preempted || cause instanceof Invalidated)
             {
+                sharedMetrics.timeouts.mark();
                 metrics.preempted.mark();
                 //TODO need to improve
                 // Coordinator "could" query the accord state to see whats going on but that doesn't exist yet.
@@ -909,6 +924,7 @@ public class AccordService implements IAccordService, Shutdownable
                 asyncTxnResult.tryFailure(newPreempted(txnId, txn.isWrite(), consistencyLevel));
                 return;
             }
+            sharedMetrics.failures.mark();
             if (cause instanceof TopologyMismatch)
             {
                 metrics.topologyMismatches.mark();
@@ -924,7 +940,18 @@ public class AccordService implements IAccordService, Shutdownable
     @Override
     public TxnResult getTxnResult(AsyncTxnResult asyncTxnResult, boolean isWrite, @Nullable ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
     {
-        AccordClientRequestMetrics metrics = isWrite ? accordWriteMetrics : accordReadMetrics;
+        ClientRequestMetrics sharedMetrics;
+        AccordClientRequestMetrics metrics;
+        if (isWrite)
+        {
+            sharedMetrics = ClientRequestsMetricsHolder.writeMetrics;
+            metrics = accordWriteMetrics;
+        }
+        else
+        {
+            sharedMetrics = ClientRequestsMetricsHolder.readMetrics;
+            metrics = accordReadMetrics;
+        }
         try
         {
             long deadlineNanos = requestTime.computeDeadline(DatabaseDescriptor.getTransactionTimeout(NANOSECONDS));
@@ -939,6 +966,7 @@ public class AccordService implements IAccordService, Shutdownable
             {
                 // Mark here instead of in coordinate async since this is where the request timeout actually occurs
                 metrics.timeouts.mark();
+                sharedMetrics.timeouts.mark();
                 cause.addSuppressed(e);
                 throw (RequestTimeoutException) cause;
             }
@@ -950,11 +978,13 @@ public class AccordService implements IAccordService, Shutdownable
         catch (InterruptedException e)
         {
             metrics.failures.mark();
+            sharedMetrics.failures.mark();
             throw new UncheckedInterruptedException(e);
         }
         catch (TimeoutException e)
         {
             metrics.timeouts.mark();
+            sharedMetrics.timeouts.mark();
             throw newTimeout(asyncTxnResult.txnId, isWrite, consistencyLevel);
         }
     }

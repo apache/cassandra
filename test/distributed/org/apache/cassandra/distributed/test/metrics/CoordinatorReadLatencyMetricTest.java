@@ -18,23 +18,68 @@
 
 package org.apache.cassandra.distributed.test.metrics;
 
+import java.io.IOException;
 import java.util.concurrent.TimeUnit;
+import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import org.junit.Test;
 
 import org.apache.cassandra.config.Config;
+import org.apache.cassandra.cql3.ast.Select;
+import org.apache.cassandra.cql3.ast.Txn;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.metrics.ClientRequestsMetricsHolder;
+import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.service.paxos.Paxos;
+import org.assertj.core.api.Assertions;
 
+import static org.apache.cassandra.cql3.ast.Where.Inequalities.EQUAL;
+import static org.apache.cassandra.cql3.ast.Where.Inequalities.LESS_THAN;
 import static org.junit.Assert.assertTrue;
 
 public class CoordinatorReadLatencyMetricTest extends TestBaseImpl
 {
+    @Test
+    public void singleRowTest() throws IOException
+    {
+        try (Cluster cluster = init(builder().withNodes(1).start()))
+        {
+            cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))"));
+            for (int i = 0; i < 100; i++)
+                cluster.coordinator(1).execute(withKeyspace("insert into %s.tbl (pk, ck ,v) values (0, ?, 1)"), ConsistencyLevel.ALL, i);
+
+            var select = Select.builder()
+                               //TODO (now, correctness, coverage): count(v) breaks accord as we get mutliple rows rather than the count of rows...
+//                               .withSelection(FunctionCall.count("v"))
+                               .withTable(KEYSPACE, "tbl")
+                               .withWhere("pk", EQUAL, 0)
+                               .withWhere("ck", LESS_THAN, 42)
+                               .withLimit(1)
+                               .build();
+
+            verifyTableLatency(cluster, 1, () -> verifyLatencyMetrics(cluster, select.toCQL(), ConsistencyLevel.QUORUM));
+            cluster.get(1).runOnInstance(() -> Paxos.setPaxosVariant(Config.PaxosVariant.v1));
+            verifyTableLatency(cluster, 1, () -> verifyLatencyMetrics(cluster, select.toCQL(), ConsistencyLevel.SERIAL));
+            cluster.get(1).runOnInstance(() -> Paxos.setPaxosVariant(Config.PaxosVariant.v2));
+            verifyTableLatency(cluster, 1, () -> verifyLatencyMetrics(cluster, select.toCQL(), ConsistencyLevel.SERIAL));
+
+            cluster.schemaChange(withKeyspace("ALTER TABLE %s.tbl WITH " + TransactionalMode.full.asCqlParam()));
+            verifyTableLatency(cluster, 1, () -> verifyLatencyMetrics(cluster, Txn.wrap(select).toCQL(), ConsistencyLevel.QUORUM));
+
+            var let = Txn.builder()
+                         .addLet("a", select)
+                         .addReturnReferences("a.v")
+                         .build();
+            verifyTableLatency(cluster, 1, () -> verifyLatencyMetrics(cluster, let.toCQL(), ConsistencyLevel.QUORUM));
+        }
+    }
+
     @Test
     public void internalPagingWithAggregateTest() throws Throwable
     {
@@ -91,16 +136,26 @@ public class CoordinatorReadLatencyMetricTest extends TestBaseImpl
         }
     }
 
-    private void verifyLatencyMetricsWhenPaging(Cluster cluster,
-                                                int pagesize,
-                                                int expectedQueries,
-                                                String query,
-                                                ConsistencyLevel consistencyLevel)
+    private static void verifyLatencyMetricsWhenPaging(Cluster cluster,
+                                                       int pagesize,
+                                                       int expectedQueries,
+                                                       String query,
+                                                       ConsistencyLevel consistencyLevel)
+    {
+        verifyLatencyMetrics(cluster, expectedQueries, () -> cluster.coordinator(1).executeWithPaging(query, consistencyLevel, pagesize));
+    }
+
+    private static void verifyLatencyMetrics(Cluster cluster, String query, ConsistencyLevel consistencyLevel)
+    {
+        verifyLatencyMetrics(cluster, 1, () -> cluster.coordinator(1).execute(query, consistencyLevel));
+    }
+
+    private static void verifyLatencyMetrics(Cluster cluster, int expectedQueries, Runnable query)
     {
         long countBefore = cluster.get(1).callOnInstance(() -> ClientRequestsMetricsHolder.readMetrics.latency.getCount());
         long totalLatencyBefore = cluster.get(1).callOnInstance(() -> ClientRequestsMetricsHolder.readMetrics.totalLatency.getCount());
         long startTime = System.nanoTime();
-        cluster.coordinator(1).executeWithPaging(query, consistencyLevel, pagesize);
+        query.run();
         long elapsedTime = System.nanoTime() - startTime;
         long countAfter = cluster.get(1).callOnInstance(() -> ClientRequestsMetricsHolder.readMetrics.latency.getCount());
         long totalLatencyAfter = cluster.get(1).callOnInstance(() -> ClientRequestsMetricsHolder.readMetrics.totalLatency.getCount());
@@ -111,6 +166,18 @@ public class CoordinatorReadLatencyMetricTest extends TestBaseImpl
         long totalLatencyRecorded = TimeUnit.MICROSECONDS.toNanos(totalLatencyAfter - totalLatencyBefore);
         assertTrue(String.format("Total latency delta %s should not exceed wall clock time elapsed %s", totalLatencyRecorded, elapsedTime),
                    totalLatencyRecorded <= elapsedTime);
+    }
+
+    private static void verifyTableLatency(Cluster cluster, int expectedQueries, Runnable query)
+    {
+        IInvokableInstance inst = cluster.get(1);
+        LongSupplier tableMetric = () -> inst.callOnInstance(() -> Keyspace.open("distributed_test_keyspace").getColumnFamilyStore("tbl").getMetrics().readLatency.latency.getCount());
+
+        long tableBefore = tableMetric.getAsLong();
+        query.run();
+        long tableAfter = tableMetric.getAsLong();
+
+        Assertions.assertThat(tableAfter - tableBefore).isEqualTo(expectedQueries);
     }
 
 }

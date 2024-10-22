@@ -37,8 +37,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import accord.api.Key;
 import accord.primitives.Keys;
@@ -95,8 +93,6 @@ import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.retry_new_p
 
 public class TransactionStatement implements CQLStatement.CompositeCQLStatement, CQLStatement.ReturningCQLStatement
 {
-    private static final Logger logger = LoggerFactory.getLogger(TransactionStatement.class);
-
     public static final String DUPLICATE_TUPLE_NAME_MESSAGE = "The name '%s' has already been used by a LET assignment.";
     public static final String INCOMPLETE_PARTITION_KEY_SELECT_MESSAGE = "SELECT must specify either all partition key elements. Partition key elements must be always specified with equality operators; %s %s";
     public static final String INCOMPLETE_PRIMARY_KEY_SELECT_MESSAGE = "SELECT must specify either all primary key elements or all partition key elements and LIMIT 1. In both cases partition key elements must be always specified with equality operators; %s %s";
@@ -380,82 +376,73 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
     {
         checkTrue(DatabaseDescriptor.getAccordTransactionsEnabled(), TRANSACTIONS_DISABLED_MESSAGE);
 
-        try
+        // check again since now we have query options; note that statements are quaranted to be single partition reads at this point
+        for (NamedSelect assignment : assignments)
+            checkFalse(isSelectingMultipleClusterings(assignment.select, options), INCOMPLETE_PRIMARY_KEY_SELECT_MESSAGE, "LET assignment", assignment.select.source);
+
+        Txn txn = createTxn(state.getClientState(), options);
+
+        TxnResult txnResult = AccordService.instance().coordinate(txn, options.getConsistency(), requestTime);
+        if (txnResult.kind() == retry_new_protocol)
+            throw new InvalidRequestException(UNSUPPORTED_MIGRATION);
+        TxnData data = (TxnData)txnResult;
+
+        if (returningSelect != null)
         {
-            // check again since now we have query options; note that statements are quaranted to be single partition reads at this point
-            for (NamedSelect assignment : assignments)
-                checkFalse(isSelectingMultipleClusterings(assignment.select, options), INCOMPLETE_PRIMARY_KEY_SELECT_MESSAGE, "LET assignment", assignment.select.source);
-
-            Txn txn = createTxn(state.getClientState(), options);
-
-            TxnResult txnResult = AccordService.instance().coordinate(txn, options.getConsistency(), requestTime);
-            if (txnResult.kind() == retry_new_protocol)
-                throw new InvalidRequestException(UNSUPPORTED_MIGRATION);
-            TxnData data = (TxnData)txnResult;
-
-            if (returningSelect != null)
+            @SuppressWarnings("unchecked")
+            SinglePartitionReadQuery.Group<SinglePartitionReadCommand> selectQuery = (SinglePartitionReadQuery.Group<SinglePartitionReadCommand>) returningSelect.select.getQuery(options, 0);
+            Selection.Selectors selectors = returningSelect.select.getSelection().newSelectors(options);
+            ResultSetBuilder result = new ResultSetBuilder(resultMetadata, selectors, false);
+            if (selectQuery.queries.size() == 1)
             {
-                @SuppressWarnings("unchecked")
-                SinglePartitionReadQuery.Group<SinglePartitionReadCommand> selectQuery = (SinglePartitionReadQuery.Group<SinglePartitionReadCommand>) returningSelect.select.getQuery(options, 0);
-                Selection.Selectors selectors = returningSelect.select.getSelection().newSelectors(options);
-                ResultSetBuilder result = new ResultSetBuilder(resultMetadata, selectors, false);
-                if (selectQuery.queries.size() == 1)
+                FilteredPartition partition = data.get(TxnDataName.returning());
+                boolean reversed = selectQuery.queries.get(0).isReversed();
+                if (partition != null)
+                    returningSelect.select.processPartition(partition.rowIterator(reversed), options, result, FBUtilities.nowInSeconds());
+            }
+            else
+            {
+                long nowInSec = FBUtilities.nowInSeconds();
+                for (int i = 0; i < selectQuery.queries.size(); i++)
                 {
-                    FilteredPartition partition = data.get(TxnDataName.returning());
-                    boolean reversed = selectQuery.queries.get(0).isReversed();
+                    FilteredPartition partition = data.get(TxnDataName.returning(i));
+                    boolean reversed = selectQuery.queries.get(i).isReversed();
                     if (partition != null)
-                        returningSelect.select.processPartition(partition.rowIterator(reversed), options, result, FBUtilities.nowInSeconds());
+                        returningSelect.select.processPartition(partition.rowIterator(reversed), options, result, nowInSec);
                 }
-                else
-                {
-                    long nowInSec = FBUtilities.nowInSeconds();
-                    for (int i = 0; i < selectQuery.queries.size(); i++)
-                    {
-                        FilteredPartition partition = data.get(TxnDataName.returning(i));
-                        boolean reversed = selectQuery.queries.get(i).isReversed();
-                        if (partition != null)
-                            returningSelect.select.processPartition(partition.rowIterator(reversed), options, result, nowInSec);
-                    }
-                }
-                return new ResultMessage.Rows(result.build());
             }
-
-            if (returningReferences != null)
-            {
-                List<AbstractType<?>> resultType = new ArrayList<>(returningReferences.size());
-                List<ColumnMetadata> columns = new ArrayList<>(returningReferences.size());
-
-                for (RowDataReference reference : returningReferences)
-                {
-                    ColumnMetadata forMetadata = reference.toResultMetadata();
-                    resultType.add(forMetadata.type);
-                    columns.add(reference.column());
-                }
-
-                ResultSetBuilder result = new ResultSetBuilder(resultMetadata, Selection.noopSelector(), false);
-                result.newRow(options.getProtocolVersion(), null, null, columns);
-
-                for (int i = 0; i < returningReferences.size(); i++)
-                {
-                    RowDataReference reference = returningReferences.get(i);
-                    TxnReference txnReference = reference.toTxnReference(options);
-                    ByteBuffer buffer = txnReference.toByteBuffer(data, resultType.get(i));
-                    result.add(buffer);
-                }
-
-                return new ResultMessage.Rows(result.build());
-            }
-
-            // In the case of a write-only transaction, just return and empty result.
-            // TODO: This could be modified to return an indication of whether a condition (if present) succeeds.
-            return new ResultMessage.Void();
+            return new ResultMessage.Rows(result.build());
         }
-        catch (Throwable t)
+
+        if (returningReferences != null)
         {
-            //TODO remove before merge to trunk
-           logger.error("Unexpected error with transaction: {}", t.toString());
-           throw t;
+            List<AbstractType<?>> resultType = new ArrayList<>(returningReferences.size());
+            List<ColumnMetadata> columns = new ArrayList<>(returningReferences.size());
+
+            for (RowDataReference reference : returningReferences)
+            {
+                ColumnMetadata forMetadata = reference.toResultMetadata();
+                resultType.add(forMetadata.type);
+                columns.add(reference.column());
+            }
+
+            ResultSetBuilder result = new ResultSetBuilder(resultMetadata, Selection.noopSelector(), false);
+            result.newRow(options.getProtocolVersion(), null, null, columns);
+
+            for (int i = 0; i < returningReferences.size(); i++)
+            {
+                RowDataReference reference = returningReferences.get(i);
+                TxnReference txnReference = reference.toTxnReference(options);
+                ByteBuffer buffer = txnReference.toByteBuffer(data, resultType.get(i));
+                result.add(buffer);
+            }
+
+            return new ResultMessage.Rows(result.build());
         }
+
+        // In the case of a write-only transaction, just return and empty result.
+        // TODO: This could be modified to return an indication of whether a condition (if present) succeeds.
+        return new ResultMessage.Void();
     }
 
     @Override

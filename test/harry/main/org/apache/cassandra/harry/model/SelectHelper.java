@@ -140,7 +140,7 @@ public class SelectHelper
     private static SchemaSpec.AddRelationCallback appendToBuilderCallback(Select.Builder builder)
     {
         return (spec, kind, value) ->
-               builder.withWhere(toInequalities(kind), Reference.of(new Symbol(spec.name, spec.type.asServerType())), new Bind(value, spec.type.asServerType()));
+               builder.withWhere(Reference.of(new Symbol(spec.name, spec.type.asServerType())), toInequalities(kind), new Bind(value, spec.type.asServerType()));
     }
 
     private static Where.Inequalities toInequalities(Relation.RelationKind kind)
