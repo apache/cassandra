@@ -528,16 +528,6 @@ public enum CassandraRelevantProperties
 
     TCM_ALLOW_TRANSFORMATIONS_DURING_UPGRADES("cassandra.allow_transformations_during_upgrades", "false"),
     /**
-     * for obtaining acknowlegement from peers to make progress in multi-step operations
-     */
-    TCM_PROGRESS_BARRIER_BACKOFF_MILLIS("cassandra.progress_barrier_backoff_ms", "1000"),
-    TCM_PROGRESS_BARRIER_TIMEOUT_MILLIS("cassandra.progress_barrier_timeout_ms", "3600000"),
-    /**
-     * size of in-memory index of max epoch -> sealed period
-     */
-    TCM_RECENTLY_SEALED_PERIOD_INDEX_SIZE("cassandra.recently_sealed_period_index_size", "10"),
-
-    /**
      * for testing purposes disable the automatic CMS reconfiguration after a bootstrap/replace/move operation
      */
     TCM_SKIP_CMS_RECONFIGURATION_AFTER_TOPOLOGY_CHANGE("cassandra.test.skip_cms_reconfig_after_topology_change", "false"),
