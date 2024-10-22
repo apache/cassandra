@@ -152,6 +152,12 @@ public class Move extends MultiStepOperation<Epoch>
     }
 
     @Override
+    public boolean finishDuringStartup()
+    {
+        return false;
+    }
+
+    @Override
     public Kind kind()
     {
         return MOVE;
@@ -199,7 +205,7 @@ public class Move extends MultiStepOperation<Epoch>
                 catch (Throwable t)
                 {
                     JVMStabilityInspector.inspectThrowable(t);
-                    return continuable() ;
+                    return continuable();
                 }
                 break;
             case MID_MOVE:
@@ -251,7 +257,13 @@ public class Move extends MultiStepOperation<Epoch>
                 }
                 catch (ExecutionException e)
                 {
+                    StorageService.instance.markMoveFailed();
                     throw new RuntimeException("Unable to move", e);
+                }
+                catch (Exception e)
+                {
+                    StorageService.instance.markMoveFailed();
+                    throw e;
                 }
 
                 try

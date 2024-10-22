@@ -253,6 +253,8 @@ import static org.apache.cassandra.service.ActiveRepairService.repairCommandExec
 import static org.apache.cassandra.service.StorageService.Mode.DECOMMISSIONED;
 import static org.apache.cassandra.service.StorageService.Mode.DECOMMISSION_FAILED;
 import static org.apache.cassandra.service.StorageService.Mode.JOINING_FAILED;
+import static org.apache.cassandra.service.StorageService.Mode.LEAVING;
+import static org.apache.cassandra.service.StorageService.Mode.MOVE_FAILED;
 import static org.apache.cassandra.service.StorageService.Mode.NORMAL;
 import static org.apache.cassandra.tcm.membership.NodeState.BOOTSTRAPPING;
 import static org.apache.cassandra.tcm.membership.NodeState.BOOT_REPLACING;
@@ -454,8 +456,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     /* the probability for tracing any particular request, 0 disables tracing and 1 enables for all */
     private double traceProbability = 0.0;
 
-    public enum Mode { STARTING, NORMAL, JOINING, JOINING_FAILED, LEAVING, DECOMMISSIONED, DECOMMISSION_FAILED, MOVING, DRAINING, DRAINED }
-    private volatile Mode operationMode = Mode.STARTING;
+    public enum Mode { STARTING, NORMAL, JOINING, JOINING_FAILED, LEAVING, DECOMMISSIONED, DECOMMISSION_FAILED, MOVING, MOVE_FAILED, DRAINING, DRAINED }
 
     /* Can currently hold DECOMMISSIONED, DECOMMISSION_FAILED, DRAINING, DRAINED for legacy compatibility. */
     private volatile Optional<Mode> transientMode = Optional.empty();
@@ -763,7 +764,16 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         });
 
         if (SystemKeyspace.wasDecommissioned())
-            throw new ConfigurationException("This node was decommissioned and will not rejoin the ring unless cassandra.override_decommission=true has been set, or all existing data is removed and the node is bootstrapped again");
+        {
+            if (CassandraRelevantProperties.OVERRIDE_DECOMMISSION.getBoolean())
+            {
+                logger.warn("This node was decommissioned, but overriding by operator request.");
+            }
+            else
+            {
+                throw new ConfigurationException("This node was decommissioned and will not rejoin the ring unless cassandra.override_decommission=true has been set, or all existing data is removed and the node is bootstrapped again");
+            }
+        }
 
         if (DatabaseDescriptor.getReplaceTokens().size() > 0 || DatabaseDescriptor.getReplaceNode() != null)
             throw new RuntimeException("Replace method removed; use cassandra.replace_address instead");
@@ -3669,6 +3679,18 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         SingleNodeSequences.move(getTokenFactory().fromString(newToken));
     }
 
+    @Override
+    public void resumeMove()
+    {
+        SingleNodeSequences.resumeMove();
+    }
+
+    @Override
+    public void abortMove()
+    {
+        SingleNodeSequences.abortMove();
+    }
+
     public String getRemovalStatus()
     {
         return getRemovalStatus(false);
@@ -3776,6 +3798,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         transientMode = Optional.of(JOINING_FAILED);
     }
 
+    public void markMoveFailed()
+    {
+        logger.info(MOVE_FAILED.toString());
+        transientMode = Optional.of(MOVE_FAILED);
+    }
+
     /*
     - Use system_views.local to get information about the node (todo: we might still need a jmx endpoint for that since you can't run cql queries on drained etc nodes)
      */
@@ -3845,7 +3873,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public boolean isDecommissioned()
     {
-        return operationMode == DECOMMISSIONED;
+        return operationMode() == DECOMMISSIONED;
     }
 
     public boolean isDecommissionFailed()
@@ -3855,7 +3883,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public boolean isDecommissioning()
     {
-        return operationMode == Mode.LEAVING || operationMode == DECOMMISSION_FAILED;
+        return operationMode() == LEAVING;
     }
 
     public boolean isBootstrapFailed()

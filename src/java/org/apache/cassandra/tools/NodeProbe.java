@@ -1010,6 +1010,16 @@ public class NodeProbe implements AutoCloseable
         ssProxy.move(newToken);
     }
 
+    public void resumeMove()
+    {
+        ssProxy.resumeMove();
+    }
+
+    public void abortMove()
+    {
+        ssProxy.abortMove();
+    }
+
     public void removeNode(String token)
     {
         removeNode(token, false);

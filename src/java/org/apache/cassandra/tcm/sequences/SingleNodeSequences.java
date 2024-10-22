@@ -33,6 +33,7 @@ import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.MultiStepOperation;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
+import org.apache.cassandra.tcm.transformations.CancelInProgressSequence;
 import org.apache.cassandra.tcm.transformations.PrepareLeave;
 import org.apache.cassandra.tcm.transformations.PrepareMove;
 
@@ -75,13 +76,17 @@ public interface SingleNodeSequences
 
         if (inProgress == null)
         {
-            logger.info("starting decom with {} {}", metadata.epoch, self);
+            logger.info("starting decommission with {} {}", metadata.epoch, self);
             ClusterMetadataService.instance().commit(new PrepareLeave(self,
                                                                       force,
                                                                       ClusterMetadataService.instance().placementProvider(),
                                                                       LeaveStreams.Kind.UNBOOTSTRAP));
         }
-        else if (!InProgressSequences.isLeave(inProgress))
+        else if (InProgressSequences.isLeave(inProgress))
+        {
+            logger.info("Resuming decommission @ {} (current epoch = {}): {}", inProgress.latestModification, metadata.epoch, inProgress.status());
+        }
+        else
         {
             throw new IllegalArgumentException("Can not decommission a node that has an in-progress sequence");
         }
@@ -163,6 +168,54 @@ public interface SingleNodeSequences
 
         if (logger.isDebugEnabled())
             logger.debug("Successfully moved to new token {}", StorageService.instance.getLocalTokens().iterator().next());
+    }
+
+    static void resumeMove()
+    {
+        if (ClusterMetadataService.instance().isMigrating() || ClusterMetadataService.state() == ClusterMetadataService.State.GOSSIP)
+            throw new IllegalStateException("This cluster is migrating to cluster metadata, can't move until that is done.");
+
+        ClusterMetadata metadata = ClusterMetadata.current();
+        NodeId self = metadata.myNodeId();
+        MultiStepOperation<?> sequence = metadata.inProgressSequences.get(self);
+        if (sequence == null || sequence.kind() != MultiStepOperation.Kind.MOVE)
+        {
+            String msg = "No move operation in progress, can't resume";
+            logger.info(msg);
+            throw new IllegalStateException(msg);
+        }
+        if (StorageService.instance.operationMode() != StorageService.Mode.MOVE_FAILED)
+        {
+            String msg = "Can't resume a move operation unless it has failed";
+            logger.info(msg);
+            throw new IllegalStateException(msg);
+        }
+        StorageService.instance.clearTransientMode();
+        InProgressSequences.finishInProgressSequences(self);
+    }
+
+    static void abortMove()
+    {
+        if (ClusterMetadataService.instance().isMigrating() || ClusterMetadataService.state() == ClusterMetadataService.State.GOSSIP)
+            throw new IllegalStateException("This cluster is migrating to cluster metadata, can't move until that is done.");
+
+        ClusterMetadata metadata = ClusterMetadata.current();
+        NodeId self = metadata.myNodeId();
+        MultiStepOperation<?> sequence = metadata.inProgressSequences.get(self);
+        if (sequence == null || sequence.kind() != MultiStepOperation.Kind.MOVE)
+        {
+            String msg = "No move operation in progress, can't abort";
+            logger.info(msg);
+            throw new IllegalStateException(msg);
+        }
+        if (StorageService.instance.operationMode() != StorageService.Mode.MOVE_FAILED)
+        {
+            String msg = "Can't abort a move operation unless it has failed";
+            logger.info(msg);
+            throw new IllegalStateException(msg);
+        }
+        StorageService.instance.clearTransientMode();
+        ClusterMetadataService.instance().commit(new CancelInProgressSequence(self));
     }
 
 }
