@@ -46,7 +46,7 @@ import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.stopUnchecked;
 import static org.apache.cassandra.service.StorageService.Mode.DECOMMISSION_FAILED;
-import static org.apache.cassandra.service.StorageService.Mode.NORMAL;
+import static org.apache.cassandra.service.StorageService.Mode.LEAVING;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -121,8 +121,8 @@ public class DecommissionTest extends TestBaseImpl
             // restart the node which we failed to decommission
             stopUnchecked(instance);
             instance.startup();
-            // it is back to normal so let's decommission again
-            assertOperationMode(instance, NORMAL);
+            // it starts up as LEAVING so let's decommission again
+            assertOperationMode(instance, LEAVING);
             instance.nodetoolResult("decommission", "--force").asserts().success();
             assertBootstrapState(instance, DECOMMISSIONED);
             instance.runOnInstance(() -> {

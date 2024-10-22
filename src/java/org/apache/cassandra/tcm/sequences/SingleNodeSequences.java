@@ -75,13 +75,17 @@ public interface SingleNodeSequences
 
         if (inProgress == null)
         {
-            logger.info("starting decom with {} {}", metadata.epoch, self);
+            logger.info("starting decommission with {} {}", metadata.epoch, self);
             ClusterMetadataService.instance().commit(new PrepareLeave(self,
                                                                       force,
                                                                       ClusterMetadataService.instance().placementProvider(),
                                                                       LeaveStreams.Kind.UNBOOTSTRAP));
         }
-        else if (!InProgressSequences.isLeave(inProgress))
+        else if (InProgressSequences.isLeave(inProgress))
+        {
+            logger.info("Resuming decommission @ {} (current epoch = {}): {}", inProgress.latestModification, metadata.epoch, inProgress.status());
+        }
+        else
         {
             throw new IllegalArgumentException("Can not decommission a node that has an in-progress sequence");
         }

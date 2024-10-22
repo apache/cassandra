@@ -293,6 +293,12 @@ public class UnbootstrapAndLeave extends MultiStepOperation<Epoch>
     }
 
     @Override
+    public boolean finishDuringStartup()
+    {
+        return false;
+    }
+
+    @Override
     public String toString()
     {
         return "UnbootstrapAndLeavePlan{" +

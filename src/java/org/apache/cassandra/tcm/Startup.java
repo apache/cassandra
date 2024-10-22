@@ -396,7 +396,7 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
         NodeId self = metadata.myNodeId();
 
         // finish in-progress sequences first
-        InProgressSequences.finishInProgressSequences(self);
+        InProgressSequences.finishInProgressSequences(self, true);
         metadata = ClusterMetadata.current();
 
         switch (metadata.directory.peerState(self))
@@ -407,8 +407,7 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
                     ReconfigureCMS.maybeReconfigureCMS(metadata, DatabaseDescriptor.getReplaceAddress());
 
                 ClusterMetadataService.instance().commit(initialTransformation.get());
-
-                InProgressSequences.finishInProgressSequences(self);
+                InProgressSequences.finishInProgressSequences(self, true); // potentially finish the MSO committed above
                 metadata = ClusterMetadata.current();
 
                 if (metadata.directory.peerState(self) == JOINED)
@@ -436,6 +435,9 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
                     throw new IllegalStateException("Expected to complete startup sequence, but did not. " +
                                                     "Can't proceed from the state " + metadata.directory.peerState(self));
                 }
+                break;
+            case LEAVING:
+                logger.info("Node is currently being decommissioned, resume with `nodetool decommission`");
                 break;
             default:
                 throw new IllegalStateException("Can't proceed from the state " + metadata.directory.peerState(self));

@@ -98,6 +98,11 @@ public abstract class MultiStepOperation<CONTEXT>
         this.latestModification = latestModification;
     }
 
+    public boolean finishDuringStartup()
+    {
+        return true;
+    }
+
     /**
      * Unique identifier for the type of operation, e.g. JOIN, LEAVE, MOVE
      * @return the specific kind of this operation

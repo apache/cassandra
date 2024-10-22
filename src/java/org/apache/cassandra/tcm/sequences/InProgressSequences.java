@@ -61,11 +61,18 @@ public class InProgressSequences implements MetadataValue<InProgressSequences>, 
 
     public static void finishInProgressSequences(MultiStepOperation.SequenceKey sequenceKey)
     {
+        finishInProgressSequences(sequenceKey, false);
+    }
+
+    public static void finishInProgressSequences(MultiStepOperation.SequenceKey sequenceKey, boolean onlyStartup)
+    {
         ClusterMetadata metadata = ClusterMetadata.current();
         while (true)
         {
             MultiStepOperation<?> sequence = metadata.inProgressSequences.get(sequenceKey);
             if (sequence == null)
+                break;
+            if (onlyStartup && !sequence.finishDuringStartup())
                 break;
             if (isLeave(sequence))
                 StorageService.instance.maybeInitializeServices();
