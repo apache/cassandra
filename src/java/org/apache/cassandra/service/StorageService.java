@@ -763,7 +763,16 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         });
 
         if (SystemKeyspace.wasDecommissioned())
-            throw new ConfigurationException("This node was decommissioned and will not rejoin the ring unless cassandra.override_decommission=true has been set, or all existing data is removed and the node is bootstrapped again");
+        {
+            if (CassandraRelevantProperties.OVERRIDE_DECOMMISSION.getBoolean())
+            {
+                logger.warn("This node was decommissioned, but overriding by operator request.");
+            }
+            else
+            {
+                throw new ConfigurationException("This node was decommissioned and will not rejoin the ring unless cassandra.override_decommission=true has been set, or all existing data is removed and the node is bootstrapped again");
+            }
+        }
 
         if (DatabaseDescriptor.getReplaceTokens().size() > 0 || DatabaseDescriptor.getReplaceNode() != null)
             throw new RuntimeException("Replace method removed; use cassandra.replace_address instead");
