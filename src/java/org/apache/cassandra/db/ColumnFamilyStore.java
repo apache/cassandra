@@ -1959,7 +1959,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
     public boolean isCompactionDiskSpaceCheckEnabled()
     {
-        return compactionSpaceCheck;
+        return compactionSpaceCheck && !DatabaseDescriptor.getCompactionIgnoreDiskCheck();
     }
 
     public void compactionDiskSpaceCheck(boolean enable)

@@ -2233,6 +2233,16 @@ public class DatabaseDescriptor
         conf.compaction_tombstone_warning_threshold = count;
     }
 
+    public static boolean getCompactionIgnoreDiskCheck()
+    {
+        return conf.compaction_ignore_disk_check;
+    }
+
+    public static void setCompactionIgnoreDiskCheck(boolean value)
+    {
+        conf.compaction_ignore_disk_check = value;
+    }
+
     public static Config.LCSEnforcementLevel getLCSEnforcementLevel() { return conf.lcs_enforcement_level; }
     public static void setLCSEnforcementLevel(Config.LCSEnforcementLevel level) { conf.lcs_enforcement_level = level; }
 

@@ -41,6 +41,7 @@ import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.KIBIBY
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -814,5 +815,19 @@ public class DatabaseDescriptorTest
     public void testInvalidSub1DefaultRFs() throws IllegalArgumentException
     {
         DatabaseDescriptor.setDefaultKeyspaceRF(0);
+    }
+
+
+    @Test
+    public void testCompactionIgnoreDiskCheck()
+    {
+        Config conf = DatabaseDescriptor.getRawConfig();
+        conf.compaction_ignore_disk_check = true;
+        assertTrue(DatabaseDescriptor.getCompactionIgnoreDiskCheck());
+
+        DatabaseDescriptor.setCompactionIgnoreDiskCheck(false);
+
+        assertFalse(conf.compaction_ignore_disk_check);
+        assertFalse(DatabaseDescriptor.getCompactionIgnoreDiskCheck());
     }
 }

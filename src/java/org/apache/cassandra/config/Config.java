@@ -338,6 +338,8 @@ public class Config
     @Replaces(oldName = "min_free_space_per_drive_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_INT, deprecated = true)
     public DataStorageSpec.IntMebibytesBound min_free_space_per_drive = new DataStorageSpec.IntMebibytesBound("50MiB");
     public volatile Integer compaction_tombstone_warning_threshold = 100000;
+    // (Uber-specific) specifies whether or not Cassandra will check if enough disk space is available before starting compaction
+    public volatile Boolean compaction_ignore_disk_check = false;
 
     public volatile LCSEnforcementLevel lcs_enforcement_level = LCSEnforcementLevel.none;
 

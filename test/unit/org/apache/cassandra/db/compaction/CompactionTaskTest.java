@@ -31,12 +31,14 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.io.sstable.format.ForwardingSSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
@@ -221,6 +223,72 @@ public class CompactionTaskTest
             Assert.assertEquals(1, txn.tracker.getView().liveSSTables().size());
             SSTableReader newSSTable = txn.tracker.getView().liveSSTables().iterator().next();
             Assert.assertNotNull(newSSTable.tryRef());
+        }
+        finally
+        {
+            // SSTables were compacted offline; CFS didn't notice that, so we have to remove them manually
+            cfs.getTracker().removeUnsafe(sstables);
+        }
+    }
+
+    private static class OversizedSTableReader extends ForwardingSSTableReader
+    {
+        public OversizedSTableReader(SSTableReader delegate)
+        {
+            super(delegate);
+        }
+
+        @Override
+        public long onDiskLength()
+        {
+            return Long.MAX_VALUE;
+        }
+    }
+
+    @Test
+    public void testBuildCompactionCandidatesForAvailableDiskSpaceGetCompactionIgnoreDiskCheckTrue()
+    {
+        cfs.getCompactionStrategyManager().disable();
+        QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, v) VALUES (1, 1);");
+        Util.flush(cfs);
+        Set<SSTableReader> sstables = cfs.getLiveSSTables();
+        Assert.assertEquals(1, sstables.size());
+
+        Set<SSTableReader> mockedSStables = Set.of(new OversizedSTableReader(sstables.stream().findFirst().get()));
+        try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.COMPACTION, mockedSStables))
+        {
+            DatabaseDescriptor.setCompactionIgnoreDiskCheck(true);
+            Assert.assertEquals(1, txn.tracker.getView().liveSSTables().size());
+            CompactionTask task = new CompactionTask(cfs, txn, 1000);
+
+            Assert.assertTrue(task.buildCompactionCandidatesForAvailableDiskSpace(Set.of()));
+            Assert.assertEquals(1, txn.tracker.getView().liveSSTables().size());
+        }
+        finally
+        {
+            // SSTables were compacted offline; CFS didn't notice that, so we have to remove them manually
+            cfs.getTracker().removeUnsafe(sstables);
+        }
+    }
+
+
+    @Test(expected = RuntimeException.class)
+    public void testBuildCompactionCandidatesForAvailableDiskSpaceGetCompactionIgnoreDiskCheckFalse()
+    {
+        cfs.getCompactionStrategyManager().disable();
+        QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, v) VALUES (1, 1);");
+        Util.flush(cfs);
+        Set<SSTableReader> sstables = cfs.getLiveSSTables();
+        Assert.assertEquals(1, sstables.size());
+
+        Set<SSTableReader> mockedSStables = Set.of(new OversizedSTableReader(sstables.stream().findFirst().get()));
+        try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.COMPACTION, mockedSStables))
+        {
+            DatabaseDescriptor.setCompactionIgnoreDiskCheck(false);
+            Assert.assertEquals(1, txn.tracker.getView().liveSSTables().size());
+            CompactionTask task = new CompactionTask(cfs, txn, 1000);
+
+            task.buildCompactionCandidatesForAvailableDiskSpace(Set.of());
         }
         finally
         {
