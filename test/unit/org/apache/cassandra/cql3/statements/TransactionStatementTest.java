@@ -18,16 +18,20 @@
 
 package org.apache.cassandra.cql3.statements;
 
+import org.apache.cassandra.cql3.ast.*;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.ast.Conditional.Is;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.Dispatcher;
@@ -39,8 +43,13 @@ import static org.apache.cassandra.cql3.statements.TransactionStatement.EMPTY_TR
 import static org.apache.cassandra.cql3.statements.TransactionStatement.ILLEGAL_RANGE_QUERY_MESSAGE;
 import static org.apache.cassandra.cql3.statements.TransactionStatement.INCOMPLETE_PARTITION_KEY_SELECT_MESSAGE;
 import static org.apache.cassandra.cql3.statements.TransactionStatement.INCOMPLETE_PRIMARY_KEY_SELECT_MESSAGE;
+import static org.apache.cassandra.cql3.statements.TransactionStatement.NO_AGGREGATION_IN_TXNS_MESSAGE;
 import static org.apache.cassandra.cql3.statements.TransactionStatement.NO_CONDITIONS_IN_UPDATES_MESSAGE;
+import static org.apache.cassandra.cql3.statements.TransactionStatement.NO_GROUP_BY_IN_TXNS_MESSAGE;
+import static org.apache.cassandra.cql3.statements.TransactionStatement.NO_ORDER_BY_IN_TXNS_MESSAGE;
+import static org.apache.cassandra.cql3.statements.TransactionStatement.NO_PARTITION_IN_CLAUSE_WITH_LIMIT;
 import static org.apache.cassandra.cql3.statements.TransactionStatement.NO_TIMESTAMPS_IN_UPDATES_MESSAGE;
+import static org.apache.cassandra.cql3.statements.TransactionStatement.NO_TTLS_IN_UPDATES_MESSAGE;
 import static org.apache.cassandra.cql3.statements.TransactionStatement.SELECT_REFS_NEED_COLUMN_MESSAGE;
 import static org.apache.cassandra.cql3.statements.TransactionStatement.TRANSACTIONS_DISABLED_ON_TABLE_MESSAGE;
 import static org.apache.cassandra.cql3.statements.UpdateStatement.CANNOT_SET_KEY_WITH_REFERENCE_MESSAGE;
@@ -58,6 +67,7 @@ public class TransactionStatementTest
     private static final TableId TABLE4_ID = TableId.fromString("00000000-0000-0000-0000-000000000004");
     private static final TableId TABLE5_ID = TableId.fromString("00000000-0000-0000-0000-000000000005");
     private static final TableId TABLE6_ID = TableId.fromString("00000000-0000-0000-0000-000000000006");
+    private static final TableId TABLE7_ID = TableId.fromString("00000000-0000-0000-0000-000000000007");
 
     @BeforeClass
     public static void beforeClass() throws Exception
@@ -69,7 +79,18 @@ public class TransactionStatementTest
                                     parse("CREATE TABLE tbl3 (k int PRIMARY KEY, \"with spaces\" int, \"with\"\"quote\" int, \"MiXeD_CaSe\" int) WITH transactional_mode = 'full'", "ks").id(TABLE3_ID),
                                     parse("CREATE TABLE tbl4 (k int PRIMARY KEY, int_list list<int>) WITH transactional_mode = 'full'", "ks").id(TABLE4_ID),
                                     parse("CREATE TABLE tbl5 (k int PRIMARY KEY, v int) WITH transactional_mode = 'full'", "ks").id(TABLE5_ID),
-                                    parse("CREATE TABLE tbl6 (k int PRIMARY KEY, v int) WITH transactional_mode = 'off'", "ks").id(TABLE6_ID));
+                                    parse("CREATE TABLE tbl6 (k int PRIMARY KEY, v int) WITH transactional_mode = 'off'", "ks").id(TABLE6_ID),
+                                    parse("CREATE TABLE tbl7 (k int PRIMARY KEY, v vector<float, 1>) WITH transactional_mode = 'full'", "ks").id(TABLE7_ID));
+    }
+
+    private static TableMetadata tbl(int num)
+    {
+        return Keyspace.open("ks").getColumnFamilyStore("tbl" + num).metadata();
+    }
+
+    private static TableMetadata tbl5()
+    {
+        return tbl(5);
     }
 
     @Test
@@ -340,6 +361,136 @@ public class TransactionStatementTest
         Assertions.assertThatThrownBy(() -> prepare(query))
                   .isInstanceOf(InvalidRequestException.class)
                   .hasMessageContaining(String.format(ILLEGAL_RANGE_QUERY_MESSAGE, "LET assignment row1", "at [2:15]"));
+    }
+
+    @Test
+    public void shouldRejectTTL()
+    {
+        for (Mutation.Kind kind : Mutation.Kind.values())
+        {
+            if (kind == Mutation.Kind.DELETE) continue; // deletes don't support TTL
+            Mutation mutation;
+            switch (kind)
+            {
+                case INSERT:
+                    mutation = Mutation.insert(tbl5())
+                                       .value("k", 1)
+                                       .value("v", 2)
+                                       .ttl(42)
+                                       .build();
+                    break;
+                case UPDATE:
+                    mutation = Mutation.update(tbl5())
+                                       .value("k", 1)
+                                       .set("v", 2)
+                                       .ttl(42)
+                                       .build();
+                    break;
+                default:
+                    throw new UnsupportedOperationException(kind.name());
+            }
+            String query = Txn.wrap(mutation).toCQL();
+            Assertions.assertThatThrownBy(() -> prepare(query))
+                      .isInstanceOf(InvalidRequestException.class)
+                      .hasMessageContaining(String.format(NO_TTLS_IN_UPDATES_MESSAGE, kind.name(), "at"));
+
+            var txn = Txn.builder()
+                         .addLet("a", Select.builder()
+                                 .table(tbl5())
+                                 .value("k", 1)
+                                 .build())
+                         .addIf(new Is("a", Is.Kind.Null), mutation)
+                         .build();
+            Assertions.assertThatThrownBy(() -> prepare(txn.toCQL()))
+                      .isInstanceOf(InvalidRequestException.class)
+                      .hasMessageContaining(String.format(NO_TTLS_IN_UPDATES_MESSAGE, kind.name(), "at"));
+        }
+    }
+
+    @Test
+    public void shouldRejectAggFunctions()
+    {
+        var select = Select.builder()
+                           .selection(FunctionCall.count("v"))
+                           .table(tbl5())
+                           .value("k",0)
+                           .build();
+
+        Assertions.assertThatThrownBy(() -> prepare(Txn.wrap(select).toCQL()))
+                  .isInstanceOf(InvalidRequestException.class)
+                  .hasMessageContaining(String.format(NO_AGGREGATION_IN_TXNS_MESSAGE, "SELECT", "at"));
+
+        var txn = Txn.builder()
+                     .addLet("a", select)
+                     .addReturnReferences("a.count")
+                     .build();
+
+        Assertions.assertThatThrownBy(() -> prepare(txn.toCQL()))
+                  .isInstanceOf(InvalidRequestException.class)
+                  .hasMessageContaining(String.format(NO_AGGREGATION_IN_TXNS_MESSAGE, "SELECT", "at"));
+    }
+
+    @Test
+    public void shouldRejectOrderBy()
+    {
+        String query = "BEGIN TRANSACTION\n" +
+                       "  SELECT * FROM ks.tbl7 WHERE k=0 ORDER BY v ANN OF [42] LIMIT 1;" +
+                       "COMMIT TRANSACTION;";
+        Assertions.assertThatThrownBy(() -> prepare(query))
+                  .isInstanceOf(InvalidRequestException.class)
+                  .hasMessageContaining(String.format(NO_ORDER_BY_IN_TXNS_MESSAGE, "SELECT", "at"));
+
+        // The below code is left commented out as a reminder to think about this case... As of this writing ORDER BY does not parse in a LET clause... if that is ever fixed we should block it right away!
+//        String query2 = "BEGIN TRANSACTION\n" +
+//                        "  LET a = (SELECT * FROM ks.tbl7 WHERE k=0 ORDER BY v ANN OF [42] LIMIT 1;)" +
+//                        "  SELECT a.v" +
+//                        "COMMIT TRANSACTION;";
+//        Assertions.assertThatThrownBy(() -> prepare(query2))
+//                  .isInstanceOf(InvalidRequestException.class)
+//                  .hasMessageContaining(String.format(NO_ORDER_BY_IN_TXNS_MESSAGE, "SELECT", "at"));
+    }
+
+    @Test
+    public void shouldRejectGroupBy()
+    {
+        String query = "BEGIN TRANSACTION\n" +
+                       "  SELECT * FROM ks.tbl1 WHERE k=0 GROUP BY c LIMIT 1;" +
+                       "COMMIT TRANSACTION;";
+        Assertions.assertThatThrownBy(() -> prepare(query))
+                  .isInstanceOf(InvalidRequestException.class)
+                  .hasMessageContaining(String.format(NO_GROUP_BY_IN_TXNS_MESSAGE, "SELECT", "at"));
+
+        // The below code is left commented out as a reminder to think about this case... As of this writing GROUP BY does not parse in a LET clause... if that is ever fixed we should block it right away!
+//        String query2 = "BEGIN TRANSACTION\n" +
+//                        "  LET a = (SELECT * FROM ks.tbl1 WHERE k=0 GROUP BY c LIMIT 1;)" +
+//                        "  SELECT a.v" +
+//                        "COMMIT TRANSACTION;";
+//        Assertions.assertThatThrownBy(() -> prepare(query2))
+//                  .isInstanceOf(InvalidRequestException.class)
+//                  .hasMessageContaining(String.format(NO_GROUP_BY_IN_TXNS_MESSAGE, "SELECT", "at"));
+    }
+
+    @Test
+    public void shouldRejectInClauseInLet()
+    {
+        // this is blocked not because this isn't safe, but that the logic to handle this is currently in the read coordinator, which Accord doesn't call.
+        // So rather than return bad results to users, IN w/ LIMIT is blocked... until we can fix
+        Select select = Select.builder()
+                             .table(tbl(1))
+                             .in("k", 0, 1)
+                             .limit(Literal.of(1))
+                             .build();
+
+        Assertions.assertThatThrownBy(() -> prepare(Txn.wrap(select).toCQL()))
+                  .isInstanceOf(InvalidRequestException.class)
+                  .hasMessageContaining(String.format(NO_PARTITION_IN_CLAUSE_WITH_LIMIT, "SELECT", "at"));
+
+        Assertions.assertThatThrownBy(() -> prepare(Txn.builder()
+                                                       .addLet("a", select)
+                                                       .addReturnReferences("a.k")
+                                                       .build().toCQL()))
+                  .isInstanceOf(InvalidRequestException.class)
+                  .hasMessageContaining(String.format(NO_PARTITION_IN_CLAUSE_WITH_LIMIT, "SELECT", "at"));
     }
 
     @Test

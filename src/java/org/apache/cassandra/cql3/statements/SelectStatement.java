@@ -422,6 +422,11 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
         return aggregationSpecFactory == null ? null : aggregationSpecFactory.newInstance(options);
     }
 
+    public boolean hasAggregation()
+    {
+        return aggregationSpecFactory != null;
+    }
+
     public ReadQuery getQuery(QueryOptions options, long nowInSec) throws RequestValidationException
     {
         Selectors selectors = selection.newSelectors(options);
@@ -1229,7 +1234,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
         public final Term.Raw limit;
         public final Term.Raw perPartitionLimit;
         private ClientState state;
-        private final StatementSource source;
+        public final StatementSource source;
 
         public RawStatement(QualifiedName cfName,
                             Parameters parameters,
