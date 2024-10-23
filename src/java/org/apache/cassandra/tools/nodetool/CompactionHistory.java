@@ -34,6 +34,11 @@ public class CompactionHistory extends NodeToolCmd
             description = "Output format (json, yaml)")
     private String outputFormat = "";
 
+    @Option(title = "human_readable",
+            name = {"-H", "--human-readable"},
+            description = "Display bytes in human readable form, i.e. KiB, MiB, GiB, TiB")
+    private boolean humanReadable = false;
+
     @Override
     public void execute(NodeProbe probe)
     {
