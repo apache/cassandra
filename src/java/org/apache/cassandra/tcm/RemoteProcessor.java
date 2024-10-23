@@ -168,7 +168,7 @@ public final class RemoteProcessor implements Processor
                                   Verb.TCM_RECONSTRUCT_EPOCH_REQ,
                                   new ReconstructLogState(lowEpoch, highEpoch, includeSnapshot),
                                   new CandidateIterator(candidates),
-                                  new Retry.Backoff(TCMMetrics.instance.fetchLogRetries));
+                                  retryPolicy);
             return request.get(retryPolicy.remainingNanos(), TimeUnit.NANOSECONDS);
         }
         catch (InterruptedException e)
@@ -193,8 +193,7 @@ public final class RemoteProcessor implements Processor
         }
     }
 
-    private static Future<ClusterMetadata> fetchLogAndWaitInternal(CandidateIterator candidates,
-                                                                   LocalLog log)
+    private static Future<ClusterMetadata> fetchLogAndWaitInternal(CandidateIterator candidates, LocalLog log)
     {
         try (Timer.Context ctx = TCMMetrics.instance.fetchCMSLogLatency.time())
         {
