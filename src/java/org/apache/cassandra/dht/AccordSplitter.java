@@ -21,6 +21,7 @@ package org.apache.cassandra.dht;
 import java.math.BigInteger;
 
 import accord.local.ShardDistributor;
+import accord.primitives.Range;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
@@ -58,6 +59,12 @@ public abstract class AccordSplitter implements ShardDistributor.EvenSplit.Split
         TableId tableId = startBound.table();
         return new TokenRange(startOffset.equals(ZERO) ? startBound : new TokenKey(tableId, tokenForValue(start.add(startOffset))),
                               endOffset.compareTo(sizeOfRange) >= 0 ? endBound : new TokenKey(tableId, tokenForValue(start.add(endOffset))));
+    }
+
+    @Override
+    public boolean splittable(Range range, int numSplits)
+    {
+        return sizeOf(range).compareTo(BigInteger.valueOf(numSplits)) >= 0;
     }
 
     @Override
