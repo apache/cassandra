@@ -266,13 +266,14 @@ public class UpdateStatement extends ModificationStatement
                                                                            false,
                                                                            false);
 
+            Json.Prepared unprepared = jsonValue.collectMarkers(metadata, defs, bindVariables);
             List<ColumnIdentifier> columnNames = new ArrayList<>();
             List<Term.Raw> columnValues = new ArrayList<>();
 
             for (ColumnMetadata columnMetadata : defs)
             {
                 columnNames.add(columnMetadata.name);
-                columnValues.add(prepared.getRawTermForColumn(columnMetadata, false));
+                columnValues.add(unprepared.getRawTermForColumn(columnMetadata, false));
             }
             validateConstraints(metadata, columnNames, columnValues);
             return new UpdateStatement(type,

@@ -86,7 +86,6 @@ public class CqlConstraintsTest extends TestBaseImpl
         }
     }
 
-    // Failing test. Working on adding json support for constraints
     @Test
     public void testConstraintWithJsonInsert() throws IOException
     {

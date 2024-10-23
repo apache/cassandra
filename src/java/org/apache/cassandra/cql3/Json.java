@@ -23,10 +23,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.commons.lang3.NotImplementedException;
+
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.terms.Constants;
 import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.NumberType;
+import org.apache.cassandra.db.marshal.StringType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -50,6 +54,7 @@ public final class Json
     public interface Raw
     {
         public Prepared prepareAndCollectMarkers(TableMetadata metadata, Collection<ColumnMetadata> receivers, VariableSpecifications boundNames);
+        public Prepared collectMarkers(TableMetadata metadata, Collection<ColumnMetadata> receivers, VariableSpecifications boundNames);
     }
 
     /**
@@ -68,6 +73,17 @@ public final class Json
         public Prepared prepareAndCollectMarkers(TableMetadata metadata, Collection<ColumnMetadata> receivers, VariableSpecifications boundNames)
         {
             return new PreparedLiteral(parseJson(text, receivers));
+        }
+
+        @Override
+        public Prepared collectMarkers(TableMetadata metadata, Collection<ColumnMetadata> receivers, VariableSpecifications boundNames)
+        {
+            return new UnpreparedLiteral(parseUnpreparedJson(text, receivers));
+        }
+
+        public String getText()
+        {
+            return text;
         }
     }
 
@@ -88,6 +104,12 @@ public final class Json
         {
             boundNames.add(bindIndex, makeReceiver(metadata));
             return new PreparedMarker(bindIndex, receivers);
+        }
+
+        @Override
+        public Prepared collectMarkers(TableMetadata metadata, Collection<ColumnMetadata> receivers, VariableSpecifications boundNames)
+        {
+            throw new NotImplementedException("Markers does not support unprepared parsing from JSON statements");
         }
 
         private ColumnSpecification makeReceiver(TableMetadata metadata)
@@ -122,6 +144,24 @@ public final class Json
             return value == null
                    ? (defaultUnset ? Constants.UNSET_LITERAL : Constants.NULL_LITERAL)
                    : new ColumnValue(value);
+        }
+    }
+
+    private static class UnpreparedLiteral extends Prepared
+    {
+        private final Map<ColumnIdentifier, Term.Raw> columnMap;
+
+        public UnpreparedLiteral(Map<ColumnIdentifier, Term.Raw> columnMap)
+        {
+            this.columnMap = columnMap;
+        }
+
+        public Term.Raw getRawTermForColumn(ColumnMetadata def, boolean defaultUnset)
+        {
+            Term.Raw value = columnMap.get(def.name);
+            return value == null
+                   ? (defaultUnset ? Constants.UNSET_LITERAL : Constants.NULL_LITERAL)
+                   : value;
         }
     }
 
@@ -298,6 +338,71 @@ public final class Json
                     try
                     {
                         columnMap.put(spec.name, spec.type.fromJSONObject(parsedJsonObject));
+                    }
+                    catch (MarshalException exc)
+                    {
+                        throw new InvalidRequestException(format("Error decoding JSON value for %s: %s", spec.name, exc.getMessage()));
+                    }
+                }
+            }
+
+            if (!valueMap.isEmpty())
+            {
+                throw new InvalidRequestException(format("JSON values map contains unrecognized column: %s",
+                                                         valueMap.keySet().iterator().next()));
+            }
+
+            return columnMap;
+        }
+        catch (IOException exc)
+        {
+            throw new InvalidRequestException(format("Could not decode JSON string as a map: %s. (String was: %s)", exc.toString(), jsonString));
+        }
+        catch (MarshalException exc)
+        {
+            throw new InvalidRequestException(exc.getMessage());
+        }
+    }
+
+    static Term.Raw getUnpreparedTerm(ColumnSpecification spec, Object parsedJsonObject)
+    {
+        if (spec.type instanceof NumberType)
+            return Constants.Literal.floatingPoint(parsedJsonObject.toString());
+        if (spec.type instanceof StringType)
+            return Constants.Literal.string(parsedJsonObject.toString());
+        throw new RuntimeException("Unsupported unprepared term type for Json statement");
+    }
+
+    static Map<ColumnIdentifier, Term.Raw> parseUnpreparedJson(String jsonString, Collection<ColumnMetadata> expectedReceivers)
+    {
+        try
+        {
+            Map<String, Object> valueMap = JsonUtils.JSON_OBJECT_MAPPER.readValue(jsonString, Map.class);
+
+            if (valueMap == null)
+                throw new InvalidRequestException("Got null for INSERT JSON values");
+
+            JsonUtils.handleCaseSensitivity(valueMap);
+
+            Map<ColumnIdentifier, Term.Raw> columnMap = new HashMap<>(expectedReceivers.size());
+            for (ColumnSpecification spec : expectedReceivers)
+            {
+                // We explicitely test containsKey() because the value itself can be null, and we want to distinguish an
+                // explicit null value from no value
+                if (!valueMap.containsKey(spec.name.toString()))
+                    continue;
+
+                Object parsedJsonObject = valueMap.remove(spec.name.toString());
+                if (parsedJsonObject == null)
+                {
+                    // This is an explicit user null
+                    columnMap.put(spec.name, null);
+                }
+                else
+                {
+                    try
+                    {
+                        columnMap.put(spec.name, getUnpreparedTerm(spec, parsedJsonObject));
                     }
                     catch (MarshalException exc)
                     {
