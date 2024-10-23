@@ -34,29 +34,31 @@ import java.util.function.LongUnaryOperator;
 import java.util.function.Supplier;
 
 import org.apache.commons.lang3.ArrayUtils;
+import org.junit.After;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import accord.api.Key;
 import accord.api.RoutingKey;
-import accord.local.StoreParticipants;
-import accord.local.cfk.CommandsForKey;
-import accord.local.cfk.CommandsForKey.InternalStatus;
 import accord.local.Command;
-import accord.local.cfk.CommandsForKey.TxnInfo;
-import accord.local.cfk.CommandsForKey.Unmanaged;
 import accord.local.CommonAttributes;
 import accord.local.CommonAttributes.Mutable;
 import accord.local.Node;
-import accord.primitives.SaveStatus;
-import accord.primitives.Status;
+import accord.local.StoreParticipants;
+import accord.local.cfk.CommandsForKey;
+import accord.local.cfk.CommandsForKey.InternalStatus;
+import accord.local.cfk.CommandsForKey.TxnInfo;
+import accord.local.cfk.CommandsForKey.Unmanaged;
 import accord.primitives.Ballot;
 import accord.primitives.KeyDeps;
 import accord.primitives.PartialDeps;
 import accord.primitives.PartialTxn;
 import accord.primitives.RangeDeps;
 import accord.primitives.Routable;
+import accord.primitives.SaveStatus;
+import accord.primitives.Status;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
@@ -82,9 +84,9 @@ import org.apache.cassandra.utils.AccordGenerators;
 import org.apache.cassandra.utils.CassandraGenerators;
 
 import static accord.local.cfk.CommandsForKey.NO_BOUNDS_INFO;
-import static accord.primitives.Status.Durability.NotDurable;
 import static accord.primitives.Known.KnownExecuteAt.ExecuteAtErased;
 import static accord.primitives.Known.KnownExecuteAt.ExecuteAtUnknown;
+import static accord.primitives.Status.Durability.NotDurable;
 import static accord.utils.Property.qt;
 import static accord.utils.SortedArrays.Search.FAST;
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
@@ -101,6 +103,18 @@ public class CommandsForKeySerializerTest
         SchemaLoader.createKeyspace("ks", KeyspaceParams.simple(1),
                                     parse("CREATE TABLE tbl (k int, c int, v int, primary key (k, c)) WITH transactional_mode='full'", "ks"));
         StorageService.instance.initServer();
+    }
+    
+    @Before
+    public void before() throws Throwable
+    {
+        CommandsForKey.disableLinearizabilityViolationsReporting();
+    }
+
+    @After
+    public void after() throws Throwable
+    {
+        CommandsForKey.enableLinearizabilityViolationsReporting();
     }
 
     static class Cmd
