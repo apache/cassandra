@@ -23,6 +23,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import javax.annotation.Nullable;
@@ -340,6 +342,12 @@ FROM [keyspace_name.] table_name
         public Builder withIn(ReferenceExpression symbol, List<Expression> expressions)
         {
             where.in(symbol, expressions);
+            return this;
+        }
+
+        public Builder withIn(String name, int... values)
+        {
+            where.in(new Symbol(name, Int32Type.instance), IntStream.of(values).mapToObj(i -> new Literal(i, Int32Type.instance)).collect(Collectors.toList()));
             return this;
         }
 

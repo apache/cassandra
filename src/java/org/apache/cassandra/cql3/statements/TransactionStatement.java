@@ -57,6 +57,7 @@ import org.apache.cassandra.cql3.transactions.RowDataReference;
 import org.apache.cassandra.cql3.transactions.SelectReferenceSource;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.SinglePartitionReadQuery;
+import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -90,6 +91,7 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
 import static org.apache.cassandra.service.accord.txn.TxnRead.createTxnRead;
 import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.retry_new_protocol;
+import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.values;
 
 public class TransactionStatement implements CQLStatement.CompositeCQLStatement, CQLStatement.ReturningCQLStatement
 {
@@ -98,14 +100,19 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
     public static final String INCOMPLETE_PRIMARY_KEY_SELECT_MESSAGE = "SELECT must specify either all primary key elements or all partition key elements and LIMIT 1. In both cases partition key elements must be always specified with equality operators; %s %s";
     public static final String NO_CONDITIONS_IN_UPDATES_MESSAGE = "Updates within transactions may not specify their own conditions; %s statement %s";
     public static final String NO_TIMESTAMPS_IN_UPDATES_MESSAGE = "Updates within transactions may not specify custom timestamps; %s statement %s";
+    public static final String NO_TTLS_IN_UPDATES_MESSAGE = "Updates within transactions may not specify custom ttls; %s statement %s";
     public static final String TRANSACTIONS_DISABLED_ON_TABLE_MESSAGE = "Accord transactions are disabled on table (See transactional_mode in table options); %s statement %s";
     public static final String TRANSACTIONS_DISABLED_ON_TABLE_BEING_DROPPED_MESSAGE = "Accord transactions are disabled on table (table is being dropped); %s statement %s";
     public static final String NO_COUNTERS_IN_TXNS_MESSAGE = "Counter columns cannot be accessed within a transaction; %s statement %s";
+    public static final String NO_AGGREGATION_IN_TXNS_MESSAGE = "No aggregation functions allowed within a transaction; %s statement %s";
+    public static final String NO_ORDER_BY_IN_TXNS_MESSAGE = "No ORDER BY clause allowed within a transaction; %s statement %s";
+    public static final String NO_GROUP_BY_IN_TXNS_MESSAGE = "No GROUP BY clause allowed within a transaction; %s statement %s";
     public static final String EMPTY_TRANSACTION_MESSAGE = "Transaction contains no reads or writes";
     public static final String SELECT_REFS_NEED_COLUMN_MESSAGE = "SELECT references must specify a column.";
     public static final String TRANSACTIONS_DISABLED_MESSAGE = "Accord transactions are disabled. (See accord.enabled in cassandra.yaml)";
     public static final String ILLEGAL_RANGE_QUERY_MESSAGE = "Range queries are not allowed for reads within a transaction; %s %s";
     public static final String UNSUPPORTED_MIGRATION = "Transaction Statement is unsupported when migrating away from Accord or before migration to Accord is complete for a range";
+    public static final String NO_PARTITION_IN_CLAUSE_WITH_LIMIT = "Partition key is present in IN clause and there is a LIMIT... this is currently not supported; %s statement %s";
 
     static class NamedSelect
     {
@@ -464,6 +471,29 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
         return false;
     }
 
+    private static void validate(SelectStatement.RawStatement select)
+    {
+        if (select.parameters.orderings != null && !select.parameters.orderings.isEmpty())
+            throw invalidRequest(NO_ORDER_BY_IN_TXNS_MESSAGE, "SELECT", select.source);
+        if (select.parameters.groups != null && !select.parameters.groups.isEmpty())
+            throw invalidRequest(NO_GROUP_BY_IN_TXNS_MESSAGE, "SELECT", select.source);
+    }
+
+    private static void validate(SelectStatement prepared)
+    {
+        if (!prepared.table.isAccordEnabled())
+            throw invalidRequest(TRANSACTIONS_DISABLED_ON_TABLE_MESSAGE, "SELECT", prepared.source);
+        if (prepared.table.params.pendingDrop)
+            throw invalidRequest(TRANSACTIONS_DISABLED_ON_TABLE_BEING_DROPPED_MESSAGE, "SELECT", prepared.source);
+        if (prepared.table.isCounter())
+            throw invalidRequest(NO_COUNTERS_IN_TXNS_MESSAGE, "SELECT", prepared.source);
+        if (prepared.hasAggregation())
+            throw invalidRequest(NO_AGGREGATION_IN_TXNS_MESSAGE, "SELECT", prepared.source);
+
+        if (prepared.getRestrictions().keyIsInRelation())
+            checkTrue(prepared.getLimit(null) == DataLimits.NO_LIMIT, NO_PARTITION_IN_CLAUSE_WITH_LIMIT, "SELECT", prepared.source);
+    }
+
     public static class Parsed extends QualifiedStatement.Composite
     {
         private final List<SelectStatement.RawStatement> assignments;
@@ -514,15 +544,10 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
                 checkNotNull(select.parameters.refName, "Assignments must be named");
                 TxnDataName name = TxnDataName.user(select.parameters.refName);
                 checkTrue(selectNames.add(name), DUPLICATE_TUPLE_NAME_MESSAGE, name.name());
+                validate(select);
 
                 SelectStatement prepared = select.prepare(bindVariables);
-
-                if (!prepared.table.isAccordEnabled())
-                    throw invalidRequest(TRANSACTIONS_DISABLED_ON_TABLE_MESSAGE, "SELECT", prepared.source);
-                if (prepared.table.params.pendingDrop)
-                    throw invalidRequest(TRANSACTIONS_DISABLED_ON_TABLE_BEING_DROPPED_MESSAGE, "SELECT", prepared.source);
-                if (prepared.table.isCounter())
-                    throw invalidRequest(NO_COUNTERS_IN_TXNS_MESSAGE, "SELECT", prepared.source);
+                validate(prepared);
 
                 NamedSelect namedSelect = new NamedSelect(name, prepared);
                 checkAtMostOneRowSpecified(namedSelect.select, "LET assignment " + name.name());
@@ -537,15 +562,9 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
             NamedSelect returningSelect = null;
             if (select != null)
             {
+                validate(select);
                 SelectStatement prepared = select.prepare(bindVariables);
-
-                if (!prepared.table.isAccordEnabled())
-                    throw invalidRequest(TRANSACTIONS_DISABLED_ON_TABLE_MESSAGE, "SELECT", prepared.source);
-                if (prepared.table.params.pendingDrop)
-                    throw invalidRequest(TRANSACTIONS_DISABLED_ON_TABLE_BEING_DROPPED_MESSAGE, "SELECT", prepared.source);
-                if (prepared.table.isCounter())
-                    throw invalidRequest(NO_COUNTERS_IN_TXNS_MESSAGE, "SELECT", prepared.source);
-
+                validate(prepared);
                 returningSelect = new NamedSelect(TxnDataName.returning(), prepared);
                 checkAtMostOnePartitionSpecified(returningSelect.select, "returning select");
             }
@@ -572,6 +591,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
                 checkFalse(prepared.metadata().params.pendingDrop, TRANSACTIONS_DISABLED_ON_TABLE_BEING_DROPPED_MESSAGE, prepared.type, prepared.source);
                 checkFalse(prepared.hasConditions(), NO_CONDITIONS_IN_UPDATES_MESSAGE, prepared.type, prepared.source);
                 checkFalse(prepared.isTimestampSet(), NO_TIMESTAMPS_IN_UPDATES_MESSAGE, prepared.type, prepared.source);
+                checkFalse(prepared.attrs.isTimeToLiveSet(), NO_TTLS_IN_UPDATES_MESSAGE, prepared.type, prepared.source);
 
                 if (prepared.metadata().isCounter())
                     throw invalidRequest(NO_COUNTERS_IN_TXNS_MESSAGE, prepared.type, prepared.source);

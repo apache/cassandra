@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -35,6 +36,7 @@ import java.util.stream.StreamSupport;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
+import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 
@@ -101,6 +103,11 @@ public class Mutation implements Statement
         this.ttl = ttl;
         this.timestamp = timestamp;
         this.casCondition = casCondition;
+    }
+
+    public static Builder builder(TableMetadata table)
+    {
+        return new Builder(table);
     }
 
     @Override
@@ -354,5 +361,51 @@ WHERE PK_column_conditions
     public static Set<Symbol> toSet(Iterable<ColumnMetadata> columns)
     {
         return StreamSupport.stream(columns.spliterator(), false).map(m -> new Symbol(m)).collect(Collectors.toSet());
+    }
+
+    public static class Builder
+    {
+        private final TableMetadata metadata;
+        private Kind kind;
+        private Map<Symbol, Expression> values = new LinkedHashMap<>();
+        private OptionalInt ttl = OptionalInt.empty();
+        private OptionalLong timestamp = OptionalLong.empty();
+        private Optional<? extends CasCondition> casCondition = Optional.empty();
+
+        public Builder(TableMetadata metadata)
+        {
+            this.metadata = metadata;
+        }
+
+        public Builder kind(Kind kind)
+        {
+            this.kind = kind;
+            return this;
+        }
+
+        public Builder value(String col, int value)
+        {
+            return value(new Symbol(col, Int32Type.instance), value);
+        }
+
+        public Builder value(Symbol symbol, Object value)
+        {
+            values.put(symbol, new Literal(value, symbol.type()));
+            return this;
+        }
+
+        public Builder ttl(int ttl)
+        {
+            this.ttl = OptionalInt.of(ttl);
+            return this;
+        }
+
+        public Mutation build()
+        {
+            if (kind == null)
+                throw new IllegalStateException("Kind is not defined, must call kind method before build");
+            // don't need to check values as Mutation does
+            return new Mutation(kind, metadata, new LinkedHashMap<>(values), ttl, timestamp, casCondition);
+        }
     }
 }
