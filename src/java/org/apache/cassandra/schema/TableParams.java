@@ -44,6 +44,7 @@ import static java.lang.String.format;
 import static java.util.stream.Collectors.toMap;
 import static org.apache.cassandra.schema.TableParams.Option.*;
 import static org.apache.cassandra.db.TypeSizes.sizeof;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 public final class TableParams
 {
@@ -73,7 +74,7 @@ public final class TableParams
         @Override
         public String toString()
         {
-            return name().toLowerCase();
+            return toLowerCaseLocalized(name());
         }
     }
 

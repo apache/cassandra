@@ -52,6 +52,7 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_UNSA
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_COMPRESSION;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_COMPRESSION_ALGO;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 public class SchemaLoader
 {
@@ -745,7 +746,7 @@ public static TableMetadata.Builder clusteringSASICFMD(String ksName, String cfN
 
     private static CompressionParams compressionParams(int chunkLength)
     {
-        String algo = TEST_COMPRESSION_ALGO.getString().toLowerCase();
+        String algo = toLowerCaseLocalized(TEST_COMPRESSION_ALGO.getString());
         switch (algo)
         {
             case "deflate":

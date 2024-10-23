@@ -30,6 +30,7 @@ import org.apache.cassandra.serializers.MarshalException;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 import static org.apache.commons.lang3.time.DateUtils.MILLIS_PER_DAY;
 
 import io.netty.util.concurrent.FastThreadLocal;
@@ -251,7 +252,7 @@ public final class Duration
 
     private static Builder add(Builder builder, long number, String symbol)
     {
-        switch (symbol.toLowerCase())
+        switch (toLowerCaseLocalized(symbol))
         {
             case "y": return builder.addYears(number);
             case "mo": return builder.addMonths(number);

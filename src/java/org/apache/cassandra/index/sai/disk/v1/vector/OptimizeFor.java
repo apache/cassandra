@@ -21,6 +21,7 @@ package org.apache.cassandra.index.sai.disk.v1.vector;
 import java.util.function.Function;
 
 import static java.lang.Math.pow;
+import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;
 
 /**
  * Allows the vector index searches to be optimised for latency or recall. This is used by the
@@ -47,6 +48,6 @@ public enum OptimizeFor
 
     public static OptimizeFor fromString(String value)
     {
-        return valueOf(value.toUpperCase());
+        return valueOf(toUpperCaseLocalized(value));
     }
 }

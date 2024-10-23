@@ -17,9 +17,6 @@
  */
 package org.apache.cassandra.db;
 
-
-import java.util.Locale;
-
 import com.carrotsearch.hppc.ObjectIntHashMap;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.InOurDc;
@@ -31,6 +28,7 @@ import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.transport.ProtocolException;
 
 import static org.apache.cassandra.locator.Replicas.addToCountPerDc;
+import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;
 
 public enum ConsistencyLevel
 {
@@ -85,7 +83,7 @@ public enum ConsistencyLevel
 
     public static ConsistencyLevel fromString(String str)
     {
-        return valueOf(str.toUpperCase(Locale.US));
+        return valueOf(toUpperCaseLocalized(str));
     }
 
     public static int quorumFor(AbstractReplicationStrategy replicationStrategy)

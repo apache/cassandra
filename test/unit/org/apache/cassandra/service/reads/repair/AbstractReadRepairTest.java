@@ -83,6 +83,7 @@ import static org.apache.cassandra.locator.ReplicaPlans.forReadRepair;
 import static org.apache.cassandra.locator.ReplicaUtils.FULL_RANGE;
 import static org.apache.cassandra.net.Verb.INTERNAL_RSP;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 @Ignore
 public abstract  class AbstractReadRepairTest
@@ -288,7 +289,7 @@ public abstract  class AbstractReadRepairTest
         String ksName = "ks";
 
         String ddl = String.format("CREATE TABLE tbl (k int primary key, v text) WITH read_repair='%s'",
-                                   repairStrategy.toString().toLowerCase());
+                                   toLowerCaseLocalized(repairStrategy.toString()));
 
         cfm = CreateTableStatement.parse(ddl, ksName).build();
         assert cfm.params.readRepair == repairStrategy;

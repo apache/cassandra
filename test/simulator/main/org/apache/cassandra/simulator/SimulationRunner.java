@@ -81,6 +81,7 @@ import static org.apache.cassandra.simulator.debug.Record.record;
 import static org.apache.cassandra.simulator.debug.SelfReconcile.reconcileWithSelf;
 import static org.apache.cassandra.simulator.utils.IntRange.parseRange;
 import static org.apache.cassandra.simulator.utils.LongRange.parseNanosRange;
+import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;
 
 @SuppressWarnings({ "ZeroLengthArrayAllocation", "CodeBlock2Expr", "SameParameterValue", "DynamicRegexReplaceableByCompiledPattern", "CallToSystemGC" })
 public class SimulationRunner
@@ -281,7 +282,7 @@ public class SimulationRunner
             Optional.ofNullable(topologyChanges).ifPresent(topologyChanges -> {
                 builder.topologyChanges(stream(topologyChanges.split(","))
                                         .filter(v -> !v.isEmpty())
-                                        .map(v -> TopologyChange.valueOf(v.toUpperCase()))
+                                        .map(v -> TopologyChange.valueOf(toUpperCaseLocalized(v)))
                                         .toArray(TopologyChange[]::new));
             });
             parseNanosRange(Optional.ofNullable(topologyChangeInterval)).ifPresent(builder::topologyChangeIntervalNanos);
@@ -289,7 +290,7 @@ public class SimulationRunner
             Optional.ofNullable(priority).ifPresent(kinds -> {
                 builder.scheduler(stream(kinds.split(","))
                                   .filter(v -> !v.isEmpty())
-                                  .map(v -> RunnableActionScheduler.Kind.valueOf(v.toUpperCase()))
+                                  .map(v -> RunnableActionScheduler.Kind.valueOf(toUpperCaseLocalized(v)))
                                   .toArray(RunnableActionScheduler.Kind[]::new));
             });
 

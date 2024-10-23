@@ -25,6 +25,7 @@ import org.junit.Test;
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.lucene.analysis.miscellaneous.ASCIIFoldingFilter;
 
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 import static org.junit.Assert.assertEquals;
 
 public class BasicFiltersTest
@@ -37,7 +38,7 @@ public class BasicFiltersTest
         for (int count = 0; count < SAITester.getRandom().nextIntBetween(100, 1000); count++)
         {
             String actual = SAITester.getRandom().nextTextString(10, 50);
-            assertEquals(actual.toLowerCase(), lowerCase.process(actual));
+            assertEquals(toLowerCaseLocalized(actual), lowerCase.process(actual));
         }
     }
     

@@ -23,6 +23,8 @@ import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.transport.Dispatcher;
 
+import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;
+
 public enum ReadRepairStrategy implements ReadRepair.Factory
 {
     NONE
@@ -45,6 +47,6 @@ public enum ReadRepairStrategy implements ReadRepair.Factory
 
     public static ReadRepairStrategy fromString(String s)
     {
-        return valueOf(s.toUpperCase());
+        return valueOf(toUpperCaseLocalized(s));
     }
 }

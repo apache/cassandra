@@ -42,6 +42,7 @@ import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.TimeUUID;
 
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 public class StreamingState implements StreamEventHandler, IMeasurableMemory
@@ -214,14 +215,14 @@ public class StreamingState implements StreamEventHandler, IMeasurableMemory
     {
         TableBuilder table = new TableBuilder();
         table.add("id", id.toString());
-        table.add("status", status().name().toLowerCase());
+        table.add("status", toLowerCaseLocalized(status().name()));
         table.add("progress", (progress() * 100) + "%");
         table.add("duration_ms", Long.toString(durationMillis()));
         table.add("last_updated_ms", Long.toString(lastUpdatedAtMillis()));
         table.add("failure_cause", failureCause());
         table.add("success_message", successMessage());
         for (Map.Entry<Status, Long> e : stateTimesMillis().entrySet())
-            table.add("status_" + e.getKey().name().toLowerCase() + "_ms", e.toString());
+            table.add("status_" + toLowerCaseLocalized(e.getKey().name()) + "_ms", e.toString());
         return table.toString();
     }
 

@@ -67,6 +67,7 @@ import static org.apache.cassandra.db.SystemKeyspace.LEGACY_SSTABLE_ACTIVITY;
 import static org.apache.cassandra.db.SystemKeyspace.SSTABLE_ACTIVITY_V2;
 import static org.apache.cassandra.distributed.shared.FutureUtils.waitOn;
 import static org.apache.cassandra.distributed.test.ExecUtil.rethrow;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class SSTableIdGenerationTest extends TestBaseImpl
@@ -176,7 +177,7 @@ public class SSTableIdGenerationTest extends TestBaseImpl
             // create a table and two sstables with sequential id for each strategy, the sstables will contain overlapping partitions
             for (Class<? extends AbstractCompactionStrategy> compactionStrategyClass : compactionStrategyClasses)
             {
-                String tableName = "tbl_" + compactionStrategyClass.getSimpleName().toLowerCase();
+                String tableName = "tbl_" + toLowerCaseLocalized(compactionStrategyClass.getSimpleName());
                 cluster.schemaChange(createTableStmt(KEYSPACE, tableName, compactionStrategyClass));
 
                 createSSTables(cluster.get(1), KEYSPACE, tableName, 1, 2);
@@ -189,7 +190,7 @@ public class SSTableIdGenerationTest extends TestBaseImpl
             // create another two sstables with uuid for each previously created table
             for (Class<? extends AbstractCompactionStrategy> compactionStrategyClass : compactionStrategyClasses)
             {
-                String tableName = "tbl_" + compactionStrategyClass.getSimpleName().toLowerCase();
+                String tableName = "tbl_" + toLowerCaseLocalized(compactionStrategyClass.getSimpleName());
 
                 createSSTables(cluster.get(1), KEYSPACE, tableName, 3, 4);
 

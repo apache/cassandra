@@ -58,6 +58,8 @@ import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
+import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;
 
 public class StandaloneScrubber
 {
@@ -241,12 +243,12 @@ public class StandaloneScrubber
 
             static HeaderFixMode fromCommandLine(String value)
             {
-                return valueOf(value.replace('-', '_').toUpperCase().trim());
+                return valueOf(toUpperCaseLocalized(value.replace('-', '_')).trim());
             }
 
             String asCommandLineOption()
             {
-                return name().toLowerCase().replace('_', '-');
+                return toLowerCaseLocalized(name()).replace('_', '-');
             }
         }
 

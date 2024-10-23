@@ -32,6 +32,8 @@ import org.apache.cassandra.service.FileSystemOwnershipCheck;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.StorageCompatibilityMode;
 
+import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;
+
 // checkstyle: suppress below 'blockSystemPropertyUsage'
 
 /** A class that extracts system properties for the cassandra node it runs within. */
@@ -918,7 +920,7 @@ public enum CassandraRelevantProperties
     }
 
     /**
-     * Gets the value of a system property as a enum, calling {@link String#toUpperCase()} first.
+     * Gets the value of a system property as an enum, calling {@link org.apache.cassandra.utils.LocalizeString#toUpperCaseLocalized(String)} first.
      *
      * @param defaultValue to return when not defined
      * @param <T> type
@@ -930,7 +932,7 @@ public enum CassandraRelevantProperties
     }
 
     /**
-     * Gets the value of a system property as a enum, optionally calling {@link String#toUpperCase()} first.
+     * Gets the value of a system property as an enum, optionally calling {@link org.apache.cassandra.utils.LocalizeString#toUpperCaseLocalized(String)} first.
      *
      * @param toUppercase before converting to enum
      * @param defaultValue to return when not defined
@@ -942,11 +944,11 @@ public enum CassandraRelevantProperties
         String value = System.getProperty(key);
         if (value == null)
             return defaultValue;
-        return Enum.valueOf(defaultValue.getDeclaringClass(), toUppercase ? value.toUpperCase() : value);
+        return Enum.valueOf(defaultValue.getDeclaringClass(), toUppercase ? toUpperCaseLocalized(value) : value);
     }
 
     /**
-     * Gets the value of a system property as an enum, optionally calling {@link String#toUpperCase()} first.
+     * Gets the value of a system property as an enum, optionally calling {@link org.apache.cassandra.utils.LocalizeString#toLowerCaseLocalized(String)} first.
      * If the value is missing, the default value for this property is used
      *
      * @param toUppercase before converting to enum
@@ -957,7 +959,7 @@ public enum CassandraRelevantProperties
     public <T extends Enum<T>> T getEnum(boolean toUppercase, Class<T> enumClass)
     {
         String value = System.getProperty(key, defaultVal);
-        return Enum.valueOf(enumClass, toUppercase ? value.toUpperCase() : value);
+        return Enum.valueOf(enumClass, toUppercase ? toUpperCaseLocalized(value) : value);
     }
 
     /**

@@ -39,7 +39,6 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -204,6 +203,7 @@ import static org.apache.cassandra.cql3.SchemaElement.SchemaElementType.TABLE;
 import static org.apache.cassandra.cql3.SchemaElement.SchemaElementType.TYPE;
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.createMetricsKeyspaceTables;
 import static org.apache.cassandra.schema.SchemaConstants.VIRTUAL_METRICS;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
@@ -1046,7 +1046,7 @@ public abstract class CQLTester
     private String createSchemaElementName(SchemaElement.SchemaElementType type, String keyspace)
     {
         String prefix = keyspace == null ? "" : keyspace + '.';
-        String typeName = type == MATERIALIZED_VIEW ? "mv" : type.name().toLowerCase(Locale.US);
+        String typeName = type == MATERIALIZED_VIEW ? "mv" : toLowerCaseLocalized(type.name());
         int sequence = seqNumber.getAndIncrement();
         int usedSpaceSoFar = prefix.length() + typeName.length() + Math.max(2, numberOfDigits(sequence)) + 1;
         String testMethodName = StringUtils.truncate(getTestMethodName(), SchemaConstants.NAME_LENGTH - usedSpaceSoFar);
@@ -1329,7 +1329,7 @@ public abstract class CQLTester
 
         index = ParseUtils.isQuoted(index, '\"')
                 ? ParseUtils.unDoubleQuote(index)
-                : index.toLowerCase();
+                : toLowerCaseLocalized(index);
 
         return Pair.create(keyspace, index);
     }
@@ -2738,7 +2738,7 @@ public abstract class CQLTester
 
     private String getTestMethodName()
     {
-        return decorateCQLWithTestNames && testName.getMethodName() != null ? '_' + testName.getMethodName().toLowerCase().replaceAll("[^\\w]", "_")
+        return decorateCQLWithTestNames && testName.getMethodName() != null ? '_' + toLowerCaseLocalized(testName.getMethodName()).replaceAll("[^\\w]", "_")
                                                                             : "";
     }
 
