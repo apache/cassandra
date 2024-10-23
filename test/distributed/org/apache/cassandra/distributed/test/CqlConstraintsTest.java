@@ -93,17 +93,17 @@ public class CqlConstraintsTest extends TestBaseImpl
 
         try (Cluster cluster = init(Cluster.build(3).start()))
         {
-            String createTableStatement = "CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk), ck1, ck2), CONSTRAINT cons1 CHECK ck1 < 100);";
+            String createTableStatement = "CREATE TABLE %s (pk int, ck1 int, ck2 int, v uuid, PRIMARY KEY ((pk), ck1, ck2), CONSTRAINT cons1 CHECK ck1 < 100);";
             cluster.schemaChange(String.format(createTableStatement, tableName));
 
-            cluster.coordinator(1).execute(String.format("INSERT INTO %s JSON '{\"pk\" : 1, \"ck1\" : 2, \"ck2\" : 2, \"v\" : 3 }'", tableName), ConsistencyLevel.ALL);
+            cluster.coordinator(1).execute(String.format("INSERT INTO %s JSON '{\"pk\" : 1, \"ck1\" : 2, \"ck2\" : 2, \"v\" : \"ac064e40-0417-4a4a-bf53-b7cf145afdc2\" }'", tableName), ConsistencyLevel.ALL);
 
             assertThrowsConstraintViolationException(cluster,
-                                                     String.format("INSERT INTO %s JSON '{\"pk\" : 1, \"ck1\" : 200, \"ck2\" : 2, \"v\" : 3 }'", tableName),
+                                                     String.format("INSERT INTO %s JSON '{\"pk\" : 1, \"ck1\" : 200, \"ck2\" : 2, \"v\" : \"ac064e40-0417-4a4a-bf53-b7cf145afdc2\" }'", tableName),
                                                      "ck1 value length should be smaller than 100");
 
             assertThrowsConstraintViolationException(cluster,
-                                                     String.format("INSERT INTO %s JSON '{\"pk\" : 1, \"ck1\": 100, \"ck2\" : 2, \"v\" : 3 }'", tableName),
+                                                     String.format("INSERT INTO %s JSON '{\"pk\" : 1, \"ck1\": 100, \"ck2\" : 2, \"v\" : \"ac064e40-0417-4a4a-bf53-b7cf145afdc2\" }'", tableName),
                                                      "ck1 value length should be smaller than 100");
         }
     }

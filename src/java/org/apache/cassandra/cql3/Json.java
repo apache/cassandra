@@ -370,7 +370,7 @@ public final class Json
             return Constants.Literal.floatingPoint(parsedJsonObject.toString());
         if (spec.type instanceof StringType)
             return Constants.Literal.string(parsedJsonObject.toString());
-        throw new RuntimeException("Unsupported unprepared term type for Json statement");
+        return null;
     }
 
     static Map<ColumnIdentifier, Term.Raw> parseUnpreparedJson(String jsonString, Collection<ColumnMetadata> expectedReceivers)
