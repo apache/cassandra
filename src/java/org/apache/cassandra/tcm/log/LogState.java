@@ -27,6 +27,7 @@ import com.google.common.collect.ImmutableList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.utils.Invariants;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.TypeSizes;
@@ -70,6 +71,10 @@ public class LogState
     // Uses Replication rather than an just a list of entries primarily to avoid duplicating the existing serializer
     public LogState(ClusterMetadata baseState, ImmutableList<Entry> entries)
     {
+        Invariants.checkState(baseState == null ||
+                              entries.isEmpty() ||
+                              entries.get(0).epoch.isDirectlyAfter(baseState.epoch),
+                              "Base state: %s, first entry: %s", baseState == null ? null : baseState.epoch, entries.isEmpty() ? null : entries.get(0).epoch);
         this.baseState = baseState;
         this.entries = entries;
     }

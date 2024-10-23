@@ -98,14 +98,13 @@ public class SystemKeyspaceStorageTest extends CoordinatorPathTestBase
                     cluster.get(1).runOnInstance(() -> deleteSnapshot(toRemoveSnapshot.getEpoch()));
                 }
             }
-            Epoch latestSnapshot = remainingSnapshots.get(remainingSnapshots.size() - 1);
             Epoch lastEpoch =  allEpochs.stream().max(Comparator.naturalOrder()).get();
             repeat(10, () -> {
                 repeat(100, () -> {
                     Epoch since = allEpochs.get(rng.nextInt(allEpochs.size()));
-                    for (boolean consistentReplay : new boolean[]{ true, false })
+                    for (boolean consistentFetch : new boolean[]{ true, false })
                     {
-                        LogState logState = simulatedCluster.node(2).requestResponse(new FetchCMSLog(since, consistentReplay));
+                        LogState logState = simulatedCluster.node(2).requestResponse(new FetchCMSLog(since, consistentFetch));
                         // if we return a snapshot it is always the most recent one
                         // we don't return a snapshot if there is only 1 snapshot after `since`
                         Epoch start = since;
@@ -119,12 +118,16 @@ public class SystemKeyspaceStorageTest extends CoordinatorPathTestBase
                         }
                         else
                         {
-                            assertEquals(latestSnapshot, logState.baseState.epoch);
+                            assertEquals(since, logState.baseState.epoch);
                             start = logState.baseState.epoch;
                             if (logState.entries.isEmpty()) // no entries, snapshot should have the same epoch as since
                                 assertEquals(since, start);
                             else // first epoch in entries should be snapshot epoch + 1
+                            {
+                                if (!start.nextEpoch().equals(logState.entries.get(0).epoch))
+                                    System.out.println(1);
                                 assertEquals(start.nextEpoch(), logState.entries.get(0).epoch);
+                            }
                         }
 
                         for (Entry entry : logState.entries)
@@ -174,7 +177,7 @@ public class SystemKeyspaceStorageTest extends CoordinatorPathTestBase
             }
             catch (Throwable throwable)
             {
-                throw new AssertionError(throwable);
+                throw new AssertionError(String.format("Failed on %dth/%d repetition", i, num), throwable);
             }
         }
     }

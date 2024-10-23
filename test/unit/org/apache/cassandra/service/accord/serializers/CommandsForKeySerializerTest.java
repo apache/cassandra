@@ -104,7 +104,7 @@ public class CommandsForKeySerializerTest
                                     parse("CREATE TABLE tbl (k int, c int, v int, primary key (k, c)) WITH transactional_mode='full'", "ks"));
         StorageService.instance.initServer();
     }
-    
+
     @Before
     public void before() throws Throwable
     {

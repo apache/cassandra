@@ -177,7 +177,7 @@ public class AtomicLongBackedProcessor extends AbstractLocalProcessor
         public LogState getLogState(Epoch start, Epoch end)
         {
             EntryHolder state = getEntries(Epoch.EMPTY);
-            ClusterMetadata metadata = new ClusterMetadata(DatabaseDescriptor.getPartitioner());;
+            ClusterMetadata metadata = new ClusterMetadata(DatabaseDescriptor.getPartitioner());
             Iterator<Entry> iter = state.iterator();
             ImmutableList.Builder<Entry> rest = new ImmutableList.Builder<>();
             while (iter.hasNext())
@@ -185,9 +185,9 @@ public class AtomicLongBackedProcessor extends AbstractLocalProcessor
                 Entry current = iter.next();
                 if (current.epoch.isAfter(end))
                     break;
-                if (current.epoch.isEqualOrBefore(start))
+                if (current.epoch.isDirectlyAfter(metadata.epoch))
                     metadata = current.transform.execute(metadata).success().metadata;
-                else
+                else if (current.epoch.isAfter(start))
                     rest.add(current);
             }
 
