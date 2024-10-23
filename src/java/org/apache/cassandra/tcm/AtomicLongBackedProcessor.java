@@ -32,6 +32,7 @@ import com.google.common.collect.ImmutableList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.utils.Invariants;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LocalLog;
@@ -177,7 +178,7 @@ public class AtomicLongBackedProcessor extends AbstractLocalProcessor
         public LogState getLogState(Epoch start, Epoch end)
         {
             EntryHolder state = getEntries(Epoch.EMPTY);
-            ClusterMetadata metadata = new ClusterMetadata(DatabaseDescriptor.getPartitioner());;
+            ClusterMetadata metadata = new ClusterMetadata(DatabaseDescriptor.getPartitioner());
             Iterator<Entry> iter = state.iterator();
             ImmutableList.Builder<Entry> rest = new ImmutableList.Builder<>();
             while (iter.hasNext())
@@ -186,8 +187,11 @@ public class AtomicLongBackedProcessor extends AbstractLocalProcessor
                 if (current.epoch.isAfter(end))
                     break;
                 if (current.epoch.isEqualOrBefore(start))
+                {
+                    Invariants.checkState(current.epoch.isDirectlyAfter(metadata.epoch));
                     metadata = current.transform.execute(metadata).success().metadata;
-                else
+                }
+                else if (current.epoch.isAfter(start))
                     rest.add(current);
             }
 

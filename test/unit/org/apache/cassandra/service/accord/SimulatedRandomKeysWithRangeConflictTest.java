@@ -25,21 +25,13 @@ import accord.primitives.Keys;
 import accord.primitives.Ranges;
 import accord.primitives.RoutingKeys;
 import accord.primitives.Txn;
-import accord.primitives.TxnId;
 import accord.utils.Property;
 import accord.utils.RandomSource;
-import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.utils.FailingConsumer;
 import org.junit.Test;
 
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 
 import static accord.utils.Property.commands;
 import static accord.utils.Property.stateful;
@@ -51,16 +43,14 @@ public class SimulatedRandomKeysWithRangeConflictTest extends SimulatedAccordCom
     private static Property.SimpleCommand<State> insertKey(RandomSource rs, State state)
     {
         long token = rs.nextLong(Long.MIN_VALUE  + 1, Long.MAX_VALUE);
-        RoutingKey key = new TokenKey(state.tbl.id, new LongToken(token));
         Txn keyTxn = createTxn(wrapInTxn("INSERT INTO " + state.tbl + "(pk, value) VALUES (?, ?)"),
-                Arrays.asList(keyForToken(token), 42));
+                               Arrays.asList(keyForToken(token), 42));
         Keys keys = (Keys) keyTxn.keys();
         FullRoute<RoutingKey> keyRoute = keys.toRoute(keys.get(0).toUnseekable());
 
         return new Property.SimpleCommand<>("Write Txn: " + keys, FailingConsumer.orFail(s -> {
             s.instance.maybeCacheEvict(keyRoute, s.wholeRange);
-            var k = assertDepsMessage(s.instance, rs.pick(DepsMessage.values()), keyTxn, keyRoute, Map.of(key, s.keyConflicts.computeIfAbsent(key, ignore -> new ArrayList<>())), Collections.emptyMap());
-            s.keyConflicts.get(key).add(k);
+            assertDepsMessage(s.instance, rs.pick(DepsMessage.values()), keyTxn, keyRoute, s.model);
         }));
     }
 
@@ -68,7 +58,7 @@ public class SimulatedRandomKeysWithRangeConflictTest extends SimulatedAccordCom
     {
         return new Property.SimpleCommand<>("Range Txn: " + state.wholeRange, FailingConsumer.orFail(s -> {
             s.instance.maybeCacheEvict(RoutingKeys.EMPTY, s.wholeRange);
-            s.rangeConflicts.add(assertDepsMessage(s.instance, rs.pick(DepsMessage.values()), s.rangeTxn, s.rangeRoute, s.keyConflicts, rangeConflicts(s.rangeConflicts, s.wholeRange)));
+            assertDepsMessage(s.instance, rs.pick(DepsMessage.values()), s.rangeTxn, s.rangeRoute, s.model);
         }));
     }
 
@@ -77,27 +67,27 @@ public class SimulatedRandomKeysWithRangeConflictTest extends SimulatedAccordCom
     public void keysAllOverConflictingWithRange()
     {
         stateful().withSteps(State.steps).check(commands(() -> State::new)
-                .add(SimulatedRandomKeysWithRangeConflictTest::insertKey)
-                .add(SimulatedRandomKeysWithRangeConflictTest::insertRange)
-                .build());
+                                                .add(SimulatedRandomKeysWithRangeConflictTest::insertKey)
+                                                .add(SimulatedRandomKeysWithRangeConflictTest::insertRange)
+                                                .build());
     }
 
     public static class State
     {
         static final int steps = 300;
         final SimulatedAccordCommandStore instance;
-        final Map<RoutingKey, List<TxnId>> keyConflicts = new HashMap<>();
-        final List<TxnId> rangeConflicts = new ArrayList<>(steps);
 
         final TableMetadata tbl = reverseTokenTbl;
         final Ranges wholeRange = Ranges.of(fullRange(tbl.id));
         final FullRangeRoute rangeRoute = wholeRange.toRoute(wholeRange.get(0).end());
         final Txn rangeTxn = createTxn(Txn.Kind.ExclusiveSyncPoint, wholeRange);
+        final DepsModel model;
 
         public State(RandomSource rs)
         {
             AccordKeyspace.unsafeClear();
             this.instance = new SimulatedAccordCommandStore(rs);
+            this.model = new DepsModel(instance.store.unsafeRangesForEpoch().currentRanges());
         }
 
         @Override
