@@ -19,6 +19,7 @@
 package org.apache.cassandra.cql3.ast;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -242,6 +243,16 @@ public class Txn implements Statement
         {
             ifBlock = Optional.of(block);
             return this;
+        }
+
+        public Builder addIf(Conditional conditional, Mutation... mutations)
+        {
+            return addIf(conditional, Arrays.asList(mutations));
+        }
+
+        public Builder addIf(Conditional conditional, List<Mutation> mutations)
+        {
+            return addIf(new If(conditional, mutations));
         }
 
         public Builder addUpdate(Mutation mutation)

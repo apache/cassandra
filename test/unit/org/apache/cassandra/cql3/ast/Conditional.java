@@ -62,6 +62,43 @@ public interface Conditional extends Expression
         }
     }
 
+    class Is implements Conditional
+    {
+        public enum Kind
+        {
+            Null("NULL"),
+            NotNull("NOT NULL");
+
+            private final String cql;
+
+            Kind(String s)
+            {
+                this.cql = s;
+            }
+        }
+
+        public final Kind kind;
+        public final Reference reference;
+
+        public Is(String symbol, Kind kind)
+        {
+            this(Reference.of(Symbol.unknownType(symbol)), kind);
+        }
+
+        public Is(Reference reference, Kind kind)
+        {
+            this.kind = kind;
+            this.reference = reference;
+        }
+
+        @Override
+        public void toCQL(StringBuilder sb, int indent)
+        {
+            reference.toCQL(sb, indent);
+            sb.append(" IS ").append(kind.cql);
+        }
+    }
+
     class Builder
     {
         private final List<Conditional> sub = new ArrayList<>();
