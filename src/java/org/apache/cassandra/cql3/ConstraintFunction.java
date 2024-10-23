@@ -18,103 +18,56 @@
 
 package org.apache.cassandra.cql3;
 
-import java.io.IOException;
-import java.util.ArrayList;
+
 import java.util.List;
 import java.util.Map;
 
-import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.io.IVersionedAsymmetricSerializer;
-import org.apache.cassandra.io.util.DataInputPlus;
-import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.schema.TableMetadata;
 
-public class ConstraintFunction
+/**
+ * Interface to be implemented by functions that are executed as part of CQL constraints.
+ */
+public interface ConstraintFunction
 {
-    public final CqlConstraintFunctionExecutor executor;
-    public final List<ColumnIdentifier> arg;
+    /**
+     * This method returns the function name to be executed.
+     *
+     * @return
+     */
+    String getName();
 
-    public static final Serializer serializer = new Serializer();
+    /**
+     * Method that provides the execution of the condition. It can either succeed or throw a {@link ConstraintViolationException}.
+     *
+     * @param args
+     * @param relationType
+     * @param term
+     * @param tableMetadata
+     * @param columnValues
+     */
+    void evaluate(List<ColumnIdentifier> args, Operator relationType, String term, TableMetadata tableMetadata, Map<String, Term.Raw> columnValues) throws ConstraintViolationException;
 
-    public ConstraintFunction(CqlConstraintFunctionExecutor executor, List<ColumnIdentifier> arg)
+    /**
+     * Method that validates that a condition is valid. This method is called when the CQL constraint is created to determine
+     * if the CQL statement is valid or needs to be rejected as invalid throwing a {@link ConstraintInvalidException}
+     * @param args
+     * @param relationType
+     * @param term
+     * @param tableMetadata
+     */
+    void validate(List<ColumnIdentifier> args, Operator relationType, String term, TableMetadata tableMetadata) throws ConstraintInvalidException;
+
+    /**
+     * Removes initial and ending quotes from a column value
+     *
+     * @param columnValue
+     * @return
+     */
+    default String stripColumnValue(String columnValue)
     {
-        this.executor = executor;
-        this.arg = arg;
-    }
-
-
-    public void checkConstraint(Operator relationType, String term, TableMetadata tableMetadata, Map<String, String> columnValues)
-    {
-        executor.evaluate(this.arg, relationType, term, tableMetadata, columnValues);
-    }
-
-    public void validateConstraint(Operator relationType, String term, TableMetadata tableMetadata)
-    {
-        executor.validate(this.arg, relationType, term, tableMetadata);
-    }
-
-    public String toCqlString()
-    {
-        return toString();
-    }
-
-    @Override
-    public String toString()
-    {
-        List<String> argsString = new ArrayList<>();
-        for (ColumnIdentifier columnIdentifier : arg)
-        {
-            argsString.add(columnIdentifier.toCQLString());
-        }
-        String args = String.join(", ", argsString);
-        return String.format("%s(%s)", executor.getName(), args);
-    }
-
-    public final static class Serializer implements IVersionedAsymmetricSerializer<ConstraintFunction, ConstraintFunction>
-    {
-        @Override
-        public void serialize(ConstraintFunction constraintFunction, DataOutputPlus out, int version) throws IOException
-        {
-            out.writeUTF(constraintFunction.executor.getClass().getName());
-            out.writeUnsignedVInt32(constraintFunction.arg.size());
-            for (ColumnIdentifier arg : constraintFunction.arg)
-                out.writeUTF(arg.toString());
-        }
-
-        @Override
-        public ConstraintFunction deserialize(DataInputPlus in, int version) throws IOException
-        {
-            String executorClass = in.readUTF();
-            CqlConstraintFunctionExecutor executor;
-            try
-            {
-                executor = (CqlConstraintFunctionExecutor) Class.forName(executorClass).getConstructor().newInstance();
-            }
-            catch (Exception e)
-            {
-                throw new IOException(e);
-            }
-            int argCount = in.readUnsignedVInt32();
-            List<ColumnIdentifier> arg = new ArrayList<>();
-            for (int i = 0; i < argCount; i++)
-            {
-                arg.add(new ColumnIdentifier(in.readUTF(), true));
-            }
-            return new ConstraintFunction(executor, arg);
-        }
-
-        @Override
-        public long serializedSize(ConstraintFunction constraintFunction, int version)
-        {
-            long sizeInBytes = TypeSizes.sizeof(constraintFunction.executor.getClass().getName())
-            + TypeSizes.sizeof(constraintFunction.arg.size());
-
-            for (ColumnIdentifier id : constraintFunction.arg)
-            {
-                sizeInBytes += TypeSizes.sizeof(id.toString());
-            }
-
-            return sizeInBytes;
-        }
+        if (columnValue.startsWith("'") && columnValue.endsWith("'"))
+            return columnValue.substring(1, columnValue.length() - 1);
+        return columnValue;
     }
 }

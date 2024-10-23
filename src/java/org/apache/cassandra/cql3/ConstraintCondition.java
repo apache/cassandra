@@ -21,6 +21,7 @@ package org.apache.cassandra.cql3;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.io.IVersionedAsymmetricSerializer;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
@@ -40,7 +41,7 @@ public interface ConstraintCondition
      * @param columnMetadata Metadata of the column in which the constraint is defined.
      * @param tableMetadata Metadata of the table in which the constraint is defined.
      */
-    void evaluate(Map<String, String> columnValues, ColumnMetadata columnMetadata, TableMetadata tableMetadata) throws ConstraintViolationException;
+    void evaluate(Map<String, Term.Raw> columnValues, ColumnMetadata columnMetadata, TableMetadata tableMetadata) throws ConstraintViolationException;
 
     /**
      * Method to validate the condition. Method to validate the condition. This method is called when creating constraint via CQL.

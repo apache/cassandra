@@ -787,20 +787,16 @@ tableColumns[CreateTableStatement.Raw stmt]
     ;
 
 cqlConstraintExp[CreateTableStatement.Raw stmt] returns [CqlConstraint.Raw cqlConstraint]
-    : cond=cqlConstraintFunctionCondition[stmt] { cqlConstraint = new CqlConstraint.Raw(cond); }
+    : f=constraintFunctionExpression op=relationType t=value { cqlConstraint = new CqlConstraint.Raw(new CqlConstraintFunctionCondition.Raw(f, op, t.getText()).prepare());}
+        | k=ident op=relationType t=value { cqlConstraint = new CqlConstraint.Raw(new ConstraintScalarCondition.Raw(k, op, t.getText()).prepare());}
     ;
 
-cqlConstraintFunctionCondition[CreateTableStatement.Raw stmt] returns [ConstraintCondition cond]
-    : f=constraintFunction op=relationType t=value { cond = new CqlConstraintFunctionCondition.Raw(f, op, t.getText()).prepare(); }
-    | k=ident op=relationType t=value { cond = new ConstraintScalarCondition.Raw(k, op, t.getText()).prepare(); }
-    ;
-
-constraintFunctionName returns [CqlConstraintFunctionExecutor e]
+constraintFunctionName returns [ConstraintFunction e]
     : K_LENGTH                       { $e = new LengthConstraint(); }
     ;
 
-constraintFunction returns [ConstraintFunction t]
-    : f=constraintFunctionName '(' args=constraintFunctionArgs ')' { $t = new ConstraintFunction(f, args); }
+constraintFunctionExpression returns [ConstraintFunctionExpression t]
+    : f=constraintFunctionName '(' args=constraintFunctionArgs ')' { $t = new ConstraintFunctionExpression(f, args); }
     ;
 
 constraintFunctionArgs returns [List<ColumnIdentifier> args]
@@ -1007,7 +1003,7 @@ alterCqlConstraintExp[AlterTableStatement.Raw stmt] returns [CqlConstraint.Raw c
     ;
 
 alterConstraintFunctionCondition[AlterTableStatement.Raw stmt] returns [ConstraintCondition cond]
-    : f=constraintFunction op=relationType t=value { cond = new CqlConstraintFunctionCondition.Raw(f, op, t.getText()).prepare(); }
+    : f=constraintFunctionExpression op=relationType t=value { cond = new CqlConstraintFunctionCondition.Raw(f, op, t.getText()).prepare(); }
     | k=ident op=relationType t=value { cond = new ConstraintScalarCondition.Raw(k, op, t.getText()).prepare(); }
     ;
 

@@ -24,12 +24,14 @@ import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedAsymmetricSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class ConstraintScalarCondition implements ConstraintCondition
 {
@@ -65,13 +67,13 @@ public class ConstraintScalarCondition implements ConstraintCondition
         this.term = term;
     }
 
-    public void evaluate(Map<String, String> columnValues, ColumnMetadata columnMetadata, TableMetadata tableMetadata)
+    public void evaluate(Map<String, Term.Raw> columnValues, ColumnMetadata columnMetadata, TableMetadata tableMetadata)
     {
         BigDecimal columnValue;
         BigDecimal sizeConstraint;
         try
         {
-            columnValue = new BigDecimal(columnValues.get(param.toString()));
+            columnValue = new BigDecimal(columnValues.get(param.toString()).getText());
             sizeConstraint = new BigDecimal(term);
         }
         catch (final NumberFormatException exception)

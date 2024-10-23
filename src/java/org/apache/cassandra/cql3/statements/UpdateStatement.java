@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.cql3.statements;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -42,7 +43,6 @@ import org.apache.cassandra.utils.Pair;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
 
-import static com.fasterxml.jackson.databind.type.LogicalType.Map;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkContainsNoDuplicates;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 
@@ -60,10 +60,9 @@ public class UpdateStatement extends ModificationStatement
                             Operations operations,
                             StatementRestrictions restrictions,
                             Conditions conditions,
-                            Attributes attrs,
-                            Map<String, String> columnValues)
+                            Attributes attrs)
     {
-        super(type, bindVariables, metadata, operations, restrictions, conditions, attrs, columnValues);
+        super(type, bindVariables, metadata, operations, restrictions, conditions, attrs);
     }
 
     @Override
@@ -194,11 +193,7 @@ public class UpdateStatement extends ModificationStatement
                                                                            false,
                                                                            false);
 
-            Map<String, String> columnMap = new HashMap<>();
-            for (int i = 0; i < columnNames.size(); i++)
-            {
-                columnMap.put(columnNames.get(i).toString(), columnValues.get(i).toString());
-            }
+            validateConstraints(metadata, columnNames, columnValues);
 
             return new UpdateStatement(type,
                                        bindVariables,
@@ -206,8 +201,7 @@ public class UpdateStatement extends ModificationStatement
                                        operations,
                                        restrictions,
                                        conditions,
-                                       attrs,
-                                       columnMap);
+                                       attrs);
         }
     }
 
@@ -272,14 +266,22 @@ public class UpdateStatement extends ModificationStatement
                                                                            false,
                                                                            false);
 
+            List<ColumnIdentifier> columnNames = new ArrayList<>();
+            List<Term.Raw> columnValues = new ArrayList<>();
+
+            for (ColumnMetadata columnMetadata : defs)
+            {
+                columnNames.add(columnMetadata.name);
+                columnValues.add(prepared.getRawTermForColumn(columnMetadata, false));
+            }
+            validateConstraints(metadata, columnNames, columnValues);
             return new UpdateStatement(type,
                                        bindVariables,
                                        metadata,
                                        operations,
                                        restrictions,
                                        conditions,
-                                       attrs,
-                                       java.util.Map.of());
+                                       attrs);
         }
     }
 
@@ -345,8 +347,7 @@ public class UpdateStatement extends ModificationStatement
                                        operations,
                                        restrictions,
                                        conditions,
-                                       attrs,
-                                       java.util.Map.of());
+                                       attrs);
         }
     }
     
@@ -360,5 +361,23 @@ public class UpdateStatement extends ModificationStatement
     public AuditLogContext getAuditLogContext()
     {
         return new AuditLogContext(AuditLogEntryType.UPDATE, keyspace(), table());
+    }
+
+    public static void validateConstraints(TableMetadata tableMetadata, List<ColumnIdentifier> columnNames, List<Term.Raw> columnValues)
+    {
+
+        Map<String, Term.Raw> columnMap = new HashMap<>();
+        for (int i = 0; i < columnNames.size(); i++)
+        {
+            columnMap.put(columnNames.get(i).toString(), columnValues.get(i));
+        }
+        for (ColumnMetadata column : tableMetadata.columns())
+        {
+            if (column.hasConstraint())
+                column.getColumnConstraint().checkConstraint(columnMap, column, tableMetadata);
+        }
+
+        for (CqlConstraint constraint: tableMetadata.constraints())
+            constraint.checkConstraint(columnMap, null, tableMetadata);
     }
 }

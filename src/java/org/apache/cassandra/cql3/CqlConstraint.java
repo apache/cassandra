@@ -28,6 +28,7 @@ import java.util.UUID;
 
 import com.google.common.base.Objects;
 
+import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedAsymmetricSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -86,7 +87,7 @@ public class CqlConstraint
         builder.append(" CHECK ").append(toString());
     }
 
-    public void checkConstraint(Map<String, String> columnValues, ColumnMetadata columnMetadata, TableMetadata tableMetadata)
+    public void checkConstraint(Map<String, Term.Raw> columnValues, ColumnMetadata columnMetadata, TableMetadata tableMetadata)
     {
         constraintCondition.evaluate(columnValues, columnMetadata, tableMetadata);
     }

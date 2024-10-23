@@ -20,10 +20,9 @@ package org.apache.cassandra.cql3;
 
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 
+import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedAsymmetricSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -33,7 +32,7 @@ import org.apache.cassandra.schema.TableMetadata;
 
 public class CqlConstraintFunctionCondition implements ConstraintCondition
 {
-    public final ConstraintFunction function;
+    public final ConstraintFunctionExpression function;
     public final Operator relationType;
     public final String term;
 
@@ -41,11 +40,11 @@ public class CqlConstraintFunctionCondition implements ConstraintCondition
 
     public final static class Raw
     {
-        public final ConstraintFunction function;
+        public final ConstraintFunctionExpression function;
         public final Operator relationType;
         public final String term;
 
-        public Raw(ConstraintFunction function, Operator relationType, String term)
+        public Raw(ConstraintFunctionExpression function, Operator relationType, String term)
         {
             this.function = function;
             this.relationType = relationType;
@@ -58,7 +57,7 @@ public class CqlConstraintFunctionCondition implements ConstraintCondition
         }
     }
 
-    public CqlConstraintFunctionCondition(ConstraintFunction function, Operator relationType, String term)
+    public CqlConstraintFunctionCondition(ConstraintFunctionExpression function, Operator relationType, String term)
     {
         this.function = function;
         this.relationType = relationType;
@@ -72,7 +71,7 @@ public class CqlConstraintFunctionCondition implements ConstraintCondition
     }
 
     @Override
-    public void evaluate(Map<String, String> columnValues, ColumnMetadata columnMetadata, TableMetadata tableMetadata)
+    public void evaluate(Map<String, Term.Raw> columnValues, ColumnMetadata columnMetadata, TableMetadata tableMetadata)
     {
         if (function != null)
             function.checkConstraint(relationType, term, tableMetadata, columnValues);
@@ -109,7 +108,7 @@ public class CqlConstraintFunctionCondition implements ConstraintCondition
         public void serialize(ConstraintCondition constraintCondition, DataOutputPlus out, int version) throws IOException
         {
             CqlConstraintFunctionCondition condition = (CqlConstraintFunctionCondition) constraintCondition;
-            ConstraintFunction.serializer.serialize(condition.function, out, version);
+            ConstraintFunctionExpression.serializer.serialize(condition.function, out, version);
             out.writeUTF(condition.relationType.toString());
             out.writeUTF(condition.term);
         }
@@ -117,10 +116,10 @@ public class CqlConstraintFunctionCondition implements ConstraintCondition
         @Override
         public ConstraintCondition deserialize(DataInputPlus in, int version) throws IOException
         {
-            ConstraintFunction constraintFunction = ConstraintFunction.serializer.deserialize(in, version);
+            ConstraintFunctionExpression constraintFunctionExpression = ConstraintFunctionExpression.serializer.deserialize(in, version);
             Operator relationType = Operator.valueOf(in.readUTF());
             final String term = in.readUTF();
-            return new CqlConstraintFunctionCondition(constraintFunction, relationType, term);
+            return new CqlConstraintFunctionCondition(constraintFunctionExpression, relationType, term);
         }
 
         @Override
@@ -129,7 +128,7 @@ public class CqlConstraintFunctionCondition implements ConstraintCondition
             CqlConstraintFunctionCondition condition = (CqlConstraintFunctionCondition) constraintCondition;
             return TypeSizes.sizeof(condition.term)
                    + TypeSizes.sizeof(condition.relationType.toString())
-                   + ConstraintFunction.serializer.serializedSize(condition.function, version);
+                   + ConstraintFunctionExpression.serializer.serializedSize(condition.function, version);
         }
     }
 }

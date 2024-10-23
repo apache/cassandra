@@ -22,12 +22,13 @@ package org.apache.cassandra.cql3;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 
-public class LengthConstraint implements CqlConstraintFunctionExecutor
+public class LengthConstraint implements ConstraintFunction
 {
     @Override
     public String getName()
@@ -36,13 +37,13 @@ public class LengthConstraint implements CqlConstraintFunctionExecutor
     }
 
     @Override
-    public void evaluate(List<ColumnIdentifier> args, Operator relationType, String term, TableMetadata tableMetadata, Map<String, String> columnValues)
+    public void evaluate(List<ColumnIdentifier> args, Operator relationType, String term, TableMetadata tableMetadata, Map<String, Term.Raw> columnValues)
     {
         ColumnMetadata columnMetadata = tableMetadata.getColumn(args.get(0));
         if (!columnValues.containsKey(columnMetadata.name.toString()))
             throw new ConstraintViolationException(columnMetadata.name + " is not an existing column name.");
 
-        String columnValue = columnValues.get(columnMetadata.name.toString());
+        String columnValue = columnValues.get(columnMetadata.name.toString()).getText();
         int valueLength = stripColumnValue(columnValue).length();
         int sizeConstraint = Integer.parseInt(term);
 

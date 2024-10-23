@@ -96,17 +96,11 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
 
     private final RegularAndStaticColumns updatedColumns;
 
-    private final Columns pkRestrictedColumns;
-
-    private final Columns clusteringRestrictedColumns;
-
     private final Conditions conditions;
 
     private final RegularAndStaticColumns conditionColumns;
 
     private final RegularAndStaticColumns requiresRead;
-
-    private final Map<String, String> columnValues;
 
     public ModificationStatement(StatementType type,
                                  VariableSpecifications bindVariables,
@@ -116,18 +110,6 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                                  Conditions conditions,
                                  Attributes attrs)
     {
-        this(type, bindVariables, metadata, operations, restrictions, conditions, attrs, Map.of());
-    }
-
-    public ModificationStatement(StatementType type,
-                                 VariableSpecifications bindVariables,
-                                 TableMetadata metadata,
-                                 Operations operations,
-                                 StatementRestrictions restrictions,
-                                 Conditions conditions,
-                                 Attributes attrs,
-                                 Map<String, String> columnValues)
-    {
         this.type = type;
         this.bindVariables = bindVariables;
         this.metadata = metadata;
@@ -135,7 +117,6 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         this.operations = operations;
         this.conditions = conditions;
         this.attrs = attrs;
-        this.columnValues = columnValues;
 
         if (!conditions.isEmpty())
         {
@@ -172,9 +153,6 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
             modifiedColumns = metadata.regularAndStaticColumns();
 
         this.updatedColumns = modifiedColumns;
-
-        this.pkRestrictedColumns = Columns.from(restrictions.getRestrictions(ColumnMetadata.Kind.PARTITION_KEY).columns());
-        this.clusteringRestrictedColumns = Columns.from(restrictions.getRestrictions(ColumnMetadata.Kind.CLUSTERING).columns());
 
         this.conditionColumns = conditionColumnsBuilder.build();
         this.requiresRead = requiresReadBuilder.build();
@@ -337,43 +315,9 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         Guardrails.minimumAllowableTimestamp.guard(ts, table(), false, queryState.getClientState());
     }
 
-    public void validateConstraints()
-    {
-        for (ColumnMetadata column : pkRestrictedColumns())
-        {
-            if (column.hasConstraint())
-                column.getColumnConstraint().checkConstraint(columnValues, column, metadata);
-        }
-
-        for (ColumnMetadata column : clusteringRestrictedColumns())
-        {
-            if (column.hasConstraint())
-                column.getColumnConstraint().checkConstraint(columnValues, column, metadata);
-        }
-
-        for (ColumnMetadata column : updatedColumns())
-        {
-            if (column.hasConstraint())
-                column.getColumnConstraint().checkConstraint(columnValues, column, metadata);
-        }
-
-        for (CqlConstraint constraint: metadata.constraints())
-            constraint.checkConstraint(columnValues, null, metadata);
-    }
-
     public RegularAndStaticColumns updatedColumns()
     {
         return updatedColumns;
-    }
-
-    public Columns pkRestrictedColumns()
-    {
-        return pkRestrictedColumns;
-    }
-
-    public Columns clusteringRestrictedColumns()
-    {
-        return clusteringRestrictedColumns;
     }
 
     public RegularAndStaticColumns conditionColumns()
@@ -576,7 +520,6 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
 
         validateDiskUsage(options, queryState.getClientState());
         validateTimestamp(queryState, options);
-        validateConstraints();
 
         List<? extends IMutation> mutations =
             getMutations(queryState.getClientState(),
@@ -739,7 +682,6 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
 
     public ResultMessage executeLocally(QueryState queryState, QueryOptions options) throws RequestValidationException, RequestExecutionException
     {
-        validateConstraints();
         return hasConditions()
                ? executeInternalWithCondition(queryState, options)
                : executeInternalWithoutCondition(queryState, options, Dispatcher.RequestTime.forImmediateExecution());
@@ -748,7 +690,6 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
     public ResultMessage executeInternalWithoutCondition(QueryState queryState, QueryOptions options, Dispatcher.RequestTime requestTime)
     throws RequestValidationException, RequestExecutionException
     {
-        validateConstraints();
         long timestamp = options.getTimestamp(queryState);
         long nowInSeconds = options.getNowInSeconds(queryState);
         for (IMutation mutation : getMutations(queryState.getClientState(), options, true, timestamp, nowInSeconds, requestTime))
@@ -758,7 +699,6 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
 
     public ResultMessage executeInternalWithCondition(QueryState state, QueryOptions options)
     {
-        validateConstraints();
         CQL3CasRequest request = makeCasRequest(state, options);
 
         try (RowIterator result = casInternal(state.getClientState(), request, options.getTimestamp(state), options.getNowInSeconds(state)))
