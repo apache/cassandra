@@ -26,6 +26,7 @@ import java.util.function.Supplier;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.compress.CorruptBlockException;
@@ -45,6 +46,11 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
         this.maxCompressedLength = metadata.maxCompressedLength();
         this.crcCheckChanceSupplier = crcCheckChanceSupplier;
         assert Integer.bitCount(metadata.chunkLength()) == 1; //must be a power of two
+    }
+
+    public CompressedChunkReader setMode(boolean isScan)
+    {
+        return this;
     }
 
     @VisibleForTesting
@@ -83,20 +89,38 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
     }
 
     @Override
-    public Rebufferer instantiateRebufferer()
+    public Rebufferer instantiateRebufferer(boolean isScan)
     {
-        return new BufferManagingRebufferer.Aligned(this);
+        return new BufferManagingRebufferer.Aligned(this.setMode(isScan));
     }
 
     public static class Standard extends CompressedChunkReader
     {
         // we read the raw compressed bytes into this buffer, then uncompressed them into the provided one.
         private final ThreadLocalByteBufferHolder bufferHolder;
+        private final ThreadLocalReadAheadBuffer readAheadBuffer;
+
 
         public Standard(ChannelProxy channel, CompressionMetadata metadata, Supplier<Double> crcCheckChanceSupplier)
         {
             super(channel, metadata, crcCheckChanceSupplier);
             bufferHolder = new ThreadLocalByteBufferHolder(metadata.compressor().preferredBufferType());
+
+            int readAheadBufferSize = DatabaseDescriptor.getCompressedReadAheadBufferSize();
+            readAheadBuffer = readAheadBufferSize > 0 ? new ThreadLocalReadAheadBuffer(channel, readAheadBufferSize, metadata.compressor().preferredBufferType()) : null;
+        }
+
+        @Override
+        public CompressedChunkReader setMode(boolean isScan)
+        {
+            if (readAheadBuffer != null)
+            {
+                readAheadBuffer.clear(!isScan);
+                if (isScan)
+                    readAheadBuffer.getBlockBuffer();
+            }
+
+            return this;
         }
 
         @Override
@@ -117,8 +141,23 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
                 {
                     ByteBuffer compressed = bufferHolder.getBuffer(length);
 
-                    if (channel.read(compressed, chunk.offset) != length)
-                        throw new CorruptBlockException(channel.filePath(), chunk);
+                    if (readAheadBuffer != null && readAheadBuffer.hasBuffer())
+                    {
+                        int copied = 0;
+                        while (copied < length) {
+                            readAheadBuffer.fill(chunk.offset + copied);
+
+                            int leftToRead = length - copied;
+                            if (readAheadBuffer.remaining() >= leftToRead)
+                                copied += readAheadBuffer.read(compressed, leftToRead);
+                            else
+                                copied += readAheadBuffer.read(compressed, readAheadBuffer.remaining());
+                        }
+                    } else
+                    {
+                        if (channel.read(compressed, chunk.offset) != length)
+                            throw new CorruptBlockException(channel.filePath(), chunk);
+                    }
 
                     compressed.flip();
                     compressed.limit(chunk.length);
@@ -170,6 +209,14 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
                 uncompressed.position(0).limit(0);
                 throw new CorruptSSTableException(e, channel.filePath());
             }
+        }
+
+        @Override
+        public void close()
+        {
+            super.close();
+            if (readAheadBuffer != null)
+                readAheadBuffer.close();
         }
     }
 
