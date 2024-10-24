@@ -586,7 +586,9 @@
           </dependency>
           <dependency groupId="com.google.jimfs" artifactId="jimfs" version="1.1"/>
           <dependency groupId="org.hdrhistogram" artifactId="HdrHistogram" version="2.1.12"/>
-          <dependency groupId="com.uber.jfx.library" artifactId="jfx-debug-thin" version="0.1.1-1752-7cfb45770d6e-java-monorepo"/>
+          <dependency groupId="com.uber.jfx.library" artifactId="jfx-debug-thin" version="0.2.fat.shaded">
+              <exclusion groupId="org.hamcrest" artifactId="hamcrest-core"/>
+          </dependency>
           <dependency groupId="org.apache.kafka" artifactId="kafka-clients" version="2.9.52-2.12-uber"/>
           <dependency groupId="com.uber" artifactId="java-kafka-rest-client" version="1.1.1-1635-dc6a4899a581-java-monorepo"/>
           <dependency groupId="com.uber" artifactId="heatpipe4j" version="5.03.1-1636-242b65067fd6-java-monorepo"/>
@@ -840,7 +842,9 @@
         <dependency groupId="net.ju-n.compile-command-annotations" artifactId="compile-command-annotations" scope="test"/>
         <dependency groupId="org.apache.ant" artifactId="ant-junit" scope="test"/>
         <dependency groupId="org.apache.cassandra" artifactId="harry-core"/>
-        <dependency groupId="com.uber.jfx.library" artifactId="jfx-debug-thin" version="0.1.1-1752-7cfb45770d6e-java-monorepo"/>
+        <dependency groupId="com.uber.jfx.library" artifactId="jfx-debug-thin" version="0.2.fat.shaded">
+          <exclusion groupId="org.hamcrest" artifactId="hamcrest-core"/>
+         </dependency>
         <!-- adding this dependency is necessary for assertj. When updating assertj, need to also update the version of
              this that the new assertj's `assertj-parent-pom` depends on. -->
         <dependency groupId="org.junit" artifactId="junit-bom" type="pom"/>

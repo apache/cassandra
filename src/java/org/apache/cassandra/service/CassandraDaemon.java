@@ -167,7 +167,6 @@ public class CassandraDaemon
                         .disableThreadDumpHandler()
                         .build()
                 ).disableMetrics()
-                .disableHeartbeat()
                 .build()
                 .start();
         System.out.println("JFx debug started");

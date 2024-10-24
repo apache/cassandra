@@ -176,6 +176,7 @@ Merged from 3.0:
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
  * [SO-36319] Implement compaction_ignore_disk_check flag
+ * [SO-31659] Upgrade the JFX-debug-thin to support ARM
 4.1.3.14
  * [SO-35591] Change the context propagation log to NoSpamLogger and change log level to debug for closing client connection timeout
  * [SO-35591] Add client side session metric
