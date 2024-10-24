@@ -15,32 +15,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.cassandra.tools.nodetool;
 
-import java.net.UnknownHostException;
-
-import org.apache.cassandra.tools.NodeProbe;
 import picocli.CommandLine.Command;
-import picocli.CommandLine.Parameters;
 
-import static org.apache.commons.lang3.StringUtils.EMPTY;
-
-@Command(name = "assassinate", description = "Forcefully remove a dead node without re-replicating any data.  Use as a last resort if you cannot removenode")
-public class Assassinate extends AbstractCommand
+@Command(name = "bootstrap",
+         subcommands = { BootstrapResume.class },
+         description = "Monitor/manage node's bootstrap process")
+public class Bootstrap
 {
-    @Parameters(paramLabel = "ip_address", description = "IP address of the endpoint to assassinate", arity = "1")
-    public String endpoint = EMPTY;
-
-    @Override
-    public void execute(NodeProbe probe)
-    {
-        try
-        {
-            probe.assassinateEndpoint(endpoint);
-        }
-        catch (UnknownHostException e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
 }

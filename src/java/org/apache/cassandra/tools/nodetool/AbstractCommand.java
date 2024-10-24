@@ -15,32 +15,39 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.cassandra.tools.nodetool;
 
-import java.net.UnknownHostException;
+import javax.inject.Inject;
 
 import org.apache.cassandra.tools.NodeProbe;
-import picocli.CommandLine.Command;
-import picocli.CommandLine.Parameters;
+import org.apache.cassandra.tools.Output;
 
-import static org.apache.commons.lang3.StringUtils.EMPTY;
-
-@Command(name = "assassinate", description = "Forcefully remove a dead node without re-replicating any data.  Use as a last resort if you cannot removenode")
-public class Assassinate extends AbstractCommand
+/**
+ * Base class for all nodetool commands.
+ */
+public abstract class AbstractCommand implements Runnable
 {
-    @Parameters(paramLabel = "ip_address", description = "IP address of the endpoint to assassinate", arity = "1")
-    public String endpoint = EMPTY;
+    @Inject
+    protected Output logger;
+
+    protected NodeProbe probe;
+
+    public void probe(NodeProbe probe)
+    {
+        this.probe = probe;
+    }
+
+    public NodeProbe probe()
+    {
+        return probe;
+    }
 
     @Override
-    public void execute(NodeProbe probe)
+    public void run()
     {
-        try
-        {
-            probe.assassinateEndpoint(endpoint);
-        }
-        catch (UnknownHostException e)
-        {
-            throw new RuntimeException(e);
-        }
+        execute(probe);
     }
+
+    protected abstract void execute(NodeProbe probe);
 }
