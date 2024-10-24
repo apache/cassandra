@@ -34,6 +34,11 @@ public class CompactionHistory extends NodeToolCmd
             description = "Output format (json, yaml)")
     private String outputFormat = "";
 
+    @Option(title = "human_readable",
+    name = {"-H", "--human-readable"},
+    description = "Display bytes in human readable form, i.e. KiB, MiB, GiB, TiB")
+    private boolean humanReadable = false;
+
     @Override
     public void execute(NodeProbe probe)
     {
@@ -41,7 +46,7 @@ public class CompactionHistory extends NodeToolCmd
         {
             throw new IllegalArgumentException("arguments for -F are json,yaml only.");
         }
-        StatsHolder data = new CompactionHistoryHolder(probe);
+        StatsHolder data = new CompactionHistoryHolder(probe, humanReadable);
         StatsPrinter printer = CompactionHistoryPrinter.from(outputFormat);
         printer.print(data, probe.output().out);
     }

@@ -426,6 +426,14 @@ public final class FileUtils
         }
     }
 
+    public static String stringifyFileSize(long bytes, boolean humanReadable)
+    {
+        if (humanReadable)
+            return stringifyFileSize(bytes);
+        else
+            return Long.toString(bytes);
+    }
+
     public static String stringifyFileSize(double value)
     {
         double d;
