@@ -29,11 +29,11 @@ import accord.local.cfk.SafeCommandsForKey;
 public class AccordSafeCommandsForKey extends SafeCommandsForKey implements AccordSafeState<RoutingKey, CommandsForKey>
 {
     private boolean invalidated;
-    private final AccordCachingState<RoutingKey, CommandsForKey> global;
+    private final AccordCacheEntry<RoutingKey, CommandsForKey> global;
     private CommandsForKey original;
     private CommandsForKey current;
 
-    public AccordSafeCommandsForKey(AccordCachingState<RoutingKey, CommandsForKey> global)
+    public AccordSafeCommandsForKey(AccordCacheEntry<RoutingKey, CommandsForKey> global)
     {
         super(global.key());
         this.global = global;
@@ -82,7 +82,7 @@ public class AccordSafeCommandsForKey extends SafeCommandsForKey implements Acco
     }
 
     @Override
-    public AccordCachingState<RoutingKey, CommandsForKey> global()
+    public AccordCacheEntry<RoutingKey, CommandsForKey> global()
     {
         checkNotInvalidated();
         return global;
@@ -113,8 +113,10 @@ public class AccordSafeCommandsForKey extends SafeCommandsForKey implements Acco
     public void preExecute()
     {
         checkNotInvalidated();
-        original = global.get();
+        original = global.getExclusive();
         current = original;
+        if (isUnset())
+            initialize();
     }
 
     @Override

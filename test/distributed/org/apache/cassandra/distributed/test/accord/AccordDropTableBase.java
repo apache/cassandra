@@ -128,7 +128,7 @@ public class AccordDropTableBase extends TestBaseImpl
             inst.runOnInstance(() -> {
                 TableId tableId = TableId.fromUUID(UUID.fromString(s));
                 AccordService accord = (AccordService) AccordService.instance();
-                PreLoadContext ctx = PreLoadContext.contextFor(Ranges.single(TokenRange.fullRange(tableId)), KeyHistory.COMMANDS);
+                PreLoadContext ctx = PreLoadContext.contextFor(Ranges.single(TokenRange.fullRange(tableId)), KeyHistory.SYNC);
                 CommandStores stores = accord.node().commandStores();
                 for (int storeId : stores.ids())
                 {
@@ -137,7 +137,7 @@ public class AccordDropTableBase extends TestBaseImpl
                         AccordSafeCommandStore safe = (AccordSafeCommandStore) input;
                         for (RoutingKey key : safe.commandsForKeysKeys())
                         {
-                            AccordSafeCommandsForKey safeCFK = safe.maybeCommandsForKey(key);
+                            AccordSafeCommandsForKey safeCFK = (AccordSafeCommandsForKey) safe.ifLoadedAndInitialised(key);
                             if (safeCFK == null) // we read and found a key, but its null at load time... so ignore it
                                 continue;
                             CommandsForKey cfk = safeCFK.current();

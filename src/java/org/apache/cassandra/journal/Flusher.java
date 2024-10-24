@@ -45,7 +45,6 @@ import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.SimulatorSafe
 import static org.apache.cassandra.concurrent.Interruptible.State.NORMAL;
 import static org.apache.cassandra.concurrent.Interruptible.State.SHUTTING_DOWN;
 import static org.apache.cassandra.journal.Params.FlushMode.PERIODIC;
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 import static org.apache.cassandra.utils.MonotonicClock.Global.preciseTime;
 import static org.apache.cassandra.utils.Simulate.With.GLOBAL_CLOCK;
@@ -69,35 +68,36 @@ final class Flusher<K, V>
     private final AtomicLong written = new AtomicLong(0);
 
     // the time of the last initiated flush
-    volatile long flushStartedAt = nanoTime();
+    volatile long flushStartedAt;
     // the time of the earliest flush that has completed an fsync; all Allocations written before this time are durable
     volatile long fsyncFinishedFor = flushStartedAt;
+    volatile RecordPointer fsyncFinishedForPosition = new RecordPointer(0, 0);
 
     // a signal that writers can wait on to be notified of a completed flush in PERIODIC FlushMode
     private final WaitQueue fsyncComplete = newWaitQueue(); // TODO (expected): this is only used for testing, can we remove this?
+    private final MonotonicClock clock = preciseTime;
 
     // a signal and flag that callers outside the flusher thread can use
     // to signal they want the journal segments to be flushed to disk
     private final Semaphore haveWork = newSemaphore(1);
     private volatile boolean flushRequested;
 
-    private final FlushMethod<K, V> syncFlushMethod;
-    private final FlushMethod<K, V> asyncFlushMethod;
+    private final Mode<K, V> mode;
     private final Callbacks callbacks;
 
     Flusher(Journal<K, V> journal, Callbacks callbacks)
     {
         this.journal = journal;
         this.params = journal.params;
-        this.syncFlushMethod = syncFlushMethod(params);
-        this.asyncFlushMethod = asyncFlushMethod(params);
+        this.mode = mode(params);
         this.callbacks = callbacks;
     }
 
     void start()
     {
         String flushExecutorName = journal.name + "-disk-flusher-" + toLowerCaseLocalized(params.flushMode().toString());
-        flushExecutor = executorFactory().infiniteLoop(flushExecutorName, new FlushRunnable(preciseTime), SAFE, NON_DAEMON, SYNCHRONIZED);
+        flushStartedAt = clock.now();
+        flushExecutor = executorFactory().infiniteLoop(flushExecutorName, new FlushRunnable(), SAFE, NON_DAEMON, SYNCHRONIZED);
     }
 
     void shutdown() throws InterruptedException
@@ -112,6 +112,7 @@ final class Flusher<K, V>
     }
 
     @Simulate(with={MONITORS,GLOBAL_CLOCK,LOCK_SUPPORT})
+    // waits for writes to complete before triggering an fsync
     private class FlushRunnable implements Interruptible.Task
     {
         @Simulate(with={MONITORS,GLOBAL_CLOCK,LOCK_SUPPORT})
@@ -182,6 +183,7 @@ final class Flusher<K, V>
                 fsyncStartedFor = startedAt;
                 // synchronized to prevent thread interrupts while performing IO operations and also
                 // clear interrupted status to prevent ClosedByInterruptException in ActiveSegment::flush
+                int fsyncedTo;
                 synchronized (this)
                 {
                     boolean ignore = Thread.interrupted();
@@ -191,17 +193,19 @@ final class Flusher<K, V>
                         journal.closeActiveSegmentAndOpenAsStatic(fsyncing);
                         fsyncing = journal.getActiveSegment(fsyncing.descriptor.timestamp + 1);
                     }
-                    fsyncing.fsync();
+                    fsyncedTo = fsyncTo.writtenToAtLeast();
+                    fsyncTo.fsync();
                 }
+                fsyncFinishedForPosition = new RecordPointer(fsyncTo.descriptor.timestamp, fsyncedTo, startedAt);
                 fsyncFinishedFor = startedAt;
                 fsyncComplete.signalAll();
                 long finishedAt = clock.now();
                 processDuration(startedAt, finishedAt);
             }
 
-            void afterFlush(long startedAt, ActiveSegment<K, V> segment, int syncedOffset)
+            void afterFlush(long startedAt, ActiveSegment<K, V> segment)
             {
-                long requireFsyncTo = startedAt - periodicFlushLagBlockNanos();
+                long requireFsyncTo = startedAt - periodicBlockNanos();
 
                 fsyncUpTo = segment;
                 fsyncWaitingSince = startedAt;
@@ -210,26 +214,11 @@ final class Flusher<K, V>
 
                 if (requireFsyncTo > fsyncFinishedFor)
                     awaitFsyncAt(requireFsyncTo, journal.metrics.waitingOnFlush.time());
-                callbacks.onFlush(segment.descriptor.timestamp, syncedOffset);
-            }
-
-            private void doNoOpFlush(long startedAt)
-            {
-                if (fsyncFinishedFor >= fsyncWaitingSince)
-                {
-                    fsyncFinishedFor = startedAt;
-                }
-                else
-                {
-                    // if the flusher is still running, update the waitingSince register
-                    fsyncWaitingSince = startedAt;
-                    notify(awaitingWork);
-                }
+                callbacks.onFsync();
             }
         }
 
         private final NoSpamLogger noSpamLogger;
-        private final MonotonicClock clock;
         private final @Nullable FSyncRunnable fSyncRunnable;
 
         private ActiveSegment<K, V> current = null;
@@ -240,10 +229,9 @@ final class Flusher<K, V>
         private long duration = 0;              // time spent flushing since firstLaggedAt
         private long lagDuration = 0;                // cumulative lag since firstLaggedAt
 
-        FlushRunnable(MonotonicClock clock)
+        FlushRunnable()
         {
             this.noSpamLogger = NoSpamLogger.wrap(logger, 5, MINUTES);
-            this.clock = clock;
             this.fSyncRunnable = params.flushMode() == PERIODIC ? newFsyncRunnable() : null;
         }
 
@@ -287,6 +275,7 @@ final class Flusher<K, V>
 
             if (flushPeriodNanos <= 0)
             {
+                Invariants.checkState(params.flushMode() != PERIODIC);
                 haveWork.acquire(1);
             }
             else
@@ -296,7 +285,7 @@ final class Flusher<K, V>
             }
         }
 
-        private void doFlush(long startedAt) throws InterruptedException
+        private void doFlush(long startedAt)
         {
             boolean synchronousFsync = fSyncRunnable == null;
 
@@ -304,32 +293,33 @@ final class Flusher<K, V>
                 current = journal.oldestActiveSegment();
             ActiveSegment<K, V> newCurrent = journal.currentActiveSegment();
 
-            if (newCurrent == current && (newCurrent == null || !newCurrent.shouldFlush()))
-            {
-                if (synchronousFsync) fsyncFinishedFor = startedAt;
-                else fSyncRunnable.doNoOpFlush(startedAt);
-
-                if (current != null)
-                    callbacks.onFlush(current.descriptor.timestamp, (int) current.lastFlushedOffset());
+            if (newCurrent == null)
                 return;
-            }
-
-            Invariants.checkState(newCurrent != null);
 
             try
             {
                 while (current != newCurrent)
                 {
                     current.discardUnusedTail();
-                    current.flush(synchronousFsync);
+                    current.updateWrittenTo();
                     if (synchronousFsync)
+                    {
+                        current.fsync();
                         journal.closeActiveSegmentAndOpenAsStatic(current);
+                    }
                     current = journal.getActiveSegment(current.descriptor.timestamp + 1);
                 }
-                int syncedOffset = current.flush(synchronousFsync);
 
-                if (synchronousFsync) afterFSync(startedAt, current.descriptor.timestamp, syncedOffset);
-                else fSyncRunnable.afterFlush(startedAt, current, syncedOffset);
+                int writtenTo = current.updateWrittenTo();
+                if (synchronousFsync)
+                {
+                    current.fsync();
+                    afterFSync(startedAt, current.descriptor.timestamp, writtenTo);
+                }
+                else
+                {
+                    fSyncRunnable.afterFlush(startedAt, current);
+                }
             }
             catch (Throwable t)
             {
@@ -373,10 +363,11 @@ final class Flusher<K, V>
             }
         }
 
-        private void afterFSync(long startedAt, long syncedSegment, int syncedOffset)
+        private void afterFSync(long startedAt, long segment, int position)
         {
+            fsyncFinishedForPosition = new RecordPointer(segment, position, startedAt);
             fsyncFinishedFor = startedAt;
-            callbacks.onFlush(syncedSegment, syncedOffset);
+            callbacks.onFsync();
             fsyncComplete.signalAll();
             long finishedAt = clock.now();
             processDuration(startedAt, finishedAt);
@@ -390,88 +381,120 @@ final class Flusher<K, V>
         }
     }
 
-    @FunctionalInterface
-    private interface FlushMethod<K, V>
+    private interface Mode<K, V>
     {
-        void flush(ActiveSegment<K, V>.Allocation allocation);
+        void flushAndAwaitDurable(ActiveSegment<K, V>.Allocation alloc);
+        RecordPointer flushAsync(ActiveSegment<K, V>.Allocation alloc);
+        boolean isDurable(RecordPointer recordPointer);
     }
 
-    private FlushMethod<K, V> syncFlushMethod(Params params)
+    private class BatchMode implements Mode<K, V>
     {
-        switch (params.flushMode())
-        {
-            default: throw new IllegalArgumentException();
-            case    BATCH: return this::waitForFlushBatch;
-            case    GROUP: return this::waitForFlushGroup;
-            case PERIODIC: return this::waitForFlushPeriodic;
-        }
-    }
-
-    private FlushMethod<K, V> asyncFlushMethod(Params params)
-    {
-        switch (params.flushMode())
-        {
-            default: throw new IllegalArgumentException();
-            case    BATCH: return this::asyncFlushBatch;
-            case    GROUP: return this::asyncFlushGroup;
-            case PERIODIC: return this::asyncFlushPeriodic;
-        }
-    }
-
-    void waitForFlush(ActiveSegment<K, V>.Allocation alloc)
-    {
-        syncFlushMethod.flush(alloc);
-    }
-
-    void asyncFlush(ActiveSegment<K, V>.Allocation alloc)
-    {
-        asyncFlushMethod.flush(alloc);
-    }
-
-    private void waitForFlushBatch(ActiveSegment<K, V>.Allocation alloc)
-    {
-        pending.incrementAndGet();
-        requestExtraFlush();
-        alloc.awaitFlush(journal.metrics.waitingOnFlush);
-        pending.decrementAndGet();
-        written.incrementAndGet();
-    }
-
-    private void waitForFlushGroup(ActiveSegment<K, V>.Allocation alloc)
-    {
-        pending.incrementAndGet();
-        alloc.awaitFlush(journal.metrics.waitingOnFlush);
-        pending.decrementAndGet();
-        written.incrementAndGet();
-    }
-
-    private void waitForFlushPeriodic(ActiveSegment<K, V>.Allocation ignore)
-    {
-        long expectedFlushTime = nanoTime() - periodicFlushLagBlockNanos();
-        if (fsyncFinishedFor < expectedFlushTime)
+        @Override
+        public void flushAndAwaitDurable(ActiveSegment<K, V>.Allocation alloc)
         {
             pending.incrementAndGet();
-            awaitFsyncAt(expectedFlushTime, journal.metrics.waitingOnFlush.time());
+            requestExtraFlush();
+            alloc.awaitDurable(journal.metrics.waitingOnFlush);
             pending.decrementAndGet();
+            written.incrementAndGet();
         }
-        written.incrementAndGet();
+
+        @Override
+        public RecordPointer flushAsync(ActiveSegment<K, V>.Allocation alloc)
+        {
+            requestExtraFlush();
+            written.incrementAndGet();
+            return new RecordPointer(alloc.descriptor().timestamp, alloc.start());
+        }
+
+        @Override
+        public boolean isDurable(RecordPointer pointer)
+        {
+            return pointer.compareTo(fsyncFinishedForPosition) <= 0;
+        }
     }
 
-    private void asyncFlushBatch(ActiveSegment<K, V>.Allocation alloc)
+    private class GroupMode implements Mode<K, V>
     {
-        requestExtraFlush();
-        written.incrementAndGet();
+        @Override
+        public void flushAndAwaitDurable(ActiveSegment<K, V>.Allocation alloc)
+        {
+            pending.incrementAndGet();
+            alloc.awaitDurable(journal.metrics.waitingOnFlush);
+            pending.decrementAndGet();
+            written.incrementAndGet();
+        }
+
+        @Override
+        public RecordPointer flushAsync(ActiveSegment<K, V>.Allocation alloc)
+        {
+            written.incrementAndGet();
+            return new RecordPointer(alloc.descriptor().timestamp, alloc.start());
+        }
+
+        @Override
+        public boolean isDurable(RecordPointer pointer)
+        {
+            return pointer.compareTo(fsyncFinishedForPosition) <= 0;
+        }
     }
 
-    private void asyncFlushGroup(ActiveSegment<K, V>.Allocation alloc)
+    private class PeriodicMode implements Mode<K, V>
     {
-        written.incrementAndGet();
+        @Override
+        public void flushAndAwaitDurable(ActiveSegment<K, V>.Allocation alloc)
+        {
+            RecordPointer pointer = flushAsync(alloc);
+
+            long expectedFsyncTime = pointer.writtenAt - periodicBlockNanos();
+            if (expectedFsyncTime > fsyncFinishedFor)
+            {
+                pending.incrementAndGet();
+                awaitFsyncAt(expectedFsyncTime, journal.metrics.waitingOnFlush.time());
+                pending.decrementAndGet();
+            }
+        }
+
+        @Override
+        public RecordPointer flushAsync(ActiveSegment<K, V>.Allocation alloc)
+        {
+            written.incrementAndGet();
+            return new RecordPointer(alloc.descriptor().timestamp, alloc.start(), clock.now());
+        }
+
+        @Override
+        public boolean isDurable(RecordPointer alloc)
+        {
+            long expectedFsyncTime = alloc.writtenAt - periodicBlockNanos();
+            return expectedFsyncTime <= fsyncFinishedFor;
+        }
     }
 
-    private void asyncFlushPeriodic(ActiveSegment<K, V>.Allocation ignore)
+    Mode<K, V> mode(Params params)
     {
-        requestExtraFlush();
-        written.incrementAndGet();
+        switch (params.flushMode())
+        {
+            default: throw new AssertionError("Unexpected FlushMode: " + params.flushMode());
+            case BATCH: return new BatchMode();
+            case GROUP: return new GroupMode();
+            case PERIODIC: return new PeriodicMode();
+        }
+    }
+
+    RecordPointer flush(ActiveSegment<K, V>.Allocation alloc)
+    {
+        return mode.flushAsync(alloc);
+    }
+
+    void flushAndAwaitDurable(ActiveSegment<K, V>.Allocation alloc)
+    {
+        mode.flushAndAwaitDurable(alloc);
+    }
+
+    boolean isDurable(RecordPointer pointer)
+    {
+        return mode.isDurable(pointer);
     }
 
     /**
@@ -505,12 +528,12 @@ final class Flusher<K, V>
 
     private long flushPeriodNanos()
     {
-        return 1_000_000L * params.flushPeriodMillis();
+        return params.flushPeriod(NANOSECONDS);
     }
 
-    private long periodicFlushLagBlockNanos()
+    private long periodicBlockNanos()
     {
-        return 1_000_000L * params.periodicFlushLagBlock();
+        return params.periodicBlockPeriod(NANOSECONDS);
     }
 
     long pendingEntries()
@@ -531,8 +554,9 @@ final class Flusher<K, V>
          * completed and also flushed.
          * callbacks for all entries earlier than (segment, position) have finished execution.
          */
-        void onFlush(long segment, int position);
+        void onFsync();
 
+        // TODO (required): tie this to specific allocations..
         void onFlushFailed(Throwable cause);
     }
 }

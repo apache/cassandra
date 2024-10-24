@@ -85,6 +85,8 @@ public class AccordBootstrapTest extends TestBaseImpl
     {
         IInstanceConfig config = cluster.newInstanceConfig();
         config.set("auto_bootstrap", true);
+        config.set("accord.shard_durability_target_splits", "1");
+        config.set("accord.shard_durability_cycle", "20s");
         IInvokableInstance newInstance = cluster.bootstrap(config);
         newInstance.startup(cluster);
         // todo: re-add once we fix write survey/join ring = false mode
@@ -121,7 +123,7 @@ public class AccordBootstrapTest extends TestBaseImpl
         try
         {
             AccordConfigurationService configService = service().configurationService();
-            boolean completed = configService.localSyncNotified(epoch).await(5, TimeUnit.SECONDS);
+            boolean completed = configService.localSyncNotified(epoch).await(30, TimeUnit.SECONDS);
             Assert.assertTrue(String.format("Local sync notification for epoch %s did not become ready within timeout on %s",
                                             epoch, FBUtilities.getBroadcastAddressAndPort()), completed);
         }
@@ -174,7 +176,11 @@ public class AccordBootstrapTest extends TestBaseImpl
                                       .withoutVNodes()
                                       .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(expandedNodeCount))
                                       .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(expandedNodeCount, "dc0", "rack0"))
-                                      .withConfig(config -> config.set("accord.shard_count", 2).with(NETWORK, GOSSIP))
+                                      .withConfig(config -> config.set("accord.command_store_shard_count", 2)
+                                                                  .set("accord.queue_shard_count", 2)
+                                                                  .set("accord.shard_durability_cycle", "20s")
+                                                                  .set("accord.shard_durability_target_splits", "1")
+                                                                  .with(NETWORK, GOSSIP))
                                       .start())
         {
             long initialMax = maxEpoch(cluster);
@@ -351,7 +357,10 @@ public class AccordBootstrapTest extends TestBaseImpl
                                       .withoutVNodes()
                                       .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(3))
                                       .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(3, "dc0", "rack0"))
-                                      .withConfig(config -> config.with(NETWORK, GOSSIP))
+                                      .withConfig(config -> config
+                                                            .set("accord.shard_durability_target_splits", "1")
+                                                            .set("accord.shard_durability_cycle", "20s")
+                                                            .with(NETWORK, GOSSIP))
                                       .start())
         {
             long initialMax = maxEpoch(cluster);

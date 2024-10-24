@@ -188,9 +188,9 @@ public class AccordCommandStoreTest
         cfk.set(cfk.current().update(command1).cfk());
         cfk.set(cfk.current().update(command2).cfk());
 
-        AccordKeyspace.getTimestampsForKeyMutation(commandStore, tfk, commandStore.nextSystemTimestampMicros()).apply();
+        AccordKeyspace.getTimestampsForKeyUpdater(commandStore, tfk.current(), commandStore.nextSystemTimestampMicros()).run();
         logger.info("E: {}", tfk);
-        TimestampsForKey actual = AccordKeyspace.loadTimestampsForKey(commandStore, key);
+        TimestampsForKey actual = AccordKeyspace.loadTimestampsForKey(commandStore.id(), key);
         logger.info("A: {}", actual);
 
         Assert.assertEquals(tfk.current(), actual);
@@ -219,9 +219,9 @@ public class AccordCommandStoreTest
         cfk.set(cfk.current().update(command1).cfk());
         cfk.set(cfk.current().update(command2).cfk());
 
-        AccordKeyspace.getCommandsForKeyMutation(commandStore.id(), cfk.current(), commandStore.nextSystemTimestampMicros()).apply();
+        AccordKeyspace.getCommandsForKeyUpdater(commandStore.id(), (TokenKey)cfk.key(), cfk.current(), null, commandStore.nextSystemTimestampMicros()).run();
         logger.info("E: {}", cfk);
-        CommandsForKey actual = AccordKeyspace.loadCommandsForKey(commandStore, key);
+        CommandsForKey actual = AccordKeyspace.loadCommandsForKey(commandStore.id(), key);
         logger.info("A: {}", actual);
 
         Assert.assertEquals(cfk.current(), actual);

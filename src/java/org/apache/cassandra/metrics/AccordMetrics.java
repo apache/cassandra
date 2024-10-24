@@ -49,6 +49,7 @@ public class AccordMetrics
     public static final String PROGRESS_LOG_SIZE = "ProgressLogSize";
 
     public static final String DEPENDENCIES = "Dependencies";
+    public static final String EPHEMERAL = "Ephemeral";
     public static final String FAST_PATHS = "FastPaths";
     public static final String SLOW_PATHS = "SlowPaths";
     public static final String PREEMPTS = "Preempts";

@@ -352,7 +352,9 @@ public class AccordIndexStressTest extends CQLTester
 
     private Set<TxnId> readIndex(int store, AccordRoutingKey start, AccordRoutingKey end, TxnId minTxnId, Timestamp maxTxnId)
     {
-        return searcher.intersects(store, start, end, minTxnId, maxTxnId);
+        Set<TxnId> out = new ObjectHashSet<>();
+        searcher.intersects(store, start, end, minTxnId, maxTxnId, out::add);
+        return out;
     }
 
     private Set<TxnId> readCQL(int store, AccordRoutingKey start, AccordRoutingKey end, TxnId minTxnId, Timestamp maxTxnId)

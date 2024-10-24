@@ -779,10 +779,12 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
                                    .set("memtable_allocation_type", builder.memoryListener != null ? "unslabbed_heap_buffers_logged" : "heap_buffers")
                                    .set("file_cache_size", "16MiB")
                                    .set("use_deterministic_table_id", true)
+                                   .set("accord.queue_submission_model", "EXEC_ST")
                                    .set("disk_access_mode", "standard")
                                    .set("failure_detector", SimulatedFailureDetector.Instance.class.getName())
                                    .set("commitlog_compression", new ParameterizedClass(LZ4Compressor.class.getName(), emptyMap()))
-                                   .set("commitlog_sync", "batch");
+                                   .set("commitlog_sync", "batch")
+                                   .set("accord.journal.flush_mode", "BATCH");
                              // TODO: Add remove() to IInstanceConfig
                              if (config instanceof InstanceConfig)
                              {

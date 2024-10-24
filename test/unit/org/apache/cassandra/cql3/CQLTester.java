@@ -180,7 +180,7 @@ import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.service.accord.AccordStateCache;
+import org.apache.cassandra.service.accord.AccordCache;
 import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.transport.Event;
@@ -390,7 +390,7 @@ public abstract class CQLTester
     public static void prepareServer()
     {
         ServerTestUtils.prepareServer();
-        AccordStateCache.validateLoadOnEvict(true);
+        AccordCache.validateLoadOnEvict(true);
     }
 
     public static void cleanup()

@@ -156,6 +156,11 @@ public final class Ref<T> implements RefCounted<T>
         return referent;
     }
 
+    public Tidy tidier()
+    {
+        return state.globalState.tidy;
+    }
+
     public Ref<T> tryRef()
     {
         return state.globalState.ref() ? new Ref<>(referent, state.globalState) : null;

@@ -31,11 +31,11 @@ import accord.primitives.Timestamp;
 public class AccordSafeTimestampsForKey extends SafeTimestampsForKey implements AccordSafeState<RoutingKey, TimestampsForKey>
 {
     private boolean invalidated;
-    private final AccordCachingState<RoutingKey, TimestampsForKey> global;
+    private final AccordCacheEntry<RoutingKey, TimestampsForKey> global;
     private TimestampsForKey original;
     private TimestampsForKey current;
 
-    public AccordSafeTimestampsForKey(AccordCachingState<RoutingKey, TimestampsForKey> global)
+    public AccordSafeTimestampsForKey(AccordCacheEntry<RoutingKey, TimestampsForKey> global)
     {
         super(global.key());
         this.global = global;
@@ -70,7 +70,7 @@ public class AccordSafeTimestampsForKey extends SafeTimestampsForKey implements 
     }
 
     @Override
-    public AccordCachingState<RoutingKey, TimestampsForKey> global()
+    public AccordCacheEntry<RoutingKey, TimestampsForKey> global()
     {
         checkNotInvalidated();
         return global;
@@ -101,8 +101,10 @@ public class AccordSafeTimestampsForKey extends SafeTimestampsForKey implements 
     public void preExecute()
     {
         checkNotInvalidated();
-        original = global.get();
+        original = global.getExclusive();
         current = original;
+        if (isUnset())
+            initialize();
     }
 
     @Override

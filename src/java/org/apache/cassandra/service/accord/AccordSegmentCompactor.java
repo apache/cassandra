@@ -27,7 +27,6 @@ import org.slf4j.LoggerFactory;
 
 import accord.utils.Invariants;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.partitions.PartitionUpdate.SimpleBuilder;
@@ -73,7 +72,7 @@ public class AccordSegmentCompactor<V> implements SegmentCompactor<JournalKey, V
         if (readers.isEmpty())
             return Collections.emptyList();
 
-        ColumnFamilyStore cfs = Keyspace.open(AccordKeyspace.metadata().name).getColumnFamilyStore(AccordKeyspace.JOURNAL);
+        ColumnFamilyStore cfs = AccordKeyspace.AccordColumnFamilyStores.journal;
         Descriptor descriptor = cfs.newSSTableDescriptor(cfs.getDirectories().getDirectoryForNewSSTables());
         SerializationHeader header = new SerializationHeader(true, cfs.metadata(), cfs.metadata().regularAndStaticColumns(), EncodingStats.NO_STATS);
 

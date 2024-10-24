@@ -17,15 +17,13 @@
  */
 package org.apache.cassandra.journal;
 
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.List;
 import java.util.function.Predicate;
 
 import accord.utils.Invariants;
+import accord.utils.SortedArrays.SortedArrayList;
 import org.agrona.collections.Long2ObjectHashMap;
-import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.concurrent.Refs;
 
 /**
@@ -36,6 +34,7 @@ import org.apache.cassandra.utils.concurrent.Refs;
 class Segments<K, V>
 {
     private final Long2ObjectHashMap<Segment<K, V>> segments;
+    private SortedArrayList<Segment<K, V>> sorted;
 
     Segments(Long2ObjectHashMap<Segment<K, V>> segments)
     {
@@ -108,10 +107,9 @@ class Segments<K, V>
      */
     List<Segment<K, V>> allSorted(boolean asc)
     {
-        List<Segment<K, V>> segments = new ArrayList<>(this.segments.values());
-        if (asc) segments.sort(Comparator.comparing(s -> s.descriptor));
-        else segments.sort((o1, o2) -> -o1.descriptor.compareTo(o2.descriptor));
-        return segments;
+        if (sorted == null)
+            sorted = SortedArrayList.<Segment<K, V>>copyUnsorted(segments.values(), Segment[]::new);
+        return asc ? sorted : sorted.reverse();
     }
 
     void selectActive(long maxTimestamp, Collection<ActiveSegment<K, V>> into)
@@ -132,12 +130,14 @@ class Segments<K, V>
 
     ActiveSegment<K, V> oldestActive()
     {
-        Segment<K, V> oldest = null;
-        for (Segment<K, V> segment : segments.values())
-            if (segment.isActive() && (oldest == null || segment.descriptor.timestamp <= oldest.descriptor.timestamp))
-                oldest = segment;
-
-        return oldest == null ? null : oldest.asActive();
+        List<Segment<K, V>> sorted = allSorted(true);
+        for (int i = 0 ; i < sorted.size() ; ++i)
+        {
+            Segment<K, V> segment = sorted.get(i);
+            if (segment.isActive())
+                return segment.asActive();
+        }
+        return null;
     }
 
     Segment<K, V> get(long timestamp)
@@ -158,8 +158,26 @@ class Segments<K, V>
      *
      * @return a subset of segments with references to them, or {@code null} if failed to grab the refs
      */
-    @SuppressWarnings("resource")
     ReferencedSegments<K, V> selectAndReference(Predicate<Segment<K, V>> test)
+    {
+        Long2ObjectHashMap<Segment<K, V>> selectedSegments = select(test).segments;
+        Refs<Segment<K, V>> refs = null;
+        if (!selectedSegments.isEmpty())
+        {
+            refs = Refs.tryRef(selectedSegments.values());
+            if (null == refs)
+                return null;
+        }
+        return new ReferencedSegments<>(selectedSegments, refs);
+    }
+
+    /**
+     * Select segments that could potentially have an entry with the specified ids and
+     * attempt to grab references to them all.
+     *
+     * @return a subset of segments with references to them, or {@code null} if failed to grab the refs
+     */
+    Segments<K, V> select(Predicate<Segment<K, V>> test)
     {
         Long2ObjectHashMap<Segment<K, V>> selectedSegments = null;
         for (Segment<K, V> segment : segments.values())
@@ -175,14 +193,7 @@ class Segments<K, V>
         if (null == selectedSegments)
             selectedSegments = emptyMap();
 
-        Refs<Segment<K, V>> refs = null;
-        if (!selectedSegments.isEmpty())
-        {
-            refs = Refs.tryRef(selectedSegments.values());
-            if (null == refs)
-                return null;
-        }
-        return new ReferencedSegments<>(selectedSegments, refs);
+        return new Segments<>(selectedSegments);
     }
 
     static class ReferencedSegments<K, V> extends Segments<K, V> implements AutoCloseable
@@ -203,49 +214,6 @@ class Segments<K, V>
         }
     }
 
-    boolean isFlushed(RecordPointer recordPointer)
-    {
-        Segment<K, V> segment = segments.get(recordPointer.segment);
-        if (null == segment)
-            throw new IllegalArgumentException("Can not reference segment " + recordPointer.segment);
-        return segment.isFlushed(recordPointer.position);
-    }
-
-    ReferencedSegment<K, V> selectAndReference(long segmentTimestamp)
-    {
-        Segment<K, V> segment = segments.get(segmentTimestamp);
-        if (null == segment)
-            return new ReferencedSegment<>(null, null);
-        Ref<Segment<K, V>> ref = segment.tryRef();
-        if (null == ref)
-            return null;
-        return new ReferencedSegment<>(segment, ref);
-    }
-
-    static class ReferencedSegment<K, V> implements AutoCloseable
-    {
-        private final Segment<K, V> segment;
-        private final Ref<Segment<K, V>> ref;
-
-        ReferencedSegment(Segment<K, V> segment, Ref<Segment<K, V>> ref)
-        {
-            this.segment = segment;
-            this.ref = ref;
-        }
-
-        Segment<K, V> segment()
-        {
-            return segment;
-        }
-
-        @Override
-        public void close()
-        {
-            if (null != ref)
-                ref.release();
-        }
-    }
-
     private static final Long2ObjectHashMap<?> EMPTY_MAP = new Long2ObjectHashMap<>();
 
     @SuppressWarnings("unchecked")
@@ -256,6 +224,6 @@ class Segments<K, V>
 
     private static <K> Long2ObjectHashMap<K> newMap(int expectedSize)
     {
-        return new Long2ObjectHashMap<>(0, 0.65f, false);
+        return new Long2ObjectHashMap<>(expectedSize, 0.65f, false);
     }
 }

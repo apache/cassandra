@@ -35,12 +35,13 @@ import com.google.common.collect.Sets;
 import org.junit.Assert;
 
 import accord.api.Data;
-import accord.api.LocalListeners;
 import accord.api.ProgressLog.NoOpProgressLog;
-import accord.api.RemoteListeners;
+import accord.api.RemoteListeners.NoOpRemoteListeners;
 import accord.api.Result;
 import accord.api.RoutingKey;
+import accord.api.Timeouts;
 import accord.impl.DefaultLocalListeners;
+import accord.impl.DefaultLocalListeners.NotifySink.NoOpNotifySink;
 import accord.impl.InMemoryCommandStore;
 import accord.local.Command;
 import accord.local.CommandStore;
@@ -52,7 +53,6 @@ import accord.local.Node.Id;
 import accord.local.NodeCommandStoreService;
 import accord.local.TimeService;
 import accord.local.PreLoadContext;
-import accord.local.SafeCommand;
 import accord.local.SafeCommandStore;
 import accord.local.StoreParticipants;
 import accord.primitives.Ballot;
@@ -77,11 +77,11 @@ import accord.utils.SortedArrays.SortedArrayList;
 import accord.utils.async.AsyncChains;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.concurrent.ExecutorPlus;
-import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.concurrent.ManualExecutor;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.AccordSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.statements.TransactionStatement;
@@ -91,7 +91,7 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.metrics.AccordStateCacheMetrics;
+import org.apache.cassandra.metrics.AccordCacheMetrics;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
@@ -108,7 +108,8 @@ import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 import static accord.primitives.Routable.Domain.Key;
 import static accord.utils.async.AsyncChains.getUninterruptibly;
 import static java.lang.String.format;
-import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
+import static org.apache.cassandra.service.accord.AccordExecutor.Mode.RUN_WITH_LOCK;
+import static org.apache.cassandra.service.accord.AccordExecutor.wrap;
 
 public class AccordTestUtils
 {
@@ -167,25 +168,16 @@ public class AccordTestUtils
         }
     }
 
-    public static <K, V> AccordCachingState<K, V> loaded(K key, V value, int index)
+    public static <K, V> AccordCacheEntry<K, V> loaded(K key, V value)
     {
-        AccordCachingState<K, V> global = new AccordCachingState<>(key, index);
-        global.load(ImmediateExecutor.INSTANCE, k -> {
-            Assert.assertEquals(key, k);
-            return value;
-        });
-        Assert.assertEquals(AccordCachingState.Status.LOADED, global.status());
+        AccordCacheEntry<K, V> global = new AccordCacheEntry<>(key, null);
+        global.initialize(value);
         return global;
-    }
-
-    public static <K, V> AccordCachingState<K, V> loaded(K key, V value)
-    {
-        return loaded(key, value, 0);
     }
 
     public static AccordSafeCommand safeCommand(Command command)
     {
-        AccordCachingState<TxnId, Command> global = loaded(command.txnId(), command);
+        AccordCacheEntry<TxnId, Command> global = loaded(command.txnId(), command);
         return new AccordSafeCommand(global);
     }
 
@@ -197,11 +189,13 @@ public class AccordTestUtils
         };
     }
 
-    public static <K, V> void testLoad(ManualExecutor executor, AccordSafeState<K, V> safeState, V val)
+    public static <K, V> void testLoad(ManualExecutor executor, AccordCache.Type<K, V, ?>.Instance instance, AccordSafeState<K, V> safeState, V val)
     {
-        Assert.assertEquals(AccordCachingState.Status.LOADING, safeState.globalStatus());
+        Assert.assertEquals(AccordCacheEntry.Status.WAITING_TO_LOAD, safeState.global().status());
+        safeState.global().load(wrap(executor), null, instance.parent().adapter(), AccordCacheEntry.OnLoaded.immediate());
+        Assert.assertEquals(AccordCacheEntry.Status.LOADING, safeState.global().status());
         executor.runOne();
-        Assert.assertEquals(AccordCachingState.Status.LOADED, safeState.globalStatus());
+        Assert.assertEquals(AccordCacheEntry.Status.LOADED, safeState.global().status());
         safeState.preExecute();
         Assert.assertEquals(val, safeState.current());
     }
@@ -371,8 +365,8 @@ public class AccordTestUtils
             private ToLongFunction<TimeUnit> elapsed = TimeService.elapsedWrapperFromNonMonotonicSource(TimeUnit.MICROSECONDS, this::now);
 
             @Override public Id id() { return node;}
+            @Override public Timeouts timeouts() { return null; }
             @Override public DurableBefore durableBefore() { return DurableBefore.EMPTY; }
-
             @Override public long epoch() {return 1; }
             @Override public long now() {return now.getAsLong(); }
             @Override public Timestamp uniqueNow() { return uniqueNow(Timestamp.NONE); }
@@ -390,10 +384,19 @@ public class AccordTestUtils
     public static AccordCommandStore createAccordCommandStore(
         Node.Id node, LongSupplier now, Topology topology, ExecutorPlus loadExecutor, ExecutorPlus saveExecutor)
     {
+        AccordAgent agent = new AccordAgent();
+        AccordExecutor executor = new AccordExecutorSyncSubmit(0, RUN_WITH_LOCK, CommandStore.class.getSimpleName() + '[' + 0 + ']', new AccordCacheMetrics("test"), loadExecutor, saveExecutor, loadExecutor, agent);
+        return createAccordCommandStore(node, now, topology, agent, executor);
+    }
+
+    public static AccordCommandStore createAccordCommandStore(
+        Node.Id node, LongSupplier now, Topology topology, AccordAgent agent, AccordExecutor executor)
+    {
         NodeCommandStoreService time = new NodeCommandStoreService()
         {
             private ToLongFunction<TimeUnit> elapsed = TimeService.elapsedWrapperFromNonMonotonicSource(TimeUnit.MICROSECONDS, this::now);
 
+            @Override public Timeouts timeouts() { return null; }
             @Override public DurableBefore durableBefore() { return DurableBefore.EMPTY; }
             @Override public Id id() { return node;}
             @Override public long epoch() {return 1; }
@@ -407,30 +410,18 @@ public class AccordTestUtils
 
         if (new File(DatabaseDescriptor.getAccordJournalDirectory()).exists())
             ServerTestUtils.cleanupDirectory(DatabaseDescriptor.getAccordJournalDirectory());
-        AccordJournal journal = new AccordJournal(new AccordSpec.JournalSpec());
+        AccordSpec.JournalSpec spec = new AccordSpec.JournalSpec();
+        spec.flushPeriod = new DurationSpec.IntSecondsBound(1);
+        AccordJournal journal = new AccordJournal(spec, agent);
         journal.start(null);
 
-        AccordStateCache stateCache = new AccordStateCache(loadExecutor, saveExecutor, 8 << 20, new AccordStateCacheMetrics("test"));
         SingleEpochRanges holder = new SingleEpochRanges(topology.rangesForNode(node));
-        AccordCommandStore result = new AccordCommandStore(0,
-                                                           time,
-                                                           new AccordAgent(),
-                                                           null,
+        AccordCommandStore result = new AccordCommandStore(0, time, agent, null,
                                                            cs -> new NoOpProgressLog(),
-                                                           cs -> new DefaultLocalListeners(new RemoteListeners.NoOpRemoteListeners(), new DefaultLocalListeners.NotifySink()
-                                                           {
-                                                               @Override public void notify(SafeCommandStore safeStore, SafeCommand safeCommand, TxnId listener) {}
-                                                               @Override public boolean notify(SafeCommandStore safeStore, SafeCommand safeCommand, LocalListeners.ComplexListener listener) { return false; }
-                                                           }),
-                                                           holder,
-                                                           journal,
-                                                           new AccordCommandStore.CommandStoreExecutor(stateCache, executorFactory().sequential(CommandStore.class.getSimpleName() + '[' + 0 + ']')));
+                                                           cs -> new DefaultLocalListeners(new NoOpRemoteListeners(), new NoOpNotifySink()),
+                                                           holder, journal, executor);
         holder.set(result);
-
-        // TODO: CompactionAccordIteratorsTest relies on this
-        result.execute(PreLoadContext.empty(),
-                       result::updateRangesForEpoch)
-              .beginAsResult();
+        result.unsafeUpdateRangesForEpoch();
         return result;
     }
 
@@ -447,7 +438,7 @@ public class AccordTestUtils
         Node.Id node = new Id(1);
         Topology topology = new Topology(1, new Shard(range, new SortedArrayList<>(new Id[] { node }), Sets.newHashSet(node), Collections.emptySet()));
         AccordCommandStore store = createAccordCommandStore(node, now, topology, loadExecutor, saveExecutor);
-        store.execute(PreLoadContext.empty(), safeStore -> ((AccordCommandStore)safeStore.commandStore()).cache().setCapacity(1 << 20));
+        store.execute(PreLoadContext.empty(), safeStore -> ((AccordCommandStore)safeStore.commandStore()).executor().cacheUnsafe().setCapacity(1 << 20));
         return store;
     }
 
@@ -520,7 +511,7 @@ public class AccordTestUtils
 
     public static void appendCommandsBlocking(AccordCommandStore commandStore, Command before, Command after)
     {
-        SavedCommand.DiffWriter diff = SavedCommand.diff(before, after);
+        SavedCommand.Writer diff = SavedCommand.diff(before, after);
         if (diff == null) return;
         Condition condition = Condition.newOneTimeCondition();
         commandStore.appendCommands(Collections.singletonList(diff), condition::signal);

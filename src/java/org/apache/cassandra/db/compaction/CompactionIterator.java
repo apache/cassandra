@@ -35,6 +35,7 @@ import com.google.common.collect.Ordering;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.api.Agent;
 import accord.local.Cleanup;
 import accord.local.CommandStores;
 import accord.local.CommandStores.RangesForEpoch;
@@ -103,6 +104,7 @@ import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.IAccordService;
 import org.apache.cassandra.service.accord.JournalKey;
 import org.apache.cassandra.service.accord.SavedCommand;
+import org.apache.cassandra.service.accord.api.AccordAgent;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.service.paxos.PaxosRepairHistory;
 import org.apache.cassandra.service.paxos.uncommitted.PaxosRows;
@@ -805,6 +807,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
     class AccordCommandsPurger extends AbstractPurger
     {
+        final Agent agent;
         final Int2ObjectHashMap<RedundantBefore> redundantBefores;
         final Int2ObjectHashMap<DurableBefore> durableBefores;
         final Int2ObjectHashMap<RangesForEpoch> ranges;
@@ -814,7 +817,9 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
         AccordCommandsPurger(Supplier<IAccordService> accordService)
         {
-            IAccordService.CompactionInfo compactionInfo = accordService.get().getCompactionInfo();
+            IAccordService service = accordService.get();
+            IAccordService.CompactionInfo compactionInfo = service.getCompactionInfo();
+            this.agent = service.agent();
             this.redundantBefores = compactionInfo.redundantBefores;
             this.ranges = compactionInfo.ranges;
             this.durableBefores = compactionInfo.durableBefores;
@@ -852,7 +857,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
             if (saveStatus.is(Status.Invalidated))
                 return saveStatusOnly(saveStatus, row, nowInSec);
 
-            Cleanup cleanup = shouldCleanupPartial(txnId, saveStatus, durability, participants,
+            Cleanup cleanup = shouldCleanupPartial(agent, txnId, saveStatus, durability, participants,
                                                    redundantBefore, durableBefore);
             switch (cleanup)
             {
@@ -1019,6 +1024,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         final ColumnMetadata recordColumn;
         final ColumnMetadata versionColumn;
         final AccordService service;
+        final AccordAgent agent;
 
         JournalKey key = null;
         Object builder = null;
@@ -1036,6 +1042,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
             userVersion = service.journalConfiguration().userVersion();
             IAccordService.CompactionInfo compactionInfo = service.getCompactionInfo();
 
+            this.agent = service.agent();
             this.redundantBefores = compactionInfo.redundantBefores;
             this.ranges = compactionInfo.ranges;
             this.durableBefores = compactionInfo.durableBefores;
@@ -1102,7 +1109,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
                 RedundantBefore redundantBefore = redundantBefores.get(key.commandStoreId);
                 DurableBefore durableBefore = durableBefores.get(key.commandStoreId);
-                Cleanup cleanup = commandBuilder.shouldCleanup(redundantBefore, durableBefore);
+                Cleanup cleanup = commandBuilder.shouldCleanup(agent, redundantBefore, durableBefore);
                 if (cleanup == ERASE)
                     return PartitionUpdate.fullPartitionDelete(metadata(), partition.partitionKey(), maxSeenTimestamp, nowInSec).unfilteredIterator();
 

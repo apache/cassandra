@@ -24,7 +24,6 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.TreeMap;
 
 import accord.api.Key;
@@ -112,7 +111,7 @@ public abstract class AccordRoutingKey extends AccordRoutableKey implements Rout
         @Override
         public int hashCode()
         {
-            return Objects.hash(table, isMin);
+            return table.hashCode() * (isMin ? 31 : 1);
         }
 
         @Override
@@ -461,6 +460,12 @@ public abstract class AccordRoutingKey extends AccordRoutableKey implements Rout
         public Range splitRange(Range range, int from, int to, int numSplits)
         {
             return subSplitter.splitRange(range, from, to, numSplits);
+        }
+
+        @Override
+        public int numberOfSplitsPossible(Range range)
+        {
+            return subSplitter.numberOfSplitsPossible(range);
         }
     }
 }

@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.journal;
 
+import java.util.concurrent.TimeUnit;
+
 public interface Params
 {
     enum FlushMode { BATCH, GROUP, PERIODIC }
@@ -40,23 +42,18 @@ public interface Params
 
     boolean enableCompaction();
 
-    int compactionPeriodMillis();
+    long compactionPeriod(TimeUnit units);
 
     /**
      * @return milliseconds between journal flushes
      */
-    int flushPeriodMillis();
-
-    default int flushPeriodNanos()
-    {
-        return flushPeriodMillis() * 1_000_000;
-    }
+    long flushPeriod(TimeUnit units);
 
     /**
-     * @return milliseconds to block writes for while waiting for a slow disk flush to complete
-     *         when in {@link FlushMode#PERIODIC} mode
+     * @return to block writes for while waiting for a slow fsync to complete
+     * when in {@link FlushMode#PERIODIC} mode
      */
-    int periodicFlushLagBlock();
+    long periodicBlockPeriod(TimeUnit units);
 
     /**
      * @return user provided version to use for key and value serialization

@@ -31,6 +31,7 @@ import org.apache.cassandra.concurrent.ExecutorFactory;
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.config.AccordSpec;
 import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.filesystem.ListenableFileSystem;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -75,9 +76,12 @@ public class AccordJournalSimulationTest extends SimulationTestBase
 
                      Keyspace.setInitialized();
 
+                     AccordSpec.JournalSpec spec = new AccordSpec.JournalSpec();
+                     spec.flushPeriod = new DurationSpec.IntSecondsBound(1);
+
                      State.journal = new Journal<>("AccordJournal",
                                                    new File("/journal"),
-                                                   new AccordSpec.JournalSpec(),
+                                                   spec,
                                                    new IdentityKeySerializer(),
                                                    new IdentityValueSerializer(),
                                                    SegmentCompactor.noop());
@@ -96,7 +100,7 @@ public class AccordJournalSimulationTest extends SimulationTestBase
                 int finalI = i;
                 State.executor.submit(() -> {
                     RecordPointer ptr = State.journal.asyncWrite("test" + finalI, "test" + finalI, Collections.singleton(1));
-                    State.journal.onFlush(ptr, State.latch::decrement);
+                    State.journal.onDurable(ptr, State.latch::decrement);
                 });
             }
 
@@ -185,6 +189,37 @@ public class AccordJournalSimulationTest extends SimulationTestBase
             int remaining = maxSize - size;
             for (int i = 0; i < remaining; i++)
                 Assert.assertEquals(aByte + i, in.readByte());
+
+            return new String(key);
+        }
+
+        @Override
+        public void serialize(String key, ByteBuffer out, int userVersion) throws IOException
+        {
+            int maxSize = 16 - TypeSizes.INT_SIZE;
+            if (key.length() > maxSize)
+                throw new IllegalStateException();
+
+            out.putInt(key.length());
+            for (int i = 0 ; i < key.length() ; ++i)
+                out.put((byte)key.charAt(i));
+            int remaining = maxSize - key.length();
+            for (int i = 0; i < remaining; i++)
+                out.put((byte) (aByte + i));
+        }
+
+        @Override
+        public String deserialize(ByteBuffer in, int userVersion)
+        {
+            int size = in.getInt();
+            byte[] key = new byte[size];
+            for (int i = 0; i < size; i++)
+                key[i] = in.get();
+
+            int maxSize = 16 - TypeSizes.INT_SIZE;
+            int remaining = maxSize - size;
+            for (int i = 0; i < remaining; i++)
+                Assert.assertEquals(aByte + i, in.get());
 
             return new String(key);
         }

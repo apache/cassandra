@@ -217,6 +217,9 @@ public abstract class AccordMigrationRaceTestBase extends AccordTestBase
         // Otherwise repair complains if you don't specify a keyspace
         CassandraRelevantProperties.SYSTEM_TRACES_DEFAULT_RF.setInt(3);
         AccordTestBase.setupCluster(builder -> builder.appendConfig(config -> config.set("paxos_variant", PaxosVariant.v2.name())
+                                                                                    .set("accord.shard_durability_cycle", "1m")
+                                                                                    .set("accord.shard_durability_target_splits", "1")
+                                                                                    .set("accord.shard_durability_cycle", "60s")
                                                                                     .set("write_request_timeout", "2s")
                                                                                     .set("accord.range_migration", "explicit")), 3);
         partitioner = FBUtilities.newPartitioner(SHARED_CLUSTER.get(1).callsOnInstance(() -> DatabaseDescriptor.getPartitioner().getClass().getSimpleName()).call());
@@ -642,11 +645,12 @@ public abstract class AccordMigrationRaceTestBase extends AccordTestBase
                      outOfSyncInstance.runOnInstance(() -> HintsService.instance.resumeDispatch());
                      // The initial hinting attempt should fail, unless it's a batchlog routing failure in which
                      // case the coordinator has already caught up so the hint will succeed on the first try
-                     // Can only really have this case for BATCHLOG_FAILED_TIMEOUT_THEN_HINT becuase Accord timeouts don't
+                     // Can only really have this case for BATCHLOG_FAILED_TIMEOUT_THEN_HINT because Accord timeouts don't
                      // write hints so there is nothing to test
                      if (migrateAwayFromAccord && scenario == BATCHLOG_FAILED_TIMEOUT_THEN_HINT)
                      {
                          Callable<Boolean> test = () -> outOfSyncInstance.callOnInstance(() -> {
+                             HintsService.instance.flushAndFsyncBlockingly();
                              logger.info("startingAccordTimeouts {}, startingAccordPreempts {}, startingAccordMigrationRejects {}, startingHintTimeouts {}, accord timeouts {}, accordPreempts {}, accordMigrationRejects {}, hint timeouts {}", startingAccordTimeouts, startingAccordPreempted, startingAccordMigrationRejects, startingHintTimeouts, ClientRequestsMetricsHolder.accordWriteMetrics.timeouts.getCount(), ClientRequestsMetricsHolder.accordWriteMetrics.preempted.getCount(), ClientRequestsMetricsHolder.accordWriteMetrics.accordMigrationRejects.getCount(), HintsServiceMetrics.hintsTimedOut.getCount());
                              AccordClientRequestMetrics accordMetrics = ClientRequestsMetricsHolder.accordWriteMetrics;
                              return accordMetrics.timeouts.getCount() >= (startingAccordTimeouts + 1) && HintsServiceMetrics.hintsTimedOut.getCount() >= (startingHintTimeouts + 1);

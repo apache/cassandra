@@ -219,7 +219,8 @@ public class AccordTopologyMixupTest extends TopologyMixupTestBase<AccordTopolog
         protected void onConfigure(IInstanceConfig c)
         {
             c.set("accord.shard_count", 1)
-                    .set("paxos_variant", Config.PaxosVariant.v2.name());
+             .set("accord.queue_shard_count", 1)
+             .set("paxos_variant", Config.PaxosVariant.v2.name());
         }
 
         @Override

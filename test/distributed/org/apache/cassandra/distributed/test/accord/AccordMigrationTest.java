@@ -345,35 +345,33 @@ public class AccordMigrationTest extends AccordTestBase
                 List<byte[]> keys = expectedMigrations.stream().map(p -> p.left.array()).collect(Collectors.toList());
                 List<Integer> intKeys = expectedMigrations.stream().map(p -> ByteBufferUtil.toInt(p.left)).collect(Collectors.toList());
                 List<UUID> tables = expectedMigrations.stream().map(p -> p.right).collect(Collectors.toList());
-                for (int i = 1; i < SHARED_CLUSTER.size(); i++)
-                {
-                    int instanceIndex = i;
-                    IInvokableInstance instance = SHARED_CLUSTER.get(i);
-                    instance.runOnInstance(() -> {
-                        Map<Pair<ByteBuffer, UUID>, ConsensusMigratedAt> cacheMap = ConsensusKeyMigrationState.MIGRATION_STATE_CACHE.asMap();
-                        String cacheMessage = format("Instance %d Expected %s migrations but found in cache %s", instanceIndex, intKeys, cacheMap);
-                        assertEquals(cacheMessage, keys.size(), cacheMap.size());
-                        for (int j = 0; j < keys.size(); j++)
-                        {
-                            assertTrue(cacheMessage,
-                                       cacheMap.containsKey(Pair.create(ByteBuffer.wrap(keys.get(j)), tables.get(j))));
-                        }
+                // Notification of all replicas that the key was migrated was removed so they will each have to run
+                // a local barrier first to find out the key was migrated. Not sure if we will add it back somehow.
+                IInvokableInstance instance = SHARED_CLUSTER.get(1);
+                instance.runOnInstance(() -> {
+                    Map<Pair<ByteBuffer, UUID>, ConsensusMigratedAt> cacheMap = ConsensusKeyMigrationState.MIGRATION_STATE_CACHE.asMap();
+                    String cacheMessage = format("Instance %d Expected %s migrations but found in cache %s", 1, intKeys, cacheMap);
+                    assertEquals(cacheMessage, keys.size(), cacheMap.size());
+                    for (int j = 0; j < keys.size(); j++)
+                    {
+                        assertTrue(cacheMessage,
+                                   cacheMap.containsKey(Pair.create(ByteBuffer.wrap(keys.get(j)), tables.get(j))));
+                    }
 
-                        UntypedResultSet result = QueryProcessor.executeInternal("SELECT * from " + SYSTEM_KEYSPACE_NAME + "." + CONSENSUS_MIGRATION_STATE);
-                        String tableMessage = format("Instance %d Expected %s migrations but found in system table %s", instanceIndex, intKeys, result);
-                        assertEquals(tableMessage, keys.size(), result.size());
-                        Iterator<UntypedResultSet.Row> resultIterator = result.iterator();
-                        for (int j = 0; j < result.size(); j++)
-                        {
-                            UntypedResultSet.Row row = resultIterator.next();
-                            boolean foundKey = false;
-                            for (byte[] expectedKey : keys)
-                                if (ByteBuffer.wrap(expectedKey).equals(row.getBytes("row_key")))
-                                    foundKey = true;
-                            assertTrue(tableMessage, foundKey);
-                        }
-                    });
-                }
+                    UntypedResultSet result = QueryProcessor.executeInternal("SELECT * from " + SYSTEM_KEYSPACE_NAME + "." + CONSENSUS_MIGRATION_STATE);
+                    String tableMessage = format("Instance %d Expected %s migrations but found in system table %s", 1, intKeys, result);
+                    assertEquals(tableMessage, keys.size(), result.size());
+                    Iterator<UntypedResultSet.Row> resultIterator = result.iterator();
+                    for (int j = 0; j < result.size(); j++)
+                    {
+                        UntypedResultSet.Row row = resultIterator.next();
+                        boolean foundKey = false;
+                        for (byte[] expectedKey : keys)
+                            if (ByteBuffer.wrap(expectedKey).equals(row.getBytes("row_key")))
+                                foundKey = true;
+                        assertTrue(tableMessage, foundKey);
+                    }
+                });
             }
             catch (Throwable t)
             {

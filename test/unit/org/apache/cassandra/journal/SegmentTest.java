@@ -24,10 +24,12 @@ import java.util.*;
 
 import org.junit.Test;
 
+import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.TimeUUID;
+import org.apache.cassandra.utils.concurrent.OpOrder;
 
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.junit.Assert.assertEquals;
@@ -136,7 +138,7 @@ public class SegmentTest
         activeSegment.allocate(record3.remaining(), hosts3).write(id3, record3, hosts3);
         activeSegment.allocate(record4.remaining(), hosts4).write(id4, record4, hosts4);
 
-        activeSegment.close();
+        activeSegment.close(null);
 
         StaticSegment<TimeUUID, ByteBuffer> staticSegment = StaticSegment.open(descriptor, TimeUUIDKeySupport.INSTANCE);
 
@@ -201,7 +203,12 @@ public class SegmentTest
         activeSegment.allocate(record3.remaining(), hosts3).write(id3, record3, hosts3);
         activeSegment.allocate(record4.remaining(), hosts4).write(id4, record4, hosts4);
 
-        activeSegment.close();
+        Segment.Tidier tidier = (Segment.Tidier)activeSegment.selfRef().tidier();
+        tidier.executor = ImmediateExecutor.INSTANCE;
+        OpOrder opOrder = new OpOrder();
+        tidier.await = opOrder.newBarrier();
+        tidier.await.issue();
+        activeSegment.close(null);
 
         StaticSegment.SequentialReader<TimeUUID> reader = StaticSegment.sequentialReader(descriptor, TimeUUIDKeySupport.INSTANCE, 0);
 

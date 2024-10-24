@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.journal;
 
+import java.util.concurrent.TimeUnit;
+
 import org.apache.cassandra.net.MessagingService;
 
 public class TestParams implements Params
@@ -48,21 +50,21 @@ public class TestParams implements Params
     }
 
     @Override
-    public int compactionPeriodMillis()
+    public long compactionPeriod(TimeUnit units)
     {
-        return 60_000;
+        return units.convert(60, TimeUnit.SECONDS);
     }
 
     @Override
-    public int flushPeriodMillis()
+    public long flushPeriod(TimeUnit units)
     {
-        return 1000;
+        return units.convert(1, TimeUnit.SECONDS);
     }
 
     @Override
-    public int periodicFlushLagBlock()
+    public long periodicBlockPeriod(TimeUnit units)
     {
-        return 1500;
+        return units.convert(2, TimeUnit.SECONDS);
     }
 
     @Override

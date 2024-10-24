@@ -450,6 +450,7 @@ public class AccordGenerators
     {
         return rs -> {
             Range range = rangeGen.next(rs);
+            TxnId locallyWitnessedOrInvalidatedBefore = emptyGen.next(rs) ? TxnId.NONE : txnIdGen.next(rs); // emptyable or range
             TxnId locallyAppliedOrInvalidatedBefore = emptyGen.next(rs) ? TxnId.NONE : txnIdGen.next(rs); // emptyable or range
             TxnId locallyDecidedAndAppliedOrInvalidatedBefore = locallyAppliedOrInvalidatedBefore;
             TxnId shardAppliedOrInvalidatedBefore = emptyGen.next(rs) ? TxnId.NONE : txnIdGen.next(rs); // emptyable or range
@@ -461,7 +462,7 @@ public class AccordGenerators
             long maxEpoch = Stream.of(locallyAppliedOrInvalidatedBefore, shardAppliedOrInvalidatedBefore, bootstrappedAt, staleUntilAtLeast).filter(t -> t != null).mapToLong(Timestamp::epoch).max().getAsLong();
             long startEpoch = rs.nextLong(maxEpoch);
             long endEpoch = emptyGen.next(rs) ? Long.MAX_VALUE : 1 + rs.nextLong(startEpoch, Long.MAX_VALUE);
-            return new RedundantBefore.Entry(range, startEpoch, endEpoch, locallyAppliedOrInvalidatedBefore, locallyDecidedAndAppliedOrInvalidatedBefore, shardAppliedOrInvalidatedBefore, shardOnlyAppliedOrInvalidatedBefore, gcBefore, bootstrappedAt, staleUntilAtLeast);
+            return new RedundantBefore.Entry(range, startEpoch, endEpoch, locallyWitnessedOrInvalidatedBefore, locallyAppliedOrInvalidatedBefore, locallyDecidedAndAppliedOrInvalidatedBefore, shardOnlyAppliedOrInvalidatedBefore, shardAppliedOrInvalidatedBefore, gcBefore, bootstrappedAt, staleUntilAtLeast);
         };
     }
 

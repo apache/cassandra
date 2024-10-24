@@ -26,7 +26,7 @@ import com.codahale.metrics.Histogram;
 import static org.apache.cassandra.metrics.CacheMetrics.TYPE_NAME;
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
-public class AccordStateCacheMetrics extends CacheAccessMetrics
+public class AccordCacheMetrics extends CacheAccessMetrics
 {
     public static final String OBJECT_SIZE = "ObjectSize";
 
@@ -36,7 +36,7 @@ public class AccordStateCacheMetrics extends CacheAccessMetrics
 
     private final String scope;
 
-    public AccordStateCacheMetrics(String scope)
+    public AccordCacheMetrics(String scope)
     {
         super(new DefaultNameFactory(TYPE_NAME, scope));
         objectSize = Metrics.histogram(factory.createMetricName(OBJECT_SIZE), false);

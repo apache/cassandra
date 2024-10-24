@@ -27,6 +27,7 @@ import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nullable;
 
+import org.agrona.collections.Hashing;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.commons.lang3.ArrayUtils;
@@ -41,6 +42,7 @@ import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.UUIDGen;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
@@ -51,23 +53,34 @@ import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
  * This is essentially a UUID, but we wrap it as it's used quite a bit in the code and having a nicely named class make
  * the code more readable.
  */
-public class TableId implements Comparable<TableId>
+public final class TableId implements Comparable<TableId>
 {
     public static final long MAGIC = 1956074401491665062L;
     public static final long EMPTY_SIZE = ObjectSizes.measureDeep(new UUID(0, 0));
 
     private static final ConcurrentHashMap<TableId, TableId> internCache = new ConcurrentHashMap<>();
 
-    private final UUID id;
+    final long msb, lsb;
 
     private TableId(UUID id)
     {
-        this.id = id;
+        this(id.getMostSignificantBits(), id.getLeastSignificantBits());
+    }
+
+    private TableId(long msb, long lsb)
+    {
+        this.msb = msb;
+        this.lsb = lsb;
     }
 
     public static TableId fromUUID(UUID id)
     {
         return new TableId(id);
+    }
+
+    public static TableId fromRaw(long msb, long lsb)
+    {
+        return new TableId(msb, lsb);
     }
 
     // TODO: should we be using UUID.randomUUID()?
@@ -145,43 +158,46 @@ public class TableId implements Comparable<TableId>
 
     public String toHexString()
     {
-        return ByteBufferUtil.bytesToHex(ByteBufferUtil.bytes(id));
+        return ByteBufferUtil.bytesToHex(ByteBuffer.wrap(UUIDGen.decompose(msb, lsb)));
     }
 
     public UUID asUUID()
     {
-        return id;
+        return new UUID(msb, lsb);
     }
 
     @Override
-    public final int hashCode()
+    public int hashCode()
     {
-        return id.hashCode();
+        return Hashing.hash(msb ^ lsb);
     }
 
     @Override
     public final boolean equals(Object o)
     {
-        return this == o || (o instanceof TableId && this.id.equals(((TableId) o).id));
+        if (o == this | o == null) return o == this;
+        if (o.getClass() != TableId.class) return false;
+        TableId that = (TableId) o;
+        return this.msb == that.msb && this.lsb == that.lsb;
     }
 
     @Override
     public String toString()
     {
-        return id.toString();
+        return new UUID(msb, lsb).toString();
     }
 
     public void serialize(DataOutput out) throws IOException
     {
-        out.writeLong(id.getMostSignificantBits());
-        out.writeLong(id.getLeastSignificantBits());
+        out.writeLong(msb);
+        out.writeLong(lsb);
     }
 
     public <V> int serialize(V dst, ValueAccessor<V> accessor, int offset)
     {
         int position = offset;
-        position += accessor.putLong(dst, position, id.getMostSignificantBits());
-        position += accessor.putLong(dst, position, id.getLeastSignificantBits());
+        position += accessor.putLong(dst, position, msb);
+        position += accessor.putLong(dst, position, lsb);
         return position - offset;
     }
 
@@ -197,12 +213,12 @@ public class TableId implements Comparable<TableId>
 
     public static TableId deserialize(DataInput in) throws IOException
     {
-        return new TableId(new UUID(in.readLong(), in.readLong()));
+        return new TableId(in.readLong(), in.readLong());
     }
 
     public static <V> TableId deserialize(V src, ValueAccessor<V> accessor, int offset)
     {
-        return new TableId(new UUID(accessor.getLong(src, offset), accessor.getLong(src, offset + TypeSizes.LONG_SIZE)));
+        return new TableId(accessor.getLong(src, offset), accessor.getLong(src, offset + TypeSizes.LONG_SIZE));
     }
 
     public TableId intern()
@@ -212,9 +228,10 @@ public class TableId implements Comparable<TableId>
     }
 
     @Override
-    public int compareTo(TableId o)
+    public int compareTo(TableId that)
     {
-        return id.compareTo(o.id);
+        int c = Long.compare(this.msb, that.msb);
+        return c != 0 ? c : Long.compare(this.lsb, that.lsb);
     }
 
     public static final IVersionedSerializer<TableId> serializer = new IVersionedSerializer<>()
@@ -263,5 +280,4 @@ public class TableId implements Comparable<TableId>
     {
         ScheduledExecutors.scheduledFastTasks.scheduleSelfRecurring(internCache::clear, 1, TimeUnit.HOURS);
     }
-
 }

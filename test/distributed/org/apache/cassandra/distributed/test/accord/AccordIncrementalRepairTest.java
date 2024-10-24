@@ -70,7 +70,7 @@ import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
-import static accord.local.KeyHistory.COMMANDS;
+import static accord.local.KeyHistory.SYNC;
 import static java.lang.String.format;
 
 public class AccordIncrementalRepairTest extends AccordTestBase
@@ -227,9 +227,9 @@ public class AccordIncrementalRepairTest extends AccordTestBase
     {
         Node node = accordService().node();
         AtomicReference<TxnId> waitFor = new AtomicReference<>(null);
-        AsyncChains.awaitUninterruptibly(node.commandStores().ifLocal(PreLoadContext.contextFor(key, COMMANDS), key.toUnseekable(), 0, Long.MAX_VALUE, safeStore -> {
+        AsyncChains.awaitUninterruptibly(node.commandStores().ifLocal(PreLoadContext.contextFor(key, SYNC), key.toUnseekable(), 0, Long.MAX_VALUE, safeStore -> {
             AccordSafeCommandStore store = (AccordSafeCommandStore) safeStore;
-            SafeCommandsForKey safeCfk = store.maybeCommandsForKey(key);
+            SafeCommandsForKey safeCfk = store.ifLoadedAndInitialised(key);
             if (safeCfk == null)
                 return;
             CommandsForKey cfk = safeCfk.current();

@@ -50,9 +50,6 @@ import accord.primitives.Status;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
-import accord.utils.async.AsyncChain;
-import accord.utils.async.AsyncChains;
-import accord.utils.async.Observable;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
@@ -148,7 +145,7 @@ public class AccordKeyspaceTest extends CQLTester.InMemory
                                                      .sorted()
                                                      .collect(Collectors.toList());
 
-        qt().check(rs -> {
+        qt().withSeed(3447657054093411240L).check(rs -> {
             AccordKeyspace.unsafeClear();
             // control SSTable format
             setSelectedSSTableFormat(sstableFormats.get(rs.pick(sstableFormatNames)));
@@ -285,8 +282,8 @@ public class AccordKeyspaceTest extends CQLTester.InMemory
                     TokenKey start = expected.get(0);
                     TokenKey end = expected.get(expected.size() - 1);
 
-                    AsyncChain<List<TokenKey>> map = Observable.asChain(callback -> AccordKeyspace.findAllKeysBetween(store, start, true, end, true, callback));
-                    List<TokenKey> actual = AsyncChains.getUnchecked(map);
+                    List<TokenKey> actual = new ArrayList<>();
+                    AccordKeyspace.findAllKeysBetween(store, start, true, end, true, actual::add);
                     Assertions.assertThat(actual).isEqualTo(expected);
                 }
 

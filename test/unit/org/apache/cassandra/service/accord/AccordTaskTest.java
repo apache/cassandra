@@ -16,25 +16,27 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.service.accord.async;
+package org.apache.cassandra.service.accord;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.LockSupport;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import accord.local.StoreParticipants;
 import accord.primitives.Participants;
 import accord.primitives.Route;
-import accord.utils.DefaultRandom;
+
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
-import org.apache.cassandra.concurrent.SimulatedExecutorFactory;
-import org.apache.cassandra.concurrent.Stage;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -73,13 +75,8 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.service.accord.AccordCachingState;
-import org.apache.cassandra.service.accord.AccordCommandStore;
-import org.apache.cassandra.service.accord.AccordKeyspace;
-import org.apache.cassandra.service.accord.AccordSafeCommand;
-import org.apache.cassandra.service.accord.AccordSafeCommandStore;
-import org.apache.cassandra.service.accord.AccordStateCache;
-import org.apache.cassandra.service.accord.AccordTestUtils;
+import org.apache.cassandra.service.accord.AccordCommandStore.ExclusiveCaches;
+import org.apache.cassandra.service.accord.AccordExecutor.ExclusiveGlobalCaches;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.utils.AssertionUtils;
@@ -89,7 +86,7 @@ import org.assertj.core.api.Assertions;
 import org.awaitility.Awaitility;
 import org.mockito.Mockito;
 
-import static accord.local.KeyHistory.COMMANDS;
+import static accord.local.KeyHistory.SYNC;
 import static accord.local.PreLoadContext.contextFor;
 import static accord.utils.Property.qt;
 import static accord.utils.async.AsyncChains.getUninterruptibly;
@@ -99,11 +96,10 @@ import static org.apache.cassandra.service.accord.AccordTestUtils.createPartialT
 import static org.apache.cassandra.service.accord.AccordTestUtils.keys;
 import static org.apache.cassandra.service.accord.AccordTestUtils.loaded;
 import static org.apache.cassandra.service.accord.AccordTestUtils.txnId;
-import static org.apache.cassandra.service.accord.async.AsyncLoader.txnIds;
 
-public class AsyncOperationTest
+public class AccordTaskTest
 {
-    private static final Logger logger = LoggerFactory.getLogger(AsyncOperationTest.class);
+    private static final Logger logger = LoggerFactory.getLogger(AccordTaskTest.class);
     private static final AtomicLong clock = new AtomicLong(0);
 
     @BeforeClass
@@ -132,14 +128,12 @@ public class AsyncOperationTest
     {
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
         TxnId txnId = txnId(1, clock.incrementAndGet(), 1);
-        Txn txn = AccordTestUtils.createWriteTxn((int)clock.incrementAndGet());
-        PartitionKey key = (PartitionKey) Iterables.getOnlyElement(txn.keys());
 
         getUninterruptibly(commandStore.execute(contextFor(txnId), instance -> {
             // TODO review: This change to `ifInitialized` was done in a lot of places and it doesn't preserve this property
             // I fixed this reference to point to `ifLoadedAndInitialised` and but didn't update other places
-            SafeCommand command = instance.ifLoadedAndInitialised(txnId);
-            Assert.assertNull(command);
+            Assert.assertNull(instance.ifInitialised(txnId));
+            Assert.assertNull(instance.ifLoadedAndInitialisedAndNotErased(txnId));
         }));
 
         UntypedResultSet result = AccordKeyspace.loadCommandRow(commandStore, txnId);
@@ -170,7 +164,7 @@ public class AsyncOperationTest
         TokenKey key = ((PartitionKey) Iterables.getOnlyElement(txn.keys())).toUnseekable();
 
         getUninterruptibly(commandStore.execute(contextFor(key), instance -> {
-            SafeCommandsForKey cfk = ((AccordSafeCommandStore) instance).maybeCommandsForKey(key);
+            SafeCommandsForKey cfk = instance.ifLoadedAndInitialised(key);
             Assert.assertNull(cfk);
         }));
 
@@ -215,7 +209,7 @@ public class AsyncOperationTest
 
         try
         {
-            Command command = getUninterruptibly(commandStore.submit(contextFor(txnId, route, COMMANDS), safe -> {
+            Command command = getUninterruptibly(commandStore.submit(contextFor(txnId, route, SYNC), safe -> {
                 CheckedCommands.preaccept(safe, txnId, partialTxn, route, appendDiffToLog(commandStore));
                 CheckedCommands.commit(safe, SaveStatus.Stable, Ballot.ZERO, txnId, route, partialTxn, executeAt, deps, appendDiffToLog(commandStore));
                 return safe.ifInitialised(txnId).current();
@@ -223,11 +217,16 @@ public class AsyncOperationTest
 
             // clear cache
             commandStore.executeBlocking(() -> {
-                long cacheSize = commandStore.cache().capacity();
-                commandStore.cache().setCapacity(0);
-                commandStore.cache().setCapacity(cacheSize);
-                commandStore.cache().awaitSaveResults();
+                try (ExclusiveGlobalCaches cache = commandStore.executor().lockCaches();)
+                {
+                    long cacheSize = cache.global.capacity();
+                    cache.global.setCapacity(0);
+                    cache.global.setCapacity(cacheSize);
+                }
             });
+
+            while (commandStore.executor().hasTasks())
+                LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(100));
 
             return command;
         }
@@ -262,7 +261,7 @@ public class AsyncOperationTest
 
         try
         {
-            Command command = getUninterruptibly(commandStore.submit(contextFor(txnId, route, COMMANDS), safe -> {
+            Command command = getUninterruptibly(commandStore.submit(contextFor(txnId, route, SYNC), safe -> {
                 CheckedCommands.preaccept(safe, txnId, partialTxn, route, appendDiffToLog(commandStore));
                 CheckedCommands.accept(safe, txnId, Ballot.ZERO, partialRoute, executeAt, deps, appendDiffToLog(commandStore));
                 CheckedCommands.commit(safe, SaveStatus.Committed, Ballot.ZERO, txnId, route, partialTxn, executeAt, deps, appendDiffToLog(commandStore));
@@ -272,11 +271,16 @@ public class AsyncOperationTest
 
             // clear cache
             commandStore.executeBlocking(() -> {
-                long cacheSize = commandStore.cache().capacity();
-                commandStore.cache().setCapacity(0);
-                commandStore.cache().setCapacity(cacheSize);
-                commandStore.cache().awaitSaveResults();
+                try (ExclusiveGlobalCaches cache = commandStore.executor().lockCaches();)
+                {
+                    long cacheSize = cache.global.capacity();
+                    cache.global.setCapacity(0);
+                    cache.global.setCapacity(cacheSize);
+                }
             });
+
+            while (commandStore.executor().hasTasks())
+                LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(100));
 
             return command;
         }
@@ -286,78 +290,6 @@ public class AsyncOperationTest
         }
     }
 
-    private static void assertFutureState(AccordStateCache.Instance<TxnId, Command, AccordSafeCommand> cache, TxnId txnId, boolean referenceExpected, boolean expectLoadFuture, boolean expectSaveFuture)
-    {
-        if (cache.isReferenced(txnId) != referenceExpected)
-            throw new AssertionError(referenceExpected ? "Cache reference unexpectedly not found for " + txnId
-                                                       : "Unexpectedly found cache reference for " + txnId);
-        cache.complete(txnId);
-        if (cache.hasLoadResult(txnId) != expectLoadFuture)
-            throw new AssertionError(expectLoadFuture ? "Load future unexpectedly not found for " + txnId
-                                                      : "Unexpectedly found load future for " + txnId);
-        if (cache.hasSaveResult(txnId) != expectSaveFuture)
-            throw new AssertionError(expectSaveFuture ? "Save future unexpectedly not found for " + txnId
-                                                      : "Unexpectedly found save future for " + txnId);
-
-    }
-
-    /**
-     * save and load futures should be cleaned up as part of the operation
-     */
-    @Test
-    public void testFutureCleanup() throws Throwable
-    {
-        SimulatedExecutorFactory factory = new SimulatedExecutorFactory(new DefaultRandom(42), 42);
-        AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl", factory.scheduled("ignored"), Stage.MUTATION.executor());
-
-        TxnId txnId = txnId(1, clock.incrementAndGet(), 1);
-
-        createStableAndPersist(commandStore, txnId);
-
-        Consumer<SafeCommandStore> consumer = safeStore -> safeStore.ifInitialised(txnId).readyToExecute(safeStore);
-        PreLoadContext ctx = contextFor(txnId);
-        AsyncOperation<Void> operation = new AsyncOperation.ForConsumer(commandStore, ctx, consumer)
-        {
-
-            private AccordStateCache.Instance<TxnId, Command, AccordSafeCommand> cache()
-            {
-                return commandStore.commandCache();
-            }
-
-            @Override
-            AsyncLoader createAsyncLoader(AccordCommandStore commandStore, PreLoadContext preLoadContext)
-            {
-                return new AsyncLoader(commandStore, txnIds(preLoadContext), preLoadContext.keys(), preLoadContext.keyHistory())
-                {
-                    @Override
-                    void state(State state)
-                    {
-                        switch (state)
-                        {
-                            case SETUP:
-                                assertFutureState(cache(), txnId, false, false, false);
-                                factory.processAll();
-                                break;
-                            case FINISHED:
-                                assertFutureState(cache(), txnId, true, false, false);
-                                factory.processAll();
-                                break;
-                            case LOADING:
-                                assertFutureState(cache(), txnId, true, true, false);
-                                factory.processAll();
-                                break;
-                        }
-                        super.state(state);
-                    }
-                };
-            }
-        };
-
-        commandStore.executor().submit(operation);
-
-        getUninterruptibly(operation);
-    }
-
     @Test
     public void loadFail()
     {
@@ -365,12 +297,12 @@ public class AsyncOperationTest
         // all txn use the same key; 0
         Keys keys = keys(Schema.instance.getTableMetadata("ks", "tbl"), 0);
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
-        commandStore.executeBlocking(() -> commandStore.cache().setCapacity(0));
+        commandStore.executeBlocking(() -> commandStore.executor().cacheUnsafe().setCapacity(0));
         Gen<TxnId> txnIdGen = rs -> txnId(1, clock.incrementAndGet(), 1);
 
-        qt().withPure(false)
+        qt().withSeed(3447647345436261108L).withPure(false)
             .withExamples(50)
-            .forAll(Gens.random(), Gens.lists(txnIdGen).ofSizeBetween(1, 10))
+            .forAll(Gens.random(), Gens.lists(txnIdGen).ofSizeBetween(1, 2))
             .check((rs, ids) -> {
             before(); // truncate tables
 
@@ -380,23 +312,25 @@ public class AsyncOperationTest
             awaitDone(commandStore, ids, participants);
             assertNoReferences(commandStore, ids, participants);
 
-            PreLoadContext ctx = contextFor(null, ids, participants, COMMANDS);
+            PreLoadContext ctx = contextFor(ids.get(0), ids.size() == 1 ? null : ids.get(1), participants, SYNC);
             Consumer<SafeCommandStore> consumer = Mockito.mock(Consumer.class);
 
             Map<TxnId, Boolean> failed = selectFailedTxn(rs, ids);
-            commandStore.commandCache().unsafeSetLoadFunction(txnId ->
+            try (ExclusiveGlobalCaches caches = commandStore.executor().lockCaches())
             {
-                logger.info("Attempting to load {}; expected to fail? {}", txnId, failed.get(txnId));
-                if (!failed.get(txnId))
-                    return commandStore.loadCommand(txnId);
-                throw new NullPointerException("txn_id " + txnId);
-            });
-            AsyncOperation<Void> o1 = new AsyncOperation.ForConsumer(commandStore, ctx, consumer);
-
-            AssertionUtils.assertThatThrownBy(() -> getUninterruptibly(o1))
-                      .hasRootCause()
-                      .isInstanceOf(NullPointerException.class)
-                      .hasNoSuppressedExceptions();
+                caches.commands.unsafeSetLoadFunction((s, txnId) ->
+                {
+                    logger.info("Attempting to load {}; expected to fail? {}", txnId, failed.get(txnId));
+                    if (!failed.get(txnId))
+                        return commandStore.loadCommand(txnId);
+                    throw new NullPointerException("txn_id " + txnId);
+                });
+            }
+            AccordTask<Void> o1 = AccordTask.create(commandStore, ctx, consumer);
+            AssertionUtils.assertThatThrownBy(() -> getUninterruptibly(o1.chain()))
+                          .hasRootCause()
+                          .isInstanceOf(NullPointerException.class)
+                          .hasNoSuppressedExceptions();
 
             Mockito.verifyNoInteractions(consumer);
 
@@ -406,16 +340,19 @@ public class AsyncOperationTest
             awaitDone(commandStore, ids, participants);
 
             // can we recover?
-            commandStore.commandCache().unsafeSetLoadFunction(txnId -> {
-                Command cmd = commandStore.loadCommand(txnId);
-                return cmd;
-            });
-            AsyncOperation.ForConsumer o2 = new AsyncOperation.ForConsumer(commandStore, ctx, store -> {
+            try (ExclusiveGlobalCaches caches = commandStore.executor().lockCaches())
+            {
+                caches.commands.unsafeSetLoadFunction((s, txnId) -> {
+                    Command cmd = commandStore.loadCommand(txnId);
+                    return cmd;
+                });
+            }
+            AccordTask<Void> o2 = AccordTask.create(commandStore, ctx, store -> {
                 ids.forEach(id -> {
                     store.ifInitialised(id).readyToExecute(store);
                 });
             });
-            getUninterruptibly(o2);
+            getUninterruptibly(o2.chain());
             awaitDone(commandStore, ids, participants);
             assertNoReferences(commandStore, ids, participants);
 
@@ -440,15 +377,15 @@ public class AsyncOperationTest
             assertNoReferences(commandStore, ids, participants);
             createCommand(commandStore, rs, ids);
 
-            PreLoadContext ctx = contextFor(null, ids, participants, COMMANDS);
+            PreLoadContext ctx = contextFor(ids.get(0), ids.size() == 1 ? null : ids.get(1), participants, SYNC);
 
             Consumer<SafeCommandStore> consumer = Mockito.mock(Consumer.class);
             String errorMsg = "txn_ids " + ids;
             Mockito.doThrow(new NullPointerException(errorMsg)).when(consumer).accept(Mockito.any());
 
-            AsyncOperation<Void> operation = new AsyncOperation.ForConsumer(commandStore, ctx, consumer);
+            AccordTask<Void> operation = AccordTask.create(commandStore, ctx, consumer);
 
-            AssertionUtils.assertThatThrownBy(() -> getUninterruptibly(operation))
+            AssertionUtils.assertThatThrownBy(() -> getUninterruptibly(operation.chain()))
                           .hasRootCause()
                           .isInstanceOf(NullPointerException.class)
                           .hasMessage(errorMsg)
@@ -479,28 +416,31 @@ public class AsyncOperationTest
 
     private static Map<TxnId, Boolean> selectFailedTxn(RandomSource rs, List<TxnId> ids)
     {
+        ids = new ArrayList<>(ids);
         Map<TxnId, Boolean> failed = Maps.newHashMapWithExpectedSize(ids.size());
-        for (TxnId id : ids)
-            failed.put(id, rs.nextBoolean());
-        if (failed.values().stream().allMatch(b -> b == Boolean.FALSE))
-            failed.put(ids.get(0), Boolean.TRUE);
+        int failedCount = Math.max(1, rs.nextInt(ids.size()));
+        Collections.shuffle(ids, rs.asJdkRandom());
+        for (int i = 0 ; i < failedCount ; ++i)
+            failed.put(ids.get(i), true);
+        for (int i = failedCount ; i < ids.size() ; ++i)
+            failed.put(ids.get(i), false);
         return failed;
     }
 
     private static void assertNoReferences(AccordCommandStore commandStore, List<TxnId> ids, Participants<RoutingKey> keys)
     {
         AssertionError error = null;
-        try
+        try (ExclusiveCaches caches = commandStore.lockCaches())
         {
-            assertNoReferences(commandStore.commandCache(), ids);
+            assertNoReferences(caches.commands(), ids);
         }
         catch (AssertionError e)
         {
             error = e;
         }
-        try
+        try (ExclusiveCaches caches = commandStore.lockCaches())
         {
-            assertNoReferences(commandStore.commandsForKeyCache(), keys);
+            assertNoReferences(caches.commandsForKeys(), keys);
         }
         catch (AssertionError e)
         {
@@ -510,16 +450,18 @@ public class AsyncOperationTest
         if (error != null) throw error;
     }
 
-    private static <T> void assertNoReferences(AccordStateCache.Instance<T, ?, ?> cache, Iterable<T> keys)
+    private static <T> void assertNoReferences(AccordCache.Type<T, ?, ?>.Instance cache, Iterable<T> keys)
     {
         AssertionError error = null;
         for (T key : keys)
         {
-            AccordCachingState<T, ?> node = cache.getUnsafe(key);
+            AccordCacheEntry<T, ?> node = cache.getUnsafe(key);
             if (node == null) continue;
             try
             {
-                Assertions.assertThat(node.referenceCount())
+                if (node.references() > 0)
+                    throw new IllegalStateException();
+                Assertions.assertThat(node.references())
                           .describedAs("Key %s found referenced in cache", key)
                           .isEqualTo(0);
             }
@@ -540,15 +482,15 @@ public class AsyncOperationTest
 
     private static void awaitDone(AccordCommandStore commandStore, List<TxnId> ids, Participants<RoutingKey> keys)
     {
-        awaitDone(commandStore.commandCache(), ids);
-        awaitDone(commandStore.commandsForKeyCache(), keys);
+        awaitDone(commandStore.cachesUnsafe().commands(), ids);
+        awaitDone(commandStore.cachesUnsafe().commandsForKeys(), keys);
     }
 
-    private static <T> void awaitDone(AccordStateCache.Instance<T, ?, ?> cache, Iterable<T> keys)
+    private static <T> void awaitDone(AccordCache.Type<T, ?, ?>.Instance cache, Iterable<T> keys)
     {
         for (T key : keys)
         {
-            AccordCachingState<T, ?> node = cache.getUnsafe(key);
+            AccordCacheEntry<T, ?> node = cache.getUnsafe(key);
             if (node == null) continue;
             Awaitility.await("For node " + node.key() + " to complete")
             .atMost(Duration.ofMinutes(1))

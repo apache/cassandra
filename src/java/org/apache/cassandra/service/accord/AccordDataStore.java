@@ -38,7 +38,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.db.memtable.Memtable;
@@ -68,7 +67,7 @@ public class AccordDataStore implements DataStore
     static class SnapshotBounds
     {
         final List<org.apache.cassandra.dht.Range<Token>> ranges = new ArrayList<>();
-        CommitLogPosition position;
+        long id;
     }
 
     @Override
@@ -93,7 +92,7 @@ public class AccordDataStore implements DataStore
             ColumnFamilyStore cfs = Keyspace.openAndGetStoreIfExists(tableMetadata);
             // TODO (required): when we can safely map TxnId.hlc() -> local timestamp, consult Memtable timestamps
             Memtable memtable = cfs.getCurrentMemtable();
-            e.getValue().position = memtable.getCommitLogLowerBound();
+            e.getValue().id = memtable.getMemtableId();
         }
 
         ScheduledExecutors.scheduledTasks.schedule(() -> {
@@ -106,7 +105,7 @@ public class AccordDataStore implements DataStore
                 View view = cfs.getTracker().getView();
                 for (Memtable memtable : view.getAllMemtables())
                 {
-                    if (memtable.getCommitLogLowerBound().compareTo(bounds.position) > 0) continue;
+                    if (memtable.getMemtableId() > bounds.id) continue;
                     if (!intersects(cfs, memtable, bounds.ranges)) continue;
 
                     futures.add(cfs.forceFlush(ACCORD_TXN_GC));

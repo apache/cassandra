@@ -22,8 +22,6 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
-import java.util.SortedSet;
-import java.util.TreeSet;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -63,9 +61,10 @@ public abstract class AbstractKeySorted<T> implements Iterable<T>
 
     private Keys extractItemKeys()
     {
-        SortedSet<PartitionKey> keysSet = new TreeSet<>(Key::compareTo);
-        forEach(i -> keysSet.add(getKey(i)));
-        return new Keys(keysSet);
+        Key[] keys = new Key[size()];
+        for (int i = 0 ; i < keys.length ; ++i)
+            keys[i] = getKey(items[i]);
+        return Keys.ofSorted(keys);
     }
 
     @Override

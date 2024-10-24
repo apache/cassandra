@@ -20,25 +20,44 @@ package org.apache.cassandra.journal;
 import java.nio.ByteBuffer;
 
 import accord.utils.Invariants;
+import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.utils.*;
-import org.apache.cassandra.utils.concurrent.RefCounted;
+import org.apache.cassandra.utils.concurrent.OpOrder;
+import org.apache.cassandra.utils.concurrent.Ref;
+import org.apache.cassandra.utils.concurrent.SelfRefCounted;
 
-public abstract class Segment<K, V> implements Closeable, RefCounted<Segment<K, V>>
+public abstract class Segment<K, V> implements SelfRefCounted<Segment<K, V>>, Comparable<Segment<K, V>>
 {
+    protected abstract static class Tidier implements Tidy, Runnable
+    {
+        OpOrder.Barrier await;
+        ExecutorPlus executor;
+
+        abstract void onUnreferenced();
+
+        public final void run()
+        {
+            await.await();
+            onUnreferenced();
+        }
+
+        public final void tidy()
+        {
+            executor.execute(this);
+        }
+    }
+
     final File file;
     final Descriptor descriptor;
-    final SyncedOffsets syncedOffsets;
     final Metadata metadata;
     final KeySupport<K> keySupport;
 
     ByteBuffer buffer;
 
-    Segment(Descriptor descriptor, SyncedOffsets syncedOffsets, Metadata metadata, KeySupport<K> keySupport)
+    Segment(Descriptor descriptor, Metadata metadata, KeySupport<K> keySupport)
     {
         this.file = descriptor.fileFor(Component.DATA);
         this.descriptor = descriptor;
-        this.syncedOffsets = syncedOffsets;
         this.metadata = metadata;
         this.keySupport = keySupport;
     }
@@ -98,7 +117,27 @@ public abstract class Segment<K, V> implements Closeable, RefCounted<Segment<K, 
         }
     }
 
+    @Override
+    public int compareTo(Segment<K, V> that)
+    {
+        return this.descriptor.compareTo(that.descriptor);
+    }
+
     abstract boolean read(int offset, int size, EntrySerializer.EntryHolder<K> into);
 
-    abstract void release();
+    abstract void close(Journal<K, V> journal);
+
+    void release(Journal<K, V> journal)
+    {
+        Ref<Segment<K, V>> selfRef = selfRef();
+        Tidier tidier = (Tidier) selfRef.tidier();
+        if (journal != null)
+        {
+            // permitted to be null ONLY for tests
+            tidier.await = journal.readOrder.newBarrier();
+            tidier.await.issue();
+            tidier.executor = journal.releaser;
+        }
+        selfRef.release();
+    }
 }

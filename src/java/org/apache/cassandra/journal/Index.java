@@ -21,8 +21,6 @@ import javax.annotation.Nullable;
 
 import org.apache.cassandra.utils.Closeable;
 
-import static com.google.common.collect.Iterables.any;
-
 /**
  * Mapping of client supplied ids to in-segment offsets
  */
@@ -75,15 +73,7 @@ abstract class Index<K> implements Closeable
         K firstId = firstId();
         K lastId = lastId();
 
-        return null != firstId && null != lastId && keySupport.compare(id, firstId) >= 0 && keySupport.compare(id, lastId) <= 0;
-    }
-
-    /**
-     * @return whether any of the ids falls within lower/upper bounds of the index
-     */
-    boolean mayContainIds(Iterable<K> ids)
-    {
-        return any(ids, this::mayContainId);
+        return null != firstId && keySupport.compare(id, firstId) >= 0 && (null == lastId || keySupport.compare(id, lastId) <= 0);
     }
 
     /**

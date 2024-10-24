@@ -68,6 +68,12 @@ local_read_size_fail_threshold: 8192KiB
 row_index_read_size_warn_threshold: 4096KiB
 row_index_read_size_fail_threshold: 8192KiB
 
+accord:
+    enabled: true
+    journal_directory: build/test/cassandra/accord_journal
+    queue_shard_count: 2
+    command_store_shard_count: 4
+
 memtable:
     configurations:
         skiplist:
@@ -114,8 +120,3 @@ memtable:
             class_name: TrieMemtable
 # Note: keep the memtable configuration at the end of the file, so that the default mapping can be changed without
 # duplicating the whole section above.
-
-accord:
-    enabled: true
-    journal_directory: build/test/cassandra/accord_journal
-    shard_count: 4

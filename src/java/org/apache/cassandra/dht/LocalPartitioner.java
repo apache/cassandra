@@ -186,7 +186,6 @@ public class LocalPartitioner implements IPartitioner
         {
             // todo (tcm); seems partitioner got mutated on alter type (for example) before tcm, now we create a new one - not sure its enough just making sure that its the same type of partitioner
             assert o.getPartitioner().getClass().equals(getPartitioner().getClass()) : String.format("partitioners do not match; %s != %s", getPartitioner(), o.getPartitioner());
-//            assert getPartitioner() == o.getPartitioner() : String.format("partitioners do not match; %s != %s", getPartitioner(), o.getPartitioner());
             return comparator.compare(token, ((LocalToken) o).token);
         }
 

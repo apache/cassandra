@@ -41,7 +41,6 @@ import org.slf4j.LoggerFactory;
 
 import accord.utils.Invariants;
 import com.codahale.metrics.Timer.Context;
-import org.agrona.collections.ObjectHashSet;
 import org.apache.cassandra.concurrent.Interruptible;
 import org.apache.cassandra.concurrent.Interruptible.TerminateException;
 import org.apache.cassandra.concurrent.SequentialExecutorPlus;
@@ -51,12 +50,12 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.PathUtils;
-import org.apache.cassandra.journal.Segments.ReferencedSegment;
 import org.apache.cassandra.journal.Segments.ReferencedSegments;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.Crc;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Simulate;
+import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 import org.jctools.queues.MpscUnboundedArrayQueue;
 
@@ -119,8 +118,9 @@ public class Journal<K, V> implements Shutdownable
     private final WaitQueue allocatorThreadWaitQueue = newWaitQueue();
     private final BooleanSupplier allocatorThreadWaitCondition = () -> (availableSegment == null);
     private final FlusherCallbacks flusherCallbacks;
+    final OpOrder readOrder = new OpOrder();
 
-    SequentialExecutorPlus closer;
+    SequentialExecutorPlus closer, releaser;
 
     private class FlusherCallbacks implements Flusher.Callbacks
     {
@@ -128,17 +128,14 @@ public class Journal<K, V> implements Shutdownable
         private List<WaitingFor> drained = new ArrayList<>();
 
         @Override
-        public void onFlush(long segment, int position)
+        public void onFsync()
         {
-            // TODO (required): this seems to be a big source of allocations
             waitingFor.drain(drained::add);
             List<WaitingFor> remaining = new ArrayList<>();
             for (WaitingFor wait : drained)
             {
-                if (wait.segment == segment && wait.position <= position)
-                    wait.run();
-                else
-                    remaining.add(wait);
+                if (flusher.isDurable(wait)) wait.run();
+                else remaining.add(wait);
             }
             drained = remaining;
         }
@@ -151,13 +148,10 @@ public class Journal<K, V> implements Shutdownable
 
         private void submit(RecordPointer pointer, Runnable runnable)
         {
-            if (isFlushed(pointer))
+            if (flusher.isDurable(pointer))
                 runnable.run();
             else
-            {
-                waitingFor.add(new WaitingFor(pointer.segment, pointer.position, runnable));
-                flusher.requestExtraFlush();
-            }
+                waitingFor.add(new WaitingFor(pointer, runnable));
         }
     }
 
@@ -165,9 +159,9 @@ public class Journal<K, V> implements Shutdownable
     {
         private final Runnable onFlush;
 
-        public WaitingFor(long segment, int position, Runnable onFlush)
+        public WaitingFor(RecordPointer pointer, Runnable onFlush)
         {
-            super(segment, position);
+            super(pointer);
             this.onFlush = onFlush;
         }
 
@@ -197,19 +191,9 @@ public class Journal<K, V> implements Shutdownable
         this.compactor = new Compactor<>(this, segmentCompactor);
     }
 
-    public boolean isFlushed(RecordPointer recordPointer)
+    public void onDurable(RecordPointer recordPointer, Runnable runnable)
     {
-        Segment<K, V> current = currentSegment;
-        if (current.descriptor.timestamp == recordPointer.segment)
-            return current.isFlushed(recordPointer.position);
-
-        return segments.get().isFlushed(recordPointer);
-    }
-
-    public void onFlush(RecordPointer recordPointer, Runnable runnable)
-    {
-        if (isFlushed(recordPointer)) runnable.run();
-        else flusherCallbacks.submit(recordPointer, runnable);
+        flusherCallbacks.submit(recordPointer, runnable);
     }
 
     public void start()
@@ -230,12 +214,13 @@ public class Journal<K, V> implements Shutdownable
 
         segments.set(Segments.of(StaticSegment.open(descriptors, keySupport)));
         closer = executorFactory().sequential(name + "-closer");
+        releaser = executorFactory().sequential(name + "-releaser");
         allocator = executorFactory().infiniteLoop(name + "-allocator", new AllocateRunnable(), SAFE, NON_DAEMON, SYNCHRONIZED);
         advanceSegment(null);
-        flusher.start();
-        compactor.start();
         Invariants.checkState(state.compareAndSet(State.INITIALIZING, State.NORMAL),
                               "Unexpected journal state after initialization", state);
+        flusher.start();
+        compactor.start();
     }
 
     @VisibleForTesting
@@ -272,13 +257,16 @@ public class Journal<K, V> implements Shutdownable
                                   "Unexpected journal state while trying to shut down", state);
             allocator.shutdown();
             wakeAllocator(); // Wake allocator to force it into shutdown
+            // TODO (expected): why are we awaitingTermination here when we have a separate method for it?
             allocator.awaitTermination(1, TimeUnit.MINUTES);
             segmentPrepared.signalAll(); // Wake up all threads waiting on the new segment
             compactor.shutdown();
             compactor.awaitTermination(1, TimeUnit.MINUTES);
             flusher.shutdown();
             closer.shutdown();
+            releaser.shutdown();
             closer.awaitTermination(1, TimeUnit.MINUTES);
+            releaser.awaitTermination(1, TimeUnit.MINUTES);
             closeAllSegments();
             metrics.deregister();
             Invariants.checkState(state.compareAndSet(State.SHUTDOWN, State.TERMINATED),
@@ -303,6 +291,7 @@ public class Journal<K, V> implements Shutdownable
         boolean r = true;
         r &= allocator.awaitTermination(timeout, units);
         r &= closer.awaitTermination(timeout, units);
+        r &= releaser.awaitTermination(timeout, units);
         return r;
     }
 
@@ -323,9 +312,9 @@ public class Journal<K, V> implements Shutdownable
     {
         EntrySerializer.EntryHolder<K> holder = new EntrySerializer.EntryHolder<>();
 
-        try (ReferencedSegments<K, V> segments = selectAndReference(id))
+        try (OpOrder.Group group = readOrder.start())
         {
-            for (Segment<K, V> segment : segments.allSorted(true))
+            for (Segment<K, V> segment : segments.get().allSorted(true))
             {
                 if (segment.readLast(id, holder))
                 {
@@ -347,9 +336,9 @@ public class Journal<K, V> implements Shutdownable
     public void readAll(K id, RecordConsumer<K> consumer)
     {
         EntrySerializer.EntryHolder<K> holder = new EntrySerializer.EntryHolder<>();
-        try (ReferencedSegments<K, V> segments = selectAndReference(id))
+        try (OpOrder.Group group = readOrder.start())
         {
-            for (Segment<K, V> segment : segments.allSorted(false))
+            for (Segment<K, V> segment : segments.get().allSorted(false))
                 segment.readAll(id, holder, consumer);
         }
     }
@@ -390,9 +379,9 @@ public class Journal<K, V> implements Shutdownable
     {
         EntrySerializer.EntryHolder<K> holder = new EntrySerializer.EntryHolder<>();
 
-        try (ReferencedSegments<K, V> segments = selectAndReference(id))
+        try (OpOrder.Group group = readOrder.start())
         {
-            for (Segment<K, V> segment : segments.all())
+            for (Segment<K, V> segment : segments.get().all())
             {
                 long[] offsets = segment.index().lookUp(id);
                 for (long offsetAndSize : offsets)
@@ -436,40 +425,18 @@ public class Journal<K, V> implements Shutdownable
     @SuppressWarnings("unused")
     public boolean readLast(K id, RecordConsumer<K> consumer)
     {
-        try (ReferencedSegments<K, V> segments = selectAndReference(id))
+        try (OpOrder.Group group = readOrder.start())
         {
-            for (Segment<K, V> segment : segments.all())
+            for (Segment<K, V> segment : segments.get().allSorted(false))
+            {
+                if (!segment.index().mayContainId(id))
+                    continue;
+
                 if (segment.readLast(id, consumer))
                     return true;
-        }
-        return false;
-    }
-
-    /**
-     * Test for existence of entries with specified ids.
-     *
-     * @return subset of ids to test that have been found in the journal
-     */
-    @SuppressWarnings("unused")
-    public Set<K> test(Set<K> test)
-    {
-        Set<K> present = new ObjectHashSet<>(test.size() + 1, 0.9f);
-        try (ReferencedSegments<K, V> segments = selectAndReference(test))
-        {
-            for (Segment<K, V> segment : segments.all())
-            {
-                for (K id : test)
-                {
-                    if (segment.index().lookUpLast(id) != -1)
-                    {
-                        present.add(id);
-                        if (test.size() == present.size())
-                            return present;
-                    }
-                }
             }
         }
-        return present;
+        return false;
     }
 
     /**
@@ -488,7 +455,7 @@ public class Journal<K, V> implements Shutdownable
             valueSerializer.serialize(id, record, dob, params.userVersion());
             ActiveSegment<K, V>.Allocation alloc = allocate(dob.getLength(), hosts);
             alloc.writeInternal(id, dob.unsafeGetBufferAndFlip(), hosts);
-            flusher.waitForFlush(alloc);
+            flusher.flushAndAwaitDurable(alloc);
         }
         catch (IOException e)
         {
@@ -514,20 +481,18 @@ public class Journal<K, V> implements Shutdownable
 
     public RecordPointer asyncWrite(K id, Writer writer, Set<Integer> hosts)
     {
-        RecordPointer recordPointer;
         try (DataOutputBuffer dob = DataOutputBuffer.scratchBuffer.get())
         {
             writer.write(dob, params.userVersion());
             ActiveSegment<K, V>.Allocation alloc = allocate(dob.getLength(), hosts);
-            recordPointer = alloc.write(id, dob.unsafeGetBufferAndFlip(), hosts);
-            flusher.asyncFlush(alloc);
+            alloc.write(id, dob.unsafeGetBufferAndFlip(), hosts);
+            return flusher.flush(alloc);
         }
         catch (IOException e)
         {
             // exception during record serialization into the scratch buffer
             throw new RuntimeException(e);
         }
-        return recordPointer;
     }
 
     private ActiveSegment<K, V>.Allocation allocate(int entrySize, Set<Integer> hosts)
@@ -615,7 +580,7 @@ public class Journal<K, V> implements Shutdownable
             availableSegment = null;
         }
         if (next != null)
-            next.closeAndDiscard();
+            next.closeAndDiscard(this);
     }
 
     private class AllocateRunnable implements Interruptible.Task
@@ -715,52 +680,9 @@ public class Journal<K, V> implements Shutdownable
         for (Segment<K, V> segment : segments.all())
         {
             if (segment.isActive())
-                ((ActiveSegment<K, V>) segment).closeAndIfEmptyDiscard();
+                ((ActiveSegment<K, V>) segment).closeAndIfEmptyDiscard(this);
             else
-                segment.close();
-        }
-    }
-
-    /**
-     * Select segments that could potentially have any entry with the specified id and
-     * attempt to grab references to them all.
-     *
-     * @return a subset of segments with references to them
-     */
-    ReferencedSegments<K, V> selectAndReference(K id)
-    {
-        while (true)
-        {
-            ReferencedSegments<K, V> referenced = segments().selectAndReference(s -> s.index().mayContainId(id));
-            if (null != referenced)
-                return referenced;
-        }
-    }
-
-    /**
-     * Select segments that could potentially have any entry with the specified ids and
-     * attempt to grab references to them all.
-     *
-     * @return a subset of segments with references to them
-     */
-    ReferencedSegments<K, V> selectAndReference(Iterable<K> ids)
-    {
-        while (true)
-        {
-            ReferencedSegments<K, V> referenced = segments().selectAndReference(s -> s.index().mayContainIds(ids));
-            if (null != referenced)
-                return referenced;
-        }
-    }
-
-    @SuppressWarnings("unused")
-    ReferencedSegment<K, V> selectAndReference(long segmentTimestamp)
-    {
-        while (true)
-        {
-            ReferencedSegment<K, V> referenced = segments().selectAndReference(segmentTimestamp);
-            if (null != referenced)
-                return referenced;
+                segment.close(this);
         }
     }
 
@@ -886,10 +808,11 @@ public class Journal<K, V> implements Shutdownable
         public void run()
         {
             activeSegment.discardUnusedTail();
-            activeSegment.flush(true);
+            activeSegment.updateWrittenTo();
+            activeSegment.fsync();
             activeSegment.persistComponents();
             replaceCompletedSegment(activeSegment, StaticSegment.open(activeSegment.descriptor, keySupport));
-            activeSegment.release();
+            activeSegment.release(Journal.this);
         }
     }
 
@@ -898,7 +821,7 @@ public class Journal<K, V> implements Shutdownable
         if (activeSegment.isEmpty())
         {
             removeEmptySegment(activeSegment);
-            activeSegment.closeAndDiscard();
+            activeSegment.closeAndDiscard(this);
             return;
         }
 
@@ -1000,6 +923,7 @@ public class Journal<K, V> implements Shutdownable
      */
     public class StaticSegmentIterator implements Closeable
     {
+        // TODO (expected): use MergeIterator
         private final PriorityQueue<StaticSegment.KeyOrderReader<K>> readers;
         private final ReferencedSegments<K, V> segments;
 

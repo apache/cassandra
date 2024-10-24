@@ -20,6 +20,7 @@ package org.apache.cassandra.utils.concurrent;
 
 import java.util.Iterator;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -190,9 +191,24 @@ public class IntrusiveStack<T extends IntrusiveStack<T>> implements Iterable<T>
 
     protected static <T extends IntrusiveStack<T>> void forEach(T list, Consumer<? super T> forEach)
     {
+        forEach(list, Function.identity(), forEach);
+    }
+
+    protected static <T extends IntrusiveStack<T>, P> void forEach(T list, BiConsumer<P, ? super T> forEach, P param)
+    {
+        forEach(list, Function.identity(), forEach, param);
+    }
+
+    protected static <T extends IntrusiveStack<T>, V> void forEach(T list, Function<? super T, ? extends V> getter, Consumer<? super V> forEach)
+    {
+        forEach(list, getter, Consumer::accept, forEach);
+    }
+
+    protected static <P, T extends IntrusiveStack<T>, V> void forEach(T list, Function<? super T, ? extends V> getter, BiConsumer<? super P, ? super V> forEach, P param)
+    {
         while (list != null)
         {
-            forEach.accept(list);
+            forEach.accept(param, getter.apply(list));
             list = list.next;
         }
     }

@@ -45,6 +45,13 @@ class TimeUUIDKeySupport implements KeySupport<TimeUUID>
     }
 
     @Override
+    public void serialize(TimeUUID key, ByteBuffer out, int userVersion) throws IOException
+    {
+        out.putLong(key.uuidTimestamp());
+        out.putLong(key.lsb());
+    }
+
+    @Override
     public TimeUUID deserialize(DataInputPlus in, int userVersion) throws IOException
     {
         long uuidTimestamp = in.readLong();
@@ -57,6 +64,14 @@ class TimeUUIDKeySupport implements KeySupport<TimeUUID>
     {
         long uuidTimestamp = buffer.getLong(position);
         long lsb = buffer.getLong(position + 8);
+        return new TimeUUID(uuidTimestamp, lsb);
+    }
+
+    @Override
+    public TimeUUID deserialize(ByteBuffer buffer, int userVersion)
+    {
+        long uuidTimestamp = buffer.getLong();
+        long lsb = buffer.getLong();
         return new TimeUUID(uuidTimestamp, lsb);
     }
 

@@ -685,11 +685,11 @@ public class EpochSyncTest
                         EpochReady ready = new EpochReady(topology.epoch(), metadata, coordination, data, reads);
 
                         topology().onTopologyUpdate(topology, () -> ready);
-                        ready.coordination.addCallback(() -> topology().onEpochSyncComplete(id, topology.epoch()));
+                        ready.fastPath.addCallback(() -> topology().onEpochSyncComplete(id, topology.epoch()));
                         if (topology().minEpoch() == topology.epoch() && topology().epoch() != topology.epoch())
-                            return ready.coordination;
+                            return ready.fastPath;
                         config.acknowledgeEpoch(ready, startSync);
-                        return ready.coordination;
+                        return ready.fastPath;
                     }
 
                     @Override

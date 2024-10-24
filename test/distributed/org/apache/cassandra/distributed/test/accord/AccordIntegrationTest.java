@@ -19,6 +19,7 @@
 package org.apache.cassandra.distributed.test.accord;
 
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 
 import org.junit.BeforeClass;
@@ -27,11 +28,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.impl.progresslog.DefaultProgressLogs;
-import accord.messages.Commit;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IMessageFilters;
-import org.apache.cassandra.distributed.impl.Instance;
-import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.Verb;
 
 public class AccordIntegrationTest extends AccordTestBase
@@ -71,7 +69,6 @@ public class AccordIntegrationTest extends AccordTestBase
             lostApply.off();
             lostCommit.off();
 
-            // Querying again should trigger recovery...
             query = "BEGIN TRANSACTION\n" +
                     "  LET row1 = (SELECT v FROM " + qualifiedAccordTableName + " WHERE k=0 AND c=0);\n" +
                     "  SELECT row1.v;\n" +
@@ -105,12 +102,8 @@ public class AccordIntegrationTest extends AccordTestBase
         pauseSimpleProgressLog();
         test(cluster -> {
             // It's expected that the required Read will happen regardless of whether this fails to return a read
-            cluster.filters().verbs(Verb.ACCORD_COMMIT_REQ.id).messagesMatching((from, to, iMessage) -> cluster.get(from).callOnInstance(() -> {
-                Message<?> msg = Instance.deserializeMessage(iMessage);
-                if (msg.payload instanceof Commit)
-                    return ((Commit) msg.payload).readData != null;
-                return false;
-            })).drop();
+            final AtomicBoolean droppedOne = new AtomicBoolean();
+            cluster.filters().verbs(Verb.ACCORD_COMMIT_REQ.id).messagesMatching((from, to, iMessage) -> !droppedOne.getAndSet(true)).drop();
 
             String query = "BEGIN TRANSACTION\n" +
                            "  LET row1 = (SELECT * FROM " + qualifiedAccordTableName + " WHERE k = 0 AND c = 0);\n" +
@@ -119,6 +112,7 @@ public class AccordIntegrationTest extends AccordTestBase
                            "    INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (0, 0, 1);\n" +
                            "  END IF\n" +
                            "COMMIT TRANSACTION";
+
             assertRowEqualsWithPreemptedRetry(cluster, new Object[] { null }, query);
 
             String check = "BEGIN TRANSACTION\n" +

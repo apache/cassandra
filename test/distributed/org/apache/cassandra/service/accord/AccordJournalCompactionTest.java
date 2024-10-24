@@ -49,6 +49,7 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.journal.TestParams;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.accord.api.AccordAgent;
 import org.apache.cassandra.utils.AccordGenerators;
 
 import static accord.local.CommandStores.RangesForEpoch;
@@ -111,7 +112,7 @@ public class AccordJournalCompactionTest
             {
                 return false;
             }
-        });
+        }, new AccordAgent());
         try
         {
             journal.start(null);

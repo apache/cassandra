@@ -21,6 +21,9 @@ package org.apache.cassandra.distributed.test.accord;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import org.junit.Before;
@@ -29,6 +32,7 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IMessageFilters;
 import org.apache.cassandra.distributed.api.Row;
@@ -120,10 +124,16 @@ public class AccordMetricsTest extends AccordTestBase
     @Test
     public void testPreemptionMetrics()
     {
-        IMessageFilters.Filter commitFilter1 = SHARED_CLUSTER.filters().outbound().verbs(Verb.ACCORD_COMMIT_REQ.id).from(1).to(1).drop();
-        IMessageFilters.Filter commitFilter2 = SHARED_CLUSTER.filters().outbound().verbs(Verb.ACCORD_COMMIT_REQ.id).from(1).to(2).drop();
-        commitFilter1.on();
-        commitFilter2.on();
+        ScheduledExecutorService exec = Executors.newScheduledThreadPool(1);
+        IMessageFilters.Matcher delay = (from, to, m) -> {
+            exec.schedule(() -> SHARED_CLUSTER.get(to).receiveMessageWithInvokingThread(m), 10L, TimeUnit.SECONDS);
+            return true;
+        };
+        IMessageFilters.Filter preacceptDelay = SHARED_CLUSTER.filters().outbound().verbs(Verb.ACCORD_PRE_ACCEPT_REQ.id).from(1).to(1)
+                                                            .messagesMatching(delay)
+                                                            .drop();
+
+        SHARED_CLUSTER.forEach(() -> DatabaseDescriptor.setAccordRecoverDelay(100L, TimeUnit.MILLISECONDS));
 
         countingMetrics0 = getMetrics();
         try
@@ -136,10 +146,10 @@ public class AccordMetricsTest extends AccordTestBase
             Assertions.assertThat(ex).is(AssertionUtils.rootCauseIs(WritePreemptedException.class));
         }
 
-        assertCoordinatorMetrics(0, "rw", 1, 0, 1, 0, 0);
-        assertCoordinatorMetrics(1, "rw", 0, 0, 0, 0, 1);
-        assertReplicaMetrics(0, "rw", 1, 1, 1);
-        assertReplicaMetrics(1, "rw", 1, 1, 1);
+        assertCoordinatorMetrics(0, "rw", 0, 0, 1, 0, 0);
+        assertCoordinatorMetrics(1, "rw", 0, 0, 0, 0, 0);
+        assertReplicaMetrics(0, "rw", 0, 0, 0);
+        assertReplicaMetrics(1, "rw", 0, 0, 0);
 
         assertZeroMetrics("ro");
 
@@ -154,12 +164,15 @@ public class AccordMetricsTest extends AccordTestBase
             Assertions.assertThat(ex).is(AssertionUtils.rootCauseIs(ReadPreemptedException.class));
         }
 
-        assertCoordinatorMetrics(0, "ro", 1, 0, 1, 0, 0);
-        assertCoordinatorMetrics(1, "ro", 0, 0, 0, 0, 1);
-        assertReplicaMetrics(0, "ro", 1, 1, 0);
-        assertReplicaMetrics(1, "ro", 1, 1, 0);
+        assertCoordinatorMetrics(0, "ro", 0, 0, 1, 0, 0);
+        assertCoordinatorMetrics(1, "ro", 0, 0, 0, 0, 0);
+        assertReplicaMetrics(0, "ro", 0, 0, 0);
+        assertReplicaMetrics(1, "ro", 0, 0, 0);
 
         assertZeroMetrics("rw");
+        SHARED_CLUSTER.forEach(() -> DatabaseDescriptor.setAccordRecoverDelay(10L, TimeUnit.SECONDS));
+        preacceptDelay.off();
+        exec.shutdown();
     }
 
     @Test
@@ -269,7 +282,7 @@ public class AccordMetricsTest extends AccordTestBase
 
         // Verify that per-store global cache stats are published to the appropriate virtual table:
         SimpleQueryResult storeCacheResults = SHARED_CLUSTER.get(node + 1)
-                                                   .executeInternalWithResult("SELECT * FROM system_views.accord_command_store_cache");
+                                                   .executeInternalWithResult("SELECT * FROM system_views.accord_executor_cache");
         assertThat(storeCacheResults).hasNext();
     }
 

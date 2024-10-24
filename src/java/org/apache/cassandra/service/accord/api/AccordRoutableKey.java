@@ -19,7 +19,6 @@
 package org.apache.cassandra.service.accord.api;
 
 import java.io.IOException;
-import java.util.Objects;
 
 import accord.primitives.RoutableKey;
 import org.apache.cassandra.dht.Token;
@@ -65,7 +64,7 @@ public abstract class AccordRoutableKey implements RoutableKey
     @Override
     public int hashCode()
     {
-        return Objects.hash(table, token().tokenHash());
+        return table.hashCode() * 31 + token().tokenHash();
     }
 
     @Override

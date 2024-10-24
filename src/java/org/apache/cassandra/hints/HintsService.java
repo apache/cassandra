@@ -239,6 +239,14 @@ public final class HintsService implements HintsServiceMBean
         writeExecutor.fsyncWritersBlockingly(stores);
     }
 
+    @VisibleForTesting
+    public void flushAndFsyncBlockingly()
+    {
+        List<HintsStore> stores = catalog.stores().collect(Collectors.toList());
+        writeExecutor.flushBufferPool(bufferPool, stores);
+        writeExecutor.fsyncWritersBlockingly(stores);
+    }
+
     public synchronized void startDispatch()
     {
         if (isShutDown)
