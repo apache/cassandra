@@ -54,6 +54,7 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.Mutation.SimpleBuilder;
 import org.apache.cassandra.db.SimpleBuilders.PartitionUpdateBuilder;
+import org.apache.cassandra.db.virtual.AccordDebugKeyspace;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
 import org.apache.cassandra.dht.NormalizedRanges;
@@ -109,6 +110,7 @@ import static org.apache.cassandra.distributed.api.ConsistencyLevel.ALL;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ANY;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.SERIAL;
 import static org.apache.cassandra.schema.SchemaConstants.SYSTEM_KEYSPACE_NAME;
+import static org.apache.cassandra.schema.SchemaConstants.VIRTUAL_ACCORD_DEBUG;
 import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.ConsensusRoutingDecision.paxosV2;
 import static org.apache.cassandra.service.paxos.PaxosState.MaybePromise.Outcome.PROMISE;
 import static org.assertj.core.api.Fail.fail;
@@ -751,8 +753,8 @@ public class AccordMigrationTest extends AccordTestBase
                     assertNotNull(state);
 
                     SimpleQueryResult vtableResult =
-                            instance.executeInternalWithResult("SELECT * FROM system_views.consensus_migration_state WHERE keyspace_name = ? AND table_name = ? ",
-                                                               state.keyspaceName, state.tableName);
+                            instance.executeInternalWithResult(format("SELECT * FROM %s.%s WHERE keyspace_name = ? AND table_name = ? ", VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.MIGRATION_STATE),
+                                                                      state.keyspaceName, state.tableName);
                     assertTrue(vtableResult.hasNext());
 
                     assertEquals(KEYSPACE, state.keyspaceName);

@@ -33,6 +33,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.virtual.AccordDebugKeyspace;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IMessageFilters;
 import org.apache.cassandra.distributed.api.Row;
@@ -43,6 +44,7 @@ import org.apache.cassandra.metrics.AccordMetrics;
 import org.apache.cassandra.metrics.DefaultNameFactory;
 import org.apache.cassandra.metrics.RatioGaugeSet;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.exceptions.ReadPreemptedException;
 import org.apache.cassandra.service.accord.exceptions.WritePreemptedException;
@@ -51,6 +53,7 @@ import org.apache.cassandra.utils.AssertionUtils;
 import org.assertj.core.api.Assertions;
 import org.assertj.core.data.Offset;
 
+import static java.lang.String.format;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
 
@@ -281,8 +284,8 @@ public class AccordMetricsTest extends AccordTestBase
         }
 
         // Verify that per-store global cache stats are published to the appropriate virtual table:
-        SimpleQueryResult storeCacheResults = SHARED_CLUSTER.get(node + 1)
-                                                   .executeInternalWithResult("SELECT * FROM system_views.accord_executor_cache");
+        SimpleQueryResult storeCacheResults =
+            SHARED_CLUSTER.get(node + 1).executeInternalWithResult(format("SELECT * FROM %s.%s", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.EXECUTOR_CACHE));
         assertThat(storeCacheResults).hasNext();
     }
 
