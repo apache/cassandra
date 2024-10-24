@@ -50,9 +50,9 @@ public final class SchemaConstants
     public static final String DISTRIBUTED_KEYSPACE_NAME = "system_distributed";
 
     public static final String VIRTUAL_SCHEMA = "system_virtual_schema";
-
     public static final String VIRTUAL_VIEWS = "system_views";
     public static final String VIRTUAL_METRICS = "system_metrics";
+    public static final String VIRTUAL_ACCORD_DEBUG = "system_accord_debug";
 
     public static final String DUMMY_KEYSPACE_OR_TABLE_NAME = "--dummy--";
 
@@ -62,7 +62,7 @@ public final class SchemaConstants
 
     /* virtual table system keyspace names */
     public static final Set<String> VIRTUAL_SYSTEM_KEYSPACE_NAMES =
-        ImmutableSet.of(VIRTUAL_VIEWS, VIRTUAL_SCHEMA);
+        ImmutableSet.of(VIRTUAL_SCHEMA, VIRTUAL_VIEWS, VIRTUAL_METRICS);
 
     /* replicate system keyspace names (the ones with a "true" replication strategy) */
     public static final Set<String> REPLICATED_SYSTEM_KEYSPACE_NAMES =

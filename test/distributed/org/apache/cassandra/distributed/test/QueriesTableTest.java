@@ -15,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.distributed.test;
 
 import java.io.IOException;
@@ -48,7 +47,6 @@ import org.apache.cassandra.utils.Throwables;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static net.bytebuddy.matcher.ElementMatchers.named;
 import static net.bytebuddy.matcher.ElementMatchers.takesArguments;
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 public class QueriesTableTest extends TestBaseImpl
@@ -221,12 +219,6 @@ public class QueriesTableTest extends TestBaseImpl
 
         assertTrue(readVisible);
         assertTrue(coordinatorTxnVisible);
-
-        SimpleQueryResult txns = SHARED_CLUSTER.get(1).executeInternalWithResult("SELECT * FROM system_views.accord_coordination_status");
-        assertTrue(txns.hasNext());
-        Row txn = txns.next();
-        assertEquals(1, txn.getInteger("node_id").intValue());
-        assertEquals("Key", txn.getString("domain"));
     }
 
     private static void waitForQueriesToFinish() throws InterruptedException

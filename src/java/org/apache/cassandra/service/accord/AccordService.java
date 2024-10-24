@@ -69,6 +69,7 @@ import accord.coordinate.tracking.RequestStatus;
 import accord.impl.AbstractConfigurationService;
 import accord.impl.DefaultLocalListeners;
 import accord.impl.DefaultRemoteListeners;
+import accord.impl.DurabilityScheduling;
 import accord.impl.RequestCallbacks;
 import accord.impl.SizeOfIntersectionSorter;
 import accord.impl.progresslog.DefaultProgressLogs;
@@ -478,6 +479,11 @@ public class AccordService implements IAccordService, Shutdownable
     public IVerbHandler<? extends Reply> responseHandler()
     {
         return responseHandler;
+    }
+
+    public DurabilityScheduling.ImmutableView durabilityScheduling()
+    {
+        return node.durabilityScheduling().immutableView();
     }
 
     private Seekables<?, ?> barrier(@Nonnull Seekables<?, ?> keysOrRanges, long epoch, Dispatcher.RequestTime requestTime, long timeoutNanos, BarrierType barrierType, boolean isForWrite, BiFunction<Node, FullRoute<?>, AsyncSyncPoint> syncPoint)

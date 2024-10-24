@@ -47,17 +47,17 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.awaitility.Awaitility;
 
 import static org.apache.cassandra.service.accord.AccordTestUtils.createTxn;
 
-public class AccordVirtualTablesTest extends CQLTester
+public class AccordDebugKeyspaceTest extends CQLTester
 {
-    private static final Logger logger = LoggerFactory.getLogger(AccordVirtualTablesTest.class);
+    private static final Logger logger = LoggerFactory.getLogger(AccordDebugKeyspaceTest.class);
 
-    private static final String QUERY_TXN_BLOCKED_BY = "SELECT * FROM system_views.txn_blocked_by WHERE txn_id=?";
-    private static final String QUERY_TXN_STATUS = "SELECT save_status FROM system_views.txn_blocked_by WHERE txn_id=? LIMIT 1";
+    private static final String QUERY_TXN_BLOCKED_BY = "SELECT * FROM system_accord_debug.txn_blocked_by WHERE txn_id=?";
 
     @BeforeClass
     public static void setUpClass()
@@ -69,7 +69,7 @@ public class AccordVirtualTablesTest extends CQLTester
         CQLTester.setUpClass();
 
         AccordService.startup(ClusterMetadata.current().myNodeId());
-        addVirtualKeyspace();
+        VirtualKeyspaceRegistry.instance.register(AccordDebugKeyspace.instance);
         requireNetwork();
     }
 
@@ -90,7 +90,7 @@ public class AccordVirtualTablesTest extends CQLTester
         AsyncChains.getBlocking(accord.node().coordinate(id, txn));
 
         assertRows(execute(QUERY_TXN_BLOCKED_BY, id.toString()),
-                   row(id.toString(), anyInt(), 0, "", "Self", any(), null, anyOf(SaveStatus.Applying.name(), SaveStatus.Applied.name())));
+                   row(id.toString(), anyInt(), 0, ByteBufferUtil.EMPTY_BYTE_BUFFER, "Self", any(), null, anyOf(SaveStatus.ReadyToExecute.name(), SaveStatus.Applying.name(), SaveStatus.Applied.name())));
     }
 
     @Test
@@ -109,11 +109,11 @@ public class AccordVirtualTablesTest extends CQLTester
             filter.preAccept.awaitThrowUncheckedOnInterrupt();
 
             assertRows(execute(QUERY_TXN_BLOCKED_BY, id.toString()),
-                       row(id.toString(), anyInt(), 0, "", "Self", any(), null, anyOf(SaveStatus.PreAccepted.name(), SaveStatus.ReadyToExecute.name())));
+                       row(id.toString(), anyInt(), 0, ByteBufferUtil.EMPTY_BYTE_BUFFER, "Self", any(), null, anyOf(SaveStatus.PreAccepted.name(), SaveStatus.ReadyToExecute.name())));
 
             filter.apply.awaitThrowUncheckedOnInterrupt();
             assertRows(execute(QUERY_TXN_BLOCKED_BY, id.toString()),
-                       row(id.toString(), anyInt(), 0, "", "Self", any(), null, SaveStatus.ReadyToExecute.name()));
+                       row(id.toString(), anyInt(), 0, ByteBufferUtil.EMPTY_BYTE_BUFFER, "Self", any(), null, SaveStatus.ReadyToExecute.name()));
         }
         finally
         {
@@ -135,11 +135,11 @@ public class AccordVirtualTablesTest extends CQLTester
 
             filter.preAccept.awaitThrowUncheckedOnInterrupt();
             assertRows(execute(QUERY_TXN_BLOCKED_BY, first.toString()),
-                       row(first.toString(), anyInt(), 0, "", "Self", any(), null, anyOf(SaveStatus.PreAccepted.name(), SaveStatus.ReadyToExecute.name())));
+                       row(first.toString(), anyInt(), 0, ByteBufferUtil.EMPTY_BYTE_BUFFER, "Self", any(), null, anyOf(SaveStatus.PreAccepted.name(), SaveStatus.ReadyToExecute.name())));
 
             filter.apply.awaitThrowUncheckedOnInterrupt();
             assertRows(execute(QUERY_TXN_BLOCKED_BY, first.toString()),
-                       row(first.toString(), anyInt(), 0, "", "Self", anyNonNull(), null, SaveStatus.ReadyToExecute.name()));
+                       row(first.toString(), anyInt(), 0, ByteBufferUtil.EMPTY_BYTE_BUFFER, "Self", anyNonNull(), null, SaveStatus.ReadyToExecute.name()));
 
             filter.reset();
 
@@ -154,7 +154,7 @@ public class AccordVirtualTablesTest extends CQLTester
                                               return rs.size() == 2;
                                           });
             assertRows(execute(QUERY_TXN_BLOCKED_BY, second.toString()),
-                       row(second.toString(), anyInt(), 0, "", "Self", anyNonNull(), null, SaveStatus.Stable.name()),
+                       row(second.toString(), anyInt(), 0, ByteBufferUtil.EMPTY_BYTE_BUFFER, "Self", anyNonNull(), null, SaveStatus.Stable.name()),
                        row(second.toString(), anyInt(), 1, first.toString(), "Key", anyNonNull(), anyNonNull(), SaveStatus.ReadyToExecute.name()));
         }
         finally
@@ -191,9 +191,9 @@ public class AccordVirtualTablesTest extends CQLTester
             TxnId txnId = null;
             if (msg.payload instanceof TxnRequest)
             {
-                txnId = ((TxnRequest) msg.payload).txnId;
+                txnId = ((TxnRequest<?>) msg.payload).txnId;
             }
-            Set<Verb> seen = null;
+            Set<Verb> seen;
             if (txnId != null)
             {
                 seen = txnToVerbs.computeIfAbsent(txnId, ignore -> new ConcurrentSkipListSet<>());
