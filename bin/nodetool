@@ -59,7 +59,7 @@ JVM_ARGS=""
 SSL_FILE=$HOME/.cassandra/nodetool-ssl.properties
 while true
 do
-  if [ ! $1 ]; then break; fi
+  if [ ! "$1" ]; then break; fi
   case $1 in
     -p)
       JMX_PORT=$2
