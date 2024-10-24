@@ -38,6 +38,21 @@ public class AccordSpec
 
     public volatile boolean enable_journal_compaction = true;
 
+    /**
+     * Enables the virtual Accord debug-only keyspace with tables
+     * that expose internal state to aid the developers working
+     * on Accord implementation.
+     * <p/>
+     * These tables can and will change and/or go away at any point,
+     * including in a minor release, are not to be considered part of the API,
+     * and are NOT to be relied on for anything.
+     * <p/>
+     * Only enable this keyspace if you are working on Accord and
+     * need to debug an issue with Accord implementation, or if an Accord
+     * developer asked you to.
+     */
+    public boolean enable_virtual_debug_only_keyspace = false;
+
     public enum QueueShardModel
     {
         /**
