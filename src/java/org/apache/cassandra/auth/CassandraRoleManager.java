@@ -40,6 +40,7 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
@@ -128,6 +129,7 @@ public class CassandraRoleManager implements IRoleManager
     }
 
     private SelectStatement loadRoleStatement;
+    private SelectStatement loadRoleOptionsStatement;
     private SelectStatement loadIdentityStatement;
 
     private final Set<Option> supportedOptions;
@@ -136,17 +138,18 @@ public class CassandraRoleManager implements IRoleManager
     public CassandraRoleManager()
     {
         supportedOptions = DatabaseDescriptor.getAuthenticator() instanceof PasswordAuthenticator
-                         ? ImmutableSet.of(Option.LOGIN, Option.SUPERUSER, Option.PASSWORD, Option.HASHED_PASSWORD)
-                         : ImmutableSet.of(Option.LOGIN, Option.SUPERUSER);
+                         ? ImmutableSet.of(Option.LOGIN, Option.SUPERUSER, Option.PASSWORD, Option.HASHED_PASSWORD, Option.OPTIONS)
+                         : ImmutableSet.of(Option.LOGIN, Option.SUPERUSER, Option.OPTIONS);
         alterableOptions = DatabaseDescriptor.getAuthenticator() instanceof PasswordAuthenticator
-                         ? ImmutableSet.of(Option.PASSWORD, Option.HASHED_PASSWORD)
-                         : ImmutableSet.<Option>of();
+                         ? ImmutableSet.of(Option.PASSWORD, Option.HASHED_PASSWORD, Option.OPTIONS)
+                         : ImmutableSet.<Option>of(Option.OPTIONS);
     }
 
     @Override
     public void setup()
     {
         loadRoleStatement();
+        loadRoleOptionsStatement();
         loadIdentityStatement();
         scheduleSetupTask(() -> {
             setupDefaultRole();
@@ -220,6 +223,12 @@ public class CassandraRoleManager implements IRoleManager
                                                       AuthKeyspace.ROLES);
     }
 
+    protected void loadRoleOptionsStatement()
+    {
+        loadRoleOptionsStatement = (SelectStatement) prepare("SELECT * from %s.%s WHERE role = ?",
+                SchemaConstants.AUTH_KEYSPACE_NAME,
+                AuthKeyspace.ROLE_OPTIONS);
+    }
 
     protected void loadIdentityStatement()
     {
@@ -246,6 +255,7 @@ public class CassandraRoleManager implements IRoleManager
         {
             throw new IllegalStateException(String.format("Cannot create a role '%s' when identities already exists for it", role.getRoleName()));
         }
+
         String insertCql = options.getPassword().isPresent() || options.getHashedPassword().isPresent()
                          ? String.format("INSERT INTO %s.%s (role, is_superuser, can_login, salted_hash) VALUES ('%s', %s, %s, '%s')",
                                          SchemaConstants.AUTH_KEYSPACE_NAME,
@@ -261,6 +271,18 @@ public class CassandraRoleManager implements IRoleManager
                                          options.getSuperuser().orElse(false),
                                          options.getLogin().orElse(false));
         process(insertCql, consistencyForRoleWrite(role.getRoleName()));
+
+        Optional<Map<String, String>> customOptions = options.getCustomOptions();
+        if (customOptions.isPresent() && !customOptions.get().isEmpty())
+        {
+            String insertOptionsCql = String.format("INSERT INTO %s.%s (role, options) VALUES ('%s', ?)",
+                                                    SchemaConstants.AUTH_KEYSPACE_NAME,
+                                                    AuthKeyspace.ROLE_OPTIONS,
+                                                    escape(role.getRoleName()));
+            process(insertOptionsCql,
+                    consistencyForRoleWrite(role.getRoleName()),
+                    MapType.getInstance(UTF8Type.instance, UTF8Type.instance, true).decompose(customOptions.get()));
+        }
     }
 
     public void dropRole(AuthenticatedUser performer, RoleResource role) throws RequestValidationException, RequestExecutionException
@@ -270,8 +292,15 @@ public class CassandraRoleManager implements IRoleManager
                               AuthKeyspace.ROLES,
                               escape(role.getRoleName())),
                 consistencyForRoleWrite(role.getRoleName()));
+
         removeAllMembers(role.getRoleName());
         removeAllIdentitiesOfRole(role.getRoleName());
+
+        process(String.format("DELETE FROM %s.%s WHERE role = '%s'",
+                              SchemaConstants.AUTH_KEYSPACE_NAME,
+                              AuthKeyspace.ROLE_OPTIONS,
+                              escape(role.getRoleName())),
+                consistencyForRoleWrite(role.getRoleName()));
     }
 
     public void alterRole(AuthenticatedUser performer, RoleResource role, RoleOptions options)
@@ -285,6 +314,28 @@ public class CassandraRoleManager implements IRoleManager
                                   SchemaConstants.AUTH_KEYSPACE_NAME,
                                   AuthKeyspace.ROLES,
                                   assignments,
+                                  escape(role.getRoleName())),
+                    consistencyForRoleWrite(role.getRoleName()));
+        }
+
+        if (!options.getOptions().containsKey(Option.OPTIONS))
+            return;
+
+        Optional<Map<String, String>> customOptions = options.getCustomOptions();
+        if (customOptions.isPresent() && !customOptions.get().isEmpty())
+        {
+            process(String.format("UPDATE %s.%s SET options = ? WHERE role = '%s'",
+                                  SchemaConstants.AUTH_KEYSPACE_NAME,
+                                  AuthKeyspace.ROLE_OPTIONS,
+                                  escape(role.getRoleName())),
+                    consistencyForRoleWrite(role.getRoleName()),
+                    MapType.getInstance(UTF8Type.instance, UTF8Type.instance, true).decompose(customOptions.get()));
+        }
+        else
+        {
+            process(String.format("DELETE FROM %s.%s WHERE role = '%s'",
+                                  SchemaConstants.AUTH_KEYSPACE_NAME,
+                                  AuthKeyspace.ROLE_OPTIONS,
                                   escape(role.getRoleName())),
                     consistencyForRoleWrite(role.getRoleName()));
         }
@@ -392,7 +443,15 @@ public class CassandraRoleManager implements IRoleManager
 
     public Map<String, String> getCustomOptions(RoleResource role)
     {
-        return Collections.emptyMap();
+        QueryOptions options = QueryOptions.forInternalCalls(CassandraAuthorizer.authReadConsistencyLevel(),
+                Collections.singletonList(byteBuf(role.getRoleName())));
+        ResultMessage.Rows rows = select(loadRoleOptionsStatement, options);
+        if (rows.result.isEmpty())
+        {
+            return Collections.emptyMap();
+        }
+        return MapType.getInstance(UTF8Type.instance, UTF8Type.instance, true)
+                      .compose(UntypedResultSet.create(rows.result).one().getBytes("options"));
     }
 
     public boolean isExistingRole(RoleResource role)
