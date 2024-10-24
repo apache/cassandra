@@ -127,9 +127,9 @@ import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.journal.Params;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.AccordClientRequestMetrics;
-import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.metrics.ClientRequestMetrics;
 import org.apache.cassandra.metrics.ClientRequestsMetricsHolder;
+import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageDelivery;
@@ -624,13 +624,13 @@ public class AccordService implements IAccordService, Shutdownable
             AsyncResult<TxnId> asyncResult = syncPoint == null
                                                  ? Barrier.barrier(node, keysOrRanges, route, epoch, barrierType)
                                                  : Barrier.barrier(node, keysOrRanges, route, epoch, barrierType, syncPoint);
+            long deadlineNanos = requestTime.startedAtNanos() + timeoutNanos;
+            TxnId txnId = AsyncChains.getBlocking(asyncResult, deadlineNanos - nanoTime(), NANOSECONDS);
             if (keysOrRanges.domain() == Key)
             {
                 PartitionKey key = (PartitionKey)keysOrRanges.get(0);
-                asyncResult.accept(txnId -> maybeSaveAccordKeyMigrationLocally(key, Epoch.create(txnId.epoch())));
+                maybeSaveAccordKeyMigrationLocally(key, Epoch.create(txnId.epoch()));
             }
-            long deadlineNanos = requestTime.startedAtNanos() + timeoutNanos;
-            TxnId txnId = AsyncChains.getBlocking(asyncResult, deadlineNanos - nanoTime(), NANOSECONDS);
             ((AccordAgent) node.agent()).onSuccessfulBarrier(txnId, keysOrRanges);
             logger.debug("Completed barrier attempt in {}ms, {}ms since attempts start, barrier key: {} epoch: {} barrierType: {} isForWrite {}",
                          sw.elapsed(MILLISECONDS),
