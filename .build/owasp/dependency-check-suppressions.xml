@@ -57,4 +57,10 @@
         <cve>CVE-2023-6378</cve>
         <cve>CVE-2023-6481</cve>
     </suppress>
+
+    <!-- https://issues.apache.org/jira/browse/CASSANDRA-20024 -->
+    <suppress>
+        <packageUrl regex="true">^pkg:maven/org\.apache\.lucene/lucene\-.*@9.7.0$</packageUrl>
+        <cve>CVE-2024-45772</cve>
+    </suppress>
 </suppressions>
