@@ -33,7 +33,7 @@ function configure_cassandra() {
   case $CLOUD_PROVIDER in
     # We want the gossip protocol to use internal (private) addresses, and the
     # client to use public addresses.
-    # See http://wiki.apache.org/cassandra/FAQ#cant_listen_on_ip_any
+    # See https://cassandra.apache.org/doc/latest/cassandra/faq/index.html#why-cant-list-all
     ec2 | aws-ec2 )
       PRIVATE_SELF_HOST=`wget -q -O - http://169.254.169.254/latest/meta-data/local-ipv4`
       # EC2 is NATed
