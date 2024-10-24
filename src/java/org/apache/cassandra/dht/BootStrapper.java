@@ -40,6 +40,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.service.BootstrapOptionsParser;
 import org.apache.cassandra.streaming.StreamEvent;
 import org.apache.cassandra.streaming.StreamEventHandler;
 import org.apache.cassandra.streaming.StreamOperation;
@@ -130,6 +131,8 @@ public class BootStrapper extends ProgressEventNotifierSupport
 
         if (beingReplaced != null)
             streamer.addSourceFilter(new RangeStreamer.ExcludedSourcesFilter(Collections.singleton(beingReplaced)));
+        BootstrapSourceFilter filter = BootstrapOptionsParser.parse(metadata, DatabaseDescriptor.getEndpointSnitch());
+        streamer.addSourceFilter(filter);
 
         final Collection<String> nonLocalStrategyKeyspaces = Schema.instance.getNonLocalStrategyKeyspaces().names();
         if (nonLocalStrategyKeyspaces.isEmpty())

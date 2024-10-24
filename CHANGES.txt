@@ -227,6 +227,7 @@ Merged from 4.0:
  * Add new concurrent_merkle_tree_requests config property to prevent OOM during multi-range and/or multi-table repairs (CASSANDRA-19336)
 Merged from 3.11:
  * Move ClientWarn.State#warnings to a thread-safe list (CASSANDRA-19427)
+ * Add bootstrap options to control sources of streaming (CASSANDRA-19733)
 Merged from 3.0:
  * Upgrade OWASP to 10.0.0 (CASSANDRA-19738)
  * Fix SCM URL link (CASSANDRA-19422)
