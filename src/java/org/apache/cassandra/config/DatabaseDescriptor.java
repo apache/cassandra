@@ -63,6 +63,7 @@ import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.RateLimiter;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -5346,5 +5347,26 @@ public class DatabaseDescriptor
     public static boolean isPasswordValidatorReconfigurationEnabled()
     {
         return conf.password_validator_reconfiguration_enabled;
+    }
+
+    public static AutoRepairConfig getAutoRepairConfig()
+    {
+        return conf.auto_repair;
+    }
+
+    public static double getIncrementalRepairDiskHeadroomRejectRatio()
+    {
+        return conf.incremental_repair_disk_headroom_reject_ratio;
+    }
+
+    public static void setIncrementalRepairDiskHeadroomRejectRatio(double value)
+    {
+        conf.incremental_repair_disk_headroom_reject_ratio = value;
+    }
+
+    @VisibleForTesting
+    public static void setPartitioner(String name)
+    {
+        partitioner = FBUtilities.newPartitioner(name);
     }
 }

@@ -191,6 +191,7 @@ import org.assertj.core.api.Assertions;
 import org.awaitility.Awaitility;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_JMX_LOCAL_PORT;
+import static org.apache.cassandra.config.CassandraRelevantProperties.SYSTEM_DISTRIBUTED_DEFAULT_RF;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_DRIVER_CONNECTION_TIMEOUT_MS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_DRIVER_READ_TIMEOUT_MS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_RANDOM_SEED;
@@ -445,6 +446,7 @@ public abstract class CQLTester
             DatabaseDescriptor.setRowCacheSizeInMiB(ROW_CACHE_SIZE_IN_MIB);
         StorageService.instance.registerMBeans();
         StorageService.instance.setPartitionerUnsafe(Murmur3Partitioner.instance);
+        SYSTEM_DISTRIBUTED_DEFAULT_RF.setInt(1);
     }
 
     @AfterClass
@@ -3050,7 +3052,7 @@ public abstract class CQLTester
             return SEED;
         }
 
-        protected static void setupSeed()
+        public static void setupSeed()
         {
             if (RANDOM != null) return;
             SEED = TEST_RANDOM_SEED.getLong(new DefaultRandom().nextLong());
@@ -3063,7 +3065,7 @@ public abstract class CQLTester
             RANDOM.setSeed(SEED);
         }
 
-        protected static void updateConfigs()
+        public static void updateConfigs()
         {
             if (CONFIG_GEN == null)
                 CONFIG_GEN = new ConfigGenBuilder().build();

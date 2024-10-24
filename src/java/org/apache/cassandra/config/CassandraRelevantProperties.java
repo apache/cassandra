@@ -505,7 +505,14 @@ public enum CassandraRelevantProperties
     STORAGE_HOOK("cassandra.storage_hook"),
     STORAGE_PORT("cassandra.storage_port"),
     STREAMING_HISTOGRAM_ROUND_SECONDS("cassandra.streaminghistogram.roundseconds", "60"),
+
+    /**
+     * If set to true, mutations streamed during anti-entropy repair will be replayed via the regular write path for associated views.
+     */
+    STREAMING_REQUIRES_VIEW_BUILD_DURING_REPAIR("cassandra.streaming.requires_view_build_during_repair", "true"),
+
     STREAMING_SESSION_PARALLELTRANSFERS("cassandra.streaming.session.parallelTransfers"),
+
     STREAM_HOOK("cassandra.stream_hook"),
     /** Platform word size sun.arch.data.model. Examples: "32", "64", "unknown"*/
     SUN_ARCH_DATA_MODEL("sun.arch.data.model"),

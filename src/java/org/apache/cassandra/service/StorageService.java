@@ -74,6 +74,9 @@ import com.google.common.collect.Ordering;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.RateLimiter;
 import com.google.common.util.concurrent.Uninterruptibles;
+
+import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.repair.autorepair.AutoRepair;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -462,11 +465,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     private volatile int totalCFs, remainingCFs;
 
-    private static final AtomicInteger nextRepairCommand = new AtomicInteger();
-
     private final List<IEndpointLifecycleSubscriber> lifecycleSubscribers = new CopyOnWriteArrayList<>();
 
     private final String jmxObjectName;
+
+    public static final AtomicInteger nextRepairCommand = new AtomicInteger();
 
     // true when keeping strict consistency while bootstrapping
     public static final boolean useStrictConsistency = CONSISTENT_RANGE_MOVEMENT.getBoolean();
@@ -1116,6 +1119,18 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             authSetupComplete = true;
         }
     }
+
+    public void doAutoRepairSetup()
+    {
+        AutoRepairService.setup();
+        if (DatabaseDescriptor.getAutoRepairConfig().isAutoRepairSchedulingEnabled())
+        {
+            logger.info("Enable auto-repair scheduling");
+            AutoRepair.instance.setup();
+        }
+        logger.info("AutoRepair setup complete!");
+    }
+
 
     public boolean isAuthSetupComplete()
     {
@@ -5642,4 +5657,35 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         DatabaseDescriptor.setEnforceNativeDeadlineForHints(value);
     }
 
+    public List<String> getTablesForKeyspace(String keyspace) {
+        return Keyspace.open(keyspace).getColumnFamilyStores().stream().map(cfs -> cfs.name).collect(Collectors.toList());
+    }
+
+    public List<String> mutateSSTableRepairedState(boolean repaired, boolean preview, String keyspace, List<String> tableNames) throws InvalidRequestException
+    {
+        Map<String, ColumnFamilyStore> tables =  Keyspace.open(keyspace).getColumnFamilyStores()
+                                                         .stream().collect(Collectors.toMap(c -> c.name, c -> c));
+        for (String tableName : tableNames) {
+            if (!tables.containsKey(tableName))
+                throw new InvalidRequestException("Table " + tableName + " does not exist in keyspace " + keyspace);
+        }
+
+        // only select SSTables that are unrepaired when repaired is true and vice versa
+        Predicate<SSTableReader> predicate = sst -> repaired != sst.isRepaired();
+
+        // mutate SSTables
+        long repairedAt = !repaired ? 0 : currentTimeMillis();
+        List<String> sstablesTouched = new ArrayList<>();
+        for (String tableName : tableNames) {
+            ColumnFamilyStore table = tables.get(tableName);
+            Set<SSTableReader> result = table.runWithCompactionsDisabled(() -> {
+                Set<SSTableReader> sstables = table.getLiveSSTables().stream().filter(predicate).collect(Collectors.toSet());
+                if (!preview)
+                    table.getCompactionStrategyManager().mutateRepaired(sstables, repairedAt, null, false);
+                return sstables;
+            }, predicate, OperationType.ANTICOMPACTION, true, false, true);
+            sstablesTouched.addAll(result.stream().map(sst -> sst.descriptor.baseFile().name()).collect(Collectors.toList()));
+        }
+        return sstablesTouched;
+    }
 }
