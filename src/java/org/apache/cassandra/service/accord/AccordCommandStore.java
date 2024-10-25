@@ -102,6 +102,7 @@ public class AccordCommandStore extends CommandStore
 
     public final String loggingId;
     private final IJournal journal;
+
     private final CommandStoreExecutor executor;
     private final AccordStateCache.Instance<TxnId, Command, AccordSafeCommand> commandCache;
     private final AccordStateCache.Instance<RoutingKey, TimestampsForKey, AccordSafeTimestampsForKey> timestampsForKeyCache;
@@ -293,6 +294,13 @@ public class AccordCommandStore extends CommandStore
     public AccordStateCache.Instance<RoutingKey, CommandsForKey, AccordSafeCommandsForKey> commandsForKeyCache()
     {
         return commandsForKeyCache;
+    }
+
+    @VisibleForTesting
+    @Override
+    protected void unsafeSetRangesForEpoch(CommandStores.RangesForEpoch newRangesForEpoch)
+    {
+        super.unsafeSetRangesForEpoch(newRangesForEpoch);
     }
 
     @Nullable

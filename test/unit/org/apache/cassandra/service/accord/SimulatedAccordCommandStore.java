@@ -109,8 +109,8 @@ public class SimulatedAccordCommandStore implements AutoCloseable
         globalExecutor = new SimulatedExecutorFactory(rs.fork(), fromQT(Generators.TIMESTAMP_GEN.map(java.sql.Timestamp::getTime)).mapToLong(TimeUnit.MILLISECONDS::toNanos).next(rs), failures::add);
         this.unorderedScheduled = globalExecutor.scheduled("ignored");
         ExecutorFactory.Global.unsafeSet(globalExecutor);
-        Stage.READ.unsafeSetExecutor(unorderedScheduled);
-        Stage.MUTATION.unsafeSetExecutor(unorderedScheduled);
+        for (Stage stage : Arrays.asList(Stage.READ, Stage.MUTATION, Stage.ACCORD_RANGE_LOADER))
+            stage.unsafeSetExecutor(unorderedScheduled);
         for (Stage stage : Arrays.asList(Stage.MISC, Stage.ACCORD_MIGRATION, Stage.READ, Stage.MUTATION))
             stage.unsafeSetExecutor(globalExecutor.configureSequential("ignore").build());
 
@@ -216,11 +216,16 @@ public class SimulatedAccordCommandStore implements AutoCloseable
         this.topology = AccordTopology.createAccordTopology(ClusterMetadata.current());
         this.topologies = new Topologies.Single(SizeOfIntersectionSorter.SUPPLIER, topology);
         var rangesForEpoch = new CommandStores.RangesForEpoch(topology.epoch(), topology.ranges(), store);
+        store.unsafeSetRangesForEpoch(rangesForEpoch);
         updateHolder.add(topology.epoch(), rangesForEpoch, topology.ranges());
         updateHolder.updateGlobal(topology.ranges());
 
         shouldEvict = boolSource(rs.fork());
-        shouldFlush = boolSource(rs.fork());
+        {
+            // tests used to take 1m but after many changes in accord they now take many minutes and its due to flush... so lower the frequency of flushing
+            var fork = rs.fork();
+            shouldFlush = () -> fork.decide(.01);
+        }
         shouldCompact = boolSource(rs.fork());
     }
 

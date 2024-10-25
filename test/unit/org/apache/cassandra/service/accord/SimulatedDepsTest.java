@@ -186,13 +186,12 @@ public class SimulatedDepsTest extends SimulatedAccordCommandStoreTestBase
                 FullRangeRoute rangeRoute = ranges.toRoute(pk.toUnseekable());
                 Txn rangeTxn = createTxn(Txn.Kind.ExclusiveSyncPoint, ranges);
 
-                List<TxnId> keyConflicts = new ArrayList<>(numSamples);
-                List<TxnId> rangeConflicts = new ArrayList<>(numSamples);
+                DepsModel model = new DepsModel(instance.store.unsafeRangesForEpoch().currentRanges());
                 for (int i = 0; i < numSamples; i++)
                 {
                     instance.maybeCacheEvict(keyRoute, ranges);
-                    keyConflicts.add(assertDepsMessage(instance, rs.pick(DepsMessage.values()), keyTxn, keyRoute, keyConflicts(keyConflicts, keyRoute)));
-                    rangeConflicts.add(assertDepsMessage(instance, rs.pick(DepsMessage.values()), rangeTxn, rangeRoute, keyConflicts(keyConflicts, keyRoute), rangeConflicts(rangeConflicts, ranges)));
+                    assertDepsMessage(instance, rs.pick(DepsMessage.values()), keyTxn, keyRoute, model);
+                    assertDepsMessage(instance, rs.pick(DepsMessage.values()), rangeTxn, rangeRoute, model);
                 }
             }
         });
@@ -259,21 +258,18 @@ public class SimulatedDepsTest extends SimulatedAccordCommandStoreTestBase
                 Range left = tokenRange(tbl.id, token - 10, token + 5);
                 Range right = tokenRange(tbl.id, token - 5, token + 10);
 
-                List<TxnId> keyConflicts = new ArrayList<>(numSamples);
-                Map<Range, List<TxnId>> rangeConflicts = new HashMap<>();
-                rangeConflicts.put(left, new ArrayList<>());
-                rangeConflicts.put(right, new ArrayList<>());
+                DepsModel model = new DepsModel(instance.store.unsafeRangesForEpoch().currentRanges());
                 for (int i = 0; i < numSamples; i++)
                 {
                     Ranges partialRange = Ranges.of(rs.nextBoolean() ? left : right);
                     try
                     {
                         instance.maybeCacheEvict(keyRoute, partialRange);
-                        keyConflicts.add(assertDepsMessage(instance, rs.pick(DepsMessage.values()), keyTxn, keyRoute, keyConflicts(keyConflicts, keyRoute)));
+                        assertDepsMessage(instance, rs.pick(DepsMessage.values()), keyTxn, keyRoute, model);
 
                         FullRangeRoute rangeRoute = partialRange.toRoute(pk.toUnseekable());
                         Txn rangeTxn = createTxn(Txn.Kind.ExclusiveSyncPoint, partialRange);
-                        rangeConflicts.get(partialRange.get(0)).add(assertDepsMessage(instance, rs.pick(DepsMessage.values()), rangeTxn, rangeRoute, keyConflicts(keyConflicts, keyRoute), rangeConflicts));
+                        assertDepsMessage(instance, rs.pick(DepsMessage.values()), rangeTxn, rangeRoute, model);
                     }
                     catch (Throwable t)
                     {

@@ -20,8 +20,10 @@ package org.apache.cassandra.service.accord;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeSet;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -44,7 +46,9 @@ import accord.primitives.LatestDeps;
 import accord.primitives.Range;
 import accord.primitives.Ranges;
 import accord.primitives.Routable;
+import accord.primitives.Routables;
 import accord.primitives.RoutingKeys;
+import accord.primitives.Seekables;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.primitives.Unseekables;
@@ -67,6 +71,8 @@ import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.RTree;
+import org.apache.cassandra.utils.RangeTree;
 import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.schema.SchemaConstants.ACCORD_KEYSPACE_NAME;
@@ -166,6 +172,17 @@ public abstract class SimulatedAccordCommandStoreTestBase extends CQLTester
         for (Range range : ranges)
             kc.put(range, list);
         return kc;
+    }
+
+    protected static void assertDepsMessage(SimulatedAccordCommandStore instance,
+                                            DepsMessage messageType,
+                                            Txn txn, FullRoute<?> route,
+                                            DepsModel model) throws ExecutionException, InterruptedException
+    {
+        TxnId id = assertDepsMessage(instance, messageType, txn, route,
+                                     model.keyConflicts(txn.keys()),
+                                     model.rangeConflicts(txn.keys()));
+        model.register(id, txn);
     }
 
     protected static TxnId assertDepsMessage(SimulatedAccordCommandStore instance,
@@ -294,7 +311,6 @@ public abstract class SimulatedAccordCommandStoreTestBase extends CQLTester
         else
         {
             List<Range> actualRanges = IntStream.range(0, deps.rangeDeps.rangeCount()).mapToObj(deps.rangeDeps::range).collect(Collectors.toList());
-//            Assertions.assertThat(deps.rangeDeps.rangeCount()).describedAs("Txn %s Expected ranges size; %s", txnId, deps.rangeDeps).isEqualTo(rangeConflicts.size());
             Assertions.assertThat(Ranges.of(actualRanges.toArray(Range[]::new)))
                       .describedAs("Txn %s had different ranges than expected", txnId)
                       .isEqualTo(Ranges.of(rangeConflicts.keySet().toArray(Range[]::new)));
@@ -379,5 +395,82 @@ public abstract class SimulatedAccordCommandStoreTestBase extends CQLTester
                     throw new UnsupportedOperationException(domain.name());
             }
         };
+    }
+
+    public static class DepsModel
+    {
+        private final Map<RoutingKey, List<TxnId>> keyConflicts = new HashMap<>();
+        private final RangeTree<RoutingKey, Range, TxnId> rangeConflicts = RTree.create(RangeTreeRangeAccessor.instance);
+        private final Ranges storeRanges;
+
+        public DepsModel(Ranges storeRanges)
+        {
+            this.storeRanges = storeRanges;
+        }
+
+        public Map<RoutingKey, List<TxnId>> keyConflicts(Seekables<?, ?> keysOrRanges)
+        {
+            keysOrRanges = keysOrRanges.slice(storeRanges, Routables.Slice.Minimal);
+            switch (keysOrRanges.domain())
+            {
+                case Key:
+                {
+                    Keys keys = (Keys) keysOrRanges;
+                    Map<RoutingKey, List<TxnId>> expectedConflicts = new HashMap<>();
+                    keys.forEach(k -> expectedConflicts.put(k.toUnseekable(), keyConflicts.getOrDefault(k.toUnseekable(), Collections.emptyList())));
+                    return expectedConflicts;
+                }
+                case Range:
+                {
+                    Ranges ranges = (Ranges) keysOrRanges;
+                    return keyConflicts.entrySet().stream()
+                                       .filter(e -> ranges.contains(e.getKey()))
+                                       .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                }
+
+                default:
+                    throw new UnsupportedOperationException();
+            }
+        }
+
+        public Map<Range, List<TxnId>> rangeConflicts(Seekables<?, ?> keysOrRanges)
+        {
+            // there is a patch pending to add range support for keys... that isn't here yet so not handled
+            if (keysOrRanges.domain() != Routable.Domain.Range)
+                return Collections.emptyMap();
+            keysOrRanges = keysOrRanges.slice(storeRanges, Routables.Slice.Minimal);
+
+            Ranges ranges = (Ranges) keysOrRanges;
+            Map<Range, List<TxnId>> conflicts = new HashMap<>();
+            ranges.forEach(r -> rangeConflicts.search(r, e -> {
+                for (Range range : Ranges.single(e.getKey()).slice(ranges, Routables.Slice.Minimal))
+                    conflicts.computeIfAbsent(range, ignore -> new ArrayList<>()).add(e.getValue());
+            }));
+            // need to dedup/sort txns
+            conflicts.values().forEach(l -> {
+                var sortedDedup = new ArrayList<>(new TreeSet<>(l));
+                l.clear();
+                l.addAll(sortedDedup);
+            });
+            return conflicts;
+        }
+
+        public void register(TxnId txnId, Txn txn)
+        {
+            for (var s : txn.keys())
+            {
+                switch (s.domain())
+                {
+                    case Key:
+                        keyConflicts.computeIfAbsent(s.asKey().toUnseekable(), i -> new ArrayList<>()).add(txnId);
+                        break;
+                    case Range:
+                        rangeConflicts.add(s.asRange(), txnId);
+                        break;
+                    default:
+                        throw new UnsupportedOperationException();
+                }
+            }
+        }
     }
 }

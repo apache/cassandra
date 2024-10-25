@@ -19,11 +19,8 @@
 package org.apache.cassandra.service.accord;
 
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
@@ -40,12 +37,9 @@ import accord.primitives.Range;
 import accord.primitives.Ranges;
 import accord.primitives.Routable.Domain;
 import accord.primitives.Txn;
-import accord.primitives.TxnId;
 import accord.utils.Gen;
 import accord.utils.Gens;
 import org.apache.cassandra.service.accord.api.PartitionKey;
-import org.apache.cassandra.utils.RTree;
-import org.apache.cassandra.utils.RangeTree;
 
 import static accord.utils.Property.qt;
 import static org.apache.cassandra.dht.Murmur3Partitioner.LongToken.keyForToken;
@@ -73,11 +67,11 @@ public class SimulatedMultiKeyAndRangeTest extends SimulatedAccordCommandStoreTe
                 Gen.LongGen tokenGen = tokenDistribution.next(rs);
                 Gen<Domain> domainGen = domainDistribution.next(rs);
                 Gen<DepsMessage> msgGen = msgDistribution.next(rs);
-                Map<RoutingKey, List<TxnId>> keyConflicts = new HashMap<>();
-                RangeTree<RoutingKey, Range, TxnId> rangeConflicts = RTree.create(RangeTreeRangeAccessor.instance);
 
                 Gen.IntGen keyCountGen = keyDistribution.next(rs);
                 Gen.IntGen rangeCountGen = rangeDistribution.next(rs);
+
+                DepsModel model = new DepsModel(instance.store.unsafeRangesForEpoch().currentRanges());
 
                 for (int i = 0; i < numSamples; i++)
                 {
@@ -99,11 +93,7 @@ public class SimulatedMultiKeyAndRangeTest extends SimulatedAccordCommandStoreTe
                             Txn txn = createTxn(wrapInTxn(inserts), binds);
                             FullRoute<RoutingKey> route = keys.toRoute(keys.get(0).toUnseekable());
 
-                            Map<RoutingKey, List<TxnId>> expectedConflicts = new HashMap<>();
-                            route.forEach(k -> expectedConflicts.put(k, keyConflicts.computeIfAbsent(k, ignore -> new ArrayList<>())));
-
-                            TxnId id = assertDepsMessage(instance, msgGen.next(rs), txn, route, expectedConflicts, Collections.emptyMap());
-                            route.forEach(k -> keyConflicts.get(k).add(id));
+                            assertDepsMessage(instance, msgGen.next(rs), txn, route, model);
                         }
                         break;
                         case Range:
@@ -133,21 +123,7 @@ public class SimulatedMultiKeyAndRangeTest extends SimulatedAccordCommandStoreTe
                             FullRangeRoute route = ranges.toRoute(ranges.get(0).end());
                             Txn txn = createTxn(Txn.Kind.ExclusiveSyncPoint, ranges);
 
-                            Map<RoutingKey, List<TxnId>> expectedKeyConflicts = keyConflicts.entrySet().stream()
-                                                                                     .filter(e -> ranges.contains(e.getKey()))
-                                                                                     .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-                            Map<Range, List<TxnId>> expectedRangeConflicts = new HashMap<>();
-                            ranges.forEach(r ->
-                                           rangeConflicts.search(r, e ->
-                                                                    expectedRangeConflicts.computeIfAbsent(e.getKey(), ignore -> new ArrayList<>()).add(e.getValue())));
-                            // need to dedup/sort txns
-                            expectedRangeConflicts.values().forEach(l -> {
-                                var sortedDedup = new ArrayList<>(new TreeSet<>(l));
-                                l.clear();
-                                l.addAll(sortedDedup);
-                            });
-                            TxnId id = assertDepsMessage(instance, msgGen.next(rs), txn, route, expectedKeyConflicts, expectedRangeConflicts);
-                            ranges.forEach(r -> rangeConflicts.add(r, id));
+                            assertDepsMessage(instance, msgGen.next(rs), txn, route, model);
                         }
                         break;
                         default:
