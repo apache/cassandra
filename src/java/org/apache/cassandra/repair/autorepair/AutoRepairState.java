@@ -290,7 +290,7 @@ class PreviewRepairedState extends AutoRepairState
 {
     public PreviewRepairedState()
     {
-        super(RepairType.preview);
+        super(RepairType.previewRepaired);
     }
 
     @Override
@@ -303,6 +303,16 @@ class PreviewRepairedState extends AutoRepairState
         option.getColumnFamilies().addAll(tables);
 
         return getRepairRunnable(keyspace, option);
+    }
+
+    @Override
+    public void progress(String tag, ProgressEvent event) {
+        if (event.getType() == ProgressEventType.COMPLETE)
+        {
+
+        }
+
+        super.progress(tag, event);
     }
 }
 
