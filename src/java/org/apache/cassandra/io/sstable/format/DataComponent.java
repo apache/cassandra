@@ -86,12 +86,17 @@ public class DataComponent
                     compressionParams = CompressionParams.NOOP;
                     break;
                 case fast:
-                    if (!compressor.recommendedUses().contains(ICompressor.Uses.FAST_COMPRESSION))
-                    {
-                        // The default compressor is generally fast (LZ4 with 16KiB block size)
-                        compressionParams = CompressionParams.DEFAULT;
-                        break;
+                    // The default compressor is generally Fast, but just in case we verify it.
+                    CompressionParams defaultCompressionParams = CompressionParams.defaultParams(metadata.keyspace);
+                    ICompressor maybeFastCompressor = defaultCompressionParams.getSstableCompressor();
+                    if (maybeFastCompressor.recommendedUses().contains(ICompressor.Uses.FAST_COMPRESSION)) {
+                        compressionParams = defaultCompressionParams;
                     }
+                    else
+                    {
+                        compressionParams = CompressionParams.FAST;
+                    }
+                    break;
                     // else fall through
                 case table:
                 default:

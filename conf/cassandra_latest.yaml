@@ -1149,8 +1149,43 @@ snapshot_links_per_second: 0
 # The default format is "big", the legacy SSTable format in use since Cassandra 3.0.
 # Cassandra versions 5.0 and later also support the trie-indexed "bti" format,
 # which offers better performance.
+#
+# For compression sections, they define the default compression used on tables when none is specified
+# in the CQL command. In that case, the parameters from the respective compressor configuration
+# will be taken into consideration.
+#
+# The standard parameters are any required or optional parameter for the instantiation of the
+# specified class, or one of the following standard parameters:
+# Parameter             Usage
+# enabled               Disables compression if set to false. Defaults to true.
+# chunk_length_in_kb    The length of the compresson chunks, defaults to 16.
+# min_compress_ratio    The minimal acceptable compression, must greater than or equal to 1.0.
+# max_compressed_length The maximum size for a compressed block. Must be less than or equal to chunk_length.
+#                       Must include KiB, MiB or GiB suffix. Defaults to Integer.MAX_VALUE
+#
+# Only one of the min_compress_ratio and max_compressed_length options can be specified.
+# They are mathematically related in that 'chunk_length / max_compressed_length = min_compress_ratio'.
+# If neither option is specified a min_compress_ratio of 0.0 and a max_compressed_length of
+# Integer.MAX_VALUE KB is the default.
+#
+# Additional class specific parameters may be added to the parameters section. The value of the class specific
+# parameter must be a string.
+#
 sstable:
   selected_format: bti
+#  compression:
+#    configurations:
+#      lz4:
+#        class_name: org.apache.cassandra.io.compress.LZ4Compressor
+#        parameters:
+#          lz4_compressor_type: fast
+#          lz4_high_compressor_level: "9"
+#      lz4_64:
+#        inherits: lz4
+#        parameters:
+#          chunk_length_in_kb: "64"
+#      default:
+#        inherits: lz4
 
 # Granularity of the collation index of rows within a partition.
 # Applies to both BIG and BTI SSTable formats. In both formats,

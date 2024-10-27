@@ -48,6 +48,7 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.io.util.SequentialWriterOption;
 import org.apache.cassandra.schema.CompressionParams;
+import org.apache.cassandra.schema.TestCompressionParamsFactory;
 import org.apache.cassandra.utils.ChecksumType;
 
 import static org.junit.Assert.assertEquals;
@@ -126,7 +127,7 @@ public class CompressedInputStreamTest
         Descriptor desc = new Descriptor(parentDir, "ks", "cf", new SequenceBasedSSTableId(1));
         File tmp = desc.fileFor(Components.DATA);
         MetadataCollector collector = new MetadataCollector(new ClusteringComparator(BytesType.instance));
-        CompressionParams param = CompressionParams.snappy(32, minCompressRatio);
+        CompressionParams param = TestCompressionParamsFactory.snappy(32, minCompressRatio);
         Map<Long, Long> index = new HashMap<Long, Long>();
         try (CompressedSequentialWriter writer = new CompressedSequentialWriter(tmp,
                                                                                 desc.fileFor(Components.COMPRESSION_INFO),
