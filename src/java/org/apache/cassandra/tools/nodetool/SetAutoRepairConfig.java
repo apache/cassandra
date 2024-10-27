@@ -111,14 +111,14 @@ public class SetAutoRepairConfig extends NodeToolCmd
                 probe.setAutoRepairTableMaxRepairTime(repairType, paramVal);
                 break;
             case "priority_hosts":
-                hosts = validateLocalGroupHosts(paramVal);
+                hosts = retrieveHosts(paramVal);
                 if (!hosts.isEmpty())
                 {
                     probe.setRepairPriorityForHosts(repairType, hosts);
                 }
                 break;
             case "forcerepair_hosts":
-                hosts = validateLocalGroupHosts(paramVal);
+                hosts = retrieveHosts(paramVal);
                 if (!hosts.isEmpty())
                 {
                     probe.setForceRepairForHosts(repairType, hosts);
@@ -136,10 +136,10 @@ public class SetAutoRepairConfig extends NodeToolCmd
                 probe.setPrimaryTokenRangeOnly(repairType, Boolean.parseBoolean(paramVal));
                 break;
             case "parallel_repair_count":
-                probe.setParallelRepairCountInGroup(repairType, Integer.parseInt(paramVal));
+                probe.setParallelRepairCount(repairType, Integer.parseInt(paramVal));
                 break;
             case "parallel_repair_percentage":
-                probe.setParallelRepairPercentageInGroup(repairType, Integer.parseInt(paramVal));
+                probe.setParallelRepairPercentage(repairType, Integer.parseInt(paramVal));
                 break;
             case "mv_repair_enabled":
                 probe.setMVRepairEnabled(repairType, Boolean.parseBoolean(paramVal));
@@ -152,7 +152,7 @@ public class SetAutoRepairConfig extends NodeToolCmd
         }
     }
 
-    private Set<InetAddressAndPort> validateLocalGroupHosts(String paramVal)
+    private Set<InetAddressAndPort> retrieveHosts(String paramVal)
     {
         Set<InetAddressAndPort> hosts = new HashSet<>();
         for (String host : Splitter.on(',').split(paramVal))
