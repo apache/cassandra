@@ -110,7 +110,9 @@ public class GetAuditLogTest extends CQLTester
         assertThat(output).contains("included_categories \n");
         assertThat(output).contains("excluded_categories \n");
         assertThat(output).contains("included_users \n");
-        assertThat(output).endsWith("excluded_users");
+        assertThat(output).contains("excluded_users");
+        assertThat(output).contains("key_value_separator :");
+        assertThat(output).endsWith("field_separator |");
     }
 
     @SuppressWarnings("DynamicRegexReplaceableByCompiledPattern")
@@ -129,7 +131,9 @@ public class GetAuditLogTest extends CQLTester
         assertThat(output).contains("included_categories \n");
         assertThat(output).contains("excluded_categories DDL,DCL");
         assertThat(output).contains("included_users \n");
-        assertThat(output).endsWith("excluded_users");
+        assertThat(output).contains("excluded_users");
+        assertThat(output).contains("key_value_separator :");
+        assertThat(output).endsWith("field_separator |");
     }
 
     @SuppressWarnings("DynamicRegexReplaceableByCompiledPattern")
@@ -148,6 +152,8 @@ public class GetAuditLogTest extends CQLTester
         assertThat(output).contains("included_categories \n");
         assertThat(output).contains("excluded_categories \n");
         assertThat(output).contains("included_users \n");
-        assertThat(output).endsWith("excluded_users");
+        assertThat(output).contains("excluded_users");
+        assertThat(output).contains("key_value_separator :");
+        assertThat(output).endsWith("field_separator |");
     }
 }

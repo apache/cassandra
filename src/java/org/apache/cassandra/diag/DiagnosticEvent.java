@@ -20,6 +20,8 @@ package org.apache.cassandra.diag;
 import java.io.Serializable;
 import java.util.Map;
 
+import org.apache.cassandra.log.ILogger;
+
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 /**
@@ -49,4 +51,20 @@ public abstract class DiagnosticEvent
      * class versioning conflicts.
      */
     public abstract Map<String, Serializable> toMap();
+
+    public String getLogString()
+    {
+        return getLogString(ILogger.DEFAULT_KEY_VALUE_SEPARATOR, ILogger.DEFAULT_FIELD_SEPARATOR);
+    }
+
+    public String getLogString(String keyValueSeparator, String fieldSeparator)
+    {
+        return new StringBuilder(100)
+               .append("event").append(keyValueSeparator).append(this.getClass().getSimpleName())
+               .append(fieldSeparator).append("type").append(keyValueSeparator).append(getType())
+               .append(fieldSeparator).append("thread").append(keyValueSeparator).append(threadName)
+               .append(fieldSeparator).append("timestamp").append(keyValueSeparator).append(timestamp)
+               .append(fieldSeparator).append("content").append(keyValueSeparator).append(toMap())
+               .toString();
+    }
 }

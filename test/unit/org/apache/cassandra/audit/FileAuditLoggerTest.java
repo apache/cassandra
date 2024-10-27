@@ -22,8 +22,8 @@ import java.util.Map;
 
 import org.junit.Test;
 
-import static org.apache.cassandra.audit.AuditLogEntry.DEFAULT_FIELD_SEPARATOR;
-import static org.apache.cassandra.audit.AuditLogEntry.DEFAULT_KEY_VALUE_SEPARATOR;
+import static org.apache.cassandra.log.ILogger.DEFAULT_FIELD_SEPARATOR;
+import static org.apache.cassandra.log.ILogger.DEFAULT_KEY_VALUE_SEPARATOR;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;

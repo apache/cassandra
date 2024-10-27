@@ -40,7 +40,7 @@ import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
  * containing a list of event types and greatest event IDs. Consumers may use this information to
  * query or poll events based on this data.
  */
-final class LastEventIdBroadcaster extends NotificationBroadcasterSupport implements LastEventIdBroadcasterMBean
+public final class LastEventIdBroadcaster extends NotificationBroadcasterSupport implements LastEventIdBroadcasterMBean
 {
 
     private final static LastEventIdBroadcaster instance = new LastEventIdBroadcaster();

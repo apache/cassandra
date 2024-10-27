@@ -16,10 +16,34 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.audit;
+package org.apache.cassandra.log;
 
-import org.apache.cassandra.log.ILogger;
-
-public interface IAuditLogger extends ILogger<AuditLogEntry>
+public interface ILogger<T>
 {
+    String DEFAULT_KEY_VALUE_SEPARATOR = ":";
+    String DEFAULT_FIELD_SEPARATOR = "|";
+
+    boolean isEnabled();
+
+    /**
+     * Logs a log entry. This method might be called after {@link #stop()},
+     * hence implementations need to handle the race condition.
+     */
+    void log(T logEntry);
+
+    /**
+     * Stop and cleanup any resources of ILogger implementations. Please note that
+     * {@link #log(T)} might be called after being stopped.
+     */
+    void stop();
+
+    default String getKeyValueSeparator()
+    {
+        return DEFAULT_KEY_VALUE_SEPARATOR;
+    }
+
+    default String getFieldSeparator()
+    {
+        return DEFAULT_FIELD_SEPARATOR;
+    }
 }

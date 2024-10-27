@@ -49,4 +49,9 @@ public interface DiagnosticEventStore<T extends Comparable<T>>
      * Returns the greatest event ID that can be used to fetch events via {@link #scan(Comparable, int)}.
      */
     T getLastEventId();
+
+    /**
+     * Clears the store.
+     */
+    void reset();
 }
