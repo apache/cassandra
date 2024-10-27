@@ -170,7 +170,6 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
         {
             if (input.charAt(i) != ':' || (i > 0 && input.charAt(i-1) == '\\'))
                 continue;
-
             res.add(input.substring(prev, i));
             prev = i + 1;
         }
