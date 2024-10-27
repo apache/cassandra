@@ -73,8 +73,8 @@ public class AutoRepairServiceSetterTest<T> extends CQLTester {
                 forEachRepairType(400, AutoRepairService.instance::setRepairSSTableCountHigherThreshold, config::getRepairSSTableCountHigherThreshold),
                 forEachRepairType(ImmutableSet.of("dc1", "dc2"), AutoRepairService.instance::setIgnoreDCs, config::getIgnoreDCs),
                 forEachRepairType(true, AutoRepairService.instance::setPrimaryTokenRangeOnly, config::getRepairPrimaryTokenRangeOnly),
-                forEachRepairType(600, AutoRepairService.instance::setParallelRepairPercentageInGroup, config::getParallelRepairPercentage),
-                forEachRepairType(700, AutoRepairService.instance::setParallelRepairCountInGroup, config::getParallelRepairCount),
+                forEachRepairType(600, AutoRepairService.instance::setParallelRepairPercentage, config::getParallelRepairPercentage),
+                forEachRepairType(700, AutoRepairService.instance::setParallelRepairCount, config::getParallelRepairCount),
                 forEachRepairType(true, AutoRepairService.instance::setMVRepairEnabled, config::getMVRepairEnabled),
                 forEachRepairType(ImmutableSet.of(InetAddressAndPort.getLocalHost()), AutoRepairService.instance::setRepairPriorityForHosts, AutoRepairUtils::getPriorityHosts),
                 forEachRepairType(ImmutableSet.of(InetAddressAndPort.getLocalHost()), AutoRepairService.instance::setForceRepairForHosts, AutoRepairServiceSetterTest::isLocalHostForceRepair)
