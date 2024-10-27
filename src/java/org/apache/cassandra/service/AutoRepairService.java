@@ -162,15 +162,15 @@ public class AutoRepairService implements AutoRepairServiceMBean
     }
 
     @Override
-    public void setParallelRepairPercentageInGroup(RepairType repairType, int percentageInGroup)
+    public void setParallelRepairPercentage(RepairType repairType, int percentage)
     {
-        config.setParallelRepairPercentage(repairType, percentageInGroup);
+        config.setParallelRepairPercentage(repairType, percentage);
     }
 
     @Override
-    public void setParallelRepairCountInGroup(RepairType repairType, int countInGroup)
+    public void setParallelRepairCount(RepairType repairType, int count)
     {
-        config.setParallelRepairCount(repairType, countInGroup);
+        config.setParallelRepairCount(repairType, count);
     }
 
     public void setMVRepairEnabled(RepairType repairType, boolean enabled)

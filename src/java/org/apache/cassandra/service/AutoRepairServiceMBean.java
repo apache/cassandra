@@ -56,9 +56,9 @@ public interface AutoRepairServiceMBean
 
     public void setPrimaryTokenRangeOnly(RepairType repairType, boolean primaryTokenRangeOnly);
 
-    public void setParallelRepairPercentageInGroup(RepairType repairType, int percentageInGroup);
+    public void setParallelRepairPercentage(RepairType repairType, int percentage);
 
-    public void setParallelRepairCountInGroup(RepairType repairType, int countInGroup);
+    public void setParallelRepairCount(RepairType repairType, int count);
 
     public void setMVRepairEnabled(RepairType repairType, boolean enabled);
 

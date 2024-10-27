@@ -259,8 +259,8 @@ public class SetAutoRepairConfigTest
             forEachRepairType("sstable_upper_threshold", "4", (type) -> verify(probe, times(1)).setRepairSSTableCountHigherThreshold(type, 4)),
             forEachRepairType("table_max_repair_time", "5s", (type) -> verify(probe, times(1)).setAutoRepairTableMaxRepairTime(type, "5s")),
             forEachRepairType("repair_primary_token_range_only", "true", (type) -> verify(probe, times(1)).setPrimaryTokenRangeOnly(type, true)),
-            forEachRepairType("parallel_repair_count", "6", (type) -> verify(probe, times(1)).setParallelRepairCountInGroup(type, 6)),
-            forEachRepairType("parallel_repair_percentage", "7", (type) -> verify(probe, times(1)).setParallelRepairPercentageInGroup(type, 7)),
+            forEachRepairType("parallel_repair_count", "6", (type) -> verify(probe, times(1)).setParallelRepairCount(type, 6)),
+            forEachRepairType("parallel_repair_percentage", "7", (type) -> verify(probe, times(1)).setParallelRepairPercentage(type, 7)),
             forEachRepairType("mv_repair_enabled", "true", (type) -> verify(probe, times(1)).setMVRepairEnabled(type, true)),
             forEachRepairType("ignore_dcs", "dc1,dc2", (type) -> verify(probe, times(1)).setAutoRepairIgnoreDCs(type, ImmutableSet.of("dc1", "dc2")))
             ).flatMap(Function.identity()).collect(Collectors.toList());
