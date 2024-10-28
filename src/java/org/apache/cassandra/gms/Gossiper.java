@@ -2593,12 +2593,21 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                 break;
             }
         }
+        int retryCount = 0;
         int currentSize = Gossiper.instance.getEndpointCount();
-        // only check minimum node count when bootstrap, adding this extra check to be extra safe for new node
-        if (SystemKeyspace.bootstrapInProgress() && currentSize < GOSSIP_SETTLE_MIN_NODE_COUNT)
+        // Give the bootstraping node some extra time to settle gossip if current size is not enough, the maximum number of time
+        // we check is same as the number of nodes we provided as the larger the cluster is we should give the new node more time to settle gossip
+        while (SystemKeyspace.bootstrapInProgress() && currentSize < GOSSIP_SETTLE_MIN_NODE_COUNT && retryCount < GOSSIP_SETTLE_MIN_NODE_COUNT)
         {
-            throw new IllegalStateException(String.format("Gossip settled but minimum node count in gossip did not reach requirement, required %d, got %d", GOSSIP_SETTLE_MIN_NODE_COUNT, currentSize));
+            Uninterruptibles.sleepUninterruptibly(GOSSIP_SETTLE_POLL_INTERVAL_MS, TimeUnit.MILLISECONDS);
+            currentSize = Gossiper.instance.getEndpointCount();
+            retryCount++;
+            if (retryCount == GOSSIP_SETTLE_MIN_NODE_COUNT)
+            {
+                throw new IllegalStateException(String.format("Gossip settled but minimum node count in gossip did not reach requirement, required %d, got %d", GOSSIP_SETTLE_MIN_NODE_COUNT, currentSize));
+            }
         }
+
         if (totalPolls > GOSSIP_SETTLE_POLL_SUCCESSES_REQUIRED)
             logger.info("Gossip settled after {} extra polls; proceeding", totalPolls - GOSSIP_SETTLE_POLL_SUCCESSES_REQUIRED);
         else
