@@ -42,6 +42,8 @@ public interface AutoRepairServiceMBean
 
     public void setRepairMinInterval(RepairType repairType, String minRepairInterval);
 
+    void startScheduler();
+
     public void setAutoRepairHistoryClearDeleteHostsBufferDuration(String duration);
 
     public void setAutoRepairMaxRetriesCount(int retries);
