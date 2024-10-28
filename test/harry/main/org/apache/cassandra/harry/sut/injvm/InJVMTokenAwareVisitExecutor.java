@@ -117,10 +117,32 @@ public class InJVMTokenAwareVisitExecutor extends LoggingVisitor.LoggingVisitorE
         throw new IllegalStateException(String.format("Can not execute statement %s after %d retries", statement, retries));
     }
 
+    /**
+     * Updates to the peers table is async, which can see partial state... to avoid this issue retry until the writes have become stable.
+     */
+    private static List<TokenPlacementModel.Node> retryWhenNotComplete(ICoordinator coordinator, String query)
+    {
+        TokenPlacementModel.IncompletePeersStateException last = null;
+        // 20 retries with 500ms ~10s...
+        for (int i = 0; i < 20; i++)
+        {
+            try
+            {
+                return peerStateToNodes(coordinator.execute(query, ConsistencyLevel.ONE));
+            }
+            catch (TokenPlacementModel.IncompletePeersStateException e)
+            {
+                last = e;
+                Uninterruptibles.sleepUninterruptibly(500, TimeUnit.MILLISECONDS);
+            }
+        }
+        throw last;
+    }
+
     public static TokenPlacementModel.ReplicatedRanges getRing(ICoordinator coordinator, TokenPlacementModel.ReplicationFactor rf)
     {
-        List<TokenPlacementModel.Node> other = peerStateToNodes(coordinator.execute("select peer, tokens, data_center, rack from system.peers", ConsistencyLevel.ONE));
-        List<TokenPlacementModel.Node> self = peerStateToNodes(coordinator.execute("select broadcast_address, tokens, data_center, rack from system.local", ConsistencyLevel.ONE));
+        List<TokenPlacementModel.Node> other = retryWhenNotComplete(coordinator, "select peer, tokens, data_center, rack from system.peers");
+        List<TokenPlacementModel.Node> self = retryWhenNotComplete(coordinator, "select broadcast_address, tokens, data_center, rack from system.local");
         List<TokenPlacementModel.Node> all = new ArrayList<>();
         all.addAll(self);
         all.addAll(other);

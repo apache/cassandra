@@ -305,7 +305,8 @@ public class SelectHelper
 
     public static List<ResultSetRow> execute(SystemUnderTest sut, OpSelectors.Clock clock, Query query, Set<ColumnSpec<?>> columns)
     {
-        CompiledStatement compiled = query.toSelectStatement(columns, true);
+        boolean isAccord = query.schemaSpec.isWriteTimeFromAccord();
+        CompiledStatement compiled = isAccord ? query.toWildcardSelectStatement() : query.toSelectStatement(columns, true);
         Object[][] objects = sut.executeIdempotent(compiled.cql(), SystemUnderTest.ConsistencyLevel.QUORUM, compiled.bindings());
         List<ResultSetRow> result = new ArrayList<>();
         for (Object[] obj : objects)

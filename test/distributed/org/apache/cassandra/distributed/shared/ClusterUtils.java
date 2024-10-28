@@ -34,6 +34,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
@@ -45,6 +46,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.Futures;
 import org.junit.Assert;
@@ -62,6 +64,7 @@ import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IMessageFilters;
 import org.apache.cassandra.distributed.api.NodeToolResult;
+import org.apache.cassandra.distributed.api.Row;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.impl.AbstractCluster;
 import org.apache.cassandra.distributed.impl.InstanceConfig;
@@ -79,6 +82,7 @@ import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Commit;
@@ -89,6 +93,7 @@ import org.apache.cassandra.tcm.ownership.ReplicaGroups;
 import org.apache.cassandra.utils.Isolated;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
+import org.assertj.core.api.Assertions;
 
 import static com.google.common.util.concurrent.Uninterruptibles.sleepUninterruptibly;
 import static org.apache.cassandra.config.CassandraRelevantProperties.BOOTSTRAP_SCHEMA_DELAY_MS;
@@ -176,6 +181,33 @@ public class ClusterUtils
     public static <I extends IInstance> void stopAll(ICluster<I> cluster)
     {
         cluster.stream().forEach(ClusterUtils::stopUnchecked);
+    }
+
+    /**
+     * Create a new instance and add it to the cluster, without starting it.
+     *
+     * @param cluster to add to
+     * @param fn function to add to the config before starting
+     * @param <I> instance type
+     * @return the instance added
+     */
+    public static <I extends IInstance> I addInstance(AbstractCluster<I> cluster, Consumer<IInstanceConfig> fn)
+    {
+        I inst = cluster.stream().filter(i -> !i.isShutdown()).findFirst().get();
+        return addInstance(cluster, inst.config(), fn);
+    }
+
+    /**
+     * Create a new instance and add it to the cluster, without starting it.
+     *
+     * @param cluster to add to
+     * @param <I> instance type
+     * @return the instance added
+     */
+    public static <I extends IInstance> I addInstance(AbstractCluster<I> cluster)
+    {
+        I inst = cluster.stream().filter(i -> !i.isShutdown()).findFirst().get();
+        return addInstance(cluster, inst.config(), c -> {});
     }
 
     /**
@@ -626,7 +658,7 @@ public class ClusterUtils
         waitForCMSToQuiesce(cluster, maxEpoch(cluster, cmsNodes));
     }
 
-    private static Epoch maxEpoch(ICluster<IInvokableInstance> cluster, int[] cmsNodes)
+    public static Epoch maxEpoch(ICluster<IInvokableInstance> cluster, int[] cmsNodes)
     {
         Epoch max = null;
         for (int id : cmsNodes)
@@ -644,6 +676,11 @@ public class ClusterUtils
 
     public static void waitForCMSToQuiesce(ICluster<IInvokableInstance> cluster, Epoch awaitedEpoch, int...ignored)
     {
+        waitForCMSToQuiesce(cluster, awaitedEpoch, false, ignored);
+    }
+
+    public static void waitForCMSToQuiesce(ICluster<IInvokableInstance> cluster, Epoch awaitedEpoch, boolean fetchLogWhenBehind, int...ignored)
+    {
         List<ClusterMetadataVersion> notMatching = new ArrayList<>();
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
         while (System.nanoTime() < deadline)
@@ -659,9 +696,12 @@ public class ClusterUtils
                 if (skip)
                     continue;
 
-                if (cluster.get(j).isShutdown())
+                IInvokableInstance inst = cluster.get(j);
+                if (inst.isShutdown())
                     continue;
-                Epoch version = getClusterMetadataVersion(cluster.get(j));
+                Epoch version = getClusterMetadataVersion(inst);
+                if (fetchLogWhenBehind && version.getEpoch() < awaitedEpoch.getEpoch())
+                    version = fetchLogFromCMS(inst, awaitedEpoch);
                 if (version.getEpoch() < awaitedEpoch.getEpoch())
                     notMatching.add(new ClusterMetadataVersion(j, version));
             }
@@ -671,6 +711,17 @@ public class ClusterUtils
             sleepUninterruptibly(10, TimeUnit.MILLISECONDS);
         }
         throw new AssertionError(String.format("Some instances have not reached schema agreement with the leader. Awaited %s; diverging nodes: %s. ", awaitedEpoch, notMatching));
+    }
+
+    public static Epoch fetchLogFromCMS(IInvokableInstance inst, Epoch awaitedEpoch)
+    {
+        return fetchLogFromCMS(inst, awaitedEpoch.getEpoch());
+    }
+
+    public static Epoch fetchLogFromCMS(IInvokableInstance inst, long awaitedEpoch)
+    {
+        long latest = inst.callOnInstance(() -> ClusterMetadataService.instance().fetchLogFromCMS(Epoch.create(awaitedEpoch)).epoch.getEpoch());
+        return Epoch.create(latest);
     }
 
     public static Epoch getCurrentEpoch(IInvokableInstance inst)
@@ -859,7 +910,19 @@ public class ClusterUtils
             }
             sleepUninterruptibly(1, TimeUnit.SECONDS);
         }
-        throw new AssertionError(errorMessage + "\n" + ring);
+        throw new AssertionError(errorMessage + "\nsrc=" + src + "\nring=" + ring);
+    }
+
+    /**
+     * Wait for the target to be in the ring as seen by the source instances
+     * @param cluster to check on
+     * @param nodes in the cluster to check
+     * @param expectedInRing instance to wait for
+     */
+    public static void awaitRingJoin(Cluster cluster, int[] nodes, IInvokableInstance expectedInRing)
+    {
+        for (IInvokableInstance inst : cluster.get(nodes))
+            awaitRingJoin(inst, expectedInRing);
     }
 
     /**
@@ -1509,6 +1572,68 @@ public class ClusterUtils
     {
         String str = cluster.getFirstRunningInstance().callOnInstance(() -> Schema.instance.getKeyspaceInstance(ks).getColumnFamilyStore(table).getTableId().toString());
         return TableId.fromUUID(UUID.fromString(str));
+    }
+
+    public static void awaitInPeers(Cluster cluster, int[] nodes, IInstance expectedInPeers)
+    {
+        for (IInvokableInstance inst : cluster.get(nodes))
+        {
+            if (inst.config().num() == expectedInPeers.config().num()) continue; // ignore self as self is not in peers
+            awaitInPeers(inst, expectedInPeers);
+        }
+    }
+
+    public static void awaitInPeers(IInstance instance, IInstance expectedInPeers)
+    {
+        for (int i = 0; i < 100; i++)
+        {
+            if (isInPeers(instance, expectedInPeers))
+                return;
+            sleepUninterruptibly(1, TimeUnit.SECONDS);
+        }
+        throw new AssertionError("Unable to find " + expectedInPeers.config().broadcastAddress() + " in peers");
+    }
+
+    public static boolean isInPeers(IInstance instance, IInstance expectedInPeers)
+    {
+        SimpleQueryResult qr = instance.executeInternalWithResult("select tokens, data_center, rack from system.peers WHERE peer=?", expectedInPeers.config().broadcastAddress().getAddress());
+        if (!qr.hasNext()) return false;
+        Row row = qr.next();
+        // peer is known, but is it fully defined?
+        Collection<String> tokens = row.get("tokens");
+        String dc = row.getString("data_center");
+        String rack = row.getString("rack");
+        return tokens != null && !tokens.isEmpty() && !Strings.isNullOrEmpty(dc) && !Strings.isNullOrEmpty(rack);
+    }
+
+    public static StorageService.Mode mode(IInvokableInstance inst)
+    {
+        String name = inst.callOnInstance(() -> StorageService.instance.operationMode().name());
+        return StorageService.Mode.valueOf(name);
+    }
+
+    public static void assertModeJoined(IInvokableInstance inst)
+    {
+        Assertions.assertThat(mode(inst))
+                  .describedAs("Unexpected StorageService operation mode")
+                  .isEqualTo(StorageService.Mode.NORMAL);
+    }
+
+    public static void awaitAccordEpochReady(Cluster cluster, long epoch)
+    {
+        cluster.forEach(i -> {
+            if (i.isShutdown()) return;
+            i.runOnInstance(() -> {
+                try
+                {
+                    AccordService.instance().epochReady(Epoch.create(epoch)).get();
+                }
+                catch (InterruptedException | ExecutionException e)
+                {
+                    throw new RuntimeException(e);
+                }
+            });
+        });
     }
 }
 

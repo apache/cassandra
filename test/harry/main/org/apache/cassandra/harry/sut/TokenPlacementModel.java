@@ -221,10 +221,10 @@ public class TokenPlacementModel
         List<Node> nodes = new ArrayList<>();
         for (Object[] row : resultset)
         {
-            InetAddress address = (InetAddress) row[0];
-            Set<String> tokens = (Set<String>) row[1];
-            String dc = (String) row[2];
-            String rack = (String) row[3];
+            InetAddress address = get(row, 0, "address");
+            Set<String> tokens = get(row, 1, "tokens");
+            String dc = get(row, 2, "dc");
+            String rack = get(row, 3, "rack");
             for (String token : tokens)
             {
                 nodes.add(new Node(0, 0, 0, 0,
@@ -235,6 +235,25 @@ public class TokenPlacementModel
             }
         }
         return nodes;
+    }
+
+    private static <T> T get(Object[] row, int idx, String name)
+    {
+        T t = (T) row[idx];
+        if (t == null || ((t instanceof Collection<?>) && ((Collection<?>) t).isEmpty()))
+            throw new IncompletePeersStateException(name);
+        return t;
+    }
+
+    /**
+     * When the node sees the new epoch, the update of the peers table is async, so checking the table may yield partial results, so need some way to detect this to enable retries.
+     */
+    public static class IncompletePeersStateException extends RuntimeException
+    {
+        public IncompletePeersStateException(String column)
+        {
+            super("Found incomplete column " + column);
+        }
     }
 
     public static class NtsReplicationFactor extends ReplicationFactor

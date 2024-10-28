@@ -19,6 +19,7 @@
 package org.apache.cassandra.service.accord;
 
 import java.math.BigInteger;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -29,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BiFunction;
@@ -53,6 +55,7 @@ import accord.api.Result;
 import accord.api.RoutingKey;
 import accord.coordinate.Barrier;
 import accord.coordinate.Barrier.AsyncSyncPoint;
+import accord.coordinate.CoordinateShardDurable;
 import accord.coordinate.CoordinateSyncPoint;
 import accord.coordinate.CoordinationAdapter.Adapters.SyncPointAdapter;
 import accord.coordinate.CoordinationFailed;
@@ -159,12 +162,15 @@ import org.apache.cassandra.service.consensus.migration.TableMigrationState;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.Processor;
 import org.apache.cassandra.tcm.Retry;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
+import org.apache.cassandra.utils.Backoff;
 import org.apache.cassandra.utils.Blocking;
+import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
@@ -448,6 +454,8 @@ public class AccordService implements IAccordService, Shutdownable
         this.nodeShutdown = toShutdownable(node);
         this.requestHandler = new AccordVerbHandler<>(node, configService);
         this.responseHandler = new AccordResponseVerbHandler<>(callbacks, configService);
+
+        configService.register(this);
     }
 
     @Override
@@ -552,11 +560,7 @@ public class AccordService implements IAccordService, Shutdownable
 
     public static List<ClusterMetadata> tcmLoadRange(long min, long max)
     {
-        List<ClusterMetadata> afterLoad = ClusterMetadataService.instance()
-                                                                .processor()
-                                                                .reconstruct(Epoch.create(min), Epoch.create(max),
-                                                                             Retry.Deadline.retryIndefinitely(DatabaseDescriptor.getCmsAwaitTimeout().to(TimeUnit.NANOSECONDS),
-                                                                                                              TCMMetrics.instance.fetchLogRetries));
+        List<ClusterMetadata> afterLoad = reconstruct(min, max);
 
         if (Invariants.isParanoid())
             Invariants.checkState(afterLoad.get(0).epoch.getEpoch() == min, "Unexpected epoch: expected %d but given %d", min, afterLoad.get(0).epoch.getEpoch());
@@ -566,6 +570,46 @@ public class AccordService implements IAccordService, Shutdownable
         Invariants.checkState(afterLoad.get(0).epoch.getEpoch() == min, "Unexpected epoch: expected %d but given %d", min, afterLoad.get(0).epoch.getEpoch());
         Invariants.checkState(max == Long.MAX_VALUE || afterLoad.get(afterLoad.size() - 1).epoch.getEpoch() == max, "Unexpected epoch: expected %d but given %d", max, afterLoad.get(afterLoad.size() - 1).epoch.getEpoch());
         return afterLoad;
+    }
+
+    /**
+     * This method exists due to the fact that we define a retry policy for TCM to follow, and then TCM ignores it and does no retries...
+     */
+    private static List<ClusterMetadata> reconstruct(long min, long max)
+    {
+        Epoch start = Epoch.create(min);
+        Epoch end = Epoch.create(max);
+        Retry.Deadline retryPolicyThatGetsIgnored = Retry.Deadline.retryIndefinitely(DatabaseDescriptor.getCmsAwaitTimeout().to(NANOSECONDS),
+                                                                      TCMMetrics.instance.fetchLogRetries);
+        Throwable lastError = null;
+        Backoff backoff = new Backoff.ExponentialBackoff(42, 200, SECONDS.toMillis(1), ThreadLocalRandom.current()::nextDouble);
+        long startNanos = Clock.Global.nanoTime();
+        for (int i = 0; backoff.mayRetry(i); i++)
+        {
+            try
+            {
+                Processor processor = ClusterMetadataService.instance().processor();
+                // When starting up paxos based processor has shown to be flakey (this node is still starting up), so attempt to leverage the remote process to overload this work
+                if (processor instanceof ClusterMetadataService.SwitchableProcessor)
+                    processor = ((ClusterMetadataService.SwitchableProcessor) processor).remoteProcessor();
+                return processor.reconstruct(start, end, retryPolicyThatGetsIgnored);
+            }
+            catch (Throwable t)
+            {
+                lastError = t;
+                logger.warn("Unable to fetch cluster metadata for ranges {}, {}, checking if possible to retry again: error was {}", min, max, t.toString()); // not looking for a stack trace, but good to know type/msg
+                try
+                {
+                    backoff.unit().sleep(backoff.computeWaitTime(i));
+                }
+                catch (InterruptedException e)
+                {
+                    Thread.currentThread().interrupt();
+                    throw new UncheckedInterruptedException(e);
+                }
+            }
+        }
+        throw new AssertionError(String.format("Unable to fetch ClusterMetadata for ranges %d, %d within %s", min, max, Duration.ofNanos(Clock.Global.nanoTime() - startNanos)), lastError);
     }
 
     @VisibleForTesting
@@ -1213,7 +1257,19 @@ public class AccordService implements IAccordService, Shutdownable
     @Override
     public Long minEpoch(Collection<TokenRange> ranges)
     {
-        return node.topology().minEpoch();
+        // When Accord is enabled all epochs are tracked, even when no tables have accord enabled, this causes the min
+        // epoch to include epochs that do not matter for startup, yet startup needs to ask TCM for them.  To lower the
+        // startup cost, filter out the earlier epochs that are empty so the min epoch returned is the first with ranges
+        TopologyManager tm = node.topology();
+        long maxEpoch = tm.current().epoch();
+        long minEpoch = tm.minEpoch();
+        while (tm.globalForEpoch(minEpoch).isEmpty())
+        {
+            minEpoch++;
+            if (minEpoch > maxEpoch)
+                return null;
+        }
+        return minEpoch;
     }
 
     @Override
@@ -1222,15 +1278,36 @@ public class AccordService implements IAccordService, Shutdownable
         if (node.commandStores().count() == 0) return; // when starting up stores can be empty, so ignore
         Ranges ranges = topology.rangesForNode(target);
         if (ranges.isEmpty()) return;
-        tryMarkRemoved(ranges, 0).begin(node().agent());
+        long startNanos = Clock.Global.nanoTime();
+        exclusiveSyncPointWithRetries(ranges, 0)
+        .flatMap(sp -> shardDurabilityWithRetries(sp, 0))
+        .begin((s, f) -> {
+            if (f != null)
+            {
+                logger.warn("Unable to mark the ranges for {} as durable after node left; took {}", target, Duration.ofNanos(Clock.Global.nanoTime() - startNanos), f);
+                node.agent().onUncaughtException(f);
+            }
+            else
+            {
+                logger.info("Marked {} ranges as durable after node left; took {}", target, Duration.ofNanos(Clock.Global.nanoTime() - startNanos));
+            }
+        });
     }
 
-    private AsyncChain<SyncPoint<accord.primitives.Range>> tryMarkRemoved(Ranges ranges, int attempt)
+    private AsyncChain<SyncPoint<accord.primitives.Range>> shardDurabilityWithRetries(SyncPoint<accord.primitives.Range> sp, int attempt)
+    {
+        return CoordinateShardDurable.coordinate(node, sp)
+               .recover(t ->
+                        //TODO (operability): make this configurable / monitorable?
+                       attempt <= 3 && t instanceof Invalidated || t instanceof Preempted || t instanceof Timeout ? shardDurabilityWithRetries(sp, attempt + 1) : null);
+    }
+
+    private AsyncChain<SyncPoint<accord.primitives.Range>> exclusiveSyncPointWithRetries(Ranges ranges, int attempt)
     {
         return CoordinateSyncPoint.exclusiveSyncPoint(node, ranges)
                                   .recover(t ->
                                            //TODO (operability): make this configurable / monitorable?
-                                           attempt <= 3 && t instanceof Invalidated || t instanceof Preempted || t instanceof Timeout ? tryMarkRemoved(ranges, attempt + 1) : null);
+                                           attempt <= 3 && t instanceof Invalidated || t instanceof Preempted || t instanceof Timeout ? exclusiveSyncPointWithRetries(ranges, attempt + 1) : null);
     }
 
     public Node node()

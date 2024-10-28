@@ -33,6 +33,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import com.google.common.base.Throwables;
 import com.google.common.collect.Iterators;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -45,18 +46,24 @@ import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IMessage;
 import org.apache.cassandra.distributed.api.IMessageFilters;
+import org.apache.cassandra.exceptions.RequestTimeoutException;
 import org.apache.cassandra.harry.core.Configuration;
 import org.apache.cassandra.harry.sut.SystemUnderTest;
+import org.apache.cassandra.utils.AssertionUtils;
+import org.assertj.core.api.Condition;
 
 public class InJvmSutBase<NODE extends IInstance, CLUSTER extends ICluster<NODE>> implements SystemUnderTest.FaultInjectingSut
 {
     private static final Logger logger = LoggerFactory.getLogger(InJvmSutBase.class);
+
+    protected static final Condition<Object> TIMEOUT_CHECKER = AssertionUtils.isInstanceof(RequestTimeoutException.class);
 
     private final ExecutorService executor;
     public final CLUSTER cluster;
     private final AtomicBoolean isShutdown = new AtomicBoolean(false);
     private final Supplier<Integer> loadBalancingStrategy;
     private final Function<Throwable, Boolean> retryStrategy;
+    private final int maxRetries;
 
     public InJvmSutBase(CLUSTER cluster)
     {
@@ -65,10 +72,16 @@ public class InJvmSutBase<NODE extends IInstance, CLUSTER extends ICluster<NODE>
 
     public InJvmSutBase(CLUSTER cluster, Supplier<Integer> loadBalancingStrategy, Function<Throwable, Boolean> retryStrategy, int threads)
     {
+        this(cluster, loadBalancingStrategy, retryStrategy, threads, Integer.MAX_VALUE);
+    }
+
+    public InJvmSutBase(CLUSTER cluster, Supplier<Integer> loadBalancingStrategy, Function<Throwable, Boolean> retryStrategy, int threads, int maxRetries)
+    {
         this.cluster = cluster;
         this.executor = Executors.newFixedThreadPool(threads);
         this.loadBalancingStrategy = loadBalancingStrategy;
         this.retryStrategy = retryStrategy;
+        this.maxRetries = maxRetries;
     }
 
     public static Supplier<Integer> roundRobin(ICluster<?> cluster)
@@ -96,7 +109,7 @@ public class InJvmSutBase<NODE extends IInstance, CLUSTER extends ICluster<NODE>
         {
             public Boolean apply(Throwable t)
             {
-                return t.getMessage().contains("timed out");
+                return t.getMessage().contains("timed out") || TIMEOUT_CHECKER.matches(Throwables.getRootCause(t));
             }
         };
     }
@@ -155,6 +168,7 @@ public class InJvmSutBase<NODE extends IInstance, CLUSTER extends ICluster<NODE>
         if (isShutdown.get())
             throw new RuntimeException("Instance is shut down");
 
+        int attempt = 0;
         while (true)
         {
             try
@@ -182,15 +196,19 @@ public class InJvmSutBase<NODE extends IInstance, CLUSTER extends ICluster<NODE>
             }
             catch (Throwable t)
             {
-                if (retryStrategy.apply(t))
+                onException(t);
+                if (attempt < maxRetries && retryStrategy.apply(t))
                     continue;
-
-                logger.error(String.format("Caught error while trying execute statement %s (%s): %s",
-                                           statement, Arrays.toString(bindings), t.getMessage()),
-                             t);
+                attempt++;
+                logger.error("Caught error while trying execute statement {} ({})", statement, Arrays.toString(bindings), t);
                 throw t;
             }
         }
+    }
+
+    protected void onException(Throwable t)
+    {
+
     }
 
     // TODO: Ideally, we need to be able to induce a failure of a single specific message

@@ -191,7 +191,7 @@ public class QuiescentChecker implements Model
                                               descriptorsToString(actualRowState.vds), actualRowState,
                                               query.toSelectStatement());
 
-            if (!ltsEqual(expectedRowState.lts, actualRowState.lts))
+            if (!schema.isWriteTimeFromAccord() && !ltsEqual(expectedRowState.lts, actualRowState.lts))
                 throw new ValidationException(trackerState,
                                               partitionState.toString(schema),
                                               toString(actualRows),

@@ -22,8 +22,8 @@ import java.nio.ByteBuffer;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
@@ -56,10 +56,8 @@ import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.test.accord.AccordTestBase;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.api.AccordAgent;
 import org.apache.cassandra.service.consensus.TransactionalMode;
-import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.ASTGenerators;
 import org.apache.cassandra.utils.CassandraGenerators;
 import org.apache.cassandra.utils.Isolated;
@@ -203,15 +201,15 @@ public class AccordTopologyMixupTest extends TopologyMixupTestBase<AccordTopolog
         }
     }
 
-    private static class AccordState extends State<Spec> implements SharedState.Listener
+    private static class AccordState extends State<Spec>
     {
-        private final List<Runnable> onError = new CopyOnWriteArrayList<>();
+        private final ListenerHolder listener;
 
         public AccordState(RandomSource rs)
         {
             super(rs, AccordTopologyMixupTest::createSchemaSpec, AccordTopologyMixupTest::cqlOperations);
 
-            SharedState.listeners.add(this);
+            this.listener = new ListenerHolder(this);
         }
 
         @Override
@@ -224,41 +222,42 @@ public class AccordTopologyMixupTest extends TopologyMixupTestBase<AccordTopolog
         @Override
         protected void onStartupComplete(long tcmEpoch)
         {
-            cluster.forEach(i -> {
-              if (i.isShutdown()) return;
-              i.runOnInstance(() -> {
-                  try
-                  {
-                      AccordService.instance().epochReady(Epoch.create(tcmEpoch)).get();
-                  }
-                  catch (InterruptedException | ExecutionException e)
-                  {
-                      throw new RuntimeException(e);
-                  }
-              });
-            });
-        }
-
-        @Override
-        public void debugTxn(@Nullable Node.Id exclude, String type, TxnId txnId)
-        {
-            onError.add(new Runnable()
-            {
-                @Override
-                public void run()
-                {
-                    // this runs in the main thread, so is actually thread safe
-                    int[] up = topologyHistory.up();
-                    logger.error("{} failed with txn id {}; global debug summary:\n{}", type, txnId, ClusterUtils.queryTxnStateAsString(cluster, txnId, up));
-                    onError.remove(this);
-                }
-            });
+            ClusterUtils.awaitAccordEpochReady(cluster, tcmEpoch);
         }
 
         @Override
         public void close() throws Exception
         {
-            for (Runnable r : onError)
+            listener.close();
+            super.close();
+        }
+    }
+
+    public static class ListenerHolder implements AccordTopologyMixupTest.SharedState.Listener, AutoCloseable
+    {
+        private final Map<TxnId, Runnable> debug = new ConcurrentHashMap<>();
+        private final State<?> state;
+
+        public ListenerHolder(State<?> state)
+        {
+            this.state = state;
+            AccordTopologyMixupTest.SharedState.listeners.add(this);
+        }
+
+        @Override
+        public void debugTxn(Node.Id node, String type, TxnId txnId)
+        {
+            debug.putIfAbsent(txnId, () -> {
+                // this runs in the main thread, so is actually thread safe
+                int[] up = state.topologyHistory.up();
+                logger.error("{} failed with txn id {}; global debug summary:\n{}", type, txnId, ClusterUtils.queryTxnStateAsString(state.cluster, txnId, up));
+                debug.remove(txnId);
+            });
+        }
+
+        public void runTasks()
+        {
+            for (Runnable r : debug.values())
             {
                 try
                 {
@@ -270,9 +269,14 @@ public class AccordTopologyMixupTest extends TopologyMixupTestBase<AccordTopolog
                     logger.error("Unhandled error in onError listeners", t);
                 }
             }
-            onError.clear();
-            SharedState.listeners.remove(this);
-            super.close();
+        }
+
+        @Override
+        public void close()
+        {
+            runTasks();
+            AccordTopologyMixupTest.SharedState.listeners.remove(this);
+            debug.clear();
         }
     }
 

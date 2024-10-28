@@ -62,10 +62,12 @@ public class WriteHelper
                 b.append(", ");
             b.append("?");
         }
+        b.append(")");
+        if (!schema.isWriteTimeFromAccord())
+            b.append(" USING TIMESTAMP ")
+                    .append(timestamp);
 
-        b.append(") USING TIMESTAMP ")
-         .append(timestamp)
-         .append(";");
+        b.append(";");
 
         return new CompiledStatement(b.toString(), adjustArraySize(bindings, bindingsCount));
     }

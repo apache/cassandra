@@ -820,6 +820,11 @@ public class ClusterMetadataService
             this.cmsStateSupplier = cmsStateSupplier;
         }
 
+        public RemoteProcessor remoteProcessor()
+        {
+            return remote;
+        }
+
         @VisibleForTesting
         public Processor delegate()
         {

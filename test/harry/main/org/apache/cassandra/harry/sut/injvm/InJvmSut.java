@@ -56,6 +56,11 @@ public class InJvmSut extends InJvmSutBase<IInvokableInstance, Cluster>
         super(cluster, loadBalancingStrategy, retryStrategy, 10);
     }
 
+    public InJvmSut(Cluster cluster, Supplier<Integer> loadBalancingStrategy, Function<Throwable, Boolean> retryStrategy, int threads, int maxRetries)
+    {
+        super(cluster, loadBalancingStrategy, retryStrategy, threads, maxRetries);
+    }
+
     @JsonTypeName("in_jvm")
     public static class InJvmSutConfiguration extends InJvmSutBaseConfiguration<IInvokableInstance, Cluster>
     {

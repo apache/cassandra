@@ -36,15 +36,22 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
+import com.google.common.base.Throwables;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import org.agrona.collections.Int2ObjectHashMap;
 import org.agrona.collections.IntArrayList;
 import org.agrona.collections.IntHashSet;
+import org.apache.cassandra.distributed.Constants;
+import org.apache.cassandra.distributed.api.ICoordinator;
+import org.apache.cassandra.distributed.api.Row;
+import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.harry.sut.TokenPlacementModel.Range;
 import org.apache.cassandra.harry.sut.TokenPlacementModel.Replica;
 import org.junit.Test;
@@ -73,21 +80,19 @@ import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.harry.sut.TokenPlacementModel;
 import org.apache.cassandra.harry.sut.injvm.InJVMTokenAwareVisitExecutor;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
-import org.apache.cassandra.tcm.Retry;
-import org.apache.cassandra.tcm.log.Entry;
-import org.apache.cassandra.tcm.log.LogState;
+import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
+import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.ConfigGenBuilder;
+import org.apache.cassandra.utils.Retry;
 
 import static accord.utils.Property.commands;
 import static accord.utils.Property.ignoreCommand;
 import static accord.utils.Property.multistep;
 import static accord.utils.Property.stateful;
-import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 /**
  * These tests can create many instances, so mac users may need to run the following to avoid address bind failures
@@ -153,8 +158,50 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
 
     private Command<State<S>, Void, ?> waitForCMSToQuiesce()
     {
-        return new SimpleCommand<>(state -> "Waiting for CMS to Quiesce" + state.commandNamePostfix(),
-                                   state -> ClusterUtils.waitForCMSToQuiesce(state.cluster, state.cmsGroup));
+        return new Property.StateOnlyCommand<>()
+        {
+            private Epoch maxEpoch = null;
+            @Override
+            public String detailed(State<S> state)
+            {
+                if (maxEpoch == null)
+                    maxEpoch = ClusterUtils.maxEpoch(state.cluster, state.topologyHistory.up());
+                return "Waiting for CMS to Quiesce on epoch " + maxEpoch.getEpoch() + state.commandNamePostfix();
+            }
+
+            @Override
+            public void applyUnit(State<S> state)
+            {
+                Invariants.nonNull(maxEpoch, "detailed was not called before calling apply");
+                ClusterUtils.waitForCMSToQuiesce(state.cluster, maxEpoch, true);
+            }
+        };
+    }
+
+    private Command<State<S>, Void, ?> waitForGossipToSettle()
+    {
+        return new SimpleCommand<>(state -> "Waiting for Ring to Settle" + state.commandNamePostfix(),
+                                   state -> {
+                                       int[] up = state.topologyHistory.up();
+                                       for (int node : up)
+                                       {
+                                           IInvokableInstance instance = state.cluster.get(node);
+                                           ClusterUtils.awaitRingJoin(state.cluster, up, instance);
+                                       }
+                                   });
+    }
+
+    private Command<State<S>, Void, ?> waitAllNodesInPeers()
+    {
+        return new SimpleCommand<>(state -> "Waiting for all alive nodes to be in peers" + state.commandNamePostfix(),
+                                   state -> {
+                                       int[] up = state.topologyHistory.up();
+                                       for (int node : up)
+                                       {
+                                           IInvokableInstance instance = state.cluster.get(node);
+                                           ClusterUtils.awaitInPeers(state.cluster, up, instance);
+                                       }
+                                   });
     }
 
     private Command<State<S>, Void, ?> stopInstance(RandomSource rs, State<S> state)
@@ -198,6 +245,7 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
                                        TopologyHistory.Node n = state.topologyHistory.addNode();
                                        IInvokableInstance newInstance = ClusterUtils.addInstance(state.cluster, n.dc, n.rack, c -> c.set("auto_bootstrap", true));
                                        newInstance.startup(state.cluster);
+                                       ClusterUtils.assertModeJoined(newInstance);
                                        n.up();
                                    });
     }
@@ -297,6 +345,7 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
                              logger.info("node{} starting host replacement; epoch={}", adding.id, HackSerialization.tcmEpochAndSync(s2.cluster.getFirstRunningInstance()));
                              removing.status = TopologyHistory.Node.Status.BeingReplaced;
                              IInvokableInstance inst = ClusterUtils.replaceHostAndStart(s2.cluster, toReplace);
+                             ClusterUtils.assertModeJoined(inst);
                              s2.topologyHistory.replaced(removing, adding);
                              long epoch = HackSerialization.tcmEpoch(inst);
                              s2.currentEpoch.set(epoch);
@@ -322,7 +371,7 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
     @Test
     public void test()
     {
-        Property.StatefulBuilder statefulBuilder = stateful().withSteps(20).withStepTimeout(Duration.ofMinutes(2)).withExamples(1);
+        Property.StatefulBuilder statefulBuilder = stateful().withSteps(20).withStepTimeout(Duration.ofMinutes(3)).withExamples(1);
         preCheck(statefulBuilder);
         statefulBuilder.check(commands(this::stateGen)
                               .preCommands(state -> state.preActions.forEach(Runnable::run))
@@ -372,6 +421,13 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
         return possibleTopologyChanges;
     }
 
+    private Command<State<S>, Void, ?> awaitClusterStable()
+    {
+        return multistep(waitForCMSToQuiesce(),
+                         waitForGossipToSettle(),
+                         waitAllNodesInPeers());
+    }
+
     private Gen<Command<State<S>, Void, ?>> topologyCommand(State<S> state, EnumSet<TopologyChange> possibleTopologyChanges)
     {
         Map<Gen<Command<State<S>, Void, ?>>, Integer> possible = new LinkedHashMap<>();
@@ -380,13 +436,13 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
             switch (task)
             {
                 case AddNode:
-                    possible.put(ignore -> multistep(addNode(), waitForCMSToQuiesce()), 1);
+                    possible.put(ignore -> multistep(addNode(), awaitClusterStable()), 1);
                     break;
                 case RemoveNode:
-                    possible.put(rs -> multistep(removeNodeRandomizedDispatch(rs, state), waitForCMSToQuiesce()), 1);
+                    possible.put(rs -> multistep(removeNodeRandomizedDispatch(rs, state), awaitClusterStable()), 1);
                     break;
                 case HostReplace:
-                    possible.put(rs -> multistep(hostReplace(rs, state), waitForCMSToQuiesce()), 1);
+                    possible.put(rs -> multistep(hostReplace(rs, state), awaitClusterStable()), 1);
                     break;
                 case StartNode:
                     possible.put(rs -> startInstance(rs, state), 1);
@@ -421,6 +477,35 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
         Command<State<S>, Void, ?> apply(RandomSource rs, State<S> state);
     }
 
+    private static class LoggingCommand<State, SystemUnderTest, Result> extends Property.ForwardingCommand<State, SystemUnderTest, Result>
+    {
+        private static final Logger logger = LoggerFactory.getLogger(LoggingCommand.class);
+
+        private LoggingCommand(Command<State, SystemUnderTest, Result> delegate)
+        {
+            super(delegate);
+        }
+
+        @Override
+        public Result apply(State s) throws Throwable
+        {
+            String name = detailed(s);
+            long startNanos = Clock.Global.nanoTime();
+            try
+            {
+                logger.info("Starting command: {}", name);
+                Result o = super.apply(s);
+                logger.info("Command {} was success after {}", name, Duration.ofNanos(Clock.Global.nanoTime() - startNanos));
+                return o;
+            }
+            catch (Throwable t)
+            {
+                logger.warn("Command {} failed after {}: {}", name, Duration.ofNanos(Clock.Global.nanoTime() - startNanos), t.toString()); // don't want stack trace, just type/msg
+                throw t;
+            }
+        }
+    }
+
     protected static class State<S extends SchemaSpec> implements AutoCloseable
     {
         final TopologyHistory topologyHistory;
@@ -434,7 +519,7 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
         private final Map<String, Object> yamlConfigOverrides;
         int[] cmsGroup = new int[0];
         private TokenPlacementModel.ReplicationFactor rf;
-        TokenPlacementModel.ReplicatedRanges ring = null;
+        private final RingModel ring = new RingModel();
 
         public State(RandomSource rs, BiFunction<RandomSource, Cluster, S> schemaSpecGen, Function<S, CommandGen<S>> cqlOperationsGen)
         {
@@ -448,7 +533,19 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
                                  .withTokenSupplier(topologyHistory)
                                  .withConfig(c -> {
                                      c.with(Feature.values())
-                                      .set("write_request_timeout", "10s");
+                                      .set("write_request_timeout", "10s")
+                                      .set("read_request_timeout", "10s")
+                                      .set("range_request_timeout", "20s")
+                                      .set("request_timeout", "20s")
+                                      .set("transaction_timeout", "15s")
+                                      .set("native_transport_timeout", "30s")
+                                      // bound startup to some value larger than the task timeout, this is to allow the
+                                      // tests to stop blocking when a startup issue is detected.  The main reason for
+                                      // this is that startup blocks forever, waiting for accord and streaming to
+                                      // complete... but if there are bugs at these layers then the startup will never
+                                      // exit, blocking the JVM from giving the needed information (logs/seed) to debug.
+                                      .set(Constants.KEY_DTEST_STARTUP_TIMEOUT, "4m")
+                                      .set(Constants.KEY_DTEST_API_STARTUP_FAILURE_AS_SHUTDOWN, false);
                                      //TODO (maintenance): where to put this?  Anything touching ConfigGenBuilder with jvm-dtest needs this...
                                      ((InstanceConfig) c).remove("commitlog_sync_period_in_ms");
                                      for (Map.Entry<String, Object> e : yamlConfigOverrides.entrySet())
@@ -486,6 +583,13 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
             {
                 throw new UncheckedIOException(e);
             }
+            cluster.setUncaughtExceptionsFilter((node, t) -> {
+                // api is "ignore" so false means include,
+                var rootCause = Throwables.getRootCause(t);
+                if (rootCause.getMessage() != null && rootCause.getMessage().startsWith("Queried for epoch") && rootCause.getMessage().contains("but could not catch up. Current epoch:"))
+                    return true;
+                return false;
+            });
             fixDistributedSchemas(cluster);
             init(cluster, TARGET_RF);
             // fix TCM
@@ -536,6 +640,16 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
                     };
                 }
             });
+            commandsTransformers.add((state, commandGen) -> rs2 -> {
+                Command<State<S>, Void, ?> c = commandGen.next(rs2);
+                if (!(c instanceof Property.MultistepCommand))
+                    return new LoggingCommand<>(c);
+                Property.MultistepCommand<State<S>, Void> multistep = (Property.MultistepCommand<State<S>, Void>) c;
+                List<Command<State<S>, Void, ?>> subcommands = new ArrayList<>();
+                for (var sub : multistep)
+                    subcommands.add(new LoggingCommand<>(sub));
+                return multistep(subcommands);
+            });
             preActions.add(() -> {
                 int[] up = topologyHistory.up();
                 // use the most recent node just in case the cluster isn't in-sync
@@ -543,7 +657,8 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
                 cmsGroup = HackSerialization.cmsGroup(node);
                 currentEpoch.set(HackSerialization.tcmEpoch(node));
 
-                ring = InJVMTokenAwareVisitExecutor.getRing(cluster.coordinator(up[0]), rf);
+                ring.rebuild(cluster.coordinator(up[0]), rf, up);
+                // ring must know about the up nodes
             });
             preActions.add(() -> cluster.checkAndResetUncaughtExceptions());
             this.schemaSpec = schemaSpecGen.apply(rs, cluster);
@@ -577,33 +692,22 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
             int quorum = topologyHistory.quorum();
             // find what ranges are able to handle 1 node loss
             Set<Range> safeRanges = new HashSet<>();
-            Int2ObjectHashMap<Replica> idToReplica = new Int2ObjectHashMap<>();
-            for (Map.Entry<Range, List<Replica>> e : ring.asMap().entrySet())
-            {
+            ring.rangesToReplicas((range, replicas) -> {
                 IntHashSet alive = new IntHashSet();
-                for (var replica : e.getValue())
+                for (int peer : replicas)
                 {
-                    //TODO (fix test api): NodeId is in the API but is always null.  Cheapest way to get the id is to assume the address has it
-                    // same issue with address...
-                    // /127.0.0.2
-                    String harryId = replica.node().id();
-                    int index = harryId.lastIndexOf('.');
-                    int peer = Integer.parseInt(harryId.substring(index + 1));
-                    idToReplica.put(peer, replica);
                     if (up.contains(peer))
                         alive.add(peer);
                 }
                 if (quorum < alive.size())
-                    safeRanges.add(e.getKey());
-            }
+                    safeRanges.add(range);
+            });
 
             // filter nodes where 100% of their ranges are "safe"
             IntArrayList safeNodes = new IntArrayList();
             for (int id : up)
             {
-                Replica replica = idToReplica.get(id);
-                List<Range> ranges = ring.ranges(replica);
-
+                List<Range> ranges = ring.ranges(id);
                 if (ranges.stream().allMatch(safeRanges::contains))
                     safeNodes.add(id);
             }
@@ -634,22 +738,24 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
             int cmsNode = Iterables.getFirst(cmsNodesUp, null);
             try
             {
-                epochHistory = cluster.get(cmsNode).callOnInstance(() -> {
-                    LogState all = ClusterMetadataService.instance()
-                                                         .processor()
-                                                         .getLogState(Epoch.EMPTY, Epoch.create(Long.MAX_VALUE), false,
-                                                                      Retry.Deadline.retryIndefinitely(DatabaseDescriptor.getCmsAwaitTimeout().to(NANOSECONDS),
-                                                                                                       TCMMetrics.instance.commitRetries));
-                    StringBuilder sb = new StringBuilder("Epochs:");
-                    for (Entry e : all.entries)
-                        sb.append("\n\t\t").append(e.epoch.getEpoch()).append(": ").append(e.transform);
-                    return sb.toString();
-                });
+                SimpleQueryResult qr = Retry.retryWithBackoffBlocking(5, () -> cluster.get(cmsNode).executeInternalWithResult("SELECT epoch, kind, transformation FROM system_views.cluster_metadata_log"));
+                TableBuilder builder = new TableBuilder(" | ");
+                builder.add(qr.names());
+                while (qr.hasNext())
+                {
+                    Row next = qr.next();
+                    builder.add(Stream.of(next.toObjectArray())
+                                      .map(Objects::toString)
+                                      .map(s -> s.length() > 100 ? s.substring(0, 100) + "..." : s)
+                                      .collect(Collectors.toList()));
+                }
+                epochHistory = "Epochs:\n" + builder;
             }
             catch (Throwable t)
             {
                 logger.warn("Unable to fetch epoch history on node{}", cmsNode, t);
             }
+            logger.info("Shutting down clusters");
             cluster.close();
         }
     }
@@ -864,6 +970,65 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
             String[] parts = address.split("\\.");
             Invariants.checkState(parts.length == 4, "Unable to parse address %s", address);
             return Integer.parseInt(parts[3]);
+        }
+    }
+
+    private static class RingModel
+    {
+        TokenPlacementModel.ReplicatedRanges ring = null;
+        Int2ObjectHashMap<Replica> idToReplica = null;
+
+        private void rebuild(ICoordinator coordinator, TokenPlacementModel.ReplicationFactor rf, int[] up)
+        {
+            ring = InJVMTokenAwareVisitExecutor.getRing(coordinator, rf);
+
+            Int2ObjectHashMap<Replica> idToReplica = new Int2ObjectHashMap<>();
+            for (Map.Entry<Range, List<Replica>> e : ring.asMap().entrySet())
+            {
+                for (var replica : e.getValue())
+                    idToReplica.put(toNodeId(replica), replica);
+            }
+            this.idToReplica = idToReplica;
+
+            IntHashSet upSet = asSet(up);
+            if (!idToReplica.keySet().containsAll(upSet))
+            {
+                int coordinatorNode = coordinator.instance().config().num();
+                Sets.SetView<Integer> diff = Sets.difference(upSet, idToReplica.keySet());
+                throw new AssertionError("Unable to find nodes " + diff + " in the ring on node" + coordinatorNode);
+            }
+        }
+
+        private static int toNodeId(Replica replica)
+        {
+            //TODO (fix test api): NodeId is in the API but is always null.  Cheapest way to get the id is to assume the address has it
+            // same issue with address...
+            // /127.0.0.2
+            String harryId = replica.node().id();
+            int index = harryId.lastIndexOf('.');
+            int peer = Integer.parseInt(harryId.substring(index + 1));
+            return peer;
+        }
+
+        List<Range> ranges(int node)
+        {
+            Replica replica = idToReplica.get(node);
+            if (replica == null)
+                throw new AssertionError("Unknown node" + node);
+            List<Range> ranges = ring.ranges(replica);
+            if (ranges == null)
+                throw new AssertionError("node" + node + " some how does not have ranges...");
+            return ranges;
+        }
+
+        private void rangesToReplicas(BiConsumer<Range, int[]> fn)
+        {
+            for (Map.Entry<Range, List<Replica>> e : ring.asMap().entrySet())
+            {
+                int[] replicas = e.getValue().stream().mapToInt(RingModel::toNodeId).toArray();
+                Arrays.sort(replicas);
+                fn.accept(e.getKey(), replicas);
+            }
         }
     }
 }

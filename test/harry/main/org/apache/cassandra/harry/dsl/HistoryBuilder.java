@@ -178,6 +178,11 @@ public class HistoryBuilder implements Iterable<ReplayingVisitor.Visit>, SingleO
                                   .make(pureRng, schema);
     }
 
+    public Set<Long> pds()
+    {
+        return partitionStates.keySet();
+    }
+
     public ValueOverrides valueOverrides()
     {
         return valueHelper;
@@ -534,10 +539,13 @@ public class HistoryBuilder implements Iterable<ReplayingVisitor.Visit>, SingleO
 
     public void validateAll(Model model)
     {
+        boolean usingAccord = schema.isWriteTimeFromAccord();
         for (Long pd : partitionStates.keySet())
         {
             model.validate(Query.selectAllColumns(schema, pd, false));
-            model.validate(Query.selectAllColumns(schema, pd, true));
+            // as of this writing, accord doesn't support ORDER BY
+            if (!usingAccord)
+                model.validate(Query.selectAllColumns(schema, pd, true));
         }
     }
 

@@ -142,6 +142,11 @@ public class HarryHelper
     public static ReplayingHistoryBuilder dataGen(long seed, SystemUnderTest sut, TokenPlacementModel.ReplicationFactor rf, SystemUnderTest.ConsistencyLevel writeCl)
     {
         SchemaSpec schema = schemaSpecGen("harry", "tbl_").inflate(seed);
+        return dataGen(seed, sut, rf, writeCl, schema);
+    }
+
+    public static ReplayingHistoryBuilder dataGen(long seed, SystemUnderTest sut, TokenPlacementModel.ReplicationFactor rf, SystemUnderTest.ConsistencyLevel writeCl, SchemaSpec schema)
+    {
         return new ReplayingHistoryBuilder(seed, 100, 1, new DefaultDataTracker(), sut, schema, rf, writeCl);
     }
 
