@@ -58,7 +58,7 @@ public class TupleType extends AbstractType<ByteBuffer>
     private static final Pattern ESCAPED_AT_PAT = Pattern.compile(ESCAPED_AT);
     private static final String BACKSLASH = "\\\\";
     private static final Pattern BACKSLASH_PAT = Pattern.compile(BACKSLASH);
-    private static final String ESCAPED_BACKSLASH = "\\\\\\\\\\$";
+    private static final String ESCAPED_BACKSLASH = "\\\\\\$";
     private static final Pattern ESCAPED_BACKSLASH_PAT = Pattern.compile(ESCAPED_BACKSLASH);
     
     protected final List<AbstractType<?>> types;
