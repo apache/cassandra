@@ -39,7 +39,7 @@ public class AutoRepairConfig implements Serializable
     // enable/disable auto repair globally, overrides all other settings. Cannot be modified dynamically.
     // if it is set to false, then no repair will be scheduled, including full and incremental repairs by this framework.
     // if it is set to true, then this repair scheduler will consult another config available for each RepairType, and based on that config, it will schedule repairs.
-    public final Boolean enabled;
+    public volatile Boolean enabled;
     // the interval between successive checks for repair scheduler to check if either the ongoing repair is completed or if
     // none is going, then check if it's time to schedule or wait
     public final DurationSpec.IntSecondsBound repair_check_interval = new DurationSpec.IntSecondsBound("5m");
@@ -106,6 +106,12 @@ public class AutoRepairConfig implements Serializable
     public DurationSpec.IntSecondsBound getAutoRepairHistoryClearDeleteHostsBufferInterval()
     {
         return history_clear_delete_hosts_buffer_interval;
+    }
+
+    public void startScheduler()
+    {
+        enabled = true;
+        AutoRepair.instance.setup();
     }
 
     public void setAutoRepairHistoryClearDeleteHostsBufferInterval(String duration)

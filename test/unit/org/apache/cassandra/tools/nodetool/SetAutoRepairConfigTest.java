@@ -115,6 +115,22 @@ public class SetAutoRepairConfigTest
 
             verify(probe, times(1)).setAutoRepairRetryBackoff("3s");
         }
+
+        @Test
+        public void testStartScheduler()
+        {
+            cmd.args = ImmutableList.of("start_scheduler", "false");
+
+            cmd.execute(probe);
+
+            verify(probe, times(0)).startScheduler();
+
+            cmd.args = ImmutableList.of("start_scheduler", "true");
+
+            cmd.execute(probe);
+
+            verify(probe, times(1)).startScheduler();
+        }
     }
 
     @RunWith(Parameterized.class)
