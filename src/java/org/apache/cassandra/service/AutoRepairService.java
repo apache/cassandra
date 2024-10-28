@@ -120,6 +120,12 @@ public class AutoRepairService implements AutoRepairServiceMBean
         config.setRepairMinInterval(repairType, minRepairInterval);
     }
 
+    @Override
+    public void startScheduler()
+    {
+        config.startScheduler();
+    }
+
     public void setAutoRepairHistoryClearDeleteHostsBufferDuration(String duration)
     {
         config.setAutoRepairHistoryClearDeleteHostsBufferInterval(duration);
