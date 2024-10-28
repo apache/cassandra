@@ -42,6 +42,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
+import javax.annotation.Nullable;
 import javax.management.ListenerNotFoundException;
 import javax.management.Notification;
 import javax.management.NotificationListener;
@@ -66,6 +67,7 @@ import org.apache.cassandra.concurrent.SharedExecutorPool;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.config.YamlConfigurationLoader;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryHandler;
@@ -162,6 +164,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.Ref;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 import org.apache.cassandra.utils.logging.LoggingSupportFactory;
 import org.apache.cassandra.utils.memory.BufferPools;
 import org.apache.cassandra.utils.progress.jmx.JMXBroadcastExecutor;
@@ -612,6 +615,18 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         return Verb.fromId(verbId).stage.executor();
     }
 
+    @Nullable
+    private DurationSpec startupTimeout()
+    {
+        Object c = config.get(Constants.KEY_DTEST_STARTUP_TIMEOUT);
+        if (c == null) return null;
+        if (c instanceof String)
+            return new DurationSpec.LongNanosecondsBound((String) c);
+        if (c instanceof Number)
+            return new DurationSpec.LongNanosecondsBound(((Number) c).longValue());
+        throw new IllegalArgumentException("Key " + Constants.KEY_DTEST_STARTUP_TIMEOUT + " only allowed to have string/number values, but given " + c + ": " + c.getClass());
+    }
+
     @Override
     public void startup(ICluster cluster)
     {
@@ -621,7 +636,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         // commit to extend the functionality of the @Shared annotation to app classes.
         assert startedAt.compareAndSet(0L, System.nanoTime()) : String.format("startedAt on instance %d expected to be 0, but was %d", config().num(), startedAt.get());
 
-        sync(() -> {
+        Future<?> result = async(() -> {
             inInstancelogger = LoggerFactory.getLogger(Instance.class);
             try
             {
@@ -651,7 +666,28 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                     throw (RuntimeException) t;
                 throw new RuntimeException(t);
             }
-        }).run();
+        }).call();
+        DurationSpec timeout = startupTimeout();
+        if (timeout == null)
+        {
+            waitOn(result);
+        }
+        else
+        {
+            try
+            {
+                result.get(timeout.quantity(), timeout.unit());
+            }
+            catch (InterruptedException e)
+            {
+                Thread.currentThread().interrupt();
+                throw new UncheckedInterruptedException(e);
+            }
+            catch (TimeoutException | ExecutionException e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
 
         initialized = true;
     }

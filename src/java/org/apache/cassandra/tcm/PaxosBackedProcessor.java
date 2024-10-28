@@ -136,7 +136,7 @@ public class PaxosBackedProcessor extends AbstractLocalProcessor
             while (iter.hasNext())
             {
                 FetchLogRequest request = iter.next();
-                if (request.condition.awaitUninterruptibly(Math.max(0, nextTimeout - Clock.Global.nanoTime()), TimeUnit.NANOSECONDS) &&
+                if (request.condition.awaitThrowUncheckedOnInterrupt(Math.max(0, nextTimeout - Clock.Global.nanoTime()), TimeUnit.NANOSECONDS) &&
                     request.condition.isSuccess())
                 {
                     collected.add(request.to.endpoint());
@@ -168,7 +168,7 @@ public class PaxosBackedProcessor extends AbstractLocalProcessor
     }
 
     @Override
-    public LogState getLocalState(Epoch start, Epoch end, boolean includeSnapshot, Retry.Deadline retryPolicy)
+    public LogState getLocalState(Epoch start, Epoch end, boolean includeSnapshot)
     {
         return log.storage().getLogState(start, end, includeSnapshot);
     }
@@ -176,7 +176,20 @@ public class PaxosBackedProcessor extends AbstractLocalProcessor
     @Override
     public LogState getLogState(Epoch start, Epoch end, boolean includeSnapshot, Retry.Deadline retryPolicy)
     {
-        return DistributedMetadataLogKeyspace.getLogState(start, end, includeSnapshot);
+        while (!retryPolicy.reachedMax())
+        {
+            if (Thread.currentThread().isInterrupted())
+                throw new RuntimeException("Can not reconstruct during shutdown", new InterruptedException());
+            try
+            {
+                return DistributedMetadataLogKeyspace.getLogState(start, end, includeSnapshot);
+            }
+            catch (RuntimeException e) // honestly best to only retry timeouts, but everything gets wrapped in a RuntimeException...
+            {
+                retryPolicy.maybeSleep();
+            }
+        }
+        throw new RuntimeException(String.format("Could not reconstruct range %d, %d", start.getEpoch(), end.getEpoch()), new TimeoutException());
     }
 
     private static <T> T unwrap(Promise<T> promise)

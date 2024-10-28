@@ -758,15 +758,15 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
                                            }
 
                                            @Override
-                                           public LogState getLocalState(Epoch start, Epoch end, boolean includeSnapshot, Retry.Deadline retryPolicy)
+                                           public LogState getLocalState(Epoch start, Epoch end, boolean includeSnapshot)
                                            {
-                                               return getLogState(start, end, includeSnapshot, retryPolicy);
+                                               return log.getLocalEntries(start, end, includeSnapshot);
                                            }
 
                                            @Override
                                            public LogState getLogState(Epoch start, Epoch end, boolean includeSnapshot, Retry.Deadline retryPolicy)
                                            {
-                                               return log.getLocalEntries(start, end, includeSnapshot);
+                                               return getLocalState(start, end, includeSnapshot);
                                            }
                                        },
                                        (a,b) -> {},

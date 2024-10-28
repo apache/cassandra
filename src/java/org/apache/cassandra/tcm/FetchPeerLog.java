@@ -19,12 +19,10 @@
 package org.apache.cassandra.tcm;
 
 import java.io.IOException;
-import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -85,9 +83,7 @@ public class FetchPeerLog
             logger.info("Received peer log fetch request {} from {}: start = {}, current = {}", request, message.from(), message.payload.start, metadata.epoch);
             LogState delta = ClusterMetadataService.instance()
                                                    .processor()
-                                                   .getLocalState(message.payload.start, Epoch.MAX, false,
-                                                                  Retry.Deadline.after(DatabaseDescriptor.getCmsAwaitTimeout().to(TimeUnit.NANOSECONDS),
-                                                                                       new Retry.Jitter(TCMMetrics.instance.fetchLogRetries)));
+                                                   .getLocalState(message.payload.start, Epoch.MAX, false);
             TCMMetrics.instance.peerLogEntriesServed(message.payload.start, delta.latestEpoch());
             logger.info("Responding with log delta: {}", delta);
             MessagingService.instance().send(message.responseWith(delta), message.from());

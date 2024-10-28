@@ -20,18 +20,25 @@ package org.apache.cassandra.tcm.log;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
+import java.util.stream.Stream;
 
 import org.junit.Before;
 import org.junit.Test;
 
+import accord.utils.Gen;
+import accord.utils.Gens;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MetadataSnapshots;
 import org.apache.cassandra.tcm.sequences.SequencesUtils;
+import org.assertj.core.api.Assertions;
 
+import static accord.utils.Property.qt;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -44,13 +51,42 @@ public abstract class LogStateTestBase
     static int EXTRA_ENTRIES = 2;
     static Epoch CURRENT_EPOCH = Epoch.create((NUM_SNAPSHOTS * SNAPSHOT_FREQUENCY) + EXTRA_ENTRIES);
     static Epoch LATEST_SNAPSHOT_EPOCH = Epoch.create(NUM_SNAPSHOTS * SNAPSHOT_FREQUENCY);
+    private static final Gen.LongGen EPOCH_GEN = rs -> rs.nextLong(0, CURRENT_EPOCH.getEpoch()) + 1;
+    private static final Gen<Between> BETWEEN_GEN = rs -> {
+        long a = EPOCH_GEN.nextLong(rs);
+        long b = EPOCH_GEN.nextLong(rs);
+        while (b == a)
+            b = EPOCH_GEN.nextLong(rs);
+        if (b < a)
+        {
+            long tmp = a;
+            a = b;
+            b = tmp;
+        }
+        return new Between(Epoch.create(a), Epoch.create(b));
+    };
+    private static final Gen<MetadataSnapshots> SNAPSHOTS_GEN = Gens.<MetadataSnapshots>oneOf()
+                                                                    .add(i -> MetadataSnapshots.NO_OP)
+                                                                    .add(i -> throwing())
+                                                                    .add(rs -> rs.nextBoolean() ? withCorruptSnapshots(LATEST_SNAPSHOT_EPOCH) : withAvailableSnapshots(LATEST_SNAPSHOT_EPOCH))
+                                                                    .add(rs -> {
+                                                                        Epoch[] queriedEpochs = new Epoch[NUM_SNAPSHOTS];
+                                                                        for (int i = 0; i < NUM_SNAPSHOTS; i++)
+                                                                            queriedEpochs[i] = SequencesUtils.epoch((NUM_SNAPSHOTS - i) * SNAPSHOT_FREQUENCY);
+                                                                        return rs.nextBoolean() ? withCorruptSnapshots(queriedEpochs) : withAvailableSnapshots(queriedEpochs);
+                                                                    })
+                                                                    .build();
 
     interface LogStateSUT
     {
         void cleanup() throws IOException;
         void insertRegularEntry() throws IOException;
         void snapshotMetadata() throws IOException;
-        LogState getLogState(Epoch since);
+        LogReader reader();
+        default LogState getLogState(Epoch since)
+        {
+            return reader().getLogState(since);
+        }
 
         // just for manually checking the test data
         void dumpTables() throws IOException;
@@ -113,6 +149,11 @@ public abstract class LogStateTestBase
             return list;
         }
 
+        @Override
+        public String toString()
+        {
+            return (corrupt ? "Corrupted" : "") + "Snapshots{" + Arrays.toString(Stream.of(expected).mapToLong(e -> e.getEpoch()).toArray()) + '}';
+        }
     };
 
     static MetadataSnapshots withCorruptSnapshots(Epoch ... expected)
@@ -134,6 +175,12 @@ public abstract class LogStateTestBase
             {
                 fail("Did not expect to request a snapshot");
                 return null;
+            }
+
+            @Override
+            public String toString()
+            {
+                return "Throwing";
             }
         };
     }
@@ -244,6 +291,47 @@ public abstract class LogStateTestBase
         assertEntries(state.entries, since.nextEpoch(), CURRENT_EPOCH);
     }
 
+    @Test
+    public void getLogStateBetween()
+    {
+        qt().forAll(SNAPSHOTS_GEN, BETWEEN_GEN).check((snapshots, between) -> {
+            LogStateSUT sut = getSystemUnderTest(snapshots);
+            LogState state = sut.reader().getLogState(between.start, between.end, true);
+            Assertions.assertThat(state.entries).describedAs("with and without snapshot should have the same entries").isEqualTo(sut.reader().getLogState(between.start, between.end, false).entries);
+            Assertions.assertThat(state.baseState.epoch).isEqualTo(between.start);
+
+            List<Entry> entries = state.entries;
+            Assertions.assertThat(entries.size()).isEqualTo(between.end.getEpoch() - between.start.getEpoch());
+
+            long expected = between.start.nextEpoch().getEpoch();
+            for (Entry e : entries)
+            {
+                long actual = e.epoch.getEpoch();
+                Assertions.assertThat(actual).describedAs("Unexpected epoch").isEqualTo(expected);
+                expected++;
+            }
+        });
+    }
+
+    @Test
+    public void getEntriesBetween()
+    {
+        qt().forAll(SNAPSHOTS_GEN, BETWEEN_GEN).check((snapshots, between) -> {
+            LogStateSUT sut = getSystemUnderTest(snapshots);
+            LogReader.EntryHolder entries = sut.reader().getEntries(between.start, between.end);
+            Assertions.assertThat(entries.since).isEqualTo(between.start);
+            Assertions.assertThat(entries.entries.size()).isEqualTo(between.end.getEpoch() - between.start.getEpoch());
+
+            long expected = between.start.nextEpoch().getEpoch();
+            for (Entry e : entries.entries)
+            {
+                long actual = e.epoch.getEpoch();
+                Assertions.assertThat(actual).describedAs("Unexpected epoch").isEqualTo(expected);
+                expected++;
+            }
+        });
+    }
+
     private void assertEntries(List<Entry> entries, Epoch min, Epoch max)
     {
         int idx = 0;
@@ -254,5 +342,40 @@ public abstract class LogStateTestBase
             idx++;
         }
         assertEquals(idx, entries.size());
+    }
+
+    private static class Between
+    {
+        private final Epoch start, end;
+
+        private Between(Epoch start, Epoch end)
+        {
+            this.start = start;
+            this.end = end;
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Between between = (Between) o;
+            return start.equals(between.start) && end.equals(between.end);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(start, end);
+        }
+
+        @Override
+        public String toString()
+        {
+            return "Between{" +
+                   "start=" + start.getEpoch() +
+                   ", end=" + end.getEpoch() +
+                   '}';
+        }
     }
 }

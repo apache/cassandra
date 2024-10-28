@@ -148,7 +148,8 @@ public interface LogReader
             else if (closestSnapshot.epoch.isBefore(start))
             {
                 ImmutableList.Builder<Entry> entries = new ImmutableList.Builder<>();
-                EntryHolder entryHolder = getEntries(closestSnapshot.epoch.nextEpoch(), end);
+                // start is exclusive, so use the closest snapshot
+                EntryHolder entryHolder = getEntries(closestSnapshot.epoch, end);
                 for (Entry entry : entryHolder.entries)
                 {
                     if (entry.epoch.isAfter(start))

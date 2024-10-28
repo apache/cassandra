@@ -19,6 +19,7 @@
 package org.apache.cassandra.service.accord;
 
 import java.math.BigInteger;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -165,6 +166,7 @@ import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.Blocking;
+import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
@@ -552,11 +554,7 @@ public class AccordService implements IAccordService, Shutdownable
 
     public static List<ClusterMetadata> tcmLoadRange(long min, long max)
     {
-        List<ClusterMetadata> afterLoad = ClusterMetadataService.instance()
-                                                                .processor()
-                                                                .reconstruct(Epoch.create(min), Epoch.create(max),
-                                                                             Retry.Deadline.retryIndefinitely(DatabaseDescriptor.getCmsAwaitTimeout().to(TimeUnit.NANOSECONDS),
-                                                                                                              TCMMetrics.instance.fetchLogRetries));
+        List<ClusterMetadata> afterLoad = reconstruct(min, max);
 
         if (Invariants.isParanoid())
             Invariants.checkState(afterLoad.get(0).epoch.getEpoch() == min, "Unexpected epoch: expected %d but given %d", min, afterLoad.get(0).epoch.getEpoch());
@@ -566,6 +564,15 @@ public class AccordService implements IAccordService, Shutdownable
         Invariants.checkState(afterLoad.get(0).epoch.getEpoch() == min, "Unexpected epoch: expected %d but given %d", min, afterLoad.get(0).epoch.getEpoch());
         Invariants.checkState(max == Long.MAX_VALUE || afterLoad.get(afterLoad.size() - 1).epoch.getEpoch() == max, "Unexpected epoch: expected %d but given %d", max, afterLoad.get(afterLoad.size() - 1).epoch.getEpoch());
         return afterLoad;
+    }
+
+    private static List<ClusterMetadata> reconstruct(long min, long max)
+    {
+        Epoch start = Epoch.create(min);
+        Epoch end = Epoch.create(max);
+        Retry.Deadline deadline = Retry.Deadline.wrap(new Retry.ExponentialBackoff(TCMMetrics.instance.fetchLogRetries));
+        return ClusterMetadataService.instance().processor()
+                                             .reconstruct(start, end, deadline);
     }
 
     @VisibleForTesting
@@ -1222,15 +1229,27 @@ public class AccordService implements IAccordService, Shutdownable
         if (node.commandStores().count() == 0) return; // when starting up stores can be empty, so ignore
         Ranges ranges = topology.rangesForNode(target);
         if (ranges.isEmpty()) return;
-        tryMarkRemoved(ranges, 0).begin(node().agent());
+        long startNanos = Clock.Global.nanoTime();
+        exclusiveSyncPointWithRetries(ranges, 0)
+        .begin((s, f) -> {
+            if (f != null)
+            {
+                logger.warn("Unable to mark the ranges for {} as durable after node left; took {}", target, Duration.ofNanos(Clock.Global.nanoTime() - startNanos), f);
+                node.agent().onUncaughtException(f);
+            }
+            else
+            {
+                logger.info("Marked {} ranges as durable after node left; took {}", target, Duration.ofNanos(Clock.Global.nanoTime() - startNanos));
+            }
+        });
     }
 
-    private AsyncChain<SyncPoint<accord.primitives.Range>> tryMarkRemoved(Ranges ranges, int attempt)
+    private AsyncChain<SyncPoint<accord.primitives.Range>> exclusiveSyncPointWithRetries(Ranges ranges, int attempt)
     {
         return CoordinateSyncPoint.exclusiveSyncPoint(node, ranges)
                                   .recover(t ->
                                            //TODO (operability): make this configurable / monitorable?
-                                           attempt <= 3 && t instanceof Invalidated || t instanceof Preempted || t instanceof Timeout ? tryMarkRemoved(ranges, attempt + 1) : null);
+                                           attempt <= 3 && t instanceof Invalidated || t instanceof Preempted || t instanceof Timeout ? exclusiveSyncPointWithRetries(ranges, attempt + 1) : null);
     }
 
     public Node node()

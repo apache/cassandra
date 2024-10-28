@@ -428,7 +428,7 @@ public class AccordStateCacheTest
             instance.release(item);
         }
 
-        assertCacheState(cache, 0, 4, nodeSize(1) * 3 + nodeSize(3));
+        assertCacheState(cache, 0, 4, nodeSize(1) * 3 + nodeSize(2));
         assertCacheMetrics(cache.metrics, 0, 4, 4);
         assertCacheMetrics(instance.instanceMetrics, 0, 4, 4);
 
@@ -464,7 +464,7 @@ public class AccordStateCacheTest
 
         safeString.set("11");
         instance.release(safeString);
-        assertCacheState(cache, 0, 1, nodeSize(3));
+        assertCacheState(cache, 0, 1, nodeSize(2));
         Assert.assertSame(safeString.global, cache.head());
         Assert.assertSame(safeString.global, cache.tail());
 

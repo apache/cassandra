@@ -152,7 +152,7 @@ public final class RemoteProcessor implements Processor
     }
 
     @Override
-    public LogState getLocalState(Epoch start, Epoch end, boolean includeSnapshot, Retry.Deadline retryPolicy)
+    public LogState getLocalState(Epoch start, Epoch end, boolean includeSnapshot)
     {
         return log.getLocalEntries(start, end, includeSnapshot);
     }
@@ -177,7 +177,7 @@ public final class RemoteProcessor implements Processor
         }
         catch (ExecutionException | TimeoutException e)
         {
-            throw new RuntimeException("Could not reconstruct", e);
+            throw new RuntimeException(String.format("Could not reconstruct range %d, %d", lowEpoch.getEpoch(), highEpoch.getEpoch()), e);
         }
     }
 

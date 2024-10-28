@@ -122,6 +122,15 @@ public class AccordFastPath implements MetadataValue<AccordFastPath>
             return Objects.hash(status, updated);
         }
 
+        @Override
+        public String toString()
+        {
+            return "NodeInfo{" +
+                   "status=" + status +
+                   ", updated=" + updated +
+                   '}';
+        }
+
         private static final MetadataSerializer<NodeInfo> serializer = new MetadataSerializer<NodeInfo>()
         {
             @Override
@@ -194,7 +203,7 @@ public class AccordFastPath implements MetadataValue<AccordFastPath>
         }
 
         if (!canUpdateNodeTo(current, status, updateTimeMillis, updateDelayMillis))
-            throw new InvalidRequestException(String.format("cannot transition %s to %s at %s", node, status, updateTimeMillis));
+            throw new InvalidRequestException(String.format("cannot transition %s to %s at %s; current %s", node, status, updateTimeMillis, current));
 
         ImmutableMap.Builder<Node.Id, NodeInfo> builder = ImmutableMap.builder();
         builder.put(node, new NodeInfo(status, updateTimeMillis));

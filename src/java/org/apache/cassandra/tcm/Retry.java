@@ -21,17 +21,20 @@ package org.apache.cassandra.tcm;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
+import java.util.function.DoubleSupplier;
 
 import com.codahale.metrics.Meter;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.Clock;
 
 import static com.google.common.util.concurrent.Uninterruptibles.sleepUninterruptibly;
-import static org.apache.cassandra.tcm.Retry.Jitter.MAX_JITTER_MS;
 
 public abstract class Retry
 {
     protected static final int MAX_TRIES = DatabaseDescriptor.getCmsDefaultRetryMaxTries();
+    private static final int DEFAULT_BACKOFF_MS = DatabaseDescriptor.getDefaultRetryBackoff().toMilliseconds();
+    private static final int DEFAULT_MAX_BACKOFF_MS = DatabaseDescriptor.getDefaultMaxRetryBackoff().toMilliseconds();
+
     protected final int maxTries;
     protected int tries;
     protected Meter retryMeter;
@@ -71,15 +74,16 @@ public abstract class Retry
 
     protected abstract long sleepFor();
 
+    protected abstract long maxWait();
+
     public static class Jitter extends Retry
     {
-        public static final int MAX_JITTER_MS = Math.toIntExact(DatabaseDescriptor.getDefaultRetryBackoff().to(TimeUnit.MILLISECONDS));
         private final Random random;
         private final int maxJitterMs;
 
         public Jitter(Meter retryMeter)
         {
-            this(MAX_TRIES, MAX_JITTER_MS, new Random(), retryMeter);
+            this(MAX_TRIES, DEFAULT_BACKOFF_MS, new Random(), retryMeter);
         }
 
         private Jitter(int maxTries, int maxJitterMs, Random random, Meter retryMeter)
@@ -96,6 +100,12 @@ public abstract class Retry
         }
 
         @Override
+        protected long maxWait()
+        {
+            return maxJitterMs;
+        }
+
+        @Override
         public String toString()
         {
             return "Jitter{" +
@@ -108,12 +118,11 @@ public abstract class Retry
 
     public static class Backoff extends Retry
     {
-        private static final int RETRY_BACKOFF_MS = Math.toIntExact(DatabaseDescriptor.getDefaultRetryBackoff().to(TimeUnit.MILLISECONDS));
         protected final int backoffMs;
 
         public Backoff(Meter retryMeter)
         {
-            this(MAX_TRIES, RETRY_BACKOFF_MS, retryMeter);
+            this(MAX_TRIES, DEFAULT_BACKOFF_MS, retryMeter);
         }
 
         public Backoff(int maxTries, int backoffMs, Meter retryMeter)
@@ -128,6 +137,12 @@ public abstract class Retry
         }
 
         @Override
+        protected long maxWait()
+        {
+            return backoffMs;
+        }
+
+        @Override
         public String toString()
         {
             return "Backoff{" +
@@ -135,6 +150,38 @@ public abstract class Retry
                    ", maxTries=" + maxTries +
                    ", tries=" + tries +
                    '}';
+        }
+    }
+
+    public static class ExponentialBackoff extends Retry
+    {
+        private final long baseSleepTimeMillis;
+        private final long maxSleepMillis;
+        private final DoubleSupplier randomSource;
+
+        public ExponentialBackoff(int maxAttempts, long baseSleepTimeMillis, long maxSleepMillis, DoubleSupplier randomSource, Meter retryMeter)
+        {
+            super(maxAttempts, retryMeter);
+            this.baseSleepTimeMillis = baseSleepTimeMillis;
+            this.maxSleepMillis = maxSleepMillis;
+            this.randomSource = randomSource;
+        }
+
+        public ExponentialBackoff(Meter retryMeter)
+        {
+            this(MAX_TRIES, DEFAULT_BACKOFF_MS, DEFAULT_MAX_BACKOFF_MS, ThreadLocalRandom.current()::nextDouble, retryMeter);
+        }
+
+        @Override
+        protected long sleepFor()
+        {
+            return org.apache.cassandra.utils.Backoff.ExponentialBackoff.computeWaitTime(tries, baseSleepTimeMillis, maxSleepMillis, randomSource);
+        }
+
+        @Override
+        protected long maxWait()
+        {
+            return maxSleepMillis;
         }
     }
 
@@ -169,7 +216,7 @@ public abstract class Retry
         public static Deadline retryIndefinitely(long timeoutNanos, Meter retryMeter)
         {
             return new Deadline(Clock.Global.nanoTime() + timeoutNanos,
-                    new Retry.Jitter(Integer.MAX_VALUE, MAX_JITTER_MS, new Random(), retryMeter))
+                                new Retry.Jitter(Integer.MAX_VALUE, DEFAULT_BACKOFF_MS, new Random(), retryMeter))
             {
                 @Override
                 public boolean reachedMax()
@@ -188,6 +235,12 @@ public abstract class Retry
                     return String.format("RetryIndefinitely{tries=%d}", currentTries());
                 }
             };
+        }
+
+        public static Deadline wrap(Retry delegate)
+        {
+            long deadlineMillis = delegate.maxTries * delegate.maxWait();
+            return new Deadline(Clock.Global.nanoTime() + TimeUnit.MILLISECONDS.toNanos(deadlineMillis), delegate);
         }
 
         @Override
@@ -211,6 +264,12 @@ public abstract class Retry
         public long sleepFor()
         {
             return delegate.sleepFor();
+        }
+
+        @Override
+        protected long maxWait()
+        {
+            return deadlineNanos;
         }
 
         public String toString()
