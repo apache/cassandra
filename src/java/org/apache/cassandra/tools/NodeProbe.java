@@ -1371,6 +1371,11 @@ public class NodeProbe implements AutoCloseable
 
     public LCSEnforcementLevel getLCSEnforcementLevel() { return ssProxy.getLCSEnforcementLevel(); }
 
+    public Map<String, String> getCurrentCompactionThroughputMiBPerSec()
+    {
+        return ssProxy.getCurrentCompactionThroughputMebibytesPerSec();
+    }
+
     public void setBatchlogReplayThrottle(int value)
     {
         ssProxy.setBatchlogReplayThrottleInKB(value);

@@ -52,6 +52,8 @@ public class CompactionMetrics
     public final Meter totalCompactionsCompleted;
     /** Total number of bytes compacted since server [re]start */
     public final Counter bytesCompacted;
+    /** Recent/current throughput of compactions take */
+    public final Meter bytesCompactedThroughput;
     /** Time spent redistributing index summaries */
     public final Timer indexSummaryRedistributionTime;
     /** Successful cleanup of an SSTable */
@@ -168,6 +170,7 @@ public class CompactionMetrics
                 return CompactionManager.instance.getLastCleanupElapsedSeconds();
             }
         });
+        bytesCompactedThroughput = Metrics.meter(factory.createMetricName("BytesCompactedThroughput"));
 
         // compaction failure metrics
         compactionsReduced = Metrics.counter(factory.createMetricName("CompactionsReduced"));

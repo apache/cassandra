@@ -136,6 +136,9 @@ public class CompactionStatsTest extends CQLTester
         tool.assertOnCleanExit();
         stdout = tool.getStdout();
         assertThat(stdout).contains("pending tasks: 0");
+        assertThat(stdout).containsPattern("current compaction throughput \\(1 minute\\):\\s+[0-9]*.[0-9]*[0-9]* MiB/s");
+        assertThat(stdout).containsPattern("current compaction throughput \\(5 minutes\\):\\s+[0-9]*.[0-9]*[0-9]* MiB/s");
+        assertThat(stdout).containsPattern("current compaction throughput \\(15 minutes\\):\\s+[0-9]*.[0-9]*[0-9]* MiB/s");
     }
 
     @Test

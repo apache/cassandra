@@ -74,6 +74,10 @@ public class CompactionStats extends NodeToolCmd
                 out.println("- " + ksName + '.' + tableName + ": " + pendingTaskCount);
             }
         }
+        Map<String, String> currentCompactionThroughputMetricsMap = probe.getCurrentCompactionThroughputMiBPerSec();
+        out.println("current compaction throughput (1 minute): " + currentCompactionThroughputMetricsMap.get("1minute") + " MiB/s");
+        out.println("current compaction throughput (5 minutes): " + currentCompactionThroughputMetricsMap.get("5minute") + " MiB/s");
+        out.println("current compaction throughput (15 minutes): " + currentCompactionThroughputMetricsMap.get("15minute") + " MiB/s");
         out.println();
         reportCompactionTable(cm.getCompactions(), probe.getCompactionThroughputBytes(), humanReadable, vtableOutput, out);
     }

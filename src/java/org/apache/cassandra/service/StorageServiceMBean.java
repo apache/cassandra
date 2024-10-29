@@ -727,6 +727,7 @@ public interface StorageServiceMBean extends NotificationEmitter
     @Deprecated
     public int getCompactionThroughputMbPerSec();
     public void setCompactionThroughputMbPerSec(int value);
+    Map<String, String> getCurrentCompactionThroughputMebibytesPerSec();
 
     public LCSEnforcementLevel getLCSEnforcementLevel();
     public void setLCSEnforcementLevel(LCSEnforcementLevel level);
