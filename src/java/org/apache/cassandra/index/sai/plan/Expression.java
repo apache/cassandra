@@ -79,7 +79,7 @@ public abstract class Expression
 
     public enum IndexOperator
     {
-        EQ, RANGE, CONTAINS_KEY, CONTAINS_VALUE, ANN;
+        EQ, RANGE, CONTAINS_KEY, CONTAINS_VALUE, ANN, IN;
 
         public static IndexOperator valueOf(Operator operator)
         {
@@ -104,6 +104,9 @@ public abstract class Expression
                 case ANN:
                     return ANN;
 
+                case IN:
+                    return IN;
+
                 default:
                     return null;
             }
@@ -111,7 +114,7 @@ public abstract class Expression
 
         public boolean isEquality()
         {
-            return this == EQ || this == CONTAINS_KEY || this == CONTAINS_VALUE;
+            return this == EQ || this == CONTAINS_KEY || this == CONTAINS_VALUE || this == IN;
         }
 
         public boolean isEqualityOrRange()
@@ -169,6 +172,7 @@ public abstract class Expression
             case EQ:
             case CONTAINS:
             case CONTAINS_KEY:
+            case IN:
                 lower = new Bound(value, indexTermType, true);
                 upper = lower;
                 operator = IndexOperator.valueOf(op);
@@ -223,8 +227,8 @@ public abstract class Expression
                 Value first = new Value(buffers.get(0), indexTermType);
                 Value second = new Value(buffers.get(1), indexTermType);
 
-                // SimpleRestriction#addToRowFilter() ensures correct bounds ordering, but SAI enforces a non-arbitrary 
-                // ordering between IPv4 and IPv6 addresses, so correction may still be necessary. 
+                // SimpleRestriction#addToRowFilter() ensures correct bounds ordering, but SAI enforces a non-arbitrary
+                // ordering between IPv4 and IPv6 addresses, so correction may still be necessary.
                 boolean outOfOrder = indexTermType.compare(first.encoded, second.encoded) > 0;
                 lower = new Bound(outOfOrder ? second : first, true);
                 upper = new Bound(outOfOrder ? first : second, true);
@@ -236,6 +240,7 @@ public abstract class Expression
                 lower = new Bound(value, indexTermType, true);
                 upper = lower;
                 break;
+
             default:
                 throw new IllegalArgumentException("Index does not support the " + op + " operator");
         }
@@ -274,6 +279,9 @@ public abstract class Expression
                 // in case of EQ lower == upper
                 if (operator == IndexOperator.EQ || operator == IndexOperator.CONTAINS_KEY || operator == IndexOperator.CONTAINS_VALUE)
                     return cmp == 0;
+
+                if (operator == IndexOperator.IN)
+                    return termMatches(value.raw, lower.value.raw);
 
                 if (cmp > 0 || (cmp == 0 && !lowerInclusive))
                     return false;
@@ -334,6 +342,17 @@ public abstract class Expression
                 break;
             case RANGE:
                 isMatch = isLowerSatisfiedBy(term) && isUpperSatisfiedBy(term);
+                break;
+            case IN:
+                ListType<?> type = ListType.getInstance(indexTermType.columnMetadata().type, true);
+                List<? extends ByteBuffer> buffers = type.unpack(requestedValue);
+                for (ByteBuffer value : buffers)
+                {
+                    if (indexTermType.compare(term, value) == 0)
+                    {
+                        return true;
+                    }
+                }
                 break;
         }
         return isMatch;

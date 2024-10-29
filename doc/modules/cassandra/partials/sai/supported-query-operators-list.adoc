@@ -4,6 +4,6 @@ ifeval::["{evalproduct}" == "dse"]
 * Strings: `=`, `CONTAINS`, `CONTAINS KEY`, `AND`
 endif::[]
 ifeval::["{evalproduct}" != "dse"]
-* Numerics: `=`, `<`, `>`, `<=`, `>=`, `AND`, `OR`, `IN`
-* Strings: `=`, `CONTAINS`, `CONTAINS KEY`, `AND`, `OR`, `IN`
+* Numerics: `=`, `<`, `>`, `<=`, `>=`, `AND`
+* Strings: `=`, `CONTAINS`, `CONTAINS KEY`, `AND`
 endif::[]

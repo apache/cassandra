@@ -566,7 +566,8 @@ public class IndexTermType
             operator == Operator.LIKE_CONTAINS ||
             operator == Operator.LIKE_PREFIX ||
             operator == Operator.LIKE_MATCHES ||
-            operator == Operator.LIKE_SUFFIX) return false;
+            operator == Operator.LIKE_SUFFIX ||
+            operator == Operator.IN) return false;
 
         // ANN is only supported against vectors, and vector indexes only support ANN
         if (operator == Operator.ANN)

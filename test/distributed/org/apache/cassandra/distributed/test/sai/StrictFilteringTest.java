@@ -21,17 +21,14 @@ package org.apache.cassandra.distributed.test.sai;
 import java.io.IOException;
 import java.util.Iterator;
 
-import org.assertj.core.api.Assertions;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.shared.AssertUtils;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
-import org.apache.cassandra.index.sai.plan.StorageAttachedIndexQueryPlan;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
@@ -55,11 +52,10 @@ public class StrictFilteringTest extends TestBaseImpl
     }
 
     @Test
-    public void shouldRejectNonStrictIN()
+    public void shouldPostFilterNonStrictIN()
     {
         CLUSTER.schemaChange(withKeyspace("CREATE TABLE %s.reject_in (k int PRIMARY KEY, a int, b int) WITH read_repair = 'NONE'"));
         CLUSTER.schemaChange(withKeyspace("CREATE INDEX ON %s.reject_in(a) USING 'sai'"));
-        CLUSTER.schemaChange(withKeyspace("CREATE INDEX ON %s.reject_in(b) USING 'sai'"));
         SAIUtil.waitForIndexQueryable(CLUSTER, KEYSPACE);
 
         // insert an unrepaired row
@@ -68,9 +64,7 @@ public class StrictFilteringTest extends TestBaseImpl
 
         String select = withKeyspace("SELECT * FROM %s.reject_in WHERE a = 1 AND b IN (2, 3) ALLOW FILTERING");
 
-        // This should fail, as strict filtering is not allowed:
-        Assertions.assertThatThrownBy(() -> CLUSTER.coordinator(1).execute(select, ConsistencyLevel.ALL))
-                  .hasMessageContaining(String.format(StorageAttachedIndexQueryPlan.UNSUPPORTED_NON_STRICT_OPERATOR, Operator.IN));
+        assertRows(CLUSTER.coordinator(1).execute(select, ConsistencyLevel.ALL), row(0,1,2));
 
         // Repair fixes the split row, although we still only allow the query when reconciliation is not required:
         CLUSTER.get(1).nodetoolResult("repair", KEYSPACE).asserts().success();
