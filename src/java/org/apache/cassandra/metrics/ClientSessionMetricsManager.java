@@ -31,9 +31,9 @@ public class ClientSessionMetricsManager
     {
     }
 
-    public static ClientSessionMetrics getMetrics(String serviceName, String tenancy, String tier)
+    public static ClientSessionMetrics getMetrics(String clientService, String tenancy, String tier)
     {
-        String key = String.join(",", serviceName, tenancy, tier);
-        return sessionMetrics.computeIfAbsent(key, k -> new ClientSessionMetrics(serviceName, tenancy, tier));
+        String key = String.join(",", clientService, tenancy, tier);
+        return sessionMetrics.computeIfAbsent(key, k -> new ClientSessionMetrics(clientService, tenancy, tier));
     }
 }

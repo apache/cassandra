@@ -26,20 +26,20 @@ public class ClientSessionMetrics
 {
     public Meter sessions;
 
-    public ClientSessionMetrics(String serviceName, String tenancy, String tier) {
-        MetricNameFactory factory = new ClientSessionsMetricsFactory(serviceName, tenancy, tier);
+    public ClientSessionMetrics(String clientService, String tenancy, String tier) {
+        MetricNameFactory factory = new ClientSessionsMetricsFactory(clientService, tenancy, tier);
         sessions = Metrics.meter(factory.createMetricName("ClientSessions"));
     }
 
     class ClientSessionsMetricsFactory implements MetricNameFactory
     {
         private static final String TYPE = "ClientSessions";
-        private String serviceName;
+        private String clientService;
         private String tenancy;
         private String tier;
 
-        protected ClientSessionsMetricsFactory(String serviceName, String tenancy, String tier) {
-            this.serviceName = serviceName;
+        protected ClientSessionsMetricsFactory(String clientService, String tenancy, String tier) {
+            this.clientService = clientService;
             this.tenancy = tenancy;
             this.tier = tier;
         }
@@ -53,12 +53,12 @@ public class ClientSessionMetrics
             mbeanName.append(groupName).append(":");
             mbeanName.append("type=").append(TYPE);
             mbeanName.append(",name=").append(metricName);
-            mbeanName.append(",service=").append(serviceName);
+            mbeanName.append(",clientService=").append(clientService);
             mbeanName.append(",tenancy=").append(tenancy);
             mbeanName.append(",tier=").append(tier);
 
             StringBuilder scope = new StringBuilder();
-            scope.append("service=").append(serviceName);
+            scope.append("clientService=").append(clientService);
             scope.append(",tenancy=").append(tenancy);
             scope.append(",tier=").append(tier);
 

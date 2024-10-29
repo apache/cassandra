@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * [SO-35591] Change the service name in client session metric to clientService
  * [SO-36627] Gossip settled without reaching minimum node count should wait longer time before throw exception
  * [SO-36319] Implement compaction_ignore_disk_check flag
  * [SO-31659] Upgrade the JFX-debug-thin to support ARM
