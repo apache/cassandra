@@ -93,6 +93,7 @@
  * Add the ability to disable bulk loading of SSTables (CASSANDRA-18781)
  * Clean up obsolete functions and simplify cql_version handling in cqlsh (CASSANDRA-18787)
 Merged from 5.0:
+ * Suppress CVE-2024-45772, upgrade to lucene-core-9.12.0.jar (CASSANDRA-20024)
  * Use SinglePartitionReadCommand for index queries that use strict filtering (CASSANDRA-19968)
  * Always write local expiration time as an int to LivenessInfo digest (CASSANDRA-19989)
  * Enables IAuthenticator's to return own AuthenticateMessage (CASSANDRA-19984)

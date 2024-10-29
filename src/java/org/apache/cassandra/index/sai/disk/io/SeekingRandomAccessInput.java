@@ -63,6 +63,12 @@ public class SeekingRandomAccessInput implements RandomAccessInput
     }
 
     @Override
+    public long length()
+    {
+        throw new UnsupportedOperationException("calling length() on SeekingRandomAccessInput not supported");
+    }
+
+    @Override
     public String toString()
     {
         return "SeekingRandomAccessInput(" + in + ')';
