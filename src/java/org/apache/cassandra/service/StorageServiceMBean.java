@@ -530,6 +530,8 @@ public interface StorageServiceMBean extends NotificationEmitter
      * This node will unload its data onto its neighbors, and bootstrap to the new token.
      */
     public void move(String newToken) throws IOException;
+    public void resumeMove();
+    public void abortMove();
 
     /**
      * removeToken removes token (and all data associated with

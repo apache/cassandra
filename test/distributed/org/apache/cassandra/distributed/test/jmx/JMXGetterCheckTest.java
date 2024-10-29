@@ -59,6 +59,8 @@ public class JMXGetterCheckTest extends TestBaseImpl
     "org.apache.cassandra.db:type=StorageService:clearConnectionHistory", // Throws a NullPointerException
     "org.apache.cassandra.db:type=StorageService:startGossiping", // causes multiple loops to fail
     "org.apache.cassandra.db:type=StorageService:startNativeTransport", // causes multiple loops to fail
+    "org.apache.cassandra.db:type=StorageService:resumeMove", // throws since there is no move in progress
+    "org.apache.cassandra.db:type=StorageService:abortMove", // throws since there is no move in progress
     "org.apache.cassandra.db:type=CIDRGroupsMappingManager:loadCidrGroupsCache", // AllowAllCIDRAuthorizer doesn't support this operation, as feature is disabled by default
     "org.apache.cassandra.db:type=StorageService:forceRemoveCompletion" // deprecated (TCM)
     );

@@ -439,6 +439,10 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
             case LEAVING:
                 logger.info("Node is currently being decommissioned, resume with `nodetool decommission`");
                 break;
+            case MOVING:
+                logger.info("Node is currently moving, resume with nodetool move --resume or abort with nodetool move --abort");
+                StorageService.instance.markMoveFailed();
+                break;
             default:
                 throw new IllegalStateException("Can't proceed from the state " + metadata.directory.peerState(self));
         }

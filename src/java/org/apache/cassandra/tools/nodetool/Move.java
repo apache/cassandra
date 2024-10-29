@@ -23,21 +23,46 @@ import io.airlift.airline.Command;
 
 import java.io.IOException;
 
+import io.airlift.airline.Option;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
 @Command(name = "move", description = "Move node on the token ring to a new token")
 public class Move extends NodeToolCmd
 {
-    @Arguments(usage = "<new token>", description = "The new token.", required = true)
+    @Arguments(usage = "<new token>", description = "The new token.")
     private String newToken = EMPTY;
+
+    @Option(title = "Resume an ongoing move operation", name = "--resume")
+    private boolean resume;
+
+    @Option(title = "Abort an ongoing move operation", name = "--abort")
+    private boolean abort;
 
     @Override
     public void execute(NodeProbe probe)
     {
         try
         {
-            probe.move(newToken);
+            if (!newToken.isEmpty())
+            {
+                if (resume || abort)
+                    throw new IllegalArgumentException("Can't give both a token and --resume/--abort");
+
+                probe.move(newToken);
+            }
+            else
+            {
+                if (abort && resume)
+                    throw new IllegalArgumentException("Can't both resume and abort");
+
+                if (resume)
+                    probe.resumeMove();
+                else if (abort)
+                    probe.abortMove();
+                else
+                    throw new IllegalArgumentException("Need to give either a token for a new move operation, or --resume/--abort for an existing one");
+            }
         } catch (IOException e)
         {
             throw new RuntimeException("Error during moving node", e);
