@@ -86,7 +86,7 @@ public final class SystemDistributedKeyspace
      *
      * // TODO: TCM - how do we evolve these tables?
      */
-    public static final long GENERATION = 6;
+    public static final long GENERATION = 7;
 
     public static final String REPAIR_HISTORY = "repair_history";
 
