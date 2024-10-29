@@ -39,7 +39,8 @@ public interface SnapshotManagerMBean
      * Remove the snapshot with the given name from the given keyspaces.
      * If no tag is specified we will remove all snapshots.
      *
-     * @param tag           name of snapshot to clear, if null or empty string, all snapshots of given keyspace will be cleared
+     * @param tag           name of snapshot to clear, if null or empty string,
+     *                      all snapshots of given keyspace will be cleared
      * @param options       map of options for cleanup operation, consult nodetool's ClearSnapshot
      * @param keyspaceNames name of keyspaces to clear snapshots for
      */
@@ -69,6 +70,23 @@ public interface SnapshotManagerMBean
      * @return True size taken by all the snapshots.
      */
     long getTrueSnapshotSize();
+
+    /**
+     * Get the true size take by all snapshots in given keyspace.
+     *
+     * @param keyspace keyspace to get true size of all snapshots of
+     * @return true size of all snapshots in given keyspace
+     */
+    long getTrueSnapshotsSize(String keyspace);
+
+    /**
+     * Get the true size take by all snapshots in given keyspace and table.
+     *
+     * @param keyspace keyspace to get true size of all snapshots of
+     * @param table table in a keyspace to get true size of all snapshots of
+     * @return true size of all snapshots in given keyspace and table
+     */
+    long getTrueSnapshotsSize(String keyspace, String table);
 
     /**
      * Set the current hardlink-per-second throttle for snapshots

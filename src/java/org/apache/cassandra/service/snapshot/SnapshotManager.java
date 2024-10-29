@@ -18,71 +18,80 @@
 package org.apache.cassandra.service.snapshot;
 
 import java.time.Instant;
-import java.time.format.DateTimeParseException;
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.PriorityBlockingQueue;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Predicate;
 import javax.management.openmbean.TabularData;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.DurationSpec;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
 
-import static java.util.Comparator.comparing;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
-import static org.apache.cassandra.schema.SchemaConstants.isLocalSystemKeyspace;
+import static org.apache.cassandra.service.snapshot.ClearSnapshotTask.getClearSnapshotPredicate;
+import static org.apache.cassandra.service.snapshot.ClearSnapshotTask.getPredicateForCleanedSnapshots;
+import static org.apache.cassandra.service.snapshot.ListSnapshotsTask.getListingSnapshotsPredicate;
 
 public class SnapshotManager implements SnapshotManagerMBean, AutoCloseable
 {
     private static final Logger logger = LoggerFactory.getLogger(SnapshotManager.class);
 
-    private static final ScheduledExecutorPlus executor = executorFactory().scheduled(false, "SnapshotCleanup");
+    private static ScheduledExecutorPlus snapshotCleanupExecutor;
+    private static ExecutorPlus tasksExecutor;
 
     public static final SnapshotManager instance = new SnapshotManager();
 
     private final long initialDelaySeconds;
     private final long cleanupPeriodSeconds;
-    private final SnapshotLoader snapshotLoader;
 
     private volatile ScheduledFuture<?> cleanupTaskFuture;
 
-    private final Set<TableSnapshot> liveSnapshots = Collections.synchronizedSet(new HashSet<>());
+    private final String[] dataDirs;
 
-    /**
-     * Expiring snapshots ordered by expiration date, to allow only iterating over snapshots
-     * that need to be removed
-     */
-    private final PriorityBlockingQueue<TableSnapshot> expiringSnapshots = new PriorityBlockingQueue<>(10, comparing(TableSnapshot::getExpiresAt));
+    private volatile boolean started = false;
+
+    private final Set<TableSnapshot> snapshots = Collections.synchronizedSet(new HashSet<>());
 
     private SnapshotManager()
     {
         this(CassandraRelevantProperties.SNAPSHOT_CLEANUP_INITIAL_DELAY_SECONDS.getInt(),
              CassandraRelevantProperties.SNAPSHOT_CLEANUP_PERIOD_SECONDS.getInt());
+    }
+
+    private static ScheduledExecutorPlus createSnapshotCleanupExecutor()
+    {
+        return executorFactory().scheduled(false, "SnapshotCleanup");
+    }
+
+    private static ExecutorPlus createSnapshotTasksExecutor()
+    {
+        return executorFactory()
+               .localAware()
+               .configurePooled("SnapshotManager", 1)
+               .withKeepAlive(1, TimeUnit.HOURS)
+               .withQueueLimit(Integer.MAX_VALUE)
+               .withRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy())
+               .build();
     }
 
     @VisibleForTesting
@@ -96,7 +105,10 @@ public class SnapshotManager implements SnapshotManagerMBean, AutoCloseable
     {
         this.initialDelaySeconds = initialDelaySeconds;
         this.cleanupPeriodSeconds = cleanupPeriodSeconds;
-        snapshotLoader = new SnapshotLoader(dataDirs);
+        this.dataDirs = dataDirs;
+
+        snapshotCleanupExecutor = createSnapshotCleanupExecutor();
+        tasksExecutor = createSnapshotTasksExecutor();
     }
 
     public void registerMBean()
@@ -110,16 +122,47 @@ public class SnapshotManager implements SnapshotManagerMBean, AutoCloseable
         MBeanWrapper.instance.unregisterMBean(MBEAN_NAME);
     }
 
-    public static void shutdownAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
+    public static void shutdownAndWait(long timeout, TimeUnit unit)
     {
-        ExecutorUtils.shutdownNowAndWait(timeout, unit, executor);
+        try
+        {
+            ExecutorUtils.shutdownNowAndWait(timeout, unit, snapshotCleanupExecutor);
+            ExecutorUtils.shutdownAndWait(timeout, unit, tasksExecutor);
+        }
+        catch (InterruptedException | TimeoutException ex)
+        {
+            throw new RuntimeException(ex);
+        }
+    }
+
+    private static class LoadSnapshotsTask implements Callable<Set<TableSnapshot>>
+    {
+        private final String[] dataDirs;
+
+        public LoadSnapshotsTask(String[] dataDirs)
+        {
+            this.dataDirs = dataDirs;
+        }
+
+        @Override
+        public Set<TableSnapshot> call()
+        {
+            return new SnapshotLoader(dataDirs).loadSnapshots();
+        }
     }
 
     public synchronized void start(boolean runPeriodicSnapshotCleaner)
     {
-        addSnapshots(loadSnapshots());
+        if (started)
+            return;
+
+        for (TableSnapshot snapshot : executeTask(new LoadSnapshotsTask(dataDirs)))
+            SnapshotManager.instance.addSnapshot(snapshot);
+
         if (runPeriodicSnapshotCleaner)
             resumeSnapshotCleanup();
+
+        started = true;
     }
 
     public synchronized void start()
@@ -131,20 +174,24 @@ public class SnapshotManager implements SnapshotManagerMBean, AutoCloseable
     public synchronized void close()
     {
         pauseSnapshotCleanup();
-        expiringSnapshots.clear();
-        liveSnapshots.clear();
+        snapshots.clear();
     }
 
-    public synchronized void close(boolean shutdownExecutor) throws Exception
+    public synchronized void close(boolean shutdownExecutor)
     {
+        if (!started)
+            return;
+
         close();
         if (shutdownExecutor)
             shutdownAndWait(1, TimeUnit.MINUTES);
+
+        started = false;
     }
 
     public synchronized Set<TableSnapshot> loadSnapshots()
     {
-        return snapshotLoader.loadSnapshots();
+        return executeTask(new LoadSnapshotsTask(dataDirs));
     }
 
     public synchronized void restart()
@@ -154,8 +201,11 @@ public class SnapshotManager implements SnapshotManagerMBean, AutoCloseable
 
     public synchronized void restart(boolean runPeriodicSnapshotCleaner)
     {
+        if (!started)
+            return;
+
         logger.debug("Restarting SnapshotManager");
-        close();
+        close(true);
         start(runPeriodicSnapshotCleaner);
         logger.debug("SnapshotManager restarted");
     }
@@ -163,33 +213,29 @@ public class SnapshotManager implements SnapshotManagerMBean, AutoCloseable
     synchronized void addSnapshot(TableSnapshot snapshot)
     {
         logger.debug("Adding snapshot {}", snapshot);
-
-        if (snapshot.isExpiring())
-            expiringSnapshots.add(snapshot);
-        else
-            liveSnapshots.add(snapshot);
+        snapshots.add(snapshot);
     }
 
-    synchronized void addSnapshots(Collection<TableSnapshot> snapshots)
+    synchronized Set<TableSnapshot> getSnapshots()
     {
-        snapshots.forEach(this::addSnapshot);
+        return snapshots;
     }
 
-    public synchronized void resumeSnapshotCleanup()
+    public void resumeSnapshotCleanup()
     {
         if (cleanupTaskFuture == null)
         {
             logger.info("Scheduling expired snapshots cleanup with initialDelaySeconds={} and cleanupPeriodSeconds={}",
                         initialDelaySeconds, cleanupPeriodSeconds);
 
-            cleanupTaskFuture = executor.scheduleWithFixedDelay(this::clearExpiredSnapshots,
-                                                                initialDelaySeconds,
-                                                                cleanupPeriodSeconds,
-                                                                SECONDS);
+            cleanupTaskFuture = snapshotCleanupExecutor.scheduleWithFixedDelay(SnapshotManager.instance::clearExpiredSnapshots,
+                                                                               initialDelaySeconds,
+                                                                               cleanupPeriodSeconds,
+                                                                               SECONDS);
         }
     }
 
-    synchronized void pauseSnapshotCleanup()
+    private void pauseSnapshotCleanup()
     {
         if (cleanupTaskFuture != null)
         {
@@ -205,32 +251,7 @@ public class SnapshotManager implements SnapshotManagerMBean, AutoCloseable
      */
     synchronized void clearSnapshot(TableSnapshot snapshot)
     {
-        clearSnapshot(snapshot, true);
-    }
-
-    synchronized void clearSnapshot(TableSnapshot snapshot, boolean deleteData)
-    {
-        logger.debug("Removing snapshot {}{}", snapshot, deleteData ? ", deleting data" : "");
-
-        if (deleteData)
-        {
-            for (File snapshotDir : snapshot.getDirectories())
-            {
-                try
-                {
-                    removeSnapshotDirectory(snapshotDir);
-                }
-                catch (Exception ex)
-                {
-                    logger.warn("Unable to remove snapshot directory {}", snapshotDir, ex);
-                }
-            }
-        }
-
-        if (snapshot.isExpiring())
-            expiringSnapshots.remove(snapshot);
-        else
-            liveSnapshots.remove(snapshot);
+        executeTask(new ClearSnapshotTask(s -> s.equals(snapshot), true));
     }
 
     /**
@@ -242,44 +263,6 @@ public class SnapshotManager implements SnapshotManagerMBean, AutoCloseable
     public List<TableSnapshot> getSnapshots(String keyspace)
     {
         return getSnapshots(snapshot -> snapshot.getKeyspaceName().equals(keyspace));
-    }
-
-    /**
-     * Returns list of snapshots from given keyspace and table.
-     *
-     * @param keyspace keyspace of a snapshot
-     * @param table    table of a snapshot
-     * @return list of snapshots from given keyspace and table
-     */
-    public List<TableSnapshot> getSnapshots(String keyspace, String table)
-    {
-        return getSnapshots(snapshot -> snapshot.getKeyspaceName().equals(keyspace) &&
-                                        snapshot.getTableName().equals(table));
-    }
-
-    /**
-     * Returns a snapshot or empty optional based on the given parameters.
-     *
-     * @param keyspace keyspace of a snapshot
-     * @param table    table of a snapshot
-     * @param tag      name of a snapshot
-     * @return empty optional if there is not such snapshot, non-empty otherwise
-     */
-    public synchronized Optional<TableSnapshot> getSnapshot(String keyspace, String table, String tag)
-    {
-        // we do not use the predicate here because we want to stop the loop as soon as
-        // we find the snapshot we are looking for, looping until the end is not necessary
-        for (TableSnapshot snapshot : Iterables.concat(liveSnapshots, expiringSnapshots))
-        {
-            if (snapshot.getKeyspaceName().equals(keyspace) &&
-                snapshot.getTableName().equals(table) &&
-                snapshot.getTag().equals(tag) || (tag != null && tag.isEmpty()))
-            {
-                return Optional.of(snapshot);
-            }
-        }
-
-        return Optional.empty();
     }
 
     /**
@@ -295,14 +278,6 @@ public class SnapshotManager implements SnapshotManagerMBean, AutoCloseable
     }
 
     /**
-     * @return all ephemeral snapshots in a node
-     */
-    public List<TableSnapshot> getEphemeralSnapshots()
-    {
-        return getSnapshots(TableSnapshot::isEphemeral);
-    }
-
-    /**
      * Returns all snapshots passing the given predicate.
      *
      * @param predicate predicate to filter all snapshots of
@@ -310,49 +285,32 @@ public class SnapshotManager implements SnapshotManagerMBean, AutoCloseable
      */
     public synchronized List<TableSnapshot> getSnapshots(Predicate<TableSnapshot> predicate)
     {
-        List<TableSnapshot> notExistingAnymore = new ArrayList<>();
-        List<TableSnapshot> snapshots = new ArrayList<>();
-        for (TableSnapshot snapshot : Iterables.concat(liveSnapshots, expiringSnapshots))
-        {
-            if (predicate.test(snapshot))
-            {
-                if (!snapshot.hasManifest())
-                    notExistingAnymore.add(snapshot);
-                else
-                    snapshots.add(snapshot);
-            }
-        }
-
-        for (TableSnapshot tableSnapshot : notExistingAnymore)
-            clearSnapshot(tableSnapshot, false);
-
-        return snapshots;
-    }
-
-    public Collection<TableSnapshot> getExpiringSnapshots()
-    {
-        return expiringSnapshots;
+        return executeTask(new GetSnapshotsTask(predicate, true));
     }
 
     /**
-     * Clear snapshots of given tag from given keyspaces.
-     * <p>
-     * If tag is not present / is empty, all snapshots are considered to be cleared.
-     * If keyspaces are empty, all snapshots of given tag and older than maxCreatedAt are removed.
-     * <p>
-     * Ephemeral snapshots are not included.
+     * Returns a snapshot or empty optional based on the given parameters.
      *
-     * @param tag          optional tag of snapshot to clear
-     * @param keyspaces    keyspaces to remove snapshots for
-     * @param maxCreatedAt clear all such snapshots which were created before this timestamp
+     * @param keyspace keyspace of a snapshot
+     * @param table    table of a snapshot
+     * @param tag      name of a snapshot
+     * @return empty optional if there is not such snapshot, non-empty otherwise
      */
-    public void clearSnapshots(String tag, Set<String> keyspaces, long maxCreatedAt)
+    public synchronized Optional<TableSnapshot> getSnapshot(String keyspace, String table, String tag)
     {
-        clearSnapshots(tag, keyspaces, maxCreatedAt, false);
+        List<TableSnapshot> foundSnapshots = executeTask(new GetSnapshotsTask(snapshot -> snapshot.getKeyspaceName().equals(keyspace) &&
+                                                                                          snapshot.getTableName().equals(table) &&
+                                                                                          snapshot.getTag().equals(tag) || (tag != null && tag.isEmpty()),
+                                                                              false));
+
+        if (foundSnapshots.isEmpty())
+            return Optional.empty();
+        else
+            return Optional.of(foundSnapshots.get(0));
     }
 
     /**
-     * Clear snapshots of given tag from given keyspace.
+     * Clear snapshots of given tag from given keyspace. Does not remove ephemeral snapshots.
      * <p>
      *
      * @param tag      snapshot name
@@ -360,7 +318,7 @@ public class SnapshotManager implements SnapshotManagerMBean, AutoCloseable
      */
     public void clearSnapshots(String tag, String keyspace)
     {
-        clearSnapshots(tag, Set.of(keyspace), Clock.Global.currentTimeMillis(), false);
+        clearSnapshots(tag, Set.of(keyspace), Clock.Global.currentTimeMillis());
     }
 
     /**
@@ -376,15 +334,23 @@ public class SnapshotManager implements SnapshotManagerMBean, AutoCloseable
         getSnapshot(keyspace, table, tag).ifPresent(this::clearSnapshot);
     }
 
+    /**
+     * Removes all snapshots for given keyspace and table.
+     *
+     * @param keyspace keyspace to remove snapshots for
+     * @param table    table in a given keyspace to remove snapshots for
+     */
     public void clearAllSnapshots(String keyspace, String table)
     {
-        getSnapshot(keyspace, table, "").ifPresent(this::clearSnapshot);
+        executeTask(new ClearSnapshotTask(snapshot -> snapshot.getKeyspaceName().equals(keyspace) && snapshot.getTableName().equals(table), true));
     }
 
+    /**
+     * Clears all snapshots, expiring and ephemeral as well.
+     */
     public void clearAllSnapshots()
     {
-        for (TableSnapshot tableSnapshot : getSnapshots(p -> true))
-            clearSnapshot(tableSnapshot);
+        executeTask(new ClearSnapshotTask(snapshot -> true, true));
     }
 
     /**
@@ -392,7 +358,7 @@ public class SnapshotManager implements SnapshotManagerMBean, AutoCloseable
      */
     public void clearEphemeralSnapshots()
     {
-        getEphemeralSnapshots().forEach(this::clearSnapshot);
+        executeTask(new ClearSnapshotTask(TableSnapshot::isEphemeral, true));
     }
 
     /**
@@ -401,7 +367,7 @@ public class SnapshotManager implements SnapshotManagerMBean, AutoCloseable
     public synchronized void clearExpiredSnapshots()
     {
         Instant now = FBUtilities.now();
-        getSnapshots(s -> s.isExpired(now)).forEach(this::clearSnapshot);
+        executeTask(new ClearSnapshotTask(s -> s.isExpired(now), true));
     }
 
     /**
@@ -410,70 +376,46 @@ public class SnapshotManager implements SnapshotManagerMBean, AutoCloseable
      * If tag is not present / is empty, all snapshots are considered to be cleared.
      * If keyspaces are empty, all snapshots of given tag and older than maxCreatedAt are removed.
      *
-     * @param tag              optional tag of snapshot to clear
-     * @param keyspaces        keyspaces to remove snapshots for
-     * @param maxCreatedAt     clear all such snapshots which were created before this timestamp
-     * @param includeEphemeral include ephemeral snaphots for removal or not
+     * @param tag          optional tag of snapshot to clear
+     * @param keyspaces    keyspaces to remove snapshots for
+     * @param maxCreatedAt clear all such snapshots which were created before this timestamp
      */
-    synchronized void clearSnapshots(String tag, Set<String> keyspaces,
-                                     long maxCreatedAt,
-                                     boolean includeEphemeral)
+    private synchronized void clearSnapshots(String tag, Set<String> keyspaces, long maxCreatedAt)
     {
-        Predicate<TableSnapshot> predicate = shouldClearSnapshot(tag, keyspaces, maxCreatedAt, includeEphemeral);
-        getSnapshots(predicate).forEach(this::clearSnapshot);
+        executeTask(new ClearSnapshotTask(getClearSnapshotPredicate(tag, keyspaces, maxCreatedAt, false), true));
     }
 
     /**
-     * Returns a predicate based on which a snapshot will be included for deletion or not.
+     * Takes snapshot(s) for given task which was constructed outside of this manager to fine-tune the snapshotting task.
      *
-     * @param tag                name of snapshot to remove
-     * @param keyspaces          keyspaces this snapshot belongs to
-     * @param olderThanTimestamp clear the snapshot if it is older than given timestamp
-     * @param includeEphemeral   whether to include ephemeral snapshots as well
-     * @return predicate which filters snapshots on given parameters
+     * @param takeSnapshotTask task to take snapshots for
+     * @return list of taken snapshots
      */
-    static Predicate<TableSnapshot> shouldClearSnapshot(String tag,
-                                                        Set<String> keyspaces,
-                                                        long olderThanTimestamp,
-                                                        boolean includeEphemeral)
+    public synchronized List<TableSnapshot> takeSnapshot(TakeSnapshotTask takeSnapshotTask)
     {
-        return ts ->
-        {
-            // When no tag is supplied, all snapshots must be cleared
-            boolean clearAll = tag == null || tag.isEmpty();
-            if (!clearAll && ts.isEphemeral() && !includeEphemeral)
-                logger.info("Skipping deletion of ephemeral snapshot '{}' in keyspace {}. " +
-                            "Ephemeral snapshots are not removable by a user.",
-                            tag, ts.getKeyspaceName());
-            boolean passedEphemeralTest = !ts.isEphemeral() || (ts.isEphemeral() && includeEphemeral);
-            boolean shouldClearTag = clearAll || ts.getTag().equals(tag);
-            boolean byTimestamp = true;
-
-            if (olderThanTimestamp > 0L)
-            {
-                Instant createdAt = ts.getCreatedAt();
-                if (createdAt != null)
-                    byTimestamp = createdAt.isBefore(Instant.ofEpochMilli(olderThanTimestamp));
-            }
-
-            boolean byKeyspace = (keyspaces.isEmpty() || keyspaces.contains(ts.getKeyspaceName()));
-
-            return passedEphemeralTest && shouldClearTag && byTimestamp && byKeyspace;
-        };
+        return executeTask(takeSnapshotTask);
     }
 
-    public List<TableSnapshot> takeSnapshot(TakeSnapshotTask takeSnapshotTask)
-    {
-        List<TableSnapshot> snapshots = takeSnapshotTask.call();
-        addSnapshots(snapshots);
-        return snapshots;
-    }
-
+    /**
+     * Takes snapshot of a given name for given keyspace and table.
+     *
+     * @param snapshotName  name of snapshot to take
+     * @param keyspaceTable keyspace and table pair in form "keyspace.table"
+     * @return taken snapshot
+     */
     public TableSnapshot takeSnapshot(String snapshotName, String keyspaceTable)
     {
         return takeSnapshot(new TakeSnapshotTask.Builder(snapshotName, keyspaceTable).build()).get(0);
     }
 
+    /**
+     * Takes snapshot of given name against given keyspace and table name.
+     *
+     * @param snapshotName name of snapshot to take
+     * @param keyspace     keyspace name to take a snapshot for
+     * @param table        table name to take a snapshot for
+     * @return taken snapshot
+     */
     public TableSnapshot takeSnapshot(String snapshotName, String keyspace, String table)
     {
         return takeSnapshot(new TakeSnapshotTask.Builder(snapshotName, keyspace + '.' + table).build()).get(0);
@@ -484,6 +426,7 @@ public class SnapshotManager implements SnapshotManagerMBean, AutoCloseable
     @Override
     public void takeSnapshot(String tag, Map<String, String> options, String... entities)
     {
+        logger.info("Taking snapshot ...");
         TakeSnapshotTask.Builder builder = new TakeSnapshotTask.Builder(tag, entities).ttl(options.get(TakeSnapshotTask.TTL));
         if (Boolean.parseBoolean(options.getOrDefault(TakeSnapshotTask.SKIP_FLUSH, Boolean.FALSE.toString())))
             builder.skipFlush();
@@ -494,41 +437,31 @@ public class SnapshotManager implements SnapshotManagerMBean, AutoCloseable
     @Override
     public void clearSnapshot(String tag, Map<String, Object> options, String... keyspaceNames)
     {
-        if (options == null)
-            options = Collections.emptyMap();
-
-        Object olderThan = options.get("older_than");
-        Object olderThanTimestamp = options.get("older_than_timestamp");
-
-        long maxCreatedAt = Clock.Global.currentTimeMillis();
-        if (olderThan != null)
-        {
-            assert olderThan instanceof String : "it is expected that older_than is an instance of java.lang.String";
-            maxCreatedAt -= new DurationSpec.LongSecondsBound((String) olderThan).toMilliseconds();
-        }
-        else if (olderThanTimestamp != null)
-        {
-            assert olderThanTimestamp instanceof String : "it is expected that older_than_timestamp is an instance of java.lang.String";
-            try
-            {
-                maxCreatedAt = Instant.parse((String) olderThanTimestamp).toEpochMilli();
-            }
-            catch (DateTimeParseException ex)
-            {
-                throw new RuntimeException("Parameter older_than_timestamp has to be a valid instant in ISO format.");
-            }
-        }
-
-        clearSnapshots(tag, Set.of(keyspaceNames), maxCreatedAt, false);
-
-        if (logger.isDebugEnabled())
-            logger.debug("Cleared out snapshot directories tag={} keyspaces={} maxCreatedAt={}", tag, keyspaceNames, maxCreatedAt);
+        executeTask(new ClearSnapshotTask(getPredicateForCleanedSnapshots(tag, options, keyspaceNames), true));
     }
 
     @Override
     public Map<String, TabularData> listSnapshots(Map<String, String> options)
     {
-        return new ListSnapshotsTask(options).call();
+        return executeTask(new ListSnapshotsTask(getListingSnapshotsPredicate(options), true));
+    }
+
+    @Override
+    public synchronized long getTrueSnapshotSize()
+    {
+        return executeTask(new TrueSnapshotSizeTask(s -> true));
+    }
+
+    @Override
+    public synchronized long getTrueSnapshotsSize(String keyspace)
+    {
+        return executeTask(new TrueSnapshotSizeTask(s -> s.getKeyspaceName().equals(keyspace)));
+    }
+
+    @Override
+    public synchronized long getTrueSnapshotsSize(String keyspace, String table)
+    {
+        return executeTask(new TrueSnapshotSizeTask(s -> s.getKeyspaceName().equals(keyspace) && s.getTableName().equals(table)));
     }
 
     @Override
@@ -544,46 +477,15 @@ public class SnapshotManager implements SnapshotManagerMBean, AutoCloseable
         return DatabaseDescriptor.getSnapshotLinksPerSecond();
     }
 
-    @Override
-    public synchronized long getTrueSnapshotSize()
+    private <T> T executeTask(Callable<T> task)
     {
-        long total = 0;
-        for (Keyspace keyspace : Keyspace.all())
+        try
         {
-            if (isLocalSystemKeyspace(keyspace.getName()))
-                continue;
-
-            for (ColumnFamilyStore cfStore : keyspace.getColumnFamilyStores())
-                total += trueSnapshotsSize(keyspace.getName(), cfStore.getTableName(), cfStore.getFilesOfCfs());
+            return tasksExecutor.submit(task).get();
         }
-
-        return total;
-    }
-
-    public synchronized long trueSnapshotsSize(String keyspace, String table, Set<String> filesOfCfs)
-    {
-        long size = 0;
-        for (TableSnapshot snapshot : getSnapshots(keyspace, table))
-            size += snapshot.computeTrueSizeBytes(filesOfCfs);
-
-        return size;
-    }
-
-    private void removeSnapshotDirectory(File snapshotDir)
-    {
-        if (snapshotDir.exists())
+        catch (InterruptedException | ExecutionException e)
         {
-            logger.trace("Removing snapshot directory {}", snapshotDir);
-            try
-            {
-                FileUtils.deleteRecursiveWithThrottle(snapshotDir, DatabaseDescriptor.getSnapshotRateLimiter());
-            }
-            catch (RuntimeException ex)
-            {
-                if (!snapshotDir.exists())
-                    return; // ignore
-                throw ex;
-            }
+            throw new RuntimeException(String.format("Unable to execute task %s", task.getClass().getName()));
         }
     }
 }

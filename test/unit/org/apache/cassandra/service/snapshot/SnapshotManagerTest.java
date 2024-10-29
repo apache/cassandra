@@ -93,7 +93,9 @@ public class SnapshotManagerTest
         {
             snapshotManager.start(true);
             List<TableSnapshot> tableSnapshots = generateTableSnapshots(10, 100);
-            snapshotManager.addSnapshots(tableSnapshots);
+
+            for (TableSnapshot snapshot : tableSnapshots)
+                snapshotManager.addSnapshot(snapshot);
 
             // we still have 1000 snapshots because we removed just one manifest
             removeManifestOfSnapshot(tableSnapshots.get(0));
@@ -119,7 +121,8 @@ public class SnapshotManagerTest
             snapshotManager.start(true);
             List<TableSnapshot> tableSnapshots = generateTableSnapshots(10, 100);
 
-            snapshotManager.addSnapshots(tableSnapshots);
+            for (TableSnapshot snapshot : tableSnapshots)
+                snapshotManager.addSnapshot(snapshot);
 
             // we have two dirs
             removeDirectoryOfSnapshot(tableSnapshots.get(0));

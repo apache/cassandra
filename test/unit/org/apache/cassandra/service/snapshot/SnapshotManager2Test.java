@@ -94,7 +94,10 @@ public class SnapshotManager2Test
 
         snapshotManager = new SnapshotManager(1000L, 60L);
         assertEquals(snapshotManager.getSnapshots(KEYSPACE).size(), 0);
-        snapshotManager.addSnapshots(snapshotManager.loadSnapshots());
+
+        for (TableSnapshot snapshot : snapshotManager.loadSnapshots())
+            snapshotManager.addSnapshot(snapshot);
+
         assertEquals(snapshotManager.getSnapshots(t -> true).size(), NUM_KEYSPACES * NUM_TABLES_PER_KEYSPACE * NUM_SNAPSHOTS_PER_TABLE);
     }
 

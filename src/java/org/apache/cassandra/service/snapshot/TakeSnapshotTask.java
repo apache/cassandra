@@ -66,10 +66,10 @@ public class TakeSnapshotTask implements Callable<List<TableSnapshot>>
     private static final Logger logger = LoggerFactory.getLogger(TakeSnapshotTask.class);
 
     private final String tag;
-    private IntSecondsBound ttl;
+    private final IntSecondsBound ttl;
     private Instant creationTime;
-    private boolean skipFlush;
-    private boolean ephemeral;
+    private final boolean skipFlush;
+    private final boolean ephemeral;
     private final Predicate<SSTableReader> predicate;
     private final RateLimiter rateLimiter;
     private final ColumnFamilyStore cfs;
@@ -98,14 +98,14 @@ public class TakeSnapshotTask implements Callable<List<TableSnapshot>>
 
     public static class Builder
     {
-        private String tag;
+        private final String tag;
         private IntSecondsBound ttl;
         private Instant creationTime;
         private boolean skipFlush = false;
         private boolean ephemeral = false;
         private Predicate<SSTableReader> predicate;
         private RateLimiter rateLimiter;
-        private String[] entities;
+        private final String[] entities;
         private ColumnFamilyStore cfs;
 
         public Builder(String tag, String... entities)
@@ -203,6 +203,8 @@ public class TakeSnapshotTask implements Callable<List<TableSnapshot>>
     @Override
     public List<TableSnapshot> call()
     {
+        logger.info("Indeed taking a snapshot!");
+
         if (StorageService.instance.operationMode() == StorageService.Mode.JOINING)
             throw new RuntimeException("Cannot snapshot until bootstrap completes");
 
@@ -212,8 +214,15 @@ public class TakeSnapshotTask implements Callable<List<TableSnapshot>>
         {
             String keyspaceName = table.getKeyspaceName();
             String tableName = table.getTableName();
-            if (SnapshotManager.instance.getSnapshot(table.getKeyspaceName(), table.getTableName(), tag).isPresent())
-                throw new RuntimeException(format("Snapshot %s for %s.%s already exists.", tag, keyspaceName, tableName));
+            for (TableSnapshot existingSnapshot : SnapshotManager.instance.getSnapshots())
+            {
+                if (existingSnapshot.getTag().equals(tag) &&
+                    existingSnapshot.getKeyspaceName().equals(keyspaceName) &&
+                    existingSnapshot.getTableName().equals(tableName))
+                {
+                    throw new RuntimeException(format("Snapshot %s for %s.%s already exists.", tag, keyspaceName, tableName));
+                }
+            }
         }
 
         List<TableSnapshot> snapshots = new LinkedList<>();
@@ -241,6 +250,9 @@ public class TakeSnapshotTask implements Callable<List<TableSnapshot>>
             TableSnapshot snapshot = createSnapshot(cfs, tag, predicate, ephemeral, ttl, creationTime);
             snapshots.add(snapshot);
         }
+
+        for (TableSnapshot snapshot : snapshots)
+            SnapshotManager.instance.addSnapshot(snapshot);
 
         return snapshots;
     }
@@ -322,7 +334,7 @@ public class TakeSnapshotTask implements Callable<List<TableSnapshot>>
                     entitiesForSnapshot.add(existingTable);
                 }
                 // special case for index which we can not normally create a snapshot for
-                // but a snapshot is apparently taken before a secondary index is scrubbed
+                // but a snapshot is apparently taken before a secondary index is scrubbed,
                 // so we preserve this behavior
                 else if (splitted.length == 3)
                 {

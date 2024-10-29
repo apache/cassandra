@@ -22,7 +22,6 @@ import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -47,7 +46,6 @@ import org.apache.cassandra.metrics.ClearableHistogram;
 import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.service.snapshot.TableSnapshot;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
 import org.assertj.core.api.Assertions;
 
@@ -62,7 +60,7 @@ public class KeyspaceTest extends CQLTester
     @Before
     public void cleanupSnapshots()
     {
-        SnapshotManager.instance.clearSnapshots("", Set.of(), Clock.Global.currentTimeMillis());
+        SnapshotManager.instance.clearAllSnapshots();
     }
 
     @Override

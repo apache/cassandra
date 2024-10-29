@@ -25,7 +25,6 @@ import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 import javax.management.openmbean.TabularData;
@@ -43,7 +42,6 @@ import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.service.snapshot.SnapshotManifest;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
-import org.apache.cassandra.utils.Clock;
 
 import static java.lang.String.format;
 import static java.time.temporal.ChronoUnit.HOURS;
@@ -72,7 +70,7 @@ public class ClearSnapshotTest extends CQLTester
     @Before
     public void clearAllSnapshots()
     {
-        SnapshotManager.instance.clearSnapshots("", Set.of(), Clock.Global.currentTimeMillis());
+        SnapshotManager.instance.clearAllSnapshots();
     }
 
     @AfterClass

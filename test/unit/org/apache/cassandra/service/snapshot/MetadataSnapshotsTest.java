@@ -20,6 +20,7 @@ package org.apache.cassandra.service.snapshot;
 
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
@@ -100,12 +101,18 @@ public class MetadataSnapshotsTest
         // Create SnapshotManager with 3 snapshots: expired, non-expired and non-expiring
         manager = new SnapshotManager(3, 3);
         manager.start();
-        manager.addSnapshots(snapshots);
+        for (TableSnapshot snapshot : snapshots)
+            manager.addSnapshot(snapshot);
 
         // Only expiring snapshots should be loaded
-        assertThat(manager.getExpiringSnapshots()).hasSize(2);
-        assertThat(manager.getExpiringSnapshots()).contains(expired);
-        assertThat(manager.getExpiringSnapshots()).contains(nonExpired);
+        assertThat(manager.getSnapshots(TableSnapshot::isExpiring)).hasSize(2);
+        assertThat(manager.getSnapshots(TableSnapshot::isExpiring)).contains(expired);
+        assertThat(manager.getSnapshots(TableSnapshot::isExpiring)).contains(nonExpired);
+    }
+
+    private Collection<TableSnapshot> getExpiringSnapshots(SnapshotManager manager)
+    {
+        return manager.getSnapshots(TableSnapshot::isExpiring);
     }
 
     @Test
@@ -122,17 +129,17 @@ public class MetadataSnapshotsTest
         manager.addSnapshot(nonExpiring);
 
         // Only expiring snapshot should be indexed and all should exist
-        assertThat(manager.getExpiringSnapshots()).hasSize(2);
-        assertThat(manager.getExpiringSnapshots()).contains(expired);
-        assertThat(manager.getExpiringSnapshots()).contains(nonExpired);
+        assertThat(manager.getSnapshots(TableSnapshot::isExpiring)).hasSize(2);
+        assertThat(manager.getSnapshots(TableSnapshot::isExpiring)).contains(expired);
+        assertThat(manager.getSnapshots(TableSnapshot::isExpiring)).contains(nonExpired);
         assertThat(expired.exists()).isTrue();
         assertThat(nonExpired.exists()).isTrue();
         assertThat(nonExpiring.exists()).isTrue();
 
         // After clearing expired snapshots, expired snapshot should be removed while the others should remain
         manager.clearExpiredSnapshots();
-        assertThat(manager.getExpiringSnapshots()).hasSize(1);
-        assertThat(manager.getExpiringSnapshots()).contains(nonExpired);
+        assertThat(manager.getSnapshots(TableSnapshot::isExpiring)).hasSize(1);
+        assertThat(manager.getSnapshots(TableSnapshot::isExpiring)).contains(nonExpired);
         assertThat(expired.exists()).isFalse();
         assertThat(nonExpired.exists()).isTrue();
         assertThat(nonExpiring.exists()).isTrue();
@@ -155,16 +162,16 @@ public class MetadataSnapshotsTest
         // Check both snapshots still exist
         assertThat(toExpire.exists()).isTrue();
         assertThat(nonExpired.exists()).isTrue();
-        assertThat(manager.getExpiringSnapshots()).hasSize(2);
-        assertThat(manager.getExpiringSnapshots()).contains(toExpire);
-        assertThat(manager.getExpiringSnapshots()).contains(nonExpired);
+        assertThat(manager.getSnapshots(TableSnapshot::isExpiring)).hasSize(2);
+        assertThat(manager.getSnapshots(TableSnapshot::isExpiring)).contains(toExpire);
+        assertThat(manager.getSnapshots(TableSnapshot::isExpiring)).contains(nonExpired);
 
         // Sleep 4 seconds
         Thread.sleep((TTL_SECS + 2) * 1000L);
 
         // Snapshot with ttl=2s should be gone, while other should remain
-        assertThat(manager.getExpiringSnapshots()).hasSize(1);
-        assertThat(manager.getExpiringSnapshots()).contains(nonExpired);
+        assertThat(manager.getSnapshots(TableSnapshot::isExpiring)).hasSize(1);
+        assertThat(manager.getSnapshots(TableSnapshot::isExpiring)).contains(nonExpired);
         assertThat(toExpire.exists()).isFalse();
         assertThat(nonExpired.exists()).isTrue();
     }
@@ -177,14 +184,14 @@ public class MetadataSnapshotsTest
         manager.start();
         TableSnapshot expiringSnapshot = generateSnapshotDetails("snapshot", now().plusMillis(50000), false);
         manager.addSnapshot(expiringSnapshot);
-        assertThat(manager.getExpiringSnapshots()).contains(expiringSnapshot);
+        assertThat(manager.getSnapshots(TableSnapshot::isExpiring)).contains(expiringSnapshot);
         assertThat(expiringSnapshot.exists()).isTrue();
 
         // When
         manager.clearSnapshot(expiringSnapshot);
 
         // Then
-        assertThat(manager.getExpiringSnapshots()).doesNotContain(expiringSnapshot);
+        assertThat(manager.getSnapshots(TableSnapshot::isExpiring)).doesNotContain(expiringSnapshot);
         assertThat(expiringSnapshot.exists()).isFalse();
     }
 

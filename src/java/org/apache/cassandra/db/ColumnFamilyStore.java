@@ -3064,7 +3064,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     @Override
     public long trueSnapshotsSize()
     {
-        return SnapshotManager.instance.trueSnapshotsSize(getKeyspaceName(), getTableName(), getFilesOfCfs());
+        return SnapshotManager.instance.getTrueSnapshotsSize(getKeyspaceName(), getTableName());
     }
 
     /**

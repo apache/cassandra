@@ -563,7 +563,7 @@ public class TableSnapshot
         {
             for (Map.Entry<Descriptor, Set<Component>> entries : snapshots.entrySet())
             {
-                // Try acquire reference to an active sstable instead of snapshot if it exists,
+                // Try to acquire reference to an active sstable instead of snapshot if it exists,
                 // to avoid opening new sstables. If it fails, use the snapshot reference instead.
                 SSTableReader sstable = active.get(entries.getKey().id);
                 if (sstable == null || !refs.tryRef(sstable))
