@@ -79,8 +79,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -186,8 +186,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -303,8 +303,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -368,8 +368,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -457,8 +457,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -590,8 +590,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -655,8 +655,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -773,8 +773,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -881,8 +881,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -1035,8 +1035,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -1167,8 +1167,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -1276,8 +1276,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -1393,8 +1393,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -1483,8 +1483,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -1601,8 +1601,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -1709,8 +1709,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -1799,8 +1799,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -1907,8 +1907,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -2040,8 +2040,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -2194,8 +2194,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -2311,8 +2311,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -2401,8 +2401,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -2509,8 +2509,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -2617,8 +2617,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -2707,8 +2707,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -2796,8 +2796,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -2914,8 +2914,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -3109,8 +3109,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -3194,8 +3194,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -3327,8 +3327,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -3412,8 +3412,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -3502,8 +3502,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -3620,8 +3620,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -3753,8 +3753,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -3871,8 +3871,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -4066,8 +4066,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -4172,8 +4172,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -4289,8 +4289,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -4379,8 +4379,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -4496,8 +4496,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -4567,8 +4567,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -4657,8 +4657,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -4747,8 +4747,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -4850,8 +4850,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -4922,8 +4922,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -5012,8 +5012,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -5125,8 +5125,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -5243,8 +5243,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -5315,8 +5315,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -5405,8 +5405,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -5512,8 +5512,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -5644,8 +5644,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -5762,8 +5762,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -5880,8 +5880,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -6013,8 +6013,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -6102,8 +6102,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -6187,8 +6187,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -6320,8 +6320,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -6410,8 +6410,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -6481,8 +6481,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -6565,8 +6565,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -6673,8 +6673,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -6763,8 +6763,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -6853,8 +6853,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -6962,8 +6962,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -7026,8 +7026,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -7134,8 +7134,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -7252,8 +7252,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -7360,8 +7360,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -7468,8 +7468,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -7585,8 +7585,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -7692,8 +7692,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -7809,8 +7809,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -7880,8 +7880,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -7986,8 +7986,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -8076,8 +8076,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -8161,8 +8161,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -8225,8 +8225,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -8310,8 +8310,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -8419,8 +8419,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -8536,8 +8536,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -8625,8 +8625,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -8709,8 +8709,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -8798,8 +8798,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -8870,8 +8870,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -8959,8 +8959,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -9043,8 +9043,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -9133,8 +9133,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -9265,8 +9265,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -9354,8 +9354,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -9443,8 +9443,8 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_TESTS_STOP_ON_FAILURE: true
+    - REPEATED_UTESTS: org.apache.cassandra.cql3.PstmtPersistenceTest
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
@@ -9492,6 +9492,17 @@ workflows:
         - j11_build
         upstream:
           start_j11_unit_tests:
+          - success
+          j11_build:
+          - success
+    - start_j11_unit_tests_repeat:
+        type: approval
+    - j11_unit_tests_repeat:
+        requires:
+        - start_j11_unit_tests_repeat
+        - j11_build
+        upstream:
+          start_j11_unit_tests_repeat:
           - success
           j11_build:
           - success
@@ -9605,6 +9616,17 @@ workflows:
           - success
           j11_build:
           - success
+    - start_j17_unit_tests_repeat:
+        type: approval
+    - j17_unit_tests_repeat:
+        requires:
+        - start_j17_unit_tests_repeat
+        - j11_build
+        upstream:
+          start_j17_unit_tests_repeat:
+          - success
+          j11_build:
+          - success
     - start_j11_utests_oa:
         type: approval
     - j11_utests_oa:
@@ -9616,6 +9638,17 @@ workflows:
           - success
           j11_build:
           - success
+    - start_j11_utests_oa_repeat:
+        type: approval
+    - j11_utests_oa_repeat:
+        requires:
+        - start_j11_utests_oa_repeat
+        - j11_build
+        upstream:
+          start_j11_utests_oa_repeat:
+          - success
+          j11_build:
+          - success
     - start_j17_utests_oa:
         type: approval
     - j17_utests_oa:
@@ -9624,6 +9657,17 @@ workflows:
         - j11_build
         upstream:
           start_j17_utests_oa:
+          - success
+          j11_build:
+          - success
+    - start_j17_utests_oa_repeat:
+        type: approval
+    - j17_utests_oa_repeat:
+        requires:
+        - start_j17_utests_oa_repeat
+        - j11_build
+        upstream:
+          start_j17_utests_oa_repeat:
           - success
           j11_build:
           - success
@@ -9671,6 +9715,28 @@ workflows:
           - success
           j11_build:
           - success
+    - start_j11_utests_cdc_repeat:
+        type: approval
+    - j11_utests_cdc_repeat:
+        requires:
+        - start_j11_utests_cdc_repeat
+        - j11_build
+        upstream:
+          start_j11_utests_cdc_repeat:
+          - success
+          j11_build:
+          - success
+    - start_j17_utests_cdc_repeat:
+        type: approval
+    - j17_utests_cdc_repeat:
+        requires:
+        - start_j17_utests_cdc_repeat
+        - j11_build
+        upstream:
+          start_j17_utests_cdc_repeat:
+          - success
+          j11_build:
+          - success
     - start_j11_utests_compression:
         type: approval
     - j11_utests_compression:
@@ -9693,6 +9759,28 @@ workflows:
           - success
           j11_build:
           - success
+    - start_j11_utests_compression_repeat:
+        type: approval
+    - j11_utests_compression_repeat:
+        requires:
+        - start_j11_utests_compression_repeat
+        - j11_build
+        upstream:
+          start_j11_utests_compression_repeat:
+          - success
+          j11_build:
+          - success
+    - start_j17_utests_compression_repeat:
+        type: approval
+    - j17_utests_compression_repeat:
+        requires:
+        - start_j17_utests_compression_repeat
+        - j11_build
+        upstream:
+          start_j17_utests_compression_repeat:
+          - success
+          j11_build:
+          - success
     - start_j11_utests_latest:
         type: approval
     - j11_utests_latest:
@@ -9712,6 +9800,28 @@ workflows:
         - j11_build
         upstream:
           start_j17_utests_latest:
+          - success
+          j11_build:
+          - success
+    - start_j11_utests_latest_repeat:
+        type: approval
+    - j11_utests_latest_repeat:
+        requires:
+        - start_j11_utests_latest_repeat
+        - j11_build
+        upstream:
+          start_j11_utests_latest_repeat:
+          - success
+          j11_build:
+          - success
+    - start_j17_utests_latest_repeat:
+        type: approval
+    - j17_utests_latest_repeat:
+        requires:
+        - start_j17_utests_latest_repeat
+        - j11_build
+        upstream:
+          start_j17_utests_latest_repeat:
           - success
           j11_build:
           - success
@@ -9778,6 +9888,28 @@ workflows:
         - j11_build
         upstream:
           start_j17_utests_system_keyspace_directory:
+          - success
+          j11_build:
+          - success
+    - start_j11_utests_system_keyspace_directory_repeat:
+        type: approval
+    - j11_utests_system_keyspace_directory_repeat:
+        requires:
+        - start_j11_utests_system_keyspace_directory_repeat
+        - j11_build
+        upstream:
+          start_j11_utests_system_keyspace_directory_repeat:
+          - success
+          j11_build:
+          - success
+    - start_j17_utests_system_keyspace_directory_repeat:
+        type: approval
+    - j17_utests_system_keyspace_directory_repeat:
+        requires:
+        - start_j17_utests_system_keyspace_directory_repeat
+        - j11_build
+        upstream:
+          start_j17_utests_system_keyspace_directory_repeat:
           - success
           j11_build:
           - success
@@ -10062,7 +10194,31 @@ workflows:
         upstream:
           j11_build:
           - success
+    - j11_utests_oa_repeat:
+        requires:
+        - j11_build
+        upstream:
+          j11_build:
+          - success
+    - j17_utests_oa_repeat:
+        requires:
+        - j11_build
+        upstream:
+          j11_build:
+          - success
+    - j11_unit_tests_repeat:
+        requires:
+        - j11_build
+        upstream:
+          j11_build:
+          - success
     - j11_utests_latest:
+        requires:
+        - j11_build
+        upstream:
+          j11_build:
+          - success
+    - j11_utests_latest_repeat:
         requires:
         - j11_build
         upstream:
@@ -10134,7 +10290,19 @@ workflows:
         upstream:
           j11_build:
           - success
+    - j17_unit_tests_repeat:
+        requires:
+        - j11_build
+        upstream:
+          j11_build:
+          - success
     - j17_utests_latest:
+        requires:
+        - j11_build
+        upstream:
+          j11_build:
+          - success
+    - j17_utests_latest_repeat:
         requires:
         - j11_build
         upstream:
@@ -10180,6 +10348,24 @@ workflows:
           - success
           j11_build:
           - success
+    - j11_utests_cdc_repeat:
+        requires:
+        - start_utests_cdc
+        - j11_build
+        upstream:
+          start_utests_cdc:
+          - success
+          j11_build:
+          - success
+    - j17_utests_cdc_repeat:
+        requires:
+        - start_utests_cdc
+        - j11_build
+        upstream:
+          start_utests_cdc:
+          - success
+          j11_build:
+          - success
     - start_utests_compression:
         type: approval
     - j11_utests_compression:
@@ -10192,6 +10378,24 @@ workflows:
           j11_build:
           - success
     - j17_utests_compression:
+        requires:
+        - start_utests_compression
+        - j11_build
+        upstream:
+          start_utests_compression:
+          - success
+          j11_build:
+          - success
+    - j11_utests_compression_repeat:
+        requires:
+        - start_utests_compression
+        - j11_build
+        upstream:
+          start_utests_compression:
+          - success
+          j11_build:
+          - success
+    - j17_utests_compression_repeat:
         requires:
         - start_utests_compression
         - j11_build
@@ -10249,6 +10453,21 @@ workflows:
           j11_build:
           - success
     - j17_utests_system_keyspace_directory:
+        requires:
+        - start_utests_system_keyspace_directory
+        - j11_build
+        upstream:
+          start_utests_system_keyspace_directory:
+          - success
+          j11_build:
+          - success
+    - j11_utests_system_keyspace_directory_repeat:
+        requires:
+        - j11_build
+        upstream:
+          j11_build:
+          - success
+    - j17_utests_system_keyspace_directory_repeat:
         requires:
         - start_utests_system_keyspace_directory
         - j11_build
@@ -10470,6 +10689,17 @@ workflows:
           - success
           j17_build:
           - success
+    - start_j17_unit_tests_repeat:
+        type: approval
+    - j17_unit_tests_repeat:
+        requires:
+        - start_j17_unit_tests_repeat
+        - j17_build
+        upstream:
+          start_j17_unit_tests_repeat:
+          - success
+          j17_build:
+          - success
     - start_j17_jvm_dtests:
         type: approval
     - j17_jvm_dtests:
@@ -10638,6 +10868,17 @@ workflows:
           - success
           j17_build:
           - success
+    - start_j17_utests_oa_repeat:
+        type: approval
+    - j17_utests_oa_repeat:
+        requires:
+        - start_j17_utests_oa_repeat
+        - j17_build
+        upstream:
+          start_j17_utests_oa_repeat:
+          - success
+          j17_build:
+          - success
     - start_j17_utests_long:
         type: approval
     - j17_utests_long:
@@ -10660,6 +10901,17 @@ workflows:
           - success
           j17_build:
           - success
+    - start_j17_utests_cdc_repeat:
+        type: approval
+    - j17_utests_cdc_repeat:
+        requires:
+        - start_j17_utests_cdc_repeat
+        - j17_build
+        upstream:
+          start_j17_utests_cdc_repeat:
+          - success
+          j17_build:
+          - success
     - start_j17_utests_compression:
         type: approval
     - j17_utests_compression:
@@ -10671,6 +10923,17 @@ workflows:
           - success
           j17_build:
           - success
+    - start_j17_utests_compression_repeat:
+        type: approval
+    - j17_utests_compression_repeat:
+        requires:
+        - start_j17_utests_compression_repeat
+        - j17_build
+        upstream:
+          start_j17_utests_compression_repeat:
+          - success
+          j17_build:
+          - success
     - start_j17_utests_latest:
         type: approval
     - j17_utests_latest:
@@ -10679,6 +10942,17 @@ workflows:
         - j17_build
         upstream:
           start_j17_utests_latest:
+          - success
+          j17_build:
+          - success
+    - start_j17_utests_latest_repeat:
+        type: approval
+    - j17_utests_latest_repeat:
+        requires:
+        - start_j17_utests_latest_repeat
+        - j17_build
+        upstream:
+          start_j17_utests_latest_repeat:
           - success
           j17_build:
           - success
@@ -10715,6 +10989,17 @@ workflows:
           - success
           j17_build:
           - success
+    - start_j17_utests_system_keyspace_directory_repeat:
+        type: approval
+    - j17_utests_system_keyspace_directory_repeat:
+        requires:
+        - start_j17_utests_system_keyspace_directory_repeat
+        - j17_build
+        upstream:
+          start_j17_utests_system_keyspace_directory_repeat:
+          - success
+          j17_build:
+          - success
   java17_pre-commit_tests:
     jobs:
     - start_pre-commit_tests:
@@ -10737,7 +11022,25 @@ workflows:
         upstream:
           j17_build:
           - success
+    - j17_utests_oa_repeat:
+        requires:
+        - j17_build
+        upstream:
+          j17_build:
+          - success
+    - j17_unit_tests_repeat:
+        requires:
+        - j17_build
+        upstream:
+          j17_build:
+          - success
     - j17_utests_latest:
+        requires:
+        - j17_build
+        upstream:
+          j17_build:
+          - success
+    - j17_utests_latest_repeat:
         requires:
         - j17_build
         upstream:
@@ -10871,9 +11174,27 @@ workflows:
           - success
           j17_build:
           - success
+    - j17_utests_cdc_repeat:
+        requires:
+        - start_utests_cdc
+        - j17_build
+        upstream:
+          start_utests_cdc:
+          - success
+          j17_build:
+          - success
     - start_utests_compression:
         type: approval
     - j17_utests_compression:
+        requires:
+        - start_utests_compression
+        - j17_build
+        upstream:
+          start_utests_compression:
+          - success
+          j17_build:
+          - success
+    - j17_utests_compression_repeat:
         requires:
         - start_utests_compression
         - j17_build
@@ -10907,6 +11228,15 @@ workflows:
     - start_utests_system_keyspace_directory:
         type: approval
     - j17_utests_system_keyspace_directory:
+        requires:
+        - start_utests_system_keyspace_directory
+        - j17_build
+        upstream:
+          start_utests_system_keyspace_directory:
+          - success
+          j17_build:
+          - success
+    - j17_utests_system_keyspace_directory_repeat:
         requires:
         - start_utests_system_keyspace_directory
         - j17_build
