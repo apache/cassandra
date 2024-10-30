@@ -18,7 +18,6 @@
 package org.apache.cassandra.cache;
 
 import java.util.Iterator;
-import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.cassandra.metrics.CacheMetrics;
 
