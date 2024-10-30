@@ -38,6 +38,7 @@ import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.VectorQueryContext;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.v1.PerColumnIndexFiles;
+import org.apache.cassandra.index.sai.disk.v1.postings.VectorPostingList;
 import org.apache.cassandra.index.sai.disk.v1.vector.DiskAnn;
 import org.apache.cassandra.index.sai.disk.v1.vector.OptimizeFor;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
@@ -102,7 +103,7 @@ public class VectorIndexSegmentSearcher extends IndexSegmentSearcher
             return toPrimaryKeyIterator(bitsOrPostingList.postingList(), context);
 
         float[] queryVector = index.termType().decomposeVector(exp.lower().value.raw.duplicate());
-        var vectorPostings = graph.search(queryVector, topK, limit, bitsOrPostingList.getBits());
+        VectorPostingList vectorPostings = graph.search(queryVector, topK, limit, bitsOrPostingList.getBits());
         if (bitsOrPostingList.expectedNodesVisited >= 0)
             updateExpectedNodes(vectorPostings.getVisitedCount(), bitsOrPostingList.expectedNodesVisited);
         return toPrimaryKeyIterator(vectorPostings, context);
@@ -139,7 +140,7 @@ public class VectorIndexSegmentSearcher extends IndexSegmentSearcher
             // If num of matches are not bigger than limit, skip ANN.
             // (nRows should not include shadowed rows, but context doesn't break those out by segment,
             // so we will live with the inaccuracy.)
-            var nRows = Math.toIntExact(maxSSTableRowId - minSSTableRowId + 1);
+            int nRows = Math.toIntExact(maxSSTableRowId - minSSTableRowId + 1);
             int maxBruteForceRows = min(globalBruteForceRows, maxBruteForceRows(limit, nRows, graph.size()));
             logger.trace("Search range covers {} rows; max brute force rows is {} for sstable index with {} nodes, LIMIT {}",
                          nRows, maxBruteForceRows, graph.size(), limit);
@@ -202,7 +203,7 @@ public class VectorIndexSegmentSearcher extends IndexSegmentSearcher
 
     private SparseFixedBitSet bitSetForSearch()
     {
-        var bits = cachedBitSets.get();
+        SparseFixedBitSet bits = cachedBitSets.get();
         bits.clear();
         return bits;
     }
@@ -226,9 +227,9 @@ public class VectorIndexSegmentSearcher extends IndexSegmentSearcher
         {
             // the iterator represents keys from the whole table -- we'll only pull of those that
             // are from our own token range, so we can use row ids to order the results by vector similarity.
-            var maxSegmentRowId = metadata.toSegmentRowId(metadata.maxSSTableRowId);
+            int maxSegmentRowId = metadata.toSegmentRowId(metadata.maxSSTableRowId);
             SparseFixedBitSet bits = bitSetForSearch();
-            var rowIds = new IntArrayList();
+            IntArrayList rowIds = new IntArrayList();
             try (var ordinalsView = graph.getOrdinalsView())
             {
                 for (PrimaryKey primaryKey : keysInRange)
@@ -258,7 +259,7 @@ public class VectorIndexSegmentSearcher extends IndexSegmentSearcher
 
             // else ask the index to perform a search limited to the bits we created
             float[] queryVector = index.termType().decomposeVector(expression.lower().value.raw.duplicate());
-            var results = graph.search(queryVector, topK, limit, bits);
+            VectorPostingList results = graph.search(queryVector, topK, limit, bits);
             updateExpectedNodes(results.getVisitedCount(), expectedNodesVisited(topK, maxSegmentRowId, graph.size()));
             return toPrimaryKeyIterator(results, context);
         }
@@ -267,7 +268,7 @@ public class VectorIndexSegmentSearcher extends IndexSegmentSearcher
     private boolean shouldUseBruteForce(int topK, int limit, int numRows)
     {
         // if we have a small number of results then let TopK processor do exact NN computation
-        var maxBruteForceRows = min(globalBruteForceRows, maxBruteForceRows(topK, numRows, graph.size()));
+        int maxBruteForceRows = min(globalBruteForceRows, maxBruteForceRows(topK, numRows, graph.size()));
         logger.trace("SAI materialized {} rows; max brute force rows is {} for sstable index with {} nodes, LIMIT {}",
                      numRows, maxBruteForceRows, graph.size(), limit);
         Tracing.trace("SAI materialized {} rows; max brute force rows is {} for sstable index with {} nodes, LIMIT {}",
@@ -287,7 +288,7 @@ public class VectorIndexSegmentSearcher extends IndexSegmentSearcher
 
     private int expectedNodesVisited(int limit, int nPermittedOrdinals, int graphSize)
     {
-        var observedRatio = actualExpectedRatio.getUpdateCount() >= 10 ? actualExpectedRatio.get() : 1.0;
+        double observedRatio = actualExpectedRatio.getUpdateCount() >= 10 ? actualExpectedRatio.get() : 1.0;
         return (int) (observedRatio * VectorMemoryIndex.expectedNodesVisited(limit, nPermittedOrdinals, graphSize));
     }
 

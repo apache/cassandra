@@ -79,8 +79,8 @@ public class CompactionVectorValues implements RamAwareVectorValues
         writer.writeInt(size());
         writer.writeInt(dimension());
 
-        for (var i = 0; i < size(); i++) {
-            var bb = values.get(i);
+        for (int i = 0; i < size(); i++) {
+            ByteBuffer bb = values.get(i);
             assert bb != null : "null vector at index " + i + " of " + size();
             writer.write(bb);
         }

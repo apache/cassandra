@@ -65,7 +65,7 @@ public class KeyRangeOrderingIterator extends KeyRangeIterator
                 }
                 while (nextKeys.size() < chunkSize && input.hasNext());
                 // Get the next iterator before closing this one to prevent releasing the resource.
-                var previousIterator = nextIterator;
+                KeyRangeIterator previousIterator = nextIterator;
                 // If this results in an exception, previousIterator is closed in close() method.
                 nextIterator = nextRangeFunction.apply(nextKeys);
                 if (previousIterator != null)

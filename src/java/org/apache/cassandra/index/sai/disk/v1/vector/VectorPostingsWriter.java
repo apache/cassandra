@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.agrona.collections.IntArrayList;
 import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.utils.Pair;
 
@@ -45,7 +46,7 @@ public class VectorPostingsWriter<T>
     private void writeDeletedOrdinals(SequentialWriter writer, Set<Integer> deletedOrdinals) throws IOException
     {
         writer.writeInt(deletedOrdinals.size());
-        for (var ordinal : deletedOrdinals) {
+        for (int ordinal : deletedOrdinals) {
             writer.writeInt(ordinal);
         }
     }
@@ -60,21 +61,21 @@ public class VectorPostingsWriter<T>
         writer.writeInt(vectorValues.size());
 
         // Write the offsets of the postings for each ordinal
-        var offsetsStartAt = ordToRowOffset + 4L + 8L * vectorValues.size();
-        var nextOffset = offsetsStartAt;
-        for (var i = 0; i < vectorValues.size(); i++) {
+        long offsetsStartAt = ordToRowOffset + 4L + 8L * vectorValues.size();
+        long nextOffset = offsetsStartAt;
+        for (int i = 0; i < vectorValues.size(); i++) {
             // (ordinal is implied; don't need to write it)
             writer.writeLong(nextOffset);
-            var rowIds = postingsMap.get(vectorValues.vectorValue(i)).getRowIds();
+            IntArrayList rowIds = postingsMap.get(vectorValues.vectorValue(i)).getRowIds();
             nextOffset += 4 + (rowIds.size() * 4L); // 4 bytes for size and 4 bytes for each integer in the list
         }
         assert writer.position() == offsetsStartAt : "writer.position()=" + writer.position() + " offsetsStartAt=" + offsetsStartAt;
 
         // Write postings lists
-        for (var i = 0; i < vectorValues.size(); i++) {
+        for (int i = 0; i < vectorValues.size(); i++) {
             VectorPostings<T> postings = postingsMap.get(vectorValues.vectorValue(i));
 
-            var rowIds = postings.getRowIds();
+            IntArrayList rowIds = postings.getRowIds();
             writer.writeInt(rowIds.size());
             for (int r = 0; r < rowIds.size(); r++)
                 writer.writeInt(rowIds.getInt(r));
@@ -89,8 +90,8 @@ public class VectorPostingsWriter<T>
         List<Pair<Integer, Integer>> pairs = new ArrayList<>();
 
         // Collect all (rowId, vectorOrdinal) pairs
-        for (var i = 0; i < vectorValues.size(); i++) {
-            var rowIds = postingsMap.get(vectorValues.vectorValue(i)).getRowIds();
+        for (int i = 0; i < vectorValues.size(); i++) {
+            IntArrayList rowIds = postingsMap.get(vectorValues.vectorValue(i)).getRowIds();
             for (int r = 0; r < rowIds.size(); r++)
                 pairs.add(Pair.create(rowIds.getInt(r), i));
         }
@@ -100,7 +101,7 @@ public class VectorPostingsWriter<T>
 
         // Write the pairs to the file
         long startOffset = writer.position();
-        for (var pair : pairs) {
+        for (Pair<Integer, Integer> pair : pairs) {
             writer.writeInt(pair.left);
             writer.writeInt(pair.right);
         }

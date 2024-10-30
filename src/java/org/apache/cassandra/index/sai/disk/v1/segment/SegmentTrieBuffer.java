@@ -79,7 +79,7 @@ public class SegmentTrieBuffer
 
     public Iterator<IndexEntry> iterator()
     {
-        var iterator = trie.entrySet().iterator();
+        Iterator<Map.Entry<ByteComparable, PackedLongValues.Builder>> iterator = trie.entrySet().iterator();
 
         return new Iterator<>()
         {
