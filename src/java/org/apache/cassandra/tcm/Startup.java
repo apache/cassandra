@@ -438,6 +438,7 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
                 break;
             case LEAVING:
                 logger.info("Node is currently being decommissioned, resume with `nodetool decommission`");
+                StorageService.instance.markDecommissionFailed();
                 break;
             case MOVING:
                 logger.info("Node is currently moving, resume with nodetool move --resume or abort with nodetool move --abort");
