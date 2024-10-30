@@ -18,6 +18,7 @@
 package org.apache.cassandra.cache;
 
 import java.util.Iterator;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.cassandra.metrics.CacheMetrics;
 
@@ -28,6 +29,7 @@ public class InstrumentingCache<K, V>
 {
     private final ICache<K, V> map;
     private final String type;
+    private final boolean enabled;
 
     private CacheMetrics metrics;
 
@@ -35,6 +37,7 @@ public class InstrumentingCache<K, V>
     {
         this.map = map;
         this.type = type;
+        enabled = !(map instanceof NopCacheProvider.NopCache) && map.capacity() > 0;
         this.metrics = new CacheMetrics(type, map);
     }
 
@@ -82,6 +85,11 @@ public class InstrumentingCache<K, V>
     public void setCapacity(long capacity)
     {
         map.setCapacity(capacity);
+    }
+
+    public boolean enabled()
+    {
+        return enabled;
     }
 
     public int size()

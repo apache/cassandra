@@ -519,7 +519,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
             if (validate)
                 sstable.validate();
 
-            if (sstable.getKeyCache() != null)
+            if (logger.isTraceEnabled() && sstable.getKeyCache() != null && sstable.getKeyCache().enabled())
                 logger.trace("key cache contains {}/{} keys", sstable.getKeyCache().size(), sstable.getKeyCache().getCapacity());
 
             return sstable;
@@ -717,7 +717,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
         // e.g. by BulkLoader, which does not initialize the cache.  As a kludge, we set up the cache
         // here when we know we're being wired into the rest of the server infrastructure.
         InstrumentingCache<KeyCacheKey, RowIndexEntry> maybeKeyCache = CacheService.instance.keyCache;
-        if (maybeKeyCache.getCapacity() > 0)
+        if (maybeKeyCache.enabled())
             keyCache = maybeKeyCache;
 
         final ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(metadata().id);
@@ -1333,7 +1333,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     {
         CachingParams caching = metadata().params.caching;
 
-        if (!caching.cacheKeys() || keyCache == null || keyCache.getCapacity() == 0)
+        if (!caching.cacheKeys() || keyCache == null || !keyCache.enabled())
             return;
 
         KeyCacheKey cacheKey = new KeyCacheKey(metadata(), descriptor, key.getKey());
