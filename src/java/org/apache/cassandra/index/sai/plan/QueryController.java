@@ -309,7 +309,7 @@ public class QueryController
         assert expression.operator() == Operator.ANN;
         StorageAttachedIndex index = indexFor(expression);
         assert index != null;
-        var planExpression = Expression.create(index).add(Operator.ANN, expression.getIndexValue().duplicate());
+        Expression planExpression = Expression.create(index).add(Operator.ANN, expression.getIndexValue().duplicate());
         // search memtable before referencing sstable indexes; otherwise we may miss newly flushed memtable index
         KeyRangeIterator memtableResults = index.memtableIndexManager().searchMemtableIndexes(queryContext, planExpression, mergeRange);
 
@@ -345,10 +345,10 @@ public class QueryController
         // Filter out PKs now. Each PK is passed to every segment of the ANN index, so filtering shadowed keys
         // eagerly can save some work when going from PK to row id for on disk segments.
         // Since the result is shared with multiple streams, we use an unmodifiable list.
-        var sourceKeys = rawSourceKeys.stream().filter(vectorQueryContext::shouldInclude).collect(Collectors.toList());
+        List<PrimaryKey> sourceKeys = rawSourceKeys.stream().filter(vectorQueryContext::shouldInclude).collect(Collectors.toList());
         StorageAttachedIndex index = indexFor(expression);
         assert index != null : "Cannot do ANN ordering on an unindexed column";
-        var planExpression = Expression.create(index);
+        Expression planExpression = Expression.create(index);
         planExpression.add(Operator.ANN, expression.getIndexValue().duplicate());
 
         // search memtable before referencing sstable indexes; otherwise we may miss newly flushed memtable index
@@ -388,7 +388,7 @@ public class QueryController
      */
     private KeyRangeIterator createRowIdIterator(Pair<Expression, Collection<SSTableIndex>> indexExpression)
     {
-        var subIterators = indexExpression.right
+        List<KeyRangeIterator> subIterators = indexExpression.right
                            .stream()
                            .map(index ->
                                 {

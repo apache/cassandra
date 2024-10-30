@@ -27,6 +27,7 @@ import java.util.stream.IntStream;
 
 import io.github.jbellis.jvector.disk.CachingGraphIndex;
 import io.github.jbellis.jvector.disk.OnDiskGraphIndex;
+import io.github.jbellis.jvector.graph.GraphIndex;
 import io.github.jbellis.jvector.graph.GraphSearcher;
 import io.github.jbellis.jvector.graph.NeighborSimilarity;
 import io.github.jbellis.jvector.graph.SearchResult;
@@ -64,7 +65,7 @@ public class DiskAnn implements AutoCloseable
         try (var pqFileHandle = indexFiles.compressedVectors(); var reader = new RandomAccessReaderAdapter(pqFileHandle))
         {
             reader.seek(pqSegmentOffset);
-            var containsCompressedVectors = reader.readBoolean();
+            boolean containsCompressedVectors = reader.readBoolean();
             if (containsCompressedVectors)
                 compressedVectors = CompressedVectors.load(reader, reader.getFilePointer());
             else
@@ -92,8 +93,8 @@ public class DiskAnn implements AutoCloseable
     {
         OnHeapGraph.validateIndexable(queryVector, similarityFunction);
 
-        var view = graph.getView();
-        var searcher = new GraphSearcher.Builder<>(view).build();
+        GraphIndex.View<float[]> view = graph.getView();
+        GraphSearcher<float[]> searcher = new GraphSearcher.Builder<>(view).build();
         NeighborSimilarity.ScoreFunction scoreFunction;
         NeighborSimilarity.ReRanker<float[]> reRanker;
         if (compressedVectors == null)
@@ -107,10 +108,10 @@ public class DiskAnn implements AutoCloseable
             scoreFunction = compressedVectors.approximateScoreFunctionFor(queryVector, similarityFunction);
             reRanker = (i, map) -> similarityFunction.compare(queryVector, map.get(i));
         }
-        var result = searcher.search(scoreFunction,
-                                     reRanker,
-                                     topK,
-                                     ordinalsMap.ignoringDeleted(acceptBits));
+        SearchResult result = searcher.search(scoreFunction,
+                                              reRanker,
+                                              topK,
+                                              ordinalsMap.ignoringDeleted(acceptBits));
         Tracing.trace("DiskANN search visited {} nodes to return {} results", result.getVisitedCount(), result.getNodes().length);
         return annRowIdsToPostings(result, limit);
     }
@@ -134,7 +135,7 @@ public class DiskAnn implements AutoCloseable
             {
                 try
                 {
-                    var ordinal = it.next().node;
+                    int ordinal = it.next().node;
                     segmentRowIdIterator = Arrays.stream(rowIdsView.getSegmentRowIdsMatching(ordinal)).iterator();
                 }
                 catch (IOException e)

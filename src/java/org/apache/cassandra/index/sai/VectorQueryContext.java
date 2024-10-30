@@ -19,6 +19,7 @@
 package org.apache.cassandra.index.sai;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.NavigableSet;
@@ -181,7 +182,7 @@ public class VectorQueryContext
         @Override
         public boolean get(int ordinal)
         {
-            var keys = graph.keysFromOrdinal(ordinal);
+            Collection<PrimaryKey> keys = graph.keysFromOrdinal(ordinal);
             return keys.stream().anyMatch(k -> !ignored.contains(k));
         }
 

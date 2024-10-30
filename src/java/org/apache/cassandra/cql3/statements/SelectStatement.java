@@ -1538,7 +1538,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                 return false;
             Boolean[] reversedMap = new Boolean[table.clusteringColumns().size()];
             int i = 0;
-            for (var entry : orderingColumns.entrySet())
+            for (Map.Entry<ColumnMetadata, Ordering> entry : orderingColumns.entrySet())
             {
                 ColumnMetadata def = entry.getKey();
                 Ordering ordering = entry.getValue();
