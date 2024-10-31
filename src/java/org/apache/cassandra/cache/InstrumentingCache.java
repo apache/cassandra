@@ -28,7 +28,7 @@ public class InstrumentingCache<K, V>
 {
     private final ICache<K, V> map;
     private final String type;
-    private final boolean enabled;
+    private volatile boolean enabled;
 
     private CacheMetrics metrics;
 
@@ -84,6 +84,7 @@ public class InstrumentingCache<K, V>
     public void setCapacity(long capacity)
     {
         map.setCapacity(capacity);
+        enabled = capacity > 0;
     }
 
     public boolean enabled()
