@@ -20,6 +20,7 @@ package org.apache.cassandra.index.sai.memory;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NavigableSet;
@@ -80,8 +81,8 @@ public class VectorMemoryIndex extends MemoryIndex
         if (value == null || value.remaining() == 0 || !index.validateTermSize(key, value, false, null))
             return 0;
 
-        var primaryKey = index.hasClustering() ? index.keyFactory().create(key, clustering)
-                                               : index.keyFactory().create(key);
+        PrimaryKey primaryKey = index.hasClustering() ? index.keyFactory().create(key, clustering)
+                                                      : index.keyFactory().create(key);
         return index(primaryKey, value);
     }
 
@@ -116,8 +117,8 @@ public class VectorMemoryIndex extends MemoryIndex
         long bytesUsed = 0;
         if (different)
         {
-            var primaryKey = index.hasClustering() ? index.keyFactory().create(key, clustering)
-                                                   : index.keyFactory().create(key);
+            PrimaryKey primaryKey = index.hasClustering() ? index.keyFactory().create(key, clustering)
+                                                          : index.keyFactory().create(key);
             // update bounds because only rows with vectors are included in the key bounds,
             // so if the vector was null before, we won't have included it
             updateKeyBounds(primaryKey);
@@ -154,7 +155,7 @@ public class VectorMemoryIndex extends MemoryIndex
 
         VectorQueryContext vectorQueryContext = queryContext.vectorContext();
 
-        var buffer = expr.lower().value.raw;
+        ByteBuffer buffer = expr.lower().value.raw;
         float[] qv = index.termType().decomposeVector(buffer);
 
         Bits bits;
@@ -191,7 +192,7 @@ public class VectorMemoryIndex extends MemoryIndex
             bits = queryContext.vectorContext().bitsetForShadowedPrimaryKeys(graph);
         }
 
-        var keyQueue = graph.search(qv, queryContext.vectorContext().limit(), bits);
+        PriorityQueue<PrimaryKey> keyQueue = graph.search(qv, queryContext.vectorContext().limit(), bits);
         if (keyQueue.isEmpty())
             return KeyRangeIterator.empty();
         return new ReorderingRangeIterator(keyQueue);
@@ -221,8 +222,8 @@ public class VectorMemoryIndex extends MemoryIndex
 
         ByteBuffer buffer = expression.lower().value.raw;
         float[] qv = index.termType().decomposeVector(buffer);
-        var bits = new KeyFilteringBits(results);
-        var keyQueue = graph.search(qv, limit, bits);
+        KeyFilteringBits bits = new KeyFilteringBits(results);
+        PriorityQueue<PrimaryKey> keyQueue = graph.search(qv, limit, bits);
         if (keyQueue.isEmpty())
             return KeyRangeIterator.empty();
         return new ReorderingRangeIterator(keyQueue);
@@ -247,8 +248,8 @@ public class VectorMemoryIndex extends MemoryIndex
     {
         // constants are computed by Code Interpreter based on observed comparison counts in tests
         // https://chat.openai.com/share/2b1d7195-b4cf-4a45-8dce-1b9b2f893c75
-        var sizeRestriction = min(nPermittedOrdinals, graphSize);
-        var raw = (int) (0.7 * pow(log(graphSize), 2) *
+        int sizeRestriction = min(nPermittedOrdinals, graphSize);
+        int raw = (int) (0.7 * pow(log(graphSize), 2) *
                          pow(graphSize, 0.33) *
                          pow(log(limit), 2) *
                          pow(log((double) graphSize / sizeRestriction), 2) / pow(sizeRestriction, 0.13));
@@ -309,7 +310,7 @@ public class VectorMemoryIndex extends MemoryIndex
             if (bits != null && !bits.get(ordinal))
                 return false;
 
-            var keys = graph.keysFromOrdinal(ordinal);
+            Collection<PrimaryKey> keys = graph.keysFromOrdinal(ordinal);
             return keys.stream().anyMatch(k -> keyRange.contains(k.partitionKey()));
         }
 
@@ -362,7 +363,7 @@ public class VectorMemoryIndex extends MemoryIndex
         @Override
         public boolean get(int i)
         {
-            var pk = graph.keysFromOrdinal(i);
+            Collection<PrimaryKey> pk = graph.keysFromOrdinal(i);
             return results.stream().anyMatch(pk::contains);
         }
 
