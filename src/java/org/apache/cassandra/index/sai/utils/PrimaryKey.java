@@ -120,6 +120,11 @@ public interface PrimaryKey extends Comparable<PrimaryKey>, ByteComparable
             return clustering == Clustering.STATIC_CLUSTERING ? new StaticPrimaryKey(partitionKey) : new WidePrimaryKey(partitionKey, clustering);
         }
 
+        public boolean hasClusteringColumns()
+        {
+            return clusteringComparator != null && clusteringComparator.size() > 0;
+        }
+
         /**
          * Create a {@link PrimaryKey} from a {@link ByteSource}. This should only be used with {@link ByteSource} instances
          * created by calls to {@link PrimaryKey#asComparableBytes(Version)}.

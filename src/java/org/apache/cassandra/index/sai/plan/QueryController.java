@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.NavigableSet;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
@@ -31,6 +32,7 @@ import javax.annotation.Nullable;
 import com.google.common.collect.Lists;
 
 import org.apache.cassandra.cql3.Operator;
+import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
@@ -62,7 +64,7 @@ import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.net.ParamType;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.tracing.Tracing;
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.InsertionOrderedNavigableSet;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.Throwables;
 
@@ -82,6 +84,8 @@ public class QueryController
     private final PrimaryKey lastPrimaryKey;
     private final int orderChunkSize;
 
+    private final NavigableSet<Clustering<?>> nextClusterings;
+
     public QueryController(ColumnFamilyStore cfs,
                            ReadCommand command,
                            RowFilter indexFilter,
@@ -99,6 +103,7 @@ public class QueryController
         this.firstPrimaryKey = keyFactory.create(mergeRange.left.getToken());
         this.lastPrimaryKey = keyFactory.create(mergeRange.right.getToken());
         this.orderChunkSize = SAI_VECTOR_SEARCH_ORDER_CHUNK_SIZE.getInt();
+        this.nextClusterings = new InsertionOrderedNavigableSet<>(cfs.metadata().comparator);
     }
 
     public PrimaryKey.Factory primaryKeyFactory()
@@ -151,18 +156,18 @@ public class QueryController
         return index != null && index.hasAnalyzer();
     }
 
-    public UnfilteredRowIterator queryStorage(PrimaryKey key, ReadExecutionController executionController)
+    public UnfilteredRowIterator queryStorage(List<PrimaryKey> keys, ReadExecutionController executionController)
     {
-        if (key == null)
-            throw new IllegalArgumentException("non-null key required");
+        if (keys.isEmpty())
+            throw new IllegalArgumentException("At least one primary key is required!");
 
         SinglePartitionReadCommand partition = SinglePartitionReadCommand.create(cfs.metadata(),
                                                                                  command.nowInSec(),
                                                                                  command.columnFilter(),
                                                                                  RowFilter.none(),
                                                                                  DataLimits.NONE,
-                                                                                 key.partitionKey(),
-                                                                                 makeFilter(key));
+                                                                                 keys.get(0).partitionKey(),
+                                                                                 makeFilter(keys));
 
         return partition.queryMemtableAndDisk(cfs, executionController);
     }
@@ -409,21 +414,29 @@ public class QueryController
 
     // Note: This method assumes that the selects method has already been called for the
     // key to avoid having to (potentially) call selects twice
-    private ClusteringIndexFilter makeFilter(PrimaryKey key)
+    private ClusteringIndexFilter makeFilter(List<PrimaryKey> keys)
     {
-        ClusteringIndexFilter clusteringIndexFilter = command.clusteringIndexFilter(key.partitionKey());
+        PrimaryKey firstKey = keys.get(0);
 
-        assert cfs.metadata().comparator.size() == 0 && !key.kind().hasClustering ||
-               cfs.metadata().comparator.size() > 0 && key.kind().hasClustering :
-               "PrimaryKey " + key + " clustering does not match table. There should be a clustering of size " + cfs.metadata().comparator.size();
+        assert cfs.metadata().comparator.size() == 0 && !firstKey.kind().hasClustering ||
+               cfs.metadata().comparator.size() > 0 && firstKey.kind().hasClustering :
+               "PrimaryKey " + firstKey + " clustering does not match table. There should be a clustering of size " + cfs.metadata().comparator.size();
 
+        ClusteringIndexFilter clusteringIndexFilter = command.clusteringIndexFilter(firstKey.partitionKey());
+        
         // If we have skinny partitions or the key is for a static row then we need to get the partition as
         // requested by the original query.
-        if (cfs.metadata().comparator.size() == 0 || key.kind() == PrimaryKey.Kind.STATIC)
+        if (cfs.metadata().comparator.size() == 0 || firstKey.kind() == PrimaryKey.Kind.STATIC)
+        {
             return clusteringIndexFilter;
+        }
         else
-            return new ClusteringIndexNamesFilter(FBUtilities.singleton(key.clustering(), cfs.metadata().comparator),
-                                                  clusteringIndexFilter.isReversed());
+        {
+            nextClusterings.clear();
+            for (PrimaryKey key : keys)
+                nextClusterings.add(key.clustering());
+            return new ClusteringIndexNamesFilter(nextClusterings, clusteringIndexFilter.isReversed());
+        }
     }
 
     /**

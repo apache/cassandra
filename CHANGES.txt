@@ -96,6 +96,7 @@
  * Add the ability to disable bulk loading of SSTables (CASSANDRA-18781)
  * Clean up obsolete functions and simplify cql_version handling in cqlsh (CASSANDRA-18787)
 Merged from 5.0:
+ * Batch clusterings into single SAI partition post-filtering reads (CASSANDRA-19497)
  * Ban the usage of "var" instead of full types in the production code (CASSANDRA-20038)
  * Suppress CVE-2024-45772, upgrade to lucene-core-9.12.0.jar (CASSANDRA-20024)
  * Use SinglePartitionReadCommand for index queries that use strict filtering (CASSANDRA-19968)
