@@ -21,19 +21,23 @@ package org.apache.cassandra.metrics;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import org.apache.commons.lang3.tuple.Pair;
-
-public class ClientSessionMetricsManager
+public class ClientMetricsManager
 {
     private static final Map<String, ClientSessionMetrics> sessionMetrics = new ConcurrentHashMap<>();
-
-    private ClientSessionMetricsManager()
+    private static final Map<String, ClientQueryMetrics> queryMetrics = new ConcurrentHashMap<>();
+    private ClientMetricsManager()
     {
     }
 
-    public static ClientSessionMetrics getMetrics(String clientService, String tenancy, String tier)
+    public static ClientSessionMetrics getSessionMetrics(String clientService, String tenancy, String tier)
     {
         String key = String.join(",", clientService, tenancy, tier);
         return sessionMetrics.computeIfAbsent(key, k -> new ClientSessionMetrics(clientService, tenancy, tier));
+    }
+
+    public static ClientQueryMetrics getQueryMetrics(String clientService, String tenancy)
+    {
+        String key = String.join(",", clientService, tenancy);
+        return queryMetrics.computeIfAbsent(key, k -> new ClientQueryMetrics(clientService, tenancy));
     }
 }

@@ -22,16 +22,26 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 
-public class ClientSessionMetricsTest
+public class ClientMetricsTest
 {
     @Test
     public void testClientSessionMetrics() {
         String serviceName = "service";
         String tenancy = "staging";
         String tier = "4";
-        long beforeCount = ClientSessionMetricsManager.getMetrics(serviceName, tenancy, tier).sessions.getCount();
-        ClientSessionMetricsManager.getMetrics(serviceName, tenancy, tier).sessions.mark();
-        long curCount = ClientSessionMetricsManager.getMetrics(serviceName, tenancy, tier).sessions.getCount();
+        long beforeCount = ClientMetricsManager.getSessionMetrics(serviceName, tenancy, tier).sessions.getCount();
+        ClientMetricsManager.getSessionMetrics(serviceName, tenancy, tier).sessions.mark();
+        long curCount = ClientMetricsManager.getSessionMetrics(serviceName, tenancy, tier).sessions.getCount();
+        assertEquals(beforeCount+1, curCount);
+    }
+
+    @Test
+    public void testClientQueryMetrics() {
+        String serviceName = "service";
+        String tenancy = "staging";
+        long beforeCount = ClientMetricsManager.getQueryMetrics(serviceName, tenancy).query.getCount();
+        ClientMetricsManager.getQueryMetrics(serviceName, tenancy).query.inc();
+        long curCount = ClientMetricsManager.getQueryMetrics(serviceName, tenancy).query.getCount();
         assertEquals(beforeCount+1, curCount);
     }
 }

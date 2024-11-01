@@ -34,6 +34,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.metrics.ClientMetricsManager;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.messages.*;
@@ -188,14 +189,23 @@ public abstract class Message
 
     public Map<String, ByteBuffer> getCustomPayload()
     {
-        if (DatabaseDescriptor.getEnableCustomPayloadLogging() && customPayload != null && ! customPayload.isEmpty())
+        if (customPayload != null && !customPayload.isEmpty())
         {
             Map<String, String> res = new HashMap<>();
             for (Map.Entry entry : customPayload.entrySet())
             {
                 res.put((String) entry.getKey(), new String(((ByteBuffer) entry.getValue()).array()));
             }
-            logger.info("Client custom payload data in query message: {}", res);
+            // Send the client query metric based on the context data in the custom payload
+            ClientMetricsManager.getQueryMetrics(
+                res.getOrDefault("SERVICE", ""),
+                res.getOrDefault("REQUEST_TENANCY", "")).query.inc();
+
+            // Whether to print the client custom payload
+            if (DatabaseDescriptor.getEnableCustomPayloadLogging())
+            {
+                logger.info("Client custom payload data in query message: {}", res);
+            }
         }
         return customPayload;
     }
