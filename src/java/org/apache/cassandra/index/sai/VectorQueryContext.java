@@ -64,11 +64,11 @@ public class VectorQueryContext
         return limit;
     }
 
-    public void recordShadowedPrimaryKey(PrimaryKey primaryKey)
+    public void recordShadowedPrimaryKeys(Set<PrimaryKey> keys)
     {
         if (shadowedPrimaryKeys == null)
             shadowedPrimaryKeys = new TreeSet<>();
-        shadowedPrimaryKeys.add(primaryKey);
+        shadowedPrimaryKeys.addAll(keys);
     }
 
     // Returns true if the row ID will be included or false if the row ID will be shadowed
