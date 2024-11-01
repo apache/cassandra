@@ -660,6 +660,7 @@ public interface StorageServiceMBean extends NotificationEmitter
     public long getTruncateRpcTimeout();
 
     public void setStreamThroughputMbitPerSec(int value);
+    public void setStreamThroughputInboundMebibytesPerSec(int value);
     /**
      * @return stream_throughput_outbound in megabits
      * @deprecated Use getStreamThroughputMbitPerSecAsDouble instead as this one will provide a rounded value
@@ -684,6 +685,9 @@ public interface StorageServiceMBean extends NotificationEmitter
      */
     public int getStreamThroughputMebibytesPerSec();
     public double getStreamThroughputMebibytesPerSecAsDouble();
+    public double getStreamThroughputInboundMebibytesPerSecAsDouble();
+    public double getEntireSSTableStreamThroughputInboundMebibytesPerSecAsDouble();
+
 
     public void setInterDCStreamThroughputMbitPerSec(int value);
 
@@ -713,6 +717,7 @@ public interface StorageServiceMBean extends NotificationEmitter
     public double getInterDCStreamThroughputMebibytesPerSecAsDouble();
 
     public void setEntireSSTableStreamThroughputMebibytesPerSec(int value);
+    public void setEntireSSTableStreamThroughputInboundMebibytesPerSec(int value);
     public double getEntireSSTableStreamThroughputMebibytesPerSecAsDouble();
 
     public void setEntireSSTableInterDCStreamThroughputMebibytesPerSec(int value);

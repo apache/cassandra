@@ -367,6 +367,10 @@ public class Config
     public volatile DataRateSpec.LongBytesPerSecondBound entire_sstable_stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound("24MiB/s");
     public volatile DataRateSpec.LongBytesPerSecondBound entire_sstable_inter_dc_stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound("24MiB/s");
 
+    // By default, set to 0 to disable this throttler
+    public volatile DataRateSpec.LongBytesPerSecondBound stream_throughput_inbound = new DataRateSpec.LongBytesPerSecondBound("0MiB/s");
+    public volatile DataRateSpec.LongBytesPerSecondBound entire_sstable_stream_throughput_inbound = new DataRateSpec.LongBytesPerSecondBound("0MiB/s");
+
     public String[] data_file_directories = new String[0];
 
     /**

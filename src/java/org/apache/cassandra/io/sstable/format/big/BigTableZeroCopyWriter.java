@@ -47,6 +47,7 @@ import org.apache.cassandra.io.util.SequentialWriterOption;
 import org.apache.cassandra.net.AsyncStreamingInputPlus;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadataRef;
+import org.apache.cassandra.streaming.RateLimiter;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.utils.FBUtilities.prettyPrintMemory;
@@ -100,7 +101,7 @@ public class BigTableZeroCopyWriter extends SSTable implements SSTableMultiWrite
         return new SequentialWriter(new File(descriptor.filenameFor(component)), WRITER_OPTION, false);
     }
 
-    private void write(DataInputPlus in, long size, SequentialWriter out) throws FSWriteError
+    private void write(DataInputPlus in, long size, SequentialWriter out, RateLimiter limiter) throws FSWriteError
     {
         final int BUFFER_SIZE = 1 << 20;
         long bytesRead = 0;
@@ -110,6 +111,7 @@ public class BigTableZeroCopyWriter extends SSTable implements SSTableMultiWrite
             while (bytesRead < size)
             {
                 int toRead = (int) Math.min(size - bytesRead, BUFFER_SIZE);
+                limiter.acquire(toRead);
                 in.readFully(buff, 0, toRead);
                 int count = Math.min(toRead, BUFFER_SIZE);
                 out.write(buff, 0, count);
@@ -209,23 +211,23 @@ public class BigTableZeroCopyWriter extends SSTable implements SSTableMultiWrite
             writer.close();
     }
 
-    public void writeComponent(Component.Type type, DataInputPlus in, long size) throws ClosedChannelException
+    public void writeComponent(Component.Type type, DataInputPlus in, long size, RateLimiter limiter) throws ClosedChannelException
     {
         logger.info("Writing component {} to {} length {}", type, componentWriters.get(type).getPath(), prettyPrintMemory(size));
 
         if (in instanceof AsyncStreamingInputPlus)
-            write((AsyncStreamingInputPlus) in, size, componentWriters.get(type));
+            write((AsyncStreamingInputPlus) in, size, componentWriters.get(type), limiter);
         else
-            write(in, size, componentWriters.get(type));
+            write(in, size, componentWriters.get(type), limiter);
     }
 
-    private void write(AsyncStreamingInputPlus in, long size, SequentialWriter writer) throws ClosedChannelException
+    private void write(AsyncStreamingInputPlus in, long size, SequentialWriter writer, RateLimiter limiter) throws ClosedChannelException
     {
         logger.info("Block Writing component to {} length {}", writer.getPath(), prettyPrintMemory(size));
 
         try
         {
-            in.consume(writer::writeDirectlyToChannel, size);
+            in.consume(writer::writeDirectlyToChannel, size, limiter);
             writer.sync();
         }
         catch (EOFException e)

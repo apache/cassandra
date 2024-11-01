@@ -38,8 +38,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
-import java.util.TreeSet;
-import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -1472,6 +1470,16 @@ public class NodeProbe implements AutoCloseable
         return ssProxy.getStreamThroughputMebibytesPerSecAsDouble();
     }
 
+    public double getStreamThroughputInboundMibAsDouble()
+    {
+        return ssProxy.getStreamThroughputInboundMebibytesPerSecAsDouble();
+    }
+
+    public double getEntireSSTableStreamThroughputInboundMibAsDouble()
+    {
+        return ssProxy.getEntireSSTableStreamThroughputInboundMebibytesPerSecAsDouble();
+    }
+
     public double getInterDCStreamThroughputMibAsDouble()
     {
         return ssProxy.getInterDCStreamThroughputMebibytesPerSecAsDouble();
@@ -1598,6 +1606,11 @@ public class NodeProbe implements AutoCloseable
         ssProxy.setStreamThroughputMebibytesPerSec(value);
     }
 
+    public void setStreamThroughputInboundMiB(int value)
+    {
+        ssProxy.setStreamThroughputInboundMebibytesPerSec(value);
+    }
+
     public void setInterDCStreamThroughput(int value)
     {
         ssProxy.setInterDCStreamThroughputMbitPerSec(value);
@@ -1611,6 +1624,11 @@ public class NodeProbe implements AutoCloseable
     public void setEntireSSTableStreamThroughput(int value)
     {
         ssProxy.setEntireSSTableStreamThroughputMebibytesPerSec(value);
+    }
+
+    public void setEntireSSTableStreamInboundThroughput(int value)
+    {
+        ssProxy.setEntireSSTableStreamThroughputInboundMebibytesPerSec(value);
     }
 
     public void setEntireSSTableInterDCStreamThroughput(int value)

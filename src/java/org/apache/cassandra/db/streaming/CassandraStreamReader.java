@@ -59,6 +59,8 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.ProgressInfo;
 import org.apache.cassandra.streaming.StreamReceivedOutOfTokenRangeException;
+import org.apache.cassandra.streaming.StreamManager;
+import org.apache.cassandra.streaming.StreamManager.StreamRateLimiter;
 import org.apache.cassandra.streaming.StreamReceiver;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.compress.StreamCompressionInputStream;
@@ -88,6 +90,7 @@ public class CassandraStreamReader implements IStreamReader
     protected final int sstableLevel;
     protected final SerializationHeader.Component header;
     protected final int fileSeqNum;
+    protected final StreamRateLimiter limiter;
 
     public CassandraStreamReader(StreamMessageHeader header, CassandraStreamHeader streamHeader, StreamSession session)
     {
@@ -108,6 +111,7 @@ public class CassandraStreamReader implements IStreamReader
         this.sstableLevel = streamHeader.sstableLevel;
         this.header = streamHeader.serializationHeader;
         this.fileSeqNum = header.sequenceNumber;
+        this.limiter = StreamManager.getInboundRateLimiter();
     }
 
     /**
@@ -134,7 +138,7 @@ public class CassandraStreamReader implements IStreamReader
         SSTableMultiWriter writer = null;
         try (StreamCompressionInputStream streamCompressionInputStream = new StreamCompressionInputStream(inputPlus, current_version))
         {
-            TrackedDataInputPlus in = new TrackedDataInputPlus(streamCompressionInputStream);
+            TrackedDataInputPlus in = new TrackedDataInputPlus(streamCompressionInputStream, -1, limiter);
             writer = createWriter(cfs, totalSize, repairedAt, pendingRepair, format);
             deserializer = getDeserializer(cfs.metadata(), in, inputVersion, session, writer);
             String sequenceName = writer.getFilename() + '-' + fileSeqNum;

@@ -24,6 +24,7 @@ import java.io.IOException;
 
 import net.nicoulaj.compilecommand.annotations.Inline;
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.streaming.RateLimiter;
 
 /**
  * This class is to track bytes read from given DataInput
@@ -33,6 +34,7 @@ public class TrackedDataInputPlus implements DataInputPlus, BytesReadTracker
     private long bytesRead;
     private final long limit;
     final DataInput source;
+    private final RateLimiter limiter;
 
     /**
      * Create a TrackedDataInputPlus from given DataInput with no limit of bytes to read
@@ -48,8 +50,18 @@ public class TrackedDataInputPlus implements DataInputPlus, BytesReadTracker
      */
     public TrackedDataInputPlus(DataInput source, long limit)
     {
+        this(source, limit, null);
+    }
+
+    /**
+     * Create a TrackedDataInputPlus from given DataInput with limit of bytes to read. If limit is reached
+     * {@link IOException} will be thrown when trying to read more bytes.
+     */
+    public TrackedDataInputPlus(DataInput source, long limit, RateLimiter limiter)
+    {
         this.source = source;
         this.limit = limit;
+        this.limiter = limiter;
     }
 
     public long getBytesRead()
@@ -186,5 +198,7 @@ public class TrackedDataInputPlus implements DataInputPlus, BytesReadTracker
             skipBytes((int) (limit - bytesRead));
             throw new EOFException("EOF after " + (limit - bytesRead) + " bytes out of " + size);
         }
+        if (limiter != null)
+            limiter.acquire(size);
     }
 }
