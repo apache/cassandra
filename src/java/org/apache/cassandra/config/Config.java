@@ -613,6 +613,10 @@ public class Config
     @Replaces(oldName = "enable_materialized_views", converter = Converters.IDENTITY, deprecated = true)
     public boolean materialized_views_enabled = false;
 
+    // When true, materialized views data in SSTable go through commit logs during internodes streaming, e.g. repair
+    // When false, it behaves the same as normal streaming.
+    public volatile boolean materialized_views_on_repair_enabled = true;
+
     @Replaces(oldName = "enable_transient_replication", converter = Converters.IDENTITY, deprecated = true)
     public boolean transient_replication_enabled = false;
 

@@ -2150,6 +2150,13 @@ report_unconfirmed_repaired_data_mismatches: false
 # Materialized views are considered experimental and are not recommended for production use.
 materialized_views_enabled: false
 
+# Specify whether Materialized View mutations are replayed through the write path on streaming, e.g. repair.
+# When enabled, Materialized View data streamed to the destination node will be written into commit log first. When setting to false,
+# the streamed Materialized View data is written into SSTables just the same as normal streaming. The default is true.
+# If this is set to false, streaming will be considerably faster however it's possible that, in extreme situations
+# (losing > quorum # nodes in a replica set), you may have data in your SSTables that never makes it to the Materialized View.
+# materialized_views_on_repair_enabled: true
+
 # Enables SASI index creation on this node.
 # SASI indexes are considered experimental and are not recommended for production use.
 sasi_indexes_enabled: false
