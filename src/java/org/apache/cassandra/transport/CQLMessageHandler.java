@@ -94,6 +94,8 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
     long channelPayloadBytesInFlight;
     private int consecutiveMessageErrors = 0;
 
+    private final ServerConnection serverConnection;
+
     interface MessageConsumer<M extends Message>
     {
         void dispatch(Channel channel, M message, Dispatcher.FlushItemConverter toFlushItem, Overload backpressure);
@@ -106,6 +108,7 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
     }
 
     CQLMessageHandler(Channel channel,
+                      ServerConnection serverConnection,
                       ProtocolVersion version,
                       FrameDecoder decoder,
                       Envelope.Decoder envelopeDecoder,
@@ -128,6 +131,7 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
               resources.endpointWaitQueue(),
               resources.globalWaitQueue(),
               onClosed);
+        this.serverConnection = serverConnection;
         this.envelopeDecoder    = envelopeDecoder;
         this.messageDecoder     = messageDecoder;
         this.payloadAllocator   = payloadAllocator;
@@ -182,6 +186,8 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
 
         // max CQL message size defaults to 256mb, so should be safe to downcast
         int messageSize = Ints.checkedCast(header.bodySizeInBytes);
+        if (messageTooBig(messageSize))
+            return false;
 
         Overload backpressure = Overload.NONE;
         if (throwOnOverload)
@@ -517,6 +523,9 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
             Envelope.Header header = extracted.header();
             // max CQL message size defaults to 256mb, so should be safe to downcast
             int messageSize = Ints.checkedCast(header.bodySizeInBytes);
+            if (messageTooBig(messageSize))
+                return false;
+
             receivedBytes += buf.remaining();
             
             LargeMessage largeMessage = new LargeMessage(header);
@@ -760,5 +769,36 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
             if (!isCorrupt)
                 releaseBuffersAndCapacity(); // release resources if in normal state when abort() is invoked
         }
+    }
+
+    static class OversizedCQLMessageException extends ProtocolException
+    {
+        OversizedCQLMessageException(String message)
+        {
+            super(message);
+        }
+    }
+
+    private boolean messageTooBig(int messageSize)
+    {
+        boolean authInProgress = serverConnection != null && serverConnection.stage() != ConnectionStage.READY;
+        if (authInProgress && messageSize > DatabaseDescriptor.getNativeTransportMaxAuthMessageSizeInBytes())
+        {
+            handleError(ProtocolException.toFatalException(new OversizedCQLMessageException(
+                        "Auth CQL Message of size " + messageSize + " bytes exceeds allowed maximum of "
+                        + DatabaseDescriptor.getNativeTransportMaxAuthMessageSizeInBytes() + " bytes"))
+            );
+            return true;
+        }
+
+        if (messageSize > DatabaseDescriptor.getNativeTransportMaxMessageSizeInBytes())
+        {
+            handleError(ProtocolException.toFatalException(new OversizedCQLMessageException(
+                "CQL Message of size " + messageSize + " bytes exceeds allowed maximum of "
+                 + DatabaseDescriptor.getNativeTransportMaxMessageSizeInBytes() + " bytes"))
+            );
+            return true;
+        }
+        return false;
     }
 }

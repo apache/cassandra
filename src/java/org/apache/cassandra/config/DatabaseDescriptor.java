@@ -579,6 +579,11 @@ public class DatabaseDescriptor
             conf.native_transport_max_request_data_in_flight_per_ip = new DataStorageSpec.LongBytesBound(Runtime.getRuntime().maxMemory() / 40);
         }
 
+        if (conf.native_transport_max_message_size == null)
+        {
+            conf.native_transport_max_message_size = conf.native_transport_max_request_data_in_flight_per_ip;
+        }
+
         if (conf.native_transport_rate_limiting_enabled)
             logger.info("Native transport rate-limiting enabled at {} requests/second.", conf.native_transport_max_requests_per_second);
         else
@@ -2746,6 +2751,28 @@ public class DatabaseDescriptor
     public static long getNativeTransportMaxRequestDataInFlightPerIpInBytes()
     {
         return conf.native_transport_max_request_data_in_flight_per_ip.toBytes();
+    }
+
+    public static long getNativeTransportMaxMessageSizeInBytes()
+    {
+        return conf.native_transport_max_message_size.toBytes();
+    }
+
+    @VisibleForTesting
+    public static void setNativeTransportMaxMessageSizeInBytes(long maxMessageSizeInBytes)
+    {
+        conf.native_transport_max_message_size = new DataStorageSpec.LongBytesBound(maxMessageSizeInBytes);
+    }
+
+    public static long getNativeTransportMaxAuthMessageSizeInBytes()
+    {
+        return conf.native_transport_max_auth_message_size.toBytes();
+    }
+
+    @VisibleForTesting
+    public static void setNativeTransportMaxAuthMessageSizeInBytes(long maxAuthMessageSizeInBytes)
+    {
+        conf.native_transport_max_auth_message_size = new DataStorageSpec.LongBytesBound(maxAuthMessageSizeInBytes);
     }
 
     public static Config.PaxosVariant getPaxosVariant()
