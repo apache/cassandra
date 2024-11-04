@@ -38,6 +38,7 @@ import io.netty.channel.ChannelPromise;
 import io.netty.channel.unix.Errors;
 import org.apache.cassandra.exceptions.OverloadedException;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.exceptions.OversizedCQLMessageException;
 import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.net.FrameEncoder;
 import org.apache.cassandra.transport.messages.ErrorMessage;
@@ -128,6 +129,10 @@ public class ExceptionHandlers
         else if (Throwables.anyCauseMatches(cause, t -> t instanceof OverloadedException))
         {
             // Once the threshold for overload is breached, it will very likely spam the logs...
+            NoSpamLogger.log(logger, NoSpamLogger.Level.INFO, 1, TimeUnit.MINUTES, cause.getMessage());
+        }
+        else if (Throwables.anyCauseMatches(cause, t -> t instanceof OversizedCQLMessageException))
+        {
             NoSpamLogger.log(logger, NoSpamLogger.Level.INFO, 1, TimeUnit.MINUTES, cause.getMessage());
         }
         else if (Throwables.anyCauseMatches(cause, t -> t instanceof Errors.NativeIoException))

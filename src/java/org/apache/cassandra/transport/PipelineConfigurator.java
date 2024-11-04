@@ -270,6 +270,7 @@ public class PipelineConfigurator
     }
 
     public void configureModernPipeline(ChannelHandlerContext ctx,
+                                        ServerConnection serverConnection,
                                         ClientResourceLimits.Allocator resourceAllocator,
                                         ProtocolVersion version,
                                         Map<String, String> options)
@@ -311,6 +312,7 @@ public class PipelineConfigurator
         CQLMessageHandler.MessageConsumer<Message.Request> messageConsumer = messageConsumer();
         CQLMessageHandler<Message.Request> processor =
             new CQLMessageHandler<>(ctx.channel(),
+                                    serverConnection,
                                     version,
                                     frameDecoder,
                                     envelopeDecoder,

@@ -104,6 +104,7 @@ public class InitialConnectionHandler extends ByteToMessageDecoder
                         attrConn.set(connection);
                     }
                     assert connection instanceof ServerConnection;
+                    ServerConnection serverConnection = (ServerConnection) connection;
 
                     StartupMessage startup = (StartupMessage) Message.Decoder.decodeMessage(ctx.channel(), inbound);
                     InetAddress remoteAddress = ((InetSocketAddress) ctx.channel().remoteAddress()).getAddress();
@@ -120,7 +121,7 @@ public class InitialConnectionHandler extends ByteToMessageDecoder
                             if (future.isSuccess())
                             {
                                 logger.trace("Response to STARTUP sent, configuring pipeline for {}", inbound.header.version);
-                                configurator.configureModernPipeline(ctx, allocator, inbound.header.version, startup.options);
+                                configurator.configureModernPipeline(ctx, serverConnection, allocator, inbound.header.version, startup.options);
                                 allocator.release(inbound.header.bodySizeInBytes);
                             }
                             else

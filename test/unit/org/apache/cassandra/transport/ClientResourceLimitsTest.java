@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.transport;
 
-import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
@@ -32,9 +31,6 @@ import org.apache.cassandra.service.StorageService;
 import org.junit.*;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.cql3.CQLTester;
-import org.apache.cassandra.cql3.QueryOptions;
-import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.virtual.*;
@@ -50,20 +46,10 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-public class ClientResourceLimitsTest extends CQLTester
+public class ClientResourceLimitsTest extends NativeProtocolLimitsTestBase
 {
     private static final long LOW_LIMIT = 600L;
     private static final long HIGH_LIMIT = 5000000000L;
-
-    private static final QueryOptions V5_DEFAULT_OPTIONS = 
-        QueryOptions.create(QueryOptions.DEFAULT.getConsistency(),
-                            QueryOptions.DEFAULT.getValues(),
-                            QueryOptions.DEFAULT.skipMetadata(),
-                            QueryOptions.DEFAULT.getPageSize(),
-                            QueryOptions.DEFAULT.getPagingState(),
-                            QueryOptions.DEFAULT.getSerialConsistency(),
-                            ProtocolVersion.V5,
-                            KEYSPACE);
 
     @BeforeClass
     public static void setUp()
@@ -89,54 +75,6 @@ public class ClientResourceLimitsTest extends CQLTester
         ClientResourceLimits.setEndpointLimit(LOW_LIMIT);
     }
 
-    @After
-    public void dropCreatedTable()
-    {
-        try
-        {
-            QueryProcessor.executeOnceInternal("DROP TABLE " + KEYSPACE + ".atable");
-        }
-        catch (Throwable t)
-        {
-            // ignore
-        }
-    }
-
-    @SuppressWarnings("resource")
-    private SimpleClient client(boolean throwOnOverload)
-    {
-        try
-        {
-            return SimpleClient.builder(nativeAddr.getHostAddress(), nativePort)
-                               .protocolVersion(ProtocolVersion.V5)
-                               .useBeta()
-                               .build()
-                               .connect(false, throwOnOverload);
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException("Error initializing client", e);
-        }
-    }
-
-    @SuppressWarnings({"resource", "SameParameterValue"})
-    private SimpleClient client(boolean throwOnOverload, int largeMessageThreshold)
-    {
-        try
-        {
-            return SimpleClient.builder(nativeAddr.getHostAddress(), nativePort)
-                               .protocolVersion(ProtocolVersion.V5)
-                               .useBeta()
-                               .largeMessageThreshold(largeMessageThreshold)
-                               .build()
-                               .connect(false, throwOnOverload);
-        }
-        catch (IOException e)
-        {
-           throw new RuntimeException("Error initializing client", e);
-        }
-    }
-
     @Test
     public void testQueryExecutionWithThrowOnOverload()
     {
@@ -153,10 +91,8 @@ public class ClientResourceLimitsTest extends CQLTester
     {
         try (SimpleClient client = client(throwOnOverload))
         {
-            QueryMessage queryMessage = new QueryMessage("CREATE TABLE atable (pk int PRIMARY KEY, v text)",
-                                                         V5_DEFAULT_OPTIONS);
-            client.execute(queryMessage);
-            queryMessage = new QueryMessage("SELECT * FROM atable", V5_DEFAULT_OPTIONS);
+            createTable(client);
+            QueryMessage queryMessage = new QueryMessage("SELECT * FROM atable", queryOptions());
             client.execute(queryMessage);
         }
     }
@@ -189,7 +125,7 @@ public class ClientResourceLimitsTest extends CQLTester
         {
             // The first query does not trigger backpressure/pause the connection:
             QueryMessage queryMessage = 
-                    new QueryMessage("CREATE TABLE atable (pk int PRIMARY KEY, v text)", V5_DEFAULT_OPTIONS);
+                    new QueryMessage("CREATE TABLE atable (pk int PRIMARY KEY, v text)", queryOptions());
             Message.Response belowThresholdResponse = client.execute(queryMessage);
             assertEquals(0, getPausedConnectionsGauge().getValue().intValue());
             assertNoWarningContains(belowThresholdResponse, "bytes in flight");
@@ -261,7 +197,11 @@ public class ClientResourceLimitsTest extends CQLTester
     {
         // Bump the per-endpoint limit to make sure we exhaust the global
         ClientResourceLimits.setEndpointLimit(HIGH_LIMIT);
-        testOverloadedException(() -> client(true, Ints.checkedCast(LOW_LIMIT / 2)));
+        // test message = 2/3 x
+        // emulated concurrent message = 2/3 x
+        // test message + emulated concurrent message = 4/3 x > x set as a global limit
+        emulateInFlightConcurrentMessage(LOW_LIMIT * 2 / 3);
+        testOverloadedException(() -> client(true, Ints.checkedCast(LOW_LIMIT / 2)), LOW_LIMIT * 2 / 3);
     }
 
     @Test
@@ -269,18 +209,25 @@ public class ClientResourceLimitsTest extends CQLTester
     {
         // Make sure we can only exceed the per-endpoint limit
         ClientResourceLimits.setGlobalLimit(HIGH_LIMIT);
-        testOverloadedException(() -> client(true, Ints.checkedCast(LOW_LIMIT / 2)));
+        // test message = 2/3 x
+        // emulated concurrent message = 2/3 x
+        // test message + emulated concurrent message = 4/3 x > x set as an endpoint limit
+        emulateInFlightConcurrentMessage(LOW_LIMIT * 2 / 3);
+        testOverloadedException(() -> client(true, Ints.checkedCast(LOW_LIMIT / 2)), LOW_LIMIT * 2 / 3);
     }
 
     private void testOverloadedException(Supplier<SimpleClient> clientSupplier)
     {
+        testOverloadedException(clientSupplier, LOW_LIMIT * 2);
+    }
+
+    private void testOverloadedException(Supplier<SimpleClient> clientSupplier, long limit)
+    {
         try (SimpleClient client = clientSupplier.get())
         {
-            QueryMessage queryMessage = new QueryMessage("CREATE TABLE atable (pk int PRIMARY KEY, v text)",
-                                                         V5_DEFAULT_OPTIONS);
-            client.execute(queryMessage);
+            createTable(client);
 
-            queryMessage = queryMessage();
+            QueryMessage queryMessage = queryMessage(limit);
             try
             {
                 client.execute(queryMessage);
@@ -295,11 +242,7 @@ public class ClientResourceLimitsTest extends CQLTester
 
     private QueryMessage queryMessage()
     {
-        StringBuilder query = new StringBuilder("INSERT INTO atable (pk, v) VALUES (1, '");
-        for (int i=0; i < LOW_LIMIT * 2; i++)
-            query.append('a');
-        query.append("')");
-        return new QueryMessage(query.toString(), V5_DEFAULT_OPTIONS);
+        return queryMessage(LOW_LIMIT * 2);
     }
 
     @Test
@@ -341,7 +284,7 @@ public class ClientResourceLimitsTest extends CQLTester
             VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(table, ImmutableList.of(vt1)));
 
             final QueryMessage queryMessage = new QueryMessage(String.format("SELECT * FROM %s.%s", table, table),
-                                                               V5_DEFAULT_OPTIONS);
+                                                               queryOptions());
             try
             {
                 Thread tester = new Thread(() -> client.execute(queryMessage));
@@ -367,8 +310,9 @@ public class ClientResourceLimitsTest extends CQLTester
         try
         {
             QueryMessage smallMessage = new QueryMessage(String.format("CREATE TABLE %s.atable (pk int PRIMARY KEY, v text)", KEYSPACE),
-                                                         V5_DEFAULT_OPTIONS);
+                                                         queryOptions());
             client.execute(smallMessage);
+            createTable(client);
             try
             {
                 client.execute(queryMessage());
