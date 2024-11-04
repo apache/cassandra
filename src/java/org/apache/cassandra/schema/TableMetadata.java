@@ -1294,11 +1294,14 @@ public class TableMetadata implements SchemaElement
      */
     private static void addUserTypes(AbstractType<?> type, Set<ByteBuffer> types)
     {
-        // Reach into subtypes first, so that if the type is a UDT, it's dependencies are recreated first.
-        type.subTypes().forEach(t -> addUserTypes(t, types));
+        AbstractType<?> unwrapped = type.unwrap();
 
-        if (type.isUDT())
-            types.add(((UserType)type).name);
+        if (unwrapped.isUDT())
+        {
+            // Reach into subtypes first, so that if the type is a UDT, it's dependencies are recreated first.
+            unwrapped.subTypes().forEach(t -> addUserTypes(t, types));
+            types.add(((UserType)unwrapped).name);
+        }
     }
 
     @Override
