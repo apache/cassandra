@@ -21,7 +21,9 @@ import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
+import org.apache.cassandra.Util;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -156,7 +158,7 @@ public class PstmtPersistenceTest extends CQLTester
                     prepareStatement("INSERT INTO %s (key, val) VALUES (?, ?) USING TIMESTAMP " + cnt2, clientState);
 
                 // each new prepared statement should have caused an eviction
-                assertEquals("eviction count didn't increase by the expected number", numberOfEvictedStatements(), 10);
+                Util.spinAssertEquals("eviction count didn't increase by the expected number", 10L, this::numberOfEvictedStatements, 5, TimeUnit.SECONDS);
                 assertEquals("Number of statements in table and in cache don't match", numberOfStatementsInMemory(), numberOfStatementsOnDisk());
 
                 return;
