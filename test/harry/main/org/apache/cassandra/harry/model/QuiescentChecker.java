@@ -156,6 +156,7 @@ public class QuiescentChecker implements Model
                             actualRowState, query, trackerState, schema);
         }
 
+        int rowId = 0;
         while (actual.hasNext() && expected.hasNext())
         {
             ResultSetRow actualRowState = actual.next();
@@ -208,6 +209,8 @@ public class QuiescentChecker implements Model
                 Reconciler.RowState expectedStaticRowState = adjustForSelection(partitionState.staticRow(), schema, selection, true);
                 assertStaticRow(partitionState, actualRows, expectedStaticRowState, actualRowState, query, trackerState, schema);
             }
+
+            rowId++;
         }
 
         if (actual.hasNext() || expected.hasNext())
@@ -215,10 +218,11 @@ public class QuiescentChecker implements Model
             throw new ValidationException(trackerState,
                                           partitionState.toString(schema),
                                           toString(actualRows),
-                                          "Expected results to have the same number of results, but %s result iterator has more results." +
+                                          "Expected results to have the same number of results (different at row id %d), but %s result iterator has more results." +
                                           "\nExpected: %s" +
                                           "\nActual:   %s" +
                                           "\nQuery: %s",
+                                          rowId,
                                           actual.hasNext() ? "actual" : "expected",
                                           expectedRows,
                                           actualRows,
