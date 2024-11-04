@@ -136,7 +136,7 @@ public class PaxosBackedProcessor extends AbstractLocalProcessor
             while (iter.hasNext())
             {
                 FetchLogRequest request = iter.next();
-                if (request.condition.awaitUninterruptibly(Math.max(0, nextTimeout - Clock.Global.nanoTime()), TimeUnit.NANOSECONDS) &&
+                if (request.condition.awaitThrowUncheckedOnInterrupt(Math.max(0, nextTimeout - Clock.Global.nanoTime()), TimeUnit.NANOSECONDS) &&
                     request.condition.isSuccess())
                 {
                     collected.add(request.to.endpoint());
