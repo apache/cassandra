@@ -44,8 +44,6 @@ public class HarryOnAccordTopologyMixupTest extends HarryTopologyMixupTest
     {
         // if a failing seed is detected, populate here
         // Example: builder.withSeed(42L);
-//        builder.withSeed(3447622675270285949L); // java.lang.IllegalStateException: Epoch{epoch=43} should have been directly after Epoch{epoch=41}
-        builder.withSeed(3447615898140518372L); // Caused by: java.util.concurrent.TimeoutException: Stateful Step 24: nodetool repair harry tbl from node1; epoch=74, cms=[1, 3, 5], up=[1, 3, 5], down=[]
     }
 
     @Override
