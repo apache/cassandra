@@ -19,7 +19,6 @@
 package org.apache.cassandra.service;
 
 import com.google.common.collect.ImmutableSet;
-import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -125,7 +124,7 @@ public class AutoRepairServiceSetterTest<T> extends CQLTester {
 
     @Test
     public void testSettersTest() {
-        CassandraRelevantProperties.STREAMING_REQUIRES_VIEW_BUILD_DURING_REPAIR.setBoolean(false);
+        DatabaseDescriptor.setMaterializedViewsOnRepairEnabled(false);
         DatabaseDescriptor.setCDCOnRepairEnabled(false);
         setter.accept(repairType, arg);
         assertEquals(arg, getter.apply(repairType));

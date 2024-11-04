@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.service;
 
-import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -65,11 +64,11 @@ public class AutoRepairService implements AutoRepairServiceMBean
         if (repairType != RepairType.incremental)
             return;
 
-        if (CassandraRelevantProperties.STREAMING_REQUIRES_VIEW_BUILD_DURING_REPAIR.getBoolean())
-            throw new ConfigurationException("Cannot run incremental repair while materialized view replay is enabled.");
+        if (DatabaseDescriptor.isMaterializedViewsOnRepairEnabled())
+            throw new ConfigurationException("Cannot run incremental repair while materialized view replay is enabled. Set materialized_views_on_repair_enabled to false.");
 
         if (DatabaseDescriptor.isCDCOnRepairEnabled())
-            throw new ConfigurationException("Cannot run incremental repair while CDC replay is enabled.");
+            throw new ConfigurationException("Cannot run incremental repair while CDC replay is enabled. Set cdc_on_repair_enabled to false.");
     }
 
     @Override

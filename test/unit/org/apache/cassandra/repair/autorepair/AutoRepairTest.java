@@ -21,8 +21,6 @@ package org.apache.cassandra.repair.autorepair;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.apache.cassandra.config.CassandraRelevantProperties;
-import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -57,17 +55,11 @@ public class AutoRepairTest extends CQLTester
     public void setup()
     {
         AutoRepair.SLEEP_IF_REPAIR_FINISHES_QUICKLY = new DurationSpec.IntSecondsBound("0s");
-        CassandraRelevantProperties.STREAMING_REQUIRES_VIEW_BUILD_DURING_REPAIR.setBoolean(false);
         DatabaseDescriptor.setCDCOnRepairEnabled(false);
+        DatabaseDescriptor.setMaterializedViewsOnRepairEnabled(false);
         DatabaseDescriptor.getAutoRepairConfig().setAutoRepairEnabled(RepairType.full, true);
         DatabaseDescriptor.getAutoRepairConfig().setAutoRepairEnabled(RepairType.incremental, true);
         AutoRepairService.setup();
-    }
-
-    @After
-    public void after()
-    {
-        System.clearProperty("cassandra.streaming.requires_view_build_during_repair");
     }
 
     @Test
@@ -109,9 +101,8 @@ public class AutoRepairTest extends CQLTester
     @Test(expected = ConfigurationException.class)
     public void testSetupFailsWhenIREnabledWithCDCReplay()
     {
-        CassandraRelevantProperties.STREAMING_REQUIRES_VIEW_BUILD_DURING_REPAIR.setBoolean(false);
-
         DatabaseDescriptor.getAutoRepairConfig().setAutoRepairEnabled(RepairType.incremental, true);
+        DatabaseDescriptor.setMaterializedViewsOnRepairEnabled(true);
         DatabaseDescriptor.setCDCEnabled(true);
         DatabaseDescriptor.setCDCOnRepairEnabled(true);
 
@@ -123,8 +114,8 @@ public class AutoRepairTest extends CQLTester
     public void testSetupFailsWhenIREnabledWithMVReplay()
     {
         DatabaseDescriptor.getAutoRepairConfig().setAutoRepairEnabled(RepairType.incremental, true);
-        CassandraRelevantProperties.STREAMING_REQUIRES_VIEW_BUILD_DURING_REPAIR.setBoolean(true);
         DatabaseDescriptor.setCDCOnRepairEnabled(false);
+        DatabaseDescriptor.setMaterializedViewsOnRepairEnabled(true);
         AutoRepair instance = new AutoRepair();
         instance.setup();
     }

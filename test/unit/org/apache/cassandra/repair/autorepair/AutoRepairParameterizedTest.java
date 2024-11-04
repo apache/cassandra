@@ -31,7 +31,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.collect.Sets;
 
-import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.cql3.statements.schema.TableAttributes;
 import org.apache.cassandra.dht.Range;
@@ -133,7 +132,8 @@ public class AutoRepairParameterizedTest extends CQLTester
         QueryProcessor.executeInternal(String.format("CREATE MATERIALIZED VIEW %s.%s AS SELECT i, k from %s.%s " +
                 "WHERE k IS NOT null AND i IS NOT null PRIMARY KEY (i, k)", KEYSPACE, MV, KEYSPACE, TABLE));
 
-        CassandraRelevantProperties.STREAMING_REQUIRES_VIEW_BUILD_DURING_REPAIR.setBoolean(false);
+        DatabaseDescriptor.setCDCOnRepairEnabled(false);
+        DatabaseDescriptor.setMaterializedViewsOnRepairEnabled(false);
         MockitoAnnotations.initMocks(this);
 
         Keyspace.open(KEYSPACE).getColumnFamilyStore(TABLE).truncateBlocking();
@@ -671,7 +671,7 @@ public class AutoRepairParameterizedTest extends CQLTester
     public void testRepairThrowsForIRWithMVReplay()
     {
         AutoRepair.instance.setup();
-        CassandraRelevantProperties.STREAMING_REQUIRES_VIEW_BUILD_DURING_REPAIR.setBoolean(true);
+        DatabaseDescriptor.setMaterializedViewsOnRepairEnabled(true);
 
         if (repairType == AutoRepairConfig.RepairType.incremental)
         {
