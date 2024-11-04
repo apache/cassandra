@@ -2584,43 +2584,33 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         MessagingService.instance().send(message, ep);
     }
 
-    public String compareGossipAndTokenMetadataCache()
+    public Map<String,Pair<String,String>> compareGossipAndTokenMetadata()
     {
-        StringBuilder output = new StringBuilder();
         // local epstate will be part of endpointStateMap
-        List<InetAddressAndPort> endpoints = new ArrayList<>(endpointStateMap.keySet());
-        for (InetAddressAndPort endpoint : endpoints)
+        Map<String,Pair<String,String>> mismatches = new HashMap<>();
+        for (InetAddressAndPort endpoint : endpointStateMap.keySet())
         {
             EndpointState ep = endpointStateMap.get(endpoint);
             // check the status only for NORMAL nodes
             if (ep.isNormalState())
             {
-                Collection<Token> tokensFromStorageServiceCache;
+                List<Token> tokensFromMetadata;
                 try
                 {
-                    tokensFromStorageServiceCache = StorageService.instance.getTokenMetadata().getTokens(endpoint);
+                    tokensFromMetadata = new ArrayList<>(StorageService.instance.getTokenMetadata().getTokens(endpoint));
+                    Collections.sort(tokensFromMetadata);
                 }
                 catch(AssertionError e)
                 {
-                    // if we receive AssertionError then it means that the endpoint is part of Gossip cache
-                    // but StorageService cache does not have the endpoint.
-                    // This should be treated as inconsistency between the StorageService cache and Gossip cache
-                    output.append("TokenMetadata cache is missing information for normal endpoint" + endpoint);
-                    output.append("\n");
-                    continue;
+                    tokensFromMetadata = Collections.EMPTY_LIST;
                 }
-                Collection<Token> tokensFromGossipCache = StorageService.instance.getTokensFor(endpoint);
-                List<Token> c1 = new ArrayList<>(tokensFromStorageServiceCache);
-                List<Token> c2 = new ArrayList<>(tokensFromGossipCache);
-                Collections.sort(c1);
-                Collections.sort(c2);
-                if (!c1.equals(c2))
-                {
-                    output.append(String.format("Gossip and TokenMetadata cache token mismatch for endpoint %s", endpoint.toString()));
-                    output.append("\n");
-                }
+                List<Token> tokensFromGossip = new ArrayList<>(StorageService.instance.getTokensFor(endpoint));
+                Collections.sort(tokensFromGossip);
+
+                if (!tokensFromMetadata.equals(tokensFromGossip))
+                    mismatches.put(endpoint.toString(), Pair.create(tokensFromGossip.toString(), tokensFromMetadata.toString()));
             }
         }
-        return output.toString();
+        return mismatches;
     }
 }

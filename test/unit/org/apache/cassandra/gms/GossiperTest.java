@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -52,6 +53,7 @@ import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -506,7 +508,7 @@ public class GossiperTest
         host0State.addApplicationState(ApplicationState.STATUS_WITH_PORT, StorageService.instance.valueFactory.normal(new ArrayList<Token>(){{add(DatabaseDescriptor.getPartitioner().getRandomToken());}}));
         host1State.addApplicationState(ApplicationState.STATUS_WITH_PORT, StorageService.instance.valueFactory.normal(new ArrayList<Token>(){{add(DatabaseDescriptor.getPartitioner().getRandomToken());}}));
         Gossiper.instance.applyStateLocally(ImmutableMap.of(hosts.get(1), host0State));
-        String output = Gossiper.instance.compareGossipAndTokenMetadataCache();
+        Map<String, Pair<String,String>> output = Gossiper.instance.compareGossipAndTokenMetadata();
         assertTrue(output.isEmpty());
         assertEquals(StorageService.instance.getTokenMetadata().getTokens(hosts.get(0)), StorageService.instance.getTokensFor(hosts.get(0)));
         assertEquals(StorageService.instance.getTokenMetadata().getTokens(hosts.get(1)), StorageService.instance.getTokensFor(hosts.get(1)));
@@ -514,8 +516,8 @@ public class GossiperTest
         // edit the tokens in the Gossip cache to create a mismatch between the two caches
         host0State.addApplicationState(ApplicationState.TOKENS, StorageService.instance.valueFactory.tokens(new ArrayList<Token>(){{add(DatabaseDescriptor.getPartitioner().getRandomToken());}}));
 
-        output = Gossiper.instance.compareGossipAndTokenMetadataCache();
-        assertEquals("Gossip and TokenMetadata cache token mismatch for endpoint /127.0.0.1:7012\n", output);
+        output = Gossiper.instance.compareGossipAndTokenMetadata();
+        assertTrue(output.containsKey("/127.0.0.1:7012"));
     }
 
     @Test
@@ -530,7 +532,7 @@ public class GossiperTest
         assertEquals(StorageService.instance.getTokenMetadata().getTokens(hosts.get(0)), StorageService.instance.getTokensFor(hosts.get(0)));
         assertEquals(StorageService.instance.getTokenMetadata().getTokens(hosts.get(1)), StorageService.instance.getTokensFor(hosts.get(1)));
         // no impact to the cache if there is no cache coherence
-        String output = Gossiper.instance.compareGossipAndTokenMetadataCache();
+        Map<String, Pair<String,String>> output = Gossiper.instance.compareGossipAndTokenMetadata();
         assertTrue(output.isEmpty());
         assertEquals(StorageService.instance.getTokenMetadata().getTokens(hosts.get(0)), StorageService.instance.getTokensFor(hosts.get(0)));
         assertEquals(StorageService.instance.getTokenMetadata().getTokens(hosts.get(1)), StorageService.instance.getTokensFor(hosts.get(1)));
@@ -559,7 +561,7 @@ public class GossiperTest
         assertEquals(StorageService.instance.getTokenMetadata().getTokens(hosts.get(1)), StorageService.instance.getTokensFor(hosts.get(1)));
 
         // Because host1 is not yet "NORMAL", it should be skipped in fixing the caches
-        String output = Gossiper.instance.compareGossipAndTokenMetadataCache();
+        Map<String, Pair<String,String>> output = Gossiper.instance.compareGossipAndTokenMetadata();
         assertTrue(output.isEmpty());
         assertNotEquals(StorageService.instance.getTokenMetadata().getTokens(hosts.get(0)), StorageService.instance.getTokensFor(hosts.get(0)));
         assertEquals(StorageService.instance.getTokenMetadata().getTokens(hosts.get(1)), StorageService.instance.getTokensFor(hosts.get(1)));
@@ -578,7 +580,7 @@ public class GossiperTest
         host0State.addApplicationState(ApplicationState.STATUS_WITH_PORT, StorageService.instance.valueFactory.normal(new ArrayList<Token>(){{add(DatabaseDescriptor.getPartitioner().getRandomToken());}}));
         host1State.addApplicationState(ApplicationState.STATUS_WITH_PORT, StorageService.instance.valueFactory.normal(new ArrayList<Token>(){{add(DatabaseDescriptor.getPartitioner().getRandomToken());}}));
         Gossiper.instance.applyStateLocally(ImmutableMap.of(hosts.get(1), host0State));
-        String output = Gossiper.instance.compareGossipAndTokenMetadataCache();
+        Map<String, Pair<String,String>> output = Gossiper.instance.compareGossipAndTokenMetadata();
         assertTrue(output.isEmpty());
         // Gossip tokens should be used as the source of truth in case of a mismtach
         Collection<Token> gossipTokensHost0 = getGossipCacheTokens(0);
@@ -589,8 +591,8 @@ public class GossiperTest
 
         // remove the tokens from TokenMetadata cache to create a mismatch between the two caches
         StorageService.instance.getTokenMetadata().removeEndpoint(hosts.get(0));
-        output = Gossiper.instance.compareGossipAndTokenMetadataCache();
-        assertEquals("TokenMetadata cache is missing information for normal endpoint/127.0.0.1:7012\n", output);
+        output = Gossiper.instance.compareGossipAndTokenMetadata();
+        assertTrue(output.containsKey("/127.0.0.1:7012"));
         try
         {
             getTokenMetadataCacheTokens(0);

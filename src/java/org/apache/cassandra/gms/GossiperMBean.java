@@ -21,6 +21,8 @@ import java.net.UnknownHostException;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.cassandra.utils.Pair;
+
 public interface GossiperMBean
 {
     public long getEndpointDowntime(String address) throws UnknownHostException;
@@ -38,5 +40,5 @@ public interface GossiperMBean
     /** Returns each node's database release version */
     public Map<String, List<String>> getReleaseVersionsWithPort();
 
-    public String compareGossipAndTokenMetadataCache();
+    public Map<String, Pair<String,String>> compareGossipAndTokenMetadata();
 }
