@@ -122,6 +122,7 @@ import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.apache.cassandra.tools.nodetool.GetTimeout;
 import org.apache.cassandra.utils.NativeLibrary;
+import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.NODETOOL_JMX_NOTIFICATION_POLL_INTERVAL_SECONDS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SSL_ENABLE;
@@ -1724,9 +1725,9 @@ public class NodeProbe implements AutoCloseable
     {
         return ssProxy.getOutOfRangeOperationCounts();
     }
-    public String compareGossipAndTokenMetadataCache()
+    public Map<String, Pair<String,String>> compareGossipAndTokenMetadata()
     {
-        return gossProxy.compareGossipAndTokenMetadataCache();
+        return gossProxy.compareGossipAndTokenMetadata();
     }
 
     // JMX getters for the o.a.c.metrics API below.

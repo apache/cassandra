@@ -17,28 +17,34 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
+import java.util.Map;
+
 import io.airlift.airline.Command;
+
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import org.apache.cassandra.utils.Pair;
 
-@Command(name = "checktokenmetadata", description = "compares the Gossip endpointState and TokenMetadata cache; returns true if they are in sync, false otherwise")
+@Command(name = "checktokenmetadata", description = "compares the Gossip endpointState and TokenMetadata cache; printing any mismatches found")
 public class CheckTokenMetadata extends NodeToolCmd
 {
     @Override
     public void execute(NodeProbe probe)
     {
-        /** Cassandra maintains the token information in two caches 1) Gossip endpointState 2) TokenMetadata cache
-         * The source of truth is the Gossip endpointState, which then updates the TokenMetadata cache - but there exists no guarantee.
-         * As a result, a wide variety of problems could occur, and one of the problems is a node could see different token ownership
-         * than its peers. This command compares the Gossip endpointState and TokenMetadata cache and returns empty result if they are in sync, mismatche(s) otherwise.
+        /** Cassandra maintains the token information in two places: 1) Gossip endpointState, and 2) TokenMetadata.
+         * The probabilistic view of the cluster is the Gossip endpointState.
+         * This then updates the TokenMetadata, a resulting topology view that's usable by hotpaths (e.g. read and write requests).
+         * Bugs can result in these falling out of sync.
+         * This command compares the Gossip endpointState and TokenMetadata cache, printing any mismatches found.
          */
         StringBuilder sb = new StringBuilder();
-        String mismatches = probe.compareGossipAndTokenMetadataCache();
-        if (!mismatches.isEmpty())
-        {
-            sb.append("Mismatch details:");
-            sb.append(mismatches);
-        }
+        Map<String,Pair<String,String>> mismatches = probe.compareGossipAndTokenMetadata();
+
+        for (Map.Entry<String,Pair<String,String>> e : mismatches.entrySet())
+            sb.append("Mismatch on : ").append(e.getKey())
+              .append("\n  Gossip tokens: ").append(e.getValue().left())
+              .append("\n  TokenMetadata: ").append(e.getValue().right()).append('\n');
+
         System.out.println(sb);
     }
 }
