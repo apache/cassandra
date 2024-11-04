@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
@@ -586,8 +587,20 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
             cluster.setUncaughtExceptionsFilter((node, t) -> {
                 // api is "ignore" so false means include,
                 var rootCause = Throwables.getRootCause(t);
-                if (rootCause.getMessage() != null && rootCause.getMessage().startsWith("Queried for epoch") && rootCause.getMessage().contains("but could not catch up. Current epoch:"))
-                    return true;
+                if (rootCause.getMessage() != null)
+                {
+                    if (rootCause.getMessage().startsWith("Queried for epoch") && rootCause.getMessage().contains("but could not catch up. Current epoch:"))
+                        return true;
+                    if (rootCause.getMessage().startsWith("Operation timed out"))
+                    {
+                        // is this due to TCM fetching epochs? PaxosBackedProcessor.getLogState is costly and more likely to timeout... so ignore those
+                        Optional<StackTraceElement> match = Stream.of(rootCause.getStackTrace())
+                                                                  .filter(s -> s.getClassName().equals("org.apache.cassandra.tcm.PaxosBackedProcessor") && s.getMethodName().equals("getLogState"))
+                                                                  .findFirst();
+                        if (match.isPresent())
+                            return true;
+                    }
+                }
                 return false;
             });
             fixDistributedSchemas(cluster);
