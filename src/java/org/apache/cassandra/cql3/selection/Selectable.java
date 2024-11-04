@@ -535,7 +535,7 @@ public interface Selectable extends AssignmentTestable
             }
 
             Selector.Factory factory = selected.newSelectorFactory(table, expectedUdtType, defs, boundNames);
-            AbstractType<?> type = factory.getReturnType();
+            AbstractType<?> type = factory.getReturnType().unwrap();
             if (!type.isUDT())
             {
                 throw new InvalidRequestException(

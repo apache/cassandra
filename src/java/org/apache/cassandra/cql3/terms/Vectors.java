@@ -115,9 +115,11 @@ public final class Vectors
         @Override
         public Term prepare(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
         {
-            if (!receiver.type.isVector())
+            AbstractType<?> unwrapped = receiver.type.unwrap();
+
+            if (!unwrapped.isVector())
                 throw new InvalidRequestException(String.format("Invalid vector literal for %s of type %s", receiver.name, receiver.type.asCQL3Type()));
-            VectorType<?> type = (VectorType<?>) receiver.type;
+            VectorType<?> type = (VectorType<?>) unwrapped;
             if (elements.size() != type.dimension)
                 throw new InvalidRequestException(String.format("Invalid vector literal for %s of type %s; expected %d elements, but given %d", receiver.name, receiver.type.asCQL3Type(), type.dimension, elements.size()));
 

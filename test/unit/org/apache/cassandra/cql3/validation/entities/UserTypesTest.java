@@ -106,6 +106,22 @@ public class UserTypesTest extends CQLTester
     }
 
     @Test
+    public void testDescendingOrderingOfUserTypesIsSupported() throws Throwable
+    {
+        String myType = createType("CREATE TYPE %s (x double)");
+        createTable("CREATE TABLE %s (k int, v frozen<" + myType + ">, b boolean static, PRIMARY KEY (k, v)) WITH CLUSTERING ORDER BY (v DESC)");
+
+        execute("INSERT INTO %s(k, v) VALUES (?, {x:?})", 1, -104.99251);
+        execute("UPDATE %s SET b = ? WHERE k = ?", true, 1);
+
+        beforeAndAfterFlush(() ->
+            assertRows(execute("SELECT v.x FROM %s WHERE k = ? AND v = {x:?}", 1, -104.99251),
+                       row(-104.99251)
+            )
+        );
+    }
+
+    @Test
     public void testInvalidUDTStatements() throws Throwable
     {
         String typename = createType("CREATE TYPE %s (a int)");
