@@ -26,7 +26,6 @@ import java.util.Set;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 
-import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.io.sstable.SSTable;
@@ -193,7 +192,7 @@ public class CassandraStreamReceiver implements StreamReceiver
     {
         return cdcRequiresWriteCommitLog(cfs)
                || cfs.streamToMemtable()
-               || (session.streamOperation().requiresViewBuild() && hasViews(cfs));
+               || (session.streamOperation().requiresViewBuild() && hasViews(cfs) && DatabaseDescriptor.isMaterializedViewsOnRepairEnabled());
     }
 
     private void sendThroughWritePath(ColumnFamilyStore cfs, Collection<SSTableReader> readers)
