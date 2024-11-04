@@ -1,4 +1,5 @@
 4.0.15
+ * Fix CQL in snapshot's schema which did not contained UDTs used as reverse clustering columns (CASSANDRA-20036)
  * Add configurable batchlog endpoint strategies: random_remote, prefer_local, dynamic_remote, and dynamic (CASSANDRA-18120)
  * Fix bash-completion for debian distro (CASSANDRA-19999)
  * Ensure thread-safety for CommitLogArchiver in CommitLog (CASSANDRA-19960)
