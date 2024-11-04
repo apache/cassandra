@@ -26,11 +26,11 @@ import java.util.UUID;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.Uninterruptibles;
-import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
@@ -51,9 +51,6 @@ public class AutoRepairSchedulerTest extends TestBaseImpl
     @BeforeClass
     public static void init() throws IOException
     {
-        System.setProperty("cassandra.streaming.requires_view_build_during_repair", "false");
-        System.setProperty("cassandra.streaming.requires_cdc_replay", "false");
-
         // Define the expected date format pattern
         String pattern = "EEE MMM dd HH:mm:ss z yyyy";
         // Create SimpleDateFormat object with the given pattern
@@ -84,13 +81,6 @@ public class AutoRepairSchedulerTest extends TestBaseImpl
         cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (pk int, ck text, v1 int, v2 int, PRIMARY KEY (pk, ck)) WITH read_repair='NONE'"));
     }
 
-    @AfterClass
-    public static void afterClass()
-    {
-        System.clearProperty("cassandra.streaming.requires_view_build_during_repair");
-        System.clearProperty("cassandra.streaming.requires_cdc_replay");
-    }
-
     @Test
     public void testScheduler() throws ParseException
     {
@@ -101,6 +91,8 @@ public class AutoRepairSchedulerTest extends TestBaseImpl
         cluster.forEach(i -> i.runOnInstance(() -> {
             try
             {
+                DatabaseDescriptor.setCDCOnRepairEnabled(false);
+                DatabaseDescriptor.setMaterializedViewsOnRepairEnabled(false);
                 AutoRepairService.instance.setup();
                 AutoRepair.instance.setup();
             }

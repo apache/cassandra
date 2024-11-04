@@ -21,7 +21,6 @@ package org.apache.cassandra.repair.autorepair;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -55,17 +54,10 @@ public class AutoRepairTest extends CQLTester
     public void setup()
     {
         AutoRepair.SLEEP_IF_REPAIR_FINISHES_QUICKLY = new DurationSpec.IntSecondsBound("0s");
-        System.setProperty("cassandra.streaming.requires_cdc_replay", "false");
-        System.setProperty("cassandra.streaming.requires_view_build_during_repair", "false");
+        DatabaseDescriptor.setCDCOnRepairEnabled(false);
+        DatabaseDescriptor.setMaterializedViewsOnRepairEnabled(false);
         DatabaseDescriptor.getAutoRepairConfig().setAutoRepairEnabled(RepairType.full, true);
         DatabaseDescriptor.getAutoRepairConfig().setAutoRepairEnabled(RepairType.incremental, true);
-    }
-
-    @After
-    public void after()
-    {
-        System.clearProperty("cassandra.streaming.requires_view_build_during_repair");
-        System.clearProperty("cassandra.streaming.requires_cdc_replay");
     }
 
     @Test
@@ -108,7 +100,7 @@ public class AutoRepairTest extends CQLTester
     public void testSetupFailsWhenIREnabledWithCDCReplay()
     {
         DatabaseDescriptor.getAutoRepairConfig().setAutoRepairEnabled(RepairType.incremental, true);
-        System.setProperty("cassandra.streaming.requires_cdc_replay", "true");
+        DatabaseDescriptor.setCDCOnRepairEnabled(true);
         DatabaseDescriptor.setCDCEnabled(true);
 
         AutoRepair instance = new AutoRepair();
@@ -119,7 +111,7 @@ public class AutoRepairTest extends CQLTester
     public void testSetupFailsWhenIREnabledWithMVReplay()
     {
         DatabaseDescriptor.getAutoRepairConfig().setAutoRepairEnabled(RepairType.incremental, true);
-        System.setProperty("cassandra.streaming.requires_view_build_during_repair", "true");
+        DatabaseDescriptor.setMaterializedViewsOnRepairEnabled(true);
         AutoRepair instance = new AutoRepair();
         instance.setup();
     }
