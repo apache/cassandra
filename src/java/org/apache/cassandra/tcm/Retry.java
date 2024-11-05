@@ -21,6 +21,7 @@ package org.apache.cassandra.tcm;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
+import java.util.function.DoubleSupplier;
 
 import com.codahale.metrics.Meter;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -71,6 +72,8 @@ public abstract class Retry
 
     protected abstract long sleepFor();
 
+    protected abstract long maxWait();
+
     public static class Jitter extends Retry
     {
         public static final int MAX_JITTER_MS = Math.toIntExact(DatabaseDescriptor.getDefaultRetryBackoff().to(TimeUnit.MILLISECONDS));
@@ -93,6 +96,12 @@ public abstract class Retry
         {
             int actualBackoff = ThreadLocalRandom.current().nextInt(maxJitterMs / 2, maxJitterMs);
             return random.nextInt(actualBackoff);
+        }
+
+        @Override
+        protected long maxWait()
+        {
+            return maxJitterMs;
         }
 
         @Override
@@ -128,6 +137,12 @@ public abstract class Retry
         }
 
         @Override
+        protected long maxWait()
+        {
+            return backoffMs;
+        }
+
+        @Override
         public String toString()
         {
             return "Backoff{" +
@@ -135,6 +150,33 @@ public abstract class Retry
                    ", maxTries=" + maxTries +
                    ", tries=" + tries +
                    '}';
+        }
+    }
+
+    public static class ExponentialBackoff extends Retry
+    {
+        private final long baseSleepTimeMillis;
+        private final long maxSleepMillis;
+        private final DoubleSupplier randomSource;
+
+        public ExponentialBackoff(int maxAttempts, long baseSleepTimeMillis, long maxSleepMillis, DoubleSupplier randomSource, Meter retryMeter)
+        {
+            super(maxAttempts, retryMeter);
+            this.baseSleepTimeMillis = baseSleepTimeMillis;
+            this.maxSleepMillis = maxSleepMillis;
+            this.randomSource = randomSource;
+        }
+
+        @Override
+        protected long sleepFor()
+        {
+            return org.apache.cassandra.utils.Backoff.ExponentialBackoff.computeWaitTime(tries, baseSleepTimeMillis, maxSleepMillis, randomSource);
+        }
+
+        @Override
+        protected long maxWait()
+        {
+            return maxSleepMillis;
         }
     }
 
@@ -190,6 +232,12 @@ public abstract class Retry
             };
         }
 
+        public static Deadline wrap(Retry delegate)
+        {
+            long deadlineMillis = delegate.maxTries * delegate.maxWait();
+            return new Deadline(TimeUnit.MILLISECONDS.toNanos(deadlineMillis), delegate);
+        }
+
         @Override
         public boolean reachedMax()
         {
@@ -211,6 +259,12 @@ public abstract class Retry
         public long sleepFor()
         {
             return delegate.sleepFor();
+        }
+
+        @Override
+        protected long maxWait()
+        {
+            return deadlineNanos;
         }
 
         public String toString()

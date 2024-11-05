@@ -177,7 +177,7 @@ public final class RemoteProcessor implements Processor
         }
         catch (ExecutionException | TimeoutException e)
         {
-            throw new RuntimeException("Could not reconstruct", e);
+            throw new RuntimeException(String.format("Could not reconstruct range %d, %d", lowEpoch.getEpoch(), highEpoch.getEpoch()), e);
         }
     }
 

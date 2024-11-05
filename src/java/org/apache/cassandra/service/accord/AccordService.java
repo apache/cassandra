@@ -166,7 +166,6 @@ import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
-import org.apache.cassandra.utils.Backoff;
 import org.apache.cassandra.utils.Blocking;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.ExecutorUtils;
@@ -568,41 +567,16 @@ public class AccordService implements IAccordService, Shutdownable
         return afterLoad;
     }
 
-    /**
-     * This method exists due to the fact that we define a retry policy for TCM to follow, and then TCM ignores it and does no retries...
-     */
     private static List<ClusterMetadata> reconstruct(long min, long max)
     {
         Epoch start = Epoch.create(min);
         Epoch end = Epoch.create(max);
-        Retry.Deadline retryPolicyThatGetsIgnored = Retry.Deadline.retryIndefinitely(DatabaseDescriptor.getCmsAwaitTimeout().to(NANOSECONDS),
-                                                                      TCMMetrics.instance.fetchLogRetries);
-        Throwable lastError = null;
-        Backoff backoff = new Backoff.ExponentialBackoff(42, 200, SECONDS.toMillis(1), ThreadLocalRandom.current()::nextDouble);
-        long startNanos = Clock.Global.nanoTime();
-        for (int i = 0; backoff.mayRetry(i); i++)
-        {
-            try
-            {
-                return ClusterMetadataService.instance().processor()
-                                             .reconstruct(start, end, retryPolicyThatGetsIgnored);
-            }
-            catch (Throwable t)
-            {
-                lastError = t;
-                logger.warn("Unable to fetch cluster metadata for ranges {}, {}, checking if possible to retry again: error was {}", min, max, t.toString()); // not looking for a stack trace, but good to know type/msg
-                try
-                {
-                    backoff.unit().sleep(backoff.computeWaitTime(i));
-                }
-                catch (InterruptedException e)
-                {
-                    Thread.currentThread().interrupt();
-                    throw new UncheckedInterruptedException(e);
-                }
-            }
-        }
-        throw new AssertionError(String.format("Unable to fetch ClusterMetadata for ranges %d, %d within %s", min, max, Duration.ofNanos(Clock.Global.nanoTime() - startNanos)), lastError);
+        Retry.Deadline deadline = Retry.Deadline.wrap(new Retry.ExponentialBackoff(42,
+                                                                                   200, SECONDS.toMillis(1),
+                                                                                   ThreadLocalRandom.current()::nextDouble,
+                                                                                   TCMMetrics.instance.fetchLogRetries));
+        return ClusterMetadataService.instance().processor()
+                                             .reconstruct(start, end, deadline);
     }
 
     @VisibleForTesting

@@ -114,6 +114,11 @@ public interface Backoff
         @Override
         public long computeWaitTime(int retryCount)
         {
+            return computeWaitTime(retryCount, baseSleepTimeMillis, maxSleepMillis, randomSource);
+        }
+
+        public static long computeWaitTime(int retryCount, long baseSleepTimeMillis, long maxSleepMillis, DoubleSupplier randomSource)
+        {
             long baseTimeMillis = baseSleepTimeMillis * (1L << retryCount);
             // it's possible that this overflows, so fall back to max;
             if (baseTimeMillis <= 0)
