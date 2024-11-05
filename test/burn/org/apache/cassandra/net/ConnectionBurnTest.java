@@ -713,7 +713,7 @@ public class ConnectionBurnTest
     @BeforeClass
     public static void setup()
     {
-        ClientMetrics.instance.init(Collections.emptyList());
+        ClientMetrics.instance.init(null);
         // since CASSANDRA-15295, commitlog needs to be manually started.
         CommitLog.instance.start();
     }
