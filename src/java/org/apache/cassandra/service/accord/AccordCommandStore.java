@@ -66,8 +66,6 @@ import accord.primitives.TxnId;
 import accord.utils.Invariants;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
-import accord.utils.async.AsyncResult;
-import accord.utils.async.AsyncResults;
 import org.apache.cassandra.cache.CacheSize;
 import org.apache.cassandra.concurrent.SequentialExecutorPlus;
 import org.apache.cassandra.config.CassandraRelevantProperties;
