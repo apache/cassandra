@@ -59,7 +59,6 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.assertj.core.api.Assertions;
 import org.quicktheories.core.Gen;
 import org.quicktheories.impl.Constraint;
-import org.apache.cassandra.utils.Pair;
 import static org.apache.cassandra.config.CassandraRelevantProperties.GOSSIP_DISABLE_THREAD_VALIDATION;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -597,7 +596,7 @@ public class GossiperTest
         host0State.addApplicationState(ApplicationState.STATUS_WITH_PORT, StorageService.instance.valueFactory.normal(new ArrayList<Token>(){{add(DatabaseDescriptor.getPartitioner().getRandomToken());}}));
         host1State.addApplicationState(ApplicationState.STATUS_WITH_PORT, StorageService.instance.valueFactory.normal(new ArrayList<Token>(){{add(DatabaseDescriptor.getPartitioner().getRandomToken());}}));
         Gossiper.instance.applyStateLocally(ImmutableMap.of(hosts.get(1), host0State));
-        Map<String, Pair<String,String>> output = Gossiper.instance.compareGossipAndTokenMetadata();
+        Map<String, List<String>> output = Gossiper.instance.compareGossipAndTokenMetadata();
         assertTrue(output.isEmpty());
         assertEquals(StorageService.instance.getTokenMetadata().getTokens(hosts.get(0)), StorageService.instance.getTokensFor(hosts.get(0)));
         assertEquals(StorageService.instance.getTokenMetadata().getTokens(hosts.get(1)), StorageService.instance.getTokensFor(hosts.get(1)));
@@ -621,7 +620,7 @@ public class GossiperTest
         assertEquals(StorageService.instance.getTokenMetadata().getTokens(hosts.get(0)), StorageService.instance.getTokensFor(hosts.get(0)));
         assertEquals(StorageService.instance.getTokenMetadata().getTokens(hosts.get(1)), StorageService.instance.getTokensFor(hosts.get(1)));
         // no impact to the cache if there is no cache coherence
-        Map<String, Pair<String,String>> output = Gossiper.instance.compareGossipAndTokenMetadata();
+        Map<String, List<String>> output = Gossiper.instance.compareGossipAndTokenMetadata();
         assertTrue(output.isEmpty());
         assertEquals(StorageService.instance.getTokenMetadata().getTokens(hosts.get(0)), StorageService.instance.getTokensFor(hosts.get(0)));
         assertEquals(StorageService.instance.getTokenMetadata().getTokens(hosts.get(1)), StorageService.instance.getTokensFor(hosts.get(1)));
@@ -650,7 +649,7 @@ public class GossiperTest
         assertEquals(StorageService.instance.getTokenMetadata().getTokens(hosts.get(1)), StorageService.instance.getTokensFor(hosts.get(1)));
 
         // Because host1 is not yet "NORMAL", it should be skipped in fixing the caches
-        Map<String, Pair<String,String>> output = Gossiper.instance.compareGossipAndTokenMetadata();
+        Map<String, List<String>> output = Gossiper.instance.compareGossipAndTokenMetadata();
         assertTrue(output.isEmpty());
         assertNotEquals(StorageService.instance.getTokenMetadata().getTokens(hosts.get(0)), StorageService.instance.getTokensFor(hosts.get(0)));
         assertEquals(StorageService.instance.getTokenMetadata().getTokens(hosts.get(1)), StorageService.instance.getTokensFor(hosts.get(1)));
@@ -669,7 +668,7 @@ public class GossiperTest
         host0State.addApplicationState(ApplicationState.STATUS_WITH_PORT, StorageService.instance.valueFactory.normal(new ArrayList<Token>(){{add(DatabaseDescriptor.getPartitioner().getRandomToken());}}));
         host1State.addApplicationState(ApplicationState.STATUS_WITH_PORT, StorageService.instance.valueFactory.normal(new ArrayList<Token>(){{add(DatabaseDescriptor.getPartitioner().getRandomToken());}}));
         Gossiper.instance.applyStateLocally(ImmutableMap.of(hosts.get(1), host0State));
-        Map<String, Pair<String,String>> output = Gossiper.instance.compareGossipAndTokenMetadata();
+        Map<String, List<String>> output = Gossiper.instance.compareGossipAndTokenMetadata();
         assertTrue(output.isEmpty());
         // Gossip tokens should be used as the source of truth in case of a mismtach
         Collection<Token> gossipTokensHost0 = getGossipCacheTokens(0);

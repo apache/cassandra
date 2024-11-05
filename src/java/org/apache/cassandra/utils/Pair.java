@@ -17,11 +17,9 @@
  */
 package org.apache.cassandra.utils;
 
-import java.io.Serializable;
-
 import com.google.common.base.Objects;
 
-public class Pair<T1, T2> implements Serializable
+public class Pair<T1, T2>
 {
     public final T1 left;
     public final T2 right;

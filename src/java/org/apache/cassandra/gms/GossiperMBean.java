@@ -21,8 +21,6 @@ import java.net.UnknownHostException;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.cassandra.utils.Pair;
-
 public interface GossiperMBean
 {
     public long getEndpointDowntime(String address) throws UnknownHostException;
@@ -43,5 +41,10 @@ public interface GossiperMBean
     public boolean getLooseEmptyEnabled();
 
     public void setLooseEmptyEnabled(boolean enabled);
-    public Map<String, Pair<String,String>> compareGossipAndTokenMetadata();
+
+    /** Returns a map of endpoints that don't have matching tokenMetadata to gossip tokens.
+     * Values are lists of fixed size two (as Pair is not jmx safe),
+     * the first is the gossip tokens, the second tokenMetadata).
+     */
+    public Map<String, List<String>> compareGossipAndTokenMetadata();
 }
