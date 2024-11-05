@@ -601,6 +601,8 @@ public final class Ref<T> implements RefCounted<T>
             InProgressVisit inProgress = null;
             while (inProgress != null || !path.isEmpty())
             {
+                if (Thread.currentThread().isInterrupted())
+                    throw new UncheckedInterruptedException(new InterruptedException());
                 //If necessary fetch the next object to start tracing
                 if (inProgress == null)
                     inProgress = path.pollLast();
