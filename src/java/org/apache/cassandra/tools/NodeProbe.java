@@ -1724,6 +1724,10 @@ public class NodeProbe implements AutoCloseable
     {
         return ssProxy.getOutOfRangeOperationCounts();
     }
+    public Map<String, List<String>> compareGossipAndTokenMetadata()
+    {
+        return gossProxy.compareGossipAndTokenMetadata();
+    }
 
     // JMX getters for the o.a.c.metrics API below.
     /**

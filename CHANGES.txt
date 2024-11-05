@@ -2,6 +2,7 @@
  * Ban the usage of "var" instead of full types in the production code (CASSANDRA-20038)
  * Suppress CVE-2024-45772 from lucene-core-9.7.0.jar (CASSANDRA-20024)
 Merged from 4.1:
+ * Add nodetool checktokenmetadata command that checks TokenMetadata is insync with Gossip endpointState (CASSANDRA-18758)
  * Equality check for Paxos.Electorate should not depend on collection types (CASSANDRA-19935)
 Merged from 4.0:
  * Add configurable batchlog endpoint strategies: random_remote, prefer_local, dynamic_remote, and dynamic (CASSANDRA-18120)

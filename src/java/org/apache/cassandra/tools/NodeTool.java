@@ -97,6 +97,7 @@ public class NodeTool
                 Assassinate.class,
                 CassHelp.class,
                 CIDRFilteringStats.class,
+                CheckTokenMetadata.class,
                 Cleanup.class,
                 ClearSnapshot.class,
                 ClientStats.class,
