@@ -78,8 +78,6 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
 
     private State state = State.INITIALIZED;
     private volatile EndpointMapping mapping = EndpointMapping.EMPTY;
-    //TODO (maintaince): cleanup this relationship... need a way to request cleanup, but this depends on Node, which is after this object is created
-    private AccordService service = null;
 
     public enum SyncStatus { NOT_STARTED, NOTIFYING, COMPLETED }
 
@@ -212,11 +210,6 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
     public AccordConfigurationService(Node.Id node)
     {
         this(node, MessagingService.instance(), FailureDetector.instance, SystemTableDiskStateManager.instance, ScheduledExecutors.scheduledTasks);
-    }
-
-    void register(AccordService service)
-    {
-        this.service = service;
     }
 
     @Override
@@ -378,11 +371,10 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
         }
         listeners.forEach(l -> l.onRemoveNodes(epoch, removed));
 
-        if (service == null) return;
         for (Node.Id node : removed)
         {
             if (shareShard(current, node, localId))
-                service.tryMarkRemoved(current, node);
+                AccordService.instance().tryMarkRemoved(current, node);
         }
     }
 

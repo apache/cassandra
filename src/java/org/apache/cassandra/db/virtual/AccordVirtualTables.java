@@ -327,10 +327,7 @@ public class AccordVirtualTables
             CommandStoreTxnBlockedGraph.TxnState txn = shard.txns.get(txnId);
             if (txn == null)
             {
-                Invariants.checkState(reason != Reason.Self, "Self Txn %s is unknown", txnId);
-                // Self txn depends on this txn, but it is not known...
-                ds.row(userTxn.toString(), shard.storeId, depth, txn.txnId.toString(), reason.name());
-                ds.column("save_status", "<unknown>");
+                Invariants.checkState(reason == Reason.Self, "Txn %s unknown for reason %s", txnId, reason);
                 return;
             }
             // was it applied?  If so ignore it

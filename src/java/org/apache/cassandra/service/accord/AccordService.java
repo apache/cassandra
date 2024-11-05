@@ -454,8 +454,6 @@ public class AccordService implements IAccordService, Shutdownable
         this.nodeShutdown = toShutdownable(node);
         this.requestHandler = new AccordVerbHandler<>(node, configService);
         this.responseHandler = new AccordResponseVerbHandler<>(callbacks, configService);
-
-        configService.register(this);
     }
 
     @Override
@@ -1257,19 +1255,7 @@ public class AccordService implements IAccordService, Shutdownable
     @Override
     public Long minEpoch(Collection<TokenRange> ranges)
     {
-        // When Accord is enabled all epochs are tracked, even when no tables have accord enabled, this causes the min
-        // epoch to include epochs that do not matter for startup, yet startup needs to ask TCM for them.  To lower the
-        // startup cost, filter out the earlier epochs that are empty so the min epoch returned is the first with ranges
-        TopologyManager tm = node.topology();
-        long maxEpoch = tm.current().epoch();
-        long minEpoch = tm.minEpoch();
-        while (tm.globalForEpoch(minEpoch).isEmpty())
-        {
-            minEpoch++;
-            if (minEpoch > maxEpoch)
-                return null;
-        }
-        return minEpoch;
+        return node.topology().minEpoch();
     }
 
     @Override
@@ -1280,7 +1266,6 @@ public class AccordService implements IAccordService, Shutdownable
         if (ranges.isEmpty()) return;
         long startNanos = Clock.Global.nanoTime();
         exclusiveSyncPointWithRetries(ranges, 0)
-        .flatMap(sp -> shardDurabilityWithRetries(sp, 0))
         .begin((s, f) -> {
             if (f != null)
             {
@@ -1292,14 +1277,6 @@ public class AccordService implements IAccordService, Shutdownable
                 logger.info("Marked {} ranges as durable after node left; took {}", target, Duration.ofNanos(Clock.Global.nanoTime() - startNanos));
             }
         });
-    }
-
-    private AsyncChain<SyncPoint<accord.primitives.Range>> shardDurabilityWithRetries(SyncPoint<accord.primitives.Range> sp, int attempt)
-    {
-        return CoordinateShardDurable.coordinate(node, sp)
-               .recover(t ->
-                        //TODO (operability): make this configurable / monitorable?
-                       attempt <= 3 && t instanceof Invalidated || t instanceof Preempted || t instanceof Timeout ? shardDurabilityWithRetries(sp, attempt + 1) : null);
     }
 
     private AsyncChain<SyncPoint<accord.primitives.Range>> exclusiveSyncPointWithRetries(Ranges ranges, int attempt)
