@@ -235,7 +235,7 @@ public abstract class Retry
         public static Deadline wrap(Retry delegate)
         {
             long deadlineMillis = delegate.maxTries * delegate.maxWait();
-            return new Deadline(TimeUnit.MILLISECONDS.toNanos(deadlineMillis), delegate);
+            return new Deadline(Clock.Global.nanoTime() + TimeUnit.MILLISECONDS.toNanos(deadlineMillis), delegate);
         }
 
         @Override
