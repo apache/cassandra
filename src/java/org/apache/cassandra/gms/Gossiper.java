@@ -2584,10 +2584,10 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         MessagingService.instance().send(message, ep);
     }
 
-    public Map<String,Pair<String,String>> compareGossipAndTokenMetadata()
+    public Map<String,List<String>> compareGossipAndTokenMetadata()
     {
         // local epstate will be part of endpointStateMap
-        Map<String,Pair<String,String>> mismatches = new HashMap<>();
+        Map<String,List<String>> mismatches = new HashMap<>();
         for (InetAddressAndPort endpoint : endpointStateMap.keySet())
         {
             EndpointState ep = endpointStateMap.get(endpoint);
@@ -2608,7 +2608,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                 Collections.sort(tokensFromGossip);
 
                 if (!tokensFromMetadata.equals(tokensFromGossip))
-                    mismatches.put(endpoint.toString(), Pair.create(tokensFromGossip.toString(), tokensFromMetadata.toString()));
+                    mismatches.put(endpoint.toString(), ImmutableList.of(tokensFromGossip.toString(), tokensFromMetadata.toString()));
             }
         }
         return mismatches;

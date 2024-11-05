@@ -17,13 +17,13 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
+import java.util.List;
 import java.util.Map;
 
 import io.airlift.airline.Command;
 
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
-import org.apache.cassandra.utils.Pair;
 
 @Command(name = "checktokenmetadata", description = "compares the Gossip endpointState and TokenMetadata cache; printing any mismatches found")
 public class CheckTokenMetadata extends NodeToolCmd
@@ -38,12 +38,12 @@ public class CheckTokenMetadata extends NodeToolCmd
          * This command compares the Gossip endpointState and TokenMetadata cache, printing any mismatches found.
          */
         StringBuilder sb = new StringBuilder();
-        Map<String,Pair<String,String>> mismatches = probe.compareGossipAndTokenMetadata();
+        Map<String, List<String>> mismatches = probe.compareGossipAndTokenMetadata();
 
-        for (Map.Entry<String,Pair<String,String>> e : mismatches.entrySet())
+        for (Map.Entry<String,List<String>> e : mismatches.entrySet())
             sb.append("Mismatch on : ").append(e.getKey())
-              .append("\n  Gossip tokens: ").append(e.getValue().left())
-              .append("\n  TokenMetadata: ").append(e.getValue().right()).append('\n');
+              .append("\n  Gossip tokens: ").append(e.getValue().get(0))
+              .append("\n  TokenMetadata: ").append(e.getValue().get(1)).append('\n');
 
         System.out.println(sb);
     }

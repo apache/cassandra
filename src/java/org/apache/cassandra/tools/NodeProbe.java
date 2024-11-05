@@ -114,7 +114,6 @@ import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.apache.cassandra.tools.nodetool.GetTimeout;
 import org.apache.cassandra.utils.NativeLibrary;
-import org.apache.cassandra.utils.Pair;
 
 /**
  * JMX client operations for Cassandra.
@@ -1584,7 +1583,7 @@ public class NodeProbe implements AutoCloseable
     {
         return ssProxy.getOutOfRangeOperationCounts();
     }
-    public Map<String, Pair<String,String>> compareGossipAndTokenMetadata()
+    public Map<String, List<String>> compareGossipAndTokenMetadata()
     {
         return gossProxy.compareGossipAndTokenMetadata();
     }
