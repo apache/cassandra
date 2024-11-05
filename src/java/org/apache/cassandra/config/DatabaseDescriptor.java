@@ -3476,7 +3476,7 @@ public class DatabaseDescriptor
 
     public static AccordSpec getAccord()
     {
-        return conf.accord;
+        return conf == null ? null : conf.accord;
     }
 
     public static AccordSpec.TransactionalRangeMigration getTransactionalRangeMigration()
