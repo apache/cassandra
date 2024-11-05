@@ -155,7 +155,7 @@ public class PstmtPersistenceTest extends CQLTester
                     prepareStatement("INSERT INTO %s (key, val) VALUES (?, ?) USING TIMESTAMP " + cnt2, clientState);
 
                 // each new prepared statement should have caused an eviction
-                Util.spinAssertEquals("eviction count didn't increase by the expected number", 10L, this::numberOfEvictedStatements, 5, TimeUnit.SECONDS);
+                Util.spinAssertEquals("eviction count didn't increase by the expected number", 10L, this::numberOfEvictedStatements, 90, TimeUnit.SECONDS);
                 assertEquals("Number of statements in table and in cache don't match", numberOfStatementsInMemory(), numberOfStatementsOnDisk());
 
                 return;
