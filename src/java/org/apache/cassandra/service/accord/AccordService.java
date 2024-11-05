@@ -586,11 +586,8 @@ public class AccordService implements IAccordService, Shutdownable
         {
             try
             {
-                Processor processor = ClusterMetadataService.instance().processor();
-                // When starting up paxos based processor has shown to be flakey (this node is still starting up), so attempt to leverage the remote process to overload this work
-                if (processor instanceof ClusterMetadataService.SwitchableProcessor)
-                    processor = ((ClusterMetadataService.SwitchableProcessor) processor).remoteProcessor();
-                return processor.reconstruct(start, end, retryPolicyThatGetsIgnored);
+                return ClusterMetadataService.instance().processor()
+                                             .reconstruct(start, end, retryPolicyThatGetsIgnored);
             }
             catch (Throwable t)
             {
