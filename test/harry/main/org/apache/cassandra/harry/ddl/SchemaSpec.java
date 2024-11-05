@@ -59,6 +59,7 @@ public class SchemaSpec
     public final List<ColumnSpec<?>> allColumns;
     public final Set<ColumnSpec<?>> allColumnsSet;
     public final Optional<TransactionalMode> transactionalMode;
+    public final boolean writeTimeFromAccord;
 
     public final BitSet ALL_COLUMNS_BITSET;
     public final int regularColumnsOffset;
@@ -85,38 +86,38 @@ public class SchemaSpec
                       List<ColumnSpec<?>> staticColumns,
                       Optional<TransactionalMode> transactionalMode)
     {
-        this(keyspace, table, partitionKeys, clusteringKeys, regularColumns, staticColumns, DataGenerators.createKeyGenerator(clusteringKeys), false, false, null, false, transactionalMode);
+        this(keyspace, table, partitionKeys, clusteringKeys, regularColumns, staticColumns, DataGenerators.createKeyGenerator(clusteringKeys), false, false, null, false, transactionalMode, isWriteTimeFromAccord(transactionalMode));
     }
 
     public SchemaSpec cloneWithName(String ks,
                                     String table)
     {
-        return new SchemaSpec(ks, table, partitionKeys, clusteringKeys, regularColumns, staticColumns, ckGenerator, isCompactStorage, disableReadRepair, compactionStrategy, trackLts, transactionalMode);
+        return new SchemaSpec(ks, table, partitionKeys, clusteringKeys, regularColumns, staticColumns, ckGenerator, isCompactStorage, disableReadRepair, compactionStrategy, trackLts, transactionalMode, writeTimeFromAccord);
     }
 
     public SchemaSpec trackLts()
     {
-        return new SchemaSpec(keyspace, table, partitionKeys, clusteringKeys, regularColumns, staticColumns, ckGenerator, isCompactStorage, disableReadRepair, compactionStrategy, true, transactionalMode);
+        return new SchemaSpec(keyspace, table, partitionKeys, clusteringKeys, regularColumns, staticColumns, ckGenerator, isCompactStorage, disableReadRepair, compactionStrategy, true, transactionalMode, writeTimeFromAccord);
     }
 
     public SchemaSpec withCompactStorage()
     {
-        return new SchemaSpec(keyspace, table, partitionKeys, clusteringKeys, regularColumns, staticColumns, ckGenerator, true, disableReadRepair, compactionStrategy, trackLts, transactionalMode);
+        return new SchemaSpec(keyspace, table, partitionKeys, clusteringKeys, regularColumns, staticColumns, ckGenerator, true, disableReadRepair, compactionStrategy, trackLts, transactionalMode, writeTimeFromAccord);
     }
 
     public SchemaSpec withCompactionStrategy(String compactionStrategy)
     {
-        return new SchemaSpec(keyspace, table, partitionKeys, clusteringKeys, regularColumns, staticColumns, ckGenerator, false, disableReadRepair, compactionStrategy, trackLts, transactionalMode);
+        return new SchemaSpec(keyspace, table, partitionKeys, clusteringKeys, regularColumns, staticColumns, ckGenerator, false, disableReadRepair, compactionStrategy, trackLts, transactionalMode, writeTimeFromAccord);
     }
 
     public SchemaSpec withCkGenerator(DataGenerators.KeyGenerator ckGeneratorOverride, List<ColumnSpec<?>> clusteringKeys)
     {
-        return new SchemaSpec(keyspace, table, partitionKeys, clusteringKeys, regularColumns, staticColumns, ckGeneratorOverride, isCompactStorage, disableReadRepair, compactionStrategy, trackLts, transactionalMode);
+        return new SchemaSpec(keyspace, table, partitionKeys, clusteringKeys, regularColumns, staticColumns, ckGeneratorOverride, isCompactStorage, disableReadRepair, compactionStrategy, trackLts, transactionalMode, writeTimeFromAccord);
     }
 
     public SchemaSpec withColumns(List<ColumnSpec<?>> regularColumns, List<ColumnSpec<?>> staticColumns)
     {
-        return new SchemaSpec(keyspace, table, partitionKeys, clusteringKeys, regularColumns, staticColumns, ckGenerator, isCompactStorage, disableReadRepair, compactionStrategy, trackLts, transactionalMode);
+        return new SchemaSpec(keyspace, table, partitionKeys, clusteringKeys, regularColumns, staticColumns, ckGenerator, isCompactStorage, disableReadRepair, compactionStrategy, trackLts, transactionalMode, writeTimeFromAccord);
     }
 
     public SchemaSpec withTransactionMode(TransactionalMode transactionalMode)
@@ -126,7 +127,12 @@ public class SchemaSpec
 
     public SchemaSpec withTransactionMode(Optional<TransactionalMode> transactionalMode)
     {
-        return new SchemaSpec(keyspace, table, partitionKeys, clusteringKeys, regularColumns, staticColumns, ckGenerator, isCompactStorage, disableReadRepair, compactionStrategy, trackLts, transactionalMode);
+        return new SchemaSpec(keyspace, table, partitionKeys, clusteringKeys, regularColumns, staticColumns, ckGenerator, isCompactStorage, disableReadRepair, compactionStrategy, trackLts, transactionalMode, isWriteTimeFromAccord(transactionalMode));
+    }
+
+    public SchemaSpec withWriteTimeFromAccord(boolean writeTimeFromAccord)
+    {
+        return new SchemaSpec(keyspace, table, partitionKeys, clusteringKeys, regularColumns, staticColumns, ckGenerator, isCompactStorage, disableReadRepair, compactionStrategy, trackLts, transactionalMode, writeTimeFromAccord);
     }
 
     private SchemaSpec(String keyspace,
@@ -140,7 +146,8 @@ public class SchemaSpec
                        boolean disableReadRepair,
                        String compactionStrategy,
                        boolean trackLts,
-                       Optional<TransactionalMode> transactionalMode)
+                       Optional<TransactionalMode> transactionalMode,
+                       boolean writeTimeFromAccord)
     {
         assert !isCompactStorage || clusteringKeys.isEmpty() || regularColumns.size() <= 1 :
         String.format("Compact storage %s. Clustering keys: %d. Regular columns: %d", isCompactStorage, clusteringKeys.size(), regularColumns.size());
@@ -151,6 +158,7 @@ public class SchemaSpec
         this.disableReadRepair = disableReadRepair;
         this.compactionStrategy = compactionStrategy;
         this.transactionalMode = transactionalMode;
+        this.writeTimeFromAccord = writeTimeFromAccord;
 
         this.partitionKeys = Collections.unmodifiableList(new ArrayList<>(partitionKeys));
         for (int i = 0; i < partitionKeys.size(); i++)
@@ -323,8 +331,7 @@ public class SchemaSpec
 
     public boolean isWriteTimeFromAccord()
     {
-
-        return transactionalMode.isPresent() && transactionalMode.get().writesThroughAccord;
+        return writeTimeFromAccord;
     }
 
     public CompiledStatement compile()
@@ -574,5 +581,10 @@ public class SchemaSpec
                 }
             };
         };
+    }
+
+    private static boolean isWriteTimeFromAccord(Optional<TransactionalMode> transactionalMode)
+    {
+        return transactionalMode.isPresent() && transactionalMode.get().writesThroughAccord;
     }
 }

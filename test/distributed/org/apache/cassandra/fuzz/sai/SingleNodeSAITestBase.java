@@ -116,6 +116,7 @@ public abstract class SingleNodeSAITestBase extends IntegrationTestBase
                                                          ColumnSpec.regularColumn("v3", ColumnSpec.int64Type)),
                                            List.of(ColumnSpec.staticColumn("s1", ColumnSpec.asciiType(40, 100))),
                                            withAccord ? Optional.of(TransactionalMode.full) : Optional.empty())
+                            .withWriteTimeFromAccord(false) // use the harry timestamp
                             .withCompactionStrategy("LeveledCompactionStrategy");
 
         sut.schemaChange(schema.compile().cql());
