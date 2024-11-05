@@ -152,7 +152,7 @@ public final class RemoteProcessor implements Processor
     }
 
     @Override
-    public LogState getLocalState(Epoch start, Epoch end, boolean includeSnapshot, Retry.Deadline retryPolicy)
+    public LogState getLocalState(Epoch start, Epoch end, boolean includeSnapshot)
     {
         return log.getLocalEntries(start, end, includeSnapshot);
     }

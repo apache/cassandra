@@ -168,7 +168,7 @@ public class PaxosBackedProcessor extends AbstractLocalProcessor
     }
 
     @Override
-    public LogState getLocalState(Epoch start, Epoch end, boolean includeSnapshot, Retry.Deadline retryPolicy)
+    public LogState getLocalState(Epoch start, Epoch end, boolean includeSnapshot)
     {
         return log.storage().getLogState(start, end, includeSnapshot);
     }

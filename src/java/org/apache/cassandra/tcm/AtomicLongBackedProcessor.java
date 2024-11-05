@@ -82,13 +82,7 @@ public class AtomicLongBackedProcessor extends AbstractLocalProcessor
     }
 
     @Override
-    public LogState getLocalState(Epoch start, Epoch end, boolean includeSnapshot, Retry.Deadline retryPolicy)
-    {
-        return getLogState(start, end, includeSnapshot, retryPolicy);
-    }
-
-    @Override
-    public LogState getLogState(Epoch lowEpoch, Epoch highEpoch, boolean includeSnapshot, Retry.Deadline retryPolicy)
+    public LogState getLocalState(Epoch lowEpoch, Epoch highEpoch, boolean includeSnapshot)
     {
         try
         {
@@ -112,6 +106,12 @@ public class AtomicLongBackedProcessor extends AbstractLocalProcessor
         {
             throw new RuntimeException(t);
         }
+    }
+
+    @Override
+    public LogState getLogState(Epoch lowEpoch, Epoch highEpoch, boolean includeSnapshot, Retry.Deadline retryPolicy)
+    {
+        return getLocalState(lowEpoch, highEpoch, includeSnapshot);
     }
 
     public static class InMemoryStorage implements LogStorage

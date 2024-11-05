@@ -132,13 +132,7 @@ public class ValidatingClusterMetadataService extends StubClusterMetadataService
             }
 
             @Override
-            public LogState getLocalState(Epoch lowEpoch, Epoch highEpoch, boolean includeSnapshot, Retry.Deadline retryPolicy)
-            {
-                return getLogState(lowEpoch, highEpoch, includeSnapshot, retryPolicy);
-            }
-
-            @Override
-            public LogState getLogState(Epoch lowEpoch, Epoch highEpoch, boolean includeSnapshot, Retry.Deadline retryPolicy)
+            public LogState getLocalState(Epoch lowEpoch, Epoch highEpoch, boolean includeSnapshot)
             {
                 if (!epochs.containsKey(lowEpoch))
                     throw new AssertionError("Unknown epoch: " + lowEpoch);
@@ -147,7 +141,13 @@ public class ValidatingClusterMetadataService extends StubClusterMetadataService
                 int id = 0;
                 for (ClusterMetadata cm : epochs.subMap(lowEpoch, false, highEpoch, true).values())
                     entries.add(new Entry(new Entry.Id(id++), cm.epoch, new MockTransformer(cm)));
-                return new LogState(base, entries.build());
+                return new LogState(includeSnapshot ? base : null, entries.build());
+            }
+
+            @Override
+            public LogState getLogState(Epoch lowEpoch, Epoch highEpoch, boolean includeSnapshot, Retry.Deadline retryPolicy)
+            {
+                return getLocalState(lowEpoch, highEpoch, includeSnapshot);
             }
         };
     }

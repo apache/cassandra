@@ -156,7 +156,7 @@ public class StubClusterMetadataService extends ClusterMetadataService
         }
 
         @Override
-        public LogState getLocalState(Epoch start, Epoch end, boolean includeSnapshot, Retry.Deadline retryPolicy)
+        public LogState getLocalState(Epoch start, Epoch end, boolean includeSnapshot)
         {
             throw new UnsupportedOperationException();
         }

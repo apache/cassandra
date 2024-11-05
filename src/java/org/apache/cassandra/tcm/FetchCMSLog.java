@@ -121,7 +121,7 @@ public class FetchCMSLog
             if (consistentFetch)
                 delta = processor.get().getLogState(message.payload.lowerBound, Epoch.MAX, false, retry);
             else
-                delta = processor.get().getLocalState(message.payload.lowerBound, Epoch.MAX, false, retry);
+                delta = processor.get().getLocalState(message.payload.lowerBound, Epoch.MAX, false);
 
             TCMMetrics.instance.cmsLogEntriesServed(message.payload.lowerBound, delta.latestEpoch());
             logger.info("Responding to {}({}) with log delta: {}", message.from(), request, delta);

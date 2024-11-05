@@ -80,7 +80,7 @@ public interface Processor
     /**
      * Queries node's _local_ state. It is not guaranteed to be contiguous, but can be used for restoring CMS state/
      */
-    LogState getLocalState(Epoch start, Epoch end, boolean includeSnapshot, Retry.Deadline retryPolicy);
+    LogState getLocalState(Epoch start, Epoch end, boolean includeSnapshot);
 
     /**
      * Queries global log state.
