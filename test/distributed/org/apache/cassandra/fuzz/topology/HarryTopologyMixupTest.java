@@ -176,8 +176,6 @@ public class HarryTopologyMixupTest extends TopologyMixupTestBase<HarryTopologyM
             if (!writeThroughAccord)
                 reads.add(new HarryCommand(s -> "Harry Reverse Validate pd=" + pd + state.commandNamePostfix(), s -> model.validate(Query.selectAllColumns(schema, pd, true))));
         }
-//        if (reads.isEmpty())
-//            throw new IllegalStateException("Attempted to read when no partitions have been written to");
         reads.add(new HarryCommand(s -> "Reset Harry Write State" + state.commandNamePostfix(), s -> ((HarryState) s).numInserts = 0));
         return Property.multistep(reads);
     }
