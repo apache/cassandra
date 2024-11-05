@@ -28,7 +28,6 @@ public enum StreamOperation
     BULK_LOAD("Bulk Load", true, false),
     REPAIR("Repair", true, false);
 
-
     private final String description;
     private final boolean requiresViewBuild;
     private final boolean keepSSTableLevel;
