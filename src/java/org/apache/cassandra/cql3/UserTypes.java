@@ -41,7 +41,7 @@ public abstract class UserTypes
 
     public static ColumnSpecification fieldSpecOf(ColumnSpecification column, int field)
     {
-        UserType ut = (UserType)column.type;
+        UserType ut = (UserType)column.type.unwrap();
         return new ColumnSpecification(column.ksName,
                                        column.cfName,
                                        new ColumnIdentifier(column.name + "." + ut.fieldName(field), true),
@@ -132,7 +132,7 @@ public abstract class UserTypes
         {
             validateAssignableTo(keyspace, receiver);
 
-            UserType ut = (UserType)receiver.type;
+            UserType ut = (UserType)receiver.type.unwrap();
             boolean allTerminal = true;
             List<Term> values = new ArrayList<>(entries.size());
             int foundValues = 0;
@@ -161,16 +161,18 @@ public abstract class UserTypes
                 }
             }
 
-            DelayedValue value = new DelayedValue(((UserType)receiver.type), values);
+            DelayedValue value = new DelayedValue(((UserType)receiver.type.unwrap()), values);
             return allTerminal ? value.bind(QueryOptions.DEFAULT) : value;
         }
 
         private void validateAssignableTo(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
         {
-            if (!receiver.type.isUDT())
+            AbstractType<?> unwrapped = receiver.type.unwrap();
+
+            if (!unwrapped.isUDT())
                 throw new InvalidRequestException(String.format("Invalid user type literal for %s of type %s", receiver.name, receiver.type.asCQL3Type()));
 
-            UserType ut = (UserType)receiver.type;
+            UserType ut = (UserType)unwrapped;
             for (int i = 0; i < ut.size(); i++)
             {
                 FieldIdentifier field = ut.fieldName(i);
