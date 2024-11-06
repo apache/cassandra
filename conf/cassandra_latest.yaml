@@ -1017,6 +1017,9 @@ native_transport_port: 9042
 # The maximum threads for handling requests (note that idle threads are stopped
 # after 30 seconds so there is not corresponding minimum setting).
 # native_transport_max_threads: 128
+# The maximum threads for handling auth requests in a separate executor from main request executor.
+# When set to 0, main executor for requests is used.
+# native_transport_max_auth_threads: 4
 #
 # The maximum size of allowed frame. Frame (requests) larger than this will
 # be rejected as invalid. The default is 16MiB. If you're changing this parameter,
