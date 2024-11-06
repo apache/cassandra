@@ -179,10 +179,7 @@ public class PaxosBackedProcessor extends AbstractLocalProcessor
         while (!retryPolicy.reachedMax())
         {
             if (Thread.currentThread().isInterrupted())
-            {
-                Thread.currentThread().interrupt();
                 throw new RuntimeException("Can not reconstruct during shutdown", new InterruptedException());
-            }
             try
             {
                 return DistributedMetadataLogKeyspace.getLogState(start, end, includeSnapshot);
