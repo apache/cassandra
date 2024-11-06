@@ -4,6 +4,7 @@
  * Equality check for Paxos.Electorate should not depend on collection types (CASSANDRA-19935)
  * Fix race condition in DecayingEstimatedHistogramReservoir during rescale (CASSANDRA-19365)
 Merged from 4.0:
+ * Support UDTs and vectors as clustering keys in descending order (CASSANDRA-20050)
  * Fix CQL in snapshot's schema which did not contained UDTs used as reverse clustering columns (CASSANDRA-20036)
  * Add configurable batchlog endpoint strategies: random_remote, prefer_local, dynamic_remote, and dynamic (CASSANDRA-18120)
  * Fix bash-completion for debian distro (CASSANDRA-19999)
