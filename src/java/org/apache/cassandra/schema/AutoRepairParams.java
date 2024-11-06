@@ -29,6 +29,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
 
 import static java.lang.String.format;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 public final class AutoRepairParams
 {
@@ -39,7 +40,7 @@ public final class AutoRepairParams
         @Override
         public String toString()
         {
-            return name().toLowerCase();
+            return toLowerCaseLocalized(name());
         }
     }
 
@@ -67,7 +68,7 @@ public final class AutoRepairParams
         {
             for (Map.Entry<String, String> entry : options.entrySet())
             {
-                if (!Option.ENABLED.toString().equals(entry.getKey().toLowerCase()))
+                if (!Option.ENABLED.toString().equals(toLowerCaseLocalized(entry.getKey())))
                 {
                     throw new ConfigurationException(format("Unknown property '%s'", entry.getKey()));
                 }
