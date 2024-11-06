@@ -5,6 +5,7 @@ Merged from 4.1:
  * Add nodetool checktokenmetadata command that checks TokenMetadata is insync with Gossip endpointState (CASSANDRA-18758)
  * Equality check for Paxos.Electorate should not depend on collection types (CASSANDRA-19935)
 Merged from 4.0:
+ * Fix CQL in snapshot's schema which did not contained UDTs used as reverse clustering columns (CASSANDRA-20036)
  * Add configurable batchlog endpoint strategies: random_remote, prefer_local, dynamic_remote, and dynamic (CASSANDRA-18120)
  * Fix bash-completion for debian distro (CASSANDRA-19999)
 
