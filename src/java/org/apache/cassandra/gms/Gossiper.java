@@ -1990,16 +1990,11 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     {
         logger.trace("Triggering reload of seed node list");
 
-        // Get the new set in the same that buildSeedsList does
-        Set<InetAddressAndPort> tmp = new HashSet<>();
+        // Get configured seeds list
+        Set<InetAddressAndPort> tmp;
         try
         {
-            for (InetAddressAndPort seed : DatabaseDescriptor.getSeeds())
-            {
-                if (seed.equals(getBroadcastAddressAndPort()))
-                    continue;
-                tmp.add(seed);
-            }
+            tmp = new HashSet<>(DatabaseDescriptor.getSeeds());
         }
         // If using the SimpleSeedProvider invalid yaml added to the config since startup could
         // cause this to throw. Additionally, third party seed providers may throw exceptions.
@@ -2011,7 +2006,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             return null;
         }
 
-        if (tmp.size() == 0)
+        if (tmp.isEmpty())
         {
             logger.trace("New seed node list is empty. Not updating seed list.");
             return getSeeds();
@@ -2023,10 +2018,13 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             return getSeeds();
         }
 
+        tmp.remove(getBroadcastAddressAndPort());
+
         // Add the new entries
         seeds.addAll(tmp);
         // Remove the old entries
         seeds.retainAll(tmp);
+
         logger.trace("New seed node list after reload {}", seeds);
         return getSeeds();
     }
