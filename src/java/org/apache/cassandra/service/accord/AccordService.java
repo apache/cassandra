@@ -571,10 +571,7 @@ public class AccordService implements IAccordService, Shutdownable
     {
         Epoch start = Epoch.create(min);
         Epoch end = Epoch.create(max);
-        Retry.Deadline deadline = Retry.Deadline.wrap(new Retry.ExponentialBackoff(42,
-                                                                                   200, SECONDS.toMillis(1),
-                                                                                   ThreadLocalRandom.current()::nextDouble,
-                                                                                   TCMMetrics.instance.fetchLogRetries));
+        Retry.Deadline deadline = Retry.Deadline.wrap(new Retry.ExponentialBackoff(TCMMetrics.instance.fetchLogRetries));
         return ClusterMetadataService.instance().processor()
                                              .reconstruct(start, end, deadline);
     }
