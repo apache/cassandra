@@ -43,6 +43,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.CoreMatchers.allOf;
@@ -53,13 +54,76 @@ import static org.junit.Assert.assertThat;
 
 public class SchemaCQLHelperTest extends CQLTester
 {
+    String keyspaceForUserTypeTests = "cql_test_keyspace_user_types";
+    String tableForUserTypeTests = "test_table_user_types";
+
     @Test
     public void testUserTypesCQL()
     {
-        String keyspace = "cql_test_keyspace_user_types";
-        String table = "test_table_user_types";
+        UserType[] types = getTypes();
+        executeTest(TableMetadata.builder(keyspaceForUserTypeTests, tableForUserTypeTests)
+                                 .addPartitionKeyColumn("pk1", IntegerType.instance)
+                                 .addClusteringColumn("ck1", IntegerType.instance)
+                                 .addRegularColumn("reg1", types[2].freeze()) // type C
+                                 .addRegularColumn("reg2", ListType.getInstance(IntegerType.instance, false))
+                                 .addRegularColumn("reg3", MapType.getInstance(AsciiType.instance, IntegerType.instance, true))
+                                 .build(),
+                    types);
+    }
 
-        UserType typeA = new UserType(keyspace, ByteBufferUtil.bytes("a"),
+    @Test
+    public void testReversedClusteringUserTypeCQL()
+    {
+        UserType[] types = getTypes();
+        executeTest(TableMetadata.builder(keyspaceForUserTypeTests, tableForUserTypeTests)
+                     .addPartitionKeyColumn("pk1", IntegerType.instance)
+                     .addClusteringColumn("cl1", ReversedType.getInstance(types[2].freeze())) // type C
+                     .addRegularColumn("reg2", ListType.getInstance(IntegerType.instance, false))
+                     .addRegularColumn("reg3", MapType.getInstance(AsciiType.instance, IntegerType.instance, true))
+                     .build(), types);
+    }
+
+
+    private void executeTest(TableMetadata cfm, UserType[] userTypes)
+    {
+        SchemaLoader.createKeyspace(keyspaceForUserTypeTests, KeyspaceParams.simple(1), Tables.of(cfm), Types.of(userTypes));
+
+        ColumnFamilyStore cfs = Keyspace.open(keyspaceForUserTypeTests).getColumnFamilyStore(tableForUserTypeTests);
+
+        List<String> typeStatements = ImmutableList.of("CREATE TYPE IF NOT EXISTS cql_test_keyspace_user_types.a (\n" +
+                                                       "    a1 varint,\n" +
+                                                       "    a2 varint,\n" +
+                                                       "    a3 varint\n" +
+                                                       ");",
+                                                       "CREATE TYPE IF NOT EXISTS cql_test_keyspace_user_types.b (\n" +
+                                                       "    b1 a,\n" +
+                                                       "    b2 a,\n" +
+                                                       "    b3 a\n" +
+                                                       ");",
+                                                       "CREATE TYPE IF NOT EXISTS cql_test_keyspace_user_types.c (\n" +
+                                                       "    c1 b,\n" +
+                                                       "    c2 b,\n" +
+                                                       "    c3 b\n" +
+                                                       ");");
+
+        assertEquals(typeStatements, SchemaCQLHelper.getUserTypesAsCQL(cfs.metadata(), cfs.keyspace.getMetadata().types, true).collect(Collectors.toList()));
+
+        List<String> allStatements = SchemaCQLHelper.reCreateStatementsForSchemaCql(cfm, Keyspace.open(keyspaceForUserTypeTests).getMetadata()).collect(Collectors.toList());
+
+        String createTableStatement = SchemaCQLHelper.getTableMetadataAsCQL(cfm, Keyspace.open(keyspaceForUserTypeTests).getMetadata());
+
+        assertEquals(3, typeStatements.size());
+        assertEquals(4, allStatements.size());
+
+        for (int i = 0; i < typeStatements.size(); i++)
+            assertEquals(allStatements.get(i), typeStatements.get(i));
+
+        assertEquals(createTableStatement, allStatements.get(3));
+    }
+
+    private UserType[] getTypes()
+    {
+        UserType typeA = new UserType(keyspaceForUserTypeTests, ByteBufferUtil.bytes("a"),
                                       Arrays.asList(FieldIdentifier.forUnquoted("a1"),
                                                     FieldIdentifier.forUnquoted("a2"),
                                                     FieldIdentifier.forUnquoted("a3")),
@@ -68,7 +132,7 @@ public class SchemaCQLHelperTest extends CQLTester
                                                     IntegerType.instance),
                                       true);
 
-        UserType typeB = new UserType(keyspace, ByteBufferUtil.bytes("b"),
+        UserType typeB = new UserType(keyspaceForUserTypeTests, ByteBufferUtil.bytes("b"),
                                       Arrays.asList(FieldIdentifier.forUnquoted("b1"),
                                                     FieldIdentifier.forUnquoted("b2"),
                                                     FieldIdentifier.forUnquoted("b3")),
@@ -77,7 +141,7 @@ public class SchemaCQLHelperTest extends CQLTester
                                                     typeA),
                                       true);
 
-        UserType typeC = new UserType(keyspace, ByteBufferUtil.bytes("c"),
+        UserType typeC = new UserType(keyspaceForUserTypeTests, ByteBufferUtil.bytes("c"),
                                       Arrays.asList(FieldIdentifier.forUnquoted("c1"),
                                                     FieldIdentifier.forUnquoted("c2"),
                                                     FieldIdentifier.forUnquoted("c3")),
@@ -86,35 +150,7 @@ public class SchemaCQLHelperTest extends CQLTester
                                                     typeB),
                                       true);
 
-        TableMetadata cfm =
-        TableMetadata.builder(keyspace, table)
-                     .addPartitionKeyColumn("pk1", IntegerType.instance)
-                     .addClusteringColumn("ck1", IntegerType.instance)
-                     .addRegularColumn("reg1", typeC.freeze())
-                     .addRegularColumn("reg2", ListType.getInstance(IntegerType.instance, false))
-                     .addRegularColumn("reg3", MapType.getInstance(AsciiType.instance, IntegerType.instance, true))
-                     .build();
-
-        SchemaLoader.createKeyspace(keyspace, KeyspaceParams.simple(1), Tables.of(cfm), Types.of(typeA, typeB, typeC));
-
-        ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
-
-        assertEquals(ImmutableList.of("CREATE TYPE cql_test_keyspace_user_types.a (\n" +
-                                      "    a1 varint,\n" +
-                                      "    a2 varint,\n" +
-                                      "    a3 varint\n" +
-                                      ");",
-                                      "CREATE TYPE cql_test_keyspace_user_types.b (\n" +
-                                      "    b1 a,\n" +
-                                      "    b2 a,\n" +
-                                      "    b3 a\n" +
-                                      ");",
-                                      "CREATE TYPE cql_test_keyspace_user_types.c (\n" +
-                                      "    c1 b,\n" +
-                                      "    c2 b,\n" +
-                                      "    c3 b\n" +
-                                      ");"),
-                     SchemaCQLHelper.getUserTypesAsCQL(cfs.metadata(), cfs.keyspace.getMetadata().types, false).collect(Collectors.toList()));
+        return new UserType[] {typeA, typeB, typeC};
     }
 
     @Test
