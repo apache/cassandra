@@ -25,6 +25,7 @@ import org.apache.cassandra.repair.autorepair.AutoRepairUtils;
 import org.apache.cassandra.repair.autorepair.AutoRepair;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 /**
  * Metrics related to AutoRepair.
@@ -163,7 +164,7 @@ public class AutoRepairMetrics
 
         protected AutoRepairMetricsFactory(RepairType repairType)
         {
-            this.repairType = repairType.toString().toLowerCase();
+            this.repairType = toLowerCaseLocalized(repairType.toString());
         }
 
         @Override
@@ -178,7 +179,7 @@ public class AutoRepairMetrics
             StringBuilder scope = new StringBuilder();
             scope.append("repairType=").append(repairType);
 
-            return new CassandraMetricsRegistry.MetricName(DefaultNameFactory.GROUP_NAME, TYPE.toLowerCase(),
+            return new CassandraMetricsRegistry.MetricName(DefaultNameFactory.GROUP_NAME, toLowerCaseLocalized(TYPE),
                                                            metricName, scope.toString(), mbeanName.toString());
         }
     }
