@@ -44,7 +44,7 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.concurrent.Refs;
 
-import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.splitEvenly;
+import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.split;
 
 public class UnrepairedBytesBasedTokenRangeSplitter implements IAutoRepairTokenRangeSplitter
 {
@@ -99,9 +99,9 @@ public class UnrepairedBytesBasedTokenRangeSplitter implements IAutoRepairTokenR
         List<RepairAssignment> repairAssignments = new ArrayList<>();
 
         logger.info("Calculating token range splits for repairType={} primaryRangeOnly={} keyspaceName={} tableNames={}", repairType, primaryRangeOnly, keyspaceName, tableNames);
-        if (repairType != AutoRepairConfig.RepairType.incremental)
+        if (repairType != AutoRepairConfig.RepairType.INCREMENTAL)
         {
-            throw new IllegalArgumentException(this.getClass().getName() + " only supports " + AutoRepairConfig.RepairType.incremental + " repair");
+            throw new IllegalArgumentException(this.getClass().getName() + " only supports " + AutoRepairConfig.RepairType.INCREMENTAL + " repair");
         }
 
         // TODO: create a custom repair assignment that indicates number of bytes in repair and join tables by byte size.
@@ -199,7 +199,7 @@ public class UnrepairedBytesBasedTokenRangeSplitter implements IAutoRepairTokenR
                     // TODO: approximation per range, this is a bit lossy since targetRanges rounds down.
                     long approximateBytesPerSplit = approximateUnrepairedBytesForRange / targetRanges;
                     logger.info("Splitting {}.{} for range {} into {} sub ranges, approximateBytesPerSplit={}", keyspaceName, tableName, tokenRange, targetRanges, FileUtils.stringifyFileSize(approximateBytesPerSplit));
-                    List<Range<Token>> splitRanges = splitEvenly(tokenRange, (int) targetRanges);
+                    Collection<Range<Token>> splitRanges = split(tokenRange, (int) targetRanges);
                     int splitRangeCount = 0;
                     for (Range<Token> splitRange : splitRanges)
                     {

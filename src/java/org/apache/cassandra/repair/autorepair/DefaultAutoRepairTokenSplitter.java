@@ -29,7 +29,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.StorageService;
 
-import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.splitEvenly;
+import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.split;
 
 public class DefaultAutoRepairTokenSplitter implements IAutoRepairTokenRangeSplitter
 {
@@ -48,12 +48,11 @@ public class DefaultAutoRepairTokenSplitter implements IAutoRepairTokenRangeSpli
         int numberOfSubranges = config.getRepairSubRangeNum(repairType);
 
         boolean byKeyspace = config.getRepairByKeyspace(repairType);
-
         // collect all token ranges.
         List<Range<Token>> allRanges = new ArrayList<>();
         for (Range<Token> token : tokens)
         {
-            allRanges.addAll(splitEvenly(token, numberOfSubranges));
+            allRanges.addAll(split(token, numberOfSubranges));
         }
 
         if (byKeyspace)

@@ -520,10 +520,10 @@ public class AutoRepairParameterizedTest extends CQLTester
     @Test
     public void testDisabledAutoRepairForATableThroughTableLevelConfiguration()
     {
-        Assert.assertTrue(cfm.params.automatedRepair.get(AutoRepairConfig.RepairType.full).repairEnabled());
-        Assert.assertTrue(cfm.params.automatedRepair.get(AutoRepairConfig.RepairType.incremental).repairEnabled());
-        Assert.assertFalse(cfmDisabledAutoRepair.params.automatedRepair.get(AutoRepairConfig.RepairType.full).repairEnabled());
-        Assert.assertFalse(cfmDisabledAutoRepair.params.automatedRepair.get(AutoRepairConfig.RepairType.incremental).repairEnabled());
+        Assert.assertTrue(cfm.params.automatedRepair.get(AutoRepairConfig.RepairType.FULL).repairEnabled());
+        Assert.assertTrue(cfm.params.automatedRepair.get(AutoRepairConfig.RepairType.INCREMENTAL).repairEnabled());
+        Assert.assertFalse(cfmDisabledAutoRepair.params.automatedRepair.get(AutoRepairConfig.RepairType.FULL).repairEnabled());
+        Assert.assertFalse(cfmDisabledAutoRepair.params.automatedRepair.get(AutoRepairConfig.RepairType.INCREMENTAL).repairEnabled());
 
         AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
         config.setRepairMinInterval(repairType, "0s");
@@ -564,9 +564,13 @@ public class AutoRepairParameterizedTest extends CQLTester
         for (AutoRepairConfig.RepairType repairType : AutoRepairConfig.RepairType.values())
         {
             Assert.assertTrue(String.format("expected repair type %s to be enabled on table %s", repairType, cfm.name),
-                              cfm.params.automatedRepair.get(AutoRepairConfig.RepairType.full).repairEnabled());
+                              cfm.params.automatedRepair.get(AutoRepairConfig.RepairType.FULL).repairEnabled());
+            Assert.assertTrue(String.format("expected repair type %s to be enabled on table %s", repairType, cfm.name),
+                              cfm.params.automatedRepair.get(AutoRepairConfig.RepairType.INCREMENTAL).repairEnabled());
             Assert.assertFalse(String.format("expected repair type %s to be disabled on table %s", repairType, cfmDisabledAutoRepair.name),
-                               cfmDisabledAutoRepair.params.automatedRepair.get(AutoRepairConfig.RepairType.full).repairEnabled());
+                               cfmDisabledAutoRepair.params.automatedRepair.get(AutoRepairConfig.RepairType.FULL).repairEnabled());
+            Assert.assertFalse(String.format("expected repair type %s to be disabled on table %s", repairType, cfmDisabledAutoRepair.name),
+                               cfmDisabledAutoRepair.params.automatedRepair.get(AutoRepairConfig.RepairType.INCREMENTAL).repairEnabled());
         }
     }
 
@@ -679,7 +683,7 @@ public class AutoRepairParameterizedTest extends CQLTester
         AutoRepair.instance.setup();
         DatabaseDescriptor.setMaterializedViewsOnRepairEnabled(true);
 
-        if (repairType == AutoRepairConfig.RepairType.incremental)
+        if (repairType == AutoRepairConfig.RepairType.INCREMENTAL)
         {
             try
             {
@@ -703,7 +707,7 @@ public class AutoRepairParameterizedTest extends CQLTester
         AutoRepair.instance.setup();
         DatabaseDescriptor.setCDCOnRepairEnabled(true);
 
-        if (repairType == AutoRepairConfig.RepairType.incremental)
+        if (repairType == AutoRepairConfig.RepairType.INCREMENTAL)
         {
             try
             {

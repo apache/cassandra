@@ -30,15 +30,15 @@ public class AutoRepairStateFactoryTest
 {
     @Test
     public void testGetRepairState() {
-        AutoRepairState state = RepairType.getAutoRepairState(RepairType.full);
+        AutoRepairState state = RepairType.getAutoRepairState(RepairType.FULL);
 
         assertTrue(state instanceof FullRepairState);
 
-        state = RepairType.getAutoRepairState(RepairType.incremental);
+        state = RepairType.getAutoRepairState(RepairType.INCREMENTAL);
 
         assertTrue(state instanceof IncrementalRepairState);
 
-        state = RepairType.getAutoRepairState(RepairType.preview_repaired);
+        state = RepairType.getAutoRepairState(RepairType.PREVIEW_REPAIRED);
 
         assertTrue(state instanceof PreviewRepairedState);
     }

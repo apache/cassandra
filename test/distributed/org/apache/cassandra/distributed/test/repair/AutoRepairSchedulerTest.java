@@ -60,14 +60,14 @@ public class AutoRepairSchedulerTest extends TestBaseImpl
                                                         .set("auto_repair",
                                                              ImmutableMap.of(
                                                              "repair_type_overrides",
-                                                             ImmutableMap.of(AutoRepairConfig.RepairType.full.toString(),
+                                                             ImmutableMap.of(AutoRepairConfig.RepairType.FULL.toString(),
                                                                                  ImmutableMap.of(
                                                                                  "initial_scheduler_delay", "5s",
                                                                                  "enabled", "true",
                                                                                  "parallel_repair_count", "1",
                                                                                  "parallel_repair_percentage", "0",
                                                                                  "min_repair_interval", "1s"),
-                                                                             AutoRepairConfig.RepairType.incremental.toString(),
+                                                                             AutoRepairConfig.RepairType.INCREMENTAL.toString(),
                                                                                  ImmutableMap.of(
                                                                                  "initial_scheduler_delay", "5s",
                                                                                  "enabled", "true",
@@ -105,8 +105,8 @@ public class AutoRepairSchedulerTest extends TestBaseImpl
         // wait for a couple of minutes for repair to go through on all three nodes
         Uninterruptibles.sleepUninterruptibly(2, TimeUnit.MINUTES);
 
-        validate(AutoRepairConfig.RepairType.full.toString());
-        validate(AutoRepairConfig.RepairType.incremental.toString());
+        validate(AutoRepairConfig.RepairType.FULL.toString());
+        validate(AutoRepairConfig.RepairType.INCREMENTAL.toString());
     }
 
     private void validate(String repairType) throws ParseException
