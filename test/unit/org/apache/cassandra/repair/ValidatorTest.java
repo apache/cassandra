@@ -208,7 +208,7 @@ public class ValidatorTest
                                                                    false, PreviewKind.NONE);
 
         final CompletableFuture<Message> outgoingMessageSink = registerOutgoingMessageSink();
-        Validator validator = new Validator(SharedContext.Global.instance, new ValidationState(Clock.Global.clock(), desc, host), 0, true, false, PreviewKind.NONE);
+        Validator validator = new Validator(SharedContext.Global.instance, new ValidationState(Clock.Global.clock(), desc, host), 0, true, false, PreviewKind.NONE, false);
         ValidationManager.instance.submitValidation(cfs, validator);
 
         Message message = outgoingMessageSink.get(TEST_TIMEOUT, TimeUnit.SECONDS);
@@ -265,7 +265,7 @@ public class ValidatorTest
                                                                    false, PreviewKind.NONE);
 
         final CompletableFuture<Message> outgoingMessageSink = registerOutgoingMessageSink();
-        Validator validator = new Validator(SharedContext.Global.instance, new ValidationState(Clock.Global.clock(), desc, host), 0, true, false, PreviewKind.NONE);
+        Validator validator = new Validator(SharedContext.Global.instance, new ValidationState(Clock.Global.clock(), desc, host), 0, true, false, PreviewKind.NONE, false);
         ValidationManager.instance.submitValidation(cfs, validator);
 
         Message message = outgoingMessageSink.get(TEST_TIMEOUT, TimeUnit.SECONDS);
@@ -327,7 +327,7 @@ public class ValidatorTest
                                                                    false, PreviewKind.NONE);
 
         final CompletableFuture<Message> outgoingMessageSink = registerOutgoingMessageSink();
-        Validator validator = new Validator(SharedContext.Global.instance, new ValidationState(Clock.Global.clock(), desc, host), 0, true, false, PreviewKind.NONE);
+        Validator validator = new Validator(SharedContext.Global.instance, new ValidationState(Clock.Global.clock(), desc, host), 0, true, false, PreviewKind.NONE, false);
         ValidationManager.instance.submitValidation(cfs, validator);
 
         Message message = outgoingMessageSink.get(TEST_TIMEOUT, TimeUnit.SECONDS);

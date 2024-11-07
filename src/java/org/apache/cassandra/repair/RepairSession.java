@@ -121,6 +121,7 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
     public final PreviewKind previewKind;
     public final boolean repairPaxos;
     public final boolean paxosOnly;
+    public final boolean dontPurgeTombstones;
 
     private final AtomicBoolean isFailed = new AtomicBoolean(false);
 
@@ -161,6 +162,7 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
                          boolean optimiseStreams,
                          boolean repairPaxos,
                          boolean paxosOnly,
+                         boolean dontPurgeTombstones,
                          String... cfnames)
     {
         this.ctx = ctx;
@@ -174,6 +176,7 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
         this.previewKind = previewKind;
         this.pullRepair = pullRepair;
         this.optimiseStreams = optimiseStreams;
+        this.dontPurgeTombstones = dontPurgeTombstones;
         this.taskExecutor = new SafeExecutor(createExecutor(ctx));
     }
 

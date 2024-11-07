@@ -87,8 +87,12 @@ public class RepairMessageSerializationsTest
     public void validationRequestMessage() throws IOException
     {
         RepairJobDesc jobDesc = buildRepairJobDesc();
-        ValidationRequest msg = new ValidationRequest(jobDesc, GC_BEFORE);
+        ValidationRequest msg = new ValidationRequest(jobDesc, GC_BEFORE, false);
         ValidationRequest deserialized = serializeRoundTrip(msg, ValidationRequest.serializer);
+        Assert.assertEquals(jobDesc, deserialized.desc);
+
+        msg = new ValidationRequest(jobDesc, GC_BEFORE, true);
+        deserialized = serializeRoundTrip(msg, ValidationRequest.serializer);
         Assert.assertEquals(jobDesc, deserialized.desc);
     }
 

@@ -108,6 +108,9 @@ public class Repair extends NodeToolCmd
     @Option(title = "ignore_unreplicated_keyspaces", name = {"-iuk","--ignore-unreplicated-keyspaces"}, description = "Use --ignore-unreplicated-keyspaces to ignore keyspaces which are not replicated, otherwise the repair will fail")
     private boolean ignoreUnreplicatedKeyspaces = false;
 
+    @Option(title = "no_purge", name = {"--include-gcgs-expired-tombstones"}, description = "Do not apply gc grace seconds to purge any tombstones.  Only useful in rare recovery scenarios, never regular operations.")
+    private boolean dontPurgeTombstones = false;
+
     private PreviewKind getPreviewKind()
     {
         if (validate)
@@ -186,6 +189,7 @@ public class Repair extends NodeToolCmd
         options.put(RepairOption.IGNORE_UNREPLICATED_KS, Boolean.toString(ignoreUnreplicatedKeyspaces));
         options.put(RepairOption.REPAIR_PAXOS_KEY, Boolean.toString(!skipPaxos && getPreviewKind() == PreviewKind.NONE));
         options.put(RepairOption.PAXOS_ONLY_KEY, Boolean.toString(paxosOnly && getPreviewKind() == PreviewKind.NONE));
+        options.put(RepairOption.NO_TOMBSTONE_PURGING, Boolean.toString(dontPurgeTombstones));
 
         if (!startToken.isEmpty() || !endToken.isEmpty())
         {

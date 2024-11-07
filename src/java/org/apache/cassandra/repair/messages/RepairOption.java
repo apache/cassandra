@@ -54,6 +54,8 @@ public class RepairOption
     public static final String IGNORE_UNREPLICATED_KS = "ignoreUnreplicatedKeyspaces";
     public static final String REPAIR_PAXOS_KEY = "repairPaxos";
     public static final String PAXOS_ONLY_KEY = "paxosOnly";
+    public static final String NO_TOMBSTONE_PURGING = "nopurge";
+
 
     // we don't want to push nodes too much for repair
     public static final int MAX_JOB_THREADS = 4;
@@ -185,6 +187,7 @@ public class RepairOption
         boolean ignoreUnreplicatedKeyspaces = Boolean.parseBoolean(options.get(IGNORE_UNREPLICATED_KS));
         boolean repairPaxos = Boolean.parseBoolean(options.get(REPAIR_PAXOS_KEY));
         boolean paxosOnly = Boolean.parseBoolean(options.get(PAXOS_ONLY_KEY));
+        boolean dontPurgeTombstones = Boolean.parseBoolean(options.get(NO_TOMBSTONE_PURGING));
 
         if (previewKind != PreviewKind.NONE)
         {
@@ -209,7 +212,7 @@ public class RepairOption
 
         boolean asymmetricSyncing = Boolean.parseBoolean(options.get(OPTIMISE_STREAMS_KEY));
 
-        RepairOption option = new RepairOption(parallelism, primaryRange, incremental, trace, jobThreads, ranges, !ranges.isEmpty(), pullRepair, force, previewKind, asymmetricSyncing, ignoreUnreplicatedKeyspaces, repairPaxos, paxosOnly);
+        RepairOption option = new RepairOption(parallelism, primaryRange, incremental, trace, jobThreads, ranges, !ranges.isEmpty(), pullRepair, force, previewKind, asymmetricSyncing, ignoreUnreplicatedKeyspaces, repairPaxos, paxosOnly, dontPurgeTombstones);
 
         // data centers
         String dataCentersStr = options.get(DATACENTERS_KEY);
@@ -291,13 +294,14 @@ public class RepairOption
     private final boolean ignoreUnreplicatedKeyspaces;
     private final boolean repairPaxos;
     private final boolean paxosOnly;
+    private final boolean dontPurgeTombstones;
 
     private final Collection<String> columnFamilies = new HashSet<>();
     private final Collection<String> dataCenters = new HashSet<>();
     private final Collection<String> hosts = new HashSet<>();
     private final Collection<Range<Token>> ranges = new HashSet<>();
 
-    public RepairOption(RepairParallelism parallelism, boolean primaryRange, boolean incremental, boolean trace, int jobThreads, Collection<Range<Token>> ranges, boolean isSubrangeRepair, boolean pullRepair, boolean forceRepair, PreviewKind previewKind, boolean optimiseStreams, boolean ignoreUnreplicatedKeyspaces, boolean repairPaxos, boolean paxosOnly)
+    public RepairOption(RepairParallelism parallelism, boolean primaryRange, boolean incremental, boolean trace, int jobThreads, Collection<Range<Token>> ranges, boolean isSubrangeRepair, boolean pullRepair, boolean forceRepair, PreviewKind previewKind, boolean optimiseStreams, boolean ignoreUnreplicatedKeyspaces, boolean repairPaxos, boolean paxosOnly, boolean dontPurgeTombstones)
     {
 
         this.parallelism = parallelism;
@@ -314,6 +318,7 @@ public class RepairOption
         this.ignoreUnreplicatedKeyspaces = ignoreUnreplicatedKeyspaces;
         this.repairPaxos = repairPaxos;
         this.paxosOnly = paxosOnly;
+        this.dontPurgeTombstones = dontPurgeTombstones;
     }
 
     public RepairParallelism getParallelism()
@@ -429,6 +434,11 @@ public class RepairOption
         return paxosOnly;
     }
 
+    public boolean dontPurgeTombstones()
+    {
+        return dontPurgeTombstones;
+    }
+
     @Override
     public String toString()
     {
@@ -448,6 +458,7 @@ public class RepairOption
                ", ignore unreplicated keyspaces: "+ ignoreUnreplicatedKeyspaces +
                ", repairPaxos: " + repairPaxos +
                ", paxosOnly: " + paxosOnly +
+               ", dontPurgeTombstones: " + dontPurgeTombstones +
                ')';
     }
 
@@ -470,6 +481,7 @@ public class RepairOption
         options.put(OPTIMISE_STREAMS_KEY, Boolean.toString(optimiseStreams));
         options.put(REPAIR_PAXOS_KEY, Boolean.toString(repairPaxos));
         options.put(PAXOS_ONLY_KEY, Boolean.toString(paxosOnly));
+        options.put(NO_TOMBSTONE_PURGING, Boolean.toString(dontPurgeTombstones));
         return options;
     }
 }

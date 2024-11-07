@@ -174,7 +174,7 @@ public class CassandraValidationIterator extends ValidationPartitionIterator
     private final long estimatedPartitions;
     private final Map<Range<Token>, Long> rangePartitionCounts;
 
-    public CassandraValidationIterator(ColumnFamilyStore cfs, SharedContext ctx, Collection<Range<Token>> ranges, TimeUUID parentId, TimeUUID sessionID, boolean isIncremental, long nowInSec, TopPartitionTracker.Collector topPartitionCollector) throws IOException, NoSuchRepairSessionException
+    public CassandraValidationIterator(ColumnFamilyStore cfs, SharedContext ctx, Collection<Range<Token>> ranges, TimeUUID parentId, TimeUUID sessionID, boolean isIncremental, long nowInSec, boolean dontPurgeTombstones, TopPartitionTracker.Collector topPartitionCollector) throws IOException, NoSuchRepairSessionException
     {
         this.cfs = cfs;
         this.ctx = ctx;
@@ -219,7 +219,8 @@ public class CassandraValidationIterator extends ValidationPartitionIterator
                     cfs.getKeyspaceName(),
                     cfs.getTableName());
 
-        controller = new ValidationCompactionController(cfs, getDefaultGcBefore(cfs, nowInSec));
+        long gcBefore = dontPurgeTombstones ? Long.MIN_VALUE : getDefaultGcBefore(cfs, nowInSec);
+        controller = new ValidationCompactionController(cfs, gcBefore);
         scanners = cfs.getCompactionStrategyManager().getScanners(sstables, ranges);
         ci = new ValidationCompactionIterator(scanners.scanners, controller, nowInSec, CompactionManager.instance.active, topPartitionCollector);
 

@@ -614,7 +614,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
 
     private ValidationTask newValidationTask(InetAddressAndPort endpoint, long nowInSec)
     {
-        ValidationTask task = new ValidationTask(session.ctx, desc, endpoint, nowInSec, session.previewKind);
+        ValidationTask task = new ValidationTask(session.ctx, desc, endpoint, nowInSec, session.previewKind, session.dontPurgeTombstones);
         validationTasks.add(task);
         return task;
     }

@@ -104,7 +104,7 @@ public class SerializationsTest extends AbstractSerializationsTester
 
     private void testValidationRequestWrite() throws IOException
     {
-        ValidationRequest message = new ValidationRequest(DESC, 1234);
+        ValidationRequest message = new ValidationRequest(DESC, 1234, true);
         testRepairMessageWrite("service.ValidationRequest.bin", ValidationRequest.serializer, message);
     }
 
@@ -119,6 +119,7 @@ public class SerializationsTest extends AbstractSerializationsTester
             ValidationRequest message = ValidationRequest.serializer.deserialize(in, getVersion());
             assert DESC.equals(message.desc);
             assert message.nowInSec == 1234;
+            assert message.dontPurgeTombstones == true;
         }
     }
 
