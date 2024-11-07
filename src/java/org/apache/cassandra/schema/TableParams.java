@@ -132,9 +132,9 @@ public final class TableParams
         automatedRepair = new EnumMap<AutoRepairConfig.RepairType, AutoRepairParams>(AutoRepairConfig.RepairType.class)
         {
             {
-                put(AutoRepairConfig.RepairType.full, builder.automatedRepairFull);
-                put(AutoRepairConfig.RepairType.incremental, builder.automatedRepairIncremental);
-                put(AutoRepairConfig.RepairType.preview_repaired, builder.automatedRepairPreviewRepaired);
+                put(AutoRepairConfig.RepairType.FULL, builder.automatedRepairFull);
+                put(AutoRepairConfig.RepairType.INCREMENTAL, builder.automatedRepairIncremental);
+                put(AutoRepairConfig.RepairType.PREVIEW_REPAIRED, builder.automatedRepairPreviewRepaired);
             }
         };
     }
@@ -165,9 +165,9 @@ public final class TableParams
                             .extensions(params.extensions)
                             .cdc(params.cdc)
                             .readRepair(params.readRepair)
-                            .automatedRepairFull(params.automatedRepair.get(AutoRepairConfig.RepairType.full))
-                            .automatedRepairIncremental(params.automatedRepair.get(AutoRepairConfig.RepairType.incremental))
-                            .automatedRepairPreviewRepaired(params.automatedRepair.get(AutoRepairConfig.RepairType.preview_repaired))
+                            .automatedRepairFull(params.automatedRepair.get(AutoRepairConfig.RepairType.FULL))
+                            .automatedRepairIncremental(params.automatedRepair.get(AutoRepairConfig.RepairType.INCREMENTAL))
+                            .automatedRepairPreviewRepaired(params.automatedRepair.get(AutoRepairConfig.RepairType.PREVIEW_REPAIRED))
         ;
     }
 
@@ -316,9 +316,9 @@ public final class TableParams
                           .add(EXTENSIONS.toString(), extensions)
                           .add(CDC.toString(), cdc)
                           .add(READ_REPAIR.toString(), readRepair)
-                          .add(Option.REPAIR_FULL.toString(), automatedRepair.get(AutoRepairConfig.RepairType.full))
-                          .add(Option.REPAIR_INCREMENTAL.toString(), automatedRepair.get(AutoRepairConfig.RepairType.incremental))
-                          .add(Option.REPAIR_PREVIEW_REPAIRED.toString(), automatedRepair.get(AutoRepairConfig.RepairType.preview_repaired))
+                          .add(Option.REPAIR_FULL.toString(), automatedRepair.get(AutoRepairConfig.RepairType.FULL))
+                          .add(Option.REPAIR_INCREMENTAL.toString(), automatedRepair.get(AutoRepairConfig.RepairType.INCREMENTAL))
+                          .add(Option.REPAIR_PREVIEW_REPAIRED.toString(), automatedRepair.get(AutoRepairConfig.RepairType.PREVIEW_REPAIRED))
                           .toString();
     }
 
@@ -372,11 +372,11 @@ public final class TableParams
                .newLine()
                .append("AND speculative_retry = ").appendWithSingleQuotes(speculativeRetry.toString())
                .newLine()
-               .append("AND repair_full = ").append(automatedRepair.get(AutoRepairConfig.RepairType.full).asMap())
+               .append("AND repair_full = ").append(automatedRepair.get(AutoRepairConfig.RepairType.FULL).asMap())
                .newLine()
-               .append("AND repair_incremental = ").append(automatedRepair.get(AutoRepairConfig.RepairType.incremental).asMap())
+               .append("AND repair_incremental = ").append(automatedRepair.get(AutoRepairConfig.RepairType.INCREMENTAL).asMap())
                .newLine()
-               .append("AND repair_preview_repaired = ").append(automatedRepair.get(AutoRepairConfig.RepairType.preview_repaired).asMap());
+               .append("AND repair_preview_repaired = ").append(automatedRepair.get(AutoRepairConfig.RepairType.PREVIEW_REPAIRED).asMap());
     }
 
     public static final class Builder
@@ -401,9 +401,9 @@ public final class TableParams
         private boolean cdc;
         private ReadRepairStrategy readRepair = ReadRepairStrategy.BLOCKING;
 
-        private AutoRepairParams automatedRepairFull = new AutoRepairParams(AutoRepairConfig.RepairType.full);
-        private AutoRepairParams automatedRepairIncremental = new AutoRepairParams(AutoRepairConfig.RepairType.incremental);
-        private AutoRepairParams automatedRepairPreviewRepaired = new AutoRepairParams(AutoRepairConfig.RepairType.preview_repaired);
+        private AutoRepairParams automatedRepairFull = new AutoRepairParams(AutoRepairConfig.RepairType.FULL);
+        private AutoRepairParams automatedRepairIncremental = new AutoRepairParams(AutoRepairConfig.RepairType.INCREMENTAL);
+        private AutoRepairParams automatedRepairPreviewRepaired = new AutoRepairParams(AutoRepairConfig.RepairType.PREVIEW_REPAIRED);
 
         public Builder()
         {
