@@ -2638,6 +2638,16 @@ public class DatabaseDescriptor
         conf.transfer_hints_on_decommission = enabled;
     }
 
+    public static boolean isUseCreationTimeForHintTtl()
+    {
+        return conf.use_creation_time_for_hint_ttl;
+    }
+
+    public static void setUseCreationTimeForHintTtl(boolean enabled)
+    {
+        conf.use_creation_time_for_hint_ttl = enabled;
+    }
+
     public static boolean isIncrementalBackupsEnabled()
     {
         return conf.incremental_backups;

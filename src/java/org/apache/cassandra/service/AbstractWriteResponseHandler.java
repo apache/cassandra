@@ -237,6 +237,11 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
      */
     protected abstract int ackCount();
 
+    public long getQueryStartNanoTime()
+    {
+        return queryStartNanoTime;
+    }
+
     /**
      * null message means "response from local write"
      */

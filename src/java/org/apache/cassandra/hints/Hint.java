@@ -51,13 +51,13 @@ import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
  *   compacted away while the hint was in storage.
  *
  *   We also look at the smallest current value of the gcgs param for each affected table when applying the hint, and use
- *   creation time + min(recorded gc gs, current gcgs + current gc grace) as the overall hint expiration time.
+ *   mutation creation time + min(recorded gc gs, current gcgs + current gc grace) as the overall hint expiration time.
  *   This allows now to safely reduce gc gs on tables without worrying that an applied old hint might resurrect any data.
  */
 public final class Hint
 {
     public static final Serializer serializer = new Serializer();
-    static final int maxHintTTL = Integer.getInteger("cassandra.maxHintTTL", Integer.MAX_VALUE);
+    public static volatile int maxHintTTL = Integer.getInteger("cassandra.maxHintTTL", Integer.MAX_VALUE);
 
     final Mutation mutation;
     final long creationTime;  // time of hint creation (in milliseconds)

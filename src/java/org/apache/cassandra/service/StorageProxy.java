@@ -130,6 +130,9 @@ import org.apache.cassandra.utils.UUIDGen;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
+
+import static org.apache.cassandra.utils.MonotonicClock.approxTime;
+
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.casReadMetrics;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.casWriteMetrics;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.readMetrics;
@@ -2427,8 +2430,15 @@ public class StorageProxy implements StorageProxyMBean
                     else
                         logger.debug("Discarding hint for endpoint not part of ring: {}", target);
                 }
-                logger.trace("Adding hints for {}", validTargets);
-                HintsService.instance.write(hostIds, Hint.create(mutation, System.currentTimeMillis()));
+
+                long creationTime = System.currentTimeMillis();
+                if (DatabaseDescriptor.isUseCreationTimeForHintTtl())
+                {
+                    long mutationCreationTimeNanos = responseHandler != null ? responseHandler.getQueryStartNanoTime() : mutation.getApproxCreatedAtNanos();
+                    creationTime -= TimeUnit.MILLISECONDS.convert(Math.max(0, approxTime.now() - mutationCreationTimeNanos), NANOSECONDS);
+                }
+                logger.trace("Adding hints for {} with creation time {} ms", validTargets, creationTime);
+                HintsService.instance.write(hostIds, Hint.create(mutation,  creationTime));
                 validTargets.forEach(HintsService.instance.metrics::incrCreatedHints);
                 // Notify the handler only for CL == ANY
                 if (responseHandler != null && responseHandler.replicaPlan.consistencyLevel() == ConsistencyLevel.ANY)
