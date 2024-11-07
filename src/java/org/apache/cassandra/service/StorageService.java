@@ -4761,6 +4761,17 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         logger.info("updated transfer_hints_on_decommission to {}", enabled);
     }
 
+    public boolean isHintTtlUseMutationCreationTime()
+    {
+        return DatabaseDescriptor.isHintTtlUseMutationCreationTime();
+    }
+
+    public void setHintTtlUseMutationCreationTime(boolean enabled)
+    {
+        DatabaseDescriptor.setHintTtlUseMutationCreationTime(enabled);
+        logger.info("updated hint_ttl_use_mutation_creation_time to {}", enabled);
+    }
+
     @Override
     public void clearConnectionHistory()
     {

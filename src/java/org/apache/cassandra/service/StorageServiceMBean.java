@@ -1106,6 +1106,11 @@ public interface StorageServiceMBean extends NotificationEmitter
     public boolean getTransferHintsOnDecommission();
     public void setTransferHintsOnDecommission(boolean enabled);
 
+    /** are using the creation time of the mutation for determining hint ttl **/
+    public boolean isHintTtlUseMutationCreationTime();
+    /** use the creation time of the mutation for determining hint ttl **/
+    public void setHintTtlUseMutationCreationTime(boolean enabled);
+
     /**
      * Resume bootstrap streaming when there is failed data streaming.
      *
