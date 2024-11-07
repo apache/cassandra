@@ -133,8 +133,8 @@ public class AutoRepairParameterizedTest extends CQLTester
                            .addStaticColumn("s", UTF8Type.instance)
                            .addClusteringColumn("i", IntegerType.instance)
                            .addRegularColumn("v", UTF8Type.instance)
-                           .params(TableParams.builder().automatedRepairFull(AutoRepairParams.create(AutoRepairConfig.RepairType.full, ImmutableMap.of(AutoRepairParams.Option.ENABLED.toString(), Boolean.toString(true)))).
-                                              automatedRepairIncremental(AutoRepairParams.create(AutoRepairConfig.RepairType.incremental, ImmutableMap.of(AutoRepairParams.Option.ENABLED.toString(), Boolean.toString(true)))).build())
+                           .params(TableParams.builder().automatedRepairFull(AutoRepairParams.create(AutoRepairConfig.RepairType.FULL, ImmutableMap.of(AutoRepairParams.Option.ENABLED.toString(), Boolean.toString(true)))).
+                                              automatedRepairIncremental(AutoRepairParams.create(AutoRepairConfig.RepairType.INCREMENTAL, ImmutableMap.of(AutoRepairParams.Option.ENABLED.toString(), Boolean.toString(true)))).build())
                            .build();
 
         cfmDisabledAutoRepair = TableMetadata.builder(KEYSPACE, TABLE_DISABLED_AUTO_REPAIR)
@@ -142,8 +142,8 @@ public class AutoRepairParameterizedTest extends CQLTester
                                              .addStaticColumn("s", UTF8Type.instance)
                                              .addClusteringColumn("i", IntegerType.instance)
                                              .addRegularColumn("v", UTF8Type.instance)
-                                             .params(TableParams.builder().automatedRepairFull(AutoRepairParams.create(AutoRepairConfig.RepairType.full, ImmutableMap.of(AutoRepairParams.Option.ENABLED.toString(), Boolean.toString(false)))).
-                                                                automatedRepairIncremental(AutoRepairParams.create(AutoRepairConfig.RepairType.incremental, ImmutableMap.of(AutoRepairParams.Option.ENABLED.toString(), Boolean.toString(false)))).build())
+                                             .params(TableParams.builder().automatedRepairFull(AutoRepairParams.create(AutoRepairConfig.RepairType.FULL, ImmutableMap.of(AutoRepairParams.Option.ENABLED.toString(), Boolean.toString(false)))).
+                                                                automatedRepairIncremental(AutoRepairParams.create(AutoRepairConfig.RepairType.INCREMENTAL, ImmutableMap.of(AutoRepairParams.Option.ENABLED.toString(), Boolean.toString(false)))).build())
                                              .build();
 
         SchemaLoader.prepareServer();
@@ -544,10 +544,10 @@ public class AutoRepairParameterizedTest extends CQLTester
     @Test
     public void testDisabledAutoRepairForATableThroughTableLevelConfiguration()
     {
-        Assert.assertTrue(cfm.params.automatedRepair.get(AutoRepairConfig.RepairType.full).repairEnabled());
-        Assert.assertTrue(cfm.params.automatedRepair.get(AutoRepairConfig.RepairType.incremental).repairEnabled());
-        Assert.assertFalse(cfmDisabledAutoRepair.params.automatedRepair.get(AutoRepairConfig.RepairType.full).repairEnabled());
-        Assert.assertFalse(cfmDisabledAutoRepair.params.automatedRepair.get(AutoRepairConfig.RepairType.incremental).repairEnabled());
+        Assert.assertTrue(cfm.params.automatedRepair.get(AutoRepairConfig.RepairType.FULL).repairEnabled());
+        Assert.assertTrue(cfm.params.automatedRepair.get(AutoRepairConfig.RepairType.INCREMENTAL).repairEnabled());
+        Assert.assertFalse(cfmDisabledAutoRepair.params.automatedRepair.get(AutoRepairConfig.RepairType.FULL).repairEnabled());
+        Assert.assertFalse(cfmDisabledAutoRepair.params.automatedRepair.get(AutoRepairConfig.RepairType.INCREMENTAL).repairEnabled());
 
         AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
         config.setRepairMinInterval(repairType, "0s");
@@ -584,10 +584,10 @@ public class AutoRepairParameterizedTest extends CQLTester
     @Test
     public void testDefaultAutomatedRepair()
     {
-        Assert.assertTrue(cfm.params.automatedRepair.get(AutoRepairConfig.RepairType.full).repairEnabled());
-        Assert.assertTrue(cfm.params.automatedRepair.get(AutoRepairConfig.RepairType.incremental).repairEnabled());
-        Assert.assertFalse(cfmDisabledAutoRepair.params.automatedRepair.get(AutoRepairConfig.RepairType.full).repairEnabled());
-        Assert.assertFalse(cfmDisabledAutoRepair.params.automatedRepair.get(AutoRepairConfig.RepairType.incremental).repairEnabled());
+        Assert.assertTrue(cfm.params.automatedRepair.get(AutoRepairConfig.RepairType.FULL).repairEnabled());
+        Assert.assertTrue(cfm.params.automatedRepair.get(AutoRepairConfig.RepairType.INCREMENTAL).repairEnabled());
+        Assert.assertFalse(cfmDisabledAutoRepair.params.automatedRepair.get(AutoRepairConfig.RepairType.FULL).repairEnabled());
+        Assert.assertFalse(cfmDisabledAutoRepair.params.automatedRepair.get(AutoRepairConfig.RepairType.INCREMENTAL).repairEnabled());
     }
 
     @Test
@@ -696,7 +696,7 @@ public class AutoRepairParameterizedTest extends CQLTester
         AutoRepair.instance.setup();
         System.setProperty("cassandra.streaming.requires_view_build_during_repair", "true");
 
-        if (repairType == AutoRepairConfig.RepairType.incremental)
+        if (repairType == AutoRepairConfig.RepairType.INCREMENTAL)
         {
             try
             {
@@ -720,7 +720,7 @@ public class AutoRepairParameterizedTest extends CQLTester
         AutoRepair.instance.setup();
         System.setProperty("cassandra.streaming.requires_cdc_replay", "true");
 
-        if (repairType == AutoRepairConfig.RepairType.incremental)
+        if (repairType == AutoRepairConfig.RepairType.INCREMENTAL)
         {
             try
             {

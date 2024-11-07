@@ -127,7 +127,7 @@ public class AutoRepairServiceTest
         {
             autoRepairService.config = new AutoRepairConfig(false);
 
-            autoRepairService.setAutoRepairEnabled(AutoRepairConfig.RepairType.incremental, true);
+            autoRepairService.setAutoRepairEnabled(AutoRepairConfig.RepairType.INCREMENTAL, true);
         }
 
         @Test(expected = ConfigurationException.class)
@@ -136,7 +136,7 @@ public class AutoRepairServiceTest
             autoRepairService.config = new AutoRepairConfig(true);
             System.setProperty("cassandra.streaming.requires_view_build_during_repair", "true");
 
-            autoRepairService.setAutoRepairEnabled(AutoRepairConfig.RepairType.incremental, true);
+            autoRepairService.setAutoRepairEnabled(AutoRepairConfig.RepairType.INCREMENTAL, true);
         }
 
         @Test
@@ -147,7 +147,7 @@ public class AutoRepairServiceTest
             System.setProperty("cassandra.streaming.requires_view_build_during_repair", "false");
             System.setProperty("cassandra.streaming.requires_cdc_replay", "false");
 
-            autoRepairService.setAutoRepairEnabled(AutoRepairConfig.RepairType.incremental, true);
+            autoRepairService.setAutoRepairEnabled(AutoRepairConfig.RepairType.INCREMENTAL, true);
         }
 
         @Test(expected = ConfigurationException.class)
@@ -156,7 +156,7 @@ public class AutoRepairServiceTest
             autoRepairService.config = new AutoRepairConfig(true);
             System.setProperty("cassandra.streaming.requires_cdc_replay", "true");
 
-            autoRepairService.setAutoRepairEnabled(AutoRepairConfig.RepairType.incremental, true);
+            autoRepairService.setAutoRepairEnabled(AutoRepairConfig.RepairType.INCREMENTAL, true);
         }
 
         @Test
@@ -166,7 +166,7 @@ public class AutoRepairServiceTest
             DatabaseDescriptor.setCDCEnabled(true);
             System.setProperty("cassandra.streaming.requires_cdc_replay", "false");
 
-            autoRepairService.setAutoRepairEnabled(AutoRepairConfig.RepairType.incremental, true);
+            autoRepairService.setAutoRepairEnabled(AutoRepairConfig.RepairType.INCREMENTAL, true);
         }
     }
 

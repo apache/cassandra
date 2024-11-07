@@ -58,16 +58,16 @@ public class AutoRepairConfig implements Serializable
 
     public enum RepairType implements Serializable
     {
-        full,
-        incremental;
+        FULL,
+        INCREMENTAL;
 
         public static AutoRepairState getAutoRepairState(RepairType repairType)
         {
             switch (repairType)
             {
-                case full:
+                case FULL:
                     return new FullRepairState();
-                case incremental:
+                case INCREMENTAL:
                     return new IncrementalRepairState();
             }
 

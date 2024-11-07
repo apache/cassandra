@@ -70,8 +70,8 @@ public class AutoRepairStatusTest
         DatabaseDescriptor.daemonInitialization();
         DatabaseDescriptor.loadConfig();
         setAutoRepairEnabled(true);
-        DatabaseDescriptor.getAutoRepairConfig().setAutoRepairEnabled(AutoRepairConfig.RepairType.full, true);
-        DatabaseDescriptor.getAutoRepairConfig().setAutoRepairEnabled(AutoRepairConfig.RepairType.incremental, true);
+        DatabaseDescriptor.getAutoRepairConfig().setAutoRepairEnabled(AutoRepairConfig.RepairType.FULL, true);
+        DatabaseDescriptor.getAutoRepairConfig().setAutoRepairEnabled(AutoRepairConfig.RepairType.INCREMENTAL, true);
         when(probe.getAutoRepairConfig()).thenReturn(DatabaseDescriptor.getAutoRepairConfig());
     }
 

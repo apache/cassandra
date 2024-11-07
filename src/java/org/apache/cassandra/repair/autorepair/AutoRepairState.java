@@ -304,7 +304,7 @@ class IncrementalRepairState extends AutoRepairState
 {
     public IncrementalRepairState()
     {
-        super(RepairType.incremental);
+        super(RepairType.INCREMENTAL);
     }
 
     @Override
@@ -349,7 +349,7 @@ class FullRepairState extends AutoRepairState
 {
     public FullRepairState()
     {
-        super(RepairType.full);
+        super(RepairType.FULL);
     }
 
     @Override

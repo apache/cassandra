@@ -62,7 +62,7 @@ public class AutoRepairService implements AutoRepairServiceMBean
         if (!config.isAutoRepairSchedulingEnabled())
             throw new ConfigurationException("Auto-repair scheduller is disabled.");
 
-        if (repairType != RepairType.incremental)
+        if (repairType != RepairType.INCREMENTAL)
             return;
 
         if (CassandraRelevantProperties.STREAMING_REQUIRES_VIEW_BUILD_DURING_REPAIR.getBoolean())

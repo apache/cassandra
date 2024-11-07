@@ -115,8 +115,8 @@ public final class TableParams
         automatedRepair = new EnumMap<AutoRepairConfig.RepairType, AutoRepairParams>(AutoRepairConfig.RepairType.class)
         {
             {
-                put(AutoRepairConfig.RepairType.full, builder.automatedRepairFull);
-                put(AutoRepairConfig.RepairType.incremental, builder.automatedRepairIncremental);
+                put(AutoRepairConfig.RepairType.FULL, builder.automatedRepairFull);
+                put(AutoRepairConfig.RepairType.INCREMENTAL, builder.automatedRepairIncremental);
             }
         };
     }
@@ -145,8 +145,8 @@ public final class TableParams
                             .extensions(params.extensions)
                             .cdc(params.cdc)
                             .readRepair(params.readRepair)
-                            .automatedRepairFull(params.automatedRepair.get(AutoRepairConfig.RepairType.full))
-                            .automatedRepairIncremental(params.automatedRepair.get(AutoRepairConfig.RepairType.incremental))
+                            .automatedRepairFull(params.automatedRepair.get(AutoRepairConfig.RepairType.FULL))
+                            .automatedRepairIncremental(params.automatedRepair.get(AutoRepairConfig.RepairType.INCREMENTAL))
         ;
     }
 
@@ -286,8 +286,8 @@ public final class TableParams
                           .add(Option.EXTENSIONS.toString(), extensions)
                           .add(Option.CDC.toString(), cdc)
                           .add(Option.READ_REPAIR.toString(), readRepair)
-                          .add(Option.REPAIR_FULL.toString(), automatedRepair.get(AutoRepairConfig.RepairType.full))
-                          .add(Option.REPAIR_INCREMENTAL.toString(), automatedRepair.get(AutoRepairConfig.RepairType.incremental))
+                          .add(Option.REPAIR_FULL.toString(), automatedRepair.get(AutoRepairConfig.RepairType.FULL))
+                          .add(Option.REPAIR_INCREMENTAL.toString(), automatedRepair.get(AutoRepairConfig.RepairType.INCREMENTAL))
                           .toString();
     }
 
@@ -337,9 +337,9 @@ public final class TableParams
                .newLine()
                .append("AND speculative_retry = ").appendWithSingleQuotes(speculativeRetry.toString())
                .newLine()
-               .append("AND repair_full = ").append(automatedRepair.get(AutoRepairConfig.RepairType.full).asMap())
+               .append("AND repair_full = ").append(automatedRepair.get(AutoRepairConfig.RepairType.FULL).asMap())
                .newLine()
-               .append("AND repair_incremental = ").append(automatedRepair.get(AutoRepairConfig.RepairType.incremental).asMap());
+               .append("AND repair_incremental = ").append(automatedRepair.get(AutoRepairConfig.RepairType.INCREMENTAL).asMap());
     }
 
     public static final class Builder
@@ -362,8 +362,8 @@ public final class TableParams
         private boolean cdc;
         private ReadRepairStrategy readRepair = ReadRepairStrategy.BLOCKING;
 
-        private AutoRepairParams automatedRepairFull = new AutoRepairParams(AutoRepairConfig.RepairType.full);
-        private AutoRepairParams automatedRepairIncremental = new AutoRepairParams(AutoRepairConfig.RepairType.incremental);
+        private AutoRepairParams automatedRepairFull = new AutoRepairParams(AutoRepairConfig.RepairType.FULL);
+        private AutoRepairParams automatedRepairIncremental = new AutoRepairParams(AutoRepairConfig.RepairType.INCREMENTAL);
 
         public Builder()
         {
