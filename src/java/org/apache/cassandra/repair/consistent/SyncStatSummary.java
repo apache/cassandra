@@ -76,7 +76,7 @@ public class SyncStatSummary
         }
     }
 
-    private static class Table
+    public static class Table
     {
         final String keyspace;
 
@@ -89,7 +89,7 @@ public class SyncStatSummary
 
         final Map<Pair<InetSocketAddress, InetSocketAddress>, Session> sessions = new HashMap<>();
 
-        Table(String keyspace, String table)
+        public Table(String keyspace, String table)
         {
             this.keyspace = keyspace;
             this.table = table;
@@ -114,7 +114,7 @@ public class SyncStatSummary
             }
         }
 
-        void consumeStats(List<SyncStat> stats)
+        public void consumeStats(List<SyncStat> stats)
         {
             filter(stats, s -> s.summaries != null).forEach(this::consumeStat);
         }
@@ -153,6 +153,14 @@ public class SyncStatSummary
                 output.append("    ").append(session.toString()).append('\n');
             }
             return output.toString();
+        }
+
+        public long getBytes() {
+            return this.bytes;
+        }
+
+        public long getRanges() {
+            return this.ranges;
         }
     }
 

@@ -125,6 +125,11 @@ public class KeyspaceMetrics
     public final Histogram bytesValidated;
     /** histogram over the number of partitions we have validated */
     public final Histogram partitionsValidated;
+    /** histogram over the number of desynchronized token ranges detected during preview repair */
+    public final Histogram previewedDesynchronizedTokenRanges;
+    /** histogram over the number of desynchronized bytes detected during preview repair */
+    public final Histogram previewedDesynchronizedBytes;
+
 
     /*
      * Metrics for inconsistencies detected between repaired data sets across replicas. These
@@ -244,6 +249,8 @@ public class KeyspaceMetrics
         repairSyncTime = createKeyspaceTimer("RepairSyncTime");
         partitionsValidated = createKeyspaceHistogram("PartitionsValidated", false);
         bytesValidated = createKeyspaceHistogram("BytesValidated", false);
+        previewedDesynchronizedTokenRanges = createKeyspaceHistogram("PreviewedDesynchronizedTokenRanges", false);
+        previewedDesynchronizedBytes = createKeyspaceHistogram("PreviewedDesynchronizedBytes", false);
 
         confirmedRepairedInconsistencies = createKeyspaceMeter("RepairedDataInconsistenciesConfirmed");
         unconfirmedRepairedInconsistencies = createKeyspaceMeter("RepairedDataInconsistenciesUnconfirmed");

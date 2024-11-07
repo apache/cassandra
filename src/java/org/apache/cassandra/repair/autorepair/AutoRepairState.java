@@ -290,7 +290,7 @@ class PreviewRepairedState extends AutoRepairState
 {
     public PreviewRepairedState()
     {
-        super(RepairType.previewRepaired);
+        super(RepairType.preview_repaired);
     }
 
     @Override
