@@ -247,13 +247,16 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
     {
         try
         {
-            // remove key cache entries for the sstable being deleted
-            Iterator<KeyCacheKey> it = CacheService.instance.keyCache.keyIterator();
-            while (it.hasNext())
+            if (DatabaseDescriptor.shouldInvalidateKeycacheOnSSTableDeletion())
             {
-                KeyCacheKey key = it.next();
-                if (key.desc.equals(desc))
-                    it.remove();
+                // remove key cache entries for the sstable being deleted
+                Iterator<KeyCacheKey> it = CacheService.instance.keyCache.keyIterator();
+                while (it.hasNext())
+                {
+                    KeyCacheKey key = it.next();
+                    if (key.desc.equals(desc))
+                        it.remove();
+                }
             }
 
             delete(desc, Lists.newArrayList(Sets.intersection(allComponents(), desc.discoverComponents())));
