@@ -41,6 +41,7 @@ import org.apache.cassandra.repair.autorepair.IAutoRepairTokenRangeSplitter.Repa
 
 import static org.apache.cassandra.repair.autorepair.RepairRangeSplitter.TABLE_BATCH_LIMIT;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class RepairRangeSplitterTest extends CQLTester
 {
@@ -59,6 +60,95 @@ public class RepairRangeSplitterTest extends CQLTester
     public void setUp() {
         repairRangeSplitter = new RepairRangeSplitter(Collections.emptyMap());
         tableName = createTable("CREATE TABLE %s (k INT PRIMARY KEY, v INT)");
+    }
+
+    @Test
+    public void testReorderByPriorityWithDifferentPriorities() {
+        String table1 = createTable("CREATE TABLE %s (k INT PRIMARY KEY, v INT) WITH repair_full = {'enabled': 'true', 'priority': '2'}");
+        String table2 = createTable("CREATE TABLE %s (k INT PRIMARY KEY, v INT) WITH repair_full = {'enabled': 'true', 'priority': '3'}");
+        String table3 = createTable("CREATE TABLE %s (k INT PRIMARY KEY, v INT) WITH repair_full = {'enabled': 'true', 'priority': '1'}");
+
+        // Test reordering assignments with different priorities
+        RepairAssignment assignment1 = new RepairAssignment(fullRange, KEYSPACE, Collections.singletonList(table1));
+        RepairAssignment assignment2 = new RepairAssignment(fullRange, KEYSPACE, Collections.singletonList(table2));
+        RepairAssignment assignment3 = new RepairAssignment(fullRange, KEYSPACE, Collections.singletonList(table3));
+
+        // Assume these priorities based on the repair type
+        List<RepairAssignment> assignments = new ArrayList<>(Arrays.asList(assignment1, assignment2, assignment3));
+
+        repairRangeSplitter.reorderByPriority(assignments, AutoRepairConfig.RepairType.FULL);
+
+        // Verify the order is by descending priority
+        assertEquals(assignment2, assignments.get(0));
+        assertEquals(assignment1, assignments.get(1));
+        assertEquals(assignment3, assignments.get(2));
+    }
+
+    @Test
+    public void testReorderByPriorityWithSamePriority() {
+        String table1 = createTable("CREATE TABLE %s (k INT PRIMARY KEY, v INT) WITH repair_full = {'enabled': 'true', 'priority': '2'}");
+        String table2 = createTable("CREATE TABLE %s (k INT PRIMARY KEY, v INT) WITH repair_full = {'enabled': 'true', 'priority': '2'}");
+        String table3 = createTable("CREATE TABLE %s (k INT PRIMARY KEY, v INT) WITH repair_full = {'enabled': 'true', 'priority': '2'}");
+
+        // Test reordering assignments with the same priority
+        RepairAssignment assignment1 = new RepairAssignment(fullRange, KEYSPACE, Collections.singletonList(table1));
+        RepairAssignment assignment2 = new RepairAssignment(fullRange, KEYSPACE, Collections.singletonList(table2));
+        RepairAssignment assignment3 = new RepairAssignment(fullRange, KEYSPACE, Collections.singletonList(table3));
+
+        List<RepairAssignment> assignments = new ArrayList<>(Arrays.asList(assignment1, assignment2, assignment3));
+
+        repairRangeSplitter.reorderByPriority(assignments, AutoRepairConfig.RepairType.FULL);
+
+        // Verify the original order is preserved as all priorities are the same
+        assertEquals(assignment1, assignments.get(0));
+        assertEquals(assignment2, assignments.get(1));
+        assertEquals(assignment3, assignments.get(2));
+    }
+
+    @Test
+    public void testReorderByPriorityWithMixedPriorities() {
+        String table1 = createTable("CREATE TABLE %s (k INT PRIMARY KEY, v INT) WITH repair_full = {'enabled': 'true', 'priority': '2'}");
+        String table2 = createTable("CREATE TABLE %s (k INT PRIMARY KEY, v INT) WITH repair_full = {'enabled': 'true', 'priority': '3'}");
+        String table3 = createTable("CREATE TABLE %s (k INT PRIMARY KEY, v INT) WITH repair_full = {'enabled': 'true', 'priority': '2'}");
+        String table4 = createTable("CREATE TABLE %s (k INT PRIMARY KEY, v INT) WITH repair_full = {'enabled': 'true', 'priority': '1'}");
+
+        // Test reordering assignments with mixed priorities
+        RepairAssignment assignment1 = new RepairAssignment(fullRange, KEYSPACE, Collections.singletonList(table1));
+        RepairAssignment assignment2 = new RepairAssignment(fullRange, KEYSPACE, Collections.singletonList(table2));
+        RepairAssignment assignment3 = new RepairAssignment(fullRange, KEYSPACE, Collections.singletonList(table3));
+        RepairAssignment assignment4 = new RepairAssignment(fullRange, KEYSPACE, Collections.singletonList(table4));
+
+        List<RepairAssignment> assignments = new ArrayList<>(Arrays.asList(assignment1, assignment2, assignment3, assignment4));
+
+        repairRangeSplitter.reorderByPriority(assignments, AutoRepairConfig.RepairType.FULL);
+
+        // Verify the order: highest priority first, then preserved order for same priority
+        assertEquals(assignment2, assignments.get(0)); // Priority 3
+        assertEquals(assignment1, assignments.get(1)); // Priority 2
+        assertEquals(assignment3, assignments.get(2)); // Priority 2
+        assertEquals(assignment4, assignments.get(3)); // Priority 1
+    }
+
+    @Test
+    public void testReorderByPriorityWithEmptyList() {
+        // Test with an empty list (should remain empty)
+        List<RepairAssignment> assignments = new ArrayList<>();
+        repairRangeSplitter.reorderByPriority(assignments, AutoRepairConfig.RepairType.FULL);
+        assertTrue(assignments.isEmpty());
+    }
+
+    @Test
+    public void testReorderByPriorityWithOneElement() {
+        // Test with a single element (should remain unchanged)
+        String table1 = createTable("CREATE TABLE %s (k INT PRIMARY KEY, v INT) WITH repair_full = {'enabled': 'true', 'priority': '5'}");
+
+        RepairAssignment assignment1 = new RepairAssignment(fullRange, KEYSPACE, Collections.singletonList(table1));
+
+        List<RepairAssignment> assignments = new ArrayList<>(Collections.singletonList(assignment1));
+
+        repairRangeSplitter.reorderByPriority(assignments, AutoRepairConfig.RepairType.FULL);
+
+        assertEquals(assignment1, assignments.get(0)); // Single element should remain in place
     }
 
     @Test
@@ -214,6 +304,7 @@ public class RepairRangeSplitterTest extends CQLTester
         // The merged result should contain all unique table names
         assertEquals(new HashSet<>(Arrays.asList("table1", "table2", "table3")), new HashSet<>(result.getTableNames()));
     }
+
 
     private void insertAndFlushSingleTable(String tableName) throws Throwable {
         execute("INSERT INTO %s (k, v) values (?, ?)", 1, 1);
